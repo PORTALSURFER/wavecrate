@@ -212,6 +212,10 @@
           "target": "check_markdown_links.ps1"
         },
         {
+          "name": "mdbook",
+          "target": "check_mdbook.ps1"
+        },
+        {
           "name": "migration-boundary",
           "target": "check_migration_boundary.ps1"
         },

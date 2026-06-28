@@ -40,6 +40,7 @@ remain the validation contract for development and release-risk checks:
 | Format and guardrails | none | `scripts/ci.* local` includes the required guardrails; use `scripts/check.* <name>` for focused reruns | Run locally before broad/risky changes |
 | Clippy | none | `scripts/ci.* local` | Run locally before broad/risky changes |
 | Docs | none | `scripts/ci.* local` | Run locally before broad/risky changes |
+| Public mdBook docs | none | `scripts/check.* mdbook` | Run when changing `book.toml` or `docs/book/src/` |
 | Tests | none | `scripts/ci.* local` runs `cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast` on the local platform | Run locally before broad/risky changes |
 | Quarantined/slow tests | none | `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast` | Advisory until the tests are hardened |
 | Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
@@ -116,8 +117,23 @@ Use for most app/domain behavior under `src/`.
 Use for tooling, fixtures, and numerical-reference flows.
 
 - `bash scripts/check.sh golden-tests`
+- `bash scripts/check.sh mdbook`
 - `cargo nextest run golden_log_mel_matches_python`
 - `cargo nextest run golden_embedding_matches_python`
+
+### Public mdBook documentation
+
+Use this lane when changing `book.toml` or files under `docs/book/src/`.
+
+- build:
+  - `bash scripts/check.sh mdbook`
+  - or `mdbook build`
+- preview:
+  - `mdbook serve --hostname 127.0.0.1 --port 3011`
+- generated local output:
+  - `target/mdbook/wavecrate-docs/`
+- public publishing target:
+  - `https://portalsurfer.org/wavecrate/docs/`
 
 ### Wavecrate UI projection compatibility tests
 
