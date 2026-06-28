@@ -13,16 +13,17 @@ use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionVi
 use crate::native_app::sample_library::folder_browser::commands::{
     FilterFamily, FolderBrowserMessage,
 };
+pub(super) use crate::native_app::sample_library::folder_browser::view_contract::{
+    FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_ROW_CONTROL_HEIGHT, FILTER_ROW_HEIGHT,
+    FILTER_ROW_SPACING,
+};
 use crate::native_app::ui::ids as widget_ids;
 
-pub(super) const FILTER_ROW_HEIGHT: f32 = 24.0;
-pub(super) const FILTER_ROW_SPACING: f32 = 1.0;
-pub(super) const FILTER_CLEAR_BUTTON_SIZE: f32 = 20.0;
+pub(super) const FILTER_ROW_VERTICAL_INSET: f32 =
+    (FILTER_ROW_HEIGHT - FILTER_ROW_CONTROL_HEIGHT) * 0.5;
 pub(super) const FILTER_LABEL_WIDTH: f32 = 64.0;
 const FILTER_CONTROL_SPACING: f32 = 2.0;
 pub(super) const FILTER_LABEL_CONTROL_SPACING: f32 = 6.0;
-pub(super) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
-    FILTER_ROW_HEIGHT * 6.0 + FILTER_ROW_SPACING * 5.0;
 const HARVEST_FAMILY_TOGGLE_WIDTH: f32 = 22.0;
 const PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH: f32 = 64.0;
 const RATING_FILTER_TOGGLE_WIDTH: f32 = 18.0;
@@ -151,7 +152,7 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
         )
         .spacing(FILTER_CONTROL_SPACING)
         .fill_width()
-        .height(FILTER_CLEAR_BUTTON_SIZE),
+        .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-type-row",
     )
 }
@@ -164,7 +165,7 @@ fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage>
             .build()
             .id(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
             .fill_width()
-            .height(FILTER_CLEAR_BUTTON_SIZE),
+            .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-curation-row",
     )
 }
@@ -244,11 +245,11 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
             .id(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
             .tooltip_if(help_tooltips_enabled, "Choose the Harvest queue to show.")
             .fill_width()
-            .height(FILTER_CLEAR_BUTTON_SIZE),
+            .height(FILTER_ROW_CONTROL_HEIGHT),
     ])
     .spacing(FILTER_CONTROL_SPACING)
     .fill_width()
-    .height(FILTER_CLEAR_BUTTON_SIZE);
+    .height(FILTER_ROW_CONTROL_HEIGHT);
 
     filter_labeled_control_row(
         filter_row_label(row.label, row.family, row.enabled),
@@ -257,15 +258,12 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     )
 }
 
-fn harvest_filter_arrow_toggle(
-    open: bool,
-    help_tooltips_enabled: bool,
-) -> ui::View<GuiMessage> {
+fn harvest_filter_arrow_toggle(open: bool, help_tooltips_enabled: bool) -> ui::View<GuiMessage> {
     ui::disclosure_button(open)
         .active(open)
         .message(GuiMessage::ToggleHarvestFilterDropdown)
         .id(widget_ids::HARVEST_FAMILY_TOGGLE_ID)
-        .size(HARVEST_FAMILY_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+        .size(HARVEST_FAMILY_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
         .tooltip_if(help_tooltips_enabled, "Choose the Harvest queue to show.")
 }
 
@@ -357,7 +355,7 @@ fn playback_type_filter_toggle(
             ))
         })
         .id(automation_playback_type_filter_toggle_id(toggle.label))
-        .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+        .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
 }
 
 fn playback_type_filter_toggle_style() -> ui::WidgetStyle {
@@ -381,7 +379,7 @@ fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
         )
         .spacing(1.0)
         .fill_width()
-        .height(FILTER_CLEAR_BUTTON_SIZE),
+        .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-rating-row",
     )
 }
@@ -398,7 +396,7 @@ fn rating_filter_toggle(toggle: &RatingFilterToggleProjection) -> ui::View<GuiMe
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
         .id(automation_rating_filter_toggle_id(toggle.label))
-        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+        .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
 }
 
 fn rating_filter_tone(level: i8) -> ui::WidgetTone {
@@ -452,7 +450,7 @@ fn filter_row_label(
             ))
         })
         .id(automation_filter_family_label_toggle_id(label))
-        .size(FILTER_LABEL_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
+        .size(FILTER_LABEL_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
 }
 
 /// Automation-facing id for a filter family label toggle.
@@ -465,46 +463,36 @@ fn filter_labeled_control_row(
     control: ui::View<GuiMessage>,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    filter_labeled_control_row_with_height(
-        label,
-        control,
-        key,
-        FILTER_ROW_HEIGHT,
-        FILTER_CLEAR_BUTTON_SIZE,
-    )
-}
-
-fn filter_labeled_control_row_with_height(
-    label: ui::View<GuiMessage>,
-    control: ui::View<GuiMessage>,
-    key: &'static str,
-    row_height: f32,
-    cell_height: f32,
-) -> ui::View<GuiMessage> {
     ui::row([
-        centered_filter_label_cell(label, row_height),
-        control.fill_width().height(cell_height),
+        centered_filter_label_cell(label),
+        centered_filter_control_cell(control),
     ])
     .key(format!("filter-row-{key}"))
     .fill_width()
-    .height(row_height)
+    .height(FILTER_ROW_HEIGHT)
     .spacing(FILTER_LABEL_CONTROL_SPACING)
 }
 
-fn centered_filter_label_cell(
-    label: ui::View<GuiMessage>,
-    row_height: f32,
-) -> ui::View<GuiMessage> {
-    let padding = ((row_height - FILTER_CLEAR_BUTTON_SIZE) * 0.5).max(0.0);
+fn centered_filter_label_cell(label: ui::View<GuiMessage>) -> ui::View<GuiMessage> {
     ui::column([
-        ui::spacer().fill_width().height(padding),
+        ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
         label
             .width(FILTER_LABEL_WIDTH)
-            .height(FILTER_CLEAR_BUTTON_SIZE),
-        ui::spacer().fill_width().height(padding),
+            .height(FILTER_ROW_CONTROL_HEIGHT),
+        ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
     ])
     .width(FILTER_LABEL_WIDTH)
-    .height(row_height)
+    .height(FILTER_ROW_HEIGHT)
+}
+
+fn centered_filter_control_cell(control: ui::View<GuiMessage>) -> ui::View<GuiMessage> {
+    ui::column([
+        ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
+        control.fill_width().height(FILTER_ROW_CONTROL_HEIGHT),
+        ui::spacer().fill_width().height(FILTER_ROW_VERTICAL_INSET),
+    ])
+    .fill_width()
+    .height(FILTER_ROW_HEIGHT)
 }
 
 pub(super) fn empty_filter_message() -> TextInputMessage {

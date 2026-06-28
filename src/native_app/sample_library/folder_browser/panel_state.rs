@@ -13,11 +13,12 @@ use super::{
 const FILTER_PANEL_PADDING: f32 = 6.0;
 const FILTER_PANEL_HEADER_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
 const FILTER_PANEL_HEADER_CONTENT_SPACING: f32 = super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
-const MAX_FILTER_PANEL_HEIGHT: f32 = 210.0;
+const MAX_FILTER_PANEL_HEIGHT: f32 = filter_panel_geometry()
+    .section_height_for_content_height(super::FILTER_CONTROLS_VIEWPORT_HEIGHT);
 pub(in crate::native_app) const COLLAPSED_FILTER_PANEL_HEIGHT: f32 =
     filter_panel_geometry().header_only_height();
 const MIN_FILTER_PANEL_HEIGHT: f32 = COLLAPSED_FILTER_PANEL_HEIGHT;
-pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = 166.0;
+pub(in crate::native_app) const DEFAULT_FILTER_PANEL_HEIGHT: f32 = MAX_FILTER_PANEL_HEIGHT;
 
 const METADATA_PANEL_PADDING: f32 = 6.0;
 const METADATA_PANEL_TITLE_HEIGHT: f32 = super::SIDEBAR_PANEL_HEADER_HEIGHT;
@@ -76,7 +77,10 @@ impl BrowserPanelLayoutState {
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn filter_panel_height(&self) -> f32 {
-        self.panel_layout.filter.size()
+        self.panel_layout
+            .filter
+            .size()
+            .clamp(MIN_FILTER_PANEL_HEIGHT, MAX_FILTER_PANEL_HEIGHT)
     }
 
     pub(in crate::native_app) fn resize_filter_panel(&mut self, message: ui::DragHandleMessage) {

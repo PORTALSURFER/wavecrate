@@ -17,6 +17,11 @@ pub(in crate::native_app) const SIDEBAR_PANEL_HEADER_HEIGHT: f32 =
     super::SIDEBAR_PANEL_HEADER_HEIGHT;
 pub(in crate::native_app) const SIDEBAR_PANEL_HEADER_CONTENT_SPACING: f32 =
     super::SIDEBAR_PANEL_HEADER_CONTENT_SPACING;
+pub(in crate::native_app) const FILTER_ROW_HEIGHT: f32 = super::FILTER_ROW_HEIGHT;
+pub(in crate::native_app) const FILTER_ROW_SPACING: f32 = super::FILTER_ROW_SPACING;
+pub(in crate::native_app) const FILTER_ROW_CONTROL_HEIGHT: f32 = super::FILTER_ROW_CONTROL_HEIGHT;
+pub(in crate::native_app) const FILTER_CONTROLS_CONTENT_HEIGHT: f32 =
+    super::FILTER_CONTROLS_CONTENT_HEIGHT;
 pub(in crate::native_app) use super::collections::{
     COLLECTION_ROW_HEIGHT, COLLECTION_ROW_SPACING, COLLECTIONS_PANEL_HEADER_CONTENT_SPACING,
     COLLECTIONS_PANEL_PADDING, CollectionRenameView, MissingCollectionFile, SampleCollectionView,

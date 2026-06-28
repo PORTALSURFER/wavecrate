@@ -102,6 +102,54 @@ fn filter_section_filter_name_labels_are_compact_and_same_size() {
 }
 
 #[test]
+fn filter_section_rows_share_uniform_height_contract() {
+    let state = FolderBrowserState::load_default();
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let layout = filter_section(&model)
+        .view_layout_at_size(ui::Vector2::new(240.0, FILTER_SECTION_TEST_FRAME_HEIGHT));
+    let rows = [
+        ("Name", NAME_FILTER_INPUT_ID),
+        ("Tags", TAG_FILTER_INPUT_ID),
+        ("Curat", CURATION_FILTER_DROPDOWN_TRIGGER_ID),
+        ("Harvest", HARVEST_FILTER_DROPDOWN_TRIGGER_ID),
+        ("Type", automation_playback_type_filter_toggle_id("1-Shot")),
+        ("Ratin", automation_rating_filter_toggle_id("T3")),
+    ];
+    let mut previous_row_top = None;
+
+    for (label, control_id) in rows {
+        let label_rect = layout
+            .rects
+            .get(&automation_filter_family_label_toggle_id(label))
+            .copied()
+            .unwrap_or_else(|| panic!("missing {label} label hit target"));
+        let control_rect = layout
+            .rects
+            .get(&control_id)
+            .copied()
+            .unwrap_or_else(|| panic!("missing {label} control hit target"));
+        let row_top = label_rect.min.y - FILTER_ROW_VERTICAL_INSET;
+
+        assert_close(label_rect.height(), FILTER_ROW_CONTROL_HEIGHT);
+        assert_close(control_rect.height(), FILTER_ROW_CONTROL_HEIGHT);
+        assert_close(control_rect.min.y, label_rect.min.y);
+        assert_close(control_rect.center().y, label_rect.center().y);
+        assert_close(
+            row_top + FILTER_ROW_HEIGHT,
+            label_rect.max.y + FILTER_ROW_VERTICAL_INSET,
+        );
+
+        if let Some(previous_top) = previous_row_top {
+            assert_close(
+                row_top - previous_top,
+                FILTER_ROW_HEIGHT + FILTER_ROW_SPACING,
+            );
+        }
+        previous_row_top = Some(row_top);
+    }
+}
+
+#[test]
 fn filter_section_filter_labels_dispatch_family_enable_changes() {
     let mut state = FolderBrowserState::load_default();
     state.apply_message(FolderBrowserMessage::NameFilterInput(
@@ -138,6 +186,13 @@ fn filter_section_filter_labels_dispatch_family_enable_changes() {
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SetFilterFamilyEnabled(FilterFamily::Tags, true)
         ))
+    );
+}
+
+fn assert_close(actual: f32, expected: f32) {
+    assert!(
+        (actual - expected).abs() < 0.01,
+        "expected {actual} to be within 0.01 of {expected}"
     );
 }
 

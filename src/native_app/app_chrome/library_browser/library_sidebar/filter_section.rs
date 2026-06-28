@@ -13,9 +13,9 @@ mod rows;
 mod tests;
 
 use rows::{
-    FILTER_CLEAR_BUTTON_SIZE, FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_LABEL_CONTROL_SPACING,
-    FILTER_LABEL_WIDTH, FILTER_ROW_HEIGHT, FILTER_ROW_SPACING, curation_filter_dropdown_menu,
-    filter_rows, harvest_filter_dropdown_menu,
+    FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_LABEL_CONTROL_SPACING, FILTER_LABEL_WIDTH,
+    FILTER_ROW_CONTROL_HEIGHT, FILTER_ROW_HEIGHT, FILTER_ROW_SPACING, FILTER_ROW_VERTICAL_INSET,
+    curation_filter_dropdown_menu, filter_rows, harvest_filter_dropdown_menu,
 };
 
 pub(super) const FILTER_PANEL_PADDING: f32 = 6.0;
@@ -115,7 +115,8 @@ fn filter_dropdown_overlay(
         + SIDEBAR_PANEL_HEADER_HEIGHT
         + FILTER_PANEL_HEADER_CONTENT_SPACING
         + row_index as f32 * (FILTER_ROW_HEIGHT + FILTER_ROW_SPACING)
-        + FILTER_CLEAR_BUTTON_SIZE;
+        + FILTER_ROW_VERTICAL_INSET
+        + FILTER_ROW_CONTROL_HEIGHT;
     let trigger_bottom_inset =
         filter_bottom_inset + (model.panel_height - trigger_bottom_from_filter_top).max(0.0);
     let menu_bottom_inset = (trigger_bottom_inset - FILTER_ROW_SPACING - size.y).max(0.0);

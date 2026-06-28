@@ -21,6 +21,48 @@ fn filter_section_layout_uses_configured_height() {
 }
 
 #[test]
+fn filter_section_default_height_fits_filter_rows() {
+    let state = FolderBrowserState::load_default();
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let expected_height = FILTER_PANEL_HEADER_HEIGHT
+        + FILTER_PANEL_PADDING * 2.0
+        + FILTER_PANEL_HEADER_CONTENT_SPACING
+        + FILTER_CONTROLS_CONTENT_HEIGHT
+        + 12.0;
+
+    assert_eq!(model.panel_height, expected_height);
+}
+
+#[test]
+fn filter_section_default_viewport_leaves_bottom_guard_after_rows() {
+    let state = FolderBrowserState::load_default();
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+    let layout = ui::column([
+        filter_section(&model),
+        ui::spacer().fill_width().fill_height(),
+    ])
+    .view_layout_at_size(ui::Vector2::new(240.0, 600.0));
+    let scroll = layout
+        .rects
+        .get(&FILTER_SECTION_SCROLL_NODE_ID)
+        .expect("filter scroll layout rect");
+    let rating = layout
+        .rects
+        .get(&automation_filter_family_label_toggle_id("Ratin"))
+        .expect("rating filter label layout rect");
+
+    assert!(
+        rating.max.y < scroll.max.y,
+        "default filter viewport should leave a bottom guard after the final row, scroll={scroll:?}, rating={rating:?}"
+    );
+    let bottom_guard = scroll.max.y - rating.max.y;
+    assert!(
+        bottom_guard >= 3.5,
+        "default filter viewport should leave a visible bottom guard after accounting for scroll chrome, actual={bottom_guard}"
+    );
+}
+
+#[test]
 fn filter_resize_header_uses_full_width_hit_target() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel::from_folder_browser(&state, false);
