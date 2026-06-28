@@ -12,8 +12,6 @@ pub(in crate::native_app) struct MainToolbarViewModel {
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) metronome_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
-    pub(in crate::native_app) can_decrement_beat_guide_count: bool,
-    pub(in crate::native_app) can_increment_beat_guide_count: bool,
     pub(in crate::native_app) pending_edit_mark_edits: bool,
     pub(in crate::native_app) help_tooltips_enabled: bool,
 }
@@ -38,10 +36,6 @@ impl MainToolbarViewModel {
             beat_guides_enabled: state.ui.chrome.beat_guides_enabled,
             metronome_enabled: state.audio.metronome_enabled,
             beat_guide_count: state.ui.chrome.beat_guide_count,
-            can_decrement_beat_guide_count: state.ui.chrome.beat_guide_count
-                > crate::native_app::app::MIN_BEAT_GUIDE_COUNT,
-            can_increment_beat_guide_count: state.ui.chrome.beat_guide_count
-                < crate::native_app::app::MAX_BEAT_GUIDE_COUNT,
             pending_edit_mark_edits: state
                 .waveform
                 .current

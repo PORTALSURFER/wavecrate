@@ -163,6 +163,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
         "toolbar.zero_crossing_snap"
     ),
     registered_widget_id!(
+        Toolbar,
+        TOOLBAR_BEAT_GUIDE_COUNT_ID,
+        "toolbar.beat_guide_count"
+    ),
+    registered_widget_id!(
         FolderFilters,
         FILTER_SECTION_NODE_ID,
         "folder_filters.section"

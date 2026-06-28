@@ -1,3 +1,4 @@
+mod beat_count_input;
 mod icons;
 mod identity;
 mod projection;
@@ -6,6 +7,7 @@ use radiant::{prelude as ui, widgets::ButtonMessage};
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
+use beat_count_input::{BeatGuideCountInputMessage, BeatGuideCountInputWidget};
 
 pub(in crate::native_app) use icons::{ToolbarIcon, toolbar_icon_color, toolbar_icon_glyph};
 pub(in crate::native_app) use projection::{
@@ -40,21 +42,36 @@ fn toolbar_control(
     match control {
         ToolbarControlProjection::Icon(button) => toolbar_icon_button_from_projection(button)
             .tooltip_if(help_tooltips_enabled, button.tooltip),
-        ToolbarControlProjection::BeatGuideCount { count, key } => {
-            beat_guide_count_label(count, key)
-        }
+        ToolbarControlProjection::BeatGuideCountField {
+            count,
+            id,
+            key,
+            tooltip,
+        } => beat_guide_count_field(count, id, key).tooltip_if(help_tooltips_enabled, tooltip),
         ToolbarControlProjection::ApplyEditMarkEdits { id, tooltip } => {
             apply_edit_mark_edits_button(id).tooltip_if(help_tooltips_enabled, tooltip)
         }
     }
 }
 
-fn beat_guide_count_label(count: u8, key: &'static str) -> ui::View<GuiMessage> {
-    ui::text_line(count.to_string(), 24.0)
-        .align_text(ui::TextAlign::Center)
-        .key(key)
-        .width(20.0)
-        .height(24.0)
+fn beat_guide_count_field(count: u8, id: u64, key: &'static str) -> ui::View<GuiMessage> {
+    ui::custom_widget_mapped(
+        BeatGuideCountInputWidget::new(id, count, 34.0, 24.0),
+        beat_guide_count_input_message,
+    )
+    .key(key)
+    .id(id)
+    .size(34.0, 24.0)
+}
+
+fn beat_guide_count_input_message(message: BeatGuideCountInputMessage) -> GuiMessage {
+    match message {
+        BeatGuideCountInputMessage::Changed(value) => GuiMessage::ChangeBeatGuideCountInput(value),
+        BeatGuideCountInputMessage::Committed(value) => {
+            GuiMessage::CommitBeatGuideCountInput(value)
+        }
+        BeatGuideCountInputMessage::Set(count) => GuiMessage::SetBeatGuideCount(count),
+    }
 }
 
 fn apply_edit_mark_edits_button(id: u64) -> ui::View<GuiMessage> {
@@ -120,8 +137,6 @@ fn toolbar_button_message(icon: ToolbarIcon, message: ButtonMessage) -> GuiMessa
         ToolbarIcon::ZeroCrossingSnap => GuiMessage::ToggleZeroCrossingSnap,
         ToolbarIcon::BeatGuides => GuiMessage::ToggleBeatGuides,
         ToolbarIcon::Metronome => GuiMessage::ToggleMetronome,
-        ToolbarIcon::BeatGuideMinus => GuiMessage::AdjustBeatGuideCount(-1),
-        ToolbarIcon::BeatGuidePlus => GuiMessage::AdjustBeatGuideCount(1),
         ToolbarIcon::Play => GuiMessage::PlaySelectedSample,
         ToolbarIcon::Stop => GuiMessage::StopPlayback,
     }

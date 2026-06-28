@@ -8,8 +8,8 @@ pub(in crate::native_app) const TOOLBAR_RANDOM_ID: u64 = widget_ids::TOOLBAR_RAN
 pub(super) const TOOLBAR_BEAT_GUIDES_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDES_ID;
 pub(super) const TOOLBAR_METRONOME_ID: u64 = widget_ids::TOOLBAR_METRONOME_ID;
 pub(super) const TOOLBAR_ZERO_CROSSING_SNAP_ID: u64 = widget_ids::TOOLBAR_ZERO_CROSSING_SNAP_ID;
-pub(super) const TOOLBAR_BEAT_GUIDE_DECREMENT_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDE_DECREMENT_ID;
-pub(super) const TOOLBAR_BEAT_GUIDE_INCREMENT_ID: u64 = widget_ids::TOOLBAR_BEAT_GUIDE_INCREMENT_ID;
+pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_COUNT_ID: u64 =
+    widget_ids::TOOLBAR_BEAT_GUIDE_COUNT_ID;
 pub(in crate::native_app) const TOOLBAR_APPLY_EDIT_MARK_EDITS_ID: u64 =
     widget_ids::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID;
 pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =

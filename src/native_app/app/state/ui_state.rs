@@ -15,8 +15,8 @@ use crate::native_app::sample_library::context_menu_target::BrowserContextMenu;
 use crate::native_app::waveform::WaveformContextMenu;
 
 pub(in crate::native_app) const DEFAULT_BEAT_GUIDE_COUNT: u8 = 4;
-pub(in crate::native_app) const MIN_BEAT_GUIDE_COUNT: u8 = 1;
-pub(in crate::native_app) const MAX_BEAT_GUIDE_COUNT: u8 = 64;
+pub(in crate::native_app) const MIN_BEAT_GUIDE_COUNT: u8 = 2;
+pub(in crate::native_app) const MAX_BEAT_GUIDE_COUNT: u8 = 32;
 
 pub(in crate::native_app) struct UiAppState {
     pub(in crate::native_app) chrome: ChromeUiState,
@@ -174,13 +174,41 @@ impl ChromeUiState {
         }
     }
 
-    pub(in crate::native_app) fn adjust_beat_guide_count(&mut self, delta: i8) {
-        let next = i16::from(self.beat_guide_count) + i16::from(delta);
-        self.beat_guide_count = next.clamp(
-            i16::from(MIN_BEAT_GUIDE_COUNT),
-            i16::from(MAX_BEAT_GUIDE_COUNT),
-        ) as u8;
+    pub(in crate::native_app) fn set_beat_guide_count(&mut self, count: u8) {
+        self.beat_guide_count = clamp_beat_guide_count(u16::from(count));
     }
+
+    pub(in crate::native_app) fn preview_beat_guide_count_input(&mut self, value: &str) {
+        if let Some(count) = parse_in_range_beat_guide_count(value) {
+            self.beat_guide_count = count;
+        }
+    }
+
+    pub(in crate::native_app) fn commit_beat_guide_count_input(&mut self, value: &str) {
+        self.beat_guide_count = parse_beat_guide_count(value)
+            .map(clamp_beat_guide_count)
+            .unwrap_or(MIN_BEAT_GUIDE_COUNT);
+    }
+}
+
+fn parse_in_range_beat_guide_count(value: &str) -> Option<u8> {
+    let count = parse_beat_guide_count(value)?;
+    (u16::from(MIN_BEAT_GUIDE_COUNT)..=u16::from(MAX_BEAT_GUIDE_COUNT))
+        .contains(&count)
+        .then_some(count as u8)
+}
+
+fn parse_beat_guide_count(value: &str) -> Option<u16> {
+    (!value.is_empty() && value.chars().all(|character| character.is_ascii_digit()))
+        .then(|| value.parse::<u16>().ok())
+        .flatten()
+}
+
+fn clamp_beat_guide_count(value: u16) -> u8 {
+    value.clamp(
+        u16::from(MIN_BEAT_GUIDE_COUNT),
+        u16::from(MAX_BEAT_GUIDE_COUNT),
+    ) as u8
 }
 
 pub(in crate::native_app) struct SettingsUiState {
