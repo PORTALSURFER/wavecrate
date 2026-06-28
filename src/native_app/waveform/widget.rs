@@ -162,7 +162,11 @@ impl WaveformWidgetProps {
         Self {
             file: state.file(),
             viewport: state.viewport(),
-            playhead_ratio: state.playhead_ratio(),
+            playhead_ratio: if state.is_playing() {
+                None
+            } else {
+                state.playhead_ratio()
+            },
             play_mark_ratio: state.play_mark_ratio(),
             edit_mark_ratio: state.edit_mark_ratio(),
             play_selection: state.play_selection(),

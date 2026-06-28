@@ -34,6 +34,7 @@ const AUDIO_OUTPUT_UNAVAILABLE_ERROR: &str = "Audio output stream is unavailable
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     playing: bool,
+    playback_visual_generation: u64,
     play_selection_flash_active: bool,
     copy_flash_frames: u8,
     drag_hover_auto_expand_pending: bool,
@@ -403,6 +404,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
+        self.audio.playback_progress = Default::default();
         emit_gui_action(
             "playback.progress",
             Some("transport"),
@@ -418,6 +420,7 @@ impl FrameRepaintScopeSnapshot {
     fn from_state(state: &NativeAppState) -> Self {
         Self {
             playing: state.waveform.current.is_playing(),
+            playback_visual_generation: state.waveform.current.playback_visual_generation(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
             copy_flash_frames: state
                 .library
@@ -466,6 +469,7 @@ impl FrameRepaintScopeSnapshot {
 
     fn same_transient_frame_state(self, after: Self) -> bool {
         self.playing == after.playing
+            && self.playback_visual_generation == after.playback_visual_generation
             && self.play_selection_flash_active == after.play_selection_flash_active
             && self.copy_flash_frames == after.copy_flash_frames
             && self.drag_hover_auto_expand_pending == after.drag_hover_auto_expand_pending

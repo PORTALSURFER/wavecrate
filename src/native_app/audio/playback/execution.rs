@@ -123,6 +123,7 @@ impl NativeAppState {
                 .current
                 .start_playback_without_marker(playback_start);
         }
+        self.audio.playback_progress = Default::default();
         self.audio.current_playback_span =
             Some((command.resolved.start_ratio, command.resolved.end_ratio));
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {

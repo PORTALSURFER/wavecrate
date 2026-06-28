@@ -10,6 +10,7 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) viewport: WaveformViewport,
     pub(in crate::native_app::waveform) zoom_anchor_ratio: f32,
     pub(in crate::native_app::waveform) playing: bool,
+    pub(in crate::native_app::waveform) playback_visual_generation: u64,
     pub(in crate::native_app::waveform) playhead_ratio: Option<f32>,
     pub(in crate::native_app::waveform) play_mark_ratio: Option<f32>,
     pub(in crate::native_app::waveform) edit_mark_ratio: Option<f32>,

@@ -15,6 +15,20 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
 }
 
 #[test]
+fn playback_restart_repaints_surface_to_clear_stale_playhead_visuals() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.62);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.waveform.current.start_playback(0.12);
+
+    assert!(
+        !state.frame_can_use_paint_only(before),
+        "retriggering playback while already playing should clear retained playhead paint"
+    );
+}
+
+#[test]
 fn idle_frame_uses_paint_only_when_frame_state_is_stable() {
     let mut state = gui_state_for_span_tests();
 

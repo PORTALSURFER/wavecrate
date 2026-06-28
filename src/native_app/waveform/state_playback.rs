@@ -5,6 +5,10 @@ impl WaveformState {
         self.playing
     }
 
+    pub(in crate::native_app) fn playback_visual_generation(&self) -> u64 {
+        self.playback_visual_generation
+    }
+
     pub(in crate::native_app) fn playhead_ratio(&self) -> Option<f32> {
         self.playhead_ratio
     }
@@ -32,6 +36,7 @@ impl WaveformState {
     fn start_playback_with_marker(&mut self, ratio: f32, show_marker: bool) {
         let ratio = ratio.clamp(0.0, 1.0);
         self.playing = true;
+        self.playback_visual_generation = self.playback_visual_generation.wrapping_add(1);
         self.play_mark_ratio = show_marker.then_some(ratio);
         self.playhead_ratio = Some(ratio);
         self.zoom_anchor_ratio = ratio;
@@ -44,6 +49,9 @@ impl WaveformState {
     }
 
     pub(in crate::native_app) fn stop_playback(&mut self) {
+        if self.playing || self.playhead_ratio.is_some() {
+            self.playback_visual_generation = self.playback_visual_generation.wrapping_add(1);
+        }
         self.playing = false;
         self.playhead_ratio = None;
     }

@@ -120,6 +120,7 @@ impl WaveformState {
             viewport,
             zoom_anchor_ratio: 0.5,
             playing: false,
+            playback_visual_generation: 0,
             playhead_ratio: None,
             play_mark_ratio: None,
             edit_mark_ratio: None,
