@@ -31,7 +31,6 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     global::TAG_NEUTRAL_SELECTED,
     global::TAG_KEEP_SELECTED,
     global::TAG_TRASH_SELECTED,
-    browser::SEARCH_BROWSER,
     browser::FOCUS_LOADED_SAMPLE,
     browser::COPY_BROWSER_SELECTION,
     browser::SET_COMPARE_ANCHOR,
@@ -46,8 +45,6 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     browser::MOVE_BROWSER_FOCUS_DOWN,
     browser::FOCUS_HISTORY_PREVIOUS,
     browser::FOCUS_HISTORY_NEXT,
-    browser::RENAME_SAMPLE,
-    browser::RENAME_SAMPLE_COMMAND,
     browser::SELECT_ALL,
     browser::NORMALIZE_SAMPLE,
     browser::DELETE_SAMPLE,
@@ -224,20 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn command_r_resolves_rename_in_sample_and_folder_contexts() {
-        let sample_rename = hotkeys::resolve_hotkey_press(
-            None,
-            KeyPress::with_command(KeyCode::R),
-            FocusContext::SampleBrowser,
-        );
-        assert_eq!(
-            sample_rename.action,
-            Some(NativeUiAction::PromptsAndEdits(
-                crate::app_core::actions::NativePromptEditAction::StartBrowserRename
-            ))
-        );
-        assert!(sample_rename.handled);
-
+    fn command_r_resolves_rename_in_folder_context_only() {
         let folder_rename = hotkeys::resolve_hotkey_press(
             None,
             KeyPress::with_command(KeyCode::R),

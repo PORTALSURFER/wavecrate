@@ -6,19 +6,14 @@ pub(crate) fn project_browser_chrome_model(
     ui: &UiState,
     visible_count: usize,
 ) -> BrowserChromeModel {
-    let search_focused = ui.browser.search.search_focus_requested;
     let duplicate_cleanup_active = ui.browser.duplicate_cleanup.is_some();
     BrowserChromeModel {
         samples_tab_label: String::from("Samples"),
         sample_column_label: String::from("Sample"),
         map_tab_label: String::from("Starmap"),
         tag_editor_label: String::from("Tags"),
-        search_prefix_label: if search_focused {
-            String::from("Search • focused")
-        } else {
-            String::from("Search")
-        },
-        search_placeholder: browser_search_placeholder(search_focused),
+        search_prefix_label: String::from("Search"),
+        search_placeholder: browser_search_placeholder(),
         activity_ready_label: String::from("Ready"),
         activity_busy_label: String::from("Filtering"),
         sort_prefix_label: String::from("Sort"),
@@ -56,11 +51,7 @@ pub(super) fn browser_tab_label(tab: SampleBrowserTab) -> &'static str {
     }
 }
 
-/// Resolve search placeholder text, including a focused caret hint when active.
-pub(super) fn browser_search_placeholder(search_focused: bool) -> String {
-    if search_focused {
-        String::from("▌")
-    } else {
-        String::from("Search samples (Ctrl+F)")
-    }
+/// Resolve search placeholder text.
+pub(super) fn browser_search_placeholder() -> String {
+    String::from("Search samples")
 }

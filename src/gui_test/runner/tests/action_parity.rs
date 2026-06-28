@@ -64,11 +64,7 @@ fn browser_nodes_advertise_expected_action_ids() {
         ("browser", "browser.panel", &["focus_browser_panel"]),
         ("browser", "browser.tab.map", &["set_browser_tab"]),
         ("browser", "browser.tab.samples", &["set_browser_tab"]),
-        (
-            "browser",
-            "browser.search_field",
-            &["focus_browser_search", "set_browser_search"],
-        ),
+        ("browser", "browser.search_field", &["set_browser_search"]),
         (
             "browser",
             "sources.filters.rating",

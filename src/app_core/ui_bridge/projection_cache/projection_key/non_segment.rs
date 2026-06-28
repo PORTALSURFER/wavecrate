@@ -192,7 +192,7 @@ fn hash_confirm_prompt_model(model: &crate::app_core::actions::NativeConfirmProm
     match model.kind {
         None => 0u8,
         Some(crate::app_core::actions::NativeConfirmPromptKind::DestructiveEdit) => 1u8,
-        Some(crate::app_core::actions::NativeConfirmPromptKind::BrowserRename) => 2u8,
+        Some(crate::app_core::actions::NativeConfirmPromptKind::BrowserNameConflict) => 2u8,
         Some(crate::app_core::actions::NativeConfirmPromptKind::FolderRename) => 3u8,
         Some(crate::app_core::actions::NativeConfirmPromptKind::FolderCreate) => 4u8,
         Some(crate::app_core::actions::NativeConfirmPromptKind::RestoreRetainedFolderDeletes) => {

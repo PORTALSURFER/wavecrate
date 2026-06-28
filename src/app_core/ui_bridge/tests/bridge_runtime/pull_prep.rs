@@ -35,7 +35,7 @@ fn local_focus_actions_arm_local_model_pull_fast_path() {
     let mut bridge = test_bridge(16);
 
     bridge.on_action(NativeUiAction::Shell(
-        crate::app_core::actions::NativeShellAction::FocusBrowserSearch,
+        crate::app_core::actions::NativeShellAction::FocusBrowserPanel,
     ));
 
     assert_eq!(

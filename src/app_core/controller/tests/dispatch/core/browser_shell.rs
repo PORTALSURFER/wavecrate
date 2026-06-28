@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn apply_ui_action_routes_browser_search_and_shell_focus_cases() {
+fn apply_ui_action_routes_browser_search_case() {
     let mut controller = controller_for_grouped_dispatch();
 
     controller.apply_ui_action(NativeUiAction::Browser(
@@ -10,11 +10,6 @@ fn apply_ui_action_routes_browser_search_and_shell_focus_cases() {
         },
     ));
     assert_eq!(controller.ui.browser.search.search_query, "kicks");
-
-    controller.apply_ui_action(NativeUiAction::Shell(
-        crate::app_core::actions::NativeShellAction::BlurBrowserSearch,
-    ));
-    assert!(!controller.ui.browser.search.search_focus_requested);
 }
 
 #[test]

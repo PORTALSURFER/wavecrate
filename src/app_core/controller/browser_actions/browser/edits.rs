@@ -8,15 +8,6 @@ pub(super) fn apply_edit_action(
 ) -> Result<(), NativeUiAction> {
     match action {
         NativeUiAction::PromptsAndEdits(
-            crate::app_core::actions::NativePromptEditAction::StartBrowserRename,
-        ) => controller.start_browser_rename(),
-        NativeUiAction::PromptsAndEdits(
-            crate::app_core::actions::NativePromptEditAction::ConfirmBrowserRename,
-        ) => controller.apply_pending_browser_rename(),
-        NativeUiAction::PromptsAndEdits(
-            crate::app_core::actions::NativePromptEditAction::CancelBrowserRename,
-        ) => controller.cancel_browser_rename(),
-        NativeUiAction::PromptsAndEdits(
             crate::app_core::actions::NativePromptEditAction::AutoRenameBrowserSelection {
                 visible_row,
             },

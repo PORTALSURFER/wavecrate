@@ -8,8 +8,6 @@ pub enum ShellAction {
     FocusWaveformPanel,
     FocusFolderPanel,
     FocusLoadedSampleInBrowser,
-    FocusBrowserSearch,
-    BlurBrowserSearch,
     OpenAddSourceDialog,
     FocusFolderSearch,
     SetFolderSearch { query: String },

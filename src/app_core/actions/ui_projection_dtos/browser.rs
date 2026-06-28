@@ -200,7 +200,7 @@ impl Default for BrowserChromeModel {
             map_tab_label: String::from("Starmap"),
             tag_editor_label: String::from("Tags"),
             search_prefix_label: String::from("Search"),
-            search_placeholder: String::from("Search samples (Ctrl+F)"),
+            search_placeholder: String::from("Search samples"),
             activity_ready_label: String::from("Ready"),
             activity_busy_label: String::from("Filtering"),
             sort_prefix_label: String::from("Sort"),
@@ -214,8 +214,6 @@ impl Default for BrowserChromeModel {
 /// Browser action availability consumed by the UI projection action strip.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct BrowserActionsModel {
-    /// Whether rename can be started for the focused row.
-    pub can_rename: bool,
     /// Whether delete can be applied to focused/selected rows.
     pub can_delete: bool,
     /// Whether tag actions can be applied to focused/selected rows.

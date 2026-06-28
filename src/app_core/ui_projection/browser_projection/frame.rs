@@ -31,9 +31,7 @@ pub(crate) fn project_browser_panel_frame_model(
         TagNamedFilter::NotTagNamed
     );
     let sidebar_filters = controller.ui.browser.search.sidebar_filters.clone();
-    let search_placeholder = Some(super::browser_search_placeholder(
-        controller.ui.browser.search.search_focus_requested,
-    ));
+    let search_placeholder = Some(super::browser_search_placeholder());
     let busy = controller.ui.browser.search.search_busy;
     let duplicate_cleanup_active = controller.ui.browser.duplicate_cleanup.is_some();
     let similarity_filtered =

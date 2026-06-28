@@ -17,7 +17,6 @@ pub(crate) fn apply_similarity_query(controller: &mut AppController, query: Simi
         controller.mark_browser_search_projection_revision_dirty();
     }
     controller.ui.browser.search.search_query.clear();
-    controller.ui.browser.search.search_focus_requested = false;
     controller.rebuild_browser_lists();
 }
 
@@ -182,7 +181,6 @@ mod tests {
     fn apply_similarity_query_resets_browser_state_and_preserves_anchor() {
         let (mut controller, _source) = dummy_controller();
         controller.ui.browser.search.search_query = "query".to_string();
-        controller.ui.browser.search.search_focus_requested = true;
         controller.ui.browser.search.sort = SampleBrowserSort::ListOrder;
         controller.ui.browser.search.similarity_sort_follow_loaded = true;
         controller.ui.browser.selection.autoscroll = false;
@@ -204,7 +202,6 @@ mod tests {
         );
         assert!(!controller.ui.browser.search.similarity_sort_follow_loaded);
         assert!(controller.ui.browser.search.search_query.is_empty());
-        assert!(!controller.ui.browser.search.search_focus_requested);
         assert!(controller.ui.browser.selection.autoscroll);
         assert_eq!(controller.ui.browser.viewport.view_window_start, 0);
         assert_eq!(controller.ui.browser.viewport.render_window_start, 0);

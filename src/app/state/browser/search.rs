@@ -36,8 +36,6 @@ pub struct BrowserSearchState {
     pub sidebar_filters: BrowserSidebarFilterState,
     /// Text query applied to visible rows via fuzzy search.
     pub search_query: String,
-    /// Flag to request focus for the search field in the UI.
-    pub search_focus_requested: bool,
     /// When enabled, Up/Down jump through random samples instead of list order.
     pub random_navigation_mode: bool,
     /// Sorting mode for the sample browser list.
@@ -67,7 +65,6 @@ impl Default for BrowserSearchState {
             tag_named_filter: TagNamedFilter::All,
             sidebar_filters: BrowserSidebarFilterState::default(),
             search_query: String::new(),
-            search_focus_requested: false,
             random_navigation_mode: false,
             sort: SampleBrowserSort::ListOrder,
             similarity_sort_follow_loaded: false,

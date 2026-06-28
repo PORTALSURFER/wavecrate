@@ -118,8 +118,8 @@ pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;
 pub enum ConfirmPromptKind {
     /// Pending destructive waveform edit prompt.
     DestructiveEdit,
-    /// Pending browser rename prompt.
-    BrowserRename,
+    /// Pending browser folder-drop name conflict prompt.
+    BrowserNameConflict,
     /// Pending folder rename prompt.
     FolderRename,
     /// Pending folder creation prompt.

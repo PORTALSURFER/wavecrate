@@ -33,7 +33,7 @@ pub struct SampleBrowserState {
     /// Pending modal action for the sample browser area.
     pub pending_action: Option<SampleBrowserActionPrompt>,
     /// Flag to request focus on the active prompt input field.
-    pub rename_focus_requested: bool,
+    pub prompt_focus_requested: bool,
     /// Active tab in the sample browser area.
     pub active_tab: SampleBrowserTab,
     /// Whether the browser-local metadata tag sidebar is open.
@@ -59,7 +59,7 @@ impl Default for SampleBrowserState {
             search: BrowserSearchState::default(),
             duplicate_cleanup: None,
             pending_action: None,
-            rename_focus_requested: false,
+            prompt_focus_requested: false,
             active_tab: SampleBrowserTab::List,
             tag_sidebar_open: false,
             tag_sidebar_auto_rename: false,
@@ -77,15 +77,6 @@ pub enum SampleBrowserActionPrompt {
     Delete {
         /// Paths selected for deletion when the prompt was opened.
         targets: Vec<PathBuf>,
-    },
-    /// Rename the selected entry.
-    Rename {
-        /// Path to rename.
-        target: PathBuf,
-        /// New name.
-        name: String,
-        /// Inline validation error shown under the prompt input when present.
-        input_error: Option<String>,
     },
     /// Complete a blocked folder drop by choosing a unique destination name.
     MoveToFolderConflict {

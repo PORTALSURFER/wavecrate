@@ -20,7 +20,6 @@ Useful first-pass moves:
 
 - press `]` to mark a sound as Keep
 - press `[` to mark a sound as Trash
-- press `F` in the browser to search
 - use folder, tag, rating, collection, and playback-age filters to narrow the list
 
 ## 3. Mark A Useful Region

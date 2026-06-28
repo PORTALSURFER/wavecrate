@@ -296,7 +296,7 @@ fn browser_panel(
                 false,
                 Vec::new(),
             ),
-            &["focus_browser_search", "set_browser_search"],
+            &["set_browser_search"],
         ),
         browser_filter_node(
             "sources.filters.rating",

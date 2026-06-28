@@ -3,9 +3,6 @@ use super::shared::{GuiActionKind, Kind, NativePromptEditAction};
 pub(super) fn prompt_edit_action_kind(action: &NativePromptEditAction) -> GuiActionKind {
     match action {
         NativePromptEditAction::SetPromptInput { .. } => Kind::SetPromptInput,
-        NativePromptEditAction::StartBrowserRename => Kind::StartBrowserRename,
-        NativePromptEditAction::ConfirmBrowserRename => Kind::ConfirmBrowserRename,
-        NativePromptEditAction::CancelBrowserRename => Kind::CancelBrowserRename,
         NativePromptEditAction::AutoRenameBrowserSelection { .. } => {
             Kind::AutoRenameBrowserSelection
         }

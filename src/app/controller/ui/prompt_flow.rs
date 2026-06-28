@@ -3,7 +3,7 @@ use super::*;
 impl AppController {
     /// Apply prompt input to the active modal prompt slot.
     pub fn set_active_prompt_input(&mut self, value: String) {
-        if self.set_browser_rename_input(value.clone()) {
+        if self.set_browser_prompt_input(value.clone()) {
             return;
         }
         let _ = self.set_options_panel_prompt_input(value);
@@ -26,8 +26,8 @@ impl AppController {
         if self.apply_pending_browser_delete() {
             return true;
         }
-        if self.has_pending_browser_rename() {
-            self.apply_pending_browser_rename();
+        if self.has_pending_browser_prompt() {
+            self.apply_pending_browser_prompt();
             return true;
         }
         if self.has_pending_options_panel_prompt() {
@@ -51,8 +51,8 @@ impl AppController {
         if self.cancel_pending_browser_delete() {
             return true;
         }
-        if self.has_pending_browser_rename() {
-            self.cancel_browser_rename();
+        if self.has_pending_browser_prompt() {
+            self.cancel_browser_prompt();
             return true;
         }
         if self.has_pending_options_panel_prompt() {

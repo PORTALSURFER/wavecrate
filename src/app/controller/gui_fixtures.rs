@@ -217,11 +217,14 @@ fn build_options_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControl
 
 fn build_prompt_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
     let mut bundle = build_browser_fixture(renderer)?;
-    bundle.controller.ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
-        target: PathBuf::from("kick_one.wav"),
-        name: String::from("kick_one"),
-        input_error: None,
-    });
+    bundle.controller.ui.browser.pending_action =
+        Some(SampleBrowserActionPrompt::MoveToFolderConflict {
+            source_id: crate::sample_sources::SourceId::from_string("fixture-source"),
+            source_relative: PathBuf::from("kick_one.wav"),
+            target_folder: PathBuf::from("dest"),
+            name: String::from("kick_one"),
+            input_error: None,
+        });
     bundle.controller.focus_browser_list();
     Ok(bundle)
 }

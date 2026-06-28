@@ -96,7 +96,7 @@ impl AppController {
         };
         self.ui.browser.duplicate_cleanup = None;
         self.ui.browser.pending_action = None;
-        self.ui.browser.rename_focus_requested = false;
+        self.ui.browser.prompt_focus_requested = false;
         self.ui.browser.copy_flash_paths.clear();
         self.ui.browser.copy_flash_at = None;
         self.ui.browser.search.search_busy = false;

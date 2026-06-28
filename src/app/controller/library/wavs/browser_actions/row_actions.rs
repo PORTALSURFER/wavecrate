@@ -3,6 +3,6 @@
 mod auto_rename;
 mod conflict;
 mod delete;
-mod rename;
+mod prompt;
 mod reveal;
 mod tagging;

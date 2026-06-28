@@ -151,8 +151,6 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusSourcesPanel)
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusWaveformPanel)
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderPanel)
-            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusBrowserSearch)
-            | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::BlurBrowserSearch)
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::FocusFolderSearch)
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::SetFolderSearch { .. })
             | NativeUiAction::Shell(crate::app_core::actions::NativeShellAction::ToggleShowAllFolders)
