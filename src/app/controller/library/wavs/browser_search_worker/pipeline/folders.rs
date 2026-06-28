@@ -11,8 +11,6 @@ pub(super) fn filter_accepts_tag(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
-    marked_only: bool,
-    marked: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
     tag_named: bool,
     tag: Rating,
@@ -35,10 +33,9 @@ pub(super) fn filter_accepts_tag(
         PlaybackAgeBucket::from_last_played_at(last_played_at, playback_age_now_unix_secs);
     let playback_age_ok =
         playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
-    let marked_ok = !marked_only || marked;
     let tag_named_ok = tag_named_filter.accepts(tag_named);
     let sidebar_ok = sidebar_filters.accepts_path_and_bpm(relative_path, bpm);
-    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok && sidebar_ok
+    triage_ok && rating_ok && playback_age_ok && tag_named_ok && sidebar_ok
 }
 
 /// Return the effective browser rating-filter level for one worker entry.
@@ -160,8 +157,6 @@ mod tests {
             TriageFlagFilter::All,
             &rating_filter,
             &BTreeSet::new(),
-            false,
-            true,
             crate::app::state::TagNamedFilter::All,
             false,
             Rating::KEEP_3,
@@ -176,8 +171,6 @@ mod tests {
             TriageFlagFilter::All,
             &rating_filter,
             &BTreeSet::new(),
-            false,
-            false,
             crate::app::state::TagNamedFilter::All,
             false,
             Rating::KEEP_3,
@@ -192,8 +185,6 @@ mod tests {
             TriageFlagFilter::All,
             &rating_filter,
             &BTreeSet::new(),
-            false,
-            false,
             crate::app::state::TagNamedFilter::All,
             false,
             Rating::TRASH_3,
@@ -208,8 +199,6 @@ mod tests {
             TriageFlagFilter::All,
             &BTreeSet::from([3]),
             &BTreeSet::new(),
-            false,
-            true,
             crate::app::state::TagNamedFilter::All,
             false,
             Rating::KEEP_3,
@@ -224,8 +213,6 @@ mod tests {
             TriageFlagFilter::All,
             &BTreeSet::from([3, 4]),
             &BTreeSet::new(),
-            false,
-            true,
             crate::app::state::TagNamedFilter::All,
             false,
             Rating::KEEP_3,
@@ -285,11 +272,9 @@ mod tests {
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
-            marked_only: false,
             tag_named_filter: crate::app::state::TagNamedFilter::All,
             sidebar_filters: Default::default(),
             sidebar_bpm_values: Default::default(),
-            marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,
             duplicate_cleanup: None,

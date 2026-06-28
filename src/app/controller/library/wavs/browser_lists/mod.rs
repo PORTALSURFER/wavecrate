@@ -20,7 +20,6 @@ impl AppController {
     ) {
         self.clear_invalid_browser_duplicate_cleanup();
         self.prune_browser_selection();
-        self.prune_browser_marks_for_selected_source();
         if self.should_rebuild_browser_lists_async() {
             self.dispatch_search_job_with_metadata_delta(metadata_delta_paths);
             return;
@@ -80,7 +79,6 @@ impl AppController {
             || !self.ui.browser.search.rating_filter.is_empty()
             || !self.ui.browser.search.playback_age_filter.is_empty()
             || !self.ui.browser.search.sidebar_filters.is_empty()
-            || self.ui.browser.search.marked_only
             || self.ui.browser.search.tag_named_filter != TagNamedFilter::All
         {
             return false;

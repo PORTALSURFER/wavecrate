@@ -11,11 +11,8 @@ pub(super) fn ensure_filtered_stage(
     playback_age_cache_token: Option<i64>,
     sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
     sidebar_filter_hash: u64,
-    marked_only: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
     playback_age_now_unix_secs: i64,
-    marked_revision: u64,
-    selected_source_id: Option<&crate::sample_sources::SourceId>,
     folder_hash: u64,
 ) -> u64 {
     let filtered_fingerprint = filtered_stage_fingerprint(
@@ -25,9 +22,7 @@ pub(super) fn ensure_filtered_stage(
         playback_age_filter_hash,
         playback_age_cache_token,
         sidebar_filter_hash,
-        marked_only,
         tag_named_filter,
-        marked_revision,
         folder_hash,
     );
     if controller.ui_cache.browser.pipeline.filtered_fingerprint != Some(filtered_fingerprint) {
@@ -37,7 +32,6 @@ pub(super) fn ensure_filtered_stage(
             rating_filter,
             playback_age_filter,
             sidebar_filters,
-            marked_only,
             tag_named_filter,
         ) {
             controller.ui_cache.browser.pipeline.filtered_rows = retained_rows.to_vec();
@@ -52,12 +46,8 @@ pub(super) fn ensure_filtered_stage(
         preload_sidebar_bpm_values(controller, &candidate_rows, sidebar_filters);
         let mut filtered_rows = Vec::with_capacity(candidate_rows.len());
         for index in candidate_rows {
-            let Some((relative_path, tag, locked, last_played_at, marked, tag_named)) =
-                filter_stage_entry(
-                    controller,
-                    index,
-                    marked_only.then_some(selected_source_id).flatten(),
-                )
+            let Some((relative_path, tag, locked, last_played_at, tag_named)) =
+                filter_stage_entry(controller, index)
             else {
                 continue;
             };
@@ -69,8 +59,6 @@ pub(super) fn ensure_filtered_stage(
                 filter,
                 rating_filter,
                 playback_age_filter,
-                marked_only,
-                marked,
                 tag_named_filter,
                 tag_named,
                 tag,
@@ -103,9 +91,7 @@ pub(super) fn filtered_stage_fingerprint(
     playback_age_filter_hash: u64,
     playback_age_cache_token: Option<i64>,
     sidebar_filter_hash: u64,
-    marked_only: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
-    marked_revision: u64,
     folder_hash: u64,
 ) -> u64 {
     let base_fingerprint_hash =
@@ -117,9 +103,7 @@ pub(super) fn filtered_stage_fingerprint(
         playback_age_filter_hash,
         playback_age_cache_token,
         sidebar_filter_hash,
-        marked_only,
         tag_named_filter,
-        marked_only.then_some(marked_revision),
         folder_hash,
     ))
 }
@@ -130,11 +114,9 @@ fn retained_filter_only_rows<'a>(
     rating_filter: &std::collections::BTreeSet<i8>,
     playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
     sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
-    marked_only: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
 ) -> Option<&'a [usize]> {
-    if marked_only
-        || !rating_filter.is_empty()
+    if !rating_filter.is_empty()
         || !playback_age_filter.is_empty()
         || !sidebar_filters.is_empty()
         || tag_named_filter != crate::app::state::TagNamedFilter::All
@@ -187,27 +169,18 @@ fn triage_candidate_rows(pipeline: &BrowserPipelineCache, filter: TriageFlagFilt
 fn filter_stage_entry(
     controller: &AppController,
     index: usize,
-    selected_source_id: Option<&crate::sample_sources::SourceId>,
-) -> Option<(std::path::PathBuf, Rating, bool, Option<i64>, bool, bool)> {
+) -> Option<(std::path::PathBuf, Rating, bool, Option<i64>, bool)> {
     let entry = controller
         .ui_cache
         .browser
         .pipeline
         .compact_entries
         .get(index)?;
-    let marked = selected_source_id.is_some_and(|source_id| {
-        controller
-            .ui
-            .browser
-            .marks
-            .contains(source_id, &entry.relative_path)
-    });
     Some((
         entry.relative_path.clone(),
         entry.tag,
         entry.locked,
         entry.last_played_at,
-        marked,
         entry.tag_named,
     ))
 }

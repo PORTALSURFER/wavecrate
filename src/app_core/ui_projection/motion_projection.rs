@@ -21,7 +21,6 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         ),
         active_rating_filters: active_rating_filter_flags(controller),
         active_playback_age_filters: active_playback_age_filter_flags(controller),
-        marked_filter_active: controller.ui.browser.search.marked_only,
         waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
             NativeNormalizedRangeModel::from_micros(
                 waveform_projection::normalized_to_micros(selection.start()),

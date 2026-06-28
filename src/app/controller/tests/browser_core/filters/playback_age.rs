@@ -40,7 +40,7 @@ fn playback_age_bucket_classifies_expected_ranges() {
 
 #[test]
 fn browser_playback_age_filter_limits_visible_rows_and_composes_with_other_filters() {
-    let (mut controller, source) = browser_rating_filter_fixture(false);
+    let (mut controller, _source) = browser_rating_filter_fixture(false);
     let now_unix_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -74,13 +74,8 @@ fn browser_playback_age_filter_limits_visible_rows_and_composes_with_other_filte
     controller.set_browser_search("kick");
     assert_eq!(visible_indices(&controller), vec![0, 1]);
 
-    controller
-        .ui
-        .browser
-        .marks
-        .toggle_paths(&source.id, &[std::path::PathBuf::from("kick_month.wav")]);
-    controller.toggle_browser_marked_filter();
-    assert_eq!(visible_indices(&controller), vec![1]);
+    controller.ui.browser.search.tag_named_filter = crate::app::state::TagNamedFilter::NotTagNamed;
+    assert_eq!(visible_indices(&controller), vec![0, 1]);
 }
 
 #[test]

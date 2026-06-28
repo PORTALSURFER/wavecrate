@@ -79,8 +79,6 @@ pub(super) fn filter_accepts(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
-    marked_only: bool,
-    marked: bool,
     tag_named_filter: TagNamedFilter,
     tag_named: bool,
     tag: crate::sample_sources::Rating,
@@ -103,10 +101,9 @@ pub(super) fn filter_accepts(
         PlaybackAgeBucket::from_last_played_at(last_played_at, playback_age_now_unix_secs);
     let playback_age_ok =
         playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
-    let marked_ok = !marked_only || marked;
     let tag_named_ok = tag_named_filter.accepts(tag_named);
     let sidebar_ok = sidebar_filters.accepts_path_and_bpm(relative_path, bpm);
-    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok && sidebar_ok
+    triage_ok && rating_ok && playback_age_ok && tag_named_ok && sidebar_ok
 }
 
 /// Return the effective browser rating-filter level for one sample row.

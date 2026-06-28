@@ -299,17 +299,9 @@ fn browser_panel(
             &["focus_browser_search", "set_browser_search"],
         ),
         browser_filter_node(
-            "sources.filters.marked",
-            "Marked filter",
-            x + 16.0,
-            y + 8.0,
-            model.browser.marked_filter_active,
-            &["toggle_browser_marked_filter"],
-        ),
-        browser_filter_node(
             "sources.filters.rating",
             "Rating filter",
-            x + 118.0,
+            x + 16.0,
             y + 8.0,
             model
                 .browser

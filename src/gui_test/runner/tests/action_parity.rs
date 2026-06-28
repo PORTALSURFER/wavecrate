@@ -71,11 +71,6 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "sources.filters.marked",
-            &["toggle_browser_marked_filter"],
-        ),
-        (
-            "browser",
             "sources.filters.rating",
             &["toggle_browser_rating_filter"],
         ),

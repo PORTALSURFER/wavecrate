@@ -36,7 +36,6 @@ Press `Command-/` in the app to open the current context-aware shortcut overlay.
 | `Shift-Up` / `Shift-Down` | Extend selection |
 | `Right` | Mark selected sample as Keep |
 | `Left` | Mark selected sample as Trash |
-| `;` | Toggle temporary mark |
 | `Command-C` | Copy selected sample files |
 | `F` | Focus search |
 | `R` | Rename focused sample |

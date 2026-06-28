@@ -1,5 +1,4 @@
 mod duplicate_cleanup;
-mod marks;
 mod search;
 mod selection;
 mod viewport;
@@ -10,7 +9,6 @@ use std::sync::Arc;
 use std::time::Instant;
 
 pub use duplicate_cleanup::*;
-pub use marks::*;
 pub use search::*;
 pub use selection::*;
 pub use viewport::*;
@@ -30,8 +28,6 @@ pub struct SampleBrowserState {
     pub viewport: BrowserViewportState,
     /// Search/filter/similarity state for the browser list.
     pub search: BrowserSearchState,
-    /// Session-scoped temporary sample marks keyed by source-relative path.
-    pub marks: BrowserMarkedState,
     /// Active duplicate-cleanup workspace for the browser list.
     pub duplicate_cleanup: Option<BrowserDuplicateCleanupState>,
     /// Pending modal action for the sample browser area.
@@ -61,7 +57,6 @@ impl Default for SampleBrowserState {
             selection: BrowserSelectionState::default(),
             viewport: BrowserViewportState::default(),
             search: BrowserSearchState::default(),
-            marks: BrowserMarkedState::default(),
             duplicate_cleanup: None,
             pending_action: None,
             rename_focus_requested: false,

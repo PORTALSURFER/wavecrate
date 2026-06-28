@@ -10,7 +10,6 @@ pub(super) fn filter_stage_required(job: &SearchJob, has_folder_filters: bool) -
         || !job.rating_filter.is_empty()
         || !job.playback_age_filter.is_empty()
         || !job.sidebar_filters.is_empty()
-        || job.marked_only
         || job.tag_named_filter != crate::app::state::TagNamedFilter::All
 }
 
@@ -28,8 +27,6 @@ pub(super) fn filter_stage_hash(
             &job.playback_age_filter,
             job.playback_age_now_unix_secs,
         ),
-        job.marked_only,
-        job.marked_only.then_some(hash_value(&job.marked_paths)),
         job.tag_named_filter,
         hash_value(&job.sidebar_filters),
         job.sidebar_filters

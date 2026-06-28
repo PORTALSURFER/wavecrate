@@ -32,7 +32,6 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
             missing: false,
             looped: false,
             locked: false,
-            marked: false,
             bpm_value_bits: None,
             long_sample_mark: false,
             last_used_tick: 1,
@@ -80,7 +79,6 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
             missing: false,
             looped: false,
             locked: false,
-            marked: false,
             bpm_value_bits: None,
             long_sample_mark: false,
             last_used_tick: 1,
@@ -92,60 +90,6 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
     };
 
     assert!(cached.0.missing);
-}
-
-#[test]
-/// Cached browser rows should rebuild when stored marked metadata is stale.
-fn cached_browser_row_rebuilds_when_stored_mark_state_is_stale() {
-    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
-    let source_id = crate::sample_sources::SourceId::new();
-    controller.select_browser_source_for_tests(source_id.clone());
-    controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
-        relative_path: std::path::PathBuf::from("kick.wav"),
-        file_size: 0,
-        modified_ns: 0,
-        content_hash: Some(String::from("hash")),
-        tag: crate::sample_sources::Rating::NEUTRAL,
-        looped: false,
-        sound_type: None,
-        locked: false,
-        missing: false,
-        last_played_at: None,
-        last_curated_at: None,
-        user_tag: None,
-        tag_named: false,
-        normal_tags: Vec::new(),
-    }]);
-    controller
-        .ui
-        .browser
-        .marks
-        .toggle_paths(&source_id, &[std::path::PathBuf::from("kick.wav")]);
-    controller.projected_browser_rows.insert(
-        0,
-        ProjectedBrowserRowCacheEntry {
-            row_identity_hash: browser_row_identity_hash(std::path::Path::new("kick.wav")),
-            relative_path: std::path::PathBuf::from("kick.wav"),
-            row_label: String::from("Kick"),
-            column_index: 1,
-            rating_level: 0,
-            playback_age_bucket: PlaybackAgeBucket::Fresh,
-            bucket_label: String::new(),
-            missing: false,
-            looped: false,
-            locked: false,
-            marked: false,
-            bpm_value_bits: None,
-            long_sample_mark: false,
-            last_used_tick: 1,
-        },
-    );
-
-    let Some(cached) = project_cached_browser_row(&mut controller, 0, 0) else {
-        panic!("cached row should exist");
-    };
-
-    assert!(cached.0.marked);
 }
 
 #[test]
@@ -181,7 +125,6 @@ fn cached_browser_row_rebuilds_when_stored_playback_age_bucket_is_stale() {
             missing: false,
             looped: false,
             locked: false,
-            marked: false,
             bpm_value_bits: None,
             long_sample_mark: false,
             last_used_tick: 1,
@@ -218,7 +161,6 @@ fn browser_row_cache_evicts_one_lru_entry_at_capacity() {
                 missing: false,
                 looped: false,
                 locked: false,
-                marked: false,
                 bpm_value_bits: None,
                 long_sample_mark: false,
                 last_used_tick: index as u64 + 1,

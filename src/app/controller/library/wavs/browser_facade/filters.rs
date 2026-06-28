@@ -58,19 +58,9 @@ impl AppController {
         browser_search::clear_browser_sidebar_filter(self, facet);
     }
 
-    /// Toggle whether the browser shows only session-marked samples.
-    pub fn toggle_browser_marked_filter(&mut self) {
-        self.toggle_browser_marked_filter_action();
-    }
-
     /// Cycle the browser tag-derived filename filter.
     pub fn toggle_browser_tag_named_filter(&mut self, invert: bool) {
         browser_search::toggle_browser_tag_named_filter(self, invert);
-    }
-
-    /// Toggle the session mark for the focused row or current multi-selection.
-    pub fn toggle_browser_sample_mark(&mut self) {
-        self.toggle_browser_sample_mark_action();
     }
 
     /// Apply a new sample browser sort mode and refresh visible rows.

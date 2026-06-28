@@ -101,12 +101,6 @@ pub(super) fn classify_dirty_source(
             },
         )
         | NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
-        )
-        | NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter,
-        )
-        | NativeUiAction::Browser(
             crate::app_core::actions::NativeBrowserAction::ToggleBrowserTagNamedFilter { .. },
         )
         | NativeUiAction::Browser(

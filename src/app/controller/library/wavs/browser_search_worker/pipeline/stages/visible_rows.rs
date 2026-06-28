@@ -25,7 +25,6 @@ pub(in super::super) fn build_fast_path_result_if_applicable(
         || !job.rating_filter.is_empty()
         || !job.playback_age_filter.is_empty()
         || !job.sidebar_filters.is_empty()
-        || job.marked_only
         || job.tag_named_filter != crate::app::state::TagNamedFilter::All
     {
         return None;

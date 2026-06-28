@@ -88,14 +88,3 @@ fn apply_ui_inverted_browser_playback_age_filter_toggles_off_when_reclicked() {
     ));
     assert!(controller.ui.browser.search.playback_age_filter.is_empty());
 }
-
-#[test]
-fn apply_ui_toggle_browser_marked_filter_updates_search_state() {
-    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-
-    controller.apply_ui_action(NativeUiAction::Browser(
-        crate::app_core::actions::NativeBrowserAction::ToggleBrowserMarkedFilter,
-    ));
-
-    assert!(controller.ui.browser.search.marked_only);
-}

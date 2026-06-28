@@ -77,25 +77,6 @@ fn projection_segment_browser_frame_copies_active_playback_age_filters() {
 }
 
 #[test]
-fn projection_segment_browser_frame_copies_marked_filter_state() {
-    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
-    let mut cache = UiProjectionCache::default();
-    let _ = cache.resolve_or_project(&mut controller);
-
-    controller.ui.browser.search.marked_only = true;
-    controller.mark_browser_search_projection_revision_dirty();
-
-    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
-    assert_eq!(
-        dirty_segments,
-        NativeDirtySegments::from_bits(
-            NativeDirtySegments::STATUS_BAR | NativeDirtySegments::BROWSER_FRAME
-        )
-    );
-    assert!(model.browser.marked_filter_active);
-}
-
-#[test]
 fn projection_segment_browser_anchor_change_skips_browser_rows_window() {
     let (dirty_segments, lookup_counts) = project_after_warm_cache(|controller| {
         controller.ui.browser.selection.selection_anchor_visible = Some(3);

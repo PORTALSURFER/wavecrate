@@ -25,18 +25,12 @@ pub(super) fn ensure_sorted_stage_for_similar(
     let playback_age_filter = controller.ui.browser.search.playback_age_filter.clone();
     let sidebar_filters = controller.ui.browser.search.sidebar_filters.clone();
     let filter = controller.ui.browser.search.filter;
-    let marked_only = controller.ui.browser.search.marked_only;
     let tag_named_filter = controller.ui.browser.search.tag_named_filter;
-    let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     preload_sidebar_bpm_values(controller, &similar.indices, &sidebar_filters);
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
-        let Some((relative_path, tag, locked, last_played_at, marked, tag_named)) =
-            filter_stage_entry(
-                controller,
-                index,
-                marked_only.then_some(selected_source_id.as_ref()).flatten(),
-            )
+        let Some((relative_path, tag, locked, last_played_at, tag_named)) =
+            filter_stage_entry(controller, index)
         else {
             continue;
         };
@@ -48,8 +42,6 @@ pub(super) fn ensure_sorted_stage_for_similar(
             filter,
             &rating_filter,
             &playback_age_filter,
-            marked_only,
-            marked,
             tag_named_filter,
             tag_named,
             tag,
@@ -80,27 +72,18 @@ pub(super) fn ensure_sorted_stage_for_similar(
 fn filter_stage_entry(
     controller: &AppController,
     index: usize,
-    selected_source_id: Option<&crate::sample_sources::SourceId>,
-) -> Option<(std::path::PathBuf, Rating, bool, Option<i64>, bool, bool)> {
+) -> Option<(std::path::PathBuf, Rating, bool, Option<i64>, bool)> {
     let entry = controller
         .ui_cache
         .browser
         .pipeline
         .compact_entries
         .get(index)?;
-    let marked = selected_source_id.is_some_and(|source_id| {
-        controller
-            .ui
-            .browser
-            .marks
-            .contains(source_id, &entry.relative_path)
-    });
     Some((
         entry.relative_path.clone(),
         entry.tag,
         entry.locked,
         entry.last_played_at,
-        marked,
         entry.tag_named,
     ))
 }

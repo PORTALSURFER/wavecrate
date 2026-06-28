@@ -40,9 +40,6 @@ fn additional_dirty_sources_for_action(
         )
         | NativeUiAction::PromptsAndEdits(
             crate::app_core::actions::NativePromptEditAction::TagBrowserSelection { .. },
-        )
-        | NativeUiAction::Browser(
-            crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
         ) => &[(
             InvalidationSource::Waveform,
             InvalidationReason::WaveformViewAction,

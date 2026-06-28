@@ -13,8 +13,8 @@ mod search_state;
 pub(crate) use filter_state::{
     clear_browser_playback_age_filter, clear_browser_rating_filter, clear_browser_sidebar_filter,
     invert_browser_playback_age_filter, invert_browser_rating_filter, set_browser_filter,
-    set_browser_playback_age_filter, set_browser_rating_filter, toggle_browser_marked_filter,
-    toggle_browser_sidebar_filter, toggle_browser_tag_named_filter,
+    set_browser_playback_age_filter, set_browser_rating_filter, toggle_browser_sidebar_filter,
+    toggle_browser_tag_named_filter,
 };
 pub(crate) use search_state::{
     blur_browser_search, focus_browser_search, set_browser_search, set_browser_sort,

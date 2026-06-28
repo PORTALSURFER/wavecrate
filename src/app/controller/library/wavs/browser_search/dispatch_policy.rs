@@ -83,9 +83,7 @@ impl AppController {
         let playback_age_filter = self.ui.browser.search.playback_age_filter.clone();
         let sidebar_filters = self.ui.browser.search.sidebar_filters.clone();
         let sidebar_bpm_values = self.sidebar_bpm_values_for_search_job(&sidebar_filters);
-        let marked_only = self.ui.browser.search.marked_only;
         let tag_named_filter = self.ui.browser.search.tag_named_filter;
-        let marked_paths = self.ui.browser.marks.paths_for_source(&source_id);
         let sort = self.ui.browser.search.sort;
         let similar_query = self.ui.browser.search.similar_query.clone();
         let duplicate_cleanup = self.ui.browser.duplicate_cleanup.clone();
@@ -134,11 +132,9 @@ impl AppController {
                 filter,
                 rating_filter,
                 playback_age_filter,
-                marked_only,
                 tag_named_filter,
                 sidebar_filters,
                 sidebar_bpm_values,
-                marked_paths,
                 sort,
                 similar_query,
                 duplicate_cleanup,

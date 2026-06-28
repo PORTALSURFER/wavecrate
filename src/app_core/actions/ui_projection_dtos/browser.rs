@@ -112,8 +112,6 @@ pub struct BrowserPanelModel {
     pub active_rating_filters: [bool; 8],
     /// Active playback-age filter chip states ordered as `Never`, `Month`, `Week`.
     pub active_playback_age_filters: [bool; 3],
-    /// Whether the browser is currently filtering down to only marked rows.
-    pub marked_filter_active: bool,
     /// Whether the browser is currently filtering to tag-named rows.
     pub tag_named_filter_active: bool,
     /// Whether the tag-named filter is currently inverted.

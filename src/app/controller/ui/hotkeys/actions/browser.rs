@@ -110,15 +110,6 @@ pub(super) const TOGGLE_SELECT: HotkeyAction = HotkeyAction {
         crate::app_core::actions::NativeBrowserAction::ToggleFocusedBrowserRowSelection,
     ),
 };
-pub(super) const TOGGLE_BROWSER_SAMPLE_MARK: HotkeyAction = HotkeyAction {
-    id: "toggle-browser-sample-mark",
-    label: "Toggle sample mark",
-    gesture: HotkeyGesture::new(Key::Semicolon),
-    scope: SAMPLE_BROWSER,
-    action: NativeUiAction::Browser(
-        crate::app_core::actions::NativeBrowserAction::ToggleBrowserSampleMark,
-    ),
-};
 pub(super) const MOVE_BROWSER_FOCUS_UP: HotkeyAction = HotkeyAction {
     id: "move-browser-focus-up",
     label: "Move focus up",

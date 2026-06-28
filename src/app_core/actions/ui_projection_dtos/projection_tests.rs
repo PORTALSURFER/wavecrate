@@ -100,7 +100,6 @@ fn native_motion_projects_generic_timeline_motion_state() {
         map_active: false,
         active_rating_filters: [false; 8],
         active_playback_age_filters: [false; 3],
-        marked_filter_active: false,
         waveform_selection_milli: Some(NormalizedRangeModel::new(100, 400)),
         waveform_slices: Vec::new(),
         waveform_selection_export_flash_nonce: 11,

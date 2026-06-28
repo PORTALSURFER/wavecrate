@@ -42,7 +42,6 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     browser::MOVE_TRASHED_TO_FOLDER,
     browser::MOVE_TRASHED_TO_FOLDER_SHIFT,
     browser::TOGGLE_SELECT,
-    browser::TOGGLE_BROWSER_SAMPLE_MARK,
     browser::MOVE_BROWSER_FOCUS_UP,
     browser::MOVE_BROWSER_FOCUS_DOWN,
     browser::FOCUS_HISTORY_PREVIOUS,

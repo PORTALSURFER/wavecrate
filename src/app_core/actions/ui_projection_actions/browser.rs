@@ -84,8 +84,6 @@ pub enum BrowserAction {
     ClearBrowserSidebarFilter {
         facet: BrowserSidebarFilterFacet,
     },
-    ToggleBrowserSampleMark,
-    ToggleBrowserMarkedFilter,
     ToggleBrowserTagNamedFilter {
         invert: bool,
     },

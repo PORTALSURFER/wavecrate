@@ -46,8 +46,6 @@ pub(super) fn browser_action_kind(action: &NativeBrowserAction) -> GuiActionKind
         }
         NativeBrowserAction::ToggleBrowserSidebarFilter { .. } => Kind::ToggleBrowserSidebarFilter,
         NativeBrowserAction::ClearBrowserSidebarFilter { .. } => Kind::ClearBrowserSidebarFilter,
-        NativeBrowserAction::ToggleBrowserSampleMark => Kind::ToggleBrowserSampleMark,
-        NativeBrowserAction::ToggleBrowserMarkedFilter => Kind::ToggleBrowserMarkedFilter,
         NativeBrowserAction::ToggleBrowserTagNamedFilter { .. } => {
             Kind::ToggleBrowserTagNamedFilter
         }

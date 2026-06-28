@@ -8,15 +8,12 @@ pub(super) fn entry_accepted_by_job(
     job: &SearchJob,
     entry: &CompactSearchEntry,
     relative_path: &Path,
-    marked: bool,
     bpm: Option<f32>,
 ) -> bool {
     filter_accepts_tag(
         job.filter,
         &job.rating_filter,
         &job.playback_age_filter,
-        job.marked_only,
-        marked,
         job.tag_named_filter,
         entry.tag_named,
         entry.tag,

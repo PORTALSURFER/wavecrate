@@ -15,16 +15,12 @@ pub(crate) struct SearchJob {
     pub(crate) rating_filter: BTreeSet<i8>,
     /// Playback-age chips selected for filtering older or never-played samples.
     pub(crate) playback_age_filter: BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
-    /// Whether the result set should keep only session-marked samples.
-    pub(crate) marked_only: bool,
     /// Filter for samples known to have tag-derived filenames.
     pub(crate) tag_named_filter: crate::app::state::TagNamedFilter,
     /// Sidebar metadata facet filters selected for the browser.
     pub(crate) sidebar_filters: crate::app::state::BrowserSidebarFilterState,
     /// BPM metadata aligned by relative path for sidebar BPM facets.
     pub(crate) sidebar_bpm_values: BTreeMap<PathBuf, Option<f32>>,
-    /// Session-marked sample paths for the active source.
-    pub(crate) marked_paths: BTreeSet<PathBuf>,
     pub(crate) sort: crate::app::state::SampleBrowserSort,
     pub(crate) similar_query: Option<crate::app::state::SimilarQuery>,
     pub(crate) duplicate_cleanup: Option<crate::app::state::BrowserDuplicateCleanupState>,

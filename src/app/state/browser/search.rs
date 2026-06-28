@@ -30,8 +30,6 @@ pub struct BrowserSearchState {
     pub rating_filter: BTreeSet<i8>,
     /// Playback-age chips selected for filtering older or never-played samples.
     pub playback_age_filter: BTreeSet<PlaybackAgeFilterChip>,
-    /// Whether only session-marked rows should remain visible.
-    pub marked_only: bool,
     /// Optional filter for samples whose filenames are marked as tag-derived.
     pub tag_named_filter: TagNamedFilter,
     /// Sidebar metadata facets applied alongside rating and playback-age filters.
@@ -66,7 +64,6 @@ impl Default for BrowserSearchState {
             filter: TriageFlagFilter::All,
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
-            marked_only: false,
             tag_named_filter: TagNamedFilter::All,
             sidebar_filters: BrowserSidebarFilterState::default(),
             search_query: String::new(),

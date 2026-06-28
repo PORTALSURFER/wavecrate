@@ -13,12 +13,6 @@ pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageF
     );
 }
 
-/// Toggle the browser marked-only filter and refresh visible rows when it changes.
-pub(crate) fn toggle_browser_marked_filter(controller: &mut AppController) {
-    controller.ui.browser.search.marked_only = !controller.ui.browser.search.marked_only;
-    apply_mutation_effects(controller, refresh_effects(true, RefreshPolicy::Full));
-}
-
 /// Toggle one sidebar metadata-facet option and refresh visible rows when it changes.
 pub(crate) fn toggle_browser_sidebar_filter(
     controller: &mut AppController,
