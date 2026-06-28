@@ -622,7 +622,88 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     assert!(frame.paint_plan.contains_text("Show Harvest Derivatives"));
     assert!(frame.paint_plan.contains_text("Open Harvest Destination"));
     assert!(frame.paint_plan.contains_text("Duplicate Same"));
+    assert!(frame.paint_plan.contains_text("Duplicate Double"));
     assert!(frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
+fn duplicate_double_context_action_routes_protected_source_to_primary_derivative() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-double.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let source_path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&source_path, &[0, 1_000, -1_000, 2_000]);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let doubled = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-double_doubled.wav");
+    let mut context = ui::UiUpdateContext::default();
+
+    state.open_sample_context_menu(selected_file, Point::new(40.0, 120.0));
+    state.apply_message(GuiMessage::DuplicateContextSampleDouble, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        read_test_wav_i16(&source_path),
+        vec![0, 1_000, -1_000, 2_000]
+    );
+    assert_eq!(
+        read_test_wav_i16(&doubled),
+        vec![0, 1_000, -1_000, 2_000, 0, 1_000, -1_000, 2_000],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(doubled.to_string_lossy().as_ref())
+    );
+    let primary_db = primary_source.open_db().expect("open primary db");
+    assert!(
+        primary_db
+            .entry_for_path(
+                &PathBuf::from("_Harvests")
+                    .join(harvest_source_folder)
+                    .join("protected-double_doubled.wav")
+            )
+            .expect("query doubled row")
+            .is_some()
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-double.wav"),
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::DuplicateDoubleCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-double_doubled.wav")
+    );
 }
 
 #[test]

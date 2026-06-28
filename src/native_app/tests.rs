@@ -329,6 +329,14 @@ fn write_sparse_test_wav_i16(path: &std::path::Path, channels: u16, frames: u32)
         .expect("extend sparse wav");
 }
 
+fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
+    let mut reader = hound::WavReader::open(path).expect("open wav");
+    reader
+        .samples::<i16>()
+        .collect::<Result<Vec<_>, _>>()
+        .expect("read i16 samples")
+}
+
 fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
     let mut reader = hound::WavReader::open(path).expect("open wav");
     let spec = reader.spec();
