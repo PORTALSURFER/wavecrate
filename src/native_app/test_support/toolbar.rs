@@ -19,6 +19,8 @@ pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 =
 pub(in crate::native_app) const TOOLBAR_STOP_ID: u64 = chrome_toolbar::TOOLBAR_STOP_ID;
 pub(in crate::native_app) const TOOLBAR_ZERO_CROSSING_SNAP_ID: u64 =
     chrome_toolbar::TOOLBAR_ZERO_CROSSING_SNAP_ID;
+pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_COUNT_ID: u64 =
+    widget_ids::TOOLBAR_BEAT_GUIDE_COUNT_ID;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MainToolbarProjection {
@@ -32,8 +34,6 @@ pub(in crate::native_app) struct MainToolbarProjection {
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) metronome_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
-    pub(in crate::native_app) can_decrement_beat_guide_count: bool,
-    pub(in crate::native_app) can_increment_beat_guide_count: bool,
     pub(in crate::native_app) pending_edit_mark_edits: bool,
 }
 
@@ -56,8 +56,6 @@ pub(in crate::native_app) fn main_toolbar_projection(
         beat_guides_enabled: model.beat_guides_enabled,
         metronome_enabled: model.metronome_enabled,
         beat_guide_count: model.beat_guide_count,
-        can_decrement_beat_guide_count: model.can_decrement_beat_guide_count,
-        can_increment_beat_guide_count: model.can_increment_beat_guide_count,
         pending_edit_mark_edits: model.pending_edit_mark_edits,
     }
 }

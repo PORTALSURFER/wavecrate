@@ -10,8 +10,6 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         crate::native_app::test_support::toolbar::ToolbarIcon::ZeroCrossingSnap,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
         crate::native_app::test_support::toolbar::ToolbarIcon::Metronome,
-        crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
-        crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuidePlus,
         crate::native_app::test_support::toolbar::ToolbarIcon::Play,
         crate::native_app::test_support::toolbar::ToolbarIcon::Stop,
     ] {
@@ -74,14 +72,6 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::Metronome,
             crate::native_app::test_support::state::GuiMessage::ToggleMetronome,
-        ),
-        (
-            crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuideMinus,
-            crate::native_app::test_support::state::GuiMessage::AdjustBeatGuideCount(-1),
-        ),
-        (
-            crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuidePlus,
-            crate::native_app::test_support::state::GuiMessage::AdjustBeatGuideCount(1),
         ),
     ] {
         assert_eq!(
@@ -216,15 +206,13 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             beat_guides_enabled: true,
             metronome_enabled: true,
             beat_guide_count: 8,
-            can_decrement_beat_guide_count: true,
-            can_increment_beat_guide_count: false,
             pending_edit_mark_edits: true,
             help_tooltips_enabled: true,
         },
     );
 
     assert!(projection.help_tooltips_enabled);
-    assert_eq!(projection.controls.len(), 13);
+    assert_eq!(projection.controls.len(), 11);
 
     let icon_control = |index| match projection.controls[index] {
         ToolbarControlProjection::Icon(button) => button,
@@ -267,34 +255,62 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
         icon_control(6).tooltip,
         "Play a metronome from the beat guide divisions."
     );
-    assert_eq!(icon_control(7).icon, ToolbarIcon::BeatGuideMinus);
-    assert!(icon_control(7).enabled);
-
     assert!(matches!(
-        projection.controls[8],
-        ToolbarControlProjection::BeatGuideCount {
+        projection.controls[7],
+        ToolbarControlProjection::BeatGuideCountField {
             count: 8,
+            id: crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID,
             key: "toolbar-beat-guide-count",
+            tooltip: "Beat guide divisions.",
         }
     ));
 
-    assert_eq!(icon_control(9).icon, ToolbarIcon::BeatGuidePlus);
-    assert!(!icon_control(9).enabled);
-
     assert!(matches!(
-        projection.controls[10],
+        projection.controls[8],
         ToolbarControlProjection::ApplyEditMarkEdits {
             id: crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
             tooltip: "Apply edit mark gain and fade edits.",
         }
     ));
 
-    assert_eq!(icon_control(11).icon, ToolbarIcon::Play);
-    assert!(!icon_control(11).active);
-    assert_eq!(icon_control(12).icon, ToolbarIcon::Stop);
+    assert_eq!(icon_control(9).icon, ToolbarIcon::Play);
+    assert!(!icon_control(9).active);
+    assert_eq!(icon_control(10).icon, ToolbarIcon::Stop);
     assert_eq!(
-        icon_control(12).id,
+        icon_control(10).id,
         crate::native_app::test_support::toolbar::TOOLBAR_STOP_ID
+    );
+}
+
+#[test]
+fn main_toolbar_renders_beat_guide_count_as_number_field_without_stepper_buttons() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.chrome.beat_guide_count = 16;
+
+    let frame = crate::native_app::test_support::toolbar::main_toolbar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
+    let input = frame
+        .paint_plan
+        .text_inputs()
+        .find(|input| {
+            input.widget_id == crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID
+        })
+        .expect("beat guide count should render as a text input");
+
+    assert_eq!(input.state.value, "16");
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(crate::native_app::ui::ids::TOOLBAR_BEAT_GUIDE_DECREMENT_ID)
+            .is_none(),
+        "beat guide decrement button should not be projected"
+    );
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect(crate::native_app::ui::ids::TOOLBAR_BEAT_GUIDE_INCREMENT_ID)
+            .is_none(),
+        "beat guide increment button should not be projected"
     );
 }
 
@@ -355,8 +371,6 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.beat_guides_enabled);
     assert!(!empty.metronome_enabled);
     assert_eq!(empty.beat_guide_count, 4);
-    assert!(empty.can_decrement_beat_guide_count);
-    assert!(empty.can_increment_beat_guide_count);
     assert!(!empty.pending_edit_mark_edits);
 
     state.audio.loop_playback = true;
@@ -443,14 +457,157 @@ fn beat_guide_toolbar_messages_update_chrome_state() {
     state.apply_message(GuiMessage::ToggleBeatGuides, &mut context);
     assert!(state.ui.chrome.beat_guides_enabled);
 
-    state.apply_message(GuiMessage::AdjustBeatGuideCount(3), &mut context);
+    state.apply_message(GuiMessage::SetBeatGuideCount(7), &mut context);
     assert_eq!(state.ui.chrome.beat_guide_count, 7);
 
-    state.apply_message(GuiMessage::AdjustBeatGuideCount(-100), &mut context);
-    assert_eq!(state.ui.chrome.beat_guide_count, 1);
+    state.apply_message(GuiMessage::SetBeatGuideCount(0), &mut context);
+    assert_eq!(state.ui.chrome.beat_guide_count, 2);
 
-    state.apply_message(GuiMessage::AdjustBeatGuideCount(100), &mut context);
-    assert_eq!(state.ui.chrome.beat_guide_count, 64);
+    state.apply_message(GuiMessage::SetBeatGuideCount(100), &mut context);
+    assert_eq!(state.ui.chrome.beat_guide_count, 32);
+
+    state.apply_message(
+        GuiMessage::ChangeBeatGuideCountInput(String::from("16")),
+        &mut context,
+    );
+    assert_eq!(state.ui.chrome.beat_guide_count, 16);
+
+    state.apply_message(
+        GuiMessage::ChangeBeatGuideCountInput(String::from("999")),
+        &mut context,
+    );
+    assert_eq!(state.ui.chrome.beat_guide_count, 16);
+
+    state.apply_message(
+        GuiMessage::CommitBeatGuideCountInput(String::from("0")),
+        &mut context,
+    );
+    assert_eq!(state.ui.chrome.beat_guide_count, 2);
+
+    state.apply_message(
+        GuiMessage::CommitBeatGuideCountInput(String::from("999")),
+        &mut context,
+    );
+    assert_eq!(state.ui.chrome.beat_guide_count, 32);
+}
+
+#[test]
+fn beat_guide_count_field_owns_up_down_only_while_focused() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let mut runtime = SurfaceRuntime::new(
+        radiant::runtime::DeclarativeOwnedRuntimeBridge::new(
+            state,
+            |state| crate::native_app::test_support::toolbar::main_toolbar(state).into_surface(),
+            |state, message| {
+                let mut context = ui::UiUpdateContext::default();
+                state.apply_message(message, &mut context);
+            },
+        ),
+        Vector2::new(664.0, 34.0),
+    );
+    let input_id = crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID;
+
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress(WidgetKey::ArrowUp)),
+        None,
+        "unfocused number field should not receive arrow keys"
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 4);
+
+    let input_point = runtime.layout().rects[&input_id].center();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('1')),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('6')),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 16);
+
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress(WidgetKey::ArrowUp)),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 17);
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress(WidgetKey::ArrowDown)),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 16);
+
+    runtime.clear_focus();
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress(WidgetKey::ArrowDown)),
+        None
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 16);
+
+    let input_point = runtime.layout().rects[&input_id].center();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('0')),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 16);
+    runtime.clear_focus();
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 2);
+
+    let input_point = runtime.layout().rects[&input_id].center();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('9')),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 9);
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('9')),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 9);
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('9')),
+        Some(input_id)
+    );
+    runtime.clear_focus();
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 32);
+
+    let input_point = runtime.layout().rects[&input_id].center();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(input_point)),
+        Some(input_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::Character('x')),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 32);
 }
 
 #[test]

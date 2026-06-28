@@ -18,8 +18,6 @@ pub(in crate::native_app) enum ToolbarIcon {
     ZeroCrossingSnap,
     BeatGuides,
     Metronome,
-    BeatGuideMinus,
-    BeatGuidePlus,
     Play,
     Stop,
 }
@@ -34,8 +32,6 @@ impl ToolbarIcon {
             Self::ZeroCrossingSnap => &ZERO_CROSSING_SNAP_ICON,
             Self::BeatGuides => &BEAT_GUIDES_ICON,
             Self::Metronome => &METRONOME_ICON,
-            Self::BeatGuideMinus => &BEAT_GUIDE_MINUS_ICON,
-            Self::BeatGuidePlus => &BEAT_GUIDE_PLUS_ICON,
             Self::Play => &PLAY_ICON,
             Self::Stop => &STOP_ICON,
         }
@@ -118,19 +114,6 @@ static METRONOME_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
   <rect x="7.25" y="1.5" width="1.5" height="2.2"/>
   <circle cx="8" cy="6.4" r="1.2"/>
   <rect x="6.95" y="9.2" width="2.1" height="1.2"/>
-</svg>"#,
-);
-
-static BEAT_GUIDE_MINUS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
-    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <rect x="4" y="7.25" width="8" height="1.5"/>
-</svg>"#,
-);
-
-static BEAT_GUIDE_PLUS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
-    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <rect x="4" y="7.25" width="8" height="1.5"/>
-  <rect x="7.25" y="4" width="1.5" height="8"/>
 </svg>"#,
 );
 

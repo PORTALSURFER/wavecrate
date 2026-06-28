@@ -152,7 +152,9 @@ impl NativeAppState {
             | GuiMessage::CloseHarvestFilterDropdown
             | GuiMessage::ToggleZeroCrossingSnap
             | GuiMessage::ToggleBeatGuides
-            | GuiMessage::AdjustBeatGuideCount(_)
+            | GuiMessage::SetBeatGuideCount(_)
+            | GuiMessage::ChangeBeatGuideCountInput(_)
+            | GuiMessage::CommitBeatGuideCountInput(_)
             | GuiMessage::ToggleSimilarSections
             | GuiMessage::SimilarSectionsResolved(_)
             | GuiMessage::UndoTransaction

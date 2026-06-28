@@ -65,8 +65,14 @@ impl NativeAppState {
             GuiMessage::ToggleBeatGuides => {
                 self.ui.chrome.beat_guides_enabled = !self.ui.chrome.beat_guides_enabled;
             }
-            GuiMessage::AdjustBeatGuideCount(delta) => {
-                self.ui.chrome.adjust_beat_guide_count(delta);
+            GuiMessage::SetBeatGuideCount(count) => {
+                self.ui.chrome.set_beat_guide_count(count);
+            }
+            GuiMessage::ChangeBeatGuideCountInput(value) => {
+                self.ui.chrome.preview_beat_guide_count_input(&value);
+            }
+            GuiMessage::CommitBeatGuideCountInput(value) => {
+                self.ui.chrome.commit_beat_guide_count_input(&value);
             }
             GuiMessage::ToggleSimilarSections => {
                 self.toggle_similar_sections(context);
