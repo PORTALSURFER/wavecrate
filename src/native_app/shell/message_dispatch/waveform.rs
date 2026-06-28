@@ -4,7 +4,7 @@ use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, WaveformActiveDragKind,
-    WaveformContextMenu, WaveformEditFadeSnapshot, WaveformInteraction,
+    WaveformContextMenu, WaveformEditSelectionSnapshot, WaveformInteraction,
     WaveformPlaySelectionSnapshot, WaveformSelectionKind, emit_gui_action,
 };
 
@@ -12,6 +12,8 @@ pub(in crate::native_app) const PLAY_SELECTION_TRANSACTION_LABEL: &str =
     "Change play mark selection";
 const EDIT_FADE_TRANSACTION_LABEL: &str = "Waveform fade";
 const EDIT_GAIN_TRANSACTION_LABEL: &str = "Editmark volume";
+const EDIT_RESIZE_TRANSACTION_LABEL: &str = "Editmark resize";
+const EDIT_MOVE_TRANSACTION_LABEL: &str = "Editmark move";
 
 impl NativeAppState {
     pub(super) fn apply_waveform_message(
@@ -31,6 +33,7 @@ impl NativeAppState {
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.current.active_drag_kind();
         let play_selection_before = self.play_selection_transaction_begin_snapshot(&message);
+        let edit_selection_before = self.edit_selection_transaction_begin_snapshot(&message);
         let edit_fade_before = self.edit_fade_transaction_begin_snapshot(&message);
         let harvest_mark_before = waveform_interaction_can_finish_mark_change(&message)
             .then(|| WaveformHarvestMarkSnapshot::from_state(self))
@@ -55,6 +58,11 @@ impl NativeAppState {
                 play_selection_drag_active(self.waveform.current.active_drag_kind())
                     .then_some(before);
         }
+        if let Some(before) = edit_selection_before {
+            self.waveform.pending_edit_selection_transaction =
+                edit_selection_drag_active(self.waveform.current.active_drag_kind())
+                    .then_some(before);
+        }
         if let Some(before) = edit_fade_before {
             self.waveform.pending_edit_fade_transaction = Some(before);
         }
@@ -70,6 +78,10 @@ impl NativeAppState {
         }
         if play_selection_transaction_finishes(&message, active_drag) {
             self.register_finished_play_selection_transaction();
+        }
+        if edit_selection_transaction_finishes(&message, active_drag) {
+            let label = edit_selection_transaction_label(active_drag);
+            self.register_finished_edit_selection_transaction(label);
         }
         if edit_fade_transaction_finishes(&message, active_drag) {
             let label =
@@ -109,7 +121,7 @@ impl NativeAppState {
     fn edit_fade_transaction_begin_snapshot(
         &self,
         interaction: &WaveformInteraction,
-    ) -> Option<WaveformEditFadeSnapshot> {
+    ) -> Option<WaveformEditSelectionSnapshot> {
         let begins_edit_fade_change = matches!(
             interaction,
             WaveformInteraction::BeginEditFade { .. }
@@ -118,7 +130,25 @@ impl NativeAppState {
                 | WaveformInteraction::ClearEditFadeSilence { .. }
         );
         begins_edit_fade_change
-            .then(|| WaveformEditFadeSnapshot::from_waveform(&self.waveform.current))
+            .then(|| WaveformEditSelectionSnapshot::from_waveform(&self.waveform.current))
+    }
+
+    fn edit_selection_transaction_begin_snapshot(
+        &self,
+        interaction: &WaveformInteraction,
+    ) -> Option<WaveformEditSelectionSnapshot> {
+        let begins_edit_selection_range_change = matches!(
+            interaction,
+            WaveformInteraction::BeginSelectionResize {
+                kind: WaveformSelectionKind::Edit,
+                ..
+            } | WaveformInteraction::BeginSelectionMove {
+                kind: WaveformSelectionKind::Edit,
+                ..
+            }
+        );
+        begins_edit_selection_range_change
+            .then(|| WaveformEditSelectionSnapshot::from_waveform(&self.waveform.current))
     }
 
     fn register_finished_play_selection_transaction(&mut self) {
@@ -142,7 +172,7 @@ impl NativeAppState {
         let Some(before) = self.waveform.pending_edit_fade_transaction.take() else {
             return;
         };
-        let after = WaveformEditFadeSnapshot::from_waveform(&self.waveform.current);
+        let after = WaveformEditSelectionSnapshot::from_waveform(&self.waveform.current);
         if before.path != after.path || before == after {
             return;
         }
@@ -150,8 +180,25 @@ impl NativeAppState {
         let redo_snapshot = after;
         self.register_transaction_action(
             label,
-            move |transaction| transaction.restore_edit_fade(undo_snapshot.clone()),
-            move |transaction| transaction.restore_edit_fade(redo_snapshot.clone()),
+            move |transaction| transaction.restore_edit_selection(undo_snapshot.clone()),
+            move |transaction| transaction.restore_edit_selection(redo_snapshot.clone()),
+        );
+    }
+
+    fn register_finished_edit_selection_transaction(&mut self, label: &'static str) {
+        let Some(before) = self.waveform.pending_edit_selection_transaction.take() else {
+            return;
+        };
+        let after = WaveformEditSelectionSnapshot::from_waveform(&self.waveform.current);
+        if before.path != after.path || before == after {
+            return;
+        }
+        let undo_snapshot = before.clone();
+        let redo_snapshot = after;
+        self.register_transaction_action(
+            label,
+            move |transaction| transaction.restore_edit_selection(undo_snapshot.clone()),
+            move |transaction| transaction.restore_edit_selection(redo_snapshot.clone()),
         );
     }
 
@@ -338,6 +385,35 @@ fn play_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bo
             WaveformSelectionKind::Play
         ))
     )
+}
+
+fn edit_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bool {
+    matches!(
+        active_drag,
+        Some(WaveformActiveDragKind::SelectionResize(
+            WaveformSelectionKind::Edit,
+            _
+        )) | Some(WaveformActiveDragKind::SelectionMove(
+            WaveformSelectionKind::Edit
+        ))
+    )
+}
+
+fn edit_selection_transaction_finishes(
+    interaction: &WaveformInteraction,
+    active_drag: Option<WaveformActiveDragKind>,
+) -> bool {
+    matches!(interaction, WaveformInteraction::FinishSelection { .. })
+        && edit_selection_drag_active(active_drag)
+}
+
+fn edit_selection_transaction_label(active_drag: Option<WaveformActiveDragKind>) -> &'static str {
+    match active_drag {
+        Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Edit)) => {
+            EDIT_MOVE_TRANSACTION_LABEL
+        }
+        _ => EDIT_RESIZE_TRANSACTION_LABEL,
+    }
 }
 
 fn edit_fade_transaction_finishes(

@@ -42,7 +42,7 @@ pub(in crate::native_app) use state::{
     SampleMapViewportChange, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
     SourceScanFinish, StartupState, StatusState, UiAppState, WaveformAppState,
     WaveformDestructiveEditKind, WaveformDestructiveEditPrompt, WaveformDestructiveEditUiContext,
-    WaveformEditFadeSnapshot, WaveformPlaySelectionSnapshot, run_folder_scan_worker,
+    WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot, run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;

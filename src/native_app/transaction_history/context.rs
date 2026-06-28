@@ -1,5 +1,5 @@
 use crate::native_app::app::{
-    NativeAppState, WaveformEditFadeSnapshot, WaveformPlaySelectionSnapshot,
+    NativeAppState, WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot,
 };
 use crate::native_app::transaction_history::TransactionResult;
 
@@ -29,9 +29,9 @@ impl TransactionContext<'_> {
         Ok(())
     }
 
-    pub(in crate::native_app) fn restore_edit_fade(
+    pub(in crate::native_app) fn restore_edit_selection(
         &mut self,
-        snapshot: WaveformEditFadeSnapshot,
+        snapshot: WaveformEditSelectionSnapshot,
     ) -> TransactionResult {
         let current_path = self.state.waveform.current.path();
         if current_path != snapshot.path {
