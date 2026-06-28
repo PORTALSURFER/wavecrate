@@ -1,8 +1,8 @@
 use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
-    SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_LABEL_PADDING_X,
-    source_add_button, source_missing_color_for_tests, source_role_icon_color_for_tests,
-    source_row,
+    SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT,
+    SOURCE_ROW_LABEL_PADDING_X, source_add_button, source_missing_color_for_tests,
+    source_role_icon_color_for_tests, source_row, source_row_outline_for_tests,
 };
 use super::source_selector;
 use crate::native_app::app::GuiMessage;
@@ -108,8 +108,8 @@ fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
     let selected_fill = sidebar_row_palette_for_tests()
         .selected
         .expect("source selected fill");
@@ -130,6 +130,36 @@ fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
 }
 
 #[test]
+fn source_rows_use_slim_outlined_item_chrome() {
+    let source = test_source("source-bordered");
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let row = model.rows.first().expect("source row");
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+    let outline = source_row_outline_for_tests();
+    let stroke = frame
+        .paint_plan
+        .stroke_rects_for_widget(retained_source_row_input_id(source.id.as_str()))
+        .find(|stroke| stroke.color == outline.color)
+        .expect("source rows should paint a subtle item outline");
+
+    assert_eq!(
+        SOURCE_ROW_HEIGHT, 22.0,
+        "source rows should stay slimmer than the old 24px baseline"
+    );
+    assert_eq!(stroke.width, outline.width);
+    assert_eq!(stroke.rect.min.x, outline.inset);
+    assert_eq!(stroke.rect.min.y, outline.inset);
+    assert_eq!(stroke.rect.max.y, SOURCE_ROW_HEIGHT - outline.inset);
+    assert_ne!(
+        outline.color,
+        sidebar_row_selected_fill_for_tests(),
+        "source item outlines should not recreate the old selected rectangle"
+    );
+}
+
+#[test]
 fn inactive_source_row_does_not_paint_active_marker() {
     let source = test_source("source-inactive");
     let selected = test_source("source-active");
@@ -139,8 +169,8 @@ fn inactive_source_row_does_not_paint_active_marker() {
     );
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
 
     assert!(
         !frame
@@ -157,8 +187,8 @@ fn source_row_label_keeps_left_breathing_room() {
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
     let label_rect = frame
         .paint_plan
         .first_text_rect("Source")
@@ -185,8 +215,8 @@ fn missing_source_row_paints_missing_badge_without_left_marker() {
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
 
     assert!(
         frame.paint_plan.contains_text("MISSING"),
@@ -212,13 +242,16 @@ fn primary_source_row_uses_role_icon_instead_of_text_badge() {
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
+    let icon_rect = frame
+        .paint_plan
+        .svgs()
+        .next()
+        .expect("primary source icon")
+        .rect;
 
-    assert!(
-        frame.paint_plan.svgs().next().is_some(),
-        "primary sources should paint a source-role SVG icon"
-    );
+    assert!(icon_rect.height() <= SOURCE_ROW_HEIGHT);
     assert_eq!(
         source_role_icon_color_for_tests(),
         ui::Rgba8::new(255, 255, 255, 255),
@@ -238,13 +271,16 @@ fn protected_source_row_uses_role_icon_instead_of_text_badge() {
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
+    let icon_rect = frame
+        .paint_plan
+        .svgs()
+        .next()
+        .expect("protected source icon")
+        .rect;
 
-    assert!(
-        frame.paint_plan.svgs().next().is_some(),
-        "protected sources should paint a source-role SVG icon"
-    );
+    assert!(icon_rect.height() <= SOURCE_ROW_HEIGHT);
     assert_eq!(
         source_role_icon_color_for_tests(),
         ui::Rgba8::new(255, 255, 255, 255),
@@ -263,8 +299,8 @@ fn normal_source_row_keeps_role_slot_neutral() {
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let model = SourceSelectorViewModel::from_folder_browser(&state);
     let row = model.rows.first().expect("source row");
-    let frame =
-        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
 
     assert_eq!(
         frame.paint_plan.svgs().count(),

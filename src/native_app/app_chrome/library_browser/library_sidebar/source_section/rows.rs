@@ -13,11 +13,14 @@ use wavecrate::sample_sources::SourceRole;
 pub(super) const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
 pub(super) const SOURCE_ADD_BUTTON_WIDTH: f32 = 28.0;
 pub(super) const SOURCE_ADD_BUTTON_HEIGHT: f32 = 24.0;
-const SOURCE_ROW_HEIGHT: f32 = 24.0;
+pub(super) const SOURCE_ROW_HEIGHT: f32 = 22.0;
 const SOURCE_ROLE_ICON_WIDTH: f32 = 32.0;
 const SOURCE_MISSING_BADGE_WIDTH: f32 = 56.0;
 const SOURCE_MISSING_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
 const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
+const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
+const SOURCE_ROW_OUTLINE_WIDTH: f32 = 1.0;
+const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
 
 pub(super) fn source_add_button() -> ui::View<GuiMessage> {
     ui::icon_button(source_add_icon())
@@ -38,6 +41,7 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
             retained_source_row_key(source.id.as_str()),
         )
         .selected(source.selected)
+        .outline(source_row_outline())
         .actions(ui::row_actions().primary_secondary_key(
             source.id.clone(),
             |source_id| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id)),
@@ -105,6 +109,14 @@ fn source_role_icon(cache: &'static ui::SvgIconTintCache) -> ui::View<GuiMessage
         .height(SOURCE_ROW_HEIGHT)
 }
 
+fn source_row_outline() -> ui::DenseRowOutlineStyle {
+    ui::DenseRowOutlineStyle::new(
+        SOURCE_ROW_OUTLINE_INSET,
+        SOURCE_ROW_OUTLINE_COLOR,
+        SOURCE_ROW_OUTLINE_WIDTH,
+    )
+}
+
 pub(super) fn source_missing_color() -> ui::Rgba8 {
     SOURCE_MISSING_COLOR
 }
@@ -117,6 +129,11 @@ pub(super) fn source_missing_color_for_tests() -> ui::Rgba8 {
 #[cfg(test)]
 pub(super) fn source_role_icon_color_for_tests() -> ui::Rgba8 {
     SOURCE_ROLE_ICON_COLOR
+}
+
+#[cfg(test)]
+pub(super) fn source_row_outline_for_tests() -> ui::DenseRowOutlineStyle {
+    source_row_outline()
 }
 
 static SOURCE_ADD_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
