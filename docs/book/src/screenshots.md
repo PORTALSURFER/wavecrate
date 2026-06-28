@@ -1,6 +1,6 @@
 # Screenshots and Feature Tour
 
-This page is the starter visual tour for new users. The focused screenshots below are cropped from the current public app screenshot so each explanation has a visual anchor.
+This page is the starter visual tour for new users. The focused screenshots below show the current Wavecrate app shell with a small sample source loaded.
 
 ## Main Window
 
@@ -16,11 +16,11 @@ The main window shows the core working loop:
 
 ## Sources and Folders
 
-Use the left side to add source roots, pick folders, and keep browsing local to the material you care about right now.
+Use the left side to add source roots, pick folders, adjust collection and filter controls, and keep browsing local to the material you care about right now.
 
 ![Sources and folders in the main window](assets/feature-sources-folders.png)
 
-The source panel is where Wavecrate keeps the current library scope visible. A selected folder narrows the sample browser without changing the underlying files.
+The sidebar keeps the current library scope visible. A selected folder narrows the sample browser without changing the underlying files, while the lower controls let you refine the visible rows.
 
 ## Waveform and Region Editing
 
@@ -40,8 +40,8 @@ Rows stay tied to the current source and folder scope. Ratings, file type, size,
 
 ## Metadata, Collections, and Tags
 
-Collections and tags support fast triage without requiring a permanent folder move for every idea.
+Collections, filters, and tags support fast triage without requiring a permanent folder move for every idea.
 
 ![Metadata, collections, and tags](assets/feature-metadata-collections.png)
 
-Use collections for temporary working buckets, tags for durable labels, and ratings when you want a simple keep-or-reject pass.
+Use collections for temporary working buckets, tags for durable labels, filters for narrowing a pass, and ratings when you want a simple keep-or-reject pass.
