@@ -58,7 +58,10 @@ fn apply_ui_waveform_edit_selection_finish_commits_one_undo_step() {
 #[test]
 fn apply_ui_waveform_edit_fade_finish_commits_one_undo_step() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    let before = crate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2);
+    let before = crate::selection::SelectionRange::new(0.2, 0.6)
+        .with_fade_out(0.25, 0.2)
+        .with_fade_out_mute(0.1)
+        .with_fade_out_outer_gain(0.35);
     controller.set_edit_selection_range(before);
 
     controller.apply_ui_action(NativeUiAction::Waveform(
@@ -67,34 +70,53 @@ fn apply_ui_waveform_edit_fade_finish_commits_one_undo_step() {
         },
     ));
     controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeOutCurve {
+            curve_milli: 500,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
         crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag,
     ));
 
-    let updated = controller
-        .ui
-        .waveform
-        .edit_selection
-        .and_then(|selection| selection.fade_out())
-        .expect("fade-out after drag");
-    assert!((updated.curve - 0.75).abs() < 0.001);
+    let after = before.with_fade_out(0.25, 0.5);
+    assert_eq!(controller.ui.waveform.edit_selection, Some(after));
 
     controller.undo();
-    let undone = controller
-        .ui
-        .waveform
-        .edit_selection
-        .and_then(|selection| selection.fade_out())
-        .expect("fade-out after undo");
-    assert!((undone.curve - 0.2).abs() < 0.001);
+    assert_eq!(controller.ui.status.text, "Undid Waveform fade");
+    assert_eq!(controller.ui.waveform.edit_selection, Some(before));
+
+    controller.undo();
+    assert_eq!(controller.ui.status.text, "Nothing to undo");
+    assert_eq!(controller.ui.waveform.edit_selection, Some(before));
 
     controller.redo();
-    let redone = controller
-        .ui
-        .waveform
-        .edit_selection
-        .and_then(|selection| selection.fade_out())
-        .expect("fade-out after redo");
-    assert!((redone.curve - 0.75).abs() < 0.001);
+    assert_eq!(controller.ui.status.text, "Redid Waveform fade");
+    assert_eq!(controller.ui.waveform.edit_selection, Some(after));
+}
+
+#[test]
+fn apply_ui_waveform_edit_fade_creation_undoes_and_redoes_one_step() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+    let before = crate::selection::SelectionRange::new(0.2, 0.6);
+    controller.set_edit_selection_range(before);
+
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::SetWaveformEditFadeInEnd {
+            position_micros: 300_000,
+        },
+    ));
+    controller.apply_ui_action(NativeUiAction::Waveform(
+        crate::app_core::actions::NativeWaveformAction::FinishWaveformEditFadeDrag,
+    ));
+
+    let after = before.with_fade_in(0.25, 0.5);
+    assert_eq!(controller.ui.waveform.edit_selection, Some(after));
+
+    controller.undo();
+    assert_eq!(controller.ui.waveform.edit_selection, Some(before));
+
+    controller.redo();
+    assert_eq!(controller.ui.waveform.edit_selection, Some(after));
 }
 
 #[test]

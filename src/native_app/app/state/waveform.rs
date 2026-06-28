@@ -18,6 +18,7 @@ pub(in crate::native_app) struct WaveformAppState {
     pub(in crate::native_app) cache: WaveformCacheState,
     pub(in crate::native_app) pending_play_selection_transaction:
         Option<WaveformPlaySelectionSnapshot>,
+    pub(in crate::native_app) pending_edit_fade_transaction: Option<WaveformEditFadeSnapshot>,
     pub(in crate::native_app) pending_play_selection_retarget: bool,
     pub(in crate::native_app) pending_play_selection_retarget_cycle:
         Option<PendingPlaySelectionRetargetCycle>,
@@ -30,6 +31,7 @@ impl WaveformAppState {
             load: WaveformLoadState::default(),
             cache: WaveformCacheState::default(),
             pending_play_selection_transaction: None,
+            pending_edit_fade_transaction: None,
             pending_play_selection_retarget: false,
             pending_play_selection_retarget_cycle: None,
         }
@@ -47,6 +49,21 @@ impl PendingPlaySelectionRetargetCycle {
         Self {
             end_ratio,
             last_progress_ratio,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct WaveformEditFadeSnapshot {
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) edit_selection: Option<SelectionRange>,
+}
+
+impl WaveformEditFadeSnapshot {
+    pub(in crate::native_app) fn from_waveform(waveform: &WaveformState) -> Self {
+        Self {
+            path: waveform.path(),
+            edit_selection: waveform.edit_selection(),
         }
     }
 }

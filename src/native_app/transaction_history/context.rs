@@ -1,4 +1,6 @@
-use crate::native_app::app::{NativeAppState, WaveformPlaySelectionSnapshot};
+use crate::native_app::app::{
+    NativeAppState, WaveformEditFadeSnapshot, WaveformPlaySelectionSnapshot,
+};
 use crate::native_app::transaction_history::TransactionResult;
 
 pub(in crate::native_app) struct TransactionContext<'a> {
@@ -24,6 +26,25 @@ impl TransactionContext<'_> {
         );
         self.state.waveform.current.ensure_play_selection_visible();
         self.state.retarget_playback_to_play_selection();
+        Ok(())
+    }
+
+    pub(in crate::native_app) fn restore_edit_fade(
+        &mut self,
+        snapshot: WaveformEditFadeSnapshot,
+    ) -> TransactionResult {
+        let current_path = self.state.waveform.current.path();
+        if current_path != snapshot.path {
+            return Err(format!(
+                "Loaded sample changed; expected {}",
+                snapshot.path.display()
+            ));
+        }
+        self.state
+            .waveform
+            .current
+            .restore_edit_selection_state(snapshot.edit_selection);
+        self.state.sync_edit_fade_audio_state();
         Ok(())
     }
 
