@@ -415,6 +415,58 @@ fn map_audition_selection_is_revealed_when_returning_to_list_mode() {
 }
 
 #[test]
+fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id);
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+            path: Some(second_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    state.copy_selected_files(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "copy feedback must not disturb map-driven selection"
+    );
+    assert!(
+        state.waveform.current.copy_flash_frames() > 0,
+        "copying the map-selected sample should flash the waveform"
+    );
+    let items = state.library.folder_browser.sample_map_projection(
+        crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
+            tags_by_file: &state.metadata.tags_by_file,
+            instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+        },
+    );
+    assert!(
+        items
+            .iter()
+            .any(|item| item.file_id == second_id && item.selected && item.copy_flash),
+        "copying the map-selected sample should flash the selected map node"
+    );
+}
+
+#[test]
 fn sample_map_drag_keeps_only_latest_pending_hit() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
