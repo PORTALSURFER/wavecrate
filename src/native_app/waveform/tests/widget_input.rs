@@ -619,6 +619,42 @@ fn created_selection_drag_preview_survives_widget_rebuild_after_press() {
 }
 
 #[test]
+fn resized_playmark_preview_survives_widget_rebuild_after_press() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut previous = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = previous
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
+        .expect("press should begin resizing the playmark")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        begin,
+        WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Play,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6,
+        }
+    );
+    state.apply_interaction(begin);
+
+    let mut current = waveform_widget_for_state(&state);
+    Widget::synchronize_from_previous(&mut current, &previous);
+    let preview = current
+        .live_selection_preview
+        .expect("rebuilt widget should immediately keep the playmark resize preview");
+
+    assert_eq!(preview.kind, WaveformSelectionKind::Play);
+    assert_eq!(
+        preview.selection,
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+    );
+}
+
+#[test]
 fn playmark_drag_suppresses_duplicate_live_updates_inside_same_step() {
     let mut state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
@@ -1112,6 +1148,73 @@ fn playmark_resize_motion_updates_live_until_release() {
     assert_eq!(
         state.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.8))
+    );
+}
+
+#[test]
+fn zoomed_playmark_resize_preview_matches_committed_transform() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.viewport = super::WaveformViewport {
+        start: 12_000,
+        end: 36_000,
+    };
+    let fixed = state.absolute_ratio_from_visible(0.25);
+    let initial_end = state.absolute_ratio_from_visible(0.5);
+    let released = state.absolute_ratio_from_visible(0.75);
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(
+        fixed,
+        initial_end,
+    ));
+    state.play_mark_ratio = Some(fixed);
+    let mut previous = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = previous
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(100.0, 8.0)))
+        .expect("press should begin zoomed playmark resize")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(begin);
+    let mut current = waveform_widget_for_state(&state);
+    Widget::synchronize_from_previous(&mut current, &previous);
+
+    let update = current
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 8.0)))
+        .expect("resize motion should update preview")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        update,
+        WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.75
+        }
+    );
+    let preview = current
+        .live_selection_preview
+        .expect("zoomed resize should paint live preview");
+    assert_eq!(
+        preview.selection,
+        wavecrate::selection::SelectionRange::new(fixed, released)
+    );
+
+    state.apply_interaction(update);
+    let finish = current
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(150.0, 8.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("release should finish zoomed resize")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(fixed, released))
     );
 }
 

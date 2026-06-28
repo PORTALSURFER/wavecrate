@@ -697,7 +697,46 @@ fn extracted_ranges_paint_while_editmark_selection_drag_is_active() {
 }
 
 #[test]
-fn committed_selection_paint_pauses_while_selection_preview_is_live() {
+fn resize_selection_paints_once_from_base_layer_when_preview_is_live() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.8));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionResize(
+        WaveformSelectionKind::Play,
+        WaveformSelectionEdge::End,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.8),
+    });
+
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 160.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "app-state play selection should paint the current resize range"
+    );
+
+    let runtime_plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let runtime_fills = fill_rects(&runtime_plan);
+    assert!(
+        runtime_fills.iter().all(|fill| {
+            !((fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 160.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48))
+        }),
+        "runtime resize preview should not double-paint the same translucent selection"
+    );
+}
+
+#[test]
+fn committed_selection_paints_as_resize_fallback_until_preview_is_live() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     state.play_mark_ratio = Some(0.2);
@@ -711,17 +750,17 @@ fn committed_selection_paint_pauses_while_selection_preview_is_live() {
     let fills = fill_rects(&plan);
 
     assert!(
-        !fills.iter().any(|fill| {
+        fills.iter().any(|fill| {
             (fill.rect.min.x - 40.0).abs() < 0.001
                 && (fill.rect.max.x - 120.0).abs() < 0.001
                 && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
         }),
-        "committed play selection should not repaint under the live drag preview"
+        "committed play selection should remain visible until the live resize preview paints"
     );
 }
 
 #[test]
-fn beat_guides_do_not_paint_during_live_selection_preview() {
+fn beat_guides_do_not_paint_during_live_selection_creation_preview() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 16);
     widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
@@ -739,7 +778,7 @@ fn beat_guides_do_not_paint_during_live_selection_preview() {
         fills.iter().all(
             |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (255, 214, 188, 170)
         ),
-        "beat guides should wait for drag release instead of painting every pointer update"
+        "beat guides should wait for drag release during fresh selection creation"
     );
     assert!(
         fills.iter().any(|fill| {
@@ -749,6 +788,93 @@ fn beat_guides_do_not_paint_during_live_selection_preview() {
         }),
         "the live selection preview should still paint"
     );
+}
+
+#[test]
+fn beat_guides_paint_from_base_layer_during_live_playmark_resize() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.8));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionResize(
+        WaveformSelectionKind::Play,
+        WaveformSelectionEdge::End,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.8),
+    });
+
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+    let guides = fills
+        .iter()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(guides.len(), 3);
+    for expected_x in [70.0, 100.0, 130.0] {
+        assert!(
+            guides.iter().any(|fill| {
+                (fill.rect.center().x - expected_x).abs() < 0.01
+                    && (fill.rect.min.y - 11.0).abs() < 0.01
+                    && (fill.rect.max.y - 69.0).abs() < 0.01
+            }),
+            "expected live resize beat guide at x={expected_x}, got {guides:?}"
+        );
+    }
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 160.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "the live resized playmark selection should still paint"
+    );
+
+    let runtime_plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let runtime_fills = fill_rects(&runtime_plan);
+    assert!(
+        runtime_fills.iter().all(
+            |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (255, 214, 188, 170)
+        ),
+        "runtime resize preview should not double-paint beat guides over the base layer"
+    );
+}
+
+#[test]
+fn beat_guides_paint_as_resize_fallback_until_preview_is_live() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionResize(
+        WaveformSelectionKind::Play,
+        WaveformSelectionEdge::End,
+    ));
+
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+    let guides = fills
+        .iter()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(guides.len(), 3);
+    for expected_x in [60.0, 80.0, 100.0] {
+        assert!(
+            guides.iter().any(|fill| {
+                (fill.rect.center().x - expected_x).abs() < 0.01
+                    && (fill.rect.min.y - 11.0).abs() < 0.01
+                    && (fill.rect.max.y - 69.0).abs() < 0.01
+            }),
+            "expected fallback beat guide at x={expected_x}, got {guides:?}"
+        );
+    }
 }
 
 #[test]

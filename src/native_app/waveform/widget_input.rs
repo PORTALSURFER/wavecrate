@@ -311,6 +311,7 @@ impl WaveformWidget {
         if let Some(edge) =
             self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Edit)
         {
+            self.begin_live_selection_preview(WaveformSelectionKind::Edit, visible_ratio);
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionResize {
                     kind: WaveformSelectionKind::Edit,
@@ -322,6 +323,7 @@ impl WaveformWidget {
         if let Some(edge) =
             self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Play)
         {
+            self.begin_live_selection_preview(WaveformSelectionKind::Play, visible_ratio);
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionResize {
                     kind: WaveformSelectionKind::Play,
@@ -435,6 +437,7 @@ impl WaveformWidget {
         if let Some(edge) =
             self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Edit)
         {
+            self.begin_live_selection_preview(WaveformSelectionKind::Edit, visible_ratio);
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionResize {
                     kind: WaveformSelectionKind::Edit,
@@ -535,12 +538,14 @@ impl WaveformWidget {
     }
 
     fn begin_live_selection_preview(&mut self, kind: WaveformSelectionKind, visible_ratio: f32) {
+        let baseline = self.selection_for_kind(kind);
         self.live_selection_preview_anchor = Some(LiveSelectionPreviewAnchor {
             kind,
             visible_ratio,
-            baseline: self.selection_for_kind(kind),
+            baseline,
         });
-        self.live_selection_preview = None;
+        self.live_selection_preview =
+            baseline.map(|selection| LiveSelectionPreview { kind, selection });
     }
 
     fn clear_live_selection_preview(&mut self) {

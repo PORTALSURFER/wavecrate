@@ -101,7 +101,25 @@ impl WaveformWidget {
     }
 
     fn should_paint_committed_selection(&self, kind: WaveformSelectionKind) -> bool {
-        active_selection_drag_kind(self.active_drag_kind) != Some(kind)
+        match self.active_drag_kind {
+            Some(WaveformActiveDragKind::SelectionResize(active_kind, _))
+                if active_kind == kind =>
+            {
+                true
+            }
+            _ => {
+                active_selection_drag_kind(self.active_drag_kind) != Some(kind)
+                    || self.live_selection_preview_for_kind(kind).is_none()
+            }
+        }
+    }
+
+    fn live_selection_preview_for_kind(
+        &self,
+        kind: WaveformSelectionKind,
+    ) -> Option<super::widget::LiveSelectionPreview> {
+        self.live_selection_preview
+            .filter(|preview| preview.kind == kind)
     }
 
     fn append_extracted_range_rails(
@@ -161,7 +179,12 @@ impl WaveformWidget {
             1.0,
             style.fill_color(),
         );
-        self.append_beat_guide_paint(paint, bounds, self.play_selection);
+        self.append_committed_beat_guide_paint(
+            paint,
+            bounds,
+            WaveformSelectionKind::Play,
+            self.play_selection,
+        );
         self.append_selection_boundary_cursors(paint, bounds, self.play_selection, style, 1.25);
         self.append_selection_affordance_paint(
             paint,
@@ -176,16 +199,62 @@ impl WaveformWidget {
         );
     }
 
+    fn append_committed_beat_guide_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        kind: WaveformSelectionKind,
+        selection: Option<wavecrate::selection::SelectionRange>,
+    ) {
+        match active_selection_drag_kind(self.active_drag_kind) {
+            None if self.active_drag_kind.is_none() => {
+                self.append_beat_guide_paint(paint, bounds, selection);
+            }
+            Some(active_kind)
+                if active_kind == kind
+                    && matches!(
+                        self.active_drag_kind,
+                        Some(WaveformActiveDragKind::SelectionResize(_, _))
+                    ) =>
+            {
+                self.append_beat_guide_paint(paint, bounds, selection);
+            }
+            Some(active_kind)
+                if active_kind == kind && self.live_selection_preview_for_kind(kind).is_none() =>
+            {
+                self.append_beat_guide_paint(paint, bounds, selection);
+            }
+            _ => {}
+        }
+    }
+
+    fn append_live_playmark_resize_beat_guide_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        preview: super::widget::LiveSelectionPreview,
+    ) {
+        if preview.kind != WaveformSelectionKind::Play
+            || !matches!(
+                self.active_drag_kind,
+                Some(WaveformActiveDragKind::SelectionResize(
+                    WaveformSelectionKind::Play,
+                    _
+                ))
+            )
+        {
+            return;
+        }
+        self.append_beat_guide_paint(paint, bounds, Some(preview.selection));
+    }
+
     fn append_beat_guide_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
         selection: Option<wavecrate::selection::SelectionRange>,
     ) {
-        if self.active_drag_kind.is_some()
-            || !self.beat_guides_enabled
-            || self.beat_guide_count <= 1
-        {
+        if !self.beat_guides_enabled || self.beat_guide_count <= 1 {
             return;
         }
         let Some(selection) = selection.filter(|selection| selection.width() > 0.0) else {
@@ -210,6 +279,12 @@ impl WaveformWidget {
         let Some(preview) = self.live_selection_preview else {
             return;
         };
+        if matches!(
+            self.active_drag_kind,
+            Some(WaveformActiveDragKind::SelectionResize(kind, _)) if kind == preview.kind
+        ) {
+            return;
+        }
         let Some(geometry) = self.selection_geometry(bounds, Some(preview.selection)) else {
             return;
         };
@@ -231,6 +306,7 @@ impl WaveformWidget {
                     Some(preview.selection),
                     style,
                 );
+                self.append_live_playmark_resize_beat_guide_paint(&mut paint, bounds, preview);
                 self.append_selection_affordance_paint(
                     &mut paint,
                     geometry,
@@ -326,7 +402,12 @@ impl WaveformWidget {
             1.0,
             style.fill_color(),
         );
-        self.append_beat_guide_paint(paint, bounds, self.edit_selection);
+        self.append_committed_beat_guide_paint(
+            paint,
+            bounds,
+            WaveformSelectionKind::Edit,
+            self.edit_selection,
+        );
         self.append_selection_boundary_cursors(paint, bounds, self.edit_selection, style, 1.25);
         self.append_selection_affordance_paint(
             paint,
