@@ -14,7 +14,11 @@ pub(in crate::native_app) fn waveform_panel(
     model: WaveformPanelViewModel<'_>,
 ) -> ui::View<GuiMessage> {
     ui::column([
-        waveform_title_row(model.waveform, model.loading_label),
+        waveform_title_row(
+            model.waveform,
+            model.loading_label,
+            model.help_tooltips_enabled,
+        ),
         waveform_viewport_with_loading_state(&model),
         waveform_scrollbar(model.waveform),
     ])
@@ -92,13 +96,14 @@ fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
 fn waveform_title_row(
     waveform: &WaveformState,
     loading_label: Option<&str>,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let title = waveform_title(waveform, loading_label);
     if loading_label.is_some() || !waveform.has_loaded_sample() {
         return ui::text_line(title, WAVEFORM_STATUS_HEIGHT);
     }
     ui::row([
-        loaded_sample_drag_handle(),
+        loaded_sample_drag_handle(help_tooltips_enabled),
         ui::text_line(title, WAVEFORM_STATUS_HEIGHT),
     ])
     .spacing(3.0)
@@ -106,12 +111,12 @@ fn waveform_title_row(
     .height(WAVEFORM_STATUS_HEIGHT)
 }
 
-fn loaded_sample_drag_handle() -> ui::View<GuiMessage> {
+fn loaded_sample_drag_handle(help_tooltips_enabled: bool) -> ui::View<GuiMessage> {
     ui::drag_handle()
         .mapped(|drag| GuiMessage::Waveform(WaveformInteraction::DragLoadedSample(drag)))
         .id(widget_ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
-        .tooltip("Drag loaded sample")
+        .tooltip_if(help_tooltips_enabled, "Drag loaded sample")
         .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT)
 }
 

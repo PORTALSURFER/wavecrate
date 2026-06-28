@@ -8,6 +8,22 @@ use crate::native_app::{
 };
 use radiant::prelude::{self as ui, IntoView};
 
+fn loaded_sample_drag_handle_tooltip(
+    state: &crate::native_app::app::NativeAppState,
+) -> Option<String> {
+    waveform_panel(WaveformPanelViewModel::from_app_state(state))
+        .into_surface()
+        .find_widget(WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .common()
+                .tooltip
+                .as_deref()
+                .map(str::to_owned)
+        })
+}
+
 #[test]
 fn waveform_panel_omits_section_header_label() {
     let state = NativeAppStateFixture::default().build();
@@ -62,6 +78,28 @@ fn loaded_waveform_title_includes_sample_drag_handle_before_name() {
         .expect("loaded waveform title should include sample name");
 
     assert!(handle_right_edge < title_rect.min.x);
+}
+
+#[test]
+fn loaded_sample_drag_handle_omits_tooltip_when_help_is_inactive() {
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+
+    assert_eq!(loaded_sample_drag_handle_tooltip(&state), None);
+}
+
+#[test]
+fn loaded_sample_drag_handle_uses_help_tooltip_when_help_is_active() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.ui.chrome.help_tooltips_enabled = true;
+
+    assert_eq!(
+        loaded_sample_drag_handle_tooltip(&state).as_deref(),
+        Some("Drag loaded sample")
+    );
 }
 
 #[test]
