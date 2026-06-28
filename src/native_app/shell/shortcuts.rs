@@ -195,6 +195,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::RequestReverseWaveformSelection,
         )
         .bind(
+            ui::KeyPress::new(ui::KeyCode::M),
+            GuiMessage::RequestMuteWaveformSelection,
+        )
+        .bind(
             ui::KeyPress::new(ui::KeyCode::L),
             GuiMessage::ToggleLoopPlayback,
         )

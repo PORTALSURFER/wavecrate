@@ -302,6 +302,15 @@ fn apply_destructive_edit_to_wav(
             let end = end_frame * wav.channels;
             reverse_interleaved_frames(&mut wav.samples[start..end], wav.channels);
         }
+        WaveformDestructiveEditKind::MuteSelection => {
+            let (start_frame, end_frame) =
+                selection_existing_frame_bounds(total_frames, selection)?;
+            let start = start_frame * wav.channels;
+            let end = end_frame * wav.channels;
+            for sample in &mut wav.samples[start..end] {
+                *sample = 0.0;
+            }
+        }
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
             let (start_frame, end_frame) =
                 selection_existing_frame_bounds(total_frames, selection)?;

@@ -108,6 +108,9 @@ impl NativeAppState {
             GuiMessage::RequestReverseWaveformSelection => {
                 self.request_reverse_waveform_selection(context);
             }
+            GuiMessage::RequestMuteWaveformSelection => {
+                self.request_mute_waveform_selection(context);
+            }
             GuiMessage::RequestExtractAndTrimWaveformSelection => {
                 self.request_extract_and_trim_waveform_selection(context);
             }
