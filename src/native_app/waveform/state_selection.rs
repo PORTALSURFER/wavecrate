@@ -73,6 +73,15 @@ impl WaveformState {
         self.marked_play_ranges = marked_play_ranges;
     }
 
+    pub(in crate::native_app) fn restore_edit_selection_state(
+        &mut self,
+        edit_selection: Option<SelectionRange>,
+    ) {
+        self.active_drag = None;
+        self.edit_mark_ratio = edit_selection.map(|selection| selection.start());
+        self.edit_selection = edit_selection;
+    }
+
     pub(in crate::native_app) fn restore_play_selection_range_in_focus(
         &mut self,
         start: f32,

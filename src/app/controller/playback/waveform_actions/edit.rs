@@ -4,6 +4,8 @@ use super::*;
 use crate::app::controller::state::selection::EditFadeDragKind;
 use crate::selection::SelectionRange;
 
+const WAVEFORM_FADE_UNDO_LABEL: &str = "Waveform fade";
+
 impl AppController {
     /// Begin a right-click edit selection drag on the waveform.
     pub fn start_edit_selection_drag(&mut self, position: f32) {
@@ -222,7 +224,7 @@ impl AppController {
         let drag_range = edit_selection::prepare_edit_fade_drag_range(self, kind, existing_range);
         let next_range = update(drag_range);
         if existing_range != next_range {
-            self.begin_edit_selection_undo("Edit selection");
+            self.begin_edit_selection_undo(WAVEFORM_FADE_UNDO_LABEL);
         }
         apply_edit_selection_update(self, Some(existing_range), next_range);
     }
