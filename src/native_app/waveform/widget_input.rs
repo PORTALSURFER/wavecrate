@@ -8,7 +8,8 @@ use radiant::{
 
 use super::{
     WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
-    WaveformSelectionKind, WaveformWidget, widget::LiveSelectionPreview,
+    WaveformSelectionKind, WaveformWidget,
+    widget::{LiveSelectionPreview, LiveSelectionPreviewAnchor},
 };
 
 const SELECTION_CLICK_SLOP_PX: f32 = 2.0;
@@ -489,7 +490,11 @@ impl WaveformWidget {
     }
 
     fn begin_live_selection_preview(&mut self, kind: WaveformSelectionKind, visible_ratio: f32) {
-        self.live_selection_preview_anchor = Some((kind, visible_ratio));
+        self.live_selection_preview_anchor = Some(LiveSelectionPreviewAnchor {
+            kind,
+            visible_ratio,
+            baseline: self.selection_for_kind(kind),
+        });
         self.live_selection_preview = None;
     }
 
@@ -536,14 +541,14 @@ impl WaveformWidget {
         kind: WaveformSelectionKind,
         visible_ratio: f32,
     ) -> Option<wavecrate::selection::SelectionRange> {
-        let Some((anchor_kind, anchor_visible_ratio)) = self.live_selection_preview_anchor else {
+        let Some(anchor) = self.live_selection_preview_anchor else {
             return None;
         };
-        if anchor_kind != kind {
+        if anchor.kind != kind {
             self.clear_live_selection_preview();
             return None;
         }
-        let anchor_ratio = self.absolute_ratio_for_visible(anchor_visible_ratio)?;
+        let anchor_ratio = self.absolute_ratio_for_visible(anchor.visible_ratio)?;
         let current_ratio = self.absolute_ratio_for_visible(visible_ratio)?;
         Some(wavecrate::selection::SelectionRange::new(
             anchor_ratio,
@@ -557,7 +562,11 @@ impl WaveformWidget {
         edge: WaveformSelectionEdge,
         visible_ratio: f32,
     ) -> Option<wavecrate::selection::SelectionRange> {
-        let selection = self.selection_for_kind(kind)?;
+        let selection = self
+            .live_selection_preview_anchor
+            .filter(|anchor| anchor.kind == kind)
+            .and_then(|anchor| anchor.baseline)
+            .or_else(|| self.selection_for_kind(kind))?;
         let ratio = self.absolute_ratio_for_visible(visible_ratio)?;
         let fixed_ratio = match edge {
             WaveformSelectionEdge::Start => selection.end(),
@@ -571,9 +580,12 @@ impl WaveformWidget {
         kind: WaveformSelectionKind,
         visible_ratio: f32,
     ) -> Option<wavecrate::selection::SelectionRange> {
-        let selection = self.selection_for_kind(kind)?;
-        let (_, anchor_visible_ratio) = self.live_selection_preview_anchor?;
-        let anchor_ratio = self.absolute_ratio_for_visible(anchor_visible_ratio)?;
+        let anchor = self.live_selection_preview_anchor?;
+        if anchor.kind != kind {
+            return None;
+        }
+        let selection = anchor.baseline.or_else(|| self.selection_for_kind(kind))?;
+        let anchor_ratio = self.absolute_ratio_for_visible(anchor.visible_ratio)?;
         let ratio = self.absolute_ratio_for_visible(visible_ratio)?;
         let delta = ratio - anchor_ratio;
         Some(if self.allows_out_of_bounds_selection_preview() {

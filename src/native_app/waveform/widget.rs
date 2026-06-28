@@ -26,6 +26,13 @@ pub(in crate::native_app::waveform) struct LiveSelectionPreview {
     pub(super) selection: wavecrate::selection::SelectionRange,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app::waveform) struct LiveSelectionPreviewAnchor {
+    pub(super) kind: WaveformSelectionKind,
+    pub(super) visible_ratio: f32,
+    pub(super) baseline: Option<wavecrate::selection::SelectionRange>,
+}
+
 pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     state: &WaveformState,
     tooltip: Option<&'static str>,
@@ -220,7 +227,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) beat_guide_count: u8,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
-    pub(super) live_selection_preview_anchor: Option<(WaveformSelectionKind, f32)>,
+    pub(super) live_selection_preview_anchor: Option<LiveSelectionPreviewAnchor>,
     pub(super) live_selection_preview: Option<LiveSelectionPreview>,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
@@ -377,11 +384,11 @@ impl WaveformWidget {
         if self.active_drag_kind == previous.active_drag_kind {
             return true;
         }
-        let Some((anchor_kind, _)) = previous.live_selection_preview_anchor else {
+        let Some(anchor) = previous.live_selection_preview_anchor else {
             return false;
         };
         self.active_drag_kind
             .and_then(WaveformActiveDragKind::selection_kind)
-            == Some(anchor_kind)
+            == Some(anchor.kind)
     }
 }
