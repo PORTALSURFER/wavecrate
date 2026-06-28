@@ -21,6 +21,8 @@ jobs:
     outputs:
       target_sha: ${{ steps.target.outputs.target_sha }}
       build_number: ${{ steps.target.outputs.build_number }}
+      nightly_version: ${{ steps.target.outputs.nightly_version }}
+      portal_build_id: ${{ steps.target.outputs.portal_build_id }}
       previous_nightly_sha: ${{ steps.target.outputs.previous_nightly_sha }}
       released_at: ${{ steps.target.outputs.released_at }}
     steps:
@@ -38,6 +40,9 @@ jobs:
           target_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq '.sha')"
           previous_nightly_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/nightly" --jq '.object.sha' 2>/dev/null || true)"
           build_number="$(git rev-list --count "$target_sha")"
+          short_sha="${target_sha::8}"
+          nightly_version="nightly-b${build_number}-${short_sha}"
+          portal_build_id="wavecrate-${nightly_version}"
           released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
           if [[ -z "$build_number" || ! "$build_number" =~ ^[0-9]+$ ]]; then
@@ -47,6 +52,8 @@ jobs:
 
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
           echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "nightly_version=$nightly_version" >> "$GITHUB_OUTPUT"
+          echo "portal_build_id=$portal_build_id" >> "$GITHUB_OUTPUT"
           echo "previous_nightly_sha=$previous_nightly_sha" >> "$GITHUB_OUTPUT"
           echo "released_at=$released_at" >> "$GITHUB_OUTPUT"
 
@@ -68,12 +75,23 @@ jobs:
         env:
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
           BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
+          NIGHTLY_VERSION: ${{ needs.resolve-main.outputs.nightly_version }}
           PREVIOUS_NIGHTLY_SHA: ${{ needs.resolve-main.outputs.previous_nightly_sha }}
           RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
         run: |
           set -euo pipefail
           mkdir -p dist/release
           git fetch --tags --force
+          git tag -d nightly >/dev/null 2>&1 || true
+
+          if existing="$(git rev-parse -q --verify "refs/tags/${NIGHTLY_VERSION}^{commit}" 2>/dev/null)"; then
+            if [[ "$existing" != "$TARGET_SHA" ]]; then
+              echo "Nightly version tag ${NIGHTLY_VERSION} already points at ${existing}, expected ${TARGET_SHA}." >&2
+              exit 1
+            fi
+          else
+            git tag "$NIGHTLY_VERSION" "$TARGET_SHA"
+          fi
 
           previous="${PREVIOUS_NIGHTLY_SHA:-}"
           if [[ -n "$previous" ]] && ! git cat-file -e "${previous}^{commit}" 2>/dev/null; then
@@ -87,9 +105,10 @@ jobs:
 
           if [[ -n "$previous" && "$previous" == "$TARGET_SHA" ]]; then
             cat > dist/release/release-log.md <<EOF
-          # Wavecrate Nightly
+          # Wavecrate ${NIGHTLY_VERSION}
 
           - Build: ${BUILD_NUMBER}
+          - Version: ${NIGHTLY_VERSION}
           - Commit: ${TARGET_SHA}
           - Previous nightly: ${previous}
           - Generated: ${RELEASED_AT}
@@ -109,7 +128,7 @@ jobs:
               fi
             fi
 
-            args=(--config cliff.toml --tag nightly)
+            args=(--config cliff.toml --tag "$NIGHTLY_VERSION")
             if [[ -n "$range" ]]; then
               args+=("$range")
             fi
@@ -122,9 +141,10 @@ jobs:
             fi
 
             {
-              echo "# Wavecrate Nightly"
+              echo "# Wavecrate ${NIGHTLY_VERSION}"
               echo
               echo "- Build: ${BUILD_NUMBER}"
+              echo "- Version: ${NIGHTLY_VERSION}"
               echo "- Commit: ${TARGET_SHA}"
               if [[ -n "$previous" ]]; then
                 echo "- Previous nightly: ${previous}"
@@ -156,6 +176,7 @@ jobs:
             echo "# Wavecrate Changelog"
             echo
             echo "- Latest build: ${BUILD_NUMBER}"
+            echo "- Latest version: ${NIGHTLY_VERSION}"
             echo "- Latest commit: ${TARGET_SHA}"
             echo "- Generated: ${RELEASED_AT}"
             echo
@@ -354,12 +375,28 @@ jobs:
             exit 1
           fi
           rm -f "$key_path" "$pub_der" dist/release/checksums-pubkey.txt "$sig_bin"
-      - name: Move nightly tag to main commit
+      - name: Publish nightly tags
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
+          NIGHTLY_VERSION: ${{ needs.resolve-main.outputs.nightly_version }}
         run: |
           set -euo pipefail
+          existing_version_sha="$(gh api \
+            "repos/${{ github.repository }}/git/ref/tags/${NIGHTLY_VERSION}" \
+            --jq '.object.sha' 2>/dev/null || true)"
+          if [[ -n "$existing_version_sha" && "$existing_version_sha" != "$TARGET_SHA" ]]; then
+            echo "Immutable nightly tag ${NIGHTLY_VERSION} points at ${existing_version_sha}, expected ${TARGET_SHA}." >&2
+            exit 1
+          fi
+          if [[ -z "$existing_version_sha" ]]; then
+            gh api \
+              --method POST \
+              "repos/${{ github.repository }}/git/refs" \
+              -f ref="refs/tags/${NIGHTLY_VERSION}" \
+              -f sha="${TARGET_SHA}"
+          fi
+
           if ! gh api \
             --method PATCH \
             "repos/${{ github.repository }}/git/refs/tags/nightly" \
@@ -435,6 +472,7 @@ jobs:
           UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
           BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
+          PORTAL_BUILD_ID: ${{ needs.resolve-main.outputs.portal_build_id }}
           RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
         run: |
           set -euo pipefail
@@ -446,8 +484,7 @@ jobs:
           fi
 
           version="nightly"
-          short_sha="${TARGET_SHA::8}"
-          build_id="wavecrate-nightly-b${BUILD_NUMBER}-${short_sha}"
+          build_id="$PORTAL_BUILD_ID"
           released_at="${RELEASED_AT}"
 
           upload_base="${UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
