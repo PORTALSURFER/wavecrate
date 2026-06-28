@@ -22,6 +22,7 @@ pub(super) enum WaveformDrag {
     EditFade(WaveformEditFadeDrag),
     EditFadeOuterGain(WaveformEditFadeOuterGainDrag),
     EditGain(WaveformEditGainDrag),
+    SampleSlide(WaveformSampleSlideDrag),
     Pan(WaveformPanDrag),
 }
 
@@ -39,8 +40,29 @@ impl WaveformDrag {
                 WaveformActiveDragKind::EditFadeOuterGain(drag.handle)
             }
             WaveformDrag::EditGain(_) => WaveformActiveDragKind::EditGain,
+            WaveformDrag::SampleSlide(_) => WaveformActiveDragKind::SampleSlide,
             WaveformDrag::Pan(_) => WaveformActiveDragKind::Pan,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct WaveformSampleSlideDrag {
+    anchor_visible_ratio: f32,
+    visible_frames: usize,
+}
+
+impl WaveformSampleSlideDrag {
+    pub(super) fn new(anchor_visible_ratio: f32, viewport: WaveformViewport) -> Self {
+        Self {
+            anchor_visible_ratio: finite_or_zero(anchor_visible_ratio),
+            visible_frames: viewport.visible_items(),
+        }
+    }
+
+    pub(super) fn frame_offset(self, visible_ratio: f32) -> i64 {
+        let visible_ratio = finite_or_zero(visible_ratio);
+        ((visible_ratio - self.anchor_visible_ratio) * self.visible_frames as f32).round() as i64
     }
 }
 

@@ -149,6 +149,8 @@ pub enum HarvestDerivationOperation {
     ReverseCopy,
     /// Edit effects rendered to a copy.
     EditCopy,
+    /// Circular sample slide rendered to a copy.
+    SlideCopy,
     /// Normalize rendered to a copy.
     NormalizeCopy,
     /// Whole-file duplicate rendered with the audio repeated twice.
@@ -171,6 +173,7 @@ impl HarvestDerivationOperation {
             Self::TrimCopy => "trim_copy",
             Self::ReverseCopy => "reverse_copy",
             Self::EditCopy => "edit_copy",
+            Self::SlideCopy => "slide_copy",
             Self::NormalizeCopy => "normalize_copy",
             Self::DuplicateDoubleCopy => "duplicate_double_copy",
             Self::Export => "export",
@@ -188,6 +191,7 @@ impl HarvestDerivationOperation {
             "trim_copy" => Self::TrimCopy,
             "reverse_copy" => Self::ReverseCopy,
             "edit_copy" => Self::EditCopy,
+            "slide_copy" => Self::SlideCopy,
             "normalize_copy" => Self::NormalizeCopy,
             "duplicate_double_copy" => Self::DuplicateDoubleCopy,
             "export" => Self::Export,

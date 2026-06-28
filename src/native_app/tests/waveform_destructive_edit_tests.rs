@@ -488,6 +488,82 @@ fn protected_reverse_selection_renders_reverse_copy_to_primary_without_mutating_
 }
 
 #[test]
+fn protected_sample_slide_renders_slide_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-slide.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let slide_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-slide_slide.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSampleSlide { visible_ratio: 0.0 }),
+        &mut ui::UiUpdateContext::default(),
+    );
+    apply_message_and_run_command(
+        &mut state,
+        GuiMessage::Waveform(WaveformInteraction::FinishSampleSlide {
+            visible_ratio: 0.25,
+        }),
+    );
+
+    assert_samples_close(&read_test_wav_f32(&path), &[0.0, 1_000.0, 2_000.0, 3_000.0]);
+    assert_samples_close(
+        &read_test_wav_f32(&slide_copy),
+        &[3_000.0, 0.0, 1_000.0, 2_000.0],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(slide_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-slide.wav"),
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::SlideCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-slide_slide.wav")
+    );
+}
+
+#[test]
 fn normal_harvest_mode_reverse_selection_renders_reverse_copy_to_primary_without_mutating_origin() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
@@ -1441,6 +1517,100 @@ fn extract_and_trim_request_extracts_selection_trims_source_and_undo_redo_roundt
     );
 }
 
+#[test]
+fn sample_slide_positive_offset_wraps_end_to_beginning() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("slide-positive.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSampleSlide { visible_ratio: 0.0 }),
+        &mut ui::UiUpdateContext::default(),
+    );
+    apply_message_and_run_command(
+        &mut state,
+        GuiMessage::Waveform(WaveformInteraction::FinishSampleSlide {
+            visible_ratio: 0.25,
+        }),
+    );
+
+    assert_samples_close(&read_test_wav_f32(&path), &[3_000.0, 0.0, 1_000.0, 2_000.0]);
+    assert_eq!(
+        state.waveform.current.frames(),
+        4,
+        "sample slide should preserve duration"
+    );
+    assert!(state.ui.status.sample.contains("Slid"));
+}
+
+#[test]
+fn sample_slide_negative_offset_wraps_beginning_to_end() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("slide-negative.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSampleSlide { visible_ratio: 0.5 }),
+        &mut ui::UiUpdateContext::default(),
+    );
+    apply_message_and_run_command(
+        &mut state,
+        GuiMessage::Waveform(WaveformInteraction::FinishSampleSlide {
+            visible_ratio: 0.25,
+        }),
+    );
+
+    assert_samples_close(&read_test_wav_f32(&path), &[1_000.0, 2_000.0, 3_000.0, 0.0]);
+    assert_eq!(
+        state.waveform.current.frames(),
+        4,
+        "sample slide should preserve duration"
+    );
+}
+
+#[test]
+fn sample_slide_wraps_stereo_audio_by_frame() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("slide-stereo.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16_stereo_for_destructive_tests(
+        &path,
+        &[(1_000, 10_000), (2_000, 20_000), (3_000, 30_000)],
+    );
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSampleSlide { visible_ratio: 0.0 }),
+        &mut ui::UiUpdateContext::default(),
+    );
+    apply_message_and_run_command(
+        &mut state,
+        GuiMessage::Waveform(WaveformInteraction::FinishSampleSlide {
+            visible_ratio: 1.0 / 3.0,
+        }),
+    );
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[3_000.0, 30_000.0, 1_000.0, 10_000.0, 2_000.0, 20_000.0],
+    );
+    assert_eq!(state.waveform.current.channels(), 2);
+    assert_eq!(state.waveform.current.frames(), 3);
+}
+
 fn select_waveform_range(
     state: &mut crate::native_app::test_support::state::NativeAppState,
     kind: WaveformSelectionKind,
@@ -1530,4 +1700,19 @@ fn assert_range_close(range: wavecrate::selection::SelectionRange, start: f32, e
         "expected range end {end}, got {}",
         range.end()
     );
+}
+
+fn write_test_wav_i16_stereo_for_destructive_tests(path: &std::path::Path, frames: &[(i16, i16)]) {
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 48_000,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+    for (left, right) in frames {
+        writer.write_sample(*left).expect("write left sample");
+        writer.write_sample(*right).expect("write right sample");
+    }
+    writer.finalize().expect("finalize wav");
 }

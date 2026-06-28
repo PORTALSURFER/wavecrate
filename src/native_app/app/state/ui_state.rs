@@ -391,6 +391,7 @@ pub(in crate::native_app) enum WaveformDestructiveEditKind {
     ReverseSelection,
     ExtractAndTrimSelection,
     ApplyEditSelectionEffects,
+    SlideSampleAudio { frame_offset: i64 },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -1,8 +1,8 @@
 use radiant::{
     gui::types::{Rect, Vector2},
     widgets::{
-        CanvasGestureEvent, CanvasPointer, DragHandleMessage, PointerButton, WidgetInput,
-        WidgetOutput,
+        CanvasGestureEvent, CanvasPointer, DragHandleMessage, PointerButton, PointerModifiers,
+        WidgetInput, WidgetOutput,
     },
 };
 
@@ -105,6 +105,9 @@ impl WaveformWidget {
         if !has_loaded_sample {
             return None;
         }
+        if let Some(output) = self.command_option_sample_slide_press_output(bounds, &event) {
+            return Some(output);
+        }
         if let Some(pointer) = event.press_pointer_inside(bounds, PointerButton::Primary) {
             return self.handle_primary_press(bounds, pointer);
         }
@@ -141,6 +144,14 @@ impl WaveformWidget {
                 return Some(WidgetOutput::typed(
                     WaveformInteraction::FinishEditFadeOuterGain {
                         vertical_ratio: pointer.normalized_y(),
+                    },
+                ));
+            }
+            if self.active_drag_kind == Some(WaveformActiveDragKind::SampleSlide) {
+                self.clear_sample_slide_preview();
+                return Some(WidgetOutput::typed(
+                    WaveformInteraction::FinishSampleSlide {
+                        visible_ratio: pointer.normalized_x(),
                     },
                 ));
             }
@@ -240,6 +251,14 @@ impl WaveformWidget {
                 },
             ));
         }
+        if self.active_drag_kind == Some(WaveformActiveDragKind::SampleSlide) {
+            let visible_ratio =
+                quantized_live_selection_visible_ratio(bounds, pointer.normalized_x());
+            self.update_sample_slide_preview(visible_ratio);
+            return Some(WidgetOutput::typed(
+                WaveformInteraction::UpdateSampleSlide { visible_ratio },
+            ));
+        }
         if self.selection_drag_is_inside_click_slop(event) {
             self.live_selection_preview = None;
             return None;
@@ -337,6 +356,32 @@ impl WaveformWidget {
         self.begin_live_selection_preview(WaveformSelectionKind::Play, visible_ratio);
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
+            visible_ratio,
+        }))
+    }
+
+    fn command_option_sample_slide_press_output(
+        &mut self,
+        bounds: Rect,
+        event: &CanvasGestureEvent,
+    ) -> Option<WidgetOutput> {
+        let CanvasGestureEvent::Press {
+            pointer,
+            button: PointerButton::Primary,
+            modifiers,
+        } = event
+        else {
+            return None;
+        };
+        if !pointer.is_inside(bounds) || !sample_slide_modifiers(*modifiers) {
+            return None;
+        }
+        let visible_ratio = pointer.normalized_x();
+        self.last_live_selection_update_visible_ratio = None;
+        self.clear_live_selection_preview();
+        self.clear_waveform_hover();
+        self.begin_sample_slide_preview(visible_ratio);
+        Some(WidgetOutput::typed(WaveformInteraction::BeginSampleSlide {
             visible_ratio,
         }))
     }
@@ -503,6 +548,28 @@ impl WaveformWidget {
         self.live_selection_preview = None;
     }
 
+    fn begin_sample_slide_preview(&mut self, visible_ratio: f32) {
+        self.active_drag_kind = Some(WaveformActiveDragKind::SampleSlide);
+        self.live_sample_slide_anchor_visible_ratio = Some(visible_ratio);
+        self.sample_slide_frame_offset = Some(0);
+    }
+
+    fn update_sample_slide_preview(&mut self, visible_ratio: f32) {
+        let Some(anchor) = self.live_sample_slide_anchor_visible_ratio else {
+            return;
+        };
+        self.sample_slide_frame_offset = Some(sample_slide_frame_offset(
+            anchor,
+            visible_ratio,
+            self.viewport.visible_items(),
+        ));
+    }
+
+    fn clear_sample_slide_preview(&mut self) {
+        self.live_sample_slide_anchor_visible_ratio = None;
+        self.sample_slide_frame_offset = None;
+    }
+
     fn update_live_selection_preview_for_active_drag(&mut self, visible_ratio: f32) {
         let Some(active_kind) = self.active_drag_kind else {
             return;
@@ -645,6 +712,21 @@ fn quantized_live_selection_visible_ratio(bounds: Rect, visible_ratio: f32) -> f
         .round()
         .max(1.0);
     (visible_ratio.clamp(0.0, 1.0) * steps).round() / steps
+}
+
+fn sample_slide_modifiers(modifiers: PointerModifiers) -> bool {
+    modifiers.command && modifiers.alt && !modifiers.shift
+}
+
+fn sample_slide_frame_offset(
+    anchor_visible_ratio: f32,
+    visible_ratio: f32,
+    visible_frames: usize,
+) -> i64 {
+    if !anchor_visible_ratio.is_finite() || !visible_ratio.is_finite() {
+        return 0;
+    }
+    ((visible_ratio - anchor_visible_ratio) * visible_frames.max(1) as f32).round() as i64
 }
 
 fn pointer_location_output(pointer: CanvasPointer) -> WidgetOutput {

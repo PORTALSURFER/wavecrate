@@ -49,6 +49,7 @@ impl WaveformState {
         self.edit_selection_denied_flash_frames = 0;
         self.active_drag = None;
         self.pending_playback_start = None;
+        self.pending_sample_slide_frame_offset = None;
     }
 
     fn preserved_marks_with_transform(

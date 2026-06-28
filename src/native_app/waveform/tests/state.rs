@@ -466,6 +466,24 @@ fn edit_top_handle_moves_range_and_preserves_edit_effects() {
 }
 
 #[test]
+fn sample_slide_drag_uses_visible_viewport_frames_for_offset() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.viewport = super::WaveformViewport {
+        start: 12_000,
+        end: 36_000,
+    };
+
+    state.apply_interaction(WaveformInteraction::BeginSampleSlide {
+        visible_ratio: 0.25,
+    });
+    state.apply_interaction(WaveformInteraction::UpdateSampleSlide { visible_ratio: 0.5 });
+    assert_eq!(state.take_pending_sample_slide_frame_offset(), Some(6_000));
+
+    state.apply_interaction(WaveformInteraction::FinishSampleSlide { visible_ratio: 0.0 });
+    assert_eq!(state.take_pending_sample_slide_frame_offset(), Some(-6_000));
+}
+
+#[test]
 fn dragging_secondary_creates_edit_selection() {
     let mut state = WaveformState::synthetic_for_tests();
 

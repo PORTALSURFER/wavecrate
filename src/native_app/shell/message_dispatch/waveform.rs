@@ -41,6 +41,14 @@ impl NativeAppState {
             return;
         }
         self.waveform.current.apply_interaction(message);
+        if matches!(message, WaveformInteraction::FinishSampleSlide { .. })
+            && let Some(frame_offset) = self
+                .waveform
+                .current
+                .take_pending_sample_slide_frame_offset()
+        {
+            self.request_slide_loaded_sample_audio(frame_offset, context);
+        }
         self.mark_harvest_touched_after_waveform_mark_change(harvest_mark_before);
         if let Some(before) = play_selection_before {
             self.waveform.pending_play_selection_transaction =
@@ -385,6 +393,8 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::SelectSimilarSection { .. } => Some("waveform.similar_section.select"),
         WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
         WaveformInteraction::BeginSelectionMove { .. } => Some("waveform.selection.move_begin"),
+        WaveformInteraction::BeginSampleSlide { .. } => Some("waveform.sample_slide.begin"),
+        WaveformInteraction::FinishSampleSlide { .. } => Some("waveform.sample_slide.finish"),
         WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),
         WaveformInteraction::DragPlaySelectionExport(drag) => match drag.phase() {
             ui::DragHandlePhase::Started => Some("waveform.selection_export_drag.begin"),
@@ -396,6 +406,7 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::DragLoadedSample(_) => None,
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
         WaveformInteraction::UpdateSelection { .. }
+        | WaveformInteraction::UpdateSampleSlide { .. }
         | WaveformInteraction::UpdateEditFadeOuterGain { .. }
         | WaveformInteraction::UpdateEditGain { .. }
         | WaveformInteraction::Frame => None,

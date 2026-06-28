@@ -3,7 +3,8 @@ use super::*;
 #[test]
 fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
     let state = WaveformState::synthetic_for_tests();
-    let plan = waveform_signal_surface_plan(state.file(), state.viewport(), state.edit_selection());
+    let plan =
+        waveform_signal_surface_plan(state.file(), state.viewport(), state.edit_selection(), None);
 
     let surface = plan
         .gpu_surfaces()
@@ -21,7 +22,8 @@ fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
 #[test]
 fn signal_widget_leaves_hover_cursor_to_waveform_widget_overlay() {
     let state = WaveformState::synthetic_for_tests();
-    let plan = waveform_signal_surface_plan(state.file(), state.viewport(), state.edit_selection());
+    let plan =
+        waveform_signal_surface_plan(state.file(), state.viewport(), state.edit_selection(), None);
 
     let surface = plan
         .gpu_surfaces()
@@ -57,7 +59,7 @@ fn signal_widget_attaches_active_edit_fade_gain_preview() {
             .with_fade_in_mute(0.2)
             .with_fade_in_outer_gain(0.35),
     );
-    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection);
+    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection, None);
 
     let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 
@@ -91,7 +93,7 @@ fn signal_widget_attaches_active_edit_gain_preview_without_fades() {
     ));
     let viewport = super::WaveformViewport::full(file.frames);
     let edit_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.75).with_gain(0.5));
-    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection);
+    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection, None);
 
     let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 
@@ -104,6 +106,28 @@ fn signal_widget_attaches_active_edit_gain_preview_without_fades() {
     assert_eq!(preview.gain, 0.5);
     assert_eq!(preview.fade_in_length, 0.0);
     assert_eq!(preview.fade_out_length, 0.0);
+}
+
+#[test]
+fn signal_widget_attaches_sample_slide_preview_offset() {
+    let state = WaveformState::synthetic_for_tests();
+    let plan = waveform_signal_surface_plan(
+        state.file(),
+        state.viewport(),
+        state.edit_selection(),
+        Some(6_000),
+    );
+
+    let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
+    let GpuSurfaceContent::SignalSummaryBands {
+        sample_slide_frame_offset,
+        ..
+    } = &surface.content
+    else {
+        panic!("expected signal summary bands");
+    };
+
+    assert_eq!(*sample_slide_frame_offset, 6_000);
 }
 
 #[test]
@@ -141,7 +165,7 @@ fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
     let viewport = super::WaveformViewport::full(file.frames);
     let edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
-    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection);
+    let plan = waveform_signal_surface_plan(Arc::clone(&file), viewport, edit_selection, None);
 
     let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 
