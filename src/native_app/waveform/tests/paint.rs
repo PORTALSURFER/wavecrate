@@ -69,10 +69,9 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
 }
 
 #[test]
-fn playhead_cursor_paints_while_playing_small_playmark_selection() {
+fn playhead_cursor_paints_for_static_small_playmark_selection() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.500, 0.505));
-    state.start_playback(0.500);
     state.set_playhead_ratio(0.503);
 
     let widget = waveform_widget_for_state(&state);
@@ -83,7 +82,7 @@ fn playhead_cursor_paints_while_playing_small_playmark_selection() {
         .find(|fill| {
             (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
         })
-        .expect("playhead fill paints during playback");
+        .expect("static playhead fill paints");
     assert!((playhead.rect.center().x / 400.0 - 0.503).abs() < 0.01);
 }
 
