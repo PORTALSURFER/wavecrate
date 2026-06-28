@@ -38,6 +38,33 @@ Harvest is Wavecrate's way of tracking how raw material turns into reusable samp
 
 Harvest is metadata-driven. It is not meant to replace your folder structure or force planning into markdown files.
 
+## Harvest Actions
+
+Harvest source and sample menus include workflow actions for managing review state:
+
+- **Mark Harvest Done:** marks the selected harvest item as finished.
+- **Ignore in Harvest:** hides an item from the active harvest review flow without deleting it.
+- **Reset Harvest:** clears the harvest review state when an item should be reconsidered.
+- **Show Harvest Origin:** jumps from a derivative back to the original source file.
+- **Show Harvest Derivatives:** shows clips created from the selected origin.
+- **Open Harvest Destination:** opens the configured destination for derived clips.
+
+When a protected source has a harvest destination, extracting a playmark can write the new clip directly to that destination and keep the origin relationship attached as metadata.
+
+## Harvest Filters
+
+Harvest filters narrow the browser by workflow state:
+
+- **New:** items that have not been reviewed.
+- **New + Touched:** new material plus items that were already opened or acted on.
+- **Needs Review:** items still requiring a decision.
+- **Touched:** items that have been played, edited, or otherwise acted on.
+- **Has Derivatives:** origins with extracted or edited derivative files.
+- **No Derivatives:** origins without derivative clips yet.
+- **Done:** items marked complete.
+- **Ignored:** items intentionally skipped.
+- **All:** the full harvest scope.
+
 ## Recommended Source Strategy
 
 - Use ordinary sources for disposable or already-curated sample libraries.

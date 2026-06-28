@@ -20,6 +20,7 @@ The main surface has three working areas:
 - `Up` and `Down` move through the visible rows.
 - `Shift-Up` and `Shift-Down` extend the sample selection.
 - `Esc` stops playback, closes transient UI, or clears selection depending on context.
+- The random controls can audition random sections or random listed samples when you want to break out of row order.
 
 ## Narrow the List
 

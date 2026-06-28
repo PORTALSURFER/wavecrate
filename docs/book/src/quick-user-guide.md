@@ -20,7 +20,7 @@ Useful first-pass moves:
 
 - press `]` to mark a sound as Keep
 - press `[` to mark a sound as Trash
-- use folder, tag, rating, collection, and playback-age filters to narrow the list
+- use folder, tag, rating, collection, playback-age, similarity, and Starmap filters to narrow the list
 
 ## 3. Mark A Useful Region
 
@@ -58,3 +58,5 @@ Rate, tag, rename, or place extracted clips into useful folders or collections. 
 ![Metadata and collections](assets/feature-metadata-collections.png)
 
 Use protected sources for original project material or long recordings that should stay safe while derived clips are created elsewhere.
+
+Use the source, folder, sample, tag, and collection context menus for maintenance actions that are not part of the first-pass audition loop.

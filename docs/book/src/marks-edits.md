@@ -35,6 +35,8 @@ When both a playmark and editmark exist, edit commands generally prefer the edit
 
 Destructive edits prompt for confirmation unless Yolo mode is enabled. Keep backups when working on important material.
 
+Editmark fade and gain handles can preview changes before they are applied. Press `Enter` or click **Apply** to commit pending editmark effects.
+
 ## Visual Feedback
 
 After edits, the waveform should reload or update so the visible audio reflects the change. If the visual state looks stale after an edit, try selecting the file again or reopening the source, then include the exact action sequence and logs when reporting it.

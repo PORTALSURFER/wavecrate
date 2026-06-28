@@ -10,7 +10,12 @@ This book is the public documentation surface for Wavecrate. It is intentionally
 
 - New users should begin with [Getting Started](getting-started.md), then use the [Quick User Guide](quick-user-guide.md) for the first sample-curation pass.
 - Sample-library cleanup and source safety live in [Sources, Locks, and Harvest](sources-harvest.md).
+- File moves, source processing, and context-menu actions live in [Sample Files and Source Operations](sample-files-sources.md).
+- Tags, labels, collections, and rating passes live in [Metadata, Tags, and Collections](metadata-tags-collections.md).
+- Similarity search and Starmap live in [Similarity and Starmap](similarity-starmap.md).
 - Waveform work lives in [Playmarks, Editmarks, and Edits](marks-edits.md).
+- Toolbar-level waveform controls live in [Advanced Waveform Tools](advanced-waveform.md).
+- Audio, cache, trash-folder, and tooltip controls live in [Settings](settings.md).
 - A visual pass through the current app surface lives in [Screenshots and Feature Tour](screenshots.md).
 
 ## What Wavecrate Helps With
@@ -22,3 +27,4 @@ This book is the public documentation surface for Wavecrate. It is intentionally
 - Rate, tag, filter, and revisit sounds as taste changes.
 - Keep protected project material safe while still creating derived clips.
 - Prepare similarity data so related sounds become easier to find.
+- Use current-app context menus for folders, sources, samples, collections, tags, and Harvest state.
