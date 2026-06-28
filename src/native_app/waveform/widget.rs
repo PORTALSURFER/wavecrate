@@ -64,6 +64,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
             state.file(),
             state.viewport(),
             signal_edit_selection_for_state(state),
+            state.pending_sample_slide_frame_offset,
         )
         .id(WAVEFORM_SIGNAL_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
@@ -101,6 +102,7 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    sample_slide_frame_offset: Option<i64>,
 ) -> ui::View<GuiMessage> {
     ui::gpu_surface_with_capabilities(
         file.path_hash(),
@@ -111,6 +113,7 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
             frame_range: viewport.frame_range(),
             summary: Arc::clone(&file.gpu_signal_summary),
             gain_preview: gain_preview_for_selection(edit_selection),
+            sample_slide_frame_offset: sample_slide_frame_offset.unwrap_or(0),
         },
         GpuSurfaceCapabilities {
             fast_pointer_move: true,
@@ -406,11 +409,18 @@ impl WaveformWidget {
         let Some(frame_offset) = self.sample_slide_frame_offset else {
             return;
         };
+        let strip_height = bounds.height().min(4.0);
+        let strip = Rect::from_xy_size(
+            bounds.min.x,
+            bounds.max.y - strip_height,
+            bounds.width(),
+            strip_height,
+        );
         push_fill_rect(
             primitives,
             self.common.id,
-            bounds,
-            Rgba8::new(255, 202, 112, 42),
+            strip,
+            Rgba8::new(255, 202, 112, 120),
         );
         let width = ((frame_offset.unsigned_abs() as f32 / self.viewport.visible_items() as f32)
             * bounds.width())
@@ -424,8 +434,8 @@ impl WaveformWidget {
         push_fill_rect(
             primitives,
             self.common.id,
-            Rect::from_xy_size(x, bounds.min.y, width, bounds.height()),
-            Rgba8::new(255, 202, 112, 112),
+            Rect::from_xy_size(x, strip.min.y, width, strip.height()),
+            Rgba8::new(255, 202, 112, 210),
         );
     }
 

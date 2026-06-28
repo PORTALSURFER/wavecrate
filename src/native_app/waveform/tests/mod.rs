@@ -54,7 +54,7 @@ fn assert_pointer_location_output(output: Option<WidgetOutput>) {
 
 fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
     let viewport = super::WaveformViewport::full(file.frames);
-    let plan = waveform_signal_surface_plan(file, viewport, None);
+    let plan = waveform_signal_surface_plan(file, viewport, None, None);
     plan.gpu_surfaces()
         .map(|surface| surface.revision)
         .next()
@@ -65,10 +65,12 @@ fn waveform_signal_surface_plan(
     file: Arc<super::WaveformFile>,
     viewport: super::WaveformViewport,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    sample_slide_frame_offset: Option<i64>,
 ) -> SurfacePaintPlan {
-    let view = waveform_signal_surface_view(file, viewport, edit_selection)
-        .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
-        .size(200.0, 80.0);
+    let view =
+        waveform_signal_surface_view(file, viewport, edit_selection, sample_slide_frame_offset)
+            .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
+            .size(200.0, 80.0);
     let surface = view.into_surface();
     let bounds = Rect::from_size(200.0, 80.0);
     let layout = radiant::layout::layout_tree(&surface.layout_node(), bounds);

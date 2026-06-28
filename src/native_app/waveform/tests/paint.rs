@@ -755,6 +755,35 @@ fn live_selection_preview_paints_in_runtime_overlay() {
 }
 
 #[test]
+fn sample_slide_preview_paints_thin_bottom_strip() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.apply_interaction(WaveformInteraction::BeginSampleSlide { visible_ratio: 0.0 });
+    state.apply_interaction(WaveformInteraction::UpdateSampleSlide {
+        visible_ratio: 0.25,
+    });
+    let widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let plan = runtime_overlay_plan(&widget, bounds);
+    let fills = fill_rects(&plan);
+
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.y - 76.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.rect.min.x - 0.0).abs() < 0.001
+            && (fill.rect.max.x - 200.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 120)
+    }));
+    assert!(
+        fills.iter().all(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b) != (255, 202, 112)
+                || fill.rect.height() <= 4.0
+        }),
+        "sample slide preview should stay a bottom strip"
+    );
+}
+
+#[test]
 fn live_playmark_preview_paints_full_interactive_chrome() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
