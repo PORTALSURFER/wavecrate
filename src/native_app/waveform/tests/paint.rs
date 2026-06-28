@@ -607,7 +607,7 @@ fn extracted_ranges_paint_as_gray_waveform_overlays() {
 }
 
 #[test]
-fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
+fn extracted_ranges_paint_while_playmark_selection_drag_is_active() {
     let mut state = WaveformState::synthetic_for_tests();
     state
         .extracted_ranges
@@ -630,13 +630,18 @@ fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
 
     let fills = fill_rects(&plan);
     assert!(
-        !fills.iter().any(|fill| {
-            matches!(
-                (fill.color.r, fill.color.g, fill.color.b, fill.color.a),
-                (156, 160, 168, 108) | (114, 235, 184, 54)
-            )
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (156, 160, 168, 108)
         }),
-        "static extracted/similar overlays should not paint during live playmark drags"
+        "extracted overlays should remain visible during live playmark drags"
+    );
+    assert!(
+        !fills.iter().any(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (114, 235, 184, 54)
+        }),
+        "similar-section overlays should still pause during live playmark drags"
     );
     let runtime_plan = runtime_overlay_plan(&widget, bounds);
     let runtime_fills = fill_rects(&runtime_plan);
@@ -647,6 +652,47 @@ fn static_range_overlays_pause_while_playmark_selection_drag_is_active() {
                 && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
         }),
         "the live playmark selection itself should keep painting"
+    );
+}
+
+#[test]
+fn extracted_ranges_paint_while_editmark_selection_drag_is_active() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state
+        .extracted_ranges
+        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.4, 0.8));
+    state.edit_mark_ratio = Some(0.4);
+
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Edit,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Edit,
+        selection: wavecrate::selection::SelectionRange::new(0.4, 0.8),
+    });
+    let bounds = Rect::from_size(200.0, 80.0);
+    let plan = widget.paint_plan_with_defaults(bounds);
+
+    let fills = fill_rects(&plan);
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (156, 160, 168, 108)
+        }),
+        "extracted overlays should remain visible during live editmark drags"
+    );
+    let runtime_plan = runtime_overlay_plan(&widget, bounds);
+    let runtime_fills = fill_rects(&runtime_plan);
+    assert!(
+        runtime_fills.iter().any(|fill| {
+            (fill.rect.min.x - 80.0).abs() < 0.001
+                && (fill.rect.max.x - 160.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+        }),
+        "the live editmark selection itself should keep painting"
     );
 }
 
@@ -706,7 +752,7 @@ fn beat_guides_do_not_paint_during_live_selection_preview() {
 }
 
 #[test]
-fn active_drag_widget_props_do_not_clone_static_range_overlays() {
+fn active_selection_drag_widget_props_keep_extracted_range_overlays_only() {
     let mut state = WaveformState::synthetic_for_tests();
     state
         .extracted_ranges
@@ -721,7 +767,7 @@ fn active_drag_widget_props_do_not_clone_static_range_overlays() {
 
     let props = WaveformWidgetProps::from_state(&state, false, 4);
 
-    assert_eq!(props.static_range_overlay_counts(), (0, 0));
+    assert_eq!(props.static_range_overlay_counts(), (1, 0));
     assert_eq!(
         props.active_drag_kind,
         Some(WaveformActiveDragKind::Selection(

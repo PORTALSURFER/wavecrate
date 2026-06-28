@@ -158,7 +158,6 @@ impl WaveformWidgetProps {
         beat_guide_count: u8,
     ) -> Self {
         let active_drag_kind = state.active_drag_kind();
-        let static_range_overlays_visible = active_drag_kind.is_none();
         Self {
             file: state.file(),
             viewport: state.viewport(),
@@ -177,12 +176,12 @@ impl WaveformWidgetProps {
             hovered_edit_fade_outer_gain_handle: None,
             hovered_edit_gain_handle: false,
             hovered_similar_section: None,
-            extracted_ranges: if static_range_overlays_visible {
+            extracted_ranges: if extracted_range_overlays_visible(active_drag_kind) {
                 state.extracted_ranges().to_vec()
             } else {
                 Vec::new()
             },
-            similar_section_ranges: if static_range_overlays_visible {
+            similar_section_ranges: if similar_section_overlays_visible(active_drag_kind) {
                 state.similar_section_ranges().to_vec()
             } else {
                 Vec::new()
@@ -206,6 +205,17 @@ impl WaveformWidgetProps {
             self.similar_section_ranges.len(),
         )
     }
+}
+
+fn extracted_range_overlays_visible(active_drag_kind: Option<WaveformActiveDragKind>) -> bool {
+    active_drag_kind.is_none()
+        || active_drag_kind
+            .and_then(WaveformActiveDragKind::selection_kind)
+            .is_some()
+}
+
+fn similar_section_overlays_visible(active_drag_kind: Option<WaveformActiveDragKind>) -> bool {
+    active_drag_kind.is_none()
 }
 
 #[derive(Clone, Debug)]
