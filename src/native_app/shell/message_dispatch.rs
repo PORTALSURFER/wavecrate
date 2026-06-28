@@ -146,7 +146,6 @@ impl NativeAppState {
             | GuiMessage::ToggleShortcutHelp
             | GuiMessage::CloseShortcutHelp
             | GuiMessage::ToggleStickyRandomSampleRangePlayback
-            | GuiMessage::ToggleHarvestFamilyPanel
             | GuiMessage::ToggleCurationFilterDropdown
             | GuiMessage::CloseCurationFilterDropdown
             | GuiMessage::ToggleHarvestFilterDropdown

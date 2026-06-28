@@ -38,9 +38,6 @@ impl NativeAppState {
                     String::from("Sticky random playback off: Space plays selected samples")
                 };
             }
-            GuiMessage::ToggleHarvestFamilyPanel => {
-                self.ui.chrome.harvest_family_open = !self.ui.chrome.harvest_family_open;
-            }
             GuiMessage::ToggleCurationFilterDropdown => {
                 self.ui.chrome.curation_filter_dropdown_open =
                     !self.ui.chrome.curation_filter_dropdown_open;

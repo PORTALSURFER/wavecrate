@@ -237,7 +237,7 @@ pub(super) fn automation_curation_filter_dropdown_option_id(label: &str) -> u64 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
     let controls = ui::row([
-        harvest_family_toggle(row.family_available, row.family_open, help_tooltips_enabled),
+        harvest_filter_arrow_toggle(row.dropdown_open, help_tooltips_enabled),
         ui::dropdown_trigger(row.selected_label, row.dropdown_open)
             .toggle_message(GuiMessage::ToggleHarvestFilterDropdown)
             .build()
@@ -257,25 +257,16 @@ fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     )
 }
 
-fn harvest_family_toggle(
-    available: bool,
+fn harvest_filter_arrow_toggle(
     open: bool,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::disclosure_button(open)
-        .enabled(available)
         .active(open)
-        .message(GuiMessage::ToggleHarvestFamilyPanel)
+        .message(GuiMessage::ToggleHarvestFilterDropdown)
         .id(widget_ids::HARVEST_FAMILY_TOGGLE_ID)
         .size(HARVEST_FAMILY_TOGGLE_WIDTH, FILTER_CLEAR_BUTTON_SIZE)
-        .tooltip_if(
-            help_tooltips_enabled,
-            if available {
-                "Show harvest family details for the selected sample."
-            } else {
-                "Select a harvest-tracked sample to show harvest family details."
-            },
-        )
+        .tooltip_if(help_tooltips_enabled, "Choose the Harvest queue to show.")
 }
 
 pub(super) fn harvest_filter_dropdown_menu(
