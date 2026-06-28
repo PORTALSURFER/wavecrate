@@ -39,15 +39,3 @@ Run source sync from the source context menu. Use hard sync when ordinary sync d
 ## Why is similarity search empty?
 
 Prepare similarity data for the source first. Similarity search depends on analysis, embeddings, and clustering work that can take time on large folders.
-
-## What if a destructive edit changed the wrong file?
-
-Stop editing, keep the current folder as-is, and gather logs. If the source should be protected, make sure it is configured as a protected or locked source before continuing.
-
-## What if the waveform looks stale?
-
-Select another sample and return, or restart the app. If stale visuals repeat, include the exact action sequence and logs in the bug report.
-
-## Where should I report bugs?
-
-Use the issue link from the app when available. Include the exact steps you took, what you expected to happen, what happened instead, and any relevant logs from the config folder.
