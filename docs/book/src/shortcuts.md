@@ -40,16 +40,4 @@ Press `Command-/` in the app to open the current context-aware shortcut overlay.
 | `N` | Normalize selected sample |
 | `D` | Delete selected sample |
 
-## Source Folders
-
-| Shortcut | Action |
-| --- | --- |
-| `Up` / `Down` | Move folder focus |
-| `Left` / `Right` | Collapse or expand folder |
-| `X` | Toggle folder selection |
-| `N` | New folder |
-| `F` | Focus folder search |
-| `R` | Rename folder |
-| `D` | Delete folder |
-
 This page should stay aligned with the in-app shortcut catalog. Shortcut catalog synchronization is tracked separately from the first docs publishing pass.

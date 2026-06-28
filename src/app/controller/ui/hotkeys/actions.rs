@@ -1,7 +1,5 @@
 mod browser;
-mod folders;
 mod global;
-mod sources;
 mod waveform;
 
 use super::types::HotkeyAction;
@@ -48,23 +46,6 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     browser::SELECT_ALL,
     browser::NORMALIZE_SAMPLE,
     browser::DELETE_SAMPLE,
-    folders::TOGGLE_SELECT,
-    folders::MOVE_FOLDER_FOCUS_UP,
-    folders::MOVE_FOLDER_FOCUS_DOWN,
-    folders::COLLAPSE_FOCUSED_FOLDER,
-    folders::EXPAND_FOCUSED_FOLDER,
-    folders::DELETE_FOLDER,
-    folders::RENAME_FOLDER,
-    folders::RENAME_FOLDER_LEGACY,
-    folders::RENAME_FOLDER_COMMAND,
-    folders::CREATE_FOLDER,
-    folders::FOCUS_SEARCH,
-    sources::MOVE_SOURCE_FOCUS_UP,
-    sources::MOVE_SOURCE_FOCUS_DOWN,
-    sources::RELOAD_FOCUSED_SOURCE,
-    sources::HARD_SYNC_FOCUSED_SOURCE,
-    sources::OPEN_FOCUSED_SOURCE_FOLDER,
-    sources::REMOVE_FOCUSED_SOURCE,
     waveform::NORMALIZE_SELECTION,
     waveform::ALIGN_START_TO_MARKER,
     waveform::CROP_SELECTION,
@@ -95,7 +76,7 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::super::types::{HotkeyGesture, HotkeyScope, KeyPress};
+    use super::super::types::KeyPress;
     use super::*;
     use crate::app::controller::ui::hotkeys;
     use crate::app::state::FocusContext;
@@ -141,23 +122,10 @@ mod tests {
         )));
 
         let folder_focus = hotkeys::focused_actions(FocusContext::SourceFolders);
-        assert!(!folder_focus.is_empty());
-        assert!(folder_focus.iter().all(|action| matches!(
-            action.scope,
-            HotkeyScope::Focus(FocusContext::SourceFolders)
-        )));
-        assert!(folder_focus.iter().any(|action| matches!(
-            action.action,
-            crate::app_core::actions::NativeUiAction::Shell(
-                crate::app_core::actions::NativeShellAction::FocusFolderSearch
-            )
-        )));
-        assert!(folder_focus.iter().all(|action| !matches!(
-            action.action,
-            crate::app_core::actions::NativeUiAction::Shell(
-                crate::app_core::actions::NativeShellAction::FocusBrowserPanel
-            )
-        )));
+        assert!(folder_focus.is_empty());
+
+        let source_focus = hotkeys::focused_actions(FocusContext::SourcesList);
+        assert!(source_focus.is_empty());
     }
 
     #[test]
@@ -203,36 +171,30 @@ mod tests {
     }
 
     #[test]
-    fn source_hotkeys_are_owned_by_wavecrate_catalog() {
+    fn source_item_contexts_do_not_register_hotkeys() {
         let source_focus = hotkeys::focused_actions(FocusContext::SourcesList);
-        assert!(source_focus.iter().any(|action| matches!(
-            action.action,
-            crate::app_core::actions::NativeUiAction::SourcesAndFolders(
-                crate::app_core::actions::NativeSourcesFoldersAction::ReloadFocusedSourceRow
-            )
-        )));
-        assert!(source_focus.iter().any(|action| {
-            action.gesture == HotkeyGesture::new(KeyCode::D)
-                && matches!(
-                    action.action,
-                    crate::app_core::actions::NativeUiAction::SourcesAndFolders(crate::app_core::actions::NativeSourcesFoldersAction::RemoveFocusedSourceRow)
-                )
-        }));
+        assert!(source_focus.is_empty());
+
+        let folder_focus = hotkeys::focused_actions(FocusContext::SourceFolders);
+        assert!(folder_focus.is_empty());
     }
 
     #[test]
-    fn command_r_resolves_rename_in_folder_context_only() {
+    fn command_r_does_not_resolve_rename_in_source_item_contexts() {
         let folder_rename = hotkeys::resolve_hotkey_press(
             None,
             KeyPress::with_command(KeyCode::R),
             FocusContext::SourceFolders,
         );
-        assert_eq!(
-            folder_rename.action,
-            Some(NativeUiAction::SourcesAndFolders(
-                crate::app_core::actions::NativeSourcesFoldersAction::StartFolderRename
-            ))
+        assert_eq!(folder_rename.action, None);
+        assert!(!folder_rename.handled);
+
+        let source_reload = hotkeys::resolve_hotkey_press(
+            None,
+            KeyPress::new(KeyCode::R),
+            FocusContext::SourcesList,
         );
-        assert!(folder_rename.handled);
+        assert_eq!(source_reload.action, None);
+        assert!(!source_reload.handled);
     }
 }
