@@ -7,7 +7,8 @@ use crate::native_app::metadata::{
 
 use super::identity;
 use super::projection::{
-    TagEntryItemProjection, TagEntryRowProjection, TagInputProjection, TagTokenProjection,
+    TagEntryItemProjection, TagEntryRowProjection, TagInputProjection, TagLibraryToggleProjection,
+    TagTokenProjection,
 };
 use crate::native_app::app_chrome::library_browser::library_sidebar::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, tag_pill_width,
@@ -24,7 +25,7 @@ pub(super) fn tag_entry_row(row: TagEntryRowProjection, row_index: usize) -> ui:
                 }
                 TagEntryItemProjection::Input(input) => tag_text_input(input),
                 TagEntryItemProjection::LibraryToggle(toggle) => {
-                    metadata_tag_library_toggle(toggle.width)
+                    metadata_tag_library_toggle(toggle)
                 }
             })
             .collect::<Vec<_>>(),
@@ -88,13 +89,19 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
 }
 
-fn metadata_tag_library_toggle(width: f32) -> ui::View<GuiMessage> {
-    let toggle = ui::disclosure_button(false)
+fn metadata_tag_library_toggle(projection: TagLibraryToggleProjection) -> ui::View<GuiMessage> {
+    let tooltip = if projection.open {
+        "Hide tag library"
+    } else {
+        "Show tag library"
+    };
+    let toggle = ui::disclosure_button(projection.open)
         .message(GuiMessage::Metadata(
             MetadataMessage::ToggleMetadataTagLibrary,
         ))
         .key(identity::TAG_LIBRARY_TOGGLE_KEY)
-        .size(width, TAG_FIELD_CONTROL_HEIGHT);
+        .size(projection.width, TAG_FIELD_CONTROL_HEIGHT)
+        .tooltip_if(projection.help_tooltips_enabled, tooltip);
     #[cfg(test)]
     {
         toggle.id(identity::metadata_tag_library_toggle_id())

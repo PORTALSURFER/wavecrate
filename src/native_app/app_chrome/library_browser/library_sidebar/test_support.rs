@@ -54,6 +54,8 @@ pub(in crate::native_app) fn library_sidebar_view(
         harvest_family: None,
         tag_editor: TagEditorViewModel {
             has_selected_file,
+            help_tooltips_enabled: false,
+            tag_library_open: false,
             draft: metadata_tag_draft.to_string(),
             tokens: metadata_tag_tokens.to_vec(),
             pending_category_tag: metadata_tag_pending_category_tag.map(str::to_string),

@@ -67,6 +67,7 @@ pub(in crate::native_app) struct CollectionRowViewModel {
 
 pub(in crate::native_app) struct FilterSectionViewModel {
     pub(in crate::native_app) sidebar_width: f32,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) name_filter_enabled: bool,
     pub(in crate::native_app) tag_filter: String,
@@ -96,6 +97,7 @@ pub(in crate::native_app) struct CurationFilterViewModel {
     pub(in crate::native_app) dropdown_open: bool,
     pub(in crate::native_app) selected_scope: BrowserCurationScope,
     pub(in crate::native_app) options: Vec<CurationFilterOptionViewModel>,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
 pub(in crate::native_app) struct CurationFilterOptionViewModel {
@@ -132,6 +134,8 @@ pub(in crate::native_app) struct RatingFilterToggleViewModel {
 
 pub(in crate::native_app) struct TagEditorViewModel {
     pub(in crate::native_app) has_selected_file: bool,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
+    pub(in crate::native_app) tag_library_open: bool,
     pub(in crate::native_app) draft: String,
     pub(in crate::native_app) tokens: Vec<String>,
     pub(in crate::native_app) pending_category_tag: Option<String>,
@@ -271,6 +275,7 @@ impl FilterSectionViewModel {
     ) -> Self {
         Self {
             sidebar_width: 240.0,
+            help_tooltips_enabled,
             name_filter: folder_browser.name_filter().to_owned(),
             name_filter_enabled: folder_browser.name_filter_enabled(),
             tag_filter: folder_browser.tag_filter().to_owned(),
@@ -286,6 +291,7 @@ impl FilterSectionViewModel {
                         label: curation_scope_dropdown_label(scope),
                     })
                     .collect(),
+                help_tooltips_enabled,
             },
             harvest: HarvestFilterViewModel {
                 enabled: folder_browser.harvest_filter_enabled(),
@@ -369,6 +375,8 @@ impl TagEditorViewModel {
     fn from_app_state(state: &NativeAppState) -> Self {
         Self {
             has_selected_file: state.library.folder_browser.selected_file_id().is_some(),
+            help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
+            tag_library_open: state.metadata.tag_library_open,
             draft: state.metadata.tag_draft.clone(),
             tokens: state.metadata.tag_tokens.clone(),
             pending_category_tag: state
