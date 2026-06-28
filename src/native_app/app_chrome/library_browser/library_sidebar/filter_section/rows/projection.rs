@@ -32,6 +32,7 @@ pub(super) struct TextFilterRowProjection {
     pub(super) value: String,
     pub(super) enabled: bool,
     pub(super) placeholder: &'static str,
+    pub(super) help_tooltips_enabled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,6 +40,7 @@ pub(super) struct PlaybackTypeFilterRowProjection {
     pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
+    pub(super) help_tooltips_enabled: bool,
     pub(super) toggles: Vec<PlaybackTypeFilterToggleProjection>,
 }
 
@@ -47,6 +49,7 @@ pub(super) struct CurationFilterRowProjection {
     pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
+    pub(super) help_tooltips_enabled: bool,
     pub(super) dropdown_open: bool,
     pub(super) menu_width: u16,
     pub(super) selected_label: &'static str,
@@ -65,13 +68,13 @@ pub(super) struct HarvestFilterRowProjection {
     pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
+    pub(super) help_tooltips_enabled: bool,
     pub(super) dropdown_open: bool,
     pub(super) menu_width: u16,
     pub(super) selected_label: &'static str,
     pub(super) options: Vec<HarvestFilterOptionProjection>,
     pub(super) family_available: bool,
     pub(super) family_open: bool,
-    pub(super) help_tooltips_enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -94,6 +97,7 @@ pub(super) struct RatingFilterRowProjection {
     pub(super) family: FilterFamily,
     pub(super) label: &'static str,
     pub(super) enabled: bool,
+    pub(super) help_tooltips_enabled: bool,
     pub(super) toggles: Vec<RatingFilterToggleProjection>,
 }
 
@@ -113,6 +117,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             value: model.name_filter.clone(),
             enabled: model.name_filter_enabled,
             placeholder: "Any",
+            help_tooltips_enabled: model.help_tooltips_enabled,
         },
         tag_filter: TextFilterRowProjection {
             field: TextFilterField::Tags,
@@ -121,6 +126,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             value: model.tag_filter.clone(),
             enabled: model.tag_filter_enabled,
             placeholder: "Any",
+            help_tooltips_enabled: model.help_tooltips_enabled,
         },
         curation: CurationFilterRowProjection::from_view_model(
             &model.curation,
@@ -131,6 +137,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             family: FilterFamily::PlaybackType,
             label: "Type",
             enabled: model.playback_type_enabled,
+            help_tooltips_enabled: model.help_tooltips_enabled,
             toggles: model
                 .playback_type_filters
                 .iter()
@@ -141,6 +148,7 @@ pub(super) fn filter_rows_projection(model: &FilterSectionViewModel) -> FilterRo
             family: FilterFamily::Rating,
             label: "Rating",
             enabled: model.rating_enabled,
+            help_tooltips_enabled: model.help_tooltips_enabled,
             toggles: model
                 .rating_filters
                 .iter()
@@ -156,6 +164,7 @@ impl CurationFilterRowProjection {
             family: FilterFamily::Curation,
             label: "Curate",
             enabled: model.enabled,
+            help_tooltips_enabled: model.help_tooltips_enabled,
             dropdown_open: model.dropdown_open,
             menu_width: curation_dropdown_menu_width(sidebar_width),
             selected_label: model
@@ -202,6 +211,7 @@ impl HarvestFilterRowProjection {
             family: FilterFamily::Harvest,
             label: "Harvest",
             enabled: model.enabled,
+            help_tooltips_enabled: model.help_tooltips_enabled,
             dropdown_open: model.dropdown_open,
             menu_width: curation_dropdown_menu_width(sidebar_width),
             selected_label: model
@@ -223,7 +233,6 @@ impl HarvestFilterRowProjection {
                 .collect(),
             family_available: model.family_available,
             family_open: model.family_open && model.family_available,
-            help_tooltips_enabled: model.help_tooltips_enabled,
         }
     }
 }
@@ -297,6 +306,7 @@ mod tests {
                 value: "kick".to_string(),
                 enabled: true,
                 placeholder: "Any",
+                help_tooltips_enabled: true,
             }
         );
         assert_eq!(
@@ -308,6 +318,7 @@ mod tests {
                 value: "drum".to_string(),
                 enabled: true,
                 placeholder: "Any",
+                help_tooltips_enabled: true,
             }
         );
     }
@@ -426,6 +437,7 @@ mod tests {
     fn filter_model() -> FilterSectionViewModel {
         FilterSectionViewModel {
             sidebar_width: 240.0,
+            help_tooltips_enabled: true,
             name_filter: "kick".to_string(),
             name_filter_enabled: true,
             tag_filter: "drum".to_string(),
@@ -448,6 +460,7 @@ mod tests {
                         label: "Tags",
                     },
                 ],
+                help_tooltips_enabled: true,
             },
             harvest: HarvestFilterViewModel {
                 enabled: true,

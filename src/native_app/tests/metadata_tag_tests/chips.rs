@@ -43,6 +43,36 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
 }
 
 #[test]
+fn metadata_tag_library_toggle_exposes_state_aware_help_tooltip() {
+    let (mut closed_state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+    closed_state.ui.chrome.help_tooltips_enabled = true;
+    closed_state.metadata.tag_library_open = false;
+    let closed_surface =
+        crate::native_app::test_support::state::view(&mut closed_state).into_surface();
+    let closed_tooltip = closed_surface
+        .find_widget(
+            crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
+        )
+        .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+    assert_eq!(closed_tooltip, Some("Show tag library"));
+
+    let (mut open_state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("tag-target.wav");
+    open_state.ui.chrome.help_tooltips_enabled = true;
+    open_state.metadata.tag_library_open = true;
+    let open_surface = crate::native_app::test_support::state::view(&mut open_state).into_surface();
+    let open_tooltip = open_surface
+        .find_widget(
+            crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
+        )
+        .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+    assert_eq!(open_tooltip, Some("Hide tag library"));
+}
+
+#[test]
 fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
     let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
     let tags = vec![String::from("hat")];

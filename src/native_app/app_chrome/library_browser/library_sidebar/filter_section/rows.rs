@@ -13,6 +13,9 @@ use crate::native_app::app_chrome::view_models::library_sidebar::FilterSectionVi
 use crate::native_app::sample_library::folder_browser::commands::{
     FilterFamily, FolderBrowserMessage,
 };
+use crate::native_app::sample_library::folder_browser::model::{
+    BrowserCurationScope, PlaybackTypeFilter,
+};
 pub(super) use crate::native_app::sample_library::folder_browser::view_contract::{
     FILTER_CONTROLS_CONTENT_HEIGHT, FILTER_ROW_CONTROL_HEIGHT, FILTER_ROW_HEIGHT,
     FILTER_ROW_SPACING,
@@ -90,12 +93,19 @@ pub(super) fn tag_filter_clear_button_id() -> u64 {
 
 fn text_filter_row(projection: TextFilterRowProjection) -> ui::View<GuiMessage> {
     filter_input_row(
-        filter_row_label(projection.label, projection.family, projection.enabled),
+        filter_row_label(
+            projection.label,
+            projection.family,
+            projection.enabled,
+            projection.help_tooltips_enabled,
+        ),
         filter_text_input(
             projection.value,
             projection.placeholder,
             text_filter_input_id(projection.field),
             text_filter_message_mapper(projection.field),
+            text_filter_tooltip(projection.field),
+            projection.help_tooltips_enabled,
         ),
         text_filter_row_key(projection.field),
     )
@@ -106,6 +116,8 @@ fn filter_text_input(
     placeholder: &'static str,
     input_id: u64,
     map_message: fn(TextInputMessage) -> FolderBrowserMessage,
+    tooltip: &'static str,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::text_input(value)
         .placeholder(placeholder)
@@ -114,6 +126,7 @@ fn filter_text_input(
         )))
         .id(input_id)
         .message_event(move |message| GuiMessage::FolderBrowser(map_message(message)))
+        .tooltip_if(help_tooltips_enabled, tooltip)
 }
 
 fn text_filter_input_id(field: TextFilterField) -> u64 {
@@ -139,14 +152,22 @@ fn text_filter_row_key(field: TextFilterField) -> &'static str {
     }
 }
 
+fn text_filter_tooltip(field: TextFilterField) -> &'static str {
+    match field {
+        TextFilterField::Name => "Show samples whose filename contains this text.",
+        TextFilterField::Tags => "Show samples with matching tags.",
+    }
+}
+
 fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<GuiMessage> {
-    let label = filter_row_label(row.label, row.family, row.enabled);
+    let help_tooltips_enabled = row.help_tooltips_enabled;
+    let label = filter_row_label(row.label, row.family, row.enabled, help_tooltips_enabled);
     filter_labeled_control_row(
         label,
         ui::row(
             row.toggles
                 .iter()
-                .map(playback_type_filter_toggle)
+                .map(|toggle| playback_type_filter_toggle(toggle, help_tooltips_enabled))
                 .collect::<Vec<_>>(),
         )
         .spacing(FILTER_CONTROL_SPACING)
@@ -157,12 +178,14 @@ fn playback_type_filter_row(row: PlaybackTypeFilterRowProjection) -> ui::View<Gu
 }
 
 fn curation_filter_row(row: CurationFilterRowProjection) -> ui::View<GuiMessage> {
+    let help_tooltips_enabled = row.help_tooltips_enabled;
     filter_labeled_control_row(
-        filter_row_label(row.label, row.family, row.enabled),
+        filter_row_label(row.label, row.family, row.enabled, help_tooltips_enabled),
         ui::dropdown_trigger(row.selected_label, row.dropdown_open)
             .toggle_message(GuiMessage::ToggleCurationFilterDropdown)
             .build()
             .id(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
+            .tooltip_if(help_tooltips_enabled, "Choose the curation queue to show.")
             .fill_width()
             .height(FILTER_ROW_CONTROL_HEIGHT),
         "filter-curation-row",
@@ -179,7 +202,11 @@ pub(super) fn curation_filter_dropdown_menu(
             ui::dropdown_menu_height(row.options.len()),
         );
         Some((
-            curation_filter_dropdown_menu_from_options(&row.options, size.x),
+            curation_filter_dropdown_menu_from_options(
+                &row.options,
+                row.help_tooltips_enabled,
+                size.x,
+            ),
             size,
         ))
     } else {
@@ -189,23 +216,29 @@ pub(super) fn curation_filter_dropdown_menu(
 
 fn curation_filter_dropdown_menu_from_options(
     options: &[CurationFilterOptionProjection],
+    help_tooltips_enabled: bool,
     menu_width: f32,
 ) -> ui::View<GuiMessage> {
     let option_count = options.len();
-    ui::column(options.iter().map(curation_filter_dropdown_option))
-        .key("curation-filter-dropdown-menu")
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Strong,
-        })
-        .padding(4.0)
-        .spacing(3.0)
-        .width(menu_width.max(1.0))
-        .height(ui::dropdown_menu_height(option_count))
+    ui::column(
+        options
+            .iter()
+            .map(|option| curation_filter_dropdown_option(option, help_tooltips_enabled)),
+    )
+    .key("curation-filter-dropdown-menu")
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Neutral,
+        prominence: ui::WidgetProminence::Strong,
+    })
+    .padding(4.0)
+    .spacing(3.0)
+    .width(menu_width.max(1.0))
+    .height(ui::dropdown_menu_height(option_count))
 }
 
 fn curation_filter_dropdown_option(
     option: &CurationFilterOptionProjection,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let scope = option.scope;
     ui::button(option.label)
@@ -227,6 +260,7 @@ fn curation_filter_dropdown_option(
         })
         .fill_width()
         .height(22.0)
+        .tooltip_if(help_tooltips_enabled, curation_scope_tooltip(scope))
 }
 
 /// Automation-facing id for a curation dropdown option.
@@ -237,7 +271,7 @@ pub(super) fn automation_curation_filter_dropdown_option_id(label: &str) -> u64 
 fn harvest_filter_row(row: HarvestFilterRowProjection) -> ui::View<GuiMessage> {
     let help_tooltips_enabled = row.help_tooltips_enabled;
     filter_labeled_control_row(
-        filter_row_label(row.label, row.family, row.enabled),
+        filter_row_label(row.label, row.family, row.enabled, help_tooltips_enabled),
         ui::dropdown_trigger(row.selected_label, row.dropdown_open)
             .toggle_message(GuiMessage::ToggleHarvestFilterDropdown)
             .build()
@@ -327,6 +361,7 @@ pub(super) fn automation_harvest_filter_dropdown_option_id(label: &str) -> u64 {
 
 fn playback_type_filter_toggle(
     toggle: &PlaybackTypeFilterToggleProjection,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let filter = toggle.filter;
     ui::selectable(toggle.label, toggle.active)
@@ -338,6 +373,7 @@ fn playback_type_filter_toggle(
         })
         .id(automation_playback_type_filter_toggle_id(toggle.label))
         .size(PLAYBACK_TYPE_FILTER_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
+        .tooltip_if(help_tooltips_enabled, playback_type_filter_tooltip(filter))
 }
 
 fn playback_type_filter_toggle_style() -> ui::WidgetStyle {
@@ -350,13 +386,14 @@ pub(super) fn automation_playback_type_filter_toggle_id(label: &str) -> u64 {
 }
 
 fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
-    let label = filter_row_label(row.label, row.family, row.enabled);
+    let help_tooltips_enabled = row.help_tooltips_enabled;
+    let label = filter_row_label(row.label, row.family, row.enabled, help_tooltips_enabled);
     filter_labeled_control_row(
         label,
         ui::row(
             row.toggles
                 .iter()
-                .map(rating_filter_toggle)
+                .map(|toggle| rating_filter_toggle(toggle, help_tooltips_enabled))
                 .collect::<Vec<_>>(),
         )
         .spacing(1.0)
@@ -366,7 +403,10 @@ fn rating_filter_row(row: RatingFilterRowProjection) -> ui::View<GuiMessage> {
     )
 }
 
-fn rating_filter_toggle(toggle: &RatingFilterToggleProjection) -> ui::View<GuiMessage> {
+fn rating_filter_toggle(
+    toggle: &RatingFilterToggleProjection,
+    help_tooltips_enabled: bool,
+) -> ui::View<GuiMessage> {
     let level = toggle.level;
     ui::selectable("", toggle.active)
         .style(ui::WidgetStyle::subtle(rating_filter_tone(level)))
@@ -379,6 +419,7 @@ fn rating_filter_toggle(toggle: &RatingFilterToggleProjection) -> ui::View<GuiMe
         })
         .id(automation_rating_filter_toggle_id(toggle.label))
         .size(RATING_FILTER_TOGGLE_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
+        .tooltip_if(help_tooltips_enabled, rating_filter_tooltip(level))
 }
 
 fn rating_filter_tone(level: i8) -> ui::WidgetTone {
@@ -423,6 +464,7 @@ fn filter_row_label(
     label: &'static str,
     family: FilterFamily,
     enabled: bool,
+    help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
     ui::selectable(label, enabled)
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
@@ -433,6 +475,47 @@ fn filter_row_label(
         })
         .id(automation_filter_family_label_toggle_id(label))
         .size(FILTER_LABEL_WIDTH, FILTER_ROW_CONTROL_HEIGHT)
+        .tooltip_if(help_tooltips_enabled, filter_family_label_tooltip(family))
+}
+
+fn filter_family_label_tooltip(family: FilterFamily) -> &'static str {
+    match family {
+        FilterFamily::Name => "Turn filename filtering on or off.",
+        FilterFamily::Tags => "Turn tag text filtering on or off.",
+        FilterFamily::Curation => "Turn curation queue filtering on or off.",
+        FilterFamily::Harvest => "Turn Harvest queue filtering on or off.",
+        FilterFamily::PlaybackType => "Turn playback-type filtering on or off.",
+        FilterFamily::Rating => "Turn rating filtering on or off.",
+    }
+}
+
+fn curation_scope_tooltip(scope: BrowserCurationScope) -> &'static str {
+    match scope {
+        BrowserCurationScope::All => "Show all curation work.",
+        BrowserCurationScope::Ratings => "Show samples that need rating decisions.",
+        BrowserCurationScope::Tags => "Show samples that need tag cleanup.",
+    }
+}
+
+fn playback_type_filter_tooltip(filter: PlaybackTypeFilter) -> &'static str {
+    match filter {
+        PlaybackTypeFilter::OneShot => "Show samples tagged as one-shots.",
+        PlaybackTypeFilter::Loop => "Show samples tagged as loops.",
+    }
+}
+
+fn rating_filter_tooltip(level: i8) -> &'static str {
+    match level {
+        -3 => "Show T3 trash-rated samples.",
+        -2 => "Show T2 trash-rated samples.",
+        -1 => "Show T1 trash-rated samples.",
+        0 => "Show unrated samples.",
+        1 => "Show K1 keep-rated samples.",
+        2 => "Show K2 keep-rated samples.",
+        3 => "Show K3 keep-rated samples.",
+        4 => "Show locked K4 samples.",
+        _ => "Show samples with this rating.",
+    }
 }
 
 /// Automation-facing id for a filter family label toggle.
@@ -522,6 +605,7 @@ mod tests {
     fn filter_model(help_tooltips_enabled: bool) -> FilterSectionViewModel {
         FilterSectionViewModel {
             sidebar_width: 240.0,
+            help_tooltips_enabled,
             name_filter: String::new(),
             name_filter_enabled: false,
             tag_filter: String::new(),
@@ -534,6 +618,7 @@ mod tests {
                     scope: BrowserCurationScope::All,
                     label: "All",
                 }],
+                help_tooltips_enabled,
             },
             harvest: HarvestFilterViewModel {
                 enabled: false,
@@ -561,5 +646,75 @@ mod tests {
             }],
             panel_height: 120.0,
         }
+    }
+
+    #[test]
+    fn filter_controls_expose_help_tooltips_on_interactive_targets() {
+        let surface = ui::column(filter_rows(&filter_model(true))).into_surface();
+
+        assert_eq!(
+            widget_tooltip(&surface, automation_filter_family_label_toggle_id("Name")).as_deref(),
+            Some("Turn filename filtering on or off.")
+        );
+        assert_eq!(
+            widget_tooltip(&surface, CURATION_FILTER_DROPDOWN_TRIGGER_ID).as_deref(),
+            Some("Choose the curation queue to show.")
+        );
+        assert_eq!(
+            widget_tooltip(
+                &surface,
+                automation_playback_type_filter_toggle_id("1-Shot")
+            )
+            .as_deref(),
+            Some("Show samples tagged as one-shots.")
+        );
+        assert_eq!(
+            widget_tooltip(&surface, automation_rating_filter_toggle_id("U")).as_deref(),
+            Some("Show unrated samples.")
+        );
+    }
+
+    #[test]
+    fn curation_dropdown_options_expose_help_tooltips() {
+        let mut model = filter_model(true);
+        model.curation.dropdown_open = true;
+        model.curation.options = vec![CurationFilterOptionViewModel {
+            scope: BrowserCurationScope::Ratings,
+            label: "Rate",
+        }];
+        let menu = curation_filter_dropdown_menu(&model)
+            .expect("open curation dropdown menu")
+            .0
+            .into_surface();
+
+        assert_eq!(
+            widget_tooltip(&menu, automation_curation_filter_dropdown_option_id("Rate")).as_deref(),
+            Some("Show samples that need rating decisions.")
+        );
+    }
+
+    #[test]
+    fn filter_controls_omit_help_tooltips_when_help_is_disabled() {
+        let surface = ui::column(filter_rows(&filter_model(false))).into_surface();
+
+        assert_eq!(
+            widget_tooltip(&surface, automation_filter_family_label_toggle_id("Name")),
+            None
+        );
+        assert_eq!(
+            widget_tooltip(&surface, CURATION_FILTER_DROPDOWN_TRIGGER_ID),
+            None
+        );
+        assert_eq!(
+            widget_tooltip(&surface, automation_rating_filter_toggle_id("U")),
+            None
+        );
+    }
+
+    fn widget_tooltip(surface: &ui::UiSurface<GuiMessage>, widget_id: u64) -> Option<String> {
+        surface
+            .find_widget(widget_id)
+            .and_then(|widget| widget.widget_object().common().tooltip.as_deref())
+            .map(str::to_string)
     }
 }

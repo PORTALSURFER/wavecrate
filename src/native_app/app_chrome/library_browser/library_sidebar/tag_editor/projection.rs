@@ -61,6 +61,8 @@ pub(super) struct TagInputProjection {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct TagLibraryToggleProjection {
     pub(super) width: f32,
+    pub(super) open: bool,
+    pub(super) help_tooltips_enabled: bool,
 }
 
 impl TagEditorProjection {
@@ -129,7 +131,11 @@ fn project_row_item(item: TagEntryRowItem, model: &TagEditorViewModel) -> TagEnt
             width,
         }),
         TagEntryRowItem::LibraryToggle(width) => {
-            TagEntryItemProjection::LibraryToggle(TagLibraryToggleProjection { width })
+            TagEntryItemProjection::LibraryToggle(TagLibraryToggleProjection {
+                width,
+                open: model.tag_library_open,
+                help_tooltips_enabled: model.help_tooltips_enabled,
+            })
         }
     }
 }
@@ -218,8 +224,11 @@ mod tests {
                 .flat_map(|row| row.items.iter())
                 .any(|item| matches!(
                     item,
-                    TagEntryItemProjection::LibraryToggle(TagLibraryToggleProjection { width })
-                    if *width == 22.0
+                    TagEntryItemProjection::LibraryToggle(TagLibraryToggleProjection {
+                        width,
+                        open: false,
+                        help_tooltips_enabled: false,
+                    }) if *width == 22.0
                 ))
         );
         assert!(field.layout.field_height >= field.layout.content_height);
@@ -254,6 +263,8 @@ mod tests {
     fn tag_editor_model() -> TagEditorViewModel {
         TagEditorViewModel {
             has_selected_file: true,
+            help_tooltips_enabled: false,
+            tag_library_open: false,
             draft: "sou".to_string(),
             tokens: vec!["loop".to_string()],
             pending_category_tag: None,
