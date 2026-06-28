@@ -16,7 +16,7 @@ const DEFAULT_MAX_ITER: usize = 1500;
 const DEFAULT_N_COMPONENTS: usize = 2;
 const DEFAULT_PCA_COMPONENTS: usize = 50;
 
-/// Compute one 2D similarity-map projection from flattened embedding vectors.
+/// Compute one starmap projection from flattened embedding vectors.
 pub(super) fn compute_tsne(
     vectors: Vec<f64>,
     dim: usize,
@@ -30,11 +30,11 @@ pub(super) fn compute_tsne(
 
 fn sample_count(vectors: &[f64], dim: usize) -> Result<usize, String> {
     if dim == 0 || !vectors.len().is_multiple_of(dim) {
-        return Err("Similarity map embedding matrix shape mismatch".to_string());
+        return Err("Starmap embedding matrix shape mismatch".to_string());
     }
     let n_samples = vectors.len() / dim;
     if n_samples < 2 {
-        return Err("Need at least 2 embeddings to build a similarity map layout".to_string());
+        return Err("Need at least 2 embeddings to build a starmap layout".to_string());
     }
     Ok(n_samples)
 }
@@ -86,7 +86,7 @@ fn project_embedding(
         .approx_threshold(DEFAULT_APPROX_THRESHOLD)
         .max_iter(DEFAULT_MAX_ITER)
         .transform(matrix)
-        .map_err(|err| format!("Similarity map layout projection failed: {err}"))?;
+        .map_err(|err| format!("Starmap layout projection failed: {err}"))?;
 
     Ok(embedding
         .rows()

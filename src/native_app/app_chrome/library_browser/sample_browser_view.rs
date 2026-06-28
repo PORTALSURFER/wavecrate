@@ -21,10 +21,10 @@ mod identity;
 mod row_projection;
 mod row_widgets;
 mod rows;
-mod sample_map_view;
+mod starmap_view;
 use header::{SampleBrowserHeaderBar, sample_browser_header_bar, sample_similarity_controls_bar};
 use rows::sample_browser_rows;
-use sample_map_view::sample_map_view;
+use starmap_view::starmap_view;
 
 pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 190.0;
 
@@ -67,7 +67,7 @@ pub(in crate::native_app) fn sample_browser(
             model.help_tooltips_enabled,
         )
         .fill(),
-        SampleBrowserDisplayMode::Map => sample_map_view(
+        SampleBrowserDisplayMode::Map => starmap_view(
             model.map_items,
             model.map_viewport,
             model.name_filter,
@@ -175,11 +175,11 @@ mod tests {
     use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
     use super::*;
-    use crate::native_app::app::{SampleMapViewportChange, SampleNameViewMode};
+    use crate::native_app::app::{SampleNameViewMode, StarmapViewportChange};
     use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
     use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
-    use crate::native_app::sample_library::folder_browser::sample_map::{
-        SampleMapItem, SampleMapStatus, sample_map_cluster_palette_color,
+    use crate::native_app::sample_library::folder_browser::starmap::{
+        StarmapItem, StarmapStatus, starmap_cluster_palette_color,
     };
     use crate::native_app::ui::ids as widget_ids;
 
@@ -209,7 +209,7 @@ mod tests {
                     map_status: Default::default(),
                     map_prep_running: false,
                     map_audition_drag: None,
-                    map_viewport: crate::native_app::app::SampleMapViewport::default(),
+                    map_viewport: crate::native_app::app::StarmapViewport::default(),
                     name_filter: String::new(),
                     display_mode: SampleBrowserDisplayMode::List,
                     name_view_mode: SampleNameViewMode::DiskFilename,
@@ -244,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_mode_paints_search_input_bound_to_name_filter() {
+    fn starmap_mode_paints_search_input_bound_to_name_filter() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -261,7 +261,7 @@ mod tests {
                 similarity_mode_active: false,
                 similarity_controls: &similarity_controls,
             },
-            map_items: vec![SampleMapItem {
+            map_items: vec![StarmapItem {
                 file_id: String::from("/samples/kick.wav"),
                 label: String::from("kick"),
                 x: 0.5,
@@ -277,7 +277,7 @@ mod tests {
             map_status: Default::default(),
             map_prep_running: false,
             map_audition_drag: None,
-            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            map_viewport: crate::native_app::app::StarmapViewport::default(),
             name_filter: String::from("kick"),
             display_mode: SampleBrowserDisplayMode::Map,
             name_view_mode: SampleNameViewMode::DiskFilename,
@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_mode_paints_incomplete_similarity_status() {
+    fn starmap_mode_paints_incomplete_similarity_status() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -318,7 +318,7 @@ mod tests {
                 similarity_mode_active: false,
                 similarity_controls: &similarity_controls,
             },
-            map_items: vec![SampleMapItem {
+            map_items: vec![StarmapItem {
                 file_id: String::from("/samples/kick.wav"),
                 label: String::from("kick"),
                 x: 0.5,
@@ -331,7 +331,7 @@ mod tests {
                 instant_audition_ready: true,
                 missing: false,
             }],
-            map_status: SampleMapStatus {
+            map_status: StarmapStatus {
                 listed_count: 2,
                 layout_count: 1,
                 clustered_count: 0,
@@ -339,7 +339,7 @@ mod tests {
             },
             map_prep_running: true,
             map_audition_drag: None,
-            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            map_viewport: crate::native_app::app::StarmapViewport::default(),
             name_filter: String::new(),
             display_mode: SampleBrowserDisplayMode::Map,
             name_view_mode: SampleNameViewMode::DiskFilename,
@@ -355,15 +355,11 @@ mod tests {
         })
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
 
-        assert!(
-            frame
-                .paint_plan
-                .contains_text("Preparing similarity map 1 / 2")
-        );
+        assert!(frame.paint_plan.contains_text("Preparing Starmap 1 / 2"));
     }
 
     #[test]
-    fn sample_map_mode_paints_viewport_controls() {
+    fn starmap_mode_paints_viewport_controls() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -379,7 +375,7 @@ mod tests {
                 similarity_mode_active: false,
                 similarity_controls: &similarity_controls,
             },
-            map_items: vec![SampleMapItem {
+            map_items: vec![StarmapItem {
                 file_id: String::from("/samples/kick.wav"),
                 label: String::from("kick"),
                 x: 0.5,
@@ -395,7 +391,7 @@ mod tests {
             map_status: Default::default(),
             map_prep_running: false,
             map_audition_drag: None,
-            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            map_viewport: crate::native_app::app::StarmapViewport::default(),
             name_filter: String::new(),
             display_mode: SampleBrowserDisplayMode::Map,
             name_view_mode: SampleNameViewMode::DiskFilename,
@@ -418,12 +414,12 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_mode_paints_enabled_similarity_color_legend() {
+    fn starmap_mode_paints_enabled_similarity_color_legend() {
         let mut similarity_controls = SimilarityAspectSettings::default();
         similarity_controls.set_aspect_enabled(SimilarityAspect::Pitch, false);
 
-        let frame = sample_map_view(
-            vec![SampleMapItem {
+        let frame = starmap_view(
+            vec![StarmapItem {
                 file_id: String::from("/samples/kick.wav"),
                 label: String::from("kick"),
                 x: 0.5,
@@ -436,7 +432,7 @@ mod tests {
                 instant_audition_ready: true,
                 missing: false,
             }],
-            crate::native_app::app::SampleMapViewport::default(),
+            crate::native_app::app::StarmapViewport::default(),
             String::new(),
             &similarity_controls,
             Default::default(),
@@ -460,16 +456,16 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_mode_uses_cluster_legend_when_cluster_colors_are_active() {
+    fn starmap_mode_uses_cluster_legend_when_cluster_colors_are_active() {
         let similarity_controls = SimilarityAspectSettings::default();
 
-        let frame = sample_map_view(
-            vec![SampleMapItem {
+        let frame = starmap_view(
+            vec![StarmapItem {
                 file_id: String::from("/samples/kick.wav"),
                 label: String::from("kick"),
                 x: 0.5,
                 y: 0.5,
-                color: sample_map_cluster_palette_color(0),
+                color: starmap_cluster_palette_color(0),
                 selected: false,
                 focused: false,
                 copy_flash: false,
@@ -477,10 +473,10 @@ mod tests {
                 instant_audition_ready: true,
                 missing: false,
             }],
-            crate::native_app::app::SampleMapViewport::default(),
+            crate::native_app::app::StarmapViewport::default(),
             String::new(),
             &similarity_controls,
-            SampleMapStatus {
+            StarmapStatus {
                 listed_count: 1,
                 layout_count: 1,
                 clustered_count: 8,
@@ -501,13 +497,13 @@ mod tests {
             primitive,
             radiant::runtime::PaintPrimitive::FillRect(fill)
                 if fill.color
-                    == sample_map_cluster_palette_color(0)
+                    == starmap_cluster_palette_color(0)
         )));
         assert_eq!(
             frame
                 .paint_plan
                 .fill_rects()
-                .filter(|fill| fill.color == sample_map_cluster_palette_color(0))
+                .filter(|fill| fill.color == starmap_cluster_palette_color(0))
                 .count(),
             1,
             "legend should reflect distinct cluster colors, not clustered sample count"
@@ -515,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_mode_empty_state_matches_curation_context() {
+    fn starmap_mode_empty_state_matches_curation_context() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -535,7 +531,7 @@ mod tests {
             map_status: Default::default(),
             map_prep_running: false,
             map_audition_drag: None,
-            map_viewport: crate::native_app::app::SampleMapViewport::default(),
+            map_viewport: crate::native_app::app::StarmapViewport::default(),
             name_filter: String::new(),
             display_mode: SampleBrowserDisplayMode::Map,
             name_view_mode: SampleNameViewMode::DiskFilename,
@@ -560,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_status_overlay_does_not_block_node_selection() {
+    fn starmap_status_overlay_does_not_block_node_selection() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -581,7 +577,7 @@ mod tests {
                             similarity_mode_active: false,
                             similarity_controls: &similarity_controls,
                         },
-                        map_items: vec![SampleMapItem {
+                        map_items: vec![StarmapItem {
                             file_id: sample_path.clone(),
                             label: String::from("kick"),
                             x: 0.5,
@@ -594,7 +590,7 @@ mod tests {
                             instant_audition_ready: true,
                             missing: false,
                         }],
-                        map_status: SampleMapStatus {
+                        map_status: StarmapStatus {
                             listed_count: 2,
                             layout_count: 1,
                             clustered_count: 0,
@@ -602,7 +598,7 @@ mod tests {
                         },
                         map_prep_running: true,
                         map_audition_drag: None,
-                        map_viewport: crate::native_app::app::SampleMapViewport::default(),
+                        map_viewport: crate::native_app::app::StarmapViewport::default(),
                         name_filter: String::new(),
                         display_mode: SampleBrowserDisplayMode::Map,
                         name_view_mode: SampleNameViewMode::DiskFilename,
@@ -630,7 +626,7 @@ mod tests {
 
         assert_eq!(
             runtime.bridge().state(),
-            &[GuiMessage::BeginSampleMapAuditionDrag {
+            &[GuiMessage::BeginStarmapAuditionDrag {
                 path: Some(sample_path),
                 position: ui::Point::new(260.0, 160.0),
                 modifiers: PointerModifiers::default(),
@@ -639,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_status_overlay_does_not_block_wheel_zoom() {
+    fn starmap_status_overlay_does_not_block_wheel_zoom() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -657,7 +653,7 @@ mod tests {
                         similarity_mode_active: false,
                         similarity_controls: &similarity_controls,
                     },
-                    map_items: vec![SampleMapItem {
+                    map_items: vec![StarmapItem {
                         file_id: String::from("/samples/kick.wav"),
                         label: String::from("kick"),
                         x: 0.5,
@@ -670,7 +666,7 @@ mod tests {
                         instant_audition_ready: true,
                         missing: false,
                     }],
-                    map_status: SampleMapStatus {
+                    map_status: StarmapStatus {
                         listed_count: 2,
                         layout_count: 1,
                         clustered_count: 0,
@@ -678,7 +674,7 @@ mod tests {
                     },
                     map_prep_running: true,
                     map_audition_drag: None,
-                    map_viewport: crate::native_app::app::SampleMapViewport::default(),
+                    map_viewport: crate::native_app::app::StarmapViewport::default(),
                     name_filter: String::new(),
                     display_mode: SampleBrowserDisplayMode::Map,
                     name_view_mode: SampleNameViewMode::DiskFilename,
@@ -705,8 +701,8 @@ mod tests {
 
         assert_eq!(
             runtime.bridge().state(),
-            &[GuiMessage::ChangeSampleMapViewport(
-                SampleMapViewportChange::Zoom {
+            &[GuiMessage::ChangeStarmapViewport(
+                StarmapViewportChange::Zoom {
                     anchor: ui::Vector2::new(0.5, 0.50769234),
                     factor: 1.15,
                 }
@@ -715,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_runtime_drag_auditions_each_crossed_node() {
+    fn starmap_runtime_drag_auditions_each_crossed_node() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
         let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
         let similarity_controls = SimilarityAspectSettings::default();
@@ -739,7 +735,7 @@ mod tests {
                             similarity_controls: &similarity_controls,
                         },
                         map_items: vec![
-                            SampleMapItem {
+                            StarmapItem {
                                 file_id: left_path.clone(),
                                 label: String::from("kick"),
                                 x: 0.30,
@@ -752,7 +748,7 @@ mod tests {
                                 instant_audition_ready: true,
                                 missing: false,
                             },
-                            SampleMapItem {
+                            StarmapItem {
                                 file_id: right_path.clone(),
                                 label: String::from("snare"),
                                 x: 0.70,
@@ -771,8 +767,8 @@ mod tests {
                         map_audition_drag: messages
                             .iter()
                             .rev()
-                            .find_map(sample_map_drag_state_from_message),
-                        map_viewport: crate::native_app::app::SampleMapViewport::default(),
+                            .find_map(starmap_drag_state_from_message),
+                        map_viewport: crate::native_app::app::StarmapViewport::default(),
                         name_filter: String::new(),
                         display_mode: SampleBrowserDisplayMode::Map,
                         name_view_mode: SampleNameViewMode::DiskFilename,
@@ -802,12 +798,12 @@ mod tests {
         assert_eq!(
             runtime.bridge().state(),
             &[
-                GuiMessage::BeginSampleMapAuditionDrag {
+                GuiMessage::BeginStarmapAuditionDrag {
                     path: Some(left_path),
                     position: ui::Point::new(156.0, 160.0),
                     modifiers: PointerModifiers::default(),
                 },
-                GuiMessage::UpdateSampleMapAuditionDrag {
+                GuiMessage::UpdateStarmapAuditionDrag {
                     paths: vec![right_path],
                     position: ui::Point::new(364.0, 160.0),
                     modifiers: PointerModifiers::default(),
@@ -816,29 +812,29 @@ mod tests {
         );
     }
 
-    fn sample_map_drag_state_from_message(
+    fn starmap_drag_state_from_message(
         message: &GuiMessage,
-    ) -> Option<crate::native_app::app::SampleMapAuditionDragState> {
+    ) -> Option<crate::native_app::app::StarmapAuditionDragState> {
         match message {
-            GuiMessage::BeginSampleMapAuditionDrag {
+            GuiMessage::BeginStarmapAuditionDrag {
                 path,
                 position,
                 modifiers,
-            } => Some(crate::native_app::app::SampleMapAuditionDragState {
+            } => Some(crate::native_app::app::StarmapAuditionDragState {
                 last_hit_file_id: path.clone(),
                 last_position: *position,
                 modifiers: *modifiers,
             }),
-            GuiMessage::UpdateSampleMapAuditionDrag {
+            GuiMessage::UpdateStarmapAuditionDrag {
                 paths,
                 position,
                 modifiers,
-            } => Some(crate::native_app::app::SampleMapAuditionDragState {
+            } => Some(crate::native_app::app::StarmapAuditionDragState {
                 last_hit_file_id: paths.last().cloned(),
                 last_position: *position,
                 modifiers: *modifiers,
             }),
-            GuiMessage::FinishSampleMapAuditionDrag => None,
+            GuiMessage::FinishStarmapAuditionDrag => None,
             _ => None,
         }
     }

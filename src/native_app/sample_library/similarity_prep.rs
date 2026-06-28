@@ -83,7 +83,7 @@ impl SimilarityPrepSource {
 }
 
 impl NativeAppState {
-    pub(in crate::native_app) fn maybe_prepare_sample_map_similarity_layout(
+    pub(in crate::native_app) fn maybe_prepare_starmap_similarity_layout(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
@@ -93,7 +93,7 @@ impl NativeAppState {
         let source_ids = self
             .library
             .folder_browser
-            .sample_map_sources_needing_similarity_prep(&self.metadata.tags_by_file);
+            .starmap_sources_needing_similarity_prep(&self.metadata.tags_by_file);
         for source_id in source_ids {
             self.prepare_similarity_for_source_automatically(&source_id, context);
         }
@@ -212,8 +212,8 @@ impl NativeAppState {
         let selected_source = result.source_id == self.library.folder_browser.selected_source_id();
         match result.result {
             Ok(summary) => {
-                if sample_map_layout_may_have_changed(&summary) {
-                    self.library.folder_browser.invalidate_sample_map_layout();
+                if starmap_layout_may_have_changed(&summary) {
+                    self.library.folder_browser.invalidate_starmap_layout();
                 }
                 let refresh_anchor_scores =
                     selected_source && summary.should_refresh_anchor_scores();
@@ -321,7 +321,7 @@ impl NativeAppState {
     }
 }
 
-fn sample_map_layout_may_have_changed(summary: &SimilarityPrepEnqueueSummary) -> bool {
+fn starmap_layout_may_have_changed(summary: &SimilarityPrepEnqueueSummary) -> bool {
     summary.has_work() || summary.status == NativeSimilarityPrepStatus::UpToDate
 }
 
@@ -466,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_layout_refreshes_after_success_or_work() {
+    fn starmap_layout_refreshes_after_success_or_work() {
         let ready = summary(NativeSimilarityPrepStatus::UpToDate);
         let mut with_work = summary(NativeSimilarityPrepStatus::MissingArtifacts {
             missing_embeddings: true,
@@ -475,17 +475,17 @@ mod tests {
         });
         with_work.jobs_processed = 1;
 
-        assert!(sample_map_layout_may_have_changed(&ready));
-        assert!(sample_map_layout_may_have_changed(&with_work));
+        assert!(starmap_layout_may_have_changed(&ready));
+        assert!(starmap_layout_may_have_changed(&with_work));
     }
 
     #[test]
-    fn blocked_no_work_similarity_prep_keeps_sample_map_request_suppressed() {
+    fn blocked_no_work_similarity_prep_keeps_starmap_request_suppressed() {
         let blocked = summary(NativeSimilarityPrepStatus::Blocked {
             failed_count: 1,
             unsupported_count: 0,
         });
 
-        assert!(!sample_map_layout_may_have_changed(&blocked));
+        assert!(!starmap_layout_may_have_changed(&blocked));
     }
 }

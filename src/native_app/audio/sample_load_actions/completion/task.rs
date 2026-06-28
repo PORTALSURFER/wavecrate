@@ -81,8 +81,8 @@ impl NativeAppState {
                 self.audio.pending_sample_playback = None;
                 self.focus_browser_file_for_playback_navigation(Path::new(&path), context);
                 self.ui.status.sample = format!("Could not load {label}: {error}");
-                self.ui.chrome.sample_map_audition_queue.active_file_id = None;
-                self.start_next_sample_map_audition_hit(context);
+                self.ui.chrome.starmap_audition_queue.active_file_id = None;
+                self.start_next_starmap_audition_hit(context);
                 emit_gui_action(
                     "browser.sample_load.finish",
                     Some("browser"),

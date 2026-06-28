@@ -1,8 +1,8 @@
-//! Shared similarity-map data models used by the UI controller and repository loaders.
+//! Shared starmap data models used by the UI controller and repository loaders.
 
 use crate::sample_sources::SourceId;
 
-/// Aggregate similarity-map bounds for the current layout.
+/// Aggregate starmap bounds for the current layout.
 pub(crate) struct UmapBounds {
     pub min_x: f32,
     pub max_x: f32,
@@ -10,7 +10,7 @@ pub(crate) struct UmapBounds {
     pub max_y: f32,
 }
 
-/// One rendered point from the similarity-map layout.
+/// One rendered point from the starmap layout.
 pub(crate) struct UmapPoint {
     pub sample_id: String,
     pub x: f32,
@@ -18,7 +18,7 @@ pub(crate) struct UmapPoint {
     pub cluster_id: Option<i32>,
 }
 
-/// Query payload for loading visible similarity-map points and optional cluster metadata.
+/// Query payload for loading visible starmap points and optional cluster metadata.
 pub(crate) struct UmapPointQuery<'a> {
     pub model_id: &'a str,
     pub umap_version: &'a str,

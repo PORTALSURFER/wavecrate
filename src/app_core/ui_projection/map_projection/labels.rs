@@ -138,7 +138,7 @@ fn missing_artifacts_reason(
             String::from("Reason: similarity columns and map layout are missing")
         }
         (false, true, false) => String::from("Reason: similarity columns are missing"),
-        (false, false, true) => String::from("Reason: map layout artifacts are missing"),
+        (false, false, true) => String::from("Reason: Starmap layout artifacts are missing"),
         (false, false, false) => String::from("Reason: prep artifacts are unavailable"),
     }
 }

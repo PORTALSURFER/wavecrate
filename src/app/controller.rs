@@ -77,7 +77,7 @@ use tracing::info;
 
 #[cfg(test)]
 pub(crate) use ui::loading::ApplyWavEntriesParams;
-pub(crate) use ui::map_view::UmapPointQuery;
+pub(crate) use ui::starmap_view::UmapPointQuery;
 pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;

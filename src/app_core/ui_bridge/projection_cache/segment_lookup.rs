@@ -11,7 +11,7 @@ pub(crate) enum ProjectionSegment {
     BrowserTagSidebar,
     /// Browser visible-row window projection.
     BrowserRowsWindow,
-    /// Similarity map panel projection.
+    /// Starmap panel projection.
     MapPanel,
     /// Waveform panel/chrome projection.
     WaveformOverlay,

@@ -53,9 +53,9 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) help_tooltips_enabled: bool,
     pub(in crate::native_app) sticky_random_sample_range_playback: bool,
     pub(in crate::native_app) sample_browser_display: SampleBrowserDisplayMode,
-    pub(in crate::native_app) sample_map_viewport: SampleMapViewport,
-    pub(in crate::native_app) sample_map_audition_drag: Option<SampleMapAuditionDragState>,
-    pub(in crate::native_app) sample_map_audition_queue: SampleMapAuditionQueueState,
+    pub(in crate::native_app) starmap_viewport: StarmapViewport,
+    pub(in crate::native_app) starmap_audition_drag: Option<StarmapAuditionDragState>,
+    pub(in crate::native_app) starmap_audition_queue: StarmapAuditionQueueState,
     pub(in crate::native_app) harvest_family_open: bool,
     pub(in crate::native_app) curation_filter_dropdown_open: bool,
     pub(in crate::native_app) harvest_filter_dropdown_open: bool,
@@ -70,35 +70,35 @@ pub(in crate::native_app) enum SampleBrowserDisplayMode {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::native_app) struct SampleMapAuditionDragState {
+pub(in crate::native_app) struct StarmapAuditionDragState {
     pub(in crate::native_app) last_hit_file_id: Option<String>,
     pub(in crate::native_app) last_position: ui::Point,
     pub(in crate::native_app) modifiers: PointerModifiers,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(in crate::native_app) struct SampleMapAuditionQueueState {
+pub(in crate::native_app) struct StarmapAuditionQueueState {
     pub(in crate::native_app) active_file_id: Option<String>,
     pub(in crate::native_app) queued_file_ids: VecDeque<String>,
     pub(in crate::native_app) modifiers: PointerModifiers,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::native_app) struct SampleMapViewport {
+pub(in crate::native_app) struct StarmapViewport {
     pub(in crate::native_app) center_x: f32,
     pub(in crate::native_app) center_y: f32,
     pub(in crate::native_app) zoom: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::native_app) enum SampleMapViewportChange {
+pub(in crate::native_app) enum StarmapViewportChange {
     Pan { delta: ui::Vector2 },
     Zoom { anchor: ui::Vector2, factor: f32 },
     Center { x: f32, y: f32 },
     Reset,
 }
 
-impl Default for SampleMapViewport {
+impl Default for StarmapViewport {
     fn default() -> Self {
         Self {
             center_x: 0.5,
@@ -108,28 +108,28 @@ impl Default for SampleMapViewport {
     }
 }
 
-impl SampleMapViewport {
+impl StarmapViewport {
     const MIN_ZOOM: f32 = 0.65;
     const MAX_ZOOM: f32 = 8.0;
     const MIN_CENTER: f32 = -1.0;
     const MAX_CENTER: f32 = 2.0;
 
-    pub(in crate::native_app) fn apply_change(&mut self, change: SampleMapViewportChange) {
+    pub(in crate::native_app) fn apply_change(&mut self, change: StarmapViewportChange) {
         match change {
-            SampleMapViewportChange::Pan { delta } => {
+            StarmapViewportChange::Pan { delta } => {
                 self.center_x -= delta.x / self.zoom;
                 self.center_y -= delta.y / self.zoom;
                 self.clamp_center();
             }
-            SampleMapViewportChange::Zoom { anchor, factor } => {
+            StarmapViewportChange::Zoom { anchor, factor } => {
                 self.zoom_at(anchor, factor);
             }
-            SampleMapViewportChange::Center { x, y } => {
+            StarmapViewportChange::Center { x, y } => {
                 self.center_x = x;
                 self.center_y = y;
                 self.clamp_center();
             }
-            SampleMapViewportChange::Reset => *self = Self::default(),
+            StarmapViewportChange::Reset => *self = Self::default(),
         }
     }
 
@@ -163,9 +163,9 @@ impl ChromeUiState {
             help_tooltips_enabled: false,
             sticky_random_sample_range_playback: false,
             sample_browser_display: SampleBrowserDisplayMode::List,
-            sample_map_viewport: SampleMapViewport::default(),
-            sample_map_audition_drag: None,
-            sample_map_audition_queue: SampleMapAuditionQueueState::default(),
+            starmap_viewport: StarmapViewport::default(),
+            starmap_audition_drag: None,
+            starmap_audition_queue: StarmapAuditionQueueState::default(),
             harvest_family_open: false,
             curation_filter_dropdown_open: false,
             harvest_filter_dropdown_open: false,
@@ -430,15 +430,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sample_map_viewport_zoom_keeps_anchor_world_position_stable() {
-        let mut viewport = SampleMapViewport::default();
+    fn starmap_viewport_zoom_keeps_anchor_world_position_stable() {
+        let mut viewport = StarmapViewport::default();
         let anchor = ui::Vector2::new(0.25, 0.75);
         let before = (
             viewport.center_x + (anchor.x - 0.5) / viewport.zoom,
             viewport.center_y + (anchor.y - 0.5) / viewport.zoom,
         );
 
-        viewport.apply_change(SampleMapViewportChange::Zoom {
+        viewport.apply_change(StarmapViewportChange::Zoom {
             anchor,
             factor: 2.0,
         });
@@ -453,10 +453,10 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_viewport_zoom_allows_extra_map_margin() {
-        let mut viewport = SampleMapViewport::default();
+    fn starmap_viewport_zoom_allows_extra_map_margin() {
+        let mut viewport = StarmapViewport::default();
 
-        viewport.apply_change(SampleMapViewportChange::Zoom {
+        viewport.apply_change(StarmapViewportChange::Zoom {
             anchor: ui::Vector2::new(0.5, 0.5),
             factor: 0.5,
         });
@@ -467,27 +467,27 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_viewport_pan_is_scaled_by_zoom_and_allows_offscreen_nodes() {
-        let mut viewport = SampleMapViewport {
+    fn starmap_viewport_pan_is_scaled_by_zoom_and_allows_offscreen_nodes() {
+        let mut viewport = StarmapViewport {
             center_x: 0.5,
             center_y: 0.5,
             zoom: 2.0,
         };
 
-        viewport.apply_change(SampleMapViewportChange::Pan {
+        viewport.apply_change(StarmapViewportChange::Pan {
             delta: ui::Vector2::new(0.2, -0.1),
         });
 
         assert!((viewport.center_x - 0.4).abs() < 0.0001);
         assert!((viewport.center_y - 0.55).abs() < 0.0001);
 
-        viewport.apply_change(SampleMapViewportChange::Pan {
+        viewport.apply_change(StarmapViewportChange::Pan {
             delta: ui::Vector2::new(100.0, 100.0),
         });
         assert_eq!(viewport.center_x, -1.0);
         assert_eq!(viewport.center_y, -1.0);
 
-        viewport.apply_change(SampleMapViewportChange::Pan {
+        viewport.apply_change(StarmapViewportChange::Pan {
             delta: ui::Vector2::new(-100.0, -100.0),
         });
         assert_eq!(viewport.center_x, 2.0);
@@ -495,14 +495,14 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_viewport_center_clamps_to_extended_map_bounds() {
-        let mut viewport = SampleMapViewport {
+    fn starmap_viewport_center_clamps_to_extended_map_bounds() {
+        let mut viewport = StarmapViewport {
             center_x: 0.5,
             center_y: 0.5,
             zoom: 4.0,
         };
 
-        viewport.apply_change(SampleMapViewportChange::Center { x: -5.0, y: 5.0 });
+        viewport.apply_change(StarmapViewportChange::Center { x: -5.0, y: 5.0 });
 
         assert_eq!(viewport.center_x, -1.0);
         assert_eq!(viewport.center_y, 2.0);

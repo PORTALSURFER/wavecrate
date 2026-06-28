@@ -14,7 +14,7 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
-    SampleLoadPathValidation, SampleLoadResult, SampleMapViewportChange, SamplePlaybackReady,
+    SampleLoadPathValidation, SampleLoadResult, SamplePlaybackReady, StarmapViewportChange,
     WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
@@ -300,22 +300,22 @@ pub(in crate::native_app) enum GuiMessage {
     SelectAllSamples,
     ToggleRandomNavigationMode,
     ToggleSampleBrowserMapView,
-    FocusSelectedSampleMapNode,
-    ChangeSampleMapViewport(SampleMapViewportChange),
-    BeginSampleMapAuditionDrag {
+    FocusSelectedStarmapNode,
+    ChangeStarmapViewport(StarmapViewportChange),
+    BeginStarmapAuditionDrag {
         path: Option<String>,
         position: Point,
         modifiers: PointerModifiers,
     },
-    UpdateSampleMapAuditionDrag {
+    UpdateStarmapAuditionDrag {
         paths: Vec<String>,
         position: Point,
         modifiers: PointerModifiers,
     },
-    AdvanceSampleMapAudition {
+    AdvanceStarmapAudition {
         ticket: ui::TaskTicket,
     },
-    FinishSampleMapAuditionDrag,
+    FinishStarmapAuditionDrag,
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),
     FolderTreeWindowChanged(ui::VirtualListWindowChange),
     CollapseSelectedFolder,

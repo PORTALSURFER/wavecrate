@@ -20,8 +20,6 @@ mod folder_async;
 mod folders_core;
 mod folders_search;
 mod history_transactions;
-/// Map focus/preview workflow regression tests.
-mod map_view;
 mod missing;
 mod playback_loop;
 mod rating_logic;
@@ -34,6 +32,8 @@ mod source_async;
 mod source_config;
 /// Contains focused regression coverage for this module.
 mod source_lifecycle;
+/// Map focus/preview workflow regression tests.
+mod starmap_view;
 /// Startup audio-probe deferral coverage.
 mod startup_audio;
 mod transient_options;

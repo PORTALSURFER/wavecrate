@@ -200,7 +200,7 @@ fn native_app_default_keeps_wavecrate_product_labels_owned_in_app_core() {
 
     assert_eq!(model.columns[1].title, "Samples");
     assert_eq!(model.browser_chrome.samples_tab_label, "Samples");
-    assert_eq!(model.browser_chrome.map_tab_label, "Similarity map");
+    assert_eq!(model.browser_chrome.map_tab_label, "Starmap");
     assert_eq!(
         model.browser_chrome.search_placeholder,
         "Search samples (Ctrl+F)"
@@ -229,7 +229,7 @@ fn native_projection_dtos_keep_product_defaults_and_generic_primitives() {
 
     assert_eq!(model.columns[1].title, "Samples");
     assert_eq!(model.browser_chrome.samples_tab_label, "Samples");
-    assert_eq!(model.browser_chrome.map_tab_label, "Similarity map");
+    assert_eq!(model.browser_chrome.map_tab_label, "Starmap");
     assert_eq!(
         model.browser_chrome.search_placeholder,
         "Search samples (Ctrl+F)"

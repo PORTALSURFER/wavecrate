@@ -191,12 +191,12 @@ impl NativeAppState {
             | GuiMessage::SelectAllSamples
             | GuiMessage::ToggleRandomNavigationMode
             | GuiMessage::ToggleSampleBrowserMapView
-            | GuiMessage::FocusSelectedSampleMapNode
-            | GuiMessage::ChangeSampleMapViewport(_)
-            | GuiMessage::BeginSampleMapAuditionDrag { .. }
-            | GuiMessage::UpdateSampleMapAuditionDrag { .. }
-            | GuiMessage::AdvanceSampleMapAudition { .. }
-            | GuiMessage::FinishSampleMapAuditionDrag
+            | GuiMessage::FocusSelectedStarmapNode
+            | GuiMessage::ChangeStarmapViewport(_)
+            | GuiMessage::BeginStarmapAuditionDrag { .. }
+            | GuiMessage::UpdateStarmapAuditionDrag { .. }
+            | GuiMessage::AdvanceStarmapAudition { .. }
+            | GuiMessage::FinishStarmapAuditionDrag
             | GuiMessage::SampleBrowserWindowChanged(_)
             | GuiMessage::FolderTreeWindowChanged(_)
             | GuiMessage::CollapseSelectedFolder

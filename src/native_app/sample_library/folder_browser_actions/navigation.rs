@@ -2,11 +2,11 @@ use radiant::prelude as ui;
 use std::{path::Path, time::Instant};
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, SampleBrowserDisplayMode, SampleMapViewportChange, emit_gui_action,
+    GuiMessage, NativeAppState, SampleBrowserDisplayMode, StarmapViewportChange, emit_gui_action,
 };
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::model::PlaybackTypeFilter;
-use crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection;
+use crate::native_app::sample_library::folder_browser::starmap::StarmapProjection;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, COLLECTIONS_LIST_SCROLL_NODE_ID, FOLDER_TREE_EDGE_CONTEXT_ROWS,
     FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
@@ -321,7 +321,7 @@ impl NativeAppState {
                 1,
             );
         }
-        self.focus_selected_sample_map_node_after_browser_navigation();
+        self.focus_selected_starmap_node_after_browser_navigation();
 
         let action = if result.toggled_selected {
             "Marked"
@@ -407,19 +407,15 @@ impl NativeAppState {
         if self.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map
             && self.library.folder_browser.selected_file_id().is_some()
         {
-            let Some(path) = self
-                .library
-                .folder_browser
-                .navigate_sample_map_matching_tags(
-                    delta,
-                    extend,
-                    &self.metadata.tags_by_file,
-                    &self.waveform.cache.instant_audition_sample_paths,
-                )
-            else {
+            let Some(path) = self.library.folder_browser.navigate_starmap_matching_tags(
+                delta,
+                extend,
+                &self.metadata.tags_by_file,
+                &self.waveform.cache.instant_audition_sample_paths,
+            ) else {
                 emit_gui_action(
                     "folder_browser.navigate",
-                    Some("sample_map"),
+                    Some("starmap"),
                     Some(direction),
                     "edge",
                     started_at,
@@ -428,10 +424,10 @@ impl NativeAppState {
                 return;
             };
 
-            self.focus_selected_sample_map_node_after_browser_navigation();
+            self.focus_selected_starmap_node_after_browser_navigation();
             emit_gui_action(
                 "folder_browser.navigate",
-                Some("sample_map"),
+                Some("starmap"),
                 Some(direction),
                 "selected",
                 started_at,
@@ -508,7 +504,7 @@ impl NativeAppState {
                 reveal_direction,
             );
         }
-        self.focus_selected_sample_map_node_after_browser_navigation();
+        self.focus_selected_starmap_node_after_browser_navigation();
         emit_gui_action(
             "folder_browser.navigate",
             Some("browser"),
@@ -524,17 +520,17 @@ impl NativeAppState {
         self.load_navigation_sample(path, context);
     }
 
-    fn focus_selected_sample_map_node_after_browser_navigation(&mut self) {
+    fn focus_selected_starmap_node_after_browser_navigation(&mut self) {
         if self.ui.chrome.sample_browser_display != SampleBrowserDisplayMode::Map {
             return;
         }
         self.library
             .folder_browser
-            .prepare_sample_map_layout(&self.metadata.tags_by_file);
+            .prepare_starmap_layout(&self.metadata.tags_by_file);
         let Some((x, y)) =
             self.library
                 .folder_browser
-                .selected_sample_map_position(SampleMapProjection {
+                .selected_starmap_position(StarmapProjection {
                     tags_by_file: &self.metadata.tags_by_file,
                     instant_audition_sample_paths: &self
                         .waveform
@@ -546,8 +542,8 @@ impl NativeAppState {
         };
         self.ui
             .chrome
-            .sample_map_viewport
-            .apply_change(SampleMapViewportChange::Center { x, y });
+            .starmap_viewport
+            .apply_change(StarmapViewportChange::Center { x, y });
     }
 
     fn toggle_focused_folder_selection(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {

@@ -18,11 +18,11 @@ use std::{
 };
 
 use crate::native_app::app::{
-    GuiMessage, SampleMapAuditionDragState, SampleMapViewport, SampleMapViewportChange,
+    GuiMessage, StarmapAuditionDragState, StarmapViewport, StarmapViewportChange,
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
-use crate::native_app::sample_library::folder_browser::sample_map::{
-    SampleMapItem, SampleMapStatus, sample_map_cluster_palette_color,
+use crate::native_app::sample_library::folder_browser::starmap::{
+    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
 };
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -58,41 +58,41 @@ const MAP_CONTROL_ZOOM_FACTOR: f32 = 1.35;
 const MAP_CONTROL_ANCHOR: Vector2 = Vector2 { x: 0.5, y: 0.5 };
 const MAP_LEGEND_SWATCH_SIZE: u8 = 7;
 
-pub(super) fn sample_map_view(
-    items: Vec<SampleMapItem>,
-    viewport: SampleMapViewport,
+pub(super) fn starmap_view(
+    items: Vec<StarmapItem>,
+    viewport: StarmapViewport,
     name_filter: String,
     similarity_controls: &SimilarityAspectSettings,
-    status: SampleMapStatus,
+    status: StarmapStatus,
     prep_running: bool,
     curation_mode_enabled: bool,
-    active_drag: Option<SampleMapAuditionDragState>,
+    active_drag: Option<StarmapAuditionDragState>,
 ) -> ui::View<GuiMessage> {
     let map = if items.is_empty() {
         ui::column([
-            ui::text_line(sample_map_empty_message(curation_mode_enabled), 23.0).muted_text(),
+            ui::text_line(starmap_empty_message(curation_mode_enabled), 23.0).muted_text(),
             ui::spacer().fill_height(),
         ])
         .spacing(0.0)
         .fill()
     } else {
-        ui::custom_widget_direct(SampleMapWidget::new(items, viewport, active_drag))
+        ui::custom_widget_direct(StarmapWidget::new(items, viewport, active_drag))
             .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
             .height(MAP_MIN_HEIGHT)
             .fill()
     };
     ui::stack([
         map,
-        sample_map_search_overlay(name_filter),
-        sample_map_controls_overlay(),
-        sample_map_legend_overlay(similarity_controls, status),
-        sample_map_status_overlay(status, prep_running),
+        starmap_search_overlay(name_filter),
+        starmap_controls_overlay(),
+        starmap_legend_overlay(similarity_controls, status),
+        starmap_status_overlay(status, prep_running),
     ])
     .fill()
     .height(MAP_MIN_HEIGHT)
 }
 
-fn sample_map_empty_message(curation_mode_enabled: bool) -> &'static str {
+fn starmap_empty_message(curation_mode_enabled: bool) -> &'static str {
     if curation_mode_enabled {
         "No files left to curate"
     } else {
@@ -100,7 +100,7 @@ fn sample_map_empty_message(curation_mode_enabled: bool) -> &'static str {
     }
 }
 
-fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
+fn starmap_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
     ui::column([
         ui::row([
             ui::spacer().fill_width().height(26.0),
@@ -126,35 +126,32 @@ fn sample_map_search_overlay(name_filter: String) -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_map_controls_overlay() -> ui::View<GuiMessage> {
+fn starmap_controls_overlay() -> ui::View<GuiMessage> {
     ui::column([
         ui::spacer().fill_width().height(36.0),
         ui::row([
             ui::spacer().fill_width().height(26.0),
-            sample_map_control_button(
-                sample_map_zoom_out_icon(),
-                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Zoom {
+            starmap_control_button(
+                starmap_zoom_out_icon(),
+                GuiMessage::ChangeStarmapViewport(StarmapViewportChange::Zoom {
                     anchor: MAP_CONTROL_ANCHOR,
                     factor: 1.0 / MAP_CONTROL_ZOOM_FACTOR,
                 }),
             )
             .tooltip("Zoom out"),
-            sample_map_control_button(
-                sample_map_zoom_in_icon(),
-                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Zoom {
+            starmap_control_button(
+                starmap_zoom_in_icon(),
+                GuiMessage::ChangeStarmapViewport(StarmapViewportChange::Zoom {
                     anchor: MAP_CONTROL_ANCHOR,
                     factor: MAP_CONTROL_ZOOM_FACTOR,
                 }),
             )
             .tooltip("Zoom in"),
-            sample_map_control_button(
-                sample_map_focus_icon(),
-                GuiMessage::FocusSelectedSampleMapNode,
-            )
-            .tooltip("Focus selected sample"),
-            sample_map_control_button(
-                sample_map_reset_icon(),
-                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Reset),
+            starmap_control_button(starmap_focus_icon(), GuiMessage::FocusSelectedStarmapNode)
+                .tooltip("Focus selected sample"),
+            starmap_control_button(
+                starmap_reset_icon(),
+                GuiMessage::ChangeStarmapViewport(StarmapViewportChange::Reset),
             )
             .tooltip("Reset map view"),
         ])
@@ -167,17 +164,17 @@ fn sample_map_controls_overlay() -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_map_legend_overlay(
+fn starmap_legend_overlay(
     controls: &SimilarityAspectSettings,
-    status: SampleMapStatus,
+    status: StarmapStatus,
 ) -> ui::View<GuiMessage> {
     let entries = if status.clustered_count > 0 {
-        sample_map_cluster_legend_entries(status.cluster_color_count)
+        starmap_cluster_legend_entries(status.cluster_color_count)
     } else {
         SimilarityAspect::ORDER
             .into_iter()
             .filter(|aspect| controls.aspect_enabled(*aspect))
-            .map(sample_map_aspect_legend_entry)
+            .map(starmap_aspect_legend_entry)
             .collect::<Vec<_>>()
     };
     if entries.is_empty() {
@@ -200,15 +197,15 @@ fn sample_map_legend_overlay(
     .fill()
 }
 
-fn sample_map_cluster_legend_entries(cluster_color_count: usize) -> Vec<ui::View<GuiMessage>> {
+fn starmap_cluster_legend_entries(cluster_color_count: usize) -> Vec<ui::View<GuiMessage>> {
     let swatch_count = cluster_color_count.clamp(1, 6);
-    std::iter::once(sample_map_text_legend_entry("Similarity clusters", 120.0))
-        .chain((0..swatch_count).map(sample_map_cluster_legend_swatch))
+    std::iter::once(starmap_text_legend_entry("Similarity clusters", 120.0))
+        .chain((0..swatch_count).map(starmap_cluster_legend_swatch))
         .collect()
 }
 
-fn sample_map_cluster_legend_swatch(index: usize) -> ui::View<GuiMessage> {
-    ui::color_marker(Some(sample_map_cluster_palette_color(index)))
+fn starmap_cluster_legend_swatch(index: usize) -> ui::View<GuiMessage> {
+    ui::color_marker(Some(starmap_cluster_palette_color(index)))
         .side(MAP_LEGEND_SWATCH_SIZE)
         .inset(0)
         .view()
@@ -216,7 +213,7 @@ fn sample_map_cluster_legend_swatch(index: usize) -> ui::View<GuiMessage> {
         .height(16.0)
 }
 
-fn sample_map_aspect_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessage> {
+fn starmap_aspect_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessage> {
     ui::row([
         ui::color_marker(Some(similarity_aspect_color(aspect)))
             .side(MAP_LEGEND_SWATCH_SIZE)
@@ -224,20 +221,20 @@ fn sample_map_aspect_legend_entry(aspect: SimilarityAspect) -> ui::View<GuiMessa
             .view()
             .width(f32::from(MAP_LEGEND_SWATCH_SIZE) + 1.0)
             .height(16.0),
-        ui::text(sample_map_aspect_label(aspect))
+        ui::text(starmap_aspect_label(aspect))
             .muted_text()
             .height(16.0)
-            .width(sample_map_aspect_label_width(aspect)),
+            .width(starmap_aspect_label_width(aspect)),
     ])
     .spacing(3.0)
     .height(16.0)
 }
 
-fn sample_map_text_legend_entry(label: &'static str, width: f32) -> ui::View<GuiMessage> {
+fn starmap_text_legend_entry(label: &'static str, width: f32) -> ui::View<GuiMessage> {
     ui::text(label).muted_text().height(16.0).width(width)
 }
 
-fn sample_map_aspect_label(aspect: SimilarityAspect) -> &'static str {
+fn starmap_aspect_label(aspect: SimilarityAspect) -> &'static str {
     match aspect {
         SimilarityAspect::Overall => "Overall",
         SimilarityAspect::Spectrum => "Spectrum",
@@ -247,7 +244,7 @@ fn sample_map_aspect_label(aspect: SimilarityAspect) -> &'static str {
     }
 }
 
-fn sample_map_aspect_label_width(aspect: SimilarityAspect) -> f32 {
+fn starmap_aspect_label_width(aspect: SimilarityAspect) -> f32 {
     match aspect {
         SimilarityAspect::Overall => 54.0,
         SimilarityAspect::Spectrum => 62.0,
@@ -257,27 +254,27 @@ fn sample_map_aspect_label_width(aspect: SimilarityAspect) -> f32 {
     }
 }
 
-fn sample_map_control_button(icon: ui::SvgIcon, message: GuiMessage) -> ui::View<GuiMessage> {
+fn starmap_control_button(icon: ui::SvgIcon, message: GuiMessage) -> ui::View<GuiMessage> {
     ui::icon_button(icon).message(message).size(24.0, 22.0)
 }
 
-fn sample_map_zoom_in_icon() -> ui::SvgIcon {
+fn starmap_zoom_in_icon() -> ui::SvgIcon {
     MAP_ZOOM_IN_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
 }
 
-fn sample_map_zoom_out_icon() -> ui::SvgIcon {
+fn starmap_zoom_out_icon() -> ui::SvgIcon {
     MAP_ZOOM_OUT_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
 }
 
-fn sample_map_focus_icon() -> ui::SvgIcon {
+fn starmap_focus_icon() -> ui::SvgIcon {
     MAP_FOCUS_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
 }
 
-fn sample_map_reset_icon() -> ui::SvgIcon {
+fn starmap_reset_icon() -> ui::SvgIcon {
     MAP_RESET_ICON.icon_for_state(MAP_CONTROL_ICON_TINTS, true, false)
 }
 
-fn sample_map_status_overlay(status: SampleMapStatus, prep_running: bool) -> ui::View<GuiMessage> {
+fn starmap_status_overlay(status: StarmapStatus, prep_running: bool) -> ui::View<GuiMessage> {
     let Some(label) = status.label(prep_running) else {
         return ui::spacer().fill();
     };
@@ -297,25 +294,25 @@ fn sample_map_status_overlay(status: SampleMapStatus, prep_running: bool) -> ui:
 }
 
 #[derive(Clone, Debug)]
-struct SampleMapWidget {
+struct StarmapWidget {
     common: WidgetCommon,
     gesture: CanvasGestureState,
-    items: Vec<SampleMapItem>,
-    viewport: SampleMapViewport,
+    items: Vec<StarmapItem>,
+    viewport: StarmapViewport,
     last_hit_file_id: Option<String>,
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
-    active_drag: Option<SampleMapAuditionDragState>,
+    active_drag: Option<StarmapAuditionDragState>,
     item_signature: u64,
-    hit_index: SampleMapHitIndex,
+    hit_index: StarmapHitIndex,
     hovered_file_id: Option<String>,
 }
 
-impl SampleMapWidget {
+impl StarmapWidget {
     fn new(
-        items: Vec<SampleMapItem>,
-        viewport: SampleMapViewport,
-        active_drag: Option<SampleMapAuditionDragState>,
+        items: Vec<StarmapItem>,
+        viewport: StarmapViewport,
+        active_drag: Option<StarmapAuditionDragState>,
     ) -> Self {
         let common = WidgetCommon::new(
             widget_ids::SAMPLE_BROWSER_MAP_ID,
@@ -326,7 +323,7 @@ impl SampleMapWidget {
         )
         .with_pointer_focus()
         .without_default_chrome();
-        let item_signature = sample_map_items_signature(&items);
+        let item_signature = starmap_items_signature(&items);
         Self {
             common,
             gesture: CanvasGestureState::new(),
@@ -337,7 +334,7 @@ impl SampleMapWidget {
             last_pan_position: None,
             active_drag,
             item_signature,
-            hit_index: SampleMapHitIndex::default(),
+            hit_index: StarmapHitIndex::default(),
             hovered_file_id: None,
         }
     }
@@ -356,13 +353,11 @@ impl SampleMapWidget {
         let hit_file_id = self.hit_file_id(bounds, point);
         self.last_hit_file_id = hit_file_id.clone();
         self.last_primary_position = Some(point);
-        Some(WidgetOutput::typed(
-            GuiMessage::BeginSampleMapAuditionDrag {
-                path: hit_file_id,
-                position: point,
-                modifiers,
-            },
-        ))
+        Some(WidgetOutput::typed(GuiMessage::BeginStarmapAuditionDrag {
+            path: hit_file_id,
+            position: point,
+            modifiers,
+        }))
     }
 
     fn update_audition_drag_message(
@@ -391,18 +386,16 @@ impl SampleMapWidget {
             return None;
         }
         self.last_hit_file_id = Some(hit_file_id.clone());
-        Some(WidgetOutput::typed(
-            GuiMessage::UpdateSampleMapAuditionDrag {
-                paths: vec![hit_file_id],
-                position: point,
-                modifiers,
-            },
-        ))
+        Some(WidgetOutput::typed(GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![hit_file_id],
+            position: point,
+            modifiers,
+        }))
     }
 
-    fn hit_test(&mut self, bounds: Rect, point: Point) -> Option<&SampleMapItem> {
+    fn hit_test(&mut self, bounds: Rect, point: Point) -> Option<&StarmapItem> {
         self.ensure_hit_index(bounds);
-        let mut best: Option<(&SampleMapItem, f32)> = None;
+        let mut best: Option<(&StarmapItem, f32)> = None;
         for index in self.hit_index.item_indices_near_point(point) {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
@@ -419,7 +412,7 @@ impl SampleMapWidget {
 
     fn hit_file_id_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<String> {
         self.ensure_hit_index(bounds);
-        let mut best: Option<SampleMapSegmentHit> = None;
+        let mut best: Option<StarmapSegmentHit> = None;
         for index in self.hit_index.item_indices_near_segment(from, to) {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
@@ -427,7 +420,7 @@ impl SampleMapWidget {
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
-            let hit = SampleMapSegmentHit {
+            let hit = StarmapSegmentHit {
                 file_id: item.file_id.clone(),
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
@@ -452,55 +445,55 @@ impl SampleMapWidget {
             return;
         }
         self.hit_index =
-            SampleMapHitIndex::build(bounds, self.viewport, self.item_signature, &self.items);
+            StarmapHitIndex::build(bounds, self.viewport, self.item_signature, &self.items);
     }
 
     fn set_hovered_file_at(&mut self, bounds: Rect, point: Point) {
         self.hovered_file_id = self.hit_file_id(bounds, point);
     }
 
-    fn hovered_item(&self) -> Option<&SampleMapItem> {
+    fn hovered_item(&self) -> Option<&StarmapItem> {
         let hovered_file_id = self.hovered_file_id.as_deref()?;
         self.items
             .iter()
             .find(|item| item.file_id.as_str() == hovered_file_id)
     }
 
-    fn active_drag_item(&self) -> Option<&SampleMapItem> {
+    fn active_drag_item(&self) -> Option<&StarmapItem> {
         let active_file_id = self.active_drag.as_ref()?.last_hit_file_id.as_deref()?;
         self.items
             .iter()
             .find(|item| item.file_id.as_str() == active_file_id)
     }
 
-    fn focused_item(&self) -> Option<&SampleMapItem> {
+    fn focused_item(&self) -> Option<&StarmapItem> {
         self.items.iter().find(|item| item.focused)
     }
 }
 
 #[derive(Clone, Debug)]
-struct SampleMapSegmentHit {
+struct StarmapSegmentHit {
     file_id: String,
     segment_t: f32,
     distance_sq: f32,
 }
 
 #[derive(Clone, Debug, Default)]
-struct SampleMapHitIndex {
+struct StarmapHitIndex {
     bounds: Option<Rect>,
-    viewport: Option<SampleMapViewport>,
+    viewport: Option<StarmapViewport>,
     item_signature: u64,
-    cells: HashMap<SampleMapGridCell, Vec<usize>>,
+    cells: HashMap<StarmapGridCell, Vec<usize>>,
 }
 
-impl SampleMapHitIndex {
+impl StarmapHitIndex {
     fn build(
         bounds: Rect,
-        viewport: SampleMapViewport,
+        viewport: StarmapViewport,
         item_signature: u64,
-        items: &[SampleMapItem],
+        items: &[StarmapItem],
     ) -> Self {
-        let mut cells = HashMap::<SampleMapGridCell, Vec<usize>>::new();
+        let mut cells = HashMap::<StarmapGridCell, Vec<usize>>::new();
         let indexed_bounds = paint_bounds(bounds).expanded(MAP_HIT_RADIUS);
         for (index, item) in items.iter().enumerate() {
             let center = item_center(bounds, item, viewport);
@@ -508,7 +501,7 @@ impl SampleMapHitIndex {
                 continue;
             }
             cells
-                .entry(SampleMapGridCell::from_point(center))
+                .entry(StarmapGridCell::from_point(center))
                 .or_default()
                 .push(index);
         }
@@ -520,13 +513,13 @@ impl SampleMapHitIndex {
         }
     }
 
-    fn matches(&self, bounds: Rect, viewport: SampleMapViewport, item_signature: u64) -> bool {
+    fn matches(&self, bounds: Rect, viewport: StarmapViewport, item_signature: u64) -> bool {
         self.bounds == Some(bounds)
             && self.viewport == Some(viewport)
             && self.item_signature == item_signature
     }
 
-    fn matches_current(&self, viewport: SampleMapViewport, item_signature: u64) -> bool {
+    fn matches_current(&self, viewport: StarmapViewport, item_signature: u64) -> bool {
         self.bounds.is_some()
             && self.viewport == Some(viewport)
             && self.item_signature == item_signature
@@ -541,13 +534,13 @@ impl SampleMapHitIndex {
     }
 
     fn item_indices_for_rect(&self, rect: Rect) -> Vec<usize> {
-        let min = SampleMapGridCell::from_point(rect.min);
-        let max = SampleMapGridCell::from_point(rect.max);
+        let min = StarmapGridCell::from_point(rect.min);
+        let max = StarmapGridCell::from_point(rect.max);
         let mut indices = Vec::new();
         let mut seen = HashSet::new();
         for y in min.y..=max.y {
             for x in min.x..=max.x {
-                let Some(cell_indices) = self.cells.get(&SampleMapGridCell { x, y }) else {
+                let Some(cell_indices) = self.cells.get(&StarmapGridCell { x, y }) else {
                     continue;
                 };
                 for &index in cell_indices {
@@ -562,12 +555,12 @@ impl SampleMapHitIndex {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct SampleMapGridCell {
+struct StarmapGridCell {
     x: i32,
     y: i32,
 }
 
-impl SampleMapGridCell {
+impl StarmapGridCell {
     fn from_point(point: Point) -> Self {
         Self {
             x: grid_coordinate(point.x),
@@ -587,7 +580,7 @@ fn segment_bounds(from: Point, to: Point) -> Rect {
     )
 }
 
-fn sample_map_items_signature(items: &[SampleMapItem]) -> u64 {
+fn starmap_items_signature(items: &[StarmapItem]) -> u64 {
     let mut hasher = DefaultHasher::new();
     items.len().hash(&mut hasher);
     for item in items {
@@ -620,7 +613,7 @@ fn point_segment_distance_squared(point: Point, start: Point, end: Point) -> f32
     distance_squared(point, closest)
 }
 
-impl Widget for SampleMapWidget {
+impl Widget for StarmapWidget {
     fn common(&self) -> &WidgetCommon {
         &self.common
     }
@@ -670,8 +663,8 @@ impl Widget for SampleMapWidget {
                 ..
             } => {
                 let previous = self.last_pan_position.replace(pointer.position)?;
-                Some(WidgetOutput::typed(GuiMessage::ChangeSampleMapViewport(
-                    SampleMapViewportChange::Pan {
+                Some(WidgetOutput::typed(GuiMessage::ChangeStarmapViewport(
+                    StarmapViewportChange::Pan {
                         delta: Vector2::new(
                             (pointer.position.x - previous.x) / bounds.width().max(1.0),
                             (pointer.position.y - previous.y) / bounds.height().max(1.0),
@@ -681,15 +674,15 @@ impl Widget for SampleMapWidget {
             }
             CanvasGestureEvent::Wheel { pointer, delta } => {
                 let factor = if delta.y < 0.0 { 1.15 } else { 1.0 / 1.15 };
-                Some(WidgetOutput::typed(GuiMessage::ChangeSampleMapViewport(
-                    SampleMapViewportChange::Zoom {
+                Some(WidgetOutput::typed(GuiMessage::ChangeStarmapViewport(
+                    StarmapViewportChange::Zoom {
                         anchor: pointer.normalized,
                         factor,
                     },
                 )))
             }
             CanvasGestureEvent::DoubleClick { .. } => Some(WidgetOutput::typed(
-                GuiMessage::ChangeSampleMapViewport(SampleMapViewportChange::Reset),
+                GuiMessage::ChangeStarmapViewport(StarmapViewportChange::Reset),
             )),
             CanvasGestureEvent::Release {
                 button: PointerButton::Primary,
@@ -702,7 +695,7 @@ impl Widget for SampleMapWidget {
                 self.last_hit_file_id = None;
                 self.last_primary_position = None;
                 self.last_pan_position = None;
-                Some(WidgetOutput::typed(GuiMessage::FinishSampleMapAuditionDrag))
+                Some(WidgetOutput::typed(GuiMessage::FinishStarmapAuditionDrag))
             }
             CanvasGestureEvent::Release {
                 button: PointerButton::Secondary,
@@ -787,7 +780,7 @@ impl Widget for SampleMapWidget {
                         primitives,
                         self.common.id,
                         center,
-                        sample_map_item_color(item),
+                        starmap_item_color(item),
                     );
                 }
             }
@@ -801,24 +794,14 @@ impl Widget for SampleMapWidget {
             if !paint_bounds(bounds).contains(center) {
                 return;
             }
-            paint_focused_item(
-                primitives,
-                self.common.id,
-                center,
-                sample_map_item_color(item),
-            );
+            paint_focused_item(primitives, self.common.id, center, starmap_item_color(item));
             return;
         };
         let center = item_center(bounds, item, self.viewport);
         if !paint_bounds(bounds).contains(center) {
             return;
         }
-        paint_hover_item(
-            primitives,
-            self.common.id,
-            center,
-            sample_map_item_color(item),
-        );
+        paint_hover_item(primitives, self.common.id, center, starmap_item_color(item));
     }
 }
 
@@ -826,8 +809,8 @@ fn paint_items(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     bounds: Rect,
-    items: &[SampleMapItem],
-    viewport: SampleMapViewport,
+    items: &[StarmapItem],
+    viewport: StarmapViewport,
 ) {
     let node_size = map_node_size(items.len());
     let mut batches = BTreeMap::<ColorKey, Vec<Rect>>::new();
@@ -851,8 +834,8 @@ fn queue_or_paint_item(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     bounds: Rect,
-    item: &SampleMapItem,
-    viewport: SampleMapViewport,
+    item: &StarmapItem,
+    viewport: StarmapViewport,
     node_size: f32,
     batches: &mut BTreeMap<ColorKey, Vec<Rect>>,
 ) {
@@ -860,7 +843,7 @@ fn queue_or_paint_item(
     if !paint_bounds(bounds).contains(center) {
         return;
     }
-    let color = sample_map_item_color(item);
+    let color = starmap_item_color(item);
     if item.copy_flash {
         paint_copy_flash_item(primitives, widget_id, center, color);
     }
@@ -1058,7 +1041,7 @@ fn stroke_diamond(
     );
 }
 
-fn sample_map_item_color(item: &SampleMapItem) -> ui::Rgba8 {
+fn starmap_item_color(item: &StarmapItem) -> ui::Rgba8 {
     if item.missing {
         ui::Rgba8::new(120, 120, 120, 180)
     } else if !item.instant_audition_ready {
@@ -1078,7 +1061,7 @@ fn map_node_size(item_count: usize) -> f32 {
     }
 }
 
-fn item_center(bounds: Rect, item: &SampleMapItem, viewport: SampleMapViewport) -> Point {
+fn item_center(bounds: Rect, item: &StarmapItem, viewport: StarmapViewport) -> Point {
     Point::new(
         bounds.x_for_ratio_unclamped((item.x - viewport.center_x) * viewport.zoom + 0.5),
         bounds.y_for_ratio_unclamped((item.y - viewport.center_y) * viewport.zoom + 0.5),
@@ -1117,11 +1100,11 @@ fn diamond_outline_points(center: Point, side: f32) -> [Point; 5] {
     [top, right, bottom, left, top]
 }
 
-trait SampleMapRectExt {
+trait StarmapRectExt {
     fn expanded(self, padding: f32) -> Rect;
 }
 
-impl SampleMapRectExt for Rect {
+impl StarmapRectExt for Rect {
     fn expanded(self, padding: f32) -> Rect {
         Rect::from_min_max(
             Point::new(self.min.x - padding, self.min.y - padding),
@@ -1197,15 +1180,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ordinary_sample_map_nodes_are_batched_by_color() {
+    fn ordinary_starmap_nodes_are_batched_by_color() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
-        let widget = SampleMapWidget::new(
+        let widget = StarmapWidget::new(
             vec![
-                sample_map_item("/samples/kick.wav", 0.25, 0.25, color),
-                sample_map_item("/samples/snare.wav", 0.50, 0.50, color),
-                sample_map_item("/samples/hat.wav", 0.75, 0.75, color),
+                starmap_item("/samples/kick.wav", 0.25, 0.25, color),
+                starmap_item("/samples/snare.wav", 0.50, 0.50, color),
+                starmap_item("/samples/hat.wav", 0.75, 0.75, color),
             ],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let mut primitives = Vec::new();
@@ -1235,21 +1218,21 @@ mod tests {
         let color = ui::Rgba8::new(255, 160, 80, 220);
         let items = (0..12)
             .map(|index| {
-                sample_map_item(
+                starmap_item(
                     &format!("/samples/group-{index}.wav"),
                     0.25 + index as f32 * 0.04,
                     0.25 + index as f32 * 0.04,
                     color.with_alpha(190 + index.min(4) as u8 * 10),
                 )
             })
-            .chain(std::iter::once(sample_map_item(
+            .chain(std::iter::once(starmap_item(
                 "/samples/lone.wav",
                 0.90,
                 0.12,
                 ui::Rgba8::new(57, 187, 245, 220),
             )))
             .collect::<Vec<_>>();
-        let widget = SampleMapWidget::new(items, SampleMapViewport::default(), None);
+        let widget = StarmapWidget::new(items, StarmapViewport::default(), None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -1278,13 +1261,13 @@ mod tests {
     #[test]
     fn same_color_runs_still_paint_individual_nodes() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
-        let widget = SampleMapWidget::new(
+        let widget = StarmapWidget::new(
             vec![
-                sample_map_item("/samples/kick.wav", 0.25, 0.25, color.with_alpha(190)),
-                sample_map_item("/samples/snare.wav", 0.50, 0.50, color.with_alpha(220)),
-                sample_map_item("/samples/hat.wav", 0.75, 0.75, color.with_alpha(240)),
+                starmap_item("/samples/kick.wav", 0.25, 0.25, color.with_alpha(190)),
+                starmap_item("/samples/snare.wav", 0.50, 0.50, color.with_alpha(220)),
+                starmap_item("/samples/hat.wav", 0.75, 0.75, color.with_alpha(240)),
             ],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let mut primitives = Vec::new();
@@ -1314,9 +1297,9 @@ mod tests {
     #[test]
     fn cold_audition_nodes_paint_as_hollow_markers() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
-        let mut cold = sample_map_item("/samples/long.wav", 0.50, 0.50, color);
+        let mut cold = starmap_item("/samples/long.wav", 0.50, 0.50, color);
         cold.instant_audition_ready = false;
-        let widget = SampleMapWidget::new(vec![cold], SampleMapViewport::default(), None);
+        let widget = StarmapWidget::new(vec![cold], StarmapViewport::default(), None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -1342,11 +1325,11 @@ mod tests {
     }
 
     #[test]
-    fn copied_sample_map_nodes_paint_confirmation_glow() {
+    fn copied_starmap_nodes_paint_confirmation_glow() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
-        let mut copied = sample_map_item("/samples/copied.wav", 0.50, 0.50, color);
+        let mut copied = starmap_item("/samples/copied.wav", 0.50, 0.50, color);
         copied.copy_flash = true;
-        let widget = SampleMapWidget::new(vec![copied], SampleMapViewport::default(), None);
+        let widget = StarmapWidget::new(vec![copied], StarmapViewport::default(), None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -1369,14 +1352,13 @@ mod tests {
     }
 
     #[test]
-    fn selected_and_anchor_sample_map_nodes_paint_highlight_layers() {
+    fn selected_and_anchor_starmap_nodes_paint_highlight_layers() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
-        let mut selected = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        let mut selected = starmap_item("/samples/kick.wav", 0.25, 0.5, color);
         selected.selected = true;
-        let mut anchor = sample_map_item("/samples/snare.wav", 0.75, 0.5, color);
+        let mut anchor = starmap_item("/samples/snare.wav", 0.75, 0.5, color);
         anchor.similarity_anchor = true;
-        let widget =
-            SampleMapWidget::new(vec![selected, anchor], SampleMapViewport::default(), None);
+        let widget = StarmapWidget::new(vec![selected, anchor], StarmapViewport::default(), None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -1408,12 +1390,12 @@ mod tests {
     }
 
     #[test]
-    fn hovering_sample_map_node_paints_lightweight_runtime_highlight_without_label() {
+    fn hovering_starmap_node_paints_lightweight_runtime_highlight_without_label() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
-        let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        let mut item = starmap_item("/samples/kick.wav", 0.25, 0.5, color);
         item.label = String::from("Kick Tight 01");
-        let mut widget = SampleMapWidget::new(vec![item], SampleMapViewport::default(), None);
+        let mut widget = StarmapWidget::new(vec![item], StarmapViewport::default(), None);
 
         assert!(
             widget
@@ -1452,14 +1434,14 @@ mod tests {
     }
 
     #[test]
-    fn focused_sample_map_node_paints_highlight_without_label() {
+    fn focused_starmap_node_paints_highlight_without_label() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
-        let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        let mut item = starmap_item("/samples/kick.wav", 0.25, 0.5, color);
         item.label = String::from("Kick Tight 01");
         item.selected = true;
         item.focused = true;
-        let widget = SampleMapWidget::new(vec![item], SampleMapViewport::default(), None);
+        let widget = StarmapWidget::new(vec![item], StarmapViewport::default(), None);
         let mut primitives = Vec::new();
 
         widget.append_runtime_overlay_paint(
@@ -1493,15 +1475,15 @@ mod tests {
     }
 
     #[test]
-    fn active_sample_map_drag_paints_current_audition_node_without_hover_label() {
+    fn active_starmap_drag_paints_current_audition_node_without_hover_label() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
-        let mut item = sample_map_item("/samples/kick.wav", 0.25, 0.5, color);
+        let mut item = starmap_item("/samples/kick.wav", 0.25, 0.5, color);
         item.label = String::from("Kick Tight 01");
-        let widget = SampleMapWidget::new(
+        let widget = StarmapWidget::new(
             vec![item],
-            SampleMapViewport::default(),
-            Some(SampleMapAuditionDragState {
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
                 last_hit_file_id: Some(String::from("/samples/kick.wav")),
                 last_position: Point::new(50.0, 50.0),
                 modifiers: PointerModifiers::default(),
@@ -1539,12 +1521,12 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_widget_synchronizes_hover_and_hit_index_from_previous_instance() {
+    fn starmap_widget_synchronizes_hover_and_hit_index_from_previous_instance() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
-        let mut previous = SampleMapWidget::new(
-            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
-            SampleMapViewport::default(),
+        let mut previous = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
             None,
         );
         assert!(
@@ -1555,9 +1537,9 @@ mod tests {
         );
         previous.ensure_hit_index(bounds);
 
-        let mut next = SampleMapWidget::new(
-            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
-            SampleMapViewport::default(),
+        let mut next = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
             None,
         );
         next.synchronize_from_previous(&previous);
@@ -1565,31 +1547,31 @@ mod tests {
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
         assert!(
             next.hit_index
-                .matches(bounds, SampleMapViewport::default(), next.item_signature)
+                .matches(bounds, StarmapViewport::default(), next.item_signature)
         );
     }
 
     #[test]
-    fn sample_map_widget_rebuilds_hit_index_when_filtered_items_change_with_same_count() {
+    fn starmap_widget_rebuilds_hit_index_when_filtered_items_change_with_same_count() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
-        let mut previous = SampleMapWidget::new(
-            vec![sample_map_item("/samples/kick.wav", 0.25, 0.5, color)],
-            SampleMapViewport::default(),
+        let mut previous = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
             None,
         );
         previous.ensure_hit_index(bounds);
 
-        let mut next = SampleMapWidget::new(
-            vec![sample_map_item("/samples/snare.wav", 0.75, 0.5, color)],
-            SampleMapViewport::default(),
+        let mut next = StarmapWidget::new(
+            vec![starmap_item("/samples/snare.wav", 0.75, 0.5, color)],
+            StarmapViewport::default(),
             None,
         );
         next.synchronize_from_previous(&previous);
         assert!(
             !next
                 .hit_index
-                .matches(bounds, SampleMapViewport::default(), next.item_signature),
+                .matches(bounds, StarmapViewport::default(), next.item_signature),
             "same-count filtered listings must not reuse stale node cells"
         );
 
@@ -1598,12 +1580,12 @@ mod tests {
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
         assert!(
             next.hit_index
-                .matches(bounds, SampleMapViewport::default(), next.item_signature)
+                .matches(bounds, StarmapViewport::default(), next.item_signature)
         );
     }
 
     #[test]
-    fn dense_sample_maps_use_smaller_node_sizes() {
+    fn dense_starmaps_use_smaller_node_sizes() {
         assert_eq!(map_node_size(10), MAP_NODE_SIZE);
         assert_eq!(map_node_size(MAP_DENSE_ITEM_COUNT), MAP_NODE_SIZE_DENSE);
         assert_eq!(
@@ -1614,14 +1596,14 @@ mod tests {
 
     #[test]
     fn primary_drag_auditions_node_crossed_between_pointer_samples() {
-        let mut widget = SampleMapWidget::new(
-            vec![sample_map_item(
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/clap.wav",
                 0.5,
                 0.5,
                 ui::Rgba8::new(255, 160, 80, 220),
             )],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let bounds = Rect::from_size(200.0, 100.0);
@@ -1630,7 +1612,7 @@ mod tests {
             widget
                 .handle_input(bounds, WidgetInput::primary_press(Point::new(10.0, 50.0)))
                 .and_then(|output| output.typed_cloned::<GuiMessage>()),
-            Some(GuiMessage::BeginSampleMapAuditionDrag {
+            Some(GuiMessage::BeginStarmapAuditionDrag {
                 path: None,
                 position: Point::new(10.0, 50.0),
                 modifiers: PointerModifiers::default(),
@@ -1643,7 +1625,7 @@ mod tests {
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
-            Some(GuiMessage::UpdateSampleMapAuditionDrag {
+            Some(GuiMessage::UpdateStarmapAuditionDrag {
                 paths: vec![String::from("/samples/clap.wav")],
                 position: Point::new(190.0, 50.0),
                 modifiers: PointerModifiers::default(),
@@ -1653,28 +1635,28 @@ mod tests {
 
     #[test]
     fn primary_drag_auditions_latest_node_crossed_between_pointer_samples() {
-        let mut widget = SampleMapWidget::new(
+        let mut widget = StarmapWidget::new(
             vec![
-                sample_map_item(
+                starmap_item(
                     "/samples/kick.wav",
                     0.25,
                     0.5,
                     ui::Rgba8::new(255, 160, 80, 220),
                 ),
-                sample_map_item(
+                starmap_item(
                     "/samples/snare.wav",
                     0.5,
                     0.5,
                     ui::Rgba8::new(57, 187, 245, 220),
                 ),
-                sample_map_item(
+                starmap_item(
                     "/samples/hat.wav",
                     0.75,
                     0.5,
                     ui::Rgba8::new(125, 220, 140, 220),
                 ),
             ],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let bounds = Rect::from_size(200.0, 100.0);
@@ -1688,7 +1670,7 @@ mod tests {
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
-            Some(GuiMessage::UpdateSampleMapAuditionDrag {
+            Some(GuiMessage::UpdateStarmapAuditionDrag {
                 paths: vec![String::from("/samples/hat.wav")],
                 position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
@@ -1697,15 +1679,15 @@ mod tests {
     }
 
     #[test]
-    fn primary_release_finishes_sample_map_audition_drag() {
-        let mut widget = SampleMapWidget::new(
-            vec![sample_map_item(
+    fn primary_release_finishes_starmap_audition_drag() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/kick.wav",
                 0.25,
                 0.5,
                 ui::Rgba8::new(57, 187, 245, 220),
             )],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let bounds = Rect::from_size(200.0, 100.0);
@@ -1719,20 +1701,20 @@ mod tests {
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
-            Some(GuiMessage::FinishSampleMapAuditionDrag)
+            Some(GuiMessage::FinishStarmapAuditionDrag)
         );
     }
 
     #[test]
-    fn sample_map_accepts_wheel_input_for_cursor_zoom() {
-        let widget = SampleMapWidget::new(
-            vec![sample_map_item(
+    fn starmap_accepts_wheel_input_for_cursor_zoom() {
+        let widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/kick.wav",
                 0.25,
                 0.5,
                 ui::Rgba8::new(57, 187, 245, 220),
             )],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
 
@@ -1743,15 +1725,15 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_wheel_zooms_at_pointer_position() {
-        let mut widget = SampleMapWidget::new(
-            vec![sample_map_item(
+    fn starmap_wheel_zooms_at_pointer_position() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/kick.wav",
                 0.25,
                 0.5,
                 ui::Rgba8::new(57, 187, 245, 220),
             )],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let bounds = Rect::from_size(200.0, 100.0);
@@ -1765,8 +1747,8 @@ mod tests {
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
-            Some(GuiMessage::ChangeSampleMapViewport(
-                SampleMapViewportChange::Zoom {
+            Some(GuiMessage::ChangeStarmapViewport(
+                StarmapViewportChange::Zoom {
                     anchor: Vector2::new(0.25, 0.75),
                     factor: 1.15,
                 }
@@ -1775,15 +1757,15 @@ mod tests {
     }
 
     #[test]
-    fn secondary_drag_pans_sample_map() {
-        let mut widget = SampleMapWidget::new(
-            vec![sample_map_item(
+    fn secondary_drag_pans_starmap() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/kick.wav",
                 0.25,
                 0.5,
                 ui::Rgba8::new(57, 187, 245, 220),
             )],
-            SampleMapViewport::default(),
+            StarmapViewport::default(),
             None,
         );
         let bounds = Rect::from_size(200.0, 100.0);
@@ -1807,8 +1789,8 @@ mod tests {
 
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
-            Some(GuiMessage::ChangeSampleMapViewport(
-                SampleMapViewportChange::Pan {
+            Some(GuiMessage::ChangeStarmapViewport(
+                StarmapViewportChange::Pan {
                     delta: Vector2::new(0.1, -0.15),
                 }
             ))
@@ -1816,16 +1798,16 @@ mod tests {
     }
 
     #[test]
-    fn secondary_release_does_not_finish_sample_map_audition_drag() {
-        let mut widget = SampleMapWidget::new(
-            vec![sample_map_item(
+    fn secondary_release_does_not_finish_starmap_audition_drag() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/kick.wav",
                 0.25,
                 0.5,
                 ui::Rgba8::new(57, 187, 245, 220),
             )],
-            SampleMapViewport::default(),
-            Some(SampleMapAuditionDragState {
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
                 last_hit_file_id: Some(String::from("/samples/kick.wav")),
                 last_position: Point::new(50.0, 50.0),
                 modifiers: PointerModifiers::default(),
@@ -1862,16 +1844,16 @@ mod tests {
     }
 
     #[test]
-    fn secondary_drop_does_not_finish_sample_map_audition_drag() {
-        let mut widget = SampleMapWidget::new(
-            vec![sample_map_item(
+    fn secondary_drop_does_not_finish_starmap_audition_drag() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
                 "/samples/kick.wav",
                 0.25,
                 0.5,
                 ui::Rgba8::new(57, 187, 245, 220),
             )],
-            SampleMapViewport::default(),
-            Some(SampleMapAuditionDragState {
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
                 last_hit_file_id: Some(String::from("/samples/kick.wav")),
                 last_position: Point::new(50.0, 50.0),
                 modifiers: PointerModifiers::default(),
@@ -1920,19 +1902,19 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_hit_index_limits_segment_candidates_to_nearby_cells() {
+    fn starmap_hit_index_limits_segment_candidates_to_nearby_cells() {
         let bounds = Rect::from_size(1_000.0, 1_000.0);
-        let viewport = SampleMapViewport::default();
+        let viewport = StarmapViewport::default();
         let mut items = Vec::new();
         for index in 0..2_000 {
-            items.push(sample_map_item(
+            items.push(starmap_item(
                 &format!("/samples/far-{index}.wav"),
                 0.05 + (index % 20) as f32 * 0.001,
                 0.05 + (index / 20) as f32 * 0.001,
                 ui::Rgba8::new(255, 160, 80, 220),
             ));
         }
-        items.push(sample_map_item(
+        items.push(starmap_item(
             "/samples/crossed.wav",
             0.75,
             0.75,
@@ -1940,15 +1922,15 @@ mod tests {
         ));
 
         let index =
-            SampleMapHitIndex::build(bounds, viewport, sample_map_items_signature(&items), &items);
+            StarmapHitIndex::build(bounds, viewport, starmap_items_signature(&items), &items);
         let candidates =
             index.item_indices_near_segment(Point::new(720.0, 750.0), Point::new(780.0, 750.0));
 
         assert_eq!(candidates, vec![2_000]);
     }
 
-    fn sample_map_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> SampleMapItem {
-        SampleMapItem {
+    fn starmap_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> StarmapItem {
+        StarmapItem {
             file_id: String::from(file_id),
             label: String::from(file_id),
             x,

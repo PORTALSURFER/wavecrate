@@ -6,10 +6,10 @@ use super::connections::open_source_db_for_id;
 use super::*;
 
 impl AppController {
-    /// Enqueue a similarity-map layout build for the selected source.
+    /// Enqueue a Starmap layout build for the selected source.
     pub fn build_umap_layout(&mut self, model_id: &str, umap_version: &str) {
         if self.runtime.jobs.umap_build_in_progress() {
-            self.set_status_message(StatusMessage::MapLayoutBuildAlreadyRunning);
+            self.set_status_message(StatusMessage::StarmapLayoutBuildAlreadyRunning);
             return;
         }
         let Some(source_id) = self.current_source().map(|source| source.id) else {
@@ -25,10 +25,10 @@ impl AppController {
                 umap_version: umap_version.to_string(),
                 source_id,
             });
-        self.set_status_message(StatusMessage::BuildingMapLayout);
+        self.set_status_message(StatusMessage::BuildingStarmapLayout);
     }
 
-    /// Enqueue cluster generation for the current similarity-map layout.
+    /// Enqueue cluster generation for the current starmap layout.
     pub fn build_umap_clusters(&mut self, model_id: &str, umap_version: &str) {
         if self.runtime.jobs.umap_cluster_build_in_progress() {
             self.set_status_message(StatusMessage::ClusterBuildAlreadyRunning);

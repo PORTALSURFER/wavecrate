@@ -65,7 +65,7 @@ impl ControllerJobs {
         self.spawn_one_shot_job(
             true,
             move || {
-                let result = crate::app::controller::ui::map_view::run_umap_build(
+                let result = crate::app::controller::ui::starmap_view::run_umap_build(
                     &job.model_id,
                     &job.umap_version,
                     &job.source_id,
@@ -93,7 +93,7 @@ impl ControllerJobs {
         self.spawn_one_shot_job(
             true,
             move || {
-                let result = crate::app::controller::ui::map_view::run_umap_cluster_build(
+                let result = crate::app::controller::ui::starmap_view::run_umap_cluster_build(
                     &job.model_id,
                     &job.umap_version,
                     job.source_id.as_ref(),

@@ -12,9 +12,9 @@ use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
 use self::projection::{
     HeaderColumnProjection, RandomNavigationButtonProjection, SampleBrowserHeaderProjection,
-    SampleMapViewButtonProjection, SampleNameViewModeButtonProjection,
-    SampleSimilarityAspectControlProjection, SampleSimilarityControlsProjection,
-    SampleSimilarityHeaderProjection,
+    SampleNameViewModeButtonProjection, SampleSimilarityAspectControlProjection,
+    SampleSimilarityControlsProjection, SampleSimilarityHeaderProjection,
+    StarmapViewButtonProjection,
 };
 use super::{SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH, identity, similarity_aspect_color};
 
@@ -54,7 +54,7 @@ pub(super) fn sample_browser_header_bar(model: SampleBrowserHeaderBar<'_>) -> ui
             projection.help_tooltips_enabled,
             projection.random_navigation.tooltip,
         ),
-        sample_map_view_button(projection.map_view).tooltip_if(
+        starmap_view_button(projection.map_view).tooltip_if(
             projection.help_tooltips_enabled,
             projection.map_view.tooltip,
         ),
@@ -107,15 +107,15 @@ fn random_navigation_icon(active: bool) -> ui::SvgIcon {
     DICE_ICON.icon_for_state(SAMPLE_BROWSER_ICON_TINTS, true, active)
 }
 
-fn sample_map_view_button(projection: SampleMapViewButtonProjection) -> ui::View<GuiMessage> {
-    ui::icon_button(sample_map_view_icon(projection.active))
+fn starmap_view_button(projection: StarmapViewButtonProjection) -> ui::View<GuiMessage> {
+    ui::icon_button(starmap_view_icon(projection.active))
         .active(projection.active)
         .message(GuiMessage::ToggleSampleBrowserMapView)
-        .id(identity::automation_sample_map_view_toggle_id())
+        .id(identity::automation_starmap_view_toggle_id())
         .size(28.0, 22.0)
 }
 
-fn sample_map_view_icon(active: bool) -> ui::SvgIcon {
+fn starmap_view_icon(active: bool) -> ui::SvgIcon {
     MAP_ICON.icon_for_state(SAMPLE_BROWSER_ICON_TINTS, true, active)
 }
 

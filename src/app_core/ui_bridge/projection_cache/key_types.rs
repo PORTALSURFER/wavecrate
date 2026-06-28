@@ -167,7 +167,7 @@ pub(crate) struct BrowserRowsStateProjectionCacheKey {
     pub(crate) browser_auto_rename_rows_hash: u64,
 }
 
-/// Map-panel projection key scoped to similarity-map-affecting state.
+/// Map-panel projection key scoped to starmap-affecting state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MapProjectionCacheKey {
     pub(crate) map_open: bool,

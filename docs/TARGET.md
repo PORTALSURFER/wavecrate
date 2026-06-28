@@ -86,7 +86,7 @@ This workflow should support:
 2. Audition samples immediately without disrupting the creative flow.
 3. Set and lock a target audition BPM where useful.
 4. Audition BPM-tagged samples warped to the target BPM where practical.
-5. Compare groups of related sounds through list-based similarity first, and later through the similarity map.
+5. Compare groups of related sounds through list-based similarity first, and later through the starmap.
 6. Quickly narrow results by sound type, character tags, BPM, rating, age, source, or similarity to a reference sample.
 7. Preview enough waveform and metadata context to choose the right sound quickly.
 8. Copy, drag, export, reveal, or otherwise hand off the selected sample file to a DAW or external tool.
@@ -138,7 +138,7 @@ Wavecrate should provide:
 13. Fast tagging, rating, filtering, metadata, indexing, display naming, and persistence workflows for large libraries.
 14. A tag-category and database-display-name system that helps enforce consistent sample naming.
 15. Library triage tools based on keep/trash ratings, aging, listen history, untagged filters, and temporary color collections.
-16. Similarity analysis for discovering related sounds through browser filters and a visual 2D similarity map.
+16. Similarity analysis for discovering related sounds through browser filters and a visual starmap.
 17. Dense, low-friction UI optimized for repeated scanning, auditioning, cutting, editing, rating, naming, tagging, organizing, finding, and using sounds.
 18. Background scanning, decoding, waveform preparation, analysis, edit rendering, similarity indexing, and metadata work that never blocks the GUI thread.
 19. Predictable status and progress feedback for long-running work.
@@ -1177,7 +1177,7 @@ Initial scan/indexing should queue the fingerprint work needed for exact duplica
 
 Initial scan/indexing should also queue waveform and playback-readiness pre-cache work for supported audio files where practical. This pre-cache work should run as background loading work after or alongside discovery so newly scanned folders become fast to browse and audition. It should prioritize the active source, active folder, visible rows, and likely next selections first, then expand through the rest of the source in the background. It should stream progress like other indexing work, persist its cache outputs across application restarts, and avoid blocking file discovery, folder browsing, selection changes, foreground waveform loads, playback, editing, extraction, tagging, rating, or handoff.
 
-File watching should update source state when files are created, removed, renamed, moved, or modified outside Wavecrate. External changes should become visible in the folder tree, sample list, filters, and later similarity map as close to immediately as practical without requiring a manual rescan.
+File watching should update source state when files are created, removed, renamed, moved, or modified outside Wavecrate. External changes should become visible in the folder tree, sample list, filters, and later starmap as close to immediately as practical without requiring a manual rescan.
 
 The watcher should cover ordinary source-folder changes, including:
 
@@ -1696,20 +1696,20 @@ The similarity system should support:
 - visual similarity indicators in the sample browser
 - filtering the sample list by similarity to a selected reference sound
 - combining similarity filters with tags, ratings, folders, search text, metadata, aging/listen state, and file properties
-- browsing a 2D similarity map as an alternate view of the current browser result set
+- browsing a starmap as an alternate view of the current browser result set
 - clear status for analysis progress, unavailable analysis, stale analysis, and failed analysis
 
-Playback-only unsupported audio files should be excluded from similarity sorting, similarity filters, and 2D similarity map projection. They may be visible in `all files` list browsing, but they should not become reference files, similarity results, or map points because those workflows depend on analysis data Wavecrate deliberately does not generate for unsupported formats.
+Playback-only unsupported audio files should be excluded from similarity sorting, similarity filters, and starmap projection. They may be visible in `all files` list browsing, but they should not become reference files, similarity results, or map points because those workflows depend on analysis data Wavecrate deliberately does not generate for unsupported formats.
 
 The normal folder/sample list is the primary way to view sample files. Wavecrate should focus first on making the regular source, folder, and sample-list workflow complete, fast, and reliable.
 
-The 2D similarity map is a later-version feature, in the same post-core bucket as AIFF/AIF support. It should come after the core list-based browser, editing, tagging, rating, file-management, handoff, and analysis workflows are working well. It should be available behind a tab or view toggle as a secondary way to view the same selected folder/filter/result set.
+The starmap is a later-version feature, in the same post-core bucket as AIFF/AIF support. It should come after the core list-based browser, editing, tagging, rating, file-management, handoff, and analysis workflows are working well. It should be available behind a tab or view toggle as a secondary way to view the same selected folder/filter/result set.
 
-The 2D similarity map should provide an XO-like dotted exploration surface for samples. Similar-sounding samples should appear near each other so the user can scan clusters, audition nearby files, and discover variations quickly.
+The starmap should provide an XO-like dotted exploration surface for samples. Similar-sounding samples should appear near each other so the user can scan clusters, audition nearby files, and discover variations quickly.
 
 The map should not be a separate library, source, or search mode. It should reflect the same sample items that would appear in the list browser for the active source, folder selection, search query, and filters. Switching between list view and map view should preserve selection, focus where practical, active filters, active reference sample, audition state, and visible status.
 
-Selecting a sample point in the similarity map should select the same sample file in the list browser. Selecting a sample row in the list browser should select or highlight the same sample point in the map when that point is visible in the current map result set. Multi-selection should remain synchronized where practical. The list and map are two projections of the same browser selection state, not independent selection models.
+Selecting a sample point in the starmap should select the same sample file in the list browser. Selecting a sample row in the list browser should select or highlight the same sample point in the map when that point is visible in the current map result set. Multi-selection should remain synchronized where practical. The list and map are two projections of the same browser selection state, not independent selection models.
 
 The sample browser should provide Sononym-like similarity workflows. The user should be able to choose a reference sample and quickly find related kicks, hats, loops, textures, impacts, vocals, or other sound types through list-based filters and sorting.
 
@@ -2098,7 +2098,7 @@ The default layout should include:
 - Top command bar: source controls, search/filter entry, transport/audition controls, target BPM controls, view toggles, settings access, and visible background-work status.
 - Left sidebar: source list, folder tree, and compact source/scan status.
 - Center browser: virtualized sample list with columns or compact row fields for filename/display name, tags, rating, age/listen state, BPM, tuning/scale, duration, format/channel state, analysis status, and availability.
-- Browser view tabs or toggles: list view as the primary/default browser and similarity map as a secondary alternate view of the same current browser result set.
+- Browser view tabs or toggles: list view as the primary/default browser and starmap as a secondary alternate view of the same current browser result set.
 - Waveform/editor panel: large primary waveform surface with playhead, cursor, play selection, edit selection, fades, markers, regions, grid/transient overlays, extraction success feedback, and mode-specific handles.
 - Metadata/editor panel: selected sample details, tag editor, label/prefix fields, source/folder information, rating controls, generated-name preview, disk-rename action, analysis state, file details, and mixed-state indicators for multi-selection metadata differences.
 - Bottom status bar: concise current action, playback state, selected count, compact interactive scan/job progress bar, warnings, and last user-action result.
@@ -2444,7 +2444,7 @@ Import direction should make that ownership visible:
 * range selection, cursor, marker, playhead, loop, grid, and timeline interaction primitives when they are domain-neutral
 * icon buttons, SVG/image resource caching, progress widgets, and status surfaces
 * repaint, invalidation, subscriptions, and background-resource ergonomics
-* generic map/canvas interaction primitives where useful for the 2D similarity map
+* generic map/canvas interaction primitives where useful for the starmap
 
 ### Audio Engine Owns
 
@@ -2762,7 +2762,7 @@ The MVP should allow a user to:
 19. Close and reopen Wavecrate with source, metadata, rating, tags, generated names, and listen history preserved.
 20. Recover from a failed scan, unsupported file, missing file, failed decode, failed edit, or failed extraction with clear UI status and useful logs.
 
-The MVP does not need AIFF/AIF support, final stereo split editing, final similarity map quality, advanced warp quality, cross-platform support, custom shortcut editing, or every planned analysis feature. It should, however, establish the architecture and data contracts needed for those later phases.
+The MVP does not need AIFF/AIF support, final stereo split editing, final starmap quality, advanced warp quality, cross-platform support, custom shortcut editing, or every planned analysis feature. It should, however, establish the architecture and data contracts needed for those later phases.
 
 ## Milestone Strategy
 
@@ -2849,7 +2849,7 @@ Build Sononym-style list discovery after the core browser and library workflows 
 Harden and extend the product after the main ordinary-WAV list-based application is complete. This is effectively a later-version bucket, such as a 0.2 or version-2 style target rather than the first complete product slice:
 
 * AIFF/AIF decoding, playback, waveform display, metadata writing, editing, extraction, and handoff where safe
-* 2D similarity map projection
+* starmap projection
 * map tab as an alternate view of the current browser result set
 * cluster exploration
 * map/list audition workflow
