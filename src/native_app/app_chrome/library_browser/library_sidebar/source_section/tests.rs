@@ -1,7 +1,8 @@
 use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_LABEL_PADDING_X,
-    source_add_button, source_missing_color_for_tests, source_row,
+    source_add_button, source_missing_color_for_tests, source_role_icon_color_for_tests,
+    source_row,
 };
 use super::source_selector;
 use crate::native_app::app::GuiMessage;
@@ -19,6 +20,19 @@ use wavecrate::sample_sources::SourceRole;
 
 fn test_source(id: &str) -> SourceEntry {
     SourceEntry::new(id, "Source", std::path::PathBuf::from("C:/samples"))
+}
+
+macro_rules! assert_no_left_source_marker {
+    ($frame:expr) => {
+        assert!(
+            !$frame.paint_plan.fill_rects().any(|fill| {
+                fill.rect.min.x <= SOURCE_ROW_LABEL_PADDING_X + 12.0
+                    && fill.rect.width() <= 10.0
+                    && fill.rect.height() <= 10.0
+            }),
+            "source rows should not paint a separate left color marker"
+        );
+    };
 }
 
 #[test]
@@ -165,7 +179,7 @@ fn source_rows_use_shared_grey_sidebar_hover_fill() {
 }
 
 #[test]
-fn missing_source_row_paints_missing_badge_and_marker() {
+fn missing_source_row_paints_missing_badge_without_left_marker() {
     let mut source = test_source("source-missing");
     source.mark_missing_for_tests();
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
@@ -188,13 +202,7 @@ fn missing_source_row_paints_missing_badge_and_marker() {
         Some(source_missing_color_for_tests()),
         "missing source badges should use warning text"
     );
-    assert!(
-        frame
-            .paint_plan
-            .fill_rects()
-            .any(|fill| fill.color == source_missing_color_for_tests()),
-        "missing sources should get a danger-colored source marker"
-    );
+    assert_no_left_source_marker!(frame);
 }
 
 #[test]
@@ -211,10 +219,16 @@ fn primary_source_row_uses_role_icon_instead_of_text_badge() {
         frame.paint_plan.svgs().next().is_some(),
         "primary sources should paint a source-role SVG icon"
     );
+    assert_eq!(
+        source_role_icon_color_for_tests(),
+        ui::Rgba8::new(255, 255, 255, 255),
+        "source role icons should use a white tint"
+    );
     assert!(
         !frame.paint_plan.contains_text("PRI"),
         "primary sources should not render the old text badge"
     );
+    assert_no_left_source_marker!(frame);
 }
 
 #[test]
@@ -231,10 +245,16 @@ fn protected_source_row_uses_role_icon_instead_of_text_badge() {
         frame.paint_plan.svgs().next().is_some(),
         "protected sources should paint a source-role SVG icon"
     );
+    assert_eq!(
+        source_role_icon_color_for_tests(),
+        ui::Rgba8::new(255, 255, 255, 255),
+        "source role icons should use a white tint"
+    );
     assert!(
         !frame.paint_plan.contains_text("PRO") && !frame.paint_plan.contains_text("PROT"),
         "protected sources should not render the old text badge"
     );
+    assert_no_left_source_marker!(frame);
 }
 
 #[test]
@@ -257,6 +277,7 @@ fn normal_source_row_keeps_role_slot_neutral() {
             && !frame.paint_plan.contains_text("PROT"),
         "normal sources should stay free of source-role text badges"
     );
+    assert_no_left_source_marker!(frame);
 }
 
 #[test]

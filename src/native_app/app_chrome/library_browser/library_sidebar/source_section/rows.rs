@@ -14,12 +14,10 @@ pub(super) const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
 pub(super) const SOURCE_ADD_BUTTON_WIDTH: f32 = 28.0;
 pub(super) const SOURCE_ADD_BUTTON_HEIGHT: f32 = 24.0;
 const SOURCE_ROW_HEIGHT: f32 = 24.0;
-const SOURCE_ROLE_MARKER_WIDTH: f32 = 10.0;
 const SOURCE_ROLE_ICON_WIDTH: f32 = 32.0;
 const SOURCE_MISSING_BADGE_WIDTH: f32 = 56.0;
 const SOURCE_MISSING_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
-const SOURCE_ROLE_PROTECTED_COLOR: ui::Rgba8 = ui::Rgba8::new(234, 178, 73, 230);
-const SOURCE_ROLE_PRIMARY_COLOR: ui::Rgba8 = ui::Rgba8::new(72, 196, 162, 230);
+const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
 
 pub(super) fn source_add_button() -> ui::View<GuiMessage> {
     ui::icon_button(source_add_icon())
@@ -66,13 +64,6 @@ fn source_row_content(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
         ui::spacer()
             .width(SOURCE_ROW_LABEL_PADDING_X)
             .height(SOURCE_ROW_HEIGHT),
-        ui::color_marker(source_marker_color(source))
-            .side(7)
-            .inset(0)
-            .align(ui::ColorMarkerAlign::Center)
-            .view()
-            .width(SOURCE_ROLE_MARKER_WIDTH)
-            .height(SOURCE_ROW_HEIGHT),
         source_label(source),
         source_status_indicator(source),
     ])
@@ -98,38 +89,20 @@ fn source_status_indicator(source: &SourceRowViewModel) -> ui::View<GuiMessage> 
             .height(SOURCE_ROW_HEIGHT);
     }
     match source.role {
-        SourceRole::Protected => {
-            source_role_icon(&SOURCE_ROLE_PROTECTED_ICON, SOURCE_ROLE_PROTECTED_COLOR)
-        }
-        SourceRole::Primary => {
-            source_role_icon(&SOURCE_ROLE_PRIMARY_ICON, SOURCE_ROLE_PRIMARY_COLOR)
-        }
+        SourceRole::Protected => source_role_icon(&SOURCE_ROLE_PROTECTED_ICON),
+        SourceRole::Primary => source_role_icon(&SOURCE_ROLE_PRIMARY_ICON),
         SourceRole::Normal => ui::spacer()
             .width(SOURCE_ROLE_ICON_WIDTH)
             .height(SOURCE_ROW_HEIGHT),
     }
 }
 
-fn source_role_icon(
-    cache: &'static ui::SvgIconTintCache,
-    color: ui::Rgba8,
-) -> ui::View<GuiMessage> {
-    ui::icon_button(cache.icon(color))
+fn source_role_icon(cache: &'static ui::SvgIconTintCache) -> ui::View<GuiMessage> {
+    ui::icon_button(cache.icon(SOURCE_ROLE_ICON_COLOR))
         .bare()
         .passive()
         .width(SOURCE_ROLE_ICON_WIDTH)
         .height(SOURCE_ROW_HEIGHT)
-}
-
-fn source_marker_color(source: &SourceRowViewModel) -> Option<ui::Rgba8> {
-    if source.missing {
-        return Some(SOURCE_MISSING_COLOR);
-    }
-    match source.role {
-        SourceRole::Protected => Some(SOURCE_ROLE_PROTECTED_COLOR),
-        SourceRole::Primary => Some(SOURCE_ROLE_PRIMARY_COLOR),
-        SourceRole::Normal => None,
-    }
 }
 
 pub(super) fn source_missing_color() -> ui::Rgba8 {
@@ -139,6 +112,11 @@ pub(super) fn source_missing_color() -> ui::Rgba8 {
 #[cfg(test)]
 pub(super) fn source_missing_color_for_tests() -> ui::Rgba8 {
     source_missing_color()
+}
+
+#[cfg(test)]
+pub(super) fn source_role_icon_color_for_tests() -> ui::Rgba8 {
+    SOURCE_ROLE_ICON_COLOR
 }
 
 static SOURCE_ADD_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
