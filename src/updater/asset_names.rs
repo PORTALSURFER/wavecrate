@@ -11,7 +11,7 @@ pub(crate) fn expected_zip_asset_name(
     version: Option<&str>,
 ) -> Result<String, UpdateError> {
     let platform = match identity.platform.as_str() {
-        "windows" | "linux" | "macos" => identity.platform.as_str(),
+        "windows" | "macos" => identity.platform.as_str(),
         _ => {
             return Err(UpdateError::Invalid(format!(
                 "Unsupported platform/arch {}/{}",
@@ -66,5 +66,25 @@ pub(crate) fn expected_checksums_signature_name(
             Ok(format!("checksums-v{version}.txt.sig"))
         }
         UpdateChannel::Nightly => Ok("checksums-nightly.txt.sig".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expected_zip_asset_name_rejects_linux_runtime_identity() {
+        let identity = RuntimeIdentity {
+            app: APP_NAME.to_string(),
+            channel: UpdateChannel::Stable,
+            target: "x86_64-unknown-linux-gnu".to_string(),
+            platform: "linux".to_string(),
+            arch: "x86_64".to_string(),
+        };
+
+        let err = expected_zip_asset_name(&identity, Some("1.2.3")).unwrap_err();
+
+        assert!(err.to_string().contains("Unsupported platform/arch"));
     }
 }

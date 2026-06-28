@@ -168,7 +168,7 @@ Wavecrate is a focused sample-library workstation for browsing large folders, au
         }
         var match = null;
         var assetPattern =
-          /^wavecrate-v\d+\.\d+\.\d+-(windows|linux|macos)-(x86_64|aarch64)\.zip$/i;
+          /^wavecrate-v\d+\.\d+\.\d+-(windows|macos)-(x86_64|aarch64)\.zip$/i;
         for (var i = 0; i < releases.length; i += 1) {
           var release = releases[i];
           if (!release || release.draft) {

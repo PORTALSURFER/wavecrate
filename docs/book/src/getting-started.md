@@ -10,6 +10,8 @@
 
 Wavecrate works with ordinary local folders. It does not upload your samples or require a cloud library.
 
+Wavecrate alpha app builds currently support macOS and Windows. Linux is not currently supported for app installs.
+
 > Alpha warning: Wavecrate includes destructive actions that can modify, rename, move, or delete files when you choose those commands. Keep backups for important sample folders.
 
 ## Add Your First Source
@@ -34,10 +36,9 @@ After a source is added:
 
 ## Where Wavecrate Stores Settings
 
-Wavecrate keeps app data in a `.wavecrate` folder inside your operating system config directory.
+Wavecrate keeps app data in a `.wavecrate` folder inside your supported operating system config directory.
 
 - macOS: `~/Library/Application Support/.wavecrate/`
 - Windows: `%APPDATA%\\.wavecrate\\`
-- Linux: `~/.config/.wavecrate/`
 
 Use **Options -> Open config folder** in the app when you need logs, settings, or bug-bundle context.

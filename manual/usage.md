@@ -24,15 +24,15 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 - **Resizable sidebar:** Drag the divider to resize Sources and the main view.
 
 ## Configuration and storage
-- App files live in a single `.wavecrate` folder inside your OS config directory (Linux respects `$XDG_CONFIG_HOME`; you can override the base dir with `WAVECRATE_CONFIG_HOME`).
-  - Linux: `~/.config/.wavecrate/`
+- Wavecrate alpha app builds currently support macOS and Windows. Linux is not currently supported for app installs.
+- App files live in a single `.wavecrate` folder inside your supported OS config directory. You can override the base dir with `WAVECRATE_CONFIG_HOME`.
   - Windows: `%APPDATA%\\.wavecrate\\`
   - macOS: `~/Library/Application Support/.wavecrate/`
 - App settings live in `config.toml`; sources are stored in `library.db` in the same folder. Legacy `config.json` files migrate automatically.
 - You can override the app data root by setting `app_data_dir` in `config.toml` (absolute path to the `.wavecrate` folder). This controls where models, logs, and the library DB live.
 - Each source keeps `.wavecrate_samples.db` beside the audio. Logs live under `.wavecrate/logs`.
 - Portable bundles may include ML assets under `models/`; the Windows installer copies them into the app data directory if present.
-- Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`, Linux: `~/.config/.wavecrate/models/`).
+- Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`).
 - Set `RUST_LOG=info` (or `debug`, etc.) to change log verbosity.
 - Windows release builds hide the console by default; launch with `-log` / `--log` to open a console window and show live log output.
 - Tip: Use **Options → Open config folder** to jump to the right place on disk.

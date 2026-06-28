@@ -115,7 +115,7 @@ fn latest_available_public_release(
 
 fn public_release_asset_suffix(platform: &str, arch: &str) -> Option<String> {
     let platform = match platform {
-        "macos" | "windows" | "linux" => platform,
+        "macos" | "windows" => platform,
         _ => return None,
     };
     let arch = match arch {
@@ -253,6 +253,7 @@ mod tests {
     #[test]
     fn public_release_asset_suffix_rejects_unknown_targets() {
         assert!(public_release_asset_suffix("freebsd", "x86_64").is_none());
+        assert!(public_release_asset_suffix("linux", "x86_64").is_none());
         assert!(public_release_asset_suffix("macos", "riscv64").is_none());
     }
 

@@ -11,7 +11,7 @@ fn relaunch_app_errors_when_executable_missing() {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
-        platform: "linux".to_string(),
+        platform: "macos".to_string(),
         arch: "x86_64".to_string(),
         files: Vec::new(),
     };
@@ -43,7 +43,7 @@ fn apply_files_and_dirs_keeps_running_executable_on_stage_failure() {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
-        platform: "linux".to_string(),
+        platform: "macos".to_string(),
         arch: "x86_64".to_string(),
         files: vec![running_name.clone()],
     };
@@ -69,7 +69,7 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
   "app": "wavecrate",
   "channel": "stable",
   "target": "target",
-  "platform": "linux",
+  "platform": "macos",
   "arch": "x86_64",
   "files": ["update-manifest.json", "current.txt", "old.txt"]
 }
@@ -86,7 +86,7 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
-        platform: "linux".to_string(),
+        platform: "macos".to_string(),
         arch: "x86_64".to_string(),
         files: vec![
             "update-manifest.json".to_string(),
@@ -120,7 +120,7 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
   "app": "wavecrate",
   "channel": "stable",
   "target": "target",
-  "platform": "linux",
+  "platform": "macos",
   "arch": "x86_64",
   "files": ["update-manifest.json", "current.txt"]
 }
@@ -140,7 +140,7 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
-        platform: "linux".to_string(),
+        platform: "macos".to_string(),
         arch: "x86_64".to_string(),
         files: vec![
             "update-manifest.json".to_string(),
@@ -182,7 +182,7 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
   "app": "wavecrate",
   "channel": "stable",
   "target": "target",
-  "platform": "linux",
+  "platform": "macos",
   "arch": "x86_64",
   "files": ["update-manifest.json", "current.txt", "stale/stale.txt"]
 }
@@ -198,7 +198,7 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
-        platform: "linux".to_string(),
+        platform: "macos".to_string(),
         arch: "x86_64".to_string(),
         files: vec![
             "update-manifest.json".to_string(),
