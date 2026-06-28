@@ -68,6 +68,7 @@ fn harvest_region_copy_operation(
         }
         WaveformDestructiveEditKind::TrimSelection
         | WaveformDestructiveEditKind::ReverseSelection
+        | WaveformDestructiveEditKind::MuteSelection
         | WaveformDestructiveEditKind::ApplyEditSelectionEffects
         | WaveformDestructiveEditKind::SlideSampleAudio { .. } => None,
     }
@@ -81,6 +82,7 @@ fn harvest_whole_file_copy_operation(
         WaveformDestructiveEditKind::ReverseSelection => {
             Some(HarvestDerivationOperation::ReverseCopy)
         }
+        WaveformDestructiveEditKind::MuteSelection => Some(HarvestDerivationOperation::EditCopy),
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
             Some(HarvestDerivationOperation::EditCopy)
         }
@@ -121,6 +123,17 @@ impl NativeAppState {
     ) {
         self.request_waveform_destructive_edit(
             WaveformDestructiveEditKind::ReverseSelection,
+            WaveformDestructiveEditTarget::ActiveSelection,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn request_mute_waveform_selection(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::MuteSelection,
             WaveformDestructiveEditTarget::ActiveSelection,
             context,
         );
@@ -715,6 +728,7 @@ impl NativeAppState {
                     .preserved_marks_after_crop(request.selection),
             ),
             WaveformDestructiveEditKind::ReverseSelection
+            | WaveformDestructiveEditKind::MuteSelection
             | WaveformDestructiveEditKind::SlideSampleAudio { .. } => {
                 Some(self.waveform.current.preserved_marks_unchanged())
             }
@@ -863,6 +877,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Crop",
             Self::TrimSelection => "Trim",
             Self::ReverseSelection => "Reverse",
+            Self::MuteSelection => "Mute",
             Self::ExtractAndTrimSelection => "Extract and trim",
             Self::ApplyEditSelectionEffects => "Apply edit mark edits",
             Self::SlideSampleAudio { .. } => "Slide",
@@ -874,6 +889,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "cropping",
             Self::TrimSelection => "trimming",
             Self::ReverseSelection => "reversing",
+            Self::MuteSelection => "muting",
             Self::ExtractAndTrimSelection => "extracting and trimming",
             Self::ApplyEditSelectionEffects => "applying edit mark edits",
             Self::SlideSampleAudio { .. } => "sliding",
@@ -885,6 +901,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Cropped",
             Self::TrimSelection => "Trimmed",
             Self::ReverseSelection => "Reversed",
+            Self::MuteSelection => "Muted",
             Self::ExtractAndTrimSelection => "Extracted and trimmed",
             Self::ApplyEditSelectionEffects => "Applied edit mark edits to",
             Self::SlideSampleAudio { .. } => "Slid",
@@ -896,6 +913,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Crop waveform selection",
             Self::TrimSelection => "Trim waveform selection",
             Self::ReverseSelection => "Reverse waveform selection",
+            Self::MuteSelection => "Mute waveform selection",
             Self::ExtractAndTrimSelection => "Extract and trim waveform selection",
             Self::ApplyEditSelectionEffects => "Apply edit mark edits",
             Self::SlideSampleAudio { .. } => "Slide sample audio",
@@ -907,6 +925,7 @@ impl WaveformDestructiveEditKind {
             Self::CropSelection => "Restore cropped audio",
             Self::TrimSelection => "Restore trimmed audio",
             Self::ReverseSelection => "Restore reversed audio",
+            Self::MuteSelection => "Restore muted audio",
             Self::ExtractAndTrimSelection => "Restore extracted and trimmed audio",
             Self::ApplyEditSelectionEffects => "Restore edit mark edits",
             Self::SlideSampleAudio { .. } => "Restore slid audio",
@@ -927,6 +946,9 @@ fn destructive_edit_prompt(
         }
         WaveformDestructiveEditKind::ReverseSelection => {
             "This will reverse the selected region in place, or the selected file when no region is marked."
+        }
+        WaveformDestructiveEditKind::MuteSelection => {
+            "This will silence the selected region in place without changing its duration."
         }
         WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             "This will extract the selected region into a new sibling file, then remove that region and close the gap in the source file."
@@ -970,6 +992,7 @@ fn next_copy_edit_path(
     let base_suffix = match kind {
         WaveformDestructiveEditKind::TrimSelection => "_trim",
         WaveformDestructiveEditKind::ReverseSelection => "_reverse",
+        WaveformDestructiveEditKind::MuteSelection => "_mute",
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => "_edit",
         WaveformDestructiveEditKind::SlideSampleAudio { .. } => "_slide",
         WaveformDestructiveEditKind::CropSelection

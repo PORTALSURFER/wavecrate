@@ -171,6 +171,7 @@ impl NativeAppState {
             | GuiMessage::RequestCropWaveformSelection
             | GuiMessage::RequestTrimWaveformSelection
             | GuiMessage::RequestReverseWaveformSelection
+            | GuiMessage::RequestMuteWaveformSelection
             | GuiMessage::RequestExtractAndTrimWaveformSelection
             | GuiMessage::RequestCropPlaymarkSelection
             | GuiMessage::RequestTrimPlaymarkSelection

@@ -41,6 +41,37 @@ fn reverse_shortcut_routes_to_waveform_reverse_request() {
 }
 
 #[test]
+fn mute_shortcut_routes_to_waveform_mute_request() {
+    let state = crate::native_app::test_support::state::NativeAppStateFixture::default().build();
+    let resolution = crate::native_app::test_support::state::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::M));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::RequestMuteWaveformSelection)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn mute_shortcut_is_consumed_while_renaming() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("mute-rename.wav");
+    state.library.folder_browser.select_file(selected_file);
+    state
+        .library
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution = crate::native_app::test_support::state::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::M));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+#[test]
 fn command_extract_shortcut_routes_to_extract_and_trim_request() {
     let state = crate::native_app::test_support::state::NativeAppStateFixture::default().build();
     let resolution = crate::native_app::test_support::state::default_gui_shortcuts(&state)
@@ -488,6 +519,88 @@ fn protected_reverse_selection_renders_reverse_copy_to_primary_without_mutating_
 }
 
 #[test]
+fn protected_mute_selection_renders_edit_copy_to_primary_without_mutating_origin() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-mute.wav");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let mute_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-mute_mute.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.75);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::RequestMuteWaveformSelection, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[
+            0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
+        ],
+    );
+    assert_samples_close(
+        &read_test_wav_f32(&mute_copy),
+        &[0.0, 1_000.0, 0.0, 0.0, 0.0, 0.0, 6_000.0, 7_000.0],
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(mute_copy.to_string_lossy().as_ref())
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("protected-mute.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::EditCopy
+    );
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("protected-mute_mute.wav")
+    );
+}
+
+#[test]
 fn protected_sample_slide_renders_slide_copy_to_primary_without_mutating_origin() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
@@ -922,6 +1035,103 @@ fn trim_request_uses_edit_selection_before_play_selection() {
 }
 
 #[test]
+fn mute_request_uses_play_selection_when_no_edit_selection_exists() {
+    let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("mute.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+
+    state.apply_message(
+        GuiMessage::RequestMuteWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .as_ref()
+        .expect("mute request should prompt");
+    assert_eq!(
+        pending.prompt.edit,
+        crate::native_app::app::WaveformDestructiveEditKind::MuteSelection
+    );
+    assert_range_close(pending.selection, 0.25, 0.5);
+}
+
+#[test]
+fn mute_request_uses_edit_selection_before_play_selection() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("mute-edit.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    state
+        .waveform
+        .current
+        .set_edit_selection_range(wavecrate::selection::SelectionRange::new(0.5, 0.75));
+
+    state.apply_message(
+        GuiMessage::RequestMuteWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .as_ref()
+        .expect("mute request should prompt");
+    assert_eq!(
+        pending.prompt.edit,
+        crate::native_app::app::WaveformDestructiveEditKind::MuteSelection
+    );
+    assert_range_close(pending.selection, 0.5, 0.75);
+}
+
+#[test]
+fn mute_request_without_valid_selection_is_safe_noop() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("mute-no-selection.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+
+    state.apply_message(
+        GuiMessage::RequestMuteWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_waveform_destructive_edit
+            .is_none()
+    );
+    assert_samples_close(&read_test_wav_f32(&path), &[0.0, 1_000.0, 2_000.0, 3_000.0]);
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Mark an edit or play range")
+    );
+}
+
+#[test]
 fn reverse_request_uses_edit_selection_before_play_selection() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("reverse-edit.wav");
@@ -1108,6 +1318,72 @@ fn crop_request_rewrites_file_and_undo_restores_original_audio() {
             0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
         ],
     );
+}
+
+#[test]
+fn mute_request_rewrites_play_selection_without_moving_bounds() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("mute-play.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+
+    apply_message_and_run_command(&mut state, GuiMessage::RequestMuteWaveformSelection);
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[0.0, 1_000.0, 0.0, 0.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0],
+    );
+    assert_range_close(
+        state
+            .waveform
+            .current
+            .play_selection()
+            .expect("play selection survives mute"),
+        0.25,
+        0.5,
+    );
+    assert!(state.ui.status.sample.contains("Muted"));
+}
+
+#[test]
+fn mute_request_rewrites_edit_selection_without_moving_bounds() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("mute-edit.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.0, 0.25);
+    state
+        .waveform
+        .current
+        .set_edit_selection_range(wavecrate::selection::SelectionRange::new(0.5, 0.75));
+
+    apply_message_and_run_command(&mut state, GuiMessage::RequestMuteWaveformSelection);
+
+    assert_samples_close(
+        &read_test_wav_f32(&path),
+        &[0.0, 1_000.0, 2_000.0, 3_000.0, 0.0, 0.0, 6_000.0, 7_000.0],
+    );
+    assert_range_close(
+        state
+            .waveform
+            .current
+            .edit_selection()
+            .expect("edit selection survives mute"),
+        0.5,
+        0.75,
+    );
+    assert!(state.ui.status.sample.contains("Muted"));
 }
 
 #[test]
