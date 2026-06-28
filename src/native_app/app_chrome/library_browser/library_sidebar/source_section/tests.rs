@@ -15,6 +15,7 @@ use crate::native_app::sample_library::folder_browser::{FolderBrowserState, mode
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 use radiant::widgets::ButtonMessage;
+use wavecrate::sample_sources::SourceRole;
 
 fn test_source(id: &str) -> SourceEntry {
     SourceEntry::new(id, "Source", std::path::PathBuf::from("C:/samples"))
@@ -193,6 +194,68 @@ fn missing_source_row_paints_missing_badge_and_marker() {
             .fill_rects()
             .any(|fill| fill.color == source_missing_color_for_tests()),
         "missing sources should get a danger-colored source marker"
+    );
+}
+
+#[test]
+fn primary_source_row_uses_role_icon_instead_of_text_badge() {
+    let mut source = test_source("source-primary");
+    source.role = SourceRole::Primary;
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let row = model.rows.first().expect("source row");
+    let frame =
+        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+
+    assert!(
+        frame.paint_plan.svgs().next().is_some(),
+        "primary sources should paint a source-role SVG icon"
+    );
+    assert!(
+        !frame.paint_plan.contains_text("PRI"),
+        "primary sources should not render the old text badge"
+    );
+}
+
+#[test]
+fn protected_source_row_uses_role_icon_instead_of_text_badge() {
+    let mut source = test_source("source-protected");
+    source.role = SourceRole::Protected;
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let row = model.rows.first().expect("source row");
+    let frame =
+        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+
+    assert!(
+        frame.paint_plan.svgs().next().is_some(),
+        "protected sources should paint a source-role SVG icon"
+    );
+    assert!(
+        !frame.paint_plan.contains_text("PRO") && !frame.paint_plan.contains_text("PROT"),
+        "protected sources should not render the old text badge"
+    );
+}
+
+#[test]
+fn normal_source_row_keeps_role_slot_neutral() {
+    let source = test_source("source-normal");
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let row = model.rows.first().expect("source row");
+    let frame =
+        source_row(row).view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, 24.0));
+
+    assert_eq!(
+        frame.paint_plan.svgs().count(),
+        0,
+        "normal sources should not paint a role icon"
+    );
+    assert!(
+        !frame.paint_plan.contains_text("PRI")
+            && !frame.paint_plan.contains_text("PRO")
+            && !frame.paint_plan.contains_text("PROT"),
+        "normal sources should stay free of source-role text badges"
     );
 }
 
