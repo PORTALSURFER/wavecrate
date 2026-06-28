@@ -36,7 +36,7 @@ pub(in crate::native_app) use ui_state::{
     UiAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
 };
 pub(in crate::native_app) use waveform::{
-    PendingPlaySelectionRetargetCycle, WaveformAppState, WaveformEditFadeSnapshot,
+    PendingPlaySelectionRetargetCycle, WaveformAppState, WaveformEditSelectionSnapshot,
     WaveformPlaySelectionSnapshot,
 };
 

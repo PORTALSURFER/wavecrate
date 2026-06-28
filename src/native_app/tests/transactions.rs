@@ -1,7 +1,10 @@
 use super::gui_state_for_span_tests;
 use crate::native_app::{
     test_support::state::{GuiMessage, WaveformInteraction},
-    waveform::{WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle},
+    waveform::{
+        WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle, WaveformSelectionEdge,
+        WaveformSelectionKind,
+    },
 };
 use radiant::prelude::{self as ui, IntoView};
 use wavecrate::selection::SelectionRange;
@@ -186,6 +189,174 @@ fn waveform_edit_gain_drag_registers_one_transaction() {
     state.apply_message(GuiMessage::RedoTransaction, &mut context);
     assert_eq!(state.waveform.current.edit_selection(), Some(after));
     assert_eq!(state.ui.status.sample, "Redid Editmark volume");
+}
+
+#[test]
+fn editmark_resize_drag_registers_one_transaction() {
+    let mut state = gui_state_for_span_tests();
+    let mut context = ui::UiUpdateContext::default();
+    let before = SelectionRange::new(0.2, 0.6)
+        .with_gain(0.5)
+        .with_fade_in(0.25, 0.2);
+    state.waveform.current.set_edit_selection_range(before);
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6,
+        }),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::UpdateSelection { visible_ratio: 0.7 }),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::UpdateSelection { visible_ratio: 0.8 }),
+        &mut context,
+    );
+    assert!(
+        state.transactions.history.list_items().is_empty(),
+        "live resize preview updates should not create undo history entries"
+    );
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::FinishSelection { visible_ratio: 0.8 }),
+        &mut context,
+    );
+
+    let after = state
+        .waveform
+        .current
+        .edit_selection()
+        .expect("edit selection after resize");
+    assert_ne!(after, before);
+    assert!((after.start() - 0.2).abs() < 0.001);
+    assert!((after.end() - 0.8).abs() < 0.001);
+    assert!((after.gain() - 0.5).abs() < 0.001);
+    let items = state.transactions.history.list_items();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].label, "Editmark resize");
+    assert_eq!(
+        items[0].action_labels,
+        vec![String::from("Editmark resize")]
+    );
+
+    state.apply_message(GuiMessage::UndoTransaction, &mut context);
+    assert_eq!(state.waveform.current.edit_selection(), Some(before));
+    assert_eq!(state.ui.status.sample, "Undid Editmark resize");
+
+    state.apply_message(GuiMessage::RedoTransaction, &mut context);
+    assert_eq!(state.waveform.current.edit_selection(), Some(after));
+    assert_eq!(state.ui.status.sample, "Redid Editmark resize");
+}
+
+#[test]
+fn editmark_move_drag_registers_one_transaction() {
+    let mut state = gui_state_for_span_tests();
+    let mut context = ui::UiUpdateContext::default();
+    let before = SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.7);
+    state.waveform.current.set_edit_selection_range(before);
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSelectionMove {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.4,
+        }),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::UpdateSelection { visible_ratio: 0.5 }),
+        &mut context,
+    );
+    assert!(
+        state.transactions.history.list_items().is_empty(),
+        "live move preview updates should not create undo history entries"
+    );
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::FinishSelection { visible_ratio: 0.5 }),
+        &mut context,
+    );
+
+    let after = state
+        .waveform
+        .current
+        .edit_selection()
+        .expect("edit selection after move");
+    assert_ne!(after, before);
+    let items = state.transactions.history.list_items();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].label, "Editmark move");
+
+    state.apply_message(GuiMessage::UndoTransaction, &mut context);
+    assert_eq!(state.waveform.current.edit_selection(), Some(before));
+
+    state.apply_message(GuiMessage::RedoTransaction, &mut context);
+    assert_eq!(state.waveform.current.edit_selection(), Some(after));
+}
+
+#[test]
+fn no_op_editmark_resize_drag_does_not_register_transaction() {
+    let mut state = gui_state_for_span_tests();
+    let mut context = ui::UiUpdateContext::default();
+    let selection = SelectionRange::new(0.2, 0.6);
+    state.waveform.current.set_edit_selection_range(selection);
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6,
+        }),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::FinishSelection { visible_ratio: 0.6 }),
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.current.edit_selection(), Some(selection));
+    assert!(state.transactions.history.list_items().is_empty());
+}
+
+#[test]
+fn editmark_resize_transaction_preserves_boundary_validation() {
+    let mut state = gui_state_for_span_tests();
+    let mut context = ui::UiUpdateContext::default();
+    let before = SelectionRange::new(0.2, 0.6).with_gain(0.5);
+    state.waveform.current.set_edit_selection_range(before);
+
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            edge: WaveformSelectionEdge::Start,
+            visible_ratio: 0.2,
+        }),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::Waveform(WaveformInteraction::FinishSelection {
+            visible_ratio: -0.5,
+        }),
+        &mut context,
+    );
+
+    let after = state
+        .waveform
+        .current
+        .edit_selection()
+        .expect("clamped edit selection after resize");
+    assert!((after.start() - 0.0).abs() < 0.001);
+    assert!((after.end() - 0.6).abs() < 0.001);
+    assert!((after.gain() - 0.5).abs() < 0.001);
+    assert_eq!(state.transactions.history.list_items().len(), 1);
+
+    state.apply_message(GuiMessage::UndoTransaction, &mut context);
+    assert_eq!(state.waveform.current.edit_selection(), Some(before));
+
+    state.apply_message(GuiMessage::RedoTransaction, &mut context);
+    assert_eq!(state.waveform.current.edit_selection(), Some(after));
 }
 
 #[test]
