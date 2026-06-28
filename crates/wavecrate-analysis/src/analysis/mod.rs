@@ -12,7 +12,7 @@ pub(crate) mod frequency_domain;
 pub mod hdbscan;
 pub mod similarity;
 pub(crate) mod time_domain;
-/// Legacy UMAP-named similarity-map layout utilities for visualization.
+/// Legacy UMAP-named starmap layout utilities for visualization.
 ///
 /// The current implementation is backed by t-SNE while persisted schema and
 /// compatibility shims still use `umap` naming internally.

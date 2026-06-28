@@ -38,11 +38,11 @@ pub(in crate::native_app) use state::{
     FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
     MetadataAppState, NativeAppState, PendingFolderDelete, PendingPlaySelectionRetargetCycle,
     PendingPlaybackStart, PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit,
-    SampleBrowserDisplayMode, SampleMapAuditionDragState, SampleMapViewport,
-    SampleMapViewportChange, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
-    SourceScanFinish, StartupState, StatusState, UiAppState, WaveformAppState,
-    WaveformDestructiveEditKind, WaveformDestructiveEditPrompt, WaveformDestructiveEditUiContext,
-    WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot, run_folder_scan_worker,
+    SampleBrowserDisplayMode, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
+    SourceScanFinish, StarmapAuditionDragState, StarmapViewport, StarmapViewportChange,
+    StartupState, StatusState, UiAppState, WaveformAppState, WaveformDestructiveEditKind,
+    WaveformDestructiveEditPrompt, WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot,
+    WaveformPlaySelectionSnapshot, run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;

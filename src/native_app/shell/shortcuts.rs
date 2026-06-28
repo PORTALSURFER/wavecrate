@@ -244,7 +244,7 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::F),
-            GuiMessage::FocusSelectedSampleMapNode,
+            GuiMessage::FocusSelectedStarmapNode,
         )
         .bind(
             ui::KeyPress::with_shift(ui::KeyCode::X),

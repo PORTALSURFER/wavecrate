@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use crate::native_app::app::{
-    NativeAppState, SampleBrowserDisplayMode, SampleMapAuditionDragState, SampleMapViewport,
-    SampleNameViewMode,
+    NativeAppState, SampleBrowserDisplayMode, SampleNameViewMode, StarmapAuditionDragState,
+    StarmapViewport,
 };
 use crate::native_app::sample_library::folder_browser::projection::{
     FileColumnDragFeedback, VisibleSampleList, VisibleSampleQuery, VisibleSampleWindowPolicy,
 };
-use crate::native_app::sample_library::folder_browser::sample_map::{
-    SampleMapItem, SampleMapProjection, SampleMapStatus,
+use crate::native_app::sample_library::folder_browser::starmap::{
+    StarmapItem, StarmapProjection, StarmapStatus,
 };
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
@@ -17,11 +17,11 @@ use crate::native_app::sample_library::sample_list::{
 
 pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) visible_samples: VisibleSampleList<'a>,
-    pub(in crate::native_app) map_items: Vec<SampleMapItem>,
-    pub(in crate::native_app) map_status: SampleMapStatus,
+    pub(in crate::native_app) map_items: Vec<StarmapItem>,
+    pub(in crate::native_app) map_status: StarmapStatus,
     pub(in crate::native_app) map_prep_running: bool,
-    pub(in crate::native_app) map_audition_drag: Option<SampleMapAuditionDragState>,
-    pub(in crate::native_app) map_viewport: SampleMapViewport,
+    pub(in crate::native_app) map_audition_drag: Option<StarmapAuditionDragState>,
+    pub(in crate::native_app) map_viewport: StarmapViewport,
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) display_mode: SampleBrowserDisplayMode,
     pub(in crate::native_app) name_view_mode: SampleNameViewMode,
@@ -38,11 +38,11 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
 
 pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     visible_samples: VisibleSampleList<'a>,
-    map_items: Vec<SampleMapItem>,
-    map_status: SampleMapStatus,
+    map_items: Vec<StarmapItem>,
+    map_status: StarmapStatus,
     map_prep_running: bool,
-    map_audition_drag: Option<SampleMapAuditionDragState>,
-    map_viewport: SampleMapViewport,
+    map_audition_drag: Option<StarmapAuditionDragState>,
+    map_viewport: StarmapViewport,
     name_filter: String,
     display_mode: SampleBrowserDisplayMode,
     name_view_mode: SampleNameViewMode,
@@ -75,15 +75,15 @@ impl<'a> SampleBrowserViewProjection<'a> {
                 tags_by_file: &state.metadata.tags_by_file,
                 cached_sample_paths: &state.waveform.cache.cached_sample_paths,
             });
-        let map_items = sample_map_items_for_display(state, display_mode);
+        let map_items = starmap_items_for_display(state, display_mode);
 
         Self {
             visible_samples,
             map_items,
-            map_status: state.library.folder_browser.sample_map_status(),
+            map_status: state.library.folder_browser.starmap_status(),
             map_prep_running: state.library.similarity_prep.running,
-            map_audition_drag: state.ui.chrome.sample_map_audition_drag.clone(),
-            map_viewport: state.ui.chrome.sample_map_viewport,
+            map_audition_drag: state.ui.chrome.starmap_audition_drag.clone(),
+            map_viewport: state.ui.chrome.starmap_viewport,
             name_filter: state.library.folder_browser.name_filter().to_owned(),
             display_mode,
             name_view_mode: state.metadata.sample_name_view_mode,
@@ -149,21 +149,21 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
         state
             .library
             .folder_browser
-            .prepare_sample_map_layout(&state.metadata.tags_by_file);
+            .prepare_starmap_layout(&state.metadata.tags_by_file);
     }
 }
 
-fn sample_map_items_for_display(
+fn starmap_items_for_display(
     state: &NativeAppState,
     display_mode: SampleBrowserDisplayMode,
-) -> Vec<SampleMapItem> {
+) -> Vec<StarmapItem> {
     if display_mode != SampleBrowserDisplayMode::Map {
         return Vec::new();
     }
     state
         .library
         .folder_browser
-        .sample_map_projection(SampleMapProjection {
+        .starmap_projection(StarmapProjection {
             tags_by_file: &state.metadata.tags_by_file,
             instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
         })
@@ -180,7 +180,7 @@ mod tests {
     use crate::native_app::waveform::WaveformSelectionKind;
 
     #[test]
-    fn list_mode_projection_does_not_build_sample_map_items() {
+    fn list_mode_projection_does_not_build_starmap_items() {
         let state = NativeAppStateFixture::default()
             .with_synthetic_waveform()
             .build();

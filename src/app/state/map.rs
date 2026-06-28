@@ -170,7 +170,7 @@ pub struct MapQueryBounds {
     pub max_y: f32,
 }
 
-/// Single point in one similarity-map layout.
+/// Single point in one starmap layout.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MapPoint {
     /// Sample id for this point.

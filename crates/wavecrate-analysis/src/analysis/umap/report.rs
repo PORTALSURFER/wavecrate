@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::LayoutPoint;
 
-/// Report summarizing one similarity-map layout build.
+/// Report summarizing one starmap layout build.
 ///
 /// The current layout implementation uses t-SNE while persisting into the
 /// existing `layout_umap` schema for compatibility.
@@ -29,7 +29,7 @@ pub struct MapLayoutReport {
     pub y_max: f32,
 }
 
-/// Legacy compatibility alias for the similarity-map layout report type.
+/// Legacy compatibility alias for the starmap layout report type.
 pub type UmapReport = MapLayoutReport;
 
 /// Return the default JSON report path for one layout build report.
@@ -57,7 +57,7 @@ pub(super) fn validate_layout(
     let summary = summarize_layout(layout);
     ensure_coverage(summary.coverage_ratio, min_coverage)?;
     if summary.valid == 0 {
-        return Err("Similarity map layout produced no valid coordinates".to_string());
+        return Err("Starmap layout produced no valid coordinates".to_string());
     }
     Ok(summary)
 }
@@ -110,7 +110,7 @@ fn coverage_ratio(total: usize, valid: usize) -> f32 {
 fn ensure_coverage(coverage_ratio: f32, min_coverage: f32) -> Result<(), String> {
     if coverage_ratio < min_coverage {
         return Err(format!(
-            "Similarity map layout coverage {:.2}% below threshold {:.2}%",
+            "Starmap layout coverage {:.2}% below threshold {:.2}%",
             coverage_ratio * 100.0,
             min_coverage * 100.0
         ));

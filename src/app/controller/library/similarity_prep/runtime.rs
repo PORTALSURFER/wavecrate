@@ -130,7 +130,7 @@ fn run_similarity_finalize(
     )?;
     if layout_rows == 0 {
         return Err(format!(
-            "No similarity map layout rows for source {} (check embeddings)",
+            "No Starmap layout rows for source {} (check embeddings)",
             source_id.as_str()
         ));
     }

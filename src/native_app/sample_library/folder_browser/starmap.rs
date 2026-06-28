@@ -23,20 +23,20 @@ const GROUP_CENTERS: [(f32, f32); wavecrate_analysis::aspects::ASPECT_COUNT] = [
 ];
 
 #[derive(Clone, Copy)]
-pub(in crate::native_app) struct SampleMapProjection<'a> {
+pub(in crate::native_app) struct StarmapProjection<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) instant_audition_sample_paths: &'a HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::native_app) struct SampleMapStatus {
+pub(in crate::native_app) struct StarmapStatus {
     pub(in crate::native_app) listed_count: usize,
     pub(in crate::native_app) layout_count: usize,
     pub(in crate::native_app) clustered_count: usize,
     pub(in crate::native_app) cluster_color_count: usize,
 }
 
-impl SampleMapStatus {
+impl StarmapStatus {
     pub(in crate::native_app) fn incomplete(self) -> bool {
         self.listed_count > 0 && self.layout_count < self.listed_count
     }
@@ -47,26 +47,26 @@ impl SampleMapStatus {
         }
         if prep_running {
             return Some(format!(
-                "Preparing similarity map {} / {}",
+                "Preparing Starmap {} / {}",
                 self.layout_count, self.listed_count
             ));
         }
         Some(format!(
-            "Similarity map {} / {}",
+            "Starmap {} / {}",
             self.layout_count, self.listed_count
         ))
     }
 }
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct SampleMapLayoutCache {
+pub(super) struct StarmapLayoutCache {
     signature: Option<u64>,
-    pub(super) points_by_file: HashMap<String, SampleMapLayoutPoint>,
+    pub(super) points_by_file: HashMap<String, StarmapLayoutPoint>,
     listed_count: usize,
     auto_prep_requested_signature: Option<u64>,
 }
 
-impl SampleMapLayoutCache {
+impl StarmapLayoutCache {
     fn needs_similarity_prep(&self) -> bool {
         self.signature.is_some()
             && self.listed_count > 0
@@ -76,14 +76,14 @@ impl SampleMapLayoutCache {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct SampleMapLayoutPoint {
+pub(super) struct StarmapLayoutPoint {
     pub(super) x: f32,
     pub(super) y: f32,
     pub(super) cluster_id: Option<i32>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::native_app) struct SampleMapItem {
+pub(in crate::native_app) struct StarmapItem {
     pub(in crate::native_app) file_id: String,
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) x: f32,
@@ -98,23 +98,23 @@ pub(in crate::native_app) struct SampleMapItem {
 }
 
 impl FolderBrowserState {
-    pub(in crate::native_app) fn prepare_sample_map_layout(
+    pub(in crate::native_app) fn prepare_starmap_layout(
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) {
         let snapshot = self.browser_listing_snapshot(tags_by_file);
-        let signature = sample_map_layout_signature(self.selected_source_id(), snapshot.rows());
-        if self.sample_list.sample_map_layout.signature == Some(signature) {
+        let signature = starmap_layout_signature(self.selected_source_id(), snapshot.rows());
+        if self.sample_list.starmap_layout.signature == Some(signature) {
             return;
         }
-        let positions = match load_sample_map_layout_positions(self, snapshot.rows()) {
+        let positions = match load_starmap_layout_positions(self, snapshot.rows()) {
             Ok(positions) => positions,
             Err(err) => {
-                tracing::debug!(error = %err, "sample map layout unavailable");
+                tracing::debug!(error = %err, "starmap layout unavailable");
                 HashMap::new()
             }
         };
-        self.sample_list.sample_map_layout = SampleMapLayoutCache {
+        self.sample_list.starmap_layout = StarmapLayoutCache {
             signature: Some(signature),
             listed_count: snapshot.rows().len(),
             points_by_file: positions,
@@ -122,16 +122,16 @@ impl FolderBrowserState {
         };
     }
 
-    pub(in crate::native_app) fn invalidate_sample_map_layout(&mut self) {
-        self.sample_list.sample_map_layout = SampleMapLayoutCache::default();
+    pub(in crate::native_app) fn invalidate_starmap_layout(&mut self) {
+        self.sample_list.starmap_layout = StarmapLayoutCache::default();
     }
 
-    pub(in crate::native_app) fn sample_map_sources_needing_similarity_prep(
+    pub(in crate::native_app) fn starmap_sources_needing_similarity_prep(
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<String> {
-        self.prepare_sample_map_layout(tags_by_file);
-        let cache = &self.sample_list.sample_map_layout;
+        self.prepare_starmap_layout(tags_by_file);
+        let cache = &self.sample_list.starmap_layout;
         let Some(signature) = cache.signature else {
             return Vec::new();
         };
@@ -140,7 +140,7 @@ impl FolderBrowserState {
         }
         let layout_file_ids = cache.points_by_file.keys().cloned().collect::<HashSet<_>>();
         self.sample_list
-            .sample_map_layout
+            .starmap_layout
             .auto_prep_requested_signature = Some(signature);
 
         let snapshot = self.browser_listing_snapshot(tags_by_file);
@@ -161,17 +161,17 @@ impl FolderBrowserState {
         source_ids
     }
 
-    pub(in crate::native_app) fn sample_map_projection(
+    pub(in crate::native_app) fn starmap_projection(
         &self,
-        projection: SampleMapProjection<'_>,
-    ) -> Vec<SampleMapItem> {
+        projection: StarmapProjection<'_>,
+    ) -> Vec<StarmapItem> {
         let snapshot = self.browser_listing_snapshot(projection.tags_by_file);
         let focused_file_id = self.selected_file_id();
         snapshot
             .rows()
             .iter()
             .map(|file| {
-                let instant_audition_ready = instant_audition_ready_for_sample_map(
+                let instant_audition_ready = instant_audition_ready_for_starmap(
                     file,
                     projection.instant_audition_sample_paths,
                 );
@@ -180,22 +180,22 @@ impl FolderBrowserState {
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
                 let layout_point = self
                     .sample_list
-                    .sample_map_layout
+                    .starmap_layout
                     .points_by_file
                     .get(&file.id)
                     .copied();
-                let (x, y) = sample_map_position(
+                let (x, y) = starmap_position(
                     &file.id,
                     group,
                     strength,
                     layout_point.map(|point| (point.x, point.y)),
                 );
-                SampleMapItem {
+                StarmapItem {
                     file_id: file.id.clone(),
                     label: file.stem.clone(),
                     x,
                     y,
-                    color: sample_map_color(group, strength, layout_point),
+                    color: starmap_color(group, strength, layout_point),
                     selected: self.is_file_selected(&file.id),
                     focused: focused_file_id == Some(file.id.as_str()),
                     copy_flash: self.copied_file_flash_active(&file.id),
@@ -207,18 +207,18 @@ impl FolderBrowserState {
             .collect()
     }
 
-    pub(in crate::native_app) fn selected_sample_map_position(
+    pub(in crate::native_app) fn selected_starmap_position(
         &self,
-        projection: SampleMapProjection<'_>,
+        projection: StarmapProjection<'_>,
     ) -> Option<(f32, f32)> {
         let selected_file = self.selected_file_id()?;
-        self.sample_map_projection(projection)
+        self.starmap_projection(projection)
             .into_iter()
             .find(|item| item.file_id == selected_file)
             .map(|item| (item.x, item.y))
     }
 
-    pub(in crate::native_app) fn navigate_sample_map_matching_tags(
+    pub(in crate::native_app) fn navigate_starmap_matching_tags(
         &mut self,
         delta: i32,
         extend: bool,
@@ -228,9 +228,9 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() || !self.selection.selected_file_active() {
             return None;
         }
-        self.prepare_sample_map_layout(tags_by_file);
-        let target = sample_map_navigation_target(
-            &self.sample_map_projection(SampleMapProjection {
+        self.prepare_starmap_layout(tags_by_file);
+        let target = starmap_navigation_target(
+            &self.starmap_projection(StarmapProjection {
                 tags_by_file,
                 instant_audition_sample_paths,
             }),
@@ -254,10 +254,10 @@ impl FolderBrowserState {
         Some(target)
     }
 
-    pub(in crate::native_app) fn sample_map_status(&self) -> SampleMapStatus {
+    pub(in crate::native_app) fn starmap_status(&self) -> StarmapStatus {
         let clustered_count = self
             .sample_list
-            .sample_map_layout
+            .starmap_layout
             .points_by_file
             .values()
             .filter(|point| point.cluster_id.is_some())
@@ -265,19 +265,19 @@ impl FolderBrowserState {
         let cluster_color_count = if clustered_count == 0 {
             0
         } else {
-            clustered_count.min(SAMPLE_MAP_CLUSTER_PALETTE.len())
+            clustered_count.min(STARMAP_CLUSTER_PALETTE.len())
         };
-        SampleMapStatus {
-            listed_count: self.sample_list.sample_map_layout.listed_count,
-            layout_count: self.sample_list.sample_map_layout.points_by_file.len(),
+        StarmapStatus {
+            listed_count: self.sample_list.starmap_layout.listed_count,
+            layout_count: self.sample_list.starmap_layout.points_by_file.len(),
             clustered_count,
             cluster_color_count,
         }
     }
 }
 
-fn sample_map_navigation_target(
-    items: &[SampleMapItem],
+fn starmap_navigation_target(
+    items: &[StarmapItem],
     selected_file_id: &str,
     delta: i32,
 ) -> Option<String> {
@@ -290,20 +290,20 @@ fn sample_map_navigation_target(
         .filter(|item| item.file_id != current.file_id)
         .filter(|item| (item.y - current.y) * direction > f32::EPSILON)
         .min_by(|left, right| {
-            sample_map_navigation_rank(current, left)
-                .total_cmp(&sample_map_navigation_rank(current, right))
+            starmap_navigation_rank(current, left)
+                .total_cmp(&starmap_navigation_rank(current, right))
                 .then_with(|| left.file_id.cmp(&right.file_id))
         })
         .map(|item| item.file_id.clone())
 }
 
-fn sample_map_navigation_rank(current: &SampleMapItem, candidate: &SampleMapItem) -> f32 {
+fn starmap_navigation_rank(current: &StarmapItem, candidate: &StarmapItem) -> f32 {
     let dx = candidate.x - current.x;
     let dy = candidate.y - current.y;
     dx * dx + dy * dy
 }
 
-fn instant_audition_ready_for_sample_map(
+fn instant_audition_ready_for_starmap(
     file: &FileEntry,
     instant_audition_sample_paths: &HashSet<String>,
 ) -> bool {
@@ -311,10 +311,10 @@ fn instant_audition_ready_for_sample_map(
         || instant_audition_sample_paths.contains(&file.id)
 }
 
-fn load_sample_map_layout_positions(
+fn load_starmap_layout_positions(
     browser: &FolderBrowserState,
     files: &[&FileEntry],
-) -> Result<HashMap<String, SampleMapLayoutPoint>, String> {
+) -> Result<HashMap<String, StarmapLayoutPoint>, String> {
     let mut by_source: HashMap<String, SourceLayoutRequest> = HashMap::new();
     for file in files {
         let path = Path::new(&file.id);
@@ -356,7 +356,7 @@ struct FileLayoutSample {
 
 fn load_source_layout_positions(
     request: &SourceLayoutRequest,
-    positions: &mut HashMap<String, RawSampleMapLayoutPoint>,
+    positions: &mut HashMap<String, RawStarmapLayoutPoint>,
 ) -> Result<(), String> {
     let database_root = request
         .source
@@ -418,7 +418,7 @@ fn load_source_layout_positions(
             };
             positions.insert(
                 (*file_id).to_string(),
-                RawSampleMapLayoutPoint { x, y, cluster_id },
+                RawStarmapLayoutPoint { x, y, cluster_id },
             );
         }
     }
@@ -426,7 +426,7 @@ fn load_source_layout_positions(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct RawSampleMapLayoutPoint {
+struct RawStarmapLayoutPoint {
     x: f32,
     y: f32,
     cluster_id: Option<i32>,
@@ -440,7 +440,7 @@ fn build_sample_id(source_id: &str, relative_path: &Path) -> String {
     )
 }
 
-fn sample_map_layout_signature(source_id: &str, files: &[&FileEntry]) -> u64 {
+fn starmap_layout_signature(source_id: &str, files: &[&FileEntry]) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     source_id.hash(&mut hasher);
     NATIVE_SIMILARITY_UMAP_VERSION.hash(&mut hasher);
@@ -452,8 +452,8 @@ fn sample_map_layout_signature(source_id: &str, files: &[&FileEntry]) -> u64 {
 }
 
 fn normalized_layout_points(
-    raw_points: HashMap<String, RawSampleMapLayoutPoint>,
-) -> HashMap<String, SampleMapLayoutPoint> {
+    raw_points: HashMap<String, RawStarmapLayoutPoint>,
+) -> HashMap<String, StarmapLayoutPoint> {
     if raw_points.is_empty() {
         return HashMap::new();
     }
@@ -470,7 +470,7 @@ fn normalized_layout_points(
         .map(|(file_id, point)| {
             (
                 file_id,
-                SampleMapLayoutPoint {
+                StarmapLayoutPoint {
                     x: normalize_layout_axis(point.x, min_x, max_x, 0.04, 0.96),
                     y: normalize_layout_axis(point.y, min_y, max_y, 0.06, 0.94),
                     cluster_id: point.cluster_id,
@@ -518,7 +518,7 @@ fn aspect_strength(aspects: &SimilarityAspectStrengths, aspect: SimilarityAspect
         .unwrap_or(0.0)
 }
 
-fn sample_map_position(
+fn starmap_position(
     file_id: &str,
     group: SimilarityAspect,
     similarity_strength: Option<f32>,
@@ -541,6 +541,7 @@ fn stable_jitter(file_id: &str) -> (f32, f32) {
     let mut first = std::collections::hash_map::DefaultHasher::new();
     file_id.hash(&mut first);
     let mut second = std::collections::hash_map::DefaultHasher::new();
+    // Preserve the historical salt so fallback Starmap placement does not shift.
     "sample-map-y".hash(&mut second);
     file_id.hash(&mut second);
     (
@@ -553,15 +554,15 @@ fn unit_from_hash(hash: u64) -> f32 {
     (hash as f64 / u64::MAX as f64) as f32
 }
 
-fn sample_map_color(
+fn starmap_color(
     group: SimilarityAspect,
     strength: Option<f32>,
-    layout_point: Option<SampleMapLayoutPoint>,
+    layout_point: Option<StarmapLayoutPoint>,
 ) -> ui::Rgba8 {
     if let Some(point) = layout_point
         && point.cluster_id.is_some()
     {
-        return sample_map_cluster_color((point.x, point.y), strength);
+        return starmap_cluster_color((point.x, point.y), strength);
     }
     let alpha = (150.0 + strength.unwrap_or(0.35).clamp(0.0, 1.0) * 90.0) as u8;
     match group {
@@ -573,21 +574,21 @@ fn sample_map_color(
     }
 }
 
-fn sample_map_cluster_color(position: (f32, f32), strength: Option<f32>) -> ui::Rgba8 {
+fn starmap_cluster_color(position: (f32, f32), strength: Option<f32>) -> ui::Rgba8 {
     let alpha = (180.0 + strength.unwrap_or(0.45).clamp(0.0, 1.0) * 60.0) as u8;
-    blended_sample_map_cluster_color(position).with_alpha(alpha)
+    blended_starmap_cluster_color(position).with_alpha(alpha)
 }
 
-pub(in crate::native_app) fn sample_map_cluster_palette_color(index: usize) -> ui::Rgba8 {
-    SAMPLE_MAP_CLUSTER_PALETTE[index % SAMPLE_MAP_CLUSTER_PALETTE.len()]
+pub(in crate::native_app) fn starmap_cluster_palette_color(index: usize) -> ui::Rgba8 {
+    STARMAP_CLUSTER_PALETTE[index % STARMAP_CLUSTER_PALETTE.len()]
 }
 
-fn blended_sample_map_cluster_color(position: (f32, f32)) -> ui::Rgba8 {
+fn blended_starmap_cluster_color(position: (f32, f32)) -> ui::Rgba8 {
     let mut total = 0.0;
     let mut red = 0.0;
     let mut green = 0.0;
     let mut blue = 0.0;
-    for anchor in SAMPLE_MAP_CLUSTER_COLOR_ANCHORS {
+    for anchor in STARMAP_CLUSTER_COLOR_ANCHORS {
         let dx = position.0 - anchor.x;
         let dy = position.1 - anchor.y;
         let weight = 1.0 / (dx * dx + dy * dy + 0.025).powf(1.6);
@@ -612,41 +613,41 @@ fn blended_color_channel(weighted: f32, total: f32) -> u8 {
 }
 
 #[derive(Clone, Copy)]
-struct SampleMapClusterColorAnchor {
+struct StarmapClusterColorAnchor {
     x: f32,
     y: f32,
     color: ui::Rgba8,
 }
 
-const SAMPLE_MAP_CLUSTER_COLOR_ANCHORS: [SampleMapClusterColorAnchor; 5] = [
-    SampleMapClusterColorAnchor {
+const STARMAP_CLUSTER_COLOR_ANCHORS: [StarmapClusterColorAnchor; 5] = [
+    StarmapClusterColorAnchor {
         x: 0.16,
         y: 0.46,
-        color: SAMPLE_MAP_CLUSTER_PALETTE[0],
+        color: STARMAP_CLUSTER_PALETTE[0],
     },
-    SampleMapClusterColorAnchor {
+    StarmapClusterColorAnchor {
         x: 0.36,
         y: 0.24,
-        color: SAMPLE_MAP_CLUSTER_PALETTE[1],
+        color: STARMAP_CLUSTER_PALETTE[1],
     },
-    SampleMapClusterColorAnchor {
+    StarmapClusterColorAnchor {
         x: 0.52,
         y: 0.52,
-        color: SAMPLE_MAP_CLUSTER_PALETTE[2],
+        color: STARMAP_CLUSTER_PALETTE[2],
     },
-    SampleMapClusterColorAnchor {
+    StarmapClusterColorAnchor {
         x: 0.68,
         y: 0.34,
-        color: SAMPLE_MAP_CLUSTER_PALETTE[3],
+        color: STARMAP_CLUSTER_PALETTE[3],
     },
-    SampleMapClusterColorAnchor {
+    StarmapClusterColorAnchor {
         x: 0.84,
         y: 0.62,
-        color: SAMPLE_MAP_CLUSTER_PALETTE[4],
+        color: STARMAP_CLUSTER_PALETTE[4],
     },
 ];
 
-const SAMPLE_MAP_CLUSTER_PALETTE: [ui::Rgba8; 5] = [
+const STARMAP_CLUSTER_PALETTE: [ui::Rgba8; 5] = [
     ui::Rgba8::new(255, 55, 96, 230),
     ui::Rgba8::new(114, 235, 184, 230),
     ui::Rgba8::new(255, 179, 92, 230),
@@ -659,9 +660,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sample_map_position_is_stable_and_bounded() {
-        let first = sample_map_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
-        let second = sample_map_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
+    fn starmap_position_is_stable_and_bounded() {
+        let first = starmap_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
+        let second = starmap_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
 
         assert_eq!(first, second);
         assert!((0.0..=1.0).contains(&first.0));
@@ -669,8 +670,8 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_position_uses_normalized_layout_when_available() {
-        let position = sample_map_position(
+    fn starmap_position_uses_normalized_layout_when_available() {
+        let position = starmap_position(
             "kick.wav",
             SimilarityAspect::Spectrum,
             Some(0.8),
@@ -681,9 +682,9 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_position_falls_back_when_layout_is_missing() {
-        let fallback = sample_map_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
-        let layout = sample_map_position(
+    fn starmap_position_falls_back_when_layout_is_missing() {
+        let fallback = starmap_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
+        let layout = starmap_position(
             "kick.wav",
             SimilarityAspect::Spectrum,
             Some(0.8),
@@ -700,7 +701,7 @@ mod tests {
         let positions = normalized_layout_points(HashMap::from([
             (
                 String::from("a.wav"),
-                RawSampleMapLayoutPoint {
+                RawStarmapLayoutPoint {
                     x: -1.0,
                     y: 2.0,
                     cluster_id: Some(3),
@@ -708,7 +709,7 @@ mod tests {
             ),
             (
                 String::from("b.wav"),
-                RawSampleMapLayoutPoint {
+                RawStarmapLayoutPoint {
                     x: 1.0,
                     y: 6.0,
                     cluster_id: Some(7),
@@ -718,7 +719,7 @@ mod tests {
 
         assert_eq!(
             positions.get("a.wav"),
-            Some(&SampleMapLayoutPoint {
+            Some(&StarmapLayoutPoint {
                 x: 0.04,
                 y: 0.06,
                 cluster_id: Some(3),
@@ -726,7 +727,7 @@ mod tests {
         );
         assert_eq!(
             positions.get("b.wav"),
-            Some(&SampleMapLayoutPoint {
+            Some(&StarmapLayoutPoint {
                 x: 0.96,
                 y: 0.94,
                 cluster_id: Some(7),
@@ -735,46 +736,46 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_color_prefers_similarity_cluster_color() {
-        let cluster_color = sample_map_color(
+    fn starmap_color_prefers_similarity_cluster_color() {
+        let cluster_color = starmap_color(
             SimilarityAspect::Spectrum,
             Some(0.5),
-            Some(SampleMapLayoutPoint {
+            Some(StarmapLayoutPoint {
                 x: 0.16,
                 y: 0.46,
                 cluster_id: Some(1),
             }),
         );
-        let aspect_color = sample_map_color(SimilarityAspect::Spectrum, Some(0.5), None);
+        let aspect_color = starmap_color(SimilarityAspect::Spectrum, Some(0.5), None);
 
         assert_ne!(cluster_color, aspect_color);
         assert_eq!(cluster_color.a, 210);
     }
 
     #[test]
-    fn sample_map_cluster_colors_fade_by_layout_position() {
-        let left = sample_map_color(
+    fn starmap_cluster_colors_fade_by_layout_position() {
+        let left = starmap_color(
             SimilarityAspect::Spectrum,
             Some(0.5),
-            Some(SampleMapLayoutPoint {
+            Some(StarmapLayoutPoint {
                 x: 0.16,
                 y: 0.46,
                 cluster_id: Some(1),
             }),
         );
-        let nearby = sample_map_color(
+        let nearby = starmap_color(
             SimilarityAspect::Spectrum,
             Some(0.5),
-            Some(SampleMapLayoutPoint {
+            Some(StarmapLayoutPoint {
                 x: 0.20,
                 y: 0.48,
                 cluster_id: Some(37),
             }),
         );
-        let far = sample_map_color(
+        let far = starmap_color(
             SimilarityAspect::Spectrum,
             Some(0.5),
-            Some(SampleMapLayoutPoint {
+            Some(StarmapLayoutPoint {
                 x: 0.84,
                 y: 0.62,
                 cluster_id: Some(37),
@@ -788,7 +789,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_sample_map_position_uses_current_filtered_projection() {
+    fn selected_starmap_position_uses_current_filtered_projection() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("kick.wav");
         std::fs::write(&kick, []).expect("write sample");
@@ -798,15 +799,15 @@ mod tests {
         let kick_id = kick.to_string_lossy().to_string();
         browser.select_file(kick_id.clone());
         let tags_by_file = HashMap::new();
-        browser.prepare_sample_map_layout(&tags_by_file);
+        browser.prepare_starmap_layout(&tags_by_file);
 
-        let position = browser.selected_sample_map_position(SampleMapProjection {
+        let position = browser.selected_starmap_position(StarmapProjection {
             tags_by_file: &tags_by_file,
             instant_audition_sample_paths: &HashSet::new(),
         });
 
         assert!(position.is_some());
-        let projection = browser.sample_map_projection(SampleMapProjection {
+        let projection = browser.starmap_projection(StarmapProjection {
             tags_by_file: &tags_by_file,
             instant_audition_sample_paths: &HashSet::new(),
         });
@@ -819,7 +820,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_keyboard_navigation_uses_map_position_not_list_order() {
+    fn starmap_keyboard_navigation_uses_map_position_not_list_order() {
         let root = tempfile::tempdir().expect("source root");
         let alpha = root.path().join("alpha.wav");
         let beta = root.path().join("beta.wav");
@@ -834,11 +835,11 @@ mod tests {
             root.path().to_path_buf(),
         )]);
         let tags_by_file = HashMap::new();
-        browser.prepare_sample_map_layout(&tags_by_file);
-        browser.sample_list.sample_map_layout.points_by_file = HashMap::from([
+        browser.prepare_starmap_layout(&tags_by_file);
+        browser.sample_list.starmap_layout.points_by_file = HashMap::from([
             (
                 alpha_id.clone(),
-                SampleMapLayoutPoint {
+                StarmapLayoutPoint {
                     x: 0.50,
                     y: 0.50,
                     cluster_id: None,
@@ -846,7 +847,7 @@ mod tests {
             ),
             (
                 beta_id.clone(),
-                SampleMapLayoutPoint {
+                StarmapLayoutPoint {
                     x: 0.50,
                     y: 0.92,
                     cluster_id: None,
@@ -854,7 +855,7 @@ mod tests {
             ),
             (
                 close_below_id.clone(),
-                SampleMapLayoutPoint {
+                StarmapLayoutPoint {
                     x: 0.52,
                     y: 0.58,
                     cluster_id: None,
@@ -863,10 +864,8 @@ mod tests {
         ]);
         browser.select_file(alpha_id.clone());
 
-        let down =
-            browser.navigate_sample_map_matching_tags(1, false, &tags_by_file, &HashSet::new());
-        let up =
-            browser.navigate_sample_map_matching_tags(-1, false, &tags_by_file, &HashSet::new());
+        let down = browser.navigate_starmap_matching_tags(1, false, &tags_by_file, &HashSet::new());
+        let up = browser.navigate_starmap_matching_tags(-1, false, &tags_by_file, &HashSet::new());
 
         assert_eq!(
             down,
@@ -877,7 +876,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_projection_matches_filtered_browser_listing() {
+    fn starmap_projection_matches_filtered_browser_listing() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("deep_kick.wav");
         let snare = root.path().join("deep_snare.wav");
@@ -903,14 +902,14 @@ mod tests {
         browser.apply_tag_filter_input(radiant::widgets::TextInputMessage::Changed {
             value: String::from("drum"),
         });
-        browser.prepare_sample_map_layout(&tags_by_file);
+        browser.prepare_starmap_layout(&tags_by_file);
 
         let listing_ids = browser
             .browser_listing_snapshot(&tags_by_file)
             .ids()
             .to_vec();
         let map_ids = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
@@ -921,12 +920,12 @@ mod tests {
         assert_eq!(listing_ids, vec![kick_id, snare_id]);
         assert_eq!(
             map_ids, listing_ids,
-            "sample map mode must project exactly the same filtered files as list mode"
+            "starmap mode must project exactly the same filtered files as list mode"
         );
     }
 
     #[test]
-    fn sample_map_projection_uses_full_filtered_listing_not_virtual_list_window() {
+    fn starmap_projection_uses_full_filtered_listing_not_virtual_list_window() {
         let root = tempfile::tempdir().expect("source root");
         let files = (0..32)
             .map(|index| root.path().join(format!("drum_{index:02}.wav")))
@@ -958,7 +957,7 @@ mod tests {
             },
         );
         let map_ids = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
@@ -975,12 +974,12 @@ mod tests {
         assert_eq!(visible.total_count, 32);
         assert_eq!(
             map_ids, listing_ids,
-            "sample map must include the full filtered listing, not only virtualized list rows"
+            "starmap must include the full filtered listing, not only virtualized list rows"
         );
     }
 
     #[test]
-    fn sample_map_projection_marks_cold_long_wavs_as_not_audition_ready() {
+    fn starmap_projection_marks_cold_long_wavs_as_not_audition_ready() {
         let root = tempfile::tempdir().expect("source root");
         let short = root.path().join("short.wav");
         let long = root.path().join("long.wav");
@@ -994,7 +993,7 @@ mod tests {
         let tags_by_file = HashMap::new();
 
         let cold_items = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
@@ -1002,7 +1001,7 @@ mod tests {
             .map(|item| (item.file_id, item.instant_audition_ready))
             .collect::<Vec<_>>();
         let ready_items = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::from([long_id.clone()]),
             })
@@ -1018,7 +1017,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_projection_groups_by_enabled_similarity_aspects() {
+    fn starmap_projection_groups_by_enabled_similarity_aspects() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("kick.wav");
         let snare = root.path().join("snare.wav");
@@ -1040,7 +1039,7 @@ mod tests {
         let tags_by_file = HashMap::new();
 
         let timbre_color = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
@@ -1053,7 +1052,7 @@ mod tests {
         controls.set_aspect_enabled(SimilarityAspect::Timbre, false);
         browser.set_similarity_controls(controls);
         let spectrum_color = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
@@ -1073,7 +1072,7 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_projection_marks_all_selected_list_items() {
+    fn starmap_projection_marks_all_selected_list_items() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("kick.wav");
         let snare = root.path().join("snare.wav");
@@ -1099,7 +1098,7 @@ mod tests {
         );
 
         let selected_map_items = browser
-            .sample_map_projection(SampleMapProjection {
+            .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
             })
@@ -1122,8 +1121,8 @@ mod tests {
     }
 
     #[test]
-    fn sample_map_status_reports_incomplete_layout_coverage() {
-        let status = SampleMapStatus {
+    fn starmap_status_reports_incomplete_layout_coverage() {
+        let status = StarmapStatus {
             listed_count: 12,
             layout_count: 5,
             clustered_count: 2,
@@ -1133,17 +1132,14 @@ mod tests {
         assert!(status.incomplete());
         assert_eq!(
             status.label(true),
-            Some(String::from("Preparing similarity map 5 / 12"))
+            Some(String::from("Preparing Starmap 5 / 12"))
         );
-        assert_eq!(
-            status.label(false),
-            Some(String::from("Similarity map 5 / 12"))
-        );
+        assert_eq!(status.label(false), Some(String::from("Starmap 5 / 12")));
     }
 
     #[test]
-    fn complete_sample_map_status_stays_silent() {
-        let status = SampleMapStatus {
+    fn complete_starmap_status_stays_silent() {
+        let status = StarmapStatus {
             listed_count: 12,
             layout_count: 12,
             clustered_count: 8,
@@ -1155,13 +1151,13 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_sample_map_layout_requests_similarity_prep_once_per_signature() {
-        let mut cache = SampleMapLayoutCache {
+    fn incomplete_starmap_layout_requests_similarity_prep_once_per_signature() {
+        let mut cache = StarmapLayoutCache {
             signature: Some(42),
             listed_count: 2,
             points_by_file: HashMap::from([(
                 String::from("a.wav"),
-                SampleMapLayoutPoint {
+                StarmapLayoutPoint {
                     x: 0.2,
                     y: 0.3,
                     cluster_id: None,
@@ -1178,13 +1174,13 @@ mod tests {
     }
 
     #[test]
-    fn complete_or_empty_sample_map_layout_does_not_request_similarity_prep() {
-        let complete = SampleMapLayoutCache {
+    fn complete_or_empty_starmap_layout_does_not_request_similarity_prep() {
+        let complete = StarmapLayoutCache {
             signature: Some(7),
             listed_count: 1,
             points_by_file: HashMap::from([(
                 String::from("a.wav"),
-                SampleMapLayoutPoint {
+                StarmapLayoutPoint {
                     x: 0.2,
                     y: 0.3,
                     cluster_id: None,
@@ -1192,7 +1188,7 @@ mod tests {
             )]),
             auto_prep_requested_signature: None,
         };
-        let empty_listing = SampleMapLayoutCache {
+        let empty_listing = StarmapLayoutCache {
             signature: Some(8),
             listed_count: 0,
             points_by_file: HashMap::new(),

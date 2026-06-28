@@ -76,7 +76,7 @@ impl AppController {
         load_umap_points(conn, &query)
     }
 
-    /// Lookup one similarity-map point for a specific sample id.
+    /// Lookup one starmap point for a specific sample id.
     pub fn umap_point_for_sample(
         &mut self,
         model_id: &str,
@@ -89,7 +89,7 @@ impl AppController {
         load_umap_point_for_sample(conn, model_id, umap_version, sample_id)
     }
 
-    /// Load cluster centroids for the requested similarity-map layout.
+    /// Load cluster centroids for the requested starmap layout.
     pub fn umap_cluster_centroids(
         &mut self,
         model_id: &str,

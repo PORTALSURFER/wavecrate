@@ -17,9 +17,9 @@ pub(super) fn automation_random_navigation_toggle_id() -> u64 {
     widget_ids::AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID
 }
 
-/// Automation-facing id for the sample map-view toggle.
-pub(super) fn automation_sample_map_view_toggle_id() -> u64 {
-    widget_ids::AUTOMATION_SAMPLE_MAP_VIEW_TOGGLE_ID
+/// Automation-facing id for the starmap-view toggle.
+pub(super) fn automation_starmap_view_toggle_id() -> u64 {
+    widget_ids::AUTOMATION_STARMAP_VIEW_TOGGLE_ID
 }
 
 /// Retained id for a sortable, draggable, resizable sample header cell.

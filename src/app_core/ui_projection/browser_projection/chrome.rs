@@ -11,7 +11,7 @@ pub(crate) fn project_browser_chrome_model(
     BrowserChromeModel {
         samples_tab_label: String::from("Samples"),
         sample_column_label: String::from("Sample"),
-        map_tab_label: String::from("Similarity map"),
+        map_tab_label: String::from("Starmap"),
         tag_editor_label: String::from("Tags"),
         search_prefix_label: if search_focused {
             String::from("Search • focused")
@@ -52,7 +52,7 @@ pub(super) fn browser_sort_label(sort: SampleBrowserSort) -> &'static str {
 pub(super) fn browser_tab_label(tab: SampleBrowserTab) -> &'static str {
     match tab {
         SampleBrowserTab::List => "Samples",
-        SampleBrowserTab::Map => "Similarity map",
+        SampleBrowserTab::Map => "Starmap",
     }
 }
 

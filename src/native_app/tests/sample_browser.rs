@@ -243,7 +243,7 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
         .build();
     state.library.folder_browser.select_file(first_id);
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
-    state.ui.chrome.sample_map_viewport.zoom = 4.0;
+    state.ui.chrome.starmap_viewport.zoom = 4.0;
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
@@ -261,22 +261,22 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
     let expected = state
         .library
         .folder_browser
-        .selected_sample_map_position(
-            crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
+        .selected_starmap_position(
+            crate::native_app::sample_library::folder_browser::starmap::StarmapProjection {
                 tags_by_file: &state.metadata.tags_by_file,
                 instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
             },
         )
         .expect("selected sample should have a map position");
-    assert_sample_map_viewport_reveals(
-        state.ui.chrome.sample_map_viewport,
+    assert_starmap_viewport_reveals(
+        state.ui.chrome.starmap_viewport,
         expected,
         "map viewport should reveal the selected node after keyboard navigation",
     );
 }
 
 #[test]
-fn leaving_sample_map_mode_reveals_selected_list_row() {
+fn leaving_starmap_mode_reveals_selected_list_row() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -317,7 +317,7 @@ fn leaving_sample_map_mode_reveals_selected_list_row() {
 }
 
 #[test]
-fn leaving_sample_map_mode_materializes_selected_list_row_immediately() {
+fn leaving_starmap_mode_materializes_selected_list_row_immediately() {
     let source_root = tempfile::tempdir().expect("source root");
     let files = (0..120)
         .map(|index| source_root.path().join(format!("sample_{index:03}.wav")))
@@ -386,7 +386,7 @@ fn map_audition_selection_is_revealed_when_returning_to_list_mode() {
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(third_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -410,7 +410,7 @@ fn map_audition_selection_is_revealed_when_returning_to_list_mode() {
     assert_eq!(
         last_fixed_sample_browser_row_scroll(context.into_command()),
         Some((2, 0)),
-        "list mode should reveal the node selected by sample-map audition"
+        "list mode should reveal the node selected by starmap audition"
     );
 }
 
@@ -434,7 +434,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(second_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -452,8 +452,8 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
         state.waveform.current.copy_flash_frames() > 0,
         "copying the map-selected sample should flash the waveform"
     );
-    let items = state.library.folder_browser.sample_map_projection(
-        crate::native_app::sample_library::folder_browser::sample_map::SampleMapProjection {
+    let items = state.library.folder_browser.starmap_projection(
+        crate::native_app::sample_library::folder_browser::starmap::StarmapProjection {
             tags_by_file: &state.metadata.tags_by_file,
             instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
         },
@@ -467,7 +467,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
 }
 
 #[test]
-fn sample_map_drag_keeps_only_latest_pending_hit() {
+fn starmap_drag_keeps_only_latest_pending_hit() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -488,7 +488,7 @@ fn sample_map_drag_keeps_only_latest_pending_hit() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(first_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -496,7 +496,7 @@ fn sample_map_drag_keeps_only_latest_pending_hit() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![second_id.clone(), third_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -513,7 +513,7 @@ fn sample_map_drag_keeps_only_latest_pending_hit() {
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .active_file_id
             .as_deref(),
         Some(first_id.as_str())
@@ -522,7 +522,7 @@ fn sample_map_drag_keeps_only_latest_pending_hit() {
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .queued_file_ids
             .iter()
             .cloned()
@@ -533,7 +533,7 @@ fn sample_map_drag_keeps_only_latest_pending_hit() {
 }
 
 #[test]
-fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
+fn starmap_drag_requeues_sample_after_sweeping_away_and_back() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -551,7 +551,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(first_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -559,7 +559,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![second_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -567,7 +567,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![first_id.clone()],
             position: Point::new(92.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -579,7 +579,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .active_file_id
             .as_deref(),
         Some(first_id.as_str())
@@ -588,7 +588,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .queued_file_ids
             .iter()
             .cloned()
@@ -599,7 +599,7 @@ fn sample_map_drag_requeues_sample_after_sweeping_away_and_back() {
 }
 
 #[test]
-fn sample_map_drag_finish_drops_swept_hit_backlog() {
+fn starmap_drag_finish_drops_swept_hit_backlog() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -620,7 +620,7 @@ fn sample_map_drag_finish_drops_swept_hit_backlog() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(first_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -628,7 +628,7 @@ fn sample_map_drag_finish_drops_swept_hit_backlog() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![second_id, third_id],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -640,7 +640,7 @@ fn sample_map_drag_finish_drops_swept_hit_backlog() {
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .active_file_id
             .as_deref(),
         Some(first_id.as_str())
@@ -649,26 +649,26 @@ fn sample_map_drag_finish_drops_swept_hit_backlog() {
         !state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .queued_file_ids
             .is_empty()
     );
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::FinishSampleMapAuditionDrag,
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
         &mut context,
     );
 
-    assert_eq!(state.ui.chrome.sample_map_audition_drag, None);
+    assert_eq!(state.ui.chrome.starmap_audition_drag, None);
     assert_eq!(
-        state.ui.chrome.sample_map_audition_queue,
+        state.ui.chrome.starmap_audition_queue,
         Default::default(),
         "releasing the drag should not leave swept nodes queued for later playback"
     );
 }
 
 #[test]
-fn sample_map_drag_update_after_finish_is_ignored() {
+fn starmap_drag_update_after_finish_is_ignored() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -686,7 +686,7 @@ fn sample_map_drag_update_after_finish_is_ignored() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(first_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -694,11 +694,11 @@ fn sample_map_drag_update_after_finish_is_ignored() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::FinishSampleMapAuditionDrag,
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![second_id],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -711,14 +711,11 @@ fn sample_map_drag_update_after_finish_is_ignored() {
         Some(first_id.as_str()),
         "late pointer updates after release should not restart drag-play audition"
     );
-    assert_eq!(
-        state.ui.chrome.sample_map_audition_queue,
-        Default::default()
-    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
 }
 
 #[test]
-fn sample_map_drag_audition_ignores_multi_select_modifiers() {
+fn starmap_drag_audition_ignores_multi_select_modifiers() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -740,7 +737,7 @@ fn sample_map_drag_audition_ignores_multi_select_modifiers() {
     state.library.folder_browser.select_file(first_id.clone());
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(second_id.clone()),
             position: Point::new(90.0, 10.0),
             modifiers: shift,
@@ -760,7 +757,7 @@ fn sample_map_drag_audition_ignores_multi_select_modifiers() {
 }
 
 #[test]
-fn sample_map_audition_hit_preserves_current_viewport() {
+fn starmap_audition_hit_preserves_current_viewport() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -775,13 +772,13 @@ fn sample_map_audition_hit_preserves_current_viewport() {
         )
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
-    state.ui.chrome.sample_map_viewport.zoom = 4.0;
-    state.ui.chrome.sample_map_viewport.center_x = 0.1;
-    state.ui.chrome.sample_map_viewport.center_y = 0.9;
-    let initial_viewport = state.ui.chrome.sample_map_viewport;
+    state.ui.chrome.starmap_viewport.zoom = 4.0;
+    state.ui.chrome.starmap_viewport.center_x = 0.1;
+    state.ui.chrome.starmap_viewport.center_y = 0.9;
+    let initial_viewport = state.ui.chrome.starmap_viewport;
 
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(second_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -794,13 +791,13 @@ fn sample_map_audition_hit_preserves_current_viewport() {
         Some(second_id.as_str())
     );
     assert_eq!(
-        state.ui.chrome.sample_map_viewport, initial_viewport,
+        state.ui.chrome.starmap_viewport, initial_viewport,
         "map audition should select/play without panning the viewport",
     );
 }
 
 #[test]
-fn sample_map_audition_advance_selects_next_queued_hit() {
+fn starmap_audition_advance_selects_next_queued_hit() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -816,13 +813,13 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
         )
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
-    state.ui.chrome.sample_map_viewport.zoom = 4.0;
-    state.ui.chrome.sample_map_viewport.center_x = 0.12;
-    state.ui.chrome.sample_map_viewport.center_y = 0.88;
-    let initial_viewport = state.ui.chrome.sample_map_viewport;
+    state.ui.chrome.starmap_viewport.zoom = 4.0;
+    state.ui.chrome.starmap_viewport.center_x = 0.12;
+    state.ui.chrome.starmap_viewport.center_y = 0.88;
+    let initial_viewport = state.ui.chrome.starmap_viewport;
     let mut context = radiant::prelude::UiUpdateContext::default();
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(first_id.clone()),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -830,7 +827,7 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
         &mut context,
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::UpdateSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![second_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -839,7 +836,7 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
     );
 
     let mut advance_context = radiant::prelude::UiUpdateContext::default();
-    state.schedule_next_sample_map_audition_hit(&mut advance_context);
+    state.schedule_next_starmap_audition_hit(&mut advance_context);
     let advance = run_first_after(advance_context.into_command()).expect("queued map advance");
     state.apply_message(advance, &mut radiant::prelude::UiUpdateContext::default());
 
@@ -848,14 +845,14 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
         Some(second_id.as_str())
     );
     assert_eq!(
-        state.ui.chrome.sample_map_viewport, initial_viewport,
+        state.ui.chrome.starmap_viewport, initial_viewport,
         "queued drag-play audition should not pan to the selected node"
     );
     assert_eq!(
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .active_file_id
             .as_deref(),
         Some(second_id.as_str())
@@ -864,14 +861,14 @@ fn sample_map_audition_advance_selects_next_queued_hit() {
         state
             .ui
             .chrome
-            .sample_map_audition_queue
+            .starmap_audition_queue
             .queued_file_ids
             .is_empty()
     );
 }
 
 #[test]
-fn sample_map_audition_queue_clears_after_last_hit_finishes() {
+fn starmap_audition_queue_clears_after_last_hit_finishes() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     write_test_wav_i16(&first, &[0, 100, -100]);
@@ -884,7 +881,7 @@ fn sample_map_audition_queue_clears_after_last_hit_finishes() {
         )
         .build();
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::BeginSampleMapAuditionDrag {
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
             path: Some(first_id),
             position: Point::new(10.0, 10.0),
             modifiers: PointerModifiers::default(),
@@ -892,17 +889,14 @@ fn sample_map_audition_queue_clears_after_last_hit_finishes() {
         &mut radiant::prelude::UiUpdateContext::default(),
     );
     state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::FinishSampleMapAuditionDrag,
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
         &mut radiant::prelude::UiUpdateContext::default(),
     );
 
-    state.schedule_next_sample_map_audition_hit(&mut radiant::prelude::UiUpdateContext::default());
+    state.schedule_next_starmap_audition_hit(&mut radiant::prelude::UiUpdateContext::default());
 
-    assert_eq!(state.ui.chrome.sample_map_audition_drag, None);
-    assert_eq!(
-        state.ui.chrome.sample_map_audition_queue,
-        Default::default()
-    );
+    assert_eq!(state.ui.chrome.starmap_audition_drag, None);
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
 }
 
 #[test]
@@ -982,8 +976,8 @@ fn run_first_perform(
     }
 }
 
-fn assert_sample_map_viewport_reveals(
-    viewport: crate::native_app::app::SampleMapViewport,
+fn assert_starmap_viewport_reveals(
+    viewport: crate::native_app::app::StarmapViewport,
     position: (f32, f32),
     message: &str,
 ) {

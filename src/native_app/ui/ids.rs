@@ -61,7 +61,7 @@ pub(in crate::native_app) const AUTOMATION_SAMPLE_RANDOM_NAVIGATION_TOGGLE_ID: u
 /// Automation-facing id for the similarity-weighting toggle.
 pub(in crate::native_app) const AUTOMATION_SAMPLE_SIMILARITY_WEIGHTING_TOGGLE_ID: u64 =
     SAMPLE_BROWSER_HEADER.id(4);
-pub(in crate::native_app) const AUTOMATION_SAMPLE_MAP_VIEW_TOGGLE_ID: u64 =
+pub(in crate::native_app) const AUTOMATION_STARMAP_VIEW_TOGGLE_ID: u64 =
     SAMPLE_BROWSER_HEADER.id(5);
 /// Scope for automation-facing similarity-aspect toggle ids.
 pub(in crate::native_app) const AUTOMATION_SAMPLE_SIMILARITY_ASPECT_TOGGLE_SCOPE: u64 =

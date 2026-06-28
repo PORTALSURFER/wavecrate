@@ -121,7 +121,7 @@ impl AppController {
         }
     }
 
-    /// Apply one completed similarity-map layout build result.
+    /// Apply one completed Starmap layout build result.
     pub(super) fn handle_umap_built_message(&mut self, message: UmapBuildResult) {
         self.runtime.jobs.clear_umap_build();
         match message.result {
@@ -136,20 +136,20 @@ impl AppController {
                 self.mark_map_dataset_projection_revision_dirty();
                 self.mark_map_query_projection_revision_dirty();
                 self.set_status(
-                    format!("Similarity map layout {} built", message.umap_version),
+                    format!("Starmap layout {} built", message.umap_version),
                     StatusTone::Info,
                 );
             }
             Err(err) => {
                 self.set_status(
-                    format!("Similarity map layout build failed: {err}"),
+                    format!("Starmap layout build failed: {err}"),
                     StatusTone::Error,
                 );
             }
         }
     }
 
-    /// Apply one completed similarity-map cluster-build result.
+    /// Apply one completed starmap cluster-build result.
     pub(super) fn handle_umap_clusters_built_message(&mut self, message: UmapClusterBuildResult) {
         self.runtime.jobs.clear_umap_cluster_build();
         match message.result {

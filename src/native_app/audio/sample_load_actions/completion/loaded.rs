@@ -51,7 +51,7 @@ impl NativeAppState {
             return;
         }
         self.start_completed_sample_playback(&file_name, started_at, context);
-        self.schedule_next_sample_map_audition_hit(context);
+        self.schedule_next_starmap_audition_hit(context);
     }
 
     fn start_completed_sample_playback(

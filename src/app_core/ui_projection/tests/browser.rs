@@ -148,10 +148,7 @@ fn browser_projection_exposes_sort_tab_and_search_hint_labels() {
         Some("Search samples (Ctrl+F)")
     );
     assert_eq!(projected.sort_label.as_deref(), Some("Playback age ↓"));
-    assert_eq!(
-        projected.active_tab_label.as_deref(),
-        Some("Similarity map")
-    );
+    assert_eq!(projected.active_tab_label.as_deref(), Some("Starmap"));
     assert!(projected.rows.is_empty());
     assert_eq!(projected.visible_count, 42);
 }
@@ -435,7 +432,7 @@ fn browser_chrome_projection_exposes_toolbar_and_tab_copy() {
     ui.browser.search.similarity_sort_follow_loaded = true;
     let projected = project_browser_chrome_model(&ui, 1437);
     assert_eq!(projected.samples_tab_label, "Samples");
-    assert_eq!(projected.map_tab_label, "Similarity map");
+    assert_eq!(projected.map_tab_label, "Starmap");
     assert_eq!(projected.search_prefix_label, "Search");
     assert_eq!(projected.search_placeholder, "Search samples (Ctrl+F)");
     assert_eq!(projected.activity_ready_label, "Ready");

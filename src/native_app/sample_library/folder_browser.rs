@@ -51,8 +51,8 @@ mod selection_state;
 use selection_state::BrowserSelectionState;
 
 mod file_view_window;
-pub(in crate::native_app) mod sample_map;
 mod sample_queries;
+pub(in crate::native_app) mod starmap;
 mod visible_samples;
 use visible_samples::SampleListState;
 

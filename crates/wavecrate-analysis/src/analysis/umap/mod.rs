@@ -1,4 +1,4 @@
-//! Legacy UMAP-named similarity-map layout facade.
+//! Legacy UMAP-named starmap layout facade.
 //!
 //! The current implementation projects embeddings with t-SNE while keeping the
 //! established `umap` naming and `layout_umap` persistence schema for
@@ -18,7 +18,7 @@ use storage::{load_embeddings, write_layout};
 
 type LayoutPoint = [f32; 2];
 
-/// Build and persist a 2D similarity-map layout for the given model embeddings.
+/// Build and persist a starmap layout for the given model embeddings.
 ///
 /// The projection is currently computed with t-SNE and then written into the
 /// existing `layout_umap` table so persisted data and older callers remain
@@ -78,7 +78,7 @@ fn persist_and_validate_layout(
 
 fn validate_insert_count(inserted: usize, expected: usize) -> Result<(), String> {
     if inserted != expected {
-        return Err("Similarity map layout insert count mismatch".to_string());
+        return Err("Starmap layout insert count mismatch".to_string());
     }
     Ok(())
 }

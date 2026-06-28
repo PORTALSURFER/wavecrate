@@ -199,7 +199,7 @@ impl Default for BrowserChromeModel {
         Self {
             samples_tab_label: String::from("Samples"),
             sample_column_label: String::from("Sample"),
-            map_tab_label: String::from("Similarity map"),
+            map_tab_label: String::from("Starmap"),
             tag_editor_label: String::from("Tags"),
             search_prefix_label: String::from("Search"),
             search_placeholder: String::from("Search samples (Ctrl+F)"),

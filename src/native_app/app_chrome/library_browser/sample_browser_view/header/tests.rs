@@ -1,8 +1,8 @@
 use super::SampleBrowserHeaderBar;
 use super::projection::{
-    RandomNavigationButtonProjection, SAMPLE_MAP_VIEW_TOOLTIP, SampleBrowserHeaderProjection,
-    SampleMapViewButtonProjection, SampleNameViewModeButtonProjection,
-    SampleSimilarityControlsProjection, SampleSimilarityHeaderProjection, projected_header_columns,
+    RandomNavigationButtonProjection, STARMAP_VIEW_TOOLTIP, SampleBrowserHeaderProjection,
+    SampleNameViewModeButtonProjection, SampleSimilarityControlsProjection,
+    SampleSimilarityHeaderProjection, StarmapViewButtonProjection, projected_header_columns,
 };
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::model::FileColumn;
@@ -26,7 +26,7 @@ fn sample_name_view_mode_projection_names_current_mode() {
 #[test]
 fn header_button_projections_keep_product_tooltips() {
     let random_navigation = RandomNavigationButtonProjection::new(true);
-    let map_view = SampleMapViewButtonProjection::new(false);
+    let map_view = StarmapViewButtonProjection::new(false);
     let name_mode = SampleNameViewModeButtonProjection::from_mode(SampleNameViewMode::DiskFilename);
 
     assert!(random_navigation.active);
@@ -35,7 +35,7 @@ fn header_button_projections_keep_product_tooltips() {
         "Random audition within the selected folder or active filter."
     );
     assert!(!map_view.active);
-    assert_eq!(map_view.tooltip, SAMPLE_MAP_VIEW_TOOLTIP);
+    assert_eq!(map_view.tooltip, STARMAP_VIEW_TOOLTIP);
     assert_eq!(
         name_mode.tooltip,
         "Switch sample names between disk filenames and metadata labels."
@@ -43,16 +43,13 @@ fn header_button_projections_keep_product_tooltips() {
 }
 
 #[test]
-fn sample_map_view_button_projection_tracks_mode_switch_state() {
-    let inactive = SampleMapViewButtonProjection::new(false);
-    let active = SampleMapViewButtonProjection::new(true);
+fn starmap_view_button_projection_tracks_mode_switch_state() {
+    let inactive = StarmapViewButtonProjection::new(false);
+    let active = StarmapViewButtonProjection::new(true);
 
     assert!(!inactive.active);
     assert!(active.active);
-    assert_eq!(
-        inactive.tooltip,
-        "Switch between list and sample map views."
-    );
+    assert_eq!(inactive.tooltip, "Switch between list and Starmap views.");
     assert_eq!(active.tooltip, inactive.tooltip);
 }
 

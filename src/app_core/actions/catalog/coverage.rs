@@ -15,7 +15,7 @@ pub enum GuiSurface {
     Waveform,
     /// Global playback transport and volume controls.
     Transport,
-    /// Two-dimensional sample map surface.
+    /// Two-dimensional starmap surface.
     Map,
     /// Options and settings panel surface.
     Options,
