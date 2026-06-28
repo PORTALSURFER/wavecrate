@@ -41,14 +41,14 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
 
     assert!(frame.paint_plan.contains_text("Name"));
     assert!(frame.paint_plan.contains_text("Tags"));
-    assert!(frame.paint_plan.contains_text("Curat"));
+    assert!(frame.paint_plan.contains_text("Curate"));
     assert!(frame.paint_plan.contains_text("Harvest"));
     assert!(frame.paint_plan.contains_text("Type"));
-    assert!(frame.paint_plan.contains_text("Ratin"));
+    assert!(frame.paint_plan.contains_text("Rating"));
     assert!(
-        !frame.paint_plan.contains_text("Curate")
+        !frame.paint_plan.contains_text("Curat")
             && !frame.paint_plan.contains_text("Harve")
-            && !frame.paint_plan.contains_text("Rating")
+            && !frame.paint_plan.contains_text("Ratin")
     );
     assert_eq!(
         inputs
@@ -60,14 +60,14 @@ fn filter_section_projects_tag_text_input_with_row_labels() {
 }
 
 #[test]
-fn filter_section_filter_name_labels_are_compact_and_same_size() {
+fn filter_section_filter_name_labels_are_readable_and_fit_label_cells() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel::from_folder_browser(&state, false);
     let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
         240.0,
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
-    let labels = ["Name", "Tags", "Curat", "Harvest", "Type", "Ratin"];
+    let labels = ["Name", "Tags", "Curate", "Harvest", "Type", "Rating"];
     let label_runs = labels
         .iter()
         .map(|label| {
@@ -77,28 +77,27 @@ fn filter_section_filter_name_labels_are_compact_and_same_size() {
                 .unwrap_or_else(|| panic!("missing filter label {label}"))
         })
         .collect::<Vec<_>>();
-    let harvest_label_rect = frame
-        .paint_plan
-        .first_widget_rect(automation_filter_family_label_toggle_id("Harvest"))
-        .expect("Harvest label should have a toggle rect");
-    let harvest_text_rect = label_runs
-        .iter()
-        .find(|run| run.text.as_str() == "Harvest")
-        .expect("Harvest text should be projected")
-        .rect;
 
-    assert!(label_runs.iter().all(|run| run.text.len() <= 7));
     assert!(
         label_runs
             .iter()
             .all(|run| run.font_size == label_runs[0].font_size)
     );
-    assert_eq!(harvest_label_rect.width(), FILTER_LABEL_WIDTH);
-    assert!(
-        harvest_text_rect.min.x >= harvest_label_rect.min.x
-            && harvest_text_rect.max.x <= harvest_label_rect.max.x,
-        "Harvest label text should fit inside the filter label cell, label={harvest_label_rect:?}, text={harvest_text_rect:?}"
-    );
+    for run in label_runs {
+        let label_rect = frame
+            .paint_plan
+            .first_widget_rect(automation_filter_family_label_toggle_id(&run.text))
+            .unwrap_or_else(|| panic!("missing {} label hit target", run.text));
+
+        assert_eq!(label_rect.width(), FILTER_LABEL_WIDTH);
+        assert!(
+            run.rect.min.x >= label_rect.min.x && run.rect.max.x <= label_rect.max.x,
+            "{} label text should fit inside the filter label cell, label={:?}, text={:?}",
+            run.text,
+            label_rect,
+            run.rect
+        );
+    }
 }
 
 #[test]
@@ -110,10 +109,10 @@ fn filter_section_rows_share_uniform_height_contract() {
     let rows = [
         ("Name", NAME_FILTER_INPUT_ID),
         ("Tags", TAG_FILTER_INPUT_ID),
-        ("Curat", CURATION_FILTER_DROPDOWN_TRIGGER_ID),
+        ("Curate", CURATION_FILTER_DROPDOWN_TRIGGER_ID),
         ("Harvest", HARVEST_FILTER_DROPDOWN_TRIGGER_ID),
         ("Type", automation_playback_type_filter_toggle_id("1-Shot")),
-        ("Ratin", automation_rating_filter_toggle_id("T3")),
+        ("Rating", automation_rating_filter_toggle_id("T3")),
     ];
     let mut previous_row_top = None;
 
@@ -171,7 +170,7 @@ fn filter_section_filter_labels_dispatch_family_enable_changes() {
     );
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
-            automation_filter_family_label_toggle_id("Ratin"),
+            automation_filter_family_label_toggle_id("Rating"),
             ui::WidgetOutput::typed(SelectableMessage::SelectionChanged { selected: false }),
         ),
         Some(GuiMessage::FolderBrowser(
