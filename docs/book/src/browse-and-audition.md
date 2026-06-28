@@ -31,6 +31,7 @@ Use the browser tools together:
 - Playback-age filters surface never-played or stale sounds.
 - Collections are temporary working buckets for the current session.
 - Similarity search can focus the list around sounds related to the current sample.
+- Starmap shows the same scoped results as a spatial similarity view when map data is available.
 
 ## DAW Companion Loop
 

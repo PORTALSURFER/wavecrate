@@ -38,6 +38,14 @@ The sample browser combines rows, ratings, collections, search, tags, and playba
 
 Rows stay tied to the current source and folder scope. Ratings, file type, size, last-played information, and disk paths help you make decisions without opening a file manager.
 
+## Starmap
+
+Starmap shows the current browser results as a spatial map, so similar samples can be scanned as clusters instead of only as rows.
+
+![Starmap view in the main window](assets/feature-starmap.png)
+
+Use it when you want to audition nearby sounds, compare groups of related samples, or move back to the list without losing the active source, folder, search, or filters.
+
 ## Metadata, Collections, and Tags
 
 Collections, filters, and tags support fast triage without requiring a permanent folder move for every idea.
