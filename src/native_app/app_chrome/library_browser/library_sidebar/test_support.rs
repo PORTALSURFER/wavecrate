@@ -38,7 +38,7 @@ pub(in crate::native_app) fn library_sidebar_view(
     library_sidebar_content(LibrarySidebarViewModel {
         sidebar_width,
         metadata_panel_height: state.metadata_panel_height(),
-        source_selector: SourceSelectorViewModel::from_folder_browser(state),
+        source_selector: SourceSelectorViewModel::from_folder_browser(state, false),
         folder_tree: FolderTreeViewModel {
             visible_folders,
             window: tree_window,

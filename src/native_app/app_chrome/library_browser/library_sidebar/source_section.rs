@@ -12,10 +12,13 @@ use rows::{source_add_button, source_missing_color, source_row};
 
 pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMessage> {
     ui::column([
-        ui::row([source_section_title(model), source_add_button()])
-            .spacing(3.0)
-            .fill_width()
-            .height(24.0),
+        ui::row([
+            source_section_title(model),
+            source_add_button(model.help_tooltips_enabled),
+        ])
+        .spacing(3.0)
+        .fill_width()
+        .height(24.0),
         ui::column(model.rows.iter().map(source_row).collect::<Vec<_>>())
             .spacing(2.0)
             .fill_width(),

@@ -31,6 +31,7 @@ pub(in crate::native_app) struct LibrarySidebarViewModel {
 pub(in crate::native_app) struct SourceSelectorViewModel {
     pub(in crate::native_app) rows: Vec<SourceRowViewModel>,
     pub(in crate::native_app) missing_count: usize,
+    pub(in crate::native_app) help_tooltips_enabled: bool,
 }
 
 pub(in crate::native_app) struct SourceRowViewModel {
@@ -168,7 +169,10 @@ impl LibrarySidebarViewModel {
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
-            source_selector: SourceSelectorViewModel::from_folder_browser(folder_browser),
+            source_selector: SourceSelectorViewModel::from_folder_browser(
+                folder_browser,
+                state.ui.chrome.help_tooltips_enabled,
+            ),
             folder_tree: FolderTreeViewModel::from_folder_browser(
                 folder_browser,
                 state.ui.chrome.help_tooltips_enabled,
@@ -182,7 +186,10 @@ impl LibrarySidebarViewModel {
 }
 
 impl SourceSelectorViewModel {
-    pub(in crate::native_app) fn from_folder_browser(folder_browser: &FolderBrowserState) -> Self {
+    pub(in crate::native_app) fn from_folder_browser(
+        folder_browser: &FolderBrowserState,
+        help_tooltips_enabled: bool,
+    ) -> Self {
         let selected_source_id = folder_browser.selected_source_id();
         let rows: Vec<_> = folder_browser
             .sources()
@@ -194,6 +201,7 @@ impl SourceSelectorViewModel {
         Self {
             rows,
             missing_count,
+            help_tooltips_enabled,
         }
     }
 }

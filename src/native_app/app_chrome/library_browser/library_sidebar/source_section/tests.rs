@@ -1,8 +1,9 @@
 use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT,
-    SOURCE_ROW_LABEL_PADDING_X, source_add_button, source_missing_color_for_tests,
-    source_role_icon_color_for_tests, source_row, source_row_outline_for_tests,
+    SOURCE_ROW_LABEL_PADDING_X, source_add_button, source_add_button_tooltip_for_tests,
+    source_missing_color_for_tests, source_role_icon_color_for_tests, source_row,
+    source_row_outline_for_tests,
 };
 use super::source_selector;
 use crate::native_app::app::GuiMessage;
@@ -38,7 +39,7 @@ macro_rules! assert_no_left_source_marker {
 #[test]
 fn source_add_button_routes_add_source_message() {
     assert_eq!(
-        source_add_button().view_dispatch_widget_output(
+        source_add_button(false).view_dispatch_widget_output(
             AUTOMATION_SOURCE_ADD_BUTTON_ID,
             ui::WidgetOutput::typed(ButtonMessage::Activate),
         ),
@@ -48,7 +49,7 @@ fn source_add_button_routes_add_source_message() {
 
 #[test]
 fn source_add_button_uses_regular_icon_button_chrome() {
-    let frame = source_add_button().view_frame_at_size_with_default_theme(ui::Vector2::new(
+    let frame = source_add_button(false).view_frame_at_size_with_default_theme(ui::Vector2::new(
         SOURCE_ADD_BUTTON_WIDTH,
         SOURCE_ADD_BUTTON_HEIGHT,
     ));
@@ -66,10 +67,43 @@ fn source_add_button_uses_regular_icon_button_chrome() {
 }
 
 #[test]
+fn source_add_button_exposes_tooltip_when_help_tooltips_are_enabled() {
+    let surface = source_add_button(true).into_surface();
+    let tooltip = surface
+        .find_widget(AUTOMATION_SOURCE_ADD_BUTTON_ID)
+        .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+    assert_eq!(tooltip, Some(source_add_button_tooltip_for_tests()));
+}
+
+#[test]
+fn source_add_button_omits_tooltip_when_help_tooltips_are_disabled() {
+    let surface = source_add_button(false).into_surface();
+    let tooltip = surface
+        .find_widget(AUTOMATION_SOURCE_ADD_BUTTON_ID)
+        .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+    assert_eq!(tooltip, None);
+}
+
+#[test]
+fn source_selector_threads_help_tooltips_to_add_button() {
+    let source = test_source("source-with-tooltip");
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state, true);
+    let surface = source_selector(&model).into_surface();
+    let tooltip = surface
+        .find_widget(AUTOMATION_SOURCE_ADD_BUTTON_ID)
+        .and_then(|widget| widget.widget_object().common().tooltip.as_deref());
+
+    assert_eq!(tooltip, Some(source_add_button_tooltip_for_tests()));
+}
+
+#[test]
 fn source_row_routes_primary_activation_through_interactive_row() {
     let source = test_source("source-a");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
 
     assert_eq!(
@@ -88,7 +122,7 @@ fn source_row_routes_secondary_activation_to_context_menu() {
     let source = test_source("source-b");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let position = ui::Point::new(12.0, 20.0);
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
 
     assert_eq!(
@@ -106,7 +140,7 @@ fn source_row_routes_secondary_activation_to_context_menu() {
 fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
     let source = test_source("source-active");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
@@ -133,7 +167,7 @@ fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
 fn source_rows_use_slim_outlined_item_chrome() {
     let source = test_source("source-bordered");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
@@ -167,7 +201,7 @@ fn inactive_source_row_does_not_paint_active_marker() {
         vec![source.clone(), selected.clone()],
         selected.id.clone(),
     );
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
@@ -185,7 +219,7 @@ fn inactive_source_row_does_not_paint_active_marker() {
 fn source_row_label_keeps_left_breathing_room() {
     let source = test_source("source-padded");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
@@ -213,7 +247,7 @@ fn missing_source_row_paints_missing_badge_without_left_marker() {
     let mut source = test_source("source-missing");
     source.mark_missing_for_tests();
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
@@ -240,7 +274,7 @@ fn primary_source_row_uses_role_icon_instead_of_text_badge() {
     let mut source = test_source("source-primary");
     source.role = SourceRole::Primary;
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
@@ -269,7 +303,7 @@ fn protected_source_row_uses_role_icon_instead_of_text_badge() {
     let mut source = test_source("source-protected");
     source.role = SourceRole::Protected;
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
@@ -297,7 +331,7 @@ fn protected_source_row_uses_role_icon_instead_of_text_badge() {
 fn normal_source_row_keeps_role_slot_neutral() {
     let source = test_source("source-normal");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
@@ -329,7 +363,7 @@ fn source_selector_header_reports_missing_sources() {
         vec![missing.clone(), present],
         missing.id.clone(),
     );
-    let model = SourceSelectorViewModel::from_folder_browser(&state);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let frame = source_selector(&model)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, 76.0));
 

@@ -21,12 +21,14 @@ const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
 const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
 const SOURCE_ROW_OUTLINE_WIDTH: f32 = 1.0;
 const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
+const SOURCE_ADD_BUTTON_TOOLTIP: &str = "Add source";
 
-pub(super) fn source_add_button() -> ui::View<GuiMessage> {
+pub(super) fn source_add_button(help_tooltips_enabled: bool) -> ui::View<GuiMessage> {
     ui::icon_button(source_add_icon())
         .message(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
         .id(AUTOMATION_SOURCE_ADD_BUTTON_ID)
         .size(SOURCE_ADD_BUTTON_WIDTH, SOURCE_ADD_BUTTON_HEIGHT)
+        .tooltip_if(help_tooltips_enabled, SOURCE_ADD_BUTTON_TOOLTIP)
 }
 
 fn source_add_icon() -> ui::SvgIcon {
@@ -134,6 +136,11 @@ pub(super) fn source_role_icon_color_for_tests() -> ui::Rgba8 {
 #[cfg(test)]
 pub(super) fn source_row_outline_for_tests() -> ui::DenseRowOutlineStyle {
     source_row_outline()
+}
+
+#[cfg(test)]
+pub(super) fn source_add_button_tooltip_for_tests() -> &'static str {
+    SOURCE_ADD_BUTTON_TOOLTIP
 }
 
 static SOURCE_ADD_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
