@@ -3,6 +3,8 @@ use radiant::prelude as ui;
 use crate::native_app::app::{AppSettingsTab, NativeAppState};
 
 pub(super) const VOLUME_SLIDER_TOOLTIP: &str = "Preview volume for sample audition playback.";
+pub(super) const NORMALIZED_AUDITION_TOOLTIP: &str =
+    "Normalize audition playback and extracted selections.";
 pub(super) const AUDIO_ENGINE_TOOLTIP: &str = "Audio engine status and output settings.";
 pub(super) const GENERAL_SETTINGS_TOOLTIP: &str = "Open Wavecrate settings.";
 pub(super) const HELP_TOOLTIPS_ACTIVE_TOOLTIP: &str =
@@ -12,6 +14,7 @@ pub(super) const RELEASE_UPDATE_TOOLTIP: &str = "New Wavecrate release available
 #[derive(Clone, Debug)]
 pub(super) struct TopControlBarProjection {
     pub(super) volume: VolumeSliderProjection,
+    pub(super) normalized_audition: NormalizedAuditionButtonProjection,
     pub(super) help_tooltips_enabled: bool,
     pub(super) settings_controls: SettingsControlsProjection,
 }
@@ -24,6 +27,10 @@ impl TopControlBarProjection {
             .then_some(settings_window.app_settings_tab);
         Self {
             volume: VolumeSliderProjection::new(state.audio.volume),
+            normalized_audition: NormalizedAuditionButtonProjection {
+                active: state.audio.normalized_audition_enabled,
+                tooltip: NORMALIZED_AUDITION_TOOLTIP,
+            },
             help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
             settings_controls: SettingsControlsProjection {
                 help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
@@ -64,6 +71,12 @@ impl VolumeSliderProjection {
             tooltip: VOLUME_SLIDER_TOOLTIP,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct NormalizedAuditionButtonProjection {
+    pub(super) active: bool,
+    pub(super) tooltip: &'static str,
 }
 
 #[derive(Clone, Debug)]

@@ -127,12 +127,29 @@ pub(in crate::native_app::waveform) fn gain_preview_for_selection(
     selection: Option<wavecrate::selection::SelectionRange>,
 ) -> Option<GpuSignalGainPreview> {
     let selection = selection.filter(|selection| selection.has_edit_effects())?;
+    Some(gain_preview(selection, selection.gain()))
+}
+
+pub(in crate::native_app::waveform) fn gain_preview_for_range_with_gain(
+    selection: wavecrate::selection::SelectionRange,
+    gain: f32,
+) -> Option<GpuSignalGainPreview> {
+    if !gain.is_finite() || gain <= 0.0 || (gain - 1.0).abs() <= f32::EPSILON {
+        return None;
+    }
+    Some(gain_preview(selection, gain))
+}
+
+fn gain_preview(
+    selection: wavecrate::selection::SelectionRange,
+    gain: f32,
+) -> GpuSignalGainPreview {
     let fade_in = selection.fade_in();
     let fade_out = selection.fade_out();
-    Some(GpuSignalGainPreview {
+    GpuSignalGainPreview {
         start: selection.start(),
         end: selection.end(),
-        gain: selection.gain(),
+        gain,
         fade_in_length: fade_in.map(|fade| fade.length).unwrap_or(0.0),
         fade_in_curve: fade_in.map(|fade| fade.curve).unwrap_or(0.5),
         fade_in_mute: fade_in.map(|fade| fade.mute).unwrap_or(0.0),
@@ -141,7 +158,7 @@ pub(in crate::native_app::waveform) fn gain_preview_for_selection(
         fade_out_curve: fade_out.map(|fade| fade.curve).unwrap_or(0.5),
         fade_out_mute: fade_out.map(|fade| fade.mute).unwrap_or(0.0),
         fade_out_outer_gain: fade_out.map(|fade| fade.outer_gain).unwrap_or(1.0),
-    })
+    }
 }
 
 pub(in crate::native_app::waveform) fn content_revision_for_audio_bytes(bytes: &[u8]) -> u64 {

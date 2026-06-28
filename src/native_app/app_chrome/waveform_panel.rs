@@ -39,6 +39,7 @@ fn waveform_viewport_with_loading_state(
         tooltip,
         model.beat_guides_enabled,
         model.beat_guide_count,
+        model.normalized_audition_enabled,
     )
     .fill_width()
     .height(WAVEFORM_VIEW_HEIGHT);

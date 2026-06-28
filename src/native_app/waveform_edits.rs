@@ -301,7 +301,8 @@ impl NativeAppState {
         let request = self
             .waveform
             .current
-            .selection_extraction_request(None, selection)?;
+            .selection_extraction_request(None, selection)?
+            .with_gain(self.normalized_audition_gain_for_span(selection.start(), selection.end()));
         let request = self.route_harvest_destination_extraction_request(request)?;
         self.validate_waveform_extraction_target(&request)?;
         let playback_type = ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
@@ -464,7 +465,11 @@ impl NativeAppState {
                 Some(
                     self.waveform
                         .current
-                        .selection_extraction_request(None, request.selection)?,
+                        .selection_extraction_request(None, request.selection)?
+                        .with_gain(self.normalized_audition_gain_for_span(
+                            request.selection.start(),
+                            request.selection.end(),
+                        )),
                 )
             } else {
                 None

@@ -107,6 +107,11 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     ),
     registered_widget_id!(
         AudioSettings,
+        NORMALIZED_AUDITION_BUTTON_ID,
+        "audio_settings.normalized_audition_button"
+    ),
+    registered_widget_id!(
+        AudioSettings,
         HELP_TOOLTIPS_BUTTON_ID,
         "audio_settings.help_tooltips_button"
     ),

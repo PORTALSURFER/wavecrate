@@ -26,9 +26,17 @@ pub(in crate::native_app) fn extract_wav_range_to_folder(
     bytes: &[u8],
     loaded_frames: usize,
     selection: wavecrate::selection::SelectionRange,
+    gain: f32,
 ) -> Result<PathBuf, String> {
     let cursor = Cursor::new(bytes);
-    extract_wav_reader_range_to_folder(source_path, target_folder, cursor, loaded_frames, selection)
+    extract_wav_reader_range_to_folder(
+        source_path,
+        target_folder,
+        cursor,
+        loaded_frames,
+        selection,
+        gain,
+    )
 }
 
 pub(in crate::native_app) fn extract_wav_file_range_to_folder(
@@ -36,10 +44,18 @@ pub(in crate::native_app) fn extract_wav_file_range_to_folder(
     target_folder: &Path,
     loaded_frames: usize,
     selection: wavecrate::selection::SelectionRange,
+    gain: f32,
 ) -> Result<PathBuf, String> {
     let file = File::open(source_path)
         .map_err(|err| format!("failed to open source WAV {}: {err}", source_path.display()))?;
-    extract_wav_reader_range_to_folder(source_path, target_folder, file, loaded_frames, selection)
+    extract_wav_reader_range_to_folder(
+        source_path,
+        target_folder,
+        file,
+        loaded_frames,
+        selection,
+        gain,
+    )
 }
 
 pub(in crate::native_app) fn extract_interleaved_f32_range_to_folder(
@@ -50,6 +66,7 @@ pub(in crate::native_app) fn extract_interleaved_f32_range_to_folder(
     channels: usize,
     loaded_frames: usize,
     selection: wavecrate::selection::SelectionRange,
+    gain: f32,
 ) -> Result<PathBuf, String> {
     let spec = playback_wav_spec(sample_rate, channels)?;
     let total_frames = usable_interleaved_frame_count(samples.len(), channels, loaded_frames)?;
@@ -71,6 +88,7 @@ pub(in crate::native_app) fn extract_interleaved_f32_range_to_folder(
         frame_range
             .end_frame
             .saturating_sub(frame_range.start_frame),
+        gain,
     )?;
     writer
         .finalize()
@@ -84,12 +102,13 @@ fn write_f32_samples_with_edge_fade(
     channels: usize,
     sample_rate: u32,
     frame_count: usize,
+    gain: f32,
 ) -> Result<(), String> {
     let fade_frames =
         short_edge_fade_frame_count(sample_rate, frame_count, DEFAULT_SHORT_EDGE_FADE);
     for (sample_index, sample) in samples.iter().enumerate() {
         let frame = sample_index / channels.max(1);
-        let gain = short_edge_fade_gain(frame, frame_count, fade_frames);
+        let gain = gain * short_edge_fade_gain(frame, frame_count, fade_frames);
         writer
             .write_sample((sample * gain).clamp(-1.0, 1.0))
             .map_err(|err| format!("failed to write extraction: {err}"))?;
@@ -102,6 +121,7 @@ pub(in crate::native_app) fn extract_interleaved_f32_file_range_to_folder(
     target_folder: &Path,
     cache: InterleavedF32FileExtractionSource<'_>,
     selection: wavecrate::selection::SelectionRange,
+    gain: f32,
 ) -> Result<PathBuf, String> {
     let spec = playback_wav_spec(cache.sample_rate, cache.channels)?;
     let total_frames = usable_interleaved_frame_count_u64(
@@ -134,7 +154,7 @@ pub(in crate::native_app) fn extract_interleaved_f32_file_range_to_folder(
             .read_exact(&mut bytes)
             .map_err(|err| format!("failed to read playback cache: {err}"))?;
         let frame = sample_index / cache.channels.max(1);
-        let gain = short_edge_fade_gain(frame, frame_count, fade_frames);
+        let gain = gain * short_edge_fade_gain(frame, frame_count, fade_frames);
         writer
             .write_sample((f32::from_le_bytes(bytes) * gain).clamp(-1.0, 1.0))
             .map_err(|err| format!("failed to write extraction: {err}"))?;
@@ -151,15 +171,18 @@ pub(super) fn extract_wav_reader_range_to_folder<R: Read + Seek>(
     mut reader: R,
     loaded_frames: usize,
     selection: wavecrate::selection::SelectionRange,
+    gain: f32,
 ) -> Result<PathBuf, String> {
     let output_path = next_extraction_path(source_path, target_folder)?;
-    if raw_wav::copy_selection_to_file(
-        &mut reader,
-        loaded_frames,
-        selection,
-        &output_path,
-        DEFAULT_SHORT_EDGE_FADE,
-    )? {
+    if (gain - 1.0).abs() <= f32::EPSILON
+        && raw_wav::copy_selection_to_file(
+            &mut reader,
+            loaded_frames,
+            selection,
+            &output_path,
+            DEFAULT_SHORT_EDGE_FADE,
+        )?
+    {
         return Ok(output_path);
     }
     reader
@@ -181,6 +204,7 @@ pub(super) fn extract_wav_reader_range_to_folder<R: Read + Seek>(
         frame_range.start_frame,
         frame_range.end_frame,
         &output_path,
+        gain,
     )?;
     Ok(output_path)
 }
@@ -291,6 +315,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
     start_frame: usize,
     end_frame: usize,
     output_path: &Path,
+    gain: f32,
 ) -> Result<(), String> {
     let sample_count = end_frame
         .saturating_sub(start_frame)
@@ -309,6 +334,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
             sample_count,
             channels,
             spec.sample_rate,
+            gain,
         )?,
         hound::SampleFormat::Int if spec.bits_per_sample <= 16 => write_samples::<_, i16>(
             &mut reader,
@@ -316,6 +342,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
             sample_count,
             channels,
             spec.sample_rate,
+            gain,
         )?,
         hound::SampleFormat::Int => write_samples::<_, i32>(
             &mut reader,
@@ -323,6 +350,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
             sample_count,
             channels,
             spec.sample_rate,
+            gain,
         )?,
     }
     writer
@@ -337,6 +365,7 @@ fn write_samples<R, S>(
     sample_count: usize,
     channels: usize,
     sample_rate: u32,
+    gain: f32,
 ) -> Result<(), String>
 where
     R: std::io::Read,
@@ -347,7 +376,7 @@ where
         short_edge_fade_frame_count(sample_rate, frame_count, DEFAULT_SHORT_EDGE_FADE);
     for (sample_index, sample) in reader.samples::<S>().take(sample_count).enumerate() {
         let frame = sample_index / channels.max(1);
-        let gain = short_edge_fade_gain(frame, frame_count, fade_frames);
+        let gain = gain * short_edge_fade_gain(frame, frame_count, fade_frames);
         writer
             .write_sample(
                 sample

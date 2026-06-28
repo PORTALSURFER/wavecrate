@@ -205,6 +205,10 @@ impl NativeAppState {
             source,
             mode,
             volume: self.audio.volume,
+            playback_gain: self.normalized_audition_gain_for_span(
+                command.resolved.start_ratio,
+                command.resolved.end_ratio,
+            ),
             edit_fade: edit_fade_range_from_selection(waveform.edit_selection()),
             metronome: self.playback_metronome_config_for_span(
                 command.resolved.start_ratio,

@@ -30,6 +30,7 @@ pub(in crate::native_app) struct WaveformExtractionRequest {
     channels: usize,
     loaded_frames: usize,
     selection: SelectionRange,
+    gain: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -61,6 +62,11 @@ impl WaveformExtractionRequest {
         self
     }
 
+    pub(in crate::native_app) fn with_gain(mut self, gain: f32) -> Self {
+        self.gain = normalize_extraction_gain(gain);
+        self
+    }
+
     pub(in crate::native_app) fn target_folder(&self) -> Result<&Path, String> {
         self.target_folder
             .as_deref()
@@ -80,6 +86,7 @@ impl WaveformExtractionRequest {
             self.channels,
             self.loaded_frames,
             self.selection,
+            self.gain,
         )
     }
 }
@@ -93,6 +100,7 @@ impl WaveformExtractionSource {
         channels: usize,
         loaded_frames: usize,
         selection: SelectionRange,
+        gain: f32,
     ) -> Result<PathBuf, String> {
         match self {
             Self::WavBytes(audio_bytes) => extract_wav_range_to_folder(
@@ -101,12 +109,14 @@ impl WaveformExtractionSource {
                 audio_bytes,
                 loaded_frames,
                 selection,
+                gain,
             ),
             Self::WavFile { fallback } => match extract_wav_file_range_to_folder(
                 source_path,
                 target_folder,
                 loaded_frames,
                 selection,
+                gain,
             ) {
                 Ok(path) => Ok(path),
                 Err(error) => match fallback {
@@ -118,6 +128,7 @@ impl WaveformExtractionSource {
                             channels,
                             loaded_frames,
                             selection,
+                            gain,
                         )
                         .map_err(|fallback_error| {
                             format!("{error}; loaded playback fallback failed: {fallback_error}")
@@ -132,6 +143,7 @@ impl WaveformExtractionSource {
                 channels,
                 loaded_frames,
                 selection,
+                gain,
             ),
         }
     }
@@ -146,6 +158,7 @@ impl LoadedPlaybackExtractionSource {
         channels: usize,
         loaded_frames: usize,
         selection: SelectionRange,
+        gain: f32,
     ) -> Result<PathBuf, String> {
         match self {
             Self::InterleavedF32Samples(samples) => extract_interleaved_f32_range_to_folder(
@@ -156,6 +169,7 @@ impl LoadedPlaybackExtractionSource {
                 channels,
                 loaded_frames,
                 selection,
+                gain,
             ),
             Self::InterleavedF32File(cache_file) => extract_interleaved_f32_file_range_to_folder(
                 source_path,
@@ -168,6 +182,7 @@ impl LoadedPlaybackExtractionSource {
                     loaded_frames,
                 },
                 selection,
+                gain,
             ),
         }
     }
@@ -222,6 +237,7 @@ impl WaveformState {
             channels: self.file.channels,
             loaded_frames: self.file.frames,
             selection,
+            gain: 1.0,
         })
     }
 
@@ -333,5 +349,13 @@ pub(in crate::native_app) fn execute_waveform_extraction(
         source_path: request.source_path,
         selection: request.selection,
         result,
+    }
+}
+
+fn normalize_extraction_gain(gain: f32) -> f32 {
+    if gain.is_finite() && gain > 0.0 {
+        gain
+    } else {
+        1.0
     }
 }

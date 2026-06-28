@@ -71,6 +71,7 @@ pub(in crate::native_app) const AUTOMATION_SAMPLE_SIMILARITY_ASPECT_WEIGHT_SCOPE
     SAMPLE_BROWSER_HEADER.id(21);
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = AUDIO_SETTINGS.id(0);
+pub(in crate::native_app) const NORMALIZED_AUDITION_BUTTON_ID: u64 = AUDIO_SETTINGS.id(1);
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = AUDIO_SETTINGS.id(90);
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = AUDIO_SETTINGS.id(100);
 pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = AUDIO_SETTINGS.id(110);

@@ -10,6 +10,9 @@ impl NativeAppState {
     ) {
         match message {
             SettingsMessage::SetVolume(volume) => self.set_volume(volume),
+            SettingsMessage::SetNormalizedAuditionEnabled(enabled) => {
+                self.set_normalized_audition_enabled(enabled, context);
+            }
             SettingsMessage::ToggleHelpTooltips => self.toggle_help_tooltips(),
             SettingsMessage::ToggleAudioSettings => self.toggle_audio_settings(),
             SettingsMessage::OpenGeneralSettings => self.open_general_settings(),

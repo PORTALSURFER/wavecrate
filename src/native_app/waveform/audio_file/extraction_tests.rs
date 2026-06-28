@@ -58,7 +58,8 @@ fn late_wav_range_extraction_seeks_instead_of_reading_prefix() {
     let spec = reader.spec();
     read_bytes.set(0);
 
-    write_wav_frame_range(reader, spec, 1, 19_000, 19_100, &output).expect("extract late range");
+    write_wav_frame_range(reader, spec, 1, 19_000, 19_100, &output, 1.0)
+        .expect("extract late range");
 
     assert!(
         read_bytes.get() < 512,
@@ -85,7 +86,7 @@ fn plain_wav_range_extraction_applies_short_edge_fades() {
     let selection = SelectionRange::new_precise(5_000.0 / 20_000.0, 15_000.0 / 20_000.0);
 
     let output =
-        extract_wav_reader_range_to_folder(&source, root.path(), counted, 20_000, selection)
+        extract_wav_reader_range_to_folder(&source, root.path(), counted, 20_000, selection, 1.0)
             .expect("extract plain wav range");
 
     assert!(read_calls.get() > 0);
@@ -96,6 +97,33 @@ fn plain_wav_range_extraction_applies_short_edge_fades() {
     assert_eq!(extracted[88], 5_088);
     assert_eq!(extracted[5_000], 10_000);
     assert_eq!(extracted[9_999], 0);
+}
+
+#[test]
+fn wav_range_extraction_applies_forced_normalized_gain() {
+    let root = tempfile::tempdir().expect("temp root");
+    let source = root.path().join("source.wav");
+    write_i16_wav(&source, 256);
+    let bytes = std::fs::read(&source).expect("read source wav");
+    let selection = SelectionRange::new_precise(64.0 / 256.0, 96.0 / 256.0);
+    let preview_gain = wavecrate::audio::normalized_gain_from_peak(0.5);
+
+    let output = extract_wav_reader_range_to_folder(
+        &source,
+        root.path(),
+        Cursor::new(bytes),
+        256,
+        selection,
+        preview_gain,
+    )
+    .expect("extract normalized wav range");
+
+    let extracted = read_i16_wav(&output);
+    assert_eq!(extracted.len(), 32);
+    assert!((preview_gain - 2.0).abs() < f32::EPSILON);
+    assert_eq!(extracted[0], 0);
+    assert_eq!(extracted[16], 160);
+    assert_eq!(extracted[31], 0);
 }
 
 #[test]
@@ -110,8 +138,9 @@ fn wav_range_extraction_handles_metadata_chunk_before_data() {
         CountingCursor::with_counters(bytes, Rc::clone(&read_bytes), Rc::clone(&read_calls));
     let selection = SelectionRange::new_precise(64.0 / 256.0, 96.0 / 256.0);
 
-    let output = extract_wav_reader_range_to_folder(&source, root.path(), counted, 256, selection)
-        .expect("extract wav range with metadata chunk");
+    let output =
+        extract_wav_reader_range_to_folder(&source, root.path(), counted, 256, selection, 1.0)
+            .expect("extract wav range with metadata chunk");
 
     assert!(read_calls.get() > 0);
     let extracted = read_i16_wav(&output);

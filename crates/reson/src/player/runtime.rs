@@ -157,6 +157,7 @@ pub struct PlaybackRuntimeSpanUpdate {
     pub offset: f64,
     pub seek_to_offset: bool,
     pub looped: bool,
+    pub playback_gain: f32,
     pub metronome: Option<PlaybackMetronomeConfig>,
 }
 
@@ -166,6 +167,7 @@ pub struct PlaybackRuntimeRequest {
     pub source: PlaybackRuntimeSource,
     pub mode: PlaybackRuntimeMode,
     pub volume: f32,
+    pub playback_gain: f32,
     pub edit_fade: Option<EditFadeRange>,
     pub metronome: Option<PlaybackMetronomeConfig>,
 }
@@ -272,6 +274,13 @@ impl PlaybackRuntimeHandle {
             .map_err(map_try_send_error)
     }
 
+    /// Submit a non-blocking playback-gain update for current and future playback.
+    pub fn try_set_playback_gain(&self, gain: f32) -> Result<(), PlaybackRuntimeSubmitError> {
+        self.commands
+            .try_send(PlaybackRuntimeCommand::SetPlaybackGain { gain })
+            .map_err(map_try_send_error)
+    }
+
     /// Submit an in-place span-retarget request without blocking the caller.
     pub fn try_retarget_span(
         &self,
@@ -330,6 +339,9 @@ enum PlaybackRuntimeCommand {
     SetVolume {
         volume: f32,
     },
+    SetPlaybackGain {
+        gain: f32,
+    },
     Shutdown,
 }
 
@@ -341,6 +353,7 @@ trait PlaybackRuntimeExecutor: Send + 'static {
     fn stop(&mut self) -> Result<(), String>;
     fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String>;
     fn set_volume(&mut self, volume: f32);
+    fn set_playback_gain(&mut self, gain: f32);
     fn progress(&mut self) -> PlaybackRuntimeProgress;
 }
 
@@ -359,6 +372,7 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRuntimeStartedData, String> {
         self.player.set_volume(request.volume);
+        self.player.set_playback_gain(request.playback_gain);
         let output = self.player.output_details().clone();
         request.source.apply_to_player(&mut self.player);
         self.player.set_edit_fade_state(request.edit_fade);
@@ -377,6 +391,7 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
     }
 
     fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String> {
+        self.player.set_playback_gain(update.playback_gain);
         if update.looped {
             self.player.retarget_looped_range_with_metronome(
                 update.start,
@@ -402,6 +417,10 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
 
     fn set_volume(&mut self, volume: f32) {
         self.player.set_volume(volume);
+    }
+
+    fn set_playback_gain(&mut self, gain: f32) {
+        self.player.set_playback_gain(gain);
     }
 
     fn progress(&mut self) -> PlaybackRuntimeProgress {
@@ -480,6 +499,9 @@ fn run_playback_runtime(
             CoalescedCommand::SetVolume { volume } => {
                 executor.set_volume(volume);
             }
+            CoalescedCommand::SetPlaybackGain { gain } => {
+                executor.set_playback_gain(gain);
+            }
             CoalescedCommand::Shutdown => return,
         }
     }
@@ -509,6 +531,9 @@ enum CoalescedCommand {
     },
     SetVolume {
         volume: f32,
+    },
+    SetPlaybackGain {
+        gain: f32,
     },
     Shutdown,
 }
@@ -552,6 +577,9 @@ fn coalesce_pending_command(
         current @ PlaybackRuntimeCommand::SetVolume { .. } => {
             coalesce_repeated_volume_command(current, pending)
         }
+        current @ PlaybackRuntimeCommand::SetPlaybackGain { .. } => {
+            coalesce_repeated_playback_gain_command(current, pending)
+        }
         PlaybackRuntimeCommand::Shutdown => {
             cancel_pending_commands(pending, PlaybackRuntimeCancellation::Shutdown, events);
             PlaybackRuntimeCommand::Shutdown
@@ -590,6 +618,7 @@ fn coalesce_play_command(
             }
             Some(PlaybackRuntimeCommand::RetargetSpan { .. })
             | Some(PlaybackRuntimeCommand::SetVolume { .. })
+            | Some(PlaybackRuntimeCommand::SetPlaybackGain { .. })
             | None => return current,
         }
     }
@@ -617,6 +646,7 @@ fn coalesce_span_retarget_command(
                 let _ = pending.pop_front();
             }
             Some(PlaybackRuntimeCommand::SetVolume { .. }) | None => return current,
+            Some(PlaybackRuntimeCommand::SetPlaybackGain { .. }) => return current,
         }
     }
 }
@@ -647,6 +677,19 @@ fn coalesce_repeated_volume_command(
     current
 }
 
+fn coalesce_repeated_playback_gain_command(
+    mut current: PlaybackRuntimeCommand,
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+) -> PlaybackRuntimeCommand {
+    while matches!(
+        pending.front(),
+        Some(PlaybackRuntimeCommand::SetPlaybackGain { .. })
+    ) {
+        current = pending.pop_front().expect("pending playback gain command");
+    }
+    current
+}
+
 fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
     match command {
         PlaybackRuntimeCommand::Play { id, request } => CoalescedCommand::Play { id, request },
@@ -656,6 +699,9 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
         }
         PlaybackRuntimeCommand::PollProgress { id } => CoalescedCommand::PollProgress { id },
         PlaybackRuntimeCommand::SetVolume { volume } => CoalescedCommand::SetVolume { volume },
+        PlaybackRuntimeCommand::SetPlaybackGain { gain } => {
+            CoalescedCommand::SetPlaybackGain { gain }
+        }
         PlaybackRuntimeCommand::Shutdown => CoalescedCommand::Shutdown,
     }
 }
@@ -761,6 +807,8 @@ mod tests {
         }
 
         fn set_volume(&mut self, _volume: f32) {}
+
+        fn set_playback_gain(&mut self, _gain: f32) {}
 
         fn progress(&mut self) -> PlaybackRuntimeProgress {
             PlaybackRuntimeProgress {
@@ -973,6 +1021,7 @@ mod tests {
             },
             mode: PlaybackRuntimeMode::OneShot { start, end: 1.0 },
             volume: 1.0,
+            playback_gain: 1.0,
             edit_fade: None,
             metronome: None,
         }
@@ -999,6 +1048,7 @@ mod tests {
             offset: start,
             seek_to_offset: true,
             looped,
+            playback_gain: 1.0,
             metronome: None,
         }
     }

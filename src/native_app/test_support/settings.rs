@@ -10,6 +10,8 @@ pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 =
     chrome_settings::GENERAL_SETTINGS_BUTTON_ID;
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 =
     chrome_settings::HELP_TOOLTIPS_BUTTON_ID;
+pub(in crate::native_app) const NORMALIZED_AUDITION_BUTTON_ID: u64 =
+    chrome_settings::NORMALIZED_AUDITION_BUTTON_ID;
 pub(in crate::native_app) const RELEASE_UPDATE_BUTTON_ID: u64 =
     chrome_settings::RELEASE_UPDATE_BUTTON_ID;
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = chrome_settings::VOLUME_SLIDER_ID;
