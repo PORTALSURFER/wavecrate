@@ -168,6 +168,7 @@ fn playback_type_sort_groups_by_tags_before_name() {
 fn typed_file_column_kinds_map_to_sort_behavior() {
     let cases = [
         (FileColumnKind::Name, vec!["alpha", "bravo", "charlie"]),
+        (FileColumnKind::Curation, vec!["alpha", "bravo", "charlie"]),
         (FileColumnKind::Extension, vec!["bravo", "charlie", "alpha"]),
         (FileColumnKind::Size, vec!["bravo", "alpha", "charlie"]),
         (FileColumnKind::Modified, vec!["charlie", "bravo", "alpha"]),

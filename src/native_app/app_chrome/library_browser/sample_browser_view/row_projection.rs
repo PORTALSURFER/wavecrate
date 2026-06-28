@@ -38,6 +38,10 @@ pub(super) enum SampleColumnContent {
         badges: Vec<String>,
         muted: bool,
     },
+    Curation {
+        badges: Vec<String>,
+        muted: bool,
+    },
     Harvest {
         badges: Vec<String>,
         muted: bool,
@@ -141,11 +145,15 @@ fn sample_column_display<'a>(
         FileColumnKind::Name => row.rename.clone().map_or_else(
             || SampleColumnContent::Name {
                 text: sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
-                badges: row.curation_badges.clone(),
+                badges: Vec::new(),
                 muted: row.harvest_completed,
             },
             SampleColumnContent::Rename,
         ),
+        FileColumnKind::Curation => SampleColumnContent::Curation {
+            badges: row.curation_badges.clone(),
+            muted: row.harvest_completed,
+        },
         FileColumnKind::Harvest => SampleColumnContent::Harvest {
             badges: row.harvest_badges.clone(),
             muted: row.harvest_completed,
@@ -218,6 +226,7 @@ fn sample_file_column_value(file: &FileEntry, kind: FileColumnKind) -> String {
             .join(","),
         FileColumnKind::Path => file.id.clone(),
         FileColumnKind::Name
+        | FileColumnKind::Curation
         | FileColumnKind::Harvest
         | FileColumnKind::Rating
         | FileColumnKind::PlaybackType

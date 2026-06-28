@@ -99,7 +99,7 @@ fn header_bar_projection_collects_controls_columns_and_drag_marker() {
         drag_feedback: Some(&drag_feedback),
         mode: SampleNameViewMode::MetadataLabel,
         random_navigation_enabled: true,
-        map_view_active: true,
+        map_view_active: false,
         similarity_mode_active: true,
         similarity_controls: &settings,
         help_tooltips_enabled: true,
@@ -108,7 +108,7 @@ fn header_bar_projection_collects_controls_columns_and_drag_marker() {
     assert_eq!(projection.sort.column_id, "name");
     assert_eq!(projection.drag_marker_x, Some(138.0));
     assert!(projection.random_navigation.active);
-    assert!(projection.map_view.active);
+    assert!(!projection.map_view.active);
     assert_eq!(projection.name_view_mode.label, "Label");
     assert!(projection.help_tooltips_enabled);
     assert_eq!(projection.columns.len(), 2);

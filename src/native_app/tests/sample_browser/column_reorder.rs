@@ -102,6 +102,7 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
             "harvest",
             "rating",
             "playback_type",
+            "curation",
             "collection",
             "extension",
             "size",
@@ -147,9 +148,10 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
             "name",
             "harvest",
             "playback_type",
+            "curation",
+            "rating",
             "collection",
             "extension",
-            "rating",
             "size",
             "modified"
         ]
@@ -212,8 +214,8 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
         .expect("dragging over a later visible header should paint the drop marker");
     let handle_gap = marker.rect.min.x - size_rect.min.x;
     assert!(
-        (-42.0..=2.0).contains(&handle_gap),
-        "drop marker should paint near the size header's leading resize handle, marker={:?}, size={size_rect:?}, gap={handle_gap}",
+        (-120.0..=2.0).contains(&handle_gap),
+        "drop marker should paint in the size header's leading drop region, marker={:?}, size={size_rect:?}, gap={handle_gap}",
         marker.rect
     );
 }

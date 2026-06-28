@@ -106,7 +106,7 @@ fn metadata_label_view_falls_back_to_file_stem_without_file_tags() {
 }
 
 #[test]
-fn name_column_carries_curation_badges() {
+fn name_column_keeps_curation_badges_out_of_label_cell() {
     let file = file_entry();
     let mut row = visible_row(&file);
     row.curation_badges = vec![String::from("new"), String::from("untagged")];
@@ -118,7 +118,23 @@ fn name_column_carries_curation_badges() {
         display.content,
         SampleColumnContent::Name { text, badges, muted: false }
             if text == "portal_SS_kick_003"
-                && badges == vec![String::from("new"), String::from("untagged")]
+                && badges.is_empty()
+    ));
+}
+
+#[test]
+fn curation_column_carries_curation_badges() {
+    let file = file_entry();
+    let mut row = visible_row(&file);
+    row.curation_badges = vec![String::from("new"), String::from("untagged")];
+    let column = FileColumn::for_tests("curation", "Curation", 112.0);
+
+    let display = column_display(&file, &row, &column, &HashMap::new());
+
+    assert!(matches!(
+        display.content,
+        SampleColumnContent::Curation { badges, muted: false }
+            if badges == vec![String::from("new"), String::from("untagged")]
     ));
 }
 
@@ -136,7 +152,7 @@ fn name_column_keeps_harvest_badges_out_of_label_cell() {
         display.content,
         SampleColumnContent::Name { text, badges, muted: false }
             if text == "portal_SS_kick_003"
-                && badges == vec![String::from("untagged")]
+                && badges.is_empty()
     ));
 }
 
