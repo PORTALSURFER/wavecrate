@@ -284,9 +284,12 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn current_settings_core(&self) -> AppSettingsCore {
+        let mut controls = self.ui.settings.persisted.controls.clone();
+        controls.normalized_audition_enabled = self.audio.normalized_audition_enabled;
         AppSettingsCore {
             audio_output: self.audio.output_config.clone(),
             volume: self.audio.volume,
+            controls,
             similarity: self.library.folder_browser.similarity_controls().clone(),
             collection_names: self.library.folder_browser.custom_collection_names(),
             folder_locks: self.library.folder_browser.locked_folder_paths(),

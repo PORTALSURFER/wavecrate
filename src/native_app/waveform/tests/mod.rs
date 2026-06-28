@@ -1,9 +1,11 @@
+use super::audio_file::gain_preview_for_selection;
 use super::{
     BAND_COUNT, LiveSelectionPreview, MIN_VISIBLE_FRAMES, WaveformActiveDragKind,
     WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle, WaveformInteraction,
     WaveformSelectionEdge, WaveformSelectionKind, WaveformState, WaveformViewport, WaveformWidget,
-    WaveformWidgetProps, downmix_to_mono, signal_edit_selection_for_state, split_frequency_bands,
-    waveform_file_from_mono_samples, waveform_signal_surface_view,
+    WaveformWidgetProps, downmix_to_mono, signal_edit_selection_for_state,
+    signal_gain_preview_for_state, split_frequency_bands, waveform_file_from_mono_samples,
+    waveform_signal_surface_view,
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -67,10 +69,14 @@ fn waveform_signal_surface_plan(
     edit_selection: Option<wavecrate::selection::SelectionRange>,
     sample_slide_frame_offset: Option<i64>,
 ) -> SurfacePaintPlan {
-    let view =
-        waveform_signal_surface_view(file, viewport, edit_selection, sample_slide_frame_offset)
-            .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
-            .size(200.0, 80.0);
+    let view = waveform_signal_surface_view(
+        file,
+        viewport,
+        gain_preview_for_selection(edit_selection),
+        sample_slide_frame_offset,
+    )
+    .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
+    .size(200.0, 80.0);
     let surface = view.into_surface();
     let bounds = Rect::from_size(200.0, 80.0);
     let layout = radiant::layout::layout_tree(&surface.layout_node(), bounds);

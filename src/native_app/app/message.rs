@@ -402,6 +402,7 @@ pub(in crate::native_app) enum MetadataMessage {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum SettingsMessage {
     SetVolume(f32),
+    SetNormalizedAuditionEnabled(bool),
     ToggleHelpTooltips,
     ToggleAudioSettings,
     OpenGeneralSettings,

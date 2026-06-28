@@ -1,6 +1,7 @@
 use super::projection::{
     AUDIO_ENGINE_TOOLTIP, GENERAL_SETTINGS_TOOLTIP, HELP_TOOLTIPS_ACTIVE_TOOLTIP,
-    RELEASE_UPDATE_TOOLTIP, TopControlBarProjection, VOLUME_SLIDER_TOOLTIP,
+    NORMALIZED_AUDITION_TOOLTIP, RELEASE_UPDATE_TOOLTIP, TopControlBarProjection,
+    VOLUME_SLIDER_TOOLTIP,
 };
 use super::{GENERAL_SETTINGS_BUTTON_ID, SETTINGS_GEAR_ICON_SVG, settings_gear_icon};
 use crate::native_app::test_support::state::{AppSettingsTab, NativeAppStateFixture};
@@ -13,11 +14,17 @@ use radiant::{
 fn top_control_bar_projection_keeps_product_copy_and_volume() {
     let mut state = NativeAppStateFixture::default().build();
     state.audio.volume = 0.42;
+    state.audio.normalized_audition_enabled = true;
 
     let projection = TopControlBarProjection::from_app_state(&state);
 
     assert_eq!(projection.volume.value, 0.42);
     assert_eq!(projection.volume.tooltip, VOLUME_SLIDER_TOOLTIP);
+    assert!(projection.normalized_audition.active);
+    assert_eq!(
+        projection.normalized_audition.tooltip,
+        NORMALIZED_AUDITION_TOOLTIP
+    );
     assert_eq!(
         projection.settings_controls.audio_engine.tooltip,
         AUDIO_ENGINE_TOOLTIP

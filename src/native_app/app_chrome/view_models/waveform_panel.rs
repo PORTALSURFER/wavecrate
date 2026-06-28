@@ -9,6 +9,7 @@ pub(in crate::native_app) struct WaveformPanelViewModel<'a> {
     pub(in crate::native_app) help_tooltips_enabled: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
+    pub(in crate::native_app) normalized_audition_enabled: bool,
 }
 
 impl<'a> WaveformPanelViewModel<'a> {
@@ -21,6 +22,7 @@ impl<'a> WaveformPanelViewModel<'a> {
             help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
             beat_guides_enabled: state.ui.chrome.beat_guides_enabled,
             beat_guide_count: state.ui.chrome.beat_guide_count,
+            normalized_audition_enabled: state.audio.normalized_audition_enabled,
         }
     }
 }

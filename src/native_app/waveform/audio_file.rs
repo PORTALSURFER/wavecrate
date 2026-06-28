@@ -36,8 +36,8 @@ pub(in crate::native_app) use construction::test_waveform_file_from_mono_samples
 #[cfg(test)]
 pub(super) use construction::waveform_file_from_mono_samples;
 pub(super) use construction::{
-    content_revision_for_audio_bytes, empty_waveform_file, gain_preview_for_selection,
-    waveform_file_from_mono_samples_with_progress_and_cancel,
+    content_revision_for_audio_bytes, empty_waveform_file, gain_preview_for_range_with_gain,
+    gain_preview_for_selection, waveform_file_from_mono_samples_with_progress_and_cancel,
 };
 #[cfg(test)]
 pub(super) use downmix::downmix_to_mono;

@@ -6,6 +6,8 @@
 
 use std::time::Duration;
 
+mod normalized;
+
 pub use reson::{
     AudioDeviceSummary, AudioHostSummary, AudioInputConfig, AudioInputError, AudioOutputConfig,
     AudioOutputError, AudioPlayer, AudioRecorder, EditFadeRange, FadeParams, InputMonitor,
@@ -18,6 +20,11 @@ pub use reson::{
     available_input_devices, available_input_hosts, decoder, input, open_output_stream, output,
     recording, resolve_input_stream_config, supported_input_sample_rates, supported_sample_rates,
     wav_sanitize,
+};
+
+pub use normalized::{
+    normalized_gain_for_interleaved_span, normalized_gain_from_peak,
+    peak_for_interleaved_f32_reader_span, peak_for_interleaved_span,
 };
 
 use crate::selection::SelectionRange;

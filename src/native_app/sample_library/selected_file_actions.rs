@@ -185,6 +185,9 @@ impl NativeAppState {
         {
             Ok(request) => {
                 let selection = request.selection();
+                let request = request.with_gain(
+                    self.normalized_audition_gain_for_span(selection.start(), selection.end()),
+                );
                 let request = match self.route_playmarked_extraction_request(request, target) {
                     Ok(request) => request,
                     Err(error) => {

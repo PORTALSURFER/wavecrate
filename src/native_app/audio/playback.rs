@@ -4,6 +4,7 @@ mod execution;
 mod intent;
 mod loop_control;
 mod metronome;
+mod normalized;
 mod policy;
 mod progress;
 mod random_audition;

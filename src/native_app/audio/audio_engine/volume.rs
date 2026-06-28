@@ -25,6 +25,51 @@ impl NativeAppState {
         self.audio.volume_persist_deadline = Some(started_at + VOLUME_PERSIST_DEBOUNCE);
     }
 
+    pub(in crate::native_app) fn set_normalized_audition_enabled(
+        &mut self,
+        enabled: bool,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.audio.normalized_audition_enabled == enabled
+            && self
+                .ui
+                .settings
+                .persisted
+                .controls
+                .normalized_audition_enabled
+                == enabled
+        {
+            return;
+        }
+        self.audio.normalized_audition_enabled = enabled;
+        self.ui
+            .settings
+            .persisted
+            .controls
+            .normalized_audition_enabled = enabled;
+        let gain = self.normalized_audition_gain_for_current_span();
+        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+            let _ = runtime.try_set_playback_gain(gain);
+        } else if let Some(player) = self.audio.player.as_mut() {
+            player.set_playback_gain(gain);
+        }
+        self.persist_top_bar_audio_settings(context);
+    }
+
+    fn persist_top_bar_audio_settings(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        self.audio.volume_persist_deadline = None;
+        self.audio.volume_persist_inflight = true;
+        let persisted = self.current_settings_core();
+        let sources = self.library.folder_browser.configured_sample_sources();
+        context
+            .business()
+            .blocking_io("gui-top-bar-audio-settings-persist")
+            .run(
+                move |_| persist_volume_settings(sources, persisted),
+                GuiMessage::VolumeSettingsPersisted,
+            );
+    }
+
     pub(in crate::native_app) fn flush_pending_volume_persist(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,

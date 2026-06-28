@@ -16,8 +16,10 @@ use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID}
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformEditFadeHandle,
     WaveformEditFadeOuterGainHandle, WaveformFile, WaveformInteraction, WaveformSelectionKind,
-    WaveformState, WaveformViewport, audio_file::gain_preview_for_selection,
-    edit_preview_for_selection, widget_geometry::WaveformSelectionHandleHover,
+    WaveformState, WaveformViewport,
+    audio_file::{gain_preview_for_range_with_gain, gain_preview_for_selection},
+    edit_preview_for_selection,
+    widget_geometry::WaveformSelectionHandleHover,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,6 +40,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     tooltip: Option<&'static str>,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
+    normalized_audition_enabled: bool,
 ) -> ui::View<GuiMessage> {
     let interaction = ui::custom_widget(
         WaveformWidget::new(WaveformWidgetProps::from_state(
@@ -63,7 +66,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         waveform_signal_surface_view(
             state.file(),
             state.viewport(),
-            signal_edit_selection_for_state(state),
+            signal_gain_preview_for_state(state, normalized_audition_enabled),
             state.pending_sample_slide_frame_offset,
         )
         .id(WAVEFORM_SIGNAL_WIDGET_ID)
@@ -101,7 +104,7 @@ fn active_edit_selection_drag_skips_signal_preview(
 pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
-    edit_selection: Option<wavecrate::selection::SelectionRange>,
+    gain_preview: Option<radiant::runtime::GpuSignalGainPreview>,
     sample_slide_frame_offset: Option<i64>,
 ) -> ui::View<GuiMessage> {
     ui::gpu_surface_with_capabilities(
@@ -112,7 +115,7 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
             band_count: super::BAND_COUNT,
             frame_range: viewport.frame_range(),
             summary: Arc::clone(&file.gpu_signal_summary),
-            gain_preview: gain_preview_for_selection(edit_selection),
+            gain_preview,
             sample_slide_frame_offset: sample_slide_frame_offset.unwrap_or(0),
         },
         GpuSurfaceCapabilities {
@@ -121,6 +124,18 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
             runtime_overlays: Default::default(),
         },
     )
+}
+
+pub(in crate::native_app::waveform) fn signal_gain_preview_for_state(
+    state: &WaveformState,
+    normalized_audition_enabled: bool,
+) -> Option<radiant::runtime::GpuSignalGainPreview> {
+    if normalized_audition_enabled {
+        let selection = state.normalized_audition_preview_selection();
+        let gain = state.normalized_audition_gain_for_span(selection.start(), selection.end());
+        return gain_preview_for_range_with_gain(selection, gain);
+    }
+    gain_preview_for_selection(signal_edit_selection_for_state(state))
 }
 
 #[derive(Clone, Debug)]

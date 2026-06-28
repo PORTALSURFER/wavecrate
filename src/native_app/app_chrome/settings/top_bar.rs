@@ -9,14 +9,20 @@ use crate::native_app::ui::ids as widget_ids;
 
 use self::projection::{
     AudioEnginePillProjection, GeneralSettingsButtonProjection, HelpTooltipsButtonProjection,
-    ReleaseUpdateButtonProjection, SettingsControlsProjection, TopControlBarProjection,
-    VolumeSliderProjection,
+    NormalizedAuditionButtonProjection, ReleaseUpdateButtonProjection, SettingsControlsProjection,
+    TopControlBarProjection, VolumeSliderProjection,
 };
 
 pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDER_ID;
+pub(in crate::native_app) const NORMALIZED_AUDITION_BUTTON_ID: u64 =
+    widget_ids::NORMALIZED_AUDITION_BUTTON_ID;
 const VOLUME_SLIDER_SIZE: ControlSize = ControlSize {
     width: 92.0,
     height: 14.0,
+};
+const NORMALIZED_AUDITION_BUTTON_SIZE: ControlSize = ControlSize {
+    width: 18.0,
+    height: 18.0,
 };
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = widget_ids::HELP_TOOLTIPS_BUTTON_ID;
 const HELP_TOOLTIPS_BUTTON_SIZE: ControlSize = ControlSize {
@@ -54,10 +60,16 @@ struct ControlSize {
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let projection = TopControlBarProjection::from_app_state(state);
     ui::toolbar_from_parts(
-        ui::ToolbarParts::new([volume_slider(projection.volume.value)
-            .tooltip_if(projection.help_tooltips_enabled, projection.volume.tooltip)])
+        ui::ToolbarParts::new([
+            volume_slider(projection.volume.value)
+                .tooltip_if(projection.help_tooltips_enabled, projection.volume.tooltip),
+            normalized_audition_button(projection.normalized_audition).tooltip_if(
+                projection.help_tooltips_enabled,
+                projection.normalized_audition.tooltip,
+            ),
+        ])
         .trailing(settings_controls(projection.settings_controls))
-        .spacing(8.0)
+        .spacing(6.0)
         .padding_x(12.0)
         .padding_y(4.0)
         .height(30.0),
@@ -140,8 +152,28 @@ fn volume_slider_from_projection(projection: VolumeSliderProjection) -> ui::View
         .size(VOLUME_SLIDER_SIZE.width, VOLUME_SLIDER_SIZE.height)
 }
 
+fn normalized_audition_button(
+    projection: NormalizedAuditionButtonProjection,
+) -> ui::View<GuiMessage> {
+    ui::icon_button(normalized_audition_icon(projection.active))
+        .bare()
+        .active(projection.active)
+        .message(GuiMessage::Settings(
+            SettingsMessage::SetNormalizedAuditionEnabled(!projection.active),
+        ))
+        .id(NORMALIZED_AUDITION_BUTTON_ID)
+        .size(
+            NORMALIZED_AUDITION_BUTTON_SIZE.width,
+            NORMALIZED_AUDITION_BUTTON_SIZE.height,
+        )
+}
+
 fn settings_gear_icon(active: bool) -> ui::SvgIcon {
     SETTINGS_GEAR_ICON.icon_for_state(SETTINGS_ICON_TINTS, true, active)
+}
+
+fn normalized_audition_icon(active: bool) -> ui::SvgIcon {
+    NORMALIZED_AUDITION_ICON.icon_for_state(SETTINGS_ICON_TINTS, true, active)
 }
 
 fn help_tooltips_icon(active: bool) -> ui::SvgIcon {
@@ -156,6 +188,13 @@ static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path d="M6.3 5.6c.1-1.2.9-1.9 2.1-1.9 1.3 0 2.1.8 2.1 1.9 0 .8-.4 1.3-1.2 1.8-.6.4-.8.8-.8 1.5v.3H7.3v-.5c0-.9.4-1.5 1.1-1.9.6-.4.8-.7.8-1.1 0-.5-.4-.8-1-.8s-.9.3-1 1z" fill="currentColor"/>
   <circle cx="7.9" cy="11.7" r=".7" fill="currentColor"/>
+</svg>"#,
+);
+
+static NORMALIZED_AUDITION_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M2 10.2h1.4l1-3.8 1.4 6.1 1.5-9 1.5 7.2 1.1-3.2.9 2.7H14v1.4h-4.2l-.8-2.2-1.5 4.2L6.2 7 4.9 13H3.3l-1-2.8z"/>
+  <path d="M11.8 2.2h1.3v2.1h2.1v1.3h-2.1v2.1h-1.3V5.6H9.7V4.3h2.1z"/>
 </svg>"#,
 );
 

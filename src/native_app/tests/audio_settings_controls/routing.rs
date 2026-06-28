@@ -89,6 +89,35 @@ fn help_tooltips_button_toggles_help_mode() {
 }
 
 #[test]
+fn normalized_audition_button_toggles_forced_normalized_mode() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.audio.normalized_audition_enabled = true;
+    let surface = crate::native_app::test_support::settings::top_control_bar(&state).into_surface();
+    let button = surface
+        .find_widget(crate::native_app::test_support::settings::NORMALIZED_AUDITION_BUTTON_ID)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<IconButtonWidget>()
+        })
+        .expect("normalized audition should use a Radiant icon button");
+
+    assert!(button.common.is_active());
+    assert_eq!(
+        surface.dispatch_widget_output(
+            crate::native_app::test_support::settings::NORMALIZED_AUDITION_BUTTON_ID,
+            radiant::widgets::WidgetOutput::typed(ButtonMessage::Activate),
+        ),
+        Some(
+            crate::native_app::test_support::state::GuiMessage::Settings(
+                crate::native_app::app::SettingsMessage::SetNormalizedAuditionEnabled(false)
+            )
+        )
+    );
+}
+
+#[test]
 fn release_update_button_opens_download_page() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state

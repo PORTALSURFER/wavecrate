@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use wavecrate::selection::SelectionRange;
 
@@ -30,4 +33,50 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) pending_sample_slide_frame_offset: Option<i64>,
     pub(in crate::native_app::waveform) context_menu_pointer_position:
         Option<radiant::gui::types::Point>,
+    pub(in crate::native_app::waveform) normalized_audition_gain_cache: NormalizedAuditionGainCache,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(in crate::native_app::waveform) struct NormalizedAuditionGainCache {
+    inner: Arc<Mutex<Option<NormalizedAuditionGainCacheEntry>>>,
+}
+
+#[derive(Clone, Debug)]
+struct NormalizedAuditionGainCacheEntry {
+    key: NormalizedAuditionGainCacheKey,
+    gain: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app::waveform) struct NormalizedAuditionGainCacheKey {
+    pub(in crate::native_app::waveform) source: NormalizedAuditionGainSourceKey,
+    pub(in crate::native_app::waveform) channels: usize,
+    pub(in crate::native_app::waveform) start_bits: u32,
+    pub(in crate::native_app::waveform) end_bits: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app::waveform) enum NormalizedAuditionGainSourceKey {
+    Samples { ptr: usize, sample_count: usize },
+    CacheFile { path: PathBuf, sample_count: u64 },
+}
+
+impl NormalizedAuditionGainCache {
+    pub(in crate::native_app::waveform) fn get_or_compute(
+        &self,
+        key: NormalizedAuditionGainCacheKey,
+        compute: impl FnOnce() -> Option<f32>,
+    ) -> Option<f32> {
+        if let Ok(guard) = self.inner.lock()
+            && let Some(entry) = guard.as_ref()
+            && entry.key == key
+        {
+            return Some(entry.gain);
+        }
+        let gain = compute()?;
+        if let Ok(mut guard) = self.inner.lock() {
+            *guard = Some(NormalizedAuditionGainCacheEntry { key, gain });
+        }
+        Some(gain)
+    }
 }
