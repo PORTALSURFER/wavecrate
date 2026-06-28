@@ -34,8 +34,8 @@ Press `Command-/` in the app to open the current context-aware shortcut overlay.
 | --- | --- |
 | `Up` / `Down` | Move selection |
 | `Shift-Up` / `Shift-Down` | Extend selection |
-| `Right` | Mark selected sample as Keep |
-| `Left` | Mark selected sample as Trash |
+| `]` | Mark selected sample as Keep |
+| `[` | Mark selected sample as Trash |
 | `Command-C` | Copy selected sample files |
 | `N` | Normalize selected sample |
 | `D` | Delete selected sample |
