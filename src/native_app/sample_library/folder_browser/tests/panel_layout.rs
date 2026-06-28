@@ -62,11 +62,12 @@ fn filter_panel_splitter_resizes_and_clamps_height() {
     let root = temp_source_root("wavecrate-gui-filter-panel-resize");
     let mut browser = FolderBrowserState::from_root(root.clone());
     let initial_height = browser.panel_layout.filter.size();
+    assert_eq!(initial_height, browser.filter_panel_height());
 
     browser.resize_filter_panel(DragHandleMessage::started(Point::new(0.0, 200.0)));
     browser.resize_filter_panel(DragHandleMessage::moved(Point::new(0.0, 120.0)));
 
-    assert!(browser.panel_layout.filter.size() > initial_height);
+    assert_eq!(browser.panel_layout.filter.size(), initial_height);
 
     browser.resize_filter_panel(DragHandleMessage::moved(Point::new(0.0, 1_000.0)));
 
