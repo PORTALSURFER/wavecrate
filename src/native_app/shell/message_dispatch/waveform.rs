@@ -11,6 +11,7 @@ use crate::native_app::app::{
 pub(in crate::native_app) const PLAY_SELECTION_TRANSACTION_LABEL: &str =
     "Change play mark selection";
 const EDIT_FADE_TRANSACTION_LABEL: &str = "Waveform fade";
+const EDIT_GAIN_TRANSACTION_LABEL: &str = "Editmark volume";
 
 impl NativeAppState {
     pub(super) fn apply_waveform_message(
@@ -63,7 +64,9 @@ impl NativeAppState {
             self.register_finished_play_selection_transaction();
         }
         if edit_fade_transaction_finishes(&message, active_drag) {
-            self.register_finished_edit_fade_transaction();
+            let label =
+                edit_fade_transaction_label(&message).unwrap_or(EDIT_FADE_TRANSACTION_LABEL);
+            self.register_finished_edit_fade_transaction(label);
         }
         if let Some(action) = action {
             emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
@@ -103,6 +106,7 @@ impl NativeAppState {
             interaction,
             WaveformInteraction::BeginEditFade { .. }
                 | WaveformInteraction::BeginEditFadeOuterGain { .. }
+                | WaveformInteraction::BeginEditGain { .. }
                 | WaveformInteraction::ClearEditFadeSilence { .. }
         );
         begins_edit_fade_change
@@ -126,7 +130,7 @@ impl NativeAppState {
         );
     }
 
-    fn register_finished_edit_fade_transaction(&mut self) {
+    fn register_finished_edit_fade_transaction(&mut self, label: &'static str) {
         let Some(before) = self.waveform.pending_edit_fade_transaction.take() else {
             return;
         };
@@ -137,7 +141,7 @@ impl NativeAppState {
         let undo_snapshot = before.clone();
         let redo_snapshot = after;
         self.register_transaction_action(
-            EDIT_FADE_TRANSACTION_LABEL,
+            label,
             move |transaction| transaction.restore_edit_fade(undo_snapshot.clone()),
             move |transaction| transaction.restore_edit_fade(redo_snapshot.clone()),
         );
@@ -338,6 +342,18 @@ fn edit_fade_transaction_finishes(
             | WaveformInteraction::FinishEditFadeOuterGain { .. }
     ) || (matches!(interaction, WaveformInteraction::FinishSelection { .. })
         && matches!(active_drag, Some(WaveformActiveDragKind::EditFade(_))))
+        || (matches!(interaction, WaveformInteraction::FinishEditGain { .. })
+            && active_drag == Some(WaveformActiveDragKind::EditGain))
+}
+
+fn edit_fade_transaction_label(interaction: &WaveformInteraction) -> Option<&'static str> {
+    match interaction {
+        WaveformInteraction::FinishEditGain { .. } => Some(EDIT_GAIN_TRANSACTION_LABEL),
+        WaveformInteraction::ClearEditFadeSilence { .. }
+        | WaveformInteraction::FinishEditFadeOuterGain { .. }
+        | WaveformInteraction::FinishSelection { .. } => Some(EDIT_FADE_TRANSACTION_LABEL),
+        _ => None,
+    }
 }
 
 fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'static str> {
