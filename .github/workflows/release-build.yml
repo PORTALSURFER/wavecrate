@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           target_sha="$(gh api "repos/$REPOSITORY/commits/main" --jq '.sha')"
-          previous_nightly_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/nightly" --jq '.object.sha' 2>/dev/null || true)"
+          previous_nightly_sha="$(scripts/internal/release/github_ref_sha.sh --allow-missing "$REPOSITORY" tags/nightly)"
           build_number="$(git rev-list --count "$target_sha")"
           short_sha="${target_sha::8}"
           nightly_version="nightly-b${build_number}-${short_sha}"
@@ -378,13 +378,15 @@ jobs:
       - name: Publish nightly tags
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
           NIGHTLY_VERSION: ${{ needs.resolve-main.outputs.nightly_version }}
         run: |
           set -euo pipefail
-          existing_version_sha="$(gh api \
-            "repos/${{ github.repository }}/git/ref/tags/${NIGHTLY_VERSION}" \
-            --jq '.object.sha' 2>/dev/null || true)"
+          existing_version_sha="$(scripts/internal/release/github_ref_sha.sh \
+            --allow-missing \
+            "$REPOSITORY" \
+            "tags/${NIGHTLY_VERSION}")"
           if [[ -n "$existing_version_sha" && "$existing_version_sha" != "$TARGET_SHA" ]]; then
             echo "Immutable nightly tag ${NIGHTLY_VERSION} points at ${existing_version_sha}, expected ${TARGET_SHA}." >&2
             exit 1
