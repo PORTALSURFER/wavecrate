@@ -11,7 +11,7 @@ create-missing = false
 
 [output.html]
 default-theme = "light"
-preferred-dark-theme = "navy"
+preferred-dark-theme = "light"
 git-repository-url = "https://github.com/PORTALSURFER/wavecrate"
 edit-url-template = "https://github.com/PORTALSURFER/wavecrate/edit/main/{path}"
 site-url = "/wavecrate/docs/"
