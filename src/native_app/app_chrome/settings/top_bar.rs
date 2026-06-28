@@ -159,12 +159,11 @@ static HELP_TOOLTIPS_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
 </svg>"#,
 );
 
-static SETTINGS_GEAR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
-    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <path d="M7.2 1.5h1.6l.4 1.8c.4.1.8.3 1.2.5l1.6-1 1.1 1.1-1 1.6c.2.4.4.8.5 1.2l1.8.4v1.6l-1.8.4c-.1.4-.3.8-.5 1.2l1 1.6-1.1 1.1-1.6-1c-.4.2-.8.4-1.2.5l-.4 1.8H7.2l-.4-1.8c-.4-.1-.8-.3-1.2-.5l-1.6 1-1.1-1.1 1-1.6c-.2-.4-.4-.8-.5-1.2l-1.8-.4V7.2l1.8-.4c.1-.4.3-.8.5-1.2l-1-1.6L4 2.9l1.6 1c.4-.2.8-.4 1.2-.5z"/>
-  <circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.4"/>
-</svg>"#,
-);
+const SETTINGS_GEAR_ICON_SVG: &str = r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path fill-rule="evenodd" d="M6.9 1.5h2.2l.35 1.45c.31.09.61.22.9.37l1.25-.78 1.56 1.56-.78 1.25c.15.29.28.59.37.9l1.45.35v2.2l-1.45.35c-.09.31-.22.61-.37.9l.78 1.25-1.56 1.56-1.25-.78c-.29.15-.59.28-.9.37L9.1 14.2H6.9l-.35-1.45c-.31-.09-.61-.22-.9-.37l-1.25.78-1.56-1.56.78-1.25c-.15-.29-.28-.59-.37-.9L1.8 9.1V6.9l1.45-.35c.09-.31.22-.61.37-.9L2.84 4.4 4.4 2.84l1.25.78c.29-.15.59-.28.9-.37L6.9 1.5zM8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z"/>
+</svg>"#;
+
+static SETTINGS_GEAR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(SETTINGS_GEAR_ICON_SVG);
 
 static RELEASE_UPDATE_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
     r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
