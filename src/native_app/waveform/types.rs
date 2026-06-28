@@ -61,6 +61,15 @@ pub(in crate::native_app) enum WaveformInteraction {
         kind: WaveformSelectionKind,
         visible_ratio: f32,
     },
+    BeginSampleSlide {
+        visible_ratio: f32,
+    },
+    UpdateSampleSlide {
+        visible_ratio: f32,
+    },
+    FinishSampleSlide {
+        visible_ratio: f32,
+    },
     BeginPan {
         visible_ratio: f32,
     },
@@ -119,5 +128,6 @@ pub(in crate::native_app) enum WaveformActiveDragKind {
     EditFade(WaveformEditFadeHandle),
     EditFadeOuterGain(WaveformEditFadeOuterGainHandle),
     EditGain,
+    SampleSlide,
     Pan,
 }

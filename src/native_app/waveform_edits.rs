@@ -68,7 +68,8 @@ fn harvest_region_copy_operation(
         }
         WaveformDestructiveEditKind::TrimSelection
         | WaveformDestructiveEditKind::ReverseSelection
-        | WaveformDestructiveEditKind::ApplyEditSelectionEffects => None,
+        | WaveformDestructiveEditKind::ApplyEditSelectionEffects
+        | WaveformDestructiveEditKind::SlideSampleAudio { .. } => None,
     }
 }
 
@@ -82,6 +83,9 @@ fn harvest_whole_file_copy_operation(
         }
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
             Some(HarvestDerivationOperation::EditCopy)
+        }
+        WaveformDestructiveEditKind::SlideSampleAudio { .. } => {
+            Some(HarvestDerivationOperation::SlideCopy)
         }
         WaveformDestructiveEditKind::CropSelection
         | WaveformDestructiveEditKind::ExtractAndTrimSelection => None,
@@ -183,6 +187,22 @@ impl NativeAppState {
     ) {
         self.request_waveform_destructive_edit(
             WaveformDestructiveEditKind::ApplyEditSelectionEffects,
+            WaveformDestructiveEditTarget::ActiveSelection,
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn request_slide_loaded_sample_audio(
+        &mut self,
+        frame_offset: i64,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if frame_offset == 0 {
+            self.ui.status.sample = String::from("Sample slide cancelled");
+            return;
+        }
+        self.request_waveform_destructive_edit(
+            WaveformDestructiveEditKind::SlideSampleAudio { frame_offset },
             WaveformDestructiveEditTarget::ActiveSelection,
             context,
         );
@@ -662,8 +682,10 @@ impl NativeAppState {
         {
             self.waveform.current.restore_preserved_marks(marks);
         }
-        if request.prompt.edit == WaveformDestructiveEditKind::ApplyEditSelectionEffects
-            && self.waveform.current.path() == applied.absolute_path
+        if matches!(
+            request.prompt.edit,
+            WaveformDestructiveEditKind::ApplyEditSelectionEffects
+        ) && self.waveform.current.path() == applied.absolute_path
         {
             self.waveform
                 .current
@@ -692,7 +714,8 @@ impl NativeAppState {
                     .current
                     .preserved_marks_after_crop(request.selection),
             ),
-            WaveformDestructiveEditKind::ReverseSelection => {
+            WaveformDestructiveEditKind::ReverseSelection
+            | WaveformDestructiveEditKind::SlideSampleAudio { .. } => {
                 Some(self.waveform.current.preserved_marks_unchanged())
             }
             WaveformDestructiveEditKind::ApplyEditSelectionEffects => None,
@@ -712,13 +735,13 @@ impl NativeAppState {
             if let Some(selection) = self.destructive_edit_selection_for_kind(kind, target)? {
                 return Ok((absolute_path, selection));
             }
-        } else if kind != WaveformDestructiveEditKind::ReverseSelection
+        } else if !matches!(kind, WaveformDestructiveEditKind::ReverseSelection)
             || target == WaveformDestructiveEditTarget::PlaySelection
         {
             return Err(format!("Load a sample before {}", kind.gerund_label()));
         }
 
-        if kind == WaveformDestructiveEditKind::ReverseSelection
+        if matches!(kind, WaveformDestructiveEditKind::ReverseSelection)
             && target == WaveformDestructiveEditTarget::ActiveSelection
         {
             return self.selected_file_reverse_edit_target();
@@ -751,7 +774,10 @@ impl NativeAppState {
                 .play_selection()
                 .filter(|selection| selection.width() > 0.0));
         }
-        if kind == WaveformDestructiveEditKind::ApplyEditSelectionEffects {
+        if matches!(kind, WaveformDestructiveEditKind::SlideSampleAudio { .. }) {
+            return Ok(Some(SelectionRange::new(0.0, 1.0)));
+        }
+        if matches!(kind, WaveformDestructiveEditKind::ApplyEditSelectionEffects) {
             let selection = self
                 .waveform
                 .current
@@ -839,6 +865,7 @@ impl WaveformDestructiveEditKind {
             Self::ReverseSelection => "Reverse",
             Self::ExtractAndTrimSelection => "Extract and trim",
             Self::ApplyEditSelectionEffects => "Apply edit mark edits",
+            Self::SlideSampleAudio { .. } => "Slide",
         }
     }
 
@@ -849,6 +876,7 @@ impl WaveformDestructiveEditKind {
             Self::ReverseSelection => "reversing",
             Self::ExtractAndTrimSelection => "extracting and trimming",
             Self::ApplyEditSelectionEffects => "applying edit mark edits",
+            Self::SlideSampleAudio { .. } => "sliding",
         }
     }
 
@@ -859,6 +887,7 @@ impl WaveformDestructiveEditKind {
             Self::ReverseSelection => "Reversed",
             Self::ExtractAndTrimSelection => "Extracted and trimmed",
             Self::ApplyEditSelectionEffects => "Applied edit mark edits to",
+            Self::SlideSampleAudio { .. } => "Slid",
         }
     }
 
@@ -869,6 +898,7 @@ impl WaveformDestructiveEditKind {
             Self::ReverseSelection => "Reverse waveform selection",
             Self::ExtractAndTrimSelection => "Extract and trim waveform selection",
             Self::ApplyEditSelectionEffects => "Apply edit mark edits",
+            Self::SlideSampleAudio { .. } => "Slide sample audio",
         }
     }
 
@@ -879,6 +909,7 @@ impl WaveformDestructiveEditKind {
             Self::ReverseSelection => "Restore reversed audio",
             Self::ExtractAndTrimSelection => "Restore extracted and trimmed audio",
             Self::ApplyEditSelectionEffects => "Restore edit mark edits",
+            Self::SlideSampleAudio { .. } => "Restore slid audio",
         }
     }
 }
@@ -903,6 +934,23 @@ fn destructive_edit_prompt(
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => {
             "This will overwrite the edit selection with the currently previewed fade and gain edits."
         }
+        WaveformDestructiveEditKind::SlideSampleAudio { frame_offset } => {
+            let direction = if frame_offset > 0 { "right" } else { "left" };
+            return crate::native_app::app::WaveformDestructiveEditPrompt {
+                edit,
+                title: destructive_edit_title(edit),
+                message: format!(
+                    "This will circularly slide the source file audio {direction} by {} frame{} without changing its duration. Wavecrate will rewrite the file using the current write format: {}.",
+                    frame_offset.unsigned_abs(),
+                    if frame_offset.unsigned_abs() == 1 {
+                        ""
+                    } else {
+                        "s"
+                    },
+                    write_format.summary_label()
+                ),
+            };
+        }
     };
     crate::native_app::app::WaveformDestructiveEditPrompt {
         edit,
@@ -923,6 +971,7 @@ fn next_copy_edit_path(
         WaveformDestructiveEditKind::TrimSelection => "_trim",
         WaveformDestructiveEditKind::ReverseSelection => "_reverse",
         WaveformDestructiveEditKind::ApplyEditSelectionEffects => "_edit",
+        WaveformDestructiveEditKind::SlideSampleAudio { .. } => "_slide",
         WaveformDestructiveEditKind::CropSelection
         | WaveformDestructiveEditKind::ExtractAndTrimSelection => {
             return Err(String::from("Unsupported protected copy edit"));

@@ -3,7 +3,7 @@ use super::{
     WaveformSelectionKind, WaveformState,
     interaction::{
         WaveformDrag, WaveformEditFadeDrag, WaveformEditFadeOuterGainDrag, WaveformEditGainDrag,
-        WaveformPanDrag, WaveformSelectionDrag, WaveformSelectionMoveDrag,
+        WaveformPanDrag, WaveformSampleSlideDrag, WaveformSelectionDrag, WaveformSelectionMoveDrag,
         WaveformSelectionResizeDrag,
     },
 };
@@ -150,6 +150,19 @@ impl WaveformState {
                 ));
                 self.update_active_selection_move(ratio, false);
             }
+            WaveformInteraction::BeginSampleSlide { visible_ratio } => {
+                self.active_drag = Some(WaveformDrag::SampleSlide(WaveformSampleSlideDrag::new(
+                    visible_ratio,
+                    self.viewport,
+                )));
+                self.pending_sample_slide_frame_offset = None;
+            }
+            WaveformInteraction::UpdateSampleSlide { visible_ratio } => {
+                self.update_active_sample_slide(visible_ratio);
+            }
+            WaveformInteraction::FinishSampleSlide { visible_ratio } => {
+                self.finish_active_sample_slide(visible_ratio);
+            }
             WaveformInteraction::BeginPan { visible_ratio } => {
                 self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
                     visible_ratio,
@@ -206,6 +219,9 @@ impl WaveformState {
                 self.update_active_selection_move(ratio, false);
             }
             WaveformDrag::PlaySelectionExport => {}
+            WaveformDrag::SampleSlide(_) => {
+                self.update_active_sample_slide(visible_ratio);
+            }
             WaveformDrag::Pan(drag) => {
                 self.update_active_pan(drag, visible_ratio);
             }
@@ -271,6 +287,9 @@ impl WaveformState {
                 }
             }
             WaveformDrag::PlaySelectionExport => {}
+            WaveformDrag::SampleSlide(drag) => {
+                self.pending_sample_slide_frame_offset = Some(drag.frame_offset(visible_ratio));
+            }
             WaveformDrag::Pan(drag) => {
                 self.update_active_pan(drag, visible_ratio);
             }
@@ -337,6 +356,22 @@ impl WaveformState {
         };
         self.active_drag = Some(drag);
         self.update_active_edit_gain(pointer_y);
+        self.active_drag = None;
+    }
+
+    fn update_active_sample_slide(&mut self, visible_ratio: f32) {
+        let Some(WaveformDrag::SampleSlide(drag)) = self.active_drag else {
+            return;
+        };
+        self.pending_sample_slide_frame_offset = Some(drag.frame_offset(visible_ratio));
+    }
+
+    fn finish_active_sample_slide(&mut self, visible_ratio: f32) {
+        let Some(drag @ WaveformDrag::SampleSlide(_)) = self.active_drag.take() else {
+            return;
+        };
+        self.active_drag = Some(drag);
+        self.update_active_sample_slide(visible_ratio);
         self.active_drag = None;
     }
 

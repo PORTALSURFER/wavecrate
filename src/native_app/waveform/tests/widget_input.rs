@@ -128,6 +128,93 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
 }
 
 #[test]
+fn command_option_primary_drag_starts_sample_slide_instead_of_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.viewport = super::WaveformViewport {
+        start: 12_000,
+        end: 36_000,
+    };
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let modifiers = PointerModifiers {
+        command: true,
+        alt: true,
+        ..Default::default()
+    };
+
+    let begin = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_press(Point::new(50.0, 40.0), PointerButton::Primary, modifiers),
+        )
+        .expect("command-option press should begin sample slide")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        begin,
+        WaveformInteraction::BeginSampleSlide {
+            visible_ratio: 0.25
+        }
+    );
+    state.apply_interaction(begin);
+
+    let mut current = waveform_widget_for_state(&state);
+    Widget::synchronize_from_previous(&mut current, &widget);
+    let update = current
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(100.0, 40.0)))
+        .expect("sample slide drag should update")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        update,
+        WaveformInteraction::UpdateSampleSlide { visible_ratio: 0.5 }
+    );
+    assert_eq!(
+        current.sample_slide_frame_offset,
+        Some(6_000),
+        "slide preview should use current viewport frames"
+    );
+
+    let finish = current
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(100.0, 40.0),
+                PointerButton::Primary,
+                modifiers,
+            ),
+        )
+        .expect("sample slide release should finish")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        finish,
+        WaveformInteraction::FinishSampleSlide { visible_ratio: 0.5 }
+    );
+}
+
+#[test]
+fn ordinary_primary_drag_still_starts_play_selection() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let output = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(50.0, 40.0)))
+        .expect("plain primary press should begin play selection")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        output,
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.25
+        }
+    );
+}
+
+#[test]
 fn pointer_move_outside_loaded_waveform_clears_hover_cursor() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);

@@ -17,6 +17,10 @@ impl WaveformState {
         self.pending_playback_start.take()
     }
 
+    pub(in crate::native_app) fn take_pending_sample_slide_frame_offset(&mut self) -> Option<i64> {
+        self.pending_sample_slide_frame_offset.take()
+    }
+
     pub(in crate::native_app) fn start_playback(&mut self, ratio: f32) {
         self.start_playback_with_marker(ratio, true);
     }

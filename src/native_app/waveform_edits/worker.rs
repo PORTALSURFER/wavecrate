@@ -314,6 +314,9 @@ fn apply_destructive_edit_to_wav(
                 end_frame,
             );
         }
+        WaveformDestructiveEditKind::SlideSampleAudio { frame_offset } => {
+            slide_interleaved_frames(&mut wav.samples, wav.channels, frame_offset);
+        }
     }
     if wav.samples.is_empty() {
         return Err(format!("No audio data after {}", edit.gerund_label()));
@@ -360,6 +363,19 @@ fn reverse_interleaved_frames(samples: &mut [f32], channels: usize) {
             );
         }
     }
+}
+
+fn slide_interleaved_frames(samples: &mut [f32], channels: usize, frame_offset: i64) {
+    let channels = channels.max(1);
+    let frame_count = samples.len() / channels;
+    if frame_count <= 1 {
+        return;
+    }
+    let right_frames = frame_offset.rem_euclid(frame_count as i64) as usize;
+    if right_frames == 0 {
+        return;
+    }
+    samples.rotate_right(right_frames * channels);
 }
 
 fn load_editable_wav(path: &Path) -> Result<EditableWav, String> {

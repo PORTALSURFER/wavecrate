@@ -1,5 +1,5 @@
 use radiant::{
-    gui::types::Rect,
+    gui::types::{Rect, Rgba8},
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
@@ -142,6 +142,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     play_selection_denied_flash_frames: u8,
     edit_selection_denied_flash_frames: u8,
     copy_flash_frames: u8,
+    sample_slide_frame_offset: Option<i64>,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
@@ -184,6 +185,7 @@ impl WaveformWidgetProps {
             play_selection_denied_flash_frames: state.play_selection_denied_flash_frames(),
             edit_selection_denied_flash_frames: state.edit_selection_denied_flash_frames(),
             copy_flash_frames: state.copy_flash_frames(),
+            sample_slide_frame_offset: state.pending_sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
             active_drag_kind,
@@ -223,12 +225,14 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) play_selection_denied_flash_frames: u8,
     pub(super) edit_selection_denied_flash_frames: u8,
     pub(super) copy_flash_frames: u8,
+    pub(super) sample_slide_frame_offset: Option<i64>,
     pub(super) beat_guides_enabled: bool,
     pub(super) beat_guide_count: u8,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
     pub(super) live_selection_preview_anchor: Option<LiveSelectionPreviewAnchor>,
     pub(super) live_selection_preview: Option<LiveSelectionPreview>,
+    pub(super) live_sample_slide_anchor_visible_ratio: Option<f32>,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -255,6 +259,7 @@ impl WaveformWidget {
             play_selection_denied_flash_frames,
             edit_selection_denied_flash_frames,
             copy_flash_frames,
+            sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
             active_drag_kind,
@@ -285,12 +290,14 @@ impl WaveformWidget {
             play_selection_denied_flash_frames,
             edit_selection_denied_flash_frames,
             copy_flash_frames,
+            sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
             edit_preview: edit_preview_for_selection(edit_selection),
             last_live_selection_update_visible_ratio: None,
             live_selection_preview_anchor: None,
             live_selection_preview: None,
+            live_sample_slide_anchor_visible_ratio: None,
             active_drag_kind,
         }
     }
@@ -324,6 +331,13 @@ impl Widget for WaveformWidget {
                 previous.last_live_selection_update_visible_ratio;
             self.live_selection_preview_anchor = previous.live_selection_preview_anchor;
             self.live_selection_preview = previous.live_selection_preview;
+        }
+        if self.should_preserve_sample_slide_preview_from(previous) {
+            self.live_sample_slide_anchor_visible_ratio =
+                previous.live_sample_slide_anchor_visible_ratio;
+            if self.sample_slide_frame_offset.is_none() {
+                self.sample_slide_frame_offset = previous.sample_slide_frame_offset;
+            }
         }
     }
 
@@ -359,6 +373,7 @@ impl Widget for WaveformWidget {
         _theme: &ThemeTokens,
     ) {
         self.append_live_selection_preview_paint(primitives, bounds);
+        self.append_sample_slide_preview_paint(primitives, bounds);
         self.append_hover_edit_fade_handle_paint(primitives, bounds);
         self.append_hover_edit_fade_outer_gain_handle_paint(primitives, bounds);
         self.append_hover_selection_handle_paint(primitives, bounds);
@@ -380,6 +395,40 @@ impl WaveformWidget {
         );
     }
 
+    fn append_sample_slide_preview_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
+        if self.active_drag_kind != Some(WaveformActiveDragKind::SampleSlide) {
+            return;
+        }
+        let Some(frame_offset) = self.sample_slide_frame_offset else {
+            return;
+        };
+        push_fill_rect(
+            primitives,
+            self.common.id,
+            bounds,
+            Rgba8::new(255, 202, 112, 42),
+        );
+        let width = ((frame_offset.unsigned_abs() as f32 / self.viewport.visible_items() as f32)
+            * bounds.width())
+        .round()
+        .clamp(2.0, bounds.width().max(2.0));
+        let x = if frame_offset >= 0 {
+            bounds.max.x - width
+        } else {
+            bounds.min.x
+        };
+        push_fill_rect(
+            primitives,
+            self.common.id,
+            Rect::from_xy_size(x, bounds.min.y, width, bounds.height()),
+            Rgba8::new(255, 202, 112, 112),
+        );
+    }
+
     fn should_preserve_live_selection_preview_from(&self, previous: &Self) -> bool {
         if self.active_drag_kind == previous.active_drag_kind {
             return true;
@@ -390,5 +439,10 @@ impl WaveformWidget {
         self.active_drag_kind
             .and_then(WaveformActiveDragKind::selection_kind)
             == Some(anchor.kind)
+    }
+
+    fn should_preserve_sample_slide_preview_from(&self, previous: &Self) -> bool {
+        self.active_drag_kind == Some(WaveformActiveDragKind::SampleSlide)
+            && previous.active_drag_kind == Some(WaveformActiveDragKind::SampleSlide)
     }
 }

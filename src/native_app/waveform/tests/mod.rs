@@ -10,7 +10,7 @@ use radiant::{
     prelude::IntoView,
     runtime::{GpuSurfaceContent, PaintFillRect, PaintStrokePolyline, SurfacePaintPlan},
     theme::ThemeTokens,
-    widgets::{PointerButton, Widget, WidgetInput, WidgetOutput},
+    widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
 use std::{fs, sync::Arc};
 

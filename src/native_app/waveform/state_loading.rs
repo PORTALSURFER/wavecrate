@@ -136,6 +136,7 @@ impl WaveformState {
             copy_flash_frames: 0,
             active_drag: None::<WaveformDrag>,
             pending_playback_start: None,
+            pending_sample_slide_frame_offset: None,
             context_menu_pointer_position: None,
         }
     }
