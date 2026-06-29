@@ -296,7 +296,7 @@ impl FilterSectionViewModel {
             harvest: HarvestFilterViewModel {
                 enabled: folder_browser.harvest_filter_enabled(),
                 dropdown_open: false,
-                selected_filter: folder_browser.harvest_filter(),
+                selected_filter: Some(folder_browser.selected_harvest_filter()),
                 options: HARVEST_FILTERS
                     .into_iter()
                     .map(|filter| HarvestFilterOptionViewModel {

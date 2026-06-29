@@ -59,8 +59,7 @@ impl FolderBrowserState {
     pub(super) fn active_harvest_filter(&self) -> Option<harvest_filter::HarvestFilter> {
         self.filters
             .harvest_enabled
-            .then_some(self.filters.harvest)
-            .flatten()
+            .then_some(self.selected_harvest_filter())
     }
 
     pub(in crate::native_app) fn harvest_context_menu_actions_active(&self) -> bool {

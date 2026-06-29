@@ -390,6 +390,23 @@ fn filter_section_projects_harvest_filter_dropdown_and_dispatches_changes() {
 }
 
 #[test]
+fn filter_section_projects_default_harvest_all_after_family_toggle() {
+    let mut state = FolderBrowserState::load_default();
+    state.set_filter_family_enabled(FilterFamily::Harvest, true);
+    let model = FilterSectionViewModel::from_folder_browser(&state, false);
+
+    assert!(model.harvest.enabled);
+    assert_eq!(model.harvest.selected_filter, Some(HarvestFilter::All));
+
+    let frame = filter_section(&model).view_frame_at_size_with_default_theme(ui::Vector2::new(
+        240.0,
+        FILTER_SECTION_TEST_FRAME_HEIGHT,
+    ));
+
+    assert!(frame.paint_plan.contains_text("All  v"));
+}
+
+#[test]
 fn filter_section_hides_clear_buttons_when_filters_are_empty() {
     let state = FolderBrowserState::load_default();
     let model = FilterSectionViewModel::from_folder_browser(&state, false);
