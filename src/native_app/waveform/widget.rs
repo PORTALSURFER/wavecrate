@@ -41,14 +41,14 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     beat_guides_enabled: bool,
     beat_guide_count: u8,
     normalized_audition_enabled: bool,
-    context_menu_open: bool,
+    playhead_occlusion_rect: Option<Rect>,
 ) -> ui::View<GuiMessage> {
     let interaction = ui::custom_widget(
-        WaveformWidget::new(WaveformWidgetProps::from_state_with_context_menu(
+        WaveformWidget::new(WaveformWidgetProps::from_state_with_playhead_occlusion(
             state,
             beat_guides_enabled,
             beat_guide_count,
-            context_menu_open,
+            playhead_occlusion_rect,
         )),
         |output| {
             output
@@ -165,7 +165,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     sample_slide_frame_offset: Option<i64>,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
-    context_menu_open: bool,
+    playhead_occlusion_rect: Option<Rect>,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -176,14 +176,14 @@ impl WaveformWidgetProps {
         beat_guides_enabled: bool,
         beat_guide_count: u8,
     ) -> Self {
-        Self::from_state_with_context_menu(state, beat_guides_enabled, beat_guide_count, false)
+        Self::from_state_with_playhead_occlusion(state, beat_guides_enabled, beat_guide_count, None)
     }
 
-    pub(super) fn from_state_with_context_menu(
+    pub(super) fn from_state_with_playhead_occlusion(
         state: &WaveformState,
         beat_guides_enabled: bool,
         beat_guide_count: u8,
-        context_menu_open: bool,
+        playhead_occlusion_rect: Option<Rect>,
     ) -> Self {
         let active_drag_kind = state.active_drag_kind();
         Self {
@@ -222,7 +222,7 @@ impl WaveformWidgetProps {
             sample_slide_frame_offset: state.pending_sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
-            context_menu_open,
+            playhead_occlusion_rect,
             active_drag_kind,
         }
     }
@@ -274,7 +274,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) sample_slide_frame_offset: Option<i64>,
     pub(super) beat_guides_enabled: bool,
     pub(super) beat_guide_count: u8,
-    pub(super) context_menu_open: bool,
+    pub(super) playhead_occlusion_rect: Option<Rect>,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
     pub(super) live_selection_preview_anchor: Option<LiveSelectionPreviewAnchor>,
@@ -309,7 +309,7 @@ impl WaveformWidget {
             sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
-            context_menu_open,
+            playhead_occlusion_rect,
             active_drag_kind,
         } = props;
         let common = WidgetCommon::fixed(0, WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
@@ -341,7 +341,7 @@ impl WaveformWidget {
             sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
-            context_menu_open,
+            playhead_occlusion_rect,
             edit_preview: edit_preview_for_selection(edit_selection),
             last_live_selection_update_visible_ratio: None,
             live_selection_preview_anchor: None,

@@ -6,10 +6,20 @@ use crate::native_app::app::GuiMessage;
 use crate::native_app::waveform::{WaveformContextMenu, WaveformInteraction};
 
 pub(in crate::native_app) fn overlay(menu: &WaveformContextMenu) -> ui::View<GuiMessage> {
-    ui::message_context_menu_overlay_auto_width(
-        menu.anchor,
-        menu.title.clone(),
-        playmark_context_menu_commands(menu.extract_to_harvest_destination),
+    let commands = playmark_context_menu_commands(menu.extract_to_harvest_destination);
+    let size = overlay_size(&menu.title, &commands);
+    ui::message_context_menu_overlay(menu.anchor, size, menu.title.clone(), commands)
+}
+
+pub(in crate::native_app) fn overlay_rect(menu: &WaveformContextMenu) -> ui::Rect {
+    let commands = playmark_context_menu_commands(menu.extract_to_harvest_destination);
+    ui::Rect::from_min_size(menu.anchor, overlay_size(&menu.title, &commands))
+}
+
+fn overlay_size(title: &str, commands: &[ui::MenuCommand<GuiMessage>]) -> ui::Vector2 {
+    ui::Vector2::new(
+        ui::MessageMenuWidthPolicy::compact().width_for_title_and_commands(title, commands),
+        ui::message_menu_height(commands.len()),
     )
 }
 
