@@ -73,6 +73,12 @@ fn context_menu_commands(
         ));
     }
     if menu.kind == BrowserContextTargetKind::Sample {
+        if menu.sample_keep_locked {
+            actions.push(ui::MenuCommand::new(
+                "Unlock",
+                GuiMessage::UnlockContextSample,
+            ));
+        }
         actions.push(ui::MenuCommand::new(
             "Duplicate Same",
             GuiMessage::DuplicateContextSampleSame,

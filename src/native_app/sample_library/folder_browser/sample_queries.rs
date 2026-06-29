@@ -9,6 +9,7 @@ use super::{
     file_columns::sort_kind_for_details_sort,
     harvest_filter,
     listing::{BrowserListingRevealReason, BrowserListingSnapshot},
+    path_helpers::path_id_matches,
     playback_type_filter, rating_filter,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
@@ -75,6 +76,18 @@ impl FolderBrowserState {
         self.selected_folder()
             .map(|folder| folder.files.as_slice())
             .unwrap_or(&[])
+    }
+
+    pub(in crate::native_app) fn context_file_is_keep_locked(
+        &self,
+        path: &std::path::Path,
+    ) -> bool {
+        self.loaded_source_audio_files()
+            .into_iter()
+            .find(|file| path_id_matches(&file.id, path))
+            .is_some_and(|file| {
+                file.rating == wavecrate::sample_sources::Rating::KEEP_3 && file.rating_locked
+            })
     }
 
     pub(in crate::native_app) fn selected_audio_files(&self) -> Vec<&FileEntry> {

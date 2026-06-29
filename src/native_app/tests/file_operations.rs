@@ -2022,6 +2022,37 @@ fn context_trash_selected_sample_moves_full_selected_set() {
 }
 
 #[test]
+fn context_menu_unlock_drops_locked_keep_sample_to_keep_three() {
+    let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("locked.wav");
+    let sample_path = Path::new(&selected_file).to_path_buf();
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&sample_path, Rating::KEEP_3, true),
+        "fixture should mark the loaded sample as locked keep"
+    );
+
+    state.open_sample_context_menu(selected_file.clone(), Point::new(40.0, 120.0));
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .context_menu
+            .as_ref()
+            .is_some_and(|menu| menu.sample_keep_locked),
+        "context menu should carry the locked-keep flag"
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(GuiMessage::UnlockContextSample, &mut context);
+
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+    assert_sample_rating(&state, &sample_path, Rating::KEEP_3, false);
+    assert!(state.ui.status.sample.contains("Unlocked locked.wav"));
+}
+
+#[test]
 fn third_negative_rating_does_not_auto_trash_selected_file() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
