@@ -8,6 +8,7 @@ use radiant::prelude as ui;
 use wavecrate::sample_sources::{Rating, SourceDatabase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser_actions::file_navigation_reveal_direction;
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
@@ -68,6 +69,110 @@ impl NativeAppState {
             self.mark_harvest_touched_for_paths(&touched_paths);
         }
         Ok(applied)
+    }
+
+    pub(in crate::native_app) fn unlock_context_sample(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
+            return;
+        };
+        let absolute_path = menu.path.clone();
+        let path_key = normalized_rating_path(&absolute_path);
+        let Some((loaded_path, previous_rating, previous_locked)) =
+            self.rating_row_state_for_path(&path_key)
+        else {
+            self.ui.status.sample = String::from("Sample is unavailable");
+            emit_gui_action(
+                "browser.context_menu.sample.unlock",
+                Some("browser"),
+                Some(sample_path_label(&absolute_path).as_str()),
+                "error",
+                started_at,
+                Some("sample_unavailable"),
+            );
+            return;
+        };
+        if previous_rating != Rating::KEEP_3 || !previous_locked {
+            self.ui.status.sample = String::from("Sample is not locked");
+            emit_gui_action(
+                "browser.context_menu.sample.unlock",
+                Some("browser"),
+                Some(sample_path_label(&loaded_path).as_str()),
+                "blocked",
+                started_at,
+                Some("sample_not_locked"),
+            );
+            return;
+        }
+        let Some((root, database_root, relative_path)) = self
+            .library
+            .folder_browser
+            .source_database_relative_file_path(&loaded_path)
+        else {
+            self.ui.status.sample = String::from("Sample is unavailable");
+            emit_gui_action(
+                "browser.context_menu.sample.unlock",
+                Some("browser"),
+                Some(sample_path_label(&loaded_path).as_str()),
+                "error",
+                started_at,
+                Some("source_unavailable"),
+            );
+            return;
+        };
+        let update = RatingUpdate {
+            root,
+            database_root,
+            relative_path,
+            absolute_path: loaded_path.clone(),
+            previous_rating,
+            previous_locked,
+            rating: previous_rating,
+            locked: false,
+        };
+        let applied = match self
+            .apply_rating_update_states(std::slice::from_ref(&update), RatingUpdateMode::After)
+        {
+            Ok(applied) => applied,
+            Err(error) => {
+                self.ui.status.sample = format!("Unlock failed: {error}");
+                emit_gui_action(
+                    "browser.context_menu.sample.unlock",
+                    Some("browser"),
+                    Some(sample_path_label(&loaded_path).as_str()),
+                    "error",
+                    started_at,
+                    Some(self.ui.status.sample.as_str()),
+                );
+                return;
+            }
+        };
+        if applied == 0 {
+            self.ui.status.sample = String::from("Sample is unavailable");
+            emit_gui_action(
+                "browser.context_menu.sample.unlock",
+                Some("browser"),
+                Some(sample_path_label(&loaded_path).as_str()),
+                "error",
+                started_at,
+                Some("sample_unavailable"),
+            );
+            return;
+        }
+        self.ui.status.sample = format!("Unlocked {}", sample_path_label(&loaded_path));
+        self.mark_harvest_touched_for_paths(std::slice::from_ref(&loaded_path));
+        self.register_rating_transaction_with_label("Unlock sample", vec![update]);
+        self.library
+            .folder_browser
+            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+        emit_gui_action(
+            "browser.context_menu.sample.unlock",
+            Some("browser"),
+            Some(sample_path_label(&loaded_path).as_str()),
+            "success",
+            started_at,
+            None,
+        );
     }
 
     fn adjust_selected_rating_with_policy(
@@ -348,9 +453,17 @@ impl NativeAppState {
 
     fn register_rating_transaction(&mut self, delta: i8, updates: Vec<RatingUpdate>) {
         let label = format!("Rate {}", if delta < 0 { "down" } else { "up" });
+        self.register_rating_transaction_with_label(label, updates);
+    }
+
+    fn register_rating_transaction_with_label(
+        &mut self,
+        label: impl Into<String>,
+        updates: Vec<RatingUpdate>,
+    ) {
         let undo_updates = updates.clone();
         let redo_updates = updates;
-        self.begin_transaction(label);
+        self.begin_transaction(label.into());
         self.register_transaction_action(
             "Apply rating changes",
             move |transaction| {

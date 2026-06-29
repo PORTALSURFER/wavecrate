@@ -90,6 +90,7 @@ impl NativeAppState {
             metadata_tag: None,
             collection: None,
             sample_missing: false,
+            sample_keep_locked: false,
             anchor: position,
             title,
         });
@@ -143,6 +144,7 @@ impl NativeAppState {
             metadata_tag: None,
             collection: None,
             sample_missing: false,
+            sample_keep_locked: false,
             anchor: position,
         });
     }
@@ -171,6 +173,7 @@ impl NativeAppState {
             metadata_tag: None,
             collection: Some(collection),
             sample_missing: false,
+            sample_keep_locked: false,
             anchor: position,
             title,
         });
@@ -221,6 +224,10 @@ impl NativeAppState {
             .folder_browser
             .active_collection_for_context_file(&path);
         let sample_missing = self.library.folder_browser.context_file_is_missing(&path);
+        let sample_keep_locked = self
+            .library
+            .folder_browser
+            .context_file_is_keep_locked(&path);
         self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             title: sample_path_label(&path),
@@ -233,6 +240,7 @@ impl NativeAppState {
             metadata_tag: None,
             collection,
             sample_missing,
+            sample_keep_locked,
             anchor: position,
         });
     }
@@ -253,6 +261,7 @@ impl NativeAppState {
             metadata_tag: Some(tag.clone()),
             collection: None,
             sample_missing: false,
+            sample_keep_locked: false,
             anchor: position,
             title: tag,
         });

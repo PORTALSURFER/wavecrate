@@ -14,6 +14,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -46,6 +47,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -204,6 +206,7 @@ fn w_command_opens_playmark_context_menu_and_clears_browser_menu() {
             metadata_tag: None,
             collection: None,
             sample_missing: false,
+            sample_keep_locked: false,
             anchor: Point::new(72.0, 142.0),
             title: String::from("Documents"),
         },
@@ -364,6 +367,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Samples"),
     };
@@ -390,6 +394,7 @@ fn source_context_menu_paints_refresh_for_default_sources_without_remove() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Assets"),
     };
@@ -488,6 +493,7 @@ fn folder_context_menu_paints_new_folder_action() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Drums"),
     };
@@ -513,6 +519,7 @@ fn folder_context_menu_commands_share_neutral_style() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Drums"),
     };
@@ -606,6 +613,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
         metadata_tag: None,
         collection: wavecrate::sample_sources::SampleCollection::new(0),
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("kick.wav"),
     };
@@ -621,8 +629,34 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     assert!(!frame.paint_plan.contains_text("Show Harvest Origin"));
     assert!(!frame.paint_plan.contains_text("Show Harvest Derivatives"));
     assert!(!frame.paint_plan.contains_text("Open Harvest Destination"));
+    assert!(!frame.paint_plan.contains_text("Unlock"));
     assert!(frame.paint_plan.contains_text("Duplicate Same"));
     assert!(frame.paint_plan.contains_text("Duplicate Double"));
+    assert!(frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
+fn sample_context_menu_paints_unlock_action_for_locked_keep_sample() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("C:\\Samples\\kick.wav"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: true,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("kick.wav"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text("Unlock"));
+    assert!(frame.paint_plan.contains_text("Duplicate Same"));
     assert!(frame.paint_plan.contains_text("Move to Trash"));
 }
 
@@ -639,6 +673,7 @@ fn sample_context_menu_paints_harvest_actions_when_harvest_is_active() {
         metadata_tag: None,
         collection: None,
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("kick.wav"),
     };
@@ -1630,6 +1665,7 @@ fn collection_context_menu_paints_collection_cleanup_action() {
         metadata_tag: None,
         collection: wavecrate::sample_sources::SampleCollection::new(0),
         sample_missing: false,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Collection 1"),
     };
@@ -1654,6 +1690,7 @@ fn missing_sample_context_menu_paints_cleanup_actions_without_file_actions() {
         metadata_tag: None,
         collection: wavecrate::sample_sources::SampleCollection::new(0),
         sample_missing: true,
+        sample_keep_locked: false,
         anchor: Point::new(72.0, 142.0),
         title: String::from("missing.wav"),
     };
