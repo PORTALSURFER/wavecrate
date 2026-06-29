@@ -119,7 +119,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
             "Samples",
             [
                 shortcut_help_item("Space", space_help_label(state)),
-                shortcut_help_item("Shift-Space / Right", "Play from current play start"),
+                shortcut_help_item("Shift-Space", "Play from current play start"),
                 shortcut_help_item("Control-Space / Option-Space", "Play random sample section"),
                 shortcut_help_item(
                     "Command-Left / Command-Right",
@@ -143,6 +143,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                 shortcut_help_item("W", "Open context menu"),
                 shortcut_help_item("Command-E", "Extract and trim selection"),
                 shortcut_help_item("Z", "Zoom to play selection"),
+                shortcut_help_item("Left / Right", "Slide play selection"),
                 shortcut_help_item("C", "Crop selection"),
                 shortcut_help_item("D", "Trim selection"),
                 shortcut_help_item("R", "Reverse selection"),

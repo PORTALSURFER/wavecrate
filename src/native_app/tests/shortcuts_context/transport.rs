@@ -68,6 +68,68 @@ fn right_arrow_shortcut_routes_to_current_play_start() {
 }
 
 #[test]
+fn right_arrow_shortcut_routes_to_playmark_slide_when_playmark_is_active() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.2, 0.4);
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowRight));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(
+            WaveformInteraction::SlidePlaySelection { direction: 1 }
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn left_arrow_shortcut_routes_to_playmark_slide_when_playmark_is_active() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.4, 0.6);
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowLeft));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(
+            WaveformInteraction::SlidePlaySelection { direction: -1 }
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn right_arrow_shortcut_dispatch_slides_active_playmark_by_width() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.2, 0.4);
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowRight));
+
+    state.apply_message(
+        resolution.action.expect("right arrow action"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let selection = state
+        .waveform
+        .current
+        .play_selection()
+        .expect("playmark should remain active");
+    assert!((selection.start() - 0.4).abs() < 0.001);
+    assert!((selection.end() - 0.6).abs() < 0.001);
+    assert!((selection.width() - 0.2).abs() < 0.001);
+}
+
+#[test]
 fn option_space_shortcut_routes_to_random_sample_range() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution =

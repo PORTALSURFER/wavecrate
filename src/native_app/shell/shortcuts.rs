@@ -220,11 +220,12 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             space_playback_action(state),
         )
         .bind_all(
-            [
-                ui::KeyPress::with_shift(ui::KeyCode::Space),
-                ui::KeyPress::new(ui::KeyCode::ArrowRight),
-            ],
+            [ui::KeyPress::with_shift(ui::KeyCode::Space)],
             GuiMessage::PlayFromCurrentPlayStart,
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::ArrowRight),
+            right_arrow_shortcut_action(state),
         )
         .bind(
             ui::KeyPress::with_alt(ui::KeyCode::Space),
@@ -285,7 +286,7 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowLeft),
-            GuiMessage::CollapseSelectedFolder,
+            left_arrow_shortcut_action(state),
         );
     bind_undo_shortcuts(bind_collection_shortcuts(layer))
 }
@@ -379,6 +380,31 @@ fn shifted_x_shortcut_action(state: &NativeAppState) -> GuiMessage {
 
 fn waveform_zoom_out_shortcut_active(state: &NativeAppState) -> bool {
     state.waveform.current.has_loaded_sample() && !state.waveform.current.fully_zoomed_out()
+}
+
+fn playmark_slide_shortcut_active(state: &NativeAppState) -> bool {
+    state.waveform.current.has_loaded_sample()
+        && state
+            .waveform
+            .current
+            .play_selection()
+            .is_some_and(|selection| selection.width() > 0.0)
+}
+
+fn left_arrow_shortcut_action(state: &NativeAppState) -> GuiMessage {
+    if playmark_slide_shortcut_active(state) {
+        GuiMessage::Waveform(WaveformInteraction::SlidePlaySelection { direction: -1 })
+    } else {
+        GuiMessage::CollapseSelectedFolder
+    }
+}
+
+fn right_arrow_shortcut_action(state: &NativeAppState) -> GuiMessage {
+    if playmark_slide_shortcut_active(state) {
+        GuiMessage::Waveform(WaveformInteraction::SlidePlaySelection { direction: 1 })
+    } else {
+        GuiMessage::PlayFromCurrentPlayStart
+    }
 }
 
 fn navigation_shortcut(press: ui::KeyPress) -> ui::ShortcutResolution<GuiMessage> {

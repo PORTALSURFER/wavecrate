@@ -441,6 +441,43 @@ fn playmark_top_handle_moves_range_without_resizing() {
 }
 
 #[test]
+fn keyboard_slide_moves_playmark_by_its_current_width_without_resizing() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.2, 0.35);
+
+    assert!(state.slide_play_selection_by_width(1));
+
+    let selection = state.play_selection().expect("slid playmark selection");
+    assert!((selection.start() - 0.35).abs() < 0.001);
+    assert!((selection.end() - 0.50).abs() < 0.001);
+    assert!((selection.width() - 0.15).abs() < 0.001);
+    assert_eq!(state.play_mark_ratio(), Some(selection.start()));
+
+    assert!(state.slide_play_selection_by_width(-1));
+    let selection = state.play_selection().expect("slid playmark selection");
+    assert!((selection.start() - 0.20).abs() < 0.001);
+    assert!((selection.end() - 0.35).abs() < 0.001);
+}
+
+#[test]
+fn keyboard_slide_clamps_playmark_at_sample_boundaries() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.75, 1.0);
+
+    assert!(!state.slide_play_selection_by_width(1));
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.75, 1.0))
+    );
+
+    assert!(state.slide_play_selection_by_width(-1));
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.5, 0.75))
+    );
+}
+
+#[test]
 fn edit_top_handle_moves_range_and_preserves_edit_effects() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(
