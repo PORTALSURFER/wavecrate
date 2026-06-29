@@ -1152,6 +1152,215 @@ fn playmark_resize_motion_updates_live_until_release() {
 }
 
 #[test]
+fn playmark_right_resize_updates_when_returning_through_original_handle() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
+        .expect("right-edge resize should begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        begin,
+        WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Play,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6,
+        }
+    );
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let away = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0)))
+        .expect("dragging away should update the right edge")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(away);
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.8))
+    );
+
+    let near_origin = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(121.0, 8.0)))
+        .expect("returning through the original handle must still update")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        near_origin,
+        WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.605
+        }
+    );
+    state.apply_interaction(near_origin);
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.605))
+    );
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(121.0, 8.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("right-edge resize should finish at the live preview")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.605))
+    );
+}
+
+#[test]
+fn playmark_left_resize_updates_when_returning_through_original_handle() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 8.0)))
+        .expect("left-edge resize should begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        begin,
+        WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Play,
+            edge: WaveformSelectionEdge::Start,
+            visible_ratio: 0.2,
+        }
+    );
+    state.apply_interaction(begin);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let away = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 8.0)))
+        .expect("dragging away should update the left edge")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(away);
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.0, 0.6))
+    );
+
+    let near_origin = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(41.0, 8.0)))
+        .expect("returning through the original handle must still update")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        near_origin,
+        WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.205
+        }
+    );
+    state.apply_interaction(near_origin);
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.205, 0.6))
+    );
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(41.0, 8.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("left-edge resize should finish at the live preview")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction(finish);
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.205, 0.6))
+    );
+}
+
+#[test]
+fn playmark_resize_crosses_opposite_edge_without_dead_zone() {
+    for (press, drag, edge, expected_visible_ratio, expected_selection) in [
+        (
+            Point::new(120.0, 8.0),
+            Point::new(20.0, 8.0),
+            WaveformSelectionEdge::End,
+            0.1,
+            wavecrate::selection::SelectionRange::new(0.1, 0.2),
+        ),
+        (
+            Point::new(40.0, 8.0),
+            Point::new(160.0, 8.0),
+            WaveformSelectionEdge::Start,
+            0.8,
+            wavecrate::selection::SelectionRange::new(0.6, 0.8),
+        ),
+    ] {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+        state.play_mark_ratio = Some(0.2);
+        let mut widget = waveform_widget_for_state(&state);
+        let bounds = Rect::from_size(200.0, 80.0);
+
+        let begin = widget
+            .handle_input(bounds, WidgetInput::primary_press(press))
+            .expect("playmark resize should begin")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            begin,
+            WaveformInteraction::BeginSelectionResize {
+                kind: WaveformSelectionKind::Play,
+                edge,
+                visible_ratio: press.x / bounds.width(),
+            }
+        );
+        state.apply_interaction(begin);
+        widget.active_drag_kind = state.active_drag_kind();
+
+        let update = widget
+            .handle_input(bounds, WidgetInput::pointer_move(drag))
+            .expect("crossing the opposite edge should emit a live update")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            update,
+            WaveformInteraction::UpdateSelection {
+                visible_ratio: expected_visible_ratio,
+            }
+        );
+        state.apply_interaction(update);
+        assert_eq!(state.play_selection(), Some(expected_selection));
+
+        let finish = widget
+            .handle_input(
+                bounds,
+                WidgetInput::pointer_release(drag, PointerButton::Primary, Default::default()),
+            )
+            .expect("crossed-edge resize should finish")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        state.apply_interaction(finish);
+        assert_eq!(state.play_selection(), Some(expected_selection));
+    }
+}
+
+#[test]
 fn zoomed_playmark_resize_preview_matches_committed_transform() {
     let mut state = WaveformState::synthetic_for_tests();
     state.viewport = super::WaveformViewport {
