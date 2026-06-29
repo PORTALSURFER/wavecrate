@@ -4,3 +4,6 @@
 # WAVECRATE
 
 Audio sample triage tool built with Rust.
+
+https://portalsurfer.org/wavecrate/
+https://portalsurfer.org/wavecrate/docs
