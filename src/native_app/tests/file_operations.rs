@@ -43,6 +43,40 @@ fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
         .expect("read samples")
 }
 
+fn assert_sample_rating(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    path: &Path,
+    rating: Rating,
+    locked: bool,
+) {
+    let file_id = path.display().to_string();
+    let row = state
+        .library
+        .folder_browser
+        .loaded_source_audio_files()
+        .into_iter()
+        .find(|file| file.id == file_id)
+        .expect("rated file should be loaded");
+    assert_eq!(row.rating, rating);
+    assert_eq!(row.rating_locked, locked);
+
+    let (source_root, source_database_root, relative_path) = state
+        .library
+        .folder_browser
+        .source_database_relative_file_path(path)
+        .expect("rated file should belong to a source");
+    let db = SourceDatabase::open_read_only_with_database_root(source_root, &source_database_root)
+        .expect("source database should open");
+    let persisted = db
+        .list_files()
+        .expect("source database files should list")
+        .into_iter()
+        .find(|entry| entry.relative_path == relative_path)
+        .expect("rated file should be persisted");
+    assert_eq!(persisted.tag, rating);
+    assert_eq!(persisted.locked, locked);
+}
+
 fn assert_short_edge_faded_drag_extraction(path: &std::path::Path) {
     let samples = read_test_wav_i16(path);
     assert_eq!(samples.len(), 4);
@@ -101,6 +135,110 @@ fn file_move_conflict_dialog_renders_resolution_choices() {
     assert!(frame.paint_plan.contains_text("Overwrite"));
     assert!(frame.paint_plan.contains_text("Rename"));
     assert!(frame.paint_plan.contains_text("Skip"));
+}
+
+#[test]
+fn successful_selected_file_copy_adds_keep_rating() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("kick.wav");
+    write_test_wav_i16(&kick, &[0, 256, -256, 512]);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+
+    state.finish_copy_selected_files(vec![kick.clone()], 1, std::time::Instant::now(), Ok(()));
+
+    assert_sample_rating(&state, &kick, Rating::KEEP_1, false);
+}
+
+#[test]
+fn successful_selected_file_copy_increments_existing_keep_rating() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("kick.wav");
+    write_test_wav_i16(&kick, &[0, 256, -256, 512]);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .set_file_rating_state(&kick, Rating::KEEP_1, false)
+    );
+
+    state.finish_copy_selected_files(vec![kick.clone()], 1, std::time::Instant::now(), Ok(()));
+
+    assert_sample_rating(&state, &kick, Rating::new(2), false);
+}
+
+#[test]
+fn accepted_external_file_drag_adds_keep_rating() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("kick.wav");
+    write_test_wav_i16(&kick, &[0, 256, -256, 512]);
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums.display().to_string(),
+            Default::default(),
+        ));
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state
+        .library
+        .folder_browser
+        .begin_file_drag(kick.display().to_string(), Point::new(4.0, 8.0));
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.arm_browser_drag(&mut context);
+
+    state.external_drag_completed(
+        Ok(ui::ExternalDragOutcome {
+            effect: ui::ExternalDragEffect::Copy,
+        }),
+        &mut context,
+    );
+
+    assert_sample_rating(&state, &kick, Rating::KEEP_1, false);
 }
 
 #[test]

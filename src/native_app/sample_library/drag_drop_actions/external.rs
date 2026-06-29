@@ -50,7 +50,9 @@ impl NativeAppState {
             1 => String::from("Copying selected file"),
             count => format!("Copying {count} selected files"),
         };
+        let copied_paths = paths.clone();
         context.copy_file_paths(paths, move |result| GuiMessage::SelectedFilesCopyFinished {
+            paths: copied_paths,
             count,
             started_at,
             result: result.into_completed(),
@@ -59,15 +61,23 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn finish_copy_selected_files(
         &mut self,
+        paths: Vec<PathBuf>,
         count: usize,
         started_at: Instant,
         result: Result<(), String>,
     ) {
         match result {
             Ok(()) => {
-                self.ui.status.sample = match count {
-                    1 => String::from("Copied selected file"),
-                    count => format!("Copied {count} selected files"),
+                let rating_error = self.add_keep_rating_to_handoff_paths(&paths).err();
+                self.ui.status.sample = match (count, rating_error) {
+                    (1, None) => String::from("Copied selected file"),
+                    (count, None) => format!("Copied {count} selected files"),
+                    (1, Some(error)) => {
+                        format!("Copied selected file; rating update failed: {error}")
+                    }
+                    (count, Some(error)) => {
+                        format!("Copied {count} selected files; rating update failed: {error}")
+                    }
                 };
                 emit_gui_action(
                     "browser.copy_selected_files",
@@ -350,14 +360,37 @@ impl NativeAppState {
         result: Result<ui::ExternalDragOutcome, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let handoff_paths = self
+            .ui
+            .browser_interaction
+            .pending_internal_file_drag_paths
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
         context.end_drag();
         self.library.folder_browser.clear_drag();
         self.clear_pending_internal_file_drag_paths();
         self.ui.status.sample = match result {
             Ok(outcome) if outcome.accepted() => match outcome.effect {
-                ui::ExternalDragEffect::Copy => String::from("Dragged item externally"),
+                ui::ExternalDragEffect::Copy | ui::ExternalDragEffect::Link => {
+                    let rating_error = self.add_keep_rating_to_handoff_paths(&handoff_paths).err();
+                    match (outcome.effect, rating_error) {
+                        (ui::ExternalDragEffect::Copy, None) => {
+                            String::from("Dragged item externally")
+                        }
+                        (ui::ExternalDragEffect::Link, None) => {
+                            String::from("Linked item externally")
+                        }
+                        (ui::ExternalDragEffect::Copy, Some(error)) => {
+                            format!("Dragged item externally; rating update failed: {error}")
+                        }
+                        (ui::ExternalDragEffect::Link, Some(error)) => {
+                            format!("Linked item externally; rating update failed: {error}")
+                        }
+                        _ => unreachable!("only copy/link outcomes are matched"),
+                    }
+                }
                 ui::ExternalDragEffect::Move => String::from("Moved item externally"),
-                ui::ExternalDragEffect::Link => String::from("Linked item externally"),
                 ui::ExternalDragEffect::None => String::from("External drag cancelled"),
             },
             Ok(_) => String::from("External drag cancelled"),
