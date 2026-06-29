@@ -445,12 +445,6 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::Wheel { .. } => Some("waveform.zoom_wheel"),
         WaveformInteraction::ZoomToPlaySelection => Some("waveform.zoom_to_play_selection"),
         WaveformInteraction::ZoomFull => Some("waveform.zoom_full"),
-        WaveformInteraction::ZoomOut {
-            expand_silence_margin: true,
-        } => Some("waveform.zoom_out_silence_margin"),
-        WaveformInteraction::ZoomOut {
-            expand_silence_margin: false,
-        } => Some("waveform.zoom_out"),
         WaveformInteraction::RememberPointerLocation { .. } => None,
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
