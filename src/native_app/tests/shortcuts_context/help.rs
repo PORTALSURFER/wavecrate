@@ -65,7 +65,7 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .iter()
             .flat_map(|section| &section.items)
             .any(|item| {
-                item.keys == "Shift-Space / Right" && item.action == "Play from current play start"
+                item.keys == "Shift-Space" && item.action == "Play from current play start"
             })
     );
     assert!(
@@ -111,6 +111,12 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .iter()
             .flat_map(|section| &section.items)
             .any(|item| item.keys == "Z" && item.action == "Zoom to play selection")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "Left / Right" && item.action == "Slide play selection")
     );
     assert!(
         sections
