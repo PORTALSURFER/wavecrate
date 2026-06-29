@@ -158,7 +158,7 @@ pub(in crate::native_app) enum GuiMessage {
     Settings(SettingsMessage),
     Metadata(MetadataMessage),
     FocusLoadedFile,
-    AdjustSelectedRating(i8),
+    AdjustSelectedRatingWithoutAdvance(i8),
     AssignSelectedCollection(SampleCollection),
     RemoveContextSampleFromCollection,
     CleanMissingContextSampleFromCollection,

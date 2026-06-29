@@ -214,11 +214,11 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         .bind(ui::KeyPress::new(ui::KeyCode::N), new_item_action(state))
         .bind(
             ui::KeyPress::new(ui::KeyCode::OpenBracket),
-            GuiMessage::AdjustSelectedRating(-1),
+            GuiMessage::AdjustSelectedRatingWithoutAdvance(-1),
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::CloseBracket),
-            GuiMessage::AdjustSelectedRating(1),
+            GuiMessage::AdjustSelectedRatingWithoutAdvance(1),
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::Space),

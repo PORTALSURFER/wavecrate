@@ -60,8 +60,14 @@ fn bracket_shortcuts_route_to_rating_adjustments() {
     let down = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::OpenBracket));
     let up = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::CloseBracket));
 
-    assert_eq!(down.action, Some(GuiMessage::AdjustSelectedRating(-1)));
-    assert_eq!(up.action, Some(GuiMessage::AdjustSelectedRating(1)));
+    assert_eq!(
+        down.action,
+        Some(GuiMessage::AdjustSelectedRatingWithoutAdvance(-1))
+    );
+    assert_eq!(
+        up.action,
+        Some(GuiMessage::AdjustSelectedRatingWithoutAdvance(1))
+    );
     assert!(down.handled);
     assert!(up.handled);
 }

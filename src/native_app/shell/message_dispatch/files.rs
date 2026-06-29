@@ -10,7 +10,9 @@ impl NativeAppState {
     ) {
         match message {
             GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),
-            GuiMessage::AdjustSelectedRating(delta) => self.adjust_selected_rating(delta, context),
+            GuiMessage::AdjustSelectedRatingWithoutAdvance(delta) => {
+                self.adjust_selected_rating_without_advance(delta, context)
+            }
             GuiMessage::AssignSelectedCollection(collection) => {
                 self.assign_selected_collection(collection, context)
             }

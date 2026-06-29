@@ -87,7 +87,7 @@ impl NativeAppState {
             GuiMessage::Settings(message) => self.apply_settings_message(message, context),
             GuiMessage::Metadata(message) => self.apply_metadata_message(message, context),
             GuiMessage::FocusLoadedFile
-            | GuiMessage::AdjustSelectedRating(_)
+            | GuiMessage::AdjustSelectedRatingWithoutAdvance(_)
             | GuiMessage::AssignSelectedCollection(_)
             | GuiMessage::RemoveContextSampleFromCollection
             | GuiMessage::CleanMissingContextSampleFromCollection

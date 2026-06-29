@@ -33,13 +33,31 @@ struct RatingAdjustmentPlan {
 }
 
 impl NativeAppState {
+    #[cfg(test)]
     pub(in crate::native_app) fn adjust_selected_rating(
         &mut self,
         delta: i8,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.adjust_selected_rating_with_policy(delta, context, true);
+    }
+
+    pub(in crate::native_app) fn adjust_selected_rating_without_advance(
+        &mut self,
+        delta: i8,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.adjust_selected_rating_with_policy(delta, context, false);
+    }
+
+    fn adjust_selected_rating_with_policy(
+        &mut self,
+        delta: i8,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        allow_advance: bool,
+    ) {
         let started_at = Instant::now();
-        let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment();
+        let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment(allow_advance);
         let advance_previous_index = advance_visible_ids.as_ref().and_then(|_| {
             self.library
                 .folder_browser
@@ -106,7 +124,8 @@ impl NativeAppState {
             return;
         }
 
-        if applied > 0 && self.ui.settings.persisted.controls.advance_after_rating {
+        if applied > 0 && allow_advance && self.ui.settings.persisted.controls.advance_after_rating
+        {
             if let Some(visible_ids) = advance_visible_ids {
                 self.advance_after_rating_in_visible_order(
                     &visible_ids,
@@ -124,8 +143,12 @@ impl NativeAppState {
         }
     }
 
-    fn rating_advance_visible_ids_before_adjustment(&self) -> Option<Vec<String>> {
-        if !self.ui.settings.persisted.controls.advance_after_rating
+    fn rating_advance_visible_ids_before_adjustment(
+        &self,
+        allow_advance: bool,
+    ) -> Option<Vec<String>> {
+        if !allow_advance
+            || !self.ui.settings.persisted.controls.advance_after_rating
             || self.library.folder_browser.random_navigation_enabled()
         {
             return None;
