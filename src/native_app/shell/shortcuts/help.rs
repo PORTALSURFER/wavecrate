@@ -139,7 +139,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
             "Waveform",
             [
                 shortcut_help_item("Enter", "Apply edit mark edits"),
-                shortcut_help_item("E", "Extract play selection"),
+                shortcut_help_item("E", "Extract play selection or selected files"),
                 shortcut_help_item("W", "Open context menu"),
                 shortcut_help_item("Command-E", "Extract and trim selection"),
                 shortcut_help_item("Z", "Zoom to play selection"),
