@@ -347,6 +347,32 @@ fn waveform_context_menu_suppresses_waveform_transient_overlay() {
     );
 }
 
+#[test]
+fn waveform_context_menu_suppresses_stopped_playhead_surface_marker() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.waveform.current.stop_playback();
+    state.waveform.current.set_playhead_ratio(0.25);
+    state.ui.browser_interaction.waveform_context_menu = Some(
+        crate::native_app::test_support::context_menu::WaveformContextMenu {
+            anchor: radiant::gui::types::Point::new(240.0, 160.0),
+            title: String::from("Playmark Selection"),
+            extract_to_harvest_destination: false,
+        },
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    assert!(
+        !frame
+            .paint_plan
+            .fill_rects_for_widget(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
+            .any(|fill| { fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255 }),
+        "waveform context menus should also hide the stopped playhead marker baked into waveform paint"
+    );
+}
+
 fn apply_gui_message_for_presentation_test(
     state: &mut NativeAppState,
     message: GuiMessage,
