@@ -26,8 +26,8 @@ const NORMALIZED_AUDITION_BUTTON_SIZE: ControlSize = ControlSize {
 };
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = widget_ids::HELP_TOOLTIPS_BUTTON_ID;
 const HELP_TOOLTIPS_BUTTON_SIZE: ControlSize = ControlSize {
-    width: 12.0,
-    height: 18.0,
+    width: 18.0,
+    height: 22.0,
 };
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = widget_ids::AUDIO_ENGINE_PILL_ID;
 const AUDIO_ENGINE_PILL_SIZE: ControlSize = ControlSize {
