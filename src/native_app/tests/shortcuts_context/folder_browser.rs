@@ -1,8 +1,10 @@
+use crate::native_app::app::SampleBrowserDisplayMode;
 use crate::native_app::test_support::state::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, NativeAppState, NativeAppStateFixture,
     default_gui_shortcuts,
 };
 use radiant::{gui::types::Point, prelude as ui};
+use std::fs;
 
 #[test]
 fn escape_shortcut_cancels_rename_while_renaming() {
@@ -108,6 +110,67 @@ fn command_arrow_navigation_preserves_folder_selection() {
         })
     );
     assert!(resolution.handled);
+}
+
+#[test]
+/// Command-A keeps selecting all visible samples in the normal list browser.
+fn command_a_selects_all_samples_in_list_mode() {
+    let (mut state, _source_root) = state_with_two_samples();
+
+    assert_eq!(state.library.folder_browser.selected_file_paths().len(), 1);
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::A));
+
+    assert_eq!(resolution.action, Some(GuiMessage::SelectAllSamples));
+    assert!(resolution.handled);
+
+    state.apply_message(
+        resolution.action.expect("Command-A action"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.library.folder_browser.selected_file_paths().len(), 2);
+    assert_eq!(state.library.folder_browser.selected_audio_files().len(), 2);
+    assert!(state.ui.status.sample.starts_with("Selected "));
+}
+
+#[test]
+/// Command-A is not a sample-list shortcut while the starmap is active.
+fn command_a_is_suppressed_in_starmap_mode() {
+    let (mut state, _source_root) = state_with_two_samples();
+    let selected_before = state.library.folder_browser.selected_file_paths();
+    state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_command(ui::KeyCode::A));
+
+    assert_eq!(resolution.action, None);
+    assert!(!resolution.handled);
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        selected_before
+    );
+}
+
+/// Builds a shortcut test state with two sample rows and keeps the temp source alive.
+fn state_with_two_samples() -> (NativeAppState, tempfile::TempDir) {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    fs::write(&first, []).expect("write first sample");
+    fs::write(&second, []).expect("write second sample");
+    let mut state = NativeAppStateFixture::default()
+        .with_folder_browser(FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]))
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(first.display().to_string());
+
+    (state, source_root)
 }
 
 #[test]

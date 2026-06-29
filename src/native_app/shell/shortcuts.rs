@@ -1,7 +1,8 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    FolderBrowserMessage, GuiMessage, MetadataMessage, NativeAppState, SettingsMessage,
+    FolderBrowserMessage, GuiMessage, MetadataMessage, NativeAppState, SampleBrowserDisplayMode,
+    SettingsMessage,
 };
 use crate::native_app::waveform::WaveformInteraction;
 
@@ -269,10 +270,6 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::Metadata(MetadataMessage::ToggleMetadataTag(String::from("loop"))),
         )
         .bind(
-            ui::KeyPress::with_command(ui::KeyCode::A),
-            GuiMessage::SelectAllSamples,
-        )
-        .bind(
             ui::KeyPress::with_command(ui::KeyCode::C),
             GuiMessage::CopySelectedFiles,
         )
@@ -288,7 +285,24 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::ArrowLeft),
             left_arrow_shortcut_action(state),
         );
-    bind_undo_shortcuts(bind_collection_shortcuts(layer))
+    bind_undo_shortcuts(bind_collection_shortcuts(bind_select_all_shortcut(
+        layer, state,
+    )))
+}
+
+/// Binds browser select-all only when the sample list owns the browser context.
+fn bind_select_all_shortcut(
+    layer: ui::ShortcutLayer<GuiMessage>,
+    state: &NativeAppState,
+) -> ui::ShortcutLayer<GuiMessage> {
+    if state.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
+        layer
+    } else {
+        layer.bind(
+            ui::KeyPress::with_command(ui::KeyCode::A),
+            GuiMessage::SelectAllSamples,
+        )
+    }
 }
 
 fn transaction_list_shortcut() -> ui::KeyPress {
