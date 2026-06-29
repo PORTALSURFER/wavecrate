@@ -101,7 +101,6 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
             "name",
             "rating",
             "playback_type",
-            "curation",
             "collection",
             "extension",
             "size",
@@ -146,10 +145,9 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
         vec![
             "name",
             "playback_type",
-            "curation",
-            "rating",
             "collection",
             "extension",
+            "rating",
             "size",
             "modified"
         ]

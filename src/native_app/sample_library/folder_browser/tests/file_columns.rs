@@ -1,7 +1,19 @@
-use super::super::harvest_filter::HarvestFilter;
 use super::*;
+use crate::native_app::sample_library::folder_browser::commands::FilterFamily;
+use crate::native_app::sample_library::folder_browser::model::{
+    BROWSER_CURATION_SCOPES, BrowserCurationScope, HarvestFilter,
+};
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::path::Path;
+
+fn visible_column_ids(browser: &FolderBrowserState) -> Vec<&str> {
+    browser
+        .visible_file_columns()
+        .into_iter()
+        .map(|column| column.id.as_str())
+        .collect::<Vec<_>>()
+}
+
 #[test]
 fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
     let root = temp_source_root("wavecrate-gui-file-sort");
@@ -122,21 +134,16 @@ fn history_column_label_reflects_last_played_behavior() {
 }
 
 #[test]
-/// Normal browsing keeps Harvest metadata out of the sample-list column set.
-fn normal_browsing_hides_harvest_column() {
+/// Normal browsing keeps workflow metadata out of the sample-list column set.
+fn normal_browsing_hides_workflow_columns() {
     let browser = FolderBrowserState::load_default();
 
     assert_eq!(
-        browser
-            .visible_file_columns()
-            .into_iter()
-            .map(|column| column.id.as_str())
-            .collect::<Vec<_>>(),
+        visible_column_ids(&browser),
         vec![
             "name",
             "rating",
             "playback_type",
-            "curation",
             "collection",
             "extension",
             "size",
@@ -163,6 +170,27 @@ fn active_harvest_filter_shows_harvest_column() {
             "harvest",
             "rating",
             "playback_type",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ]
+    );
+}
+
+#[test]
+/// Enabling Curation makes the Curation column visible in its stored position.
+fn active_curation_filter_shows_curation_column() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.set_curation_scope(BrowserCurationScope::All, true);
+
+    assert_eq!(
+        visible_column_ids(&browser),
+        vec![
+            "name",
+            "rating",
+            "playback_type",
             "curation",
             "collection",
             "extension",
@@ -170,6 +198,40 @@ fn active_harvest_filter_shows_harvest_column() {
             "modified"
         ]
     );
+}
+
+#[test]
+/// Every Curation dropdown mode participates in the same column visibility contract.
+fn active_curation_scope_modes_show_curation_column() {
+    for scope in BROWSER_CURATION_SCOPES {
+        let mut browser = FolderBrowserState::load_default();
+
+        browser.set_curation_scope(scope, true);
+
+        assert!(
+            visible_column_ids(&browser).contains(&"curation"),
+            "{scope:?} should show the Curation column while active"
+        );
+    }
+}
+
+#[test]
+/// Disabling Curation hides the column without discarding the selected scope.
+fn inactive_curation_filter_hides_curation_column_and_preserves_scope() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.set_curation_scope(BrowserCurationScope::Tags, true);
+    browser.set_filter_family_enabled(FilterFamily::Curation, false);
+
+    assert_eq!(browser.curation_scope(), BrowserCurationScope::Tags);
+    assert!(!browser.curation_mode_enabled());
+    assert!(!visible_column_ids(&browser).contains(&"curation"));
+
+    browser.set_filter_family_enabled(FilterFamily::Curation, true);
+
+    assert_eq!(browser.curation_scope(), BrowserCurationScope::Tags);
+    assert!(browser.curation_mode_enabled());
+    assert!(visible_column_ids(&browser).contains(&"curation"));
 }
 
 #[test]
@@ -199,16 +261,11 @@ fn collection_view_shows_source_folder_column() {
     browser.set_file_collection_state(&keep, collection);
 
     assert_eq!(
-        browser
-            .visible_file_columns()
-            .into_iter()
-            .map(|column| column.id.as_str())
-            .collect::<Vec<_>>(),
+        visible_column_ids(&browser),
         vec![
             "name",
             "rating",
             "playback_type",
-            "curation",
             "collection",
             "extension",
             "size",
@@ -219,17 +276,12 @@ fn collection_view_shows_source_folder_column() {
     browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
 
     assert_eq!(
-        browser
-            .visible_file_columns()
-            .into_iter()
-            .map(|column| column.id.as_str())
-            .collect::<Vec<_>>(),
+        visible_column_ids(&browser),
         vec![
             "name",
             "source_folder",
             "rating",
             "playback_type",
-            "curation",
             "collection",
             "extension",
             "size",
@@ -240,8 +292,8 @@ fn collection_view_shows_source_folder_column() {
 }
 
 #[test]
-/// Collection and Harvest workflows can surface both contextual columns.
-fn collection_view_with_active_harvest_shows_both_contextual_columns() {
+/// Collection and Harvest workflows can surface their contextual columns independently.
+fn collection_view_with_active_harvest_shows_contextual_columns() {
     let root = temp_source_root("wavecrate-gui-collection-harvest-columns");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
@@ -255,11 +307,40 @@ fn collection_view_with_active_harvest_shows_both_contextual_columns() {
     browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
 
     assert_eq!(
-        browser
-            .visible_file_columns()
-            .into_iter()
-            .map(|column| column.id.as_str())
-            .collect::<Vec<_>>(),
+        visible_column_ids(&browser),
+        vec![
+            "name",
+            "harvest",
+            "source_folder",
+            "rating",
+            "playback_type",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+/// Harvest, Collection, and Curation each contribute their dynamic columns when active.
+fn collection_view_with_active_harvest_and_curation_shows_all_contextual_columns() {
+    let root = temp_source_root("wavecrate-gui-collection-harvest-curation-columns");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let keep = drums.join("keep.wav");
+    fs::write(&keep, []).expect("write sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    let collection = SampleCollection::new(0).expect("collection");
+    browser.set_file_collection_state(&keep, collection);
+
+    browser.set_harvest_filter(HarvestFilter::NeedsReview, true);
+    browser.set_curation_scope(BrowserCurationScope::All, true);
+    browser.apply_message(FolderBrowserMessage::ActivateCollection(collection));
+
+    assert_eq!(
+        visible_column_ids(&browser),
         vec![
             "name",
             "harvest",
@@ -550,7 +631,6 @@ fn sample_file_column_drag_reorders_columns() {
             "name",
             "rating",
             "playback_type",
-            "curation",
             "collection",
             "extension",
             "size",
@@ -563,7 +643,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 524.0);
+    assert_eq!(feedback.marker_x, 534.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -580,10 +660,9 @@ fn sample_file_column_drag_reorders_columns() {
         vec![
             "name",
             "playback_type",
-            "curation",
-            "rating",
             "collection",
             "extension",
+            "rating",
             "size",
             "modified"
         ]
@@ -633,9 +712,8 @@ fn hidden_harvest_column_preserves_resize_and_order_when_reactivated() {
             "name",
             "rating",
             "playback_type",
-            "harvest",
-            "curation",
             "collection",
+            "harvest",
             "extension",
             "size",
             "modified"
@@ -647,6 +725,58 @@ fn hidden_harvest_column_preserves_resize_and_order_when_reactivated() {
             .find(|column| column.id == "harvest")
             .map(|column| column.width),
         Some(144.0)
+    );
+}
+
+#[test]
+/// Hiding Curation preserves the stored width and position for later reactivation.
+fn hidden_curation_column_preserves_resize_and_order_when_reactivated() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.set_curation_scope(BrowserCurationScope::All, true);
+    browser.resize_file_column(
+        String::from("curation"),
+        DragHandleMessage::started(Point::new(0.0, 0.0)),
+    );
+    browser.resize_file_column(
+        String::from("curation"),
+        DragHandleMessage::moved(Point::new(60.0, 0.0)),
+    );
+    browser.set_filter_family_enabled(FilterFamily::Curation, false);
+
+    assert!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .all(|column| column.id != "curation"),
+        "inactive Curation mode should hide the stored Curation column"
+    );
+
+    browser.set_filter_family_enabled(FilterFamily::Curation, true);
+    let visible = browser.visible_file_columns();
+
+    assert_eq!(
+        visible
+            .iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "rating",
+            "playback_type",
+            "curation",
+            "collection",
+            "extension",
+            "size",
+            "modified"
+        ]
+    );
+    assert_eq!(
+        visible
+            .iter()
+            .find(|column| column.id == "curation")
+            .map(|column| column.width),
+        Some(172.0)
     );
 }
 
@@ -677,7 +807,6 @@ fn sample_file_column_drag_cancel_clears_feedback_without_reorder() {
             "name",
             "rating",
             "playback_type",
-            "curation",
             "collection",
             "extension",
             "size",

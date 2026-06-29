@@ -76,6 +76,7 @@ impl FolderBrowserState {
         };
         let placements = self.visible_file_column_placements();
         let collection_active = self.collection_focus_active();
+        let curation_active = self.curation_mode_enabled();
         let harvest_active = self.harvest_mode_active();
         ui::update_visible_details_column_reorder_drag(
             &mut self.sample_list.file_column_reorder,
@@ -85,7 +86,14 @@ impl FolderBrowserState {
             &placements,
             FILE_COLUMN_GAP,
             |column| column.id.as_str(),
-            |column| file_column_visible_in_context(column.kind, collection_active, harvest_active),
+            |column| {
+                file_column_visible_in_context(
+                    column.kind,
+                    collection_active,
+                    curation_active,
+                    harvest_active,
+                )
+            },
         );
     }
 
