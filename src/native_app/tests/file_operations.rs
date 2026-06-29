@@ -1956,6 +1956,43 @@ fn rating_advance_uses_pre_rating_sorted_order_when_rating_sort_changes() {
 }
 
 #[test]
+fn rating_hotkey_adjustment_does_not_advance_when_auto_advance_is_enabled() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let current = source_root.path().join("a-current.wav");
+    let next = source_root.path().join("b-next.wav");
+    write_test_wav_i16(&current, &[0, 256, -256, 512]);
+    write_test_wav_i16(&next, &[0, 1024, -2048, 4096]);
+    let current_id = current.display().to_string();
+    state.ui.settings.persisted.controls.advance_after_rating = true;
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state.library.folder_browser.select_file(current_id.clone());
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating_without_advance(1, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(current_id.as_str())
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        vec![current.clone()]
+    );
+    assert_eq!(state.waveform.load.label.as_deref(), None);
+    let rows = state.library.folder_browser.selected_audio_files();
+    let current_row = rows
+        .iter()
+        .find(|file| file.id == current_id)
+        .expect("current row remains visible");
+    assert_eq!(current_row.rating, Rating::KEEP_1);
+}
+
+#[test]
 fn rating_advance_moves_to_next_recursive_root_sample() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
