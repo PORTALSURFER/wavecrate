@@ -11,7 +11,13 @@ use radiant::prelude as ui;
 pub(in crate::native_app) fn browser_context_menu_overlay(
     menu: &BrowserContextMenu,
 ) -> ui::View<GuiMessage> {
-    browser_context_menu::overlay(menu)
+    browser_context_menu::overlay(menu, false)
+}
+
+pub(in crate::native_app) fn browser_context_menu_overlay_with_harvest_active(
+    menu: &BrowserContextMenu,
+) -> ui::View<GuiMessage> {
+    browser_context_menu::overlay(menu, true)
 }
 
 pub(in crate::native_app) fn waveform_context_menu_overlay(

@@ -63,6 +63,10 @@ impl FolderBrowserState {
             .flatten()
     }
 
+    pub(in crate::native_app) fn harvest_context_menu_actions_active(&self) -> bool {
+        self.harvest_mode_active()
+    }
+
     /// Returns true when the Harvest filter family has a selected active filter.
     pub(in crate::native_app) fn harvest_mode_active(&self) -> bool {
         self.active_harvest_filter().is_some()

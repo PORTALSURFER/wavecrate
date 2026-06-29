@@ -8,15 +8,21 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use wavecrate::sample_sources::SourceRole;
 
-pub(in crate::native_app) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
+pub(in crate::native_app) fn overlay(
+    menu: &BrowserContextMenu,
+    harvest_active: bool,
+) -> ui::View<GuiMessage> {
     ui::message_context_menu_overlay_auto_width(
         menu.anchor,
         menu.title.clone(),
-        context_menu_commands(menu),
+        context_menu_commands(menu, harvest_active),
     )
 }
 
-fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMessage>> {
+fn context_menu_commands(
+    menu: &BrowserContextMenu,
+    harvest_active: bool,
+) -> Vec<ui::MenuCommand<GuiMessage>> {
     if menu.kind == BrowserContextTargetKind::MetadataTag {
         return vec![
             ui::MenuCommand::new(
@@ -75,30 +81,32 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             "Duplicate Double",
             GuiMessage::DuplicateContextSampleDouble,
         ));
-        actions.push(ui::MenuCommand::new(
-            "Mark Harvest Done",
-            GuiMessage::MarkContextSampleHarvestDone,
-        ));
-        actions.push(ui::MenuCommand::new(
-            "Ignore in Harvest",
-            GuiMessage::MarkContextSampleHarvestIgnored,
-        ));
-        actions.push(ui::MenuCommand::new(
-            "Reset Harvest",
-            GuiMessage::ResetContextSampleHarvest,
-        ));
-        actions.push(ui::MenuCommand::new(
-            "Show Harvest Origin",
-            GuiMessage::ShowContextSampleHarvestOrigin,
-        ));
-        actions.push(ui::MenuCommand::new(
-            "Show Harvest Derivatives",
-            GuiMessage::ShowContextSampleHarvestDerivatives,
-        ));
-        actions.push(ui::MenuCommand::new(
-            "Open Harvest Destination",
-            GuiMessage::OpenContextSampleHarvestDestination,
-        ));
+        if harvest_active {
+            actions.push(ui::MenuCommand::new(
+                "Mark Harvest Done",
+                GuiMessage::MarkContextSampleHarvestDone,
+            ));
+            actions.push(ui::MenuCommand::new(
+                "Ignore in Harvest",
+                GuiMessage::MarkContextSampleHarvestIgnored,
+            ));
+            actions.push(ui::MenuCommand::new(
+                "Reset Harvest",
+                GuiMessage::ResetContextSampleHarvest,
+            ));
+            actions.push(ui::MenuCommand::new(
+                "Show Harvest Origin",
+                GuiMessage::ShowContextSampleHarvestOrigin,
+            ));
+            actions.push(ui::MenuCommand::new(
+                "Show Harvest Derivatives",
+                GuiMessage::ShowContextSampleHarvestDerivatives,
+            ));
+            actions.push(ui::MenuCommand::new(
+                "Open Harvest Destination",
+                GuiMessage::OpenContextSampleHarvestDestination,
+            ));
+        }
         actions.push(
             ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash).danger(),
         );

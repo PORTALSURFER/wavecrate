@@ -101,12 +101,16 @@ pub(in crate::native_app) fn sample_workspace_overlays(
 }
 
 fn context_menu_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
+    let harvest_active = state
+        .library
+        .folder_browser
+        .harvest_context_menu_actions_active();
     state
         .ui
         .browser_interaction
         .context_menu
         .as_ref()
-        .map(browser_context_menu::overlay)
+        .map(|menu| browser_context_menu::overlay(menu, harvest_active))
         .or_else(|| {
             state
                 .ui
