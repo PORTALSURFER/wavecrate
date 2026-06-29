@@ -250,7 +250,7 @@ impl NativeAppState {
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        if self.blocking_modal_suppresses_waveform_transient_overlay() {
+        if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
         let Some(progress) = self.current_audio_progress_ratio() else {
@@ -273,7 +273,7 @@ impl NativeAppState {
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        if self.blocking_modal_suppresses_waveform_transient_overlay() {
+        if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
         self.paint_loading_overlay(context, primitives);
@@ -281,13 +281,15 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn should_paint_waveform_transient_overlay(&self) -> bool {
-        !self.blocking_modal_suppresses_waveform_transient_overlay()
+        !self.chrome_overlay_suppresses_waveform_transient_overlay()
             && (self.waveform.current.is_playing() || self.waveform.load.label.is_some())
     }
 
-    fn blocking_modal_suppresses_waveform_transient_overlay(&self) -> bool {
+    fn chrome_overlay_suppresses_waveform_transient_overlay(&self) -> bool {
         self.ui.chrome.shortcut_help_open
             || self.ui.chrome.transaction_list_open
+            || self.ui.browser_interaction.context_menu.is_some()
+            || self.ui.browser_interaction.waveform_context_menu.is_some()
             || self
                 .library
                 .folder_browser
