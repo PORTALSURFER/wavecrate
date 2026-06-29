@@ -87,6 +87,42 @@ fn playhead_cursor_paints_for_static_small_playmark_selection() {
 }
 
 #[test]
+fn playhead_cursor_paints_around_occlusion_rect() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_playhead_ratio(0.25);
+    let props = WaveformWidgetProps::from_state_with_playhead_occlusion(
+        &state,
+        false,
+        4,
+        Some(Rect::from_min_max(
+            Point::new(99.0, 20.0),
+            Point::new(101.0, 60.0),
+        )),
+    );
+    let widget = WaveformWidget::new(props);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+
+    let playhead_segments = fill_rects(&plan)
+        .into_iter()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(playhead_segments.len(), 2);
+    assert!(
+        playhead_segments
+            .iter()
+            .any(|fill| fill.rect.min.y == 0.0 && fill.rect.max.y == 20.0)
+    );
+    assert!(
+        playhead_segments
+            .iter()
+            .any(|fill| fill.rect.min.y == 60.0 && fill.rect.max.y == 80.0)
+    );
+}
+
+#[test]
 fn hover_cursor_paints_thin_white_overlay_line() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);

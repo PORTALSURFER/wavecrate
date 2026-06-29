@@ -63,6 +63,17 @@ impl PlaybackIntent {
             ..Self::new(start_ratio, end_ratio)
         }
     }
+
+    pub(in crate::native_app) fn fixed_region_with_loop_offset(
+        start_ratio: f32,
+        end_ratio: f32,
+        loop_offset_ratio: Option<f32>,
+    ) -> Self {
+        Self {
+            loop_region_policy: PlaybackLoopRegionPolicy::UseIntentSpan,
+            ..Self::with_loop_offset(start_ratio, end_ratio, loop_offset_ratio)
+        }
+    }
 }
 
 impl PlaybackCommand {

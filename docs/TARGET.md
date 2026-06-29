@@ -461,7 +461,7 @@ Derivation edges should be global/app-level state because they can cross sources
 
 Harvest state should be tracked per origin file as New, Seen, Touched, Done, or Ignored. “Has Derivatives” should be computed from the derivation graph rather than stored as the only state. Automatic transitions may move New to Seen or Touched, but must not override user Done or Ignored states. Manual actions may reset or override state.
 
-Protected-source extraction should create the derived file in the harvest destination by default, usually `Primary Source/_Harvests/<Source Name>/`, then focus/load the derived file so the user can immediately rate, tag, and organize it. Normal writable sources may keep current in-place behavior while Harvest Mode still tracks state and graph edges. The waveform should show immediate extraction success feedback for the selected range, such as a short pulse or flash.
+Protected-source extraction should create the derived file in the harvest destination by default, usually `Primary Source/_Harvests/<Source Name>/`, while keeping focus and the loaded waveform on the protected source file so the user's browsing and audition context stays intact. The derived file should still be registered and visible when the user navigates to the Harvest destination. Normal writable sources may keep current in-place behavior while Harvest Mode still tracks state and graph edges. The waveform should show immediate extraction success feedback for the selected range, such as a short pulse or flash.
 
 ### Wavecrate Sample ID
 

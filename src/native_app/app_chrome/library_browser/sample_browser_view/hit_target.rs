@@ -54,6 +54,14 @@ const SELECTED_MARKER: ui::Rgba8 = ui::Rgba8 {
     b: 62,
     a: 245,
 };
+const FOCUSED_OUTLINE: ui::Rgba8 = ui::Rgba8 {
+    r: 80,
+    g: 190,
+    b: 255,
+    a: 235,
+};
+const FOCUSED_OUTLINE_INSET: f32 = 0.5;
+const FOCUSED_OUTLINE_WIDTH: f32 = 1.5;
 const CACHED_MARKER: ui::Rgba8 = ui::Rgba8 {
     r: 226,
     g: 226,
@@ -64,6 +72,7 @@ const CACHED_MARKER: ui::Rgba8 = ui::Rgba8 {
 pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) cut_pending: bool,
     pub(in crate::native_app) drag_active: bool,
@@ -121,7 +130,8 @@ fn sample_file_hit_target_builder(
         .trailing_marker_if(
             model.cached && !model.selected && !model.copy_flash && !model.cut_pending,
             ui::DenseRowMarkerStyle::new(ui::DenseRowMarkerParts::trailing(2.0), CACHED_MARKER),
-        );
+        )
+        .outline_if(model.focused, sample_file_focus_outline());
     if let Some(palette) = sample_file_row_palette(model) {
         underlay.dense_chrome_palette(palette)
     } else {
@@ -170,6 +180,14 @@ fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::D
         );
     }
     None
+}
+
+fn sample_file_focus_outline() -> ui::DenseRowOutlineStyle {
+    ui::DenseRowOutlineStyle::new(
+        FOCUSED_OUTLINE_INSET,
+        FOCUSED_OUTLINE,
+        FOCUSED_OUTLINE_WIDTH,
+    )
 }
 
 #[cfg(test)]

@@ -65,7 +65,7 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .iter()
             .flat_map(|section| &section.items)
             .any(|item| {
-                item.keys == "Shift-Space / Right" && item.action == "Play from current play start"
+                item.keys == "Shift-Space" && item.action == "Play from current play start"
             })
     );
     assert!(
@@ -90,6 +90,12 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| item.keys == "H" && item.action == "Toggle harvest done")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "Left" && item.action == "Collapse selected folder")
     );
     assert!(
@@ -102,7 +108,21 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| {
+                item.keys == "E" && item.action == "Extract play selection or selected files"
+            })
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "Z" && item.action == "Zoom to play selection")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "Left / Right" && item.action == "Slide play selection")
     );
     assert!(
         sections
@@ -117,10 +137,10 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .any(|item| item.keys == "X" && item.action == "Zoom out")
     );
     assert!(
-        sections
+        !sections
             .iter()
             .flat_map(|section| &section.items)
-            .any(|item| item.keys == "Shift-X" && item.action == "Zoom out with silence margin")
+            .any(|item| item.keys == "Shift-X" || item.action == "Zoom out with silence margin")
     );
     assert!(
         sections

@@ -8,16 +8,7 @@ use std::fs;
 
 #[test]
 fn escape_shortcut_cancels_rename_while_renaming() {
-    let mut state = NativeAppState::load_default().expect("default state loads");
-    let sample_path = state
-        .library
-        .folder_browser
-        .selected_audio_files()
-        .first()
-        .expect("default assets include an audio sample")
-        .id
-        .clone();
-    state.library.folder_browser.select_file(sample_path);
+    let (mut state, _source_root) = state_with_renamable_temp_sample("escape-rename.wav");
     state
         .library
         .folder_browser
@@ -33,6 +24,24 @@ fn escape_shortcut_cancels_rename_while_renaming() {
         ))
     );
     assert!(resolution.handled);
+}
+
+fn state_with_renamable_temp_sample(name: &str) -> (NativeAppState, tempfile::TempDir) {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join(name);
+    std::fs::write(&sample_path, []).expect("sample file");
+    let folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let mut state = NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path.display().to_string());
+    (state, source_root)
 }
 
 #[test]

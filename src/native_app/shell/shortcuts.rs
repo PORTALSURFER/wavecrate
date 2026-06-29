@@ -204,6 +204,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::ToggleLoopPlayback,
         )
         .bind(
+            ui::ShortcutGesture::any_shift(ui::KeyCode::H),
+            GuiMessage::ToggleSelectedHarvestDone,
+        )
+        .bind(
             transaction_list_shortcut(),
             GuiMessage::ToggleTransactionList,
         )
@@ -221,11 +225,12 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             space_playback_action(state),
         )
         .bind_all(
-            [
-                ui::KeyPress::with_shift(ui::KeyCode::Space),
-                ui::KeyPress::new(ui::KeyCode::ArrowRight),
-            ],
+            [ui::KeyPress::with_shift(ui::KeyCode::Space)],
             GuiMessage::PlayFromCurrentPlayStart,
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::ArrowRight),
+            right_arrow_shortcut_action(state),
         )
         .bind(
             ui::KeyPress::with_alt(ui::KeyCode::Space),
@@ -250,10 +255,6 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         .bind(
             ui::KeyPress::new(ui::KeyCode::F),
             GuiMessage::FocusSelectedStarmapNode,
-        )
-        .bind(
-            ui::KeyPress::with_shift(ui::KeyCode::X),
-            shifted_x_shortcut_action(state),
         )
         .bind(ui::KeyPress::new(ui::KeyCode::X), x_shortcut_action(state))
         .bind(
@@ -282,7 +283,7 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowLeft),
-            GuiMessage::CollapseSelectedFolder,
+            left_arrow_shortcut_action(state),
         );
     bind_undo_shortcuts(bind_collection_shortcuts(bind_select_all_shortcut(
         layer, state,
@@ -381,18 +382,33 @@ fn x_shortcut_action(state: &NativeAppState) -> GuiMessage {
     }
 }
 
-fn shifted_x_shortcut_action(state: &NativeAppState) -> GuiMessage {
-    if state.waveform.current.has_loaded_sample() {
-        GuiMessage::Waveform(WaveformInteraction::ZoomOut {
-            expand_silence_margin: true,
-        })
+fn waveform_zoom_out_shortcut_active(state: &NativeAppState) -> bool {
+    state.waveform.current.has_loaded_sample() && !state.waveform.current.fully_zoomed_out()
+}
+
+fn playmark_slide_shortcut_active(state: &NativeAppState) -> bool {
+    state.waveform.current.has_loaded_sample()
+        && state
+            .waveform
+            .current
+            .play_selection()
+            .is_some_and(|selection| selection.width() > 0.0)
+}
+
+fn left_arrow_shortcut_action(state: &NativeAppState) -> GuiMessage {
+    if playmark_slide_shortcut_active(state) {
+        GuiMessage::Waveform(WaveformInteraction::SlidePlaySelection { direction: -1 })
     } else {
-        x_shortcut_action(state)
+        GuiMessage::CollapseSelectedFolder
     }
 }
 
-fn waveform_zoom_out_shortcut_active(state: &NativeAppState) -> bool {
-    state.waveform.current.has_loaded_sample() && !state.waveform.current.fully_zoomed_out()
+fn right_arrow_shortcut_action(state: &NativeAppState) -> GuiMessage {
+    if playmark_slide_shortcut_active(state) {
+        GuiMessage::Waveform(WaveformInteraction::SlidePlaySelection { direction: 1 })
+    } else {
+        GuiMessage::PlayFromCurrentPlayStart
+    }
 }
 
 fn navigation_shortcut(press: ui::KeyPress) -> ui::ShortcutResolution<GuiMessage> {

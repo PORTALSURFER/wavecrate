@@ -160,6 +160,29 @@ fn play_looped_range_from_keeps_full_span() {
 }
 
 #[test]
+fn retarget_looped_range_keeps_one_shot_playback_alive_past_original_end() {
+    let Ok(mut player) = AudioPlayer::new() else {
+        return;
+    };
+    let duration = 0.08;
+    player.set_audio(silent_wav_bytes(duration, 44_100, 1), duration);
+
+    assert!(player.play_range(0.0, 0.25, false).is_ok());
+    assert!(
+        player
+            .retarget_looped_range_with_metronome(0.0, 0.25, 0.0, false, None)
+            .is_ok()
+    );
+    std::thread::sleep(Duration::from_millis(60));
+
+    assert!(
+        player.is_playing(),
+        "retargeting one-shot playback to looped should rebuild a looping source"
+    );
+    assert!(player.is_looping());
+}
+
+#[test]
 fn set_audio_prefers_provided_duration() {
     let Ok(mut player) = AudioPlayer::new() else {
         return;

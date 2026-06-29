@@ -9,10 +9,10 @@ pub(in crate::native_app) enum WaveformInteraction {
         expand_silence_margin: bool,
     },
     ZoomToPlaySelection,
-    ZoomFull,
-    ZoomOut {
-        expand_silence_margin: bool,
+    SlidePlaySelection {
+        direction: i8,
     },
+    ZoomFull,
     RememberPointerLocation {
         position: Point,
     },

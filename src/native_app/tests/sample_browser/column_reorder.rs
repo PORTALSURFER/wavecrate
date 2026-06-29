@@ -99,7 +99,6 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
             .collect::<Vec<_>>(),
         vec![
             "name",
-            "harvest",
             "rating",
             "playback_type",
             "curation",
@@ -146,7 +145,6 @@ fn full_gui_column_drag_commits_on_release_and_clears_feedback() {
             .collect::<Vec<_>>(),
         vec![
             "name",
-            "harvest",
             "playback_type",
             "curation",
             "rating",

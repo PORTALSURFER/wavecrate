@@ -264,7 +264,7 @@ impl FolderBrowserState {
         }
 
         let requested_path = Path::new(file_id);
-        self.selected_audio_files()
+        self.loaded_source_audio_files()
             .into_iter()
             .find(|file| path_id_matches(&file.id, requested_path))
             .map(|file| PathBuf::from(&file.id))

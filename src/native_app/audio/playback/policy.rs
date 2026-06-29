@@ -92,11 +92,7 @@ impl NativeAppState {
             return;
         };
         let current = self.current_audio_progress_ratio().unwrap_or(start);
-        let result = if self.audio.loop_playback {
-            self.start_playback_span(start, end, Some(current))
-        } else {
-            self.start_playback_current_span(current.clamp(start, end), end)
-        };
+        let result = self.retarget_active_playback_mode(start, end, current);
         if let Err(err) = result {
             self.audio.loop_playback = was_looping;
             self.ui.status.sample = format!("Playback mode update failed: {err}");

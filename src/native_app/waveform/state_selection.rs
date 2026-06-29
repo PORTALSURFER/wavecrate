@@ -58,6 +58,30 @@ impl WaveformState {
         self.record_current_play_selection_mark();
     }
 
+    pub(in crate::native_app) fn slide_play_selection_by_width(&mut self, direction: i8) -> bool {
+        let direction = direction.signum();
+        let Some(selection) = self
+            .play_selection
+            .filter(|selection| selection.width_f64() > f64::EPSILON)
+        else {
+            return false;
+        };
+        if direction == 0 {
+            return false;
+        }
+        let width = selection.width_f64().min(1.0);
+        let max_start = (1.0 - width).max(0.0);
+        let start = (selection.start_f64() + width * f64::from(direction)).clamp(0.0, max_start);
+        let next = selection.with_bounds_precise(start, start + width);
+        if next == selection {
+            return false;
+        }
+        self.set_selection_for_kind(WaveformSelectionKind::Play, next.start(), next);
+        self.record_current_play_selection_mark();
+        self.ensure_play_selection_visible();
+        true
+    }
+
     pub(in crate::native_app) fn restore_play_selection_state(
         &mut self,
         play_mark_ratio: Option<f32>,

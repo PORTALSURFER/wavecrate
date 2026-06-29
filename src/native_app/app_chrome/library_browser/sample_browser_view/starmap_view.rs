@@ -681,9 +681,12 @@ impl Widget for StarmapWidget {
                     },
                 )))
             }
-            CanvasGestureEvent::DoubleClick { .. } => Some(WidgetOutput::typed(
-                GuiMessage::ChangeStarmapViewport(StarmapViewportChange::Reset),
-            )),
+            CanvasGestureEvent::DoubleClick {
+                pointer,
+                button: PointerButton::Primary,
+                modifiers,
+            } => self.begin_audition_drag_message(bounds, pointer.position, modifiers),
+            CanvasGestureEvent::DoubleClick { .. } => None,
             CanvasGestureEvent::Release {
                 button: PointerButton::Primary,
                 ..
@@ -1702,6 +1705,82 @@ mod tests {
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
             Some(GuiMessage::FinishStarmapAuditionDrag)
+        );
+    }
+
+    #[test]
+    /// Primary double-click on a node retriggers audition without resetting the viewport.
+    fn primary_click_then_double_click_retriggers_starmap_node_without_zooming() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            StarmapViewport::default(),
+            None,
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+        let node_position = Point::new(50.0, 50.0);
+
+        let first_click = widget
+            .handle_input(bounds, WidgetInput::primary_press(node_position))
+            .expect("primary press should audition the node")
+            .typed_cloned::<GuiMessage>();
+        let first_release = widget
+            .handle_input(bounds, WidgetInput::primary_release(node_position))
+            .expect("primary release should finish the audition click")
+            .typed_cloned::<GuiMessage>();
+        let double_click = widget
+            .handle_input(bounds, WidgetInput::primary_double_click(node_position))
+            .expect("primary double-click should retrigger the node")
+            .typed_cloned::<GuiMessage>();
+
+        assert_eq!(
+            [first_click, first_release, double_click],
+            [
+                Some(GuiMessage::BeginStarmapAuditionDrag {
+                    path: Some(String::from("/samples/kick.wav")),
+                    position: node_position,
+                    modifiers: PointerModifiers::default(),
+                }),
+                Some(GuiMessage::FinishStarmapAuditionDrag),
+                Some(GuiMessage::BeginStarmapAuditionDrag {
+                    path: Some(String::from("/samples/kick.wav")),
+                    position: node_position,
+                    modifiers: PointerModifiers::default(),
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    /// Primary double-click on empty map space behaves like an empty click, not zoom reset.
+    fn primary_double_click_empty_starmap_space_does_not_zoom_out() {
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item(
+                "/samples/kick.wav",
+                0.25,
+                0.5,
+                ui::Rgba8::new(57, 187, 245, 220),
+            )],
+            StarmapViewport::default(),
+            None,
+        );
+        let bounds = Rect::from_size(200.0, 100.0);
+        let empty_position = Point::new(180.0, 20.0);
+        let output = widget
+            .handle_input(bounds, WidgetInput::primary_double_click(empty_position))
+            .expect("primary double-click should be handled by the starmap");
+
+        assert_eq!(
+            output.typed_cloned::<GuiMessage>(),
+            Some(GuiMessage::BeginStarmapAuditionDrag {
+                path: None,
+                position: empty_position,
+                modifiers: PointerModifiers::default(),
+            })
         );
     }
 

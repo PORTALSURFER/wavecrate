@@ -40,6 +40,7 @@ fn waveform_viewport_with_loading_state(
         model.beat_guides_enabled,
         model.beat_guide_count,
         model.normalized_audition_enabled,
+        model.playhead_occlusion_rect,
     )
     .fill_width()
     .height(WAVEFORM_VIEW_HEIGHT);

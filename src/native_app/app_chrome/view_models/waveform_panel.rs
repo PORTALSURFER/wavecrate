@@ -1,4 +1,7 @@
+use radiant::prelude as ui;
+
 use crate::native_app::app::{NativeAppState, NativeFileDropHover};
+use crate::native_app::app_chrome::waveform_context_menu;
 use crate::native_app::waveform::WaveformState;
 
 pub(in crate::native_app) struct WaveformPanelViewModel<'a> {
@@ -10,6 +13,7 @@ pub(in crate::native_app) struct WaveformPanelViewModel<'a> {
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
     pub(in crate::native_app) normalized_audition_enabled: bool,
+    pub(in crate::native_app) playhead_occlusion_rect: Option<ui::Rect>,
 }
 
 impl<'a> WaveformPanelViewModel<'a> {
@@ -23,6 +27,12 @@ impl<'a> WaveformPanelViewModel<'a> {
             beat_guides_enabled: state.ui.chrome.beat_guides_enabled,
             beat_guide_count: state.ui.chrome.beat_guide_count,
             normalized_audition_enabled: state.audio.normalized_audition_enabled,
+            playhead_occlusion_rect: state
+                .ui
+                .browser_interaction
+                .waveform_context_menu
+                .as_ref()
+                .map(waveform_context_menu::overlay_rect),
         }
     }
 }
