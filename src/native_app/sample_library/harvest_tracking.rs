@@ -50,6 +50,12 @@ struct HarvestSeenPersistRequest {
     relative_path: PathBuf,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct HarvestStateTarget {
+    path: PathBuf,
+    identity: HarvestFileIdentity,
+}
+
 impl NativeAppState {
     pub(in crate::native_app) fn selected_harvest_family_summary(
         &self,
@@ -923,50 +929,104 @@ impl NativeAppState {
         outcome: &'static str,
     ) {
         let started_at = std::time::Instant::now();
-        let Some((path, identity)) = self
-            .take_context_sample_harvest_target("browser.context_menu.harvest.state", started_at)
-        else {
+        let Some(targets) = self.take_context_sample_harvest_state_targets(
+            "browser.context_menu.harvest.state",
+            started_at,
+        ) else {
             return;
         };
-        if let Err(error) = wavecrate::sample_sources::library::upsert_harvest_file(&identity) {
-            self.ui.status.sample = format!("Update harvest state failed: {error}");
-            emit_gui_action(
-                "browser.context_menu.harvest.state",
-                Some("browser"),
-                Some(context_menu::target_label(&path).as_str()),
-                "error",
-                started_at,
-                Some(&error.to_string()),
-            );
-            return;
-        }
-        match wavecrate::sample_sources::library::set_harvest_state(&identity.key, state) {
-            Ok(_) => {
-                self.library
-                    .folder_browser
-                    .refresh_after_harvest_state_change();
-                self.ui.status.sample = format!("{status_prefix} {}", sample_path_label(&path));
-                emit_gui_action(
-                    "browser.context_menu.harvest.state",
-                    Some("browser"),
-                    Some(context_menu::target_label(&path).as_str()),
-                    outcome,
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
+
+        let mut changed = false;
+        for target in &targets {
+            if let Err(error) =
+                wavecrate::sample_sources::library::upsert_harvest_file(&target.identity)
+            {
+                if changed {
+                    self.library
+                        .folder_browser
+                        .refresh_after_harvest_state_change();
+                }
                 self.ui.status.sample = format!("Update harvest state failed: {error}");
                 emit_gui_action(
                     "browser.context_menu.harvest.state",
                     Some("browser"),
-                    Some(context_menu::target_label(&path).as_str()),
+                    Some(context_menu::target_label(&target.path).as_str()),
                     "error",
                     started_at,
                     Some(&error.to_string()),
                 );
+                return;
+            }
+            match wavecrate::sample_sources::library::set_harvest_state(&target.identity.key, state)
+            {
+                Ok(_) => {
+                    changed = true;
+                }
+                Err(error) => {
+                    if changed {
+                        self.library
+                            .folder_browser
+                            .refresh_after_harvest_state_change();
+                    }
+                    self.ui.status.sample = format!("Update harvest state failed: {error}");
+                    emit_gui_action(
+                        "browser.context_menu.harvest.state",
+                        Some("browser"),
+                        Some(context_menu::target_label(&target.path).as_str()),
+                        "error",
+                        started_at,
+                        Some(&error.to_string()),
+                    );
+                    return;
+                }
             }
         }
+
+        self.library
+            .folder_browser
+            .refresh_after_harvest_state_change();
+        let target_label = harvest_state_targets_label(&targets);
+        self.ui.status.sample = format!("{status_prefix} {target_label}");
+        emit_gui_action(
+            "browser.context_menu.harvest.state",
+            Some("browser"),
+            Some(&target_label),
+            outcome,
+            started_at,
+            None,
+        );
+    }
+
+    fn take_context_sample_harvest_state_targets(
+        &mut self,
+        action: &'static str,
+        started_at: std::time::Instant,
+    ) -> Option<Vec<HarvestStateTarget>> {
+        let menu = self.take_sample_context_menu(action, started_at)?;
+        let selected_paths = self.library.folder_browser.explicit_selected_file_paths();
+        let paths = if selected_paths.len() > 1 {
+            selected_paths
+        } else {
+            vec![menu.path]
+        };
+        let mut targets = Vec::with_capacity(paths.len());
+        for path in paths {
+            let Some(identity) = self.harvest_identity_for_path(&path) else {
+                self.ui.status.sample =
+                    String::from("Sample is not in a configured harvest source");
+                emit_gui_action(
+                    action,
+                    Some("browser"),
+                    Some(context_menu::target_label(&path).as_str()),
+                    "not_found",
+                    started_at,
+                    Some("harvest identity unavailable"),
+                );
+                return None;
+            };
+            targets.push(HarvestStateTarget { path, identity });
+        }
+        Some(targets)
     }
 
     fn take_context_sample_harvest_target(
@@ -974,6 +1034,27 @@ impl NativeAppState {
         action: &'static str,
         started_at: std::time::Instant,
     ) -> Option<(PathBuf, HarvestFileIdentity)> {
+        let menu = self.take_sample_context_menu(action, started_at)?;
+        let Some(identity) = self.harvest_identity_for_path(&menu.path) else {
+            self.ui.status.sample = String::from("Sample is not in a configured harvest source");
+            emit_gui_action(
+                action,
+                Some("browser"),
+                Some(context_menu::target_label(&menu.path).as_str()),
+                "not_found",
+                started_at,
+                Some("harvest identity unavailable"),
+            );
+            return None;
+        };
+        Some((menu.path, identity))
+    }
+
+    fn take_sample_context_menu(
+        &mut self,
+        action: &'static str,
+        started_at: std::time::Instant,
+    ) -> Option<context_menu::BrowserContextMenu> {
         let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
             return None;
         };
@@ -989,19 +1070,7 @@ impl NativeAppState {
             );
             return None;
         }
-        let Some(identity) = self.harvest_identity_for_path(&menu.path) else {
-            self.ui.status.sample = String::from("Sample is not in a configured harvest source");
-            emit_gui_action(
-                action,
-                Some("browser"),
-                Some(context_menu::target_label(&menu.path).as_str()),
-                "not_found",
-                started_at,
-                Some("harvest identity unavailable"),
-            );
-            return None;
-        };
-        Some((menu.path, identity))
+        Some(menu)
     }
 
     fn selected_sample_harvest_target(
@@ -1150,6 +1219,14 @@ fn harvest_family_path_label(path: &Path) -> String {
         .filter(|name| !name.trim().is_empty())
         .map(str::to_owned)
         .unwrap_or_else(|| path.display().to_string())
+}
+
+fn harvest_state_targets_label(targets: &[HarvestStateTarget]) -> String {
+    match targets {
+        [] => String::from("0 samples"),
+        [target] => sample_path_label(&target.path),
+        targets => format!("{} samples", targets.len()),
+    }
 }
 
 fn source_db_entry_for_path(source: &SampleSource, relative_path: &Path) -> Option<WavEntry> {

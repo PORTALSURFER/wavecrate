@@ -13,6 +13,26 @@ impl FolderBrowserState {
             .collect()
     }
 
+    pub(in crate::native_app) fn explicit_multi_file_selection_active(&self) -> bool {
+        self.selection.selected_file_ids_explicit && self.selection.selected_file_ids.len() > 1
+    }
+
+    pub(in crate::native_app) fn explicit_selected_file_paths(&self) -> Vec<PathBuf> {
+        if !self.explicit_multi_file_selection_active() {
+            return Vec::new();
+        }
+        let selected = &self.selection.selected_file_ids;
+        let mut paths = self
+            .loaded_source_audio_files()
+            .into_iter()
+            .filter(|file| selected.contains(&file.id))
+            .filter(|file| !file.is_missing())
+            .map(|file| PathBuf::from(&file.id))
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
     pub(in crate::native_app) fn selected_normalization_paths(&self) -> Vec<PathBuf> {
         if self.selection.selected_collection.is_some() {
             return self.selected_file_paths();
