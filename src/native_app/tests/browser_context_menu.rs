@@ -769,6 +769,191 @@ fn sample_context_menu_harvest_state_actions_update_durable_state() {
 }
 
 #[test]
+fn h_shortcut_toggles_focused_sample_harvest_done_without_moving_focus() {
+    let root = tempfile::tempdir().expect("source root");
+    let sample = root.path().join("kick.wav");
+    fs::write(&sample, [0_u8; 8]).expect("write sample");
+    let source_id = unique_source_id("harvest-hotkey-focused");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        source_id.clone(),
+        root.path().to_path_buf(),
+    );
+    let harvest_key =
+        wavecrate::sample_sources::HarvestFileKey::new(source_id, PathBuf::from("kick.wav"));
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    let focused_id = sample.display().to_string();
+    state.library.folder_browser.select_file(focused_id.clone());
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::ToggleSelectedHarvestDone, &mut context);
+
+    assert_eq!(
+        harvest_state_for_key(&harvest_key),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(focused_id.as_str())
+    );
+
+    state.apply_message(GuiMessage::ToggleSelectedHarvestDone, &mut context);
+
+    assert_eq!(
+        harvest_state_for_key(&harvest_key),
+        Some(wavecrate::sample_sources::HarvestState::New)
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(focused_id.as_str())
+    );
+}
+
+#[test]
+fn h_shortcut_marks_mixed_explicit_selection_harvest_done() {
+    let root = tempfile::tempdir().expect("source root");
+    let kick = root.path().join("kick.wav");
+    let snare = root.path().join("snare.wav");
+    let hat = root.path().join("hat.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+    fs::write(&hat, [0_u8; 8]).expect("write hat");
+    let source_id = unique_source_id("harvest-hotkey-mixed");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        source_id.clone(),
+        root.path().to_path_buf(),
+    );
+    let kick_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source_id.clone(),
+        PathBuf::from("kick.wav"),
+    );
+    let snare_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source_id.clone(),
+        PathBuf::from("snare.wav"),
+    );
+    let hat_key =
+        wavecrate::sample_sources::HarvestFileKey::new(source_id, PathBuf::from("hat.wav"));
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        snare.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    seed_harvest_state(&snare_key, wavecrate::sample_sources::HarvestState::Done);
+
+    state.apply_message(
+        GuiMessage::ToggleSelectedHarvestDone,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        harvest_state_for_key(&kick_key),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(
+        harvest_state_for_key(&snare_key),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(harvest_state_for_key(&hat_key), None);
+}
+
+#[test]
+fn h_shortcut_resets_all_done_explicit_selection() {
+    let root = tempfile::tempdir().expect("source root");
+    let kick = root.path().join("kick.wav");
+    let snare = root.path().join("snare.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+    let source_id = unique_source_id("harvest-hotkey-all-done");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        source_id.clone(),
+        root.path().to_path_buf(),
+    );
+    let kick_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source_id.clone(),
+        PathBuf::from("kick.wav"),
+    );
+    let snare_key =
+        wavecrate::sample_sources::HarvestFileKey::new(source_id, PathBuf::from("snare.wav"));
+    seed_harvest_state(&kick_key, wavecrate::sample_sources::HarvestState::Done);
+    seed_harvest_state(&snare_key, wavecrate::sample_sources::HarvestState::Done);
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        snare.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+
+    state.apply_message(
+        GuiMessage::ToggleSelectedHarvestDone,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        harvest_state_for_key(&kick_key),
+        Some(wavecrate::sample_sources::HarvestState::New)
+    );
+    assert_eq!(
+        harvest_state_for_key(&snare_key),
+        Some(wavecrate::sample_sources::HarvestState::New)
+    );
+}
+
+#[test]
+fn h_shortcut_refreshes_active_harvest_projection() {
+    let root = tempfile::tempdir().expect("source root");
+    let sample = root.path().join("kick.wav");
+    fs::write(&sample, [0_u8; 8]).expect("write sample");
+    let source_id = unique_source_id("harvest-hotkey-refresh");
+    let source =
+        wavecrate::sample_sources::SampleSource::new_with_id(source_id, root.path().to_path_buf());
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample.display().to_string());
+    state.library.folder_browser.set_harvest_filter(
+        crate::native_app::sample_library::folder_browser::model::HarvestFilter::NeedsReview,
+        true,
+    );
+    assert_eq!(visible_sample_names(&state), vec!["kick.wav"]);
+
+    state.apply_message(
+        GuiMessage::ToggleSelectedHarvestDone,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(
+        visible_sample_names(&state).is_empty(),
+        "Done files should immediately leave the active harvest review queue"
+    );
+    state.library.folder_browser.set_harvest_filter(
+        crate::native_app::sample_library::folder_browser::model::HarvestFilter::Done,
+        true,
+    );
+    assert_eq!(visible_sample_names(&state), vec!["kick.wav"]);
+}
+
+#[test]
 fn sample_context_menu_harvest_state_actions_refresh_active_queue_visibility() {
     let root = tempfile::tempdir().expect("source root");
     let sample = root.path().join("kick.wav");
@@ -859,6 +1044,38 @@ fn visible_sample_names(state: &NativeAppState) -> Vec<String> {
         .collect()
 }
 
+fn unique_source_id(prefix: &str) -> wavecrate::sample_sources::SourceId {
+    wavecrate::sample_sources::SourceId::from_string(format!(
+        "{prefix}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ))
+}
+
+fn seed_harvest_state(
+    key: &wavecrate::sample_sources::HarvestFileKey,
+    state: wavecrate::sample_sources::HarvestState,
+) {
+    let identity = wavecrate::sample_sources::HarvestFileIdentity {
+        key: key.clone(),
+        file_size: Some(8),
+        modified_ns: Some(1),
+        content_hash: None,
+    };
+    wavecrate::sample_sources::library::upsert_harvest_file(&identity).expect("upsert harvest");
+    wavecrate::sample_sources::library::set_harvest_state(key, state).expect("set harvest state");
+}
+
+fn harvest_state_for_key(
+    key: &wavecrate::sample_sources::HarvestFileKey,
+) -> Option<wavecrate::sample_sources::HarvestState> {
+    wavecrate::sample_sources::library::harvest_file(key)
+        .expect("load harvest row")
+        .map(|record| record.state)
+}
+
 fn harvest_state_for(
     source_id: &wavecrate::sample_sources::SourceId,
     relative_path: &str,
@@ -867,9 +1084,7 @@ fn harvest_state_for(
         source_id.clone(),
         PathBuf::from(relative_path),
     );
-    wavecrate::sample_sources::library::harvest_file(&key)
-        .expect("load harvest row")
-        .map(|record| record.state)
+    harvest_state_for_key(&key)
 }
 
 #[test]

@@ -54,6 +54,7 @@ struct HarvestSeenPersistRequest {
 struct HarvestStateTarget {
     path: PathBuf,
     identity: HarvestFileIdentity,
+    state: HarvestState,
 }
 
 impl NativeAppState {
@@ -444,6 +445,64 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn reset_context_sample_harvest(&mut self) {
         self.set_context_sample_harvest_state(HarvestState::New, "Reset harvest state", "reset");
+    }
+
+    pub(in crate::native_app) fn toggle_selected_harvest_done(&mut self) {
+        let started_at = std::time::Instant::now();
+        let Some(targets) =
+            self.selected_harvest_state_targets("browser.harvest.toggle_done", started_at)
+        else {
+            return;
+        };
+        let target_state = if targets
+            .iter()
+            .all(|target| target.state == HarvestState::Done)
+        {
+            HarvestState::New
+        } else {
+            HarvestState::Done
+        };
+        let mut applied_any = false;
+        for target in &targets {
+            if let Err(error) =
+                wavecrate::sample_sources::library::upsert_harvest_file(&target.identity)
+            {
+                self.finish_toggle_selected_harvest_done_error(
+                    &targets,
+                    applied_any,
+                    started_at,
+                    error.to_string(),
+                );
+                return;
+            }
+            if let Err(error) = wavecrate::sample_sources::library::set_harvest_state(
+                &target.identity.key,
+                target_state,
+            ) {
+                self.finish_toggle_selected_harvest_done_error(
+                    &targets,
+                    applied_any,
+                    started_at,
+                    error.to_string(),
+                );
+                return;
+            }
+            applied_any = true;
+        }
+
+        self.library
+            .folder_browser
+            .refresh_after_harvest_state_change();
+        let target_label = harvest_state_targets_label(&targets);
+        self.ui.status.sample = harvest_state_toggle_status(target_state, &targets);
+        emit_gui_action(
+            "browser.harvest.toggle_done",
+            Some("browser"),
+            Some(target_label.as_str()),
+            harvest_state_toggle_outcome(target_state),
+            started_at,
+            None,
+        );
     }
 
     pub(in crate::native_app) fn show_context_sample_harvest_origin(
@@ -1024,7 +1083,11 @@ impl NativeAppState {
                 );
                 return None;
             };
-            targets.push(HarvestStateTarget { path, identity });
+            targets.push(HarvestStateTarget {
+                path,
+                identity,
+                state: HarvestState::New,
+            });
         }
         Some(targets)
     }
@@ -1108,6 +1171,98 @@ impl NativeAppState {
             return None;
         };
         Some((path, identity))
+    }
+
+    fn selected_harvest_state_targets(
+        &mut self,
+        action: &'static str,
+        started_at: std::time::Instant,
+    ) -> Option<Vec<HarvestStateTarget>> {
+        let mut paths = self.library.folder_browser.explicit_selected_file_paths();
+        if paths.is_empty() {
+            let Some(path) = self
+                .library
+                .folder_browser
+                .selected_file_id()
+                .map(PathBuf::from)
+            else {
+                self.ui.status.sample = String::from("Select a sample for harvest actions");
+                emit_gui_action(
+                    action,
+                    Some("browser"),
+                    None,
+                    "blocked",
+                    started_at,
+                    Some("no selected sample"),
+                );
+                return None;
+            };
+            paths.push(path);
+        }
+
+        let mut targets = Vec::with_capacity(paths.len());
+        for path in paths {
+            let Some(identity) = self.harvest_identity_for_path(&path) else {
+                self.ui.status.sample =
+                    String::from("Sample is not in a configured harvest source");
+                emit_gui_action(
+                    action,
+                    Some("browser"),
+                    Some(context_menu::target_label(&path).as_str()),
+                    "not_found",
+                    started_at,
+                    Some("harvest identity unavailable"),
+                );
+                return None;
+            };
+            let state = match wavecrate::sample_sources::library::harvest_file(&identity.key) {
+                Ok(record) => record
+                    .map(|record| record.state)
+                    .unwrap_or(HarvestState::New),
+                Err(error) => {
+                    self.ui.status.sample = format!("Update harvest state failed: {error}");
+                    emit_gui_action(
+                        action,
+                        Some("browser"),
+                        Some(context_menu::target_label(&path).as_str()),
+                        "error",
+                        started_at,
+                        Some(&error.to_string()),
+                    );
+                    return None;
+                }
+            };
+            targets.push(HarvestStateTarget {
+                path,
+                identity,
+                state,
+            });
+        }
+        Some(targets)
+    }
+
+    fn finish_toggle_selected_harvest_done_error(
+        &mut self,
+        targets: &[HarvestStateTarget],
+        applied_any: bool,
+        started_at: std::time::Instant,
+        error: String,
+    ) {
+        if applied_any {
+            self.library
+                .folder_browser
+                .refresh_after_harvest_state_change();
+        }
+        let target_label = harvest_state_targets_label(targets);
+        self.ui.status.sample = format!("Update harvest state failed: {error}");
+        emit_gui_action(
+            "browser.harvest.toggle_done",
+            Some("browser"),
+            Some(target_label.as_str()),
+            "error",
+            started_at,
+            Some(error.as_str()),
+        );
     }
 
     fn harvest_path_for_key(&self, key: &HarvestFileKey) -> Option<PathBuf> {
@@ -1210,6 +1365,27 @@ fn harvest_state_display_label(state: HarvestState) -> &'static str {
         HarvestState::Touched => "Touched",
         HarvestState::Done => "Done",
         HarvestState::Ignored => "Ignored",
+    }
+}
+
+fn harvest_state_toggle_status(state: HarvestState, targets: &[HarvestStateTarget]) -> String {
+    let prefix = match state {
+        HarvestState::Done => "Marked harvest done",
+        HarvestState::New => "Reset harvest state",
+        _ => "Updated harvest state",
+    };
+    if targets.len() == 1 {
+        format!("{prefix} {}", sample_path_label(&targets[0].path))
+    } else {
+        format!("{prefix} {} samples", targets.len())
+    }
+}
+
+fn harvest_state_toggle_outcome(state: HarvestState) -> &'static str {
+    match state {
+        HarvestState::Done => "done",
+        HarvestState::New => "reset",
+        _ => "updated",
     }
 }
 

@@ -166,6 +166,7 @@ pub(in crate::native_app) enum GuiMessage {
     MarkContextSampleHarvestDone,
     MarkContextSampleHarvestIgnored,
     ResetContextSampleHarvest,
+    ToggleSelectedHarvestDone,
     ShowContextSampleHarvestOrigin,
     ShowContextSampleHarvestDerivatives,
     OpenContextSampleHarvestDestination,
