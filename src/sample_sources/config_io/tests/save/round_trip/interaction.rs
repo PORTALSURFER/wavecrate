@@ -89,6 +89,10 @@ fn save_interaction_and_waveform_controls_round_trip() {
         fixture.expected.core.controls.advance_after_rating
     );
     assert_eq!(
+        fixture.actual.core.controls.rating_decay_weeks,
+        fixture.expected.core.controls.rating_decay_weeks
+    );
+    assert_eq!(
         fixture.actual.core.controls.tooltip_mode,
         fixture.expected.core.controls.tooltip_mode
     );

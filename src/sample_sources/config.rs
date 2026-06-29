@@ -12,6 +12,7 @@ pub use config_io::{
 pub use config_types::{
     AnalysisSettings, AppConfig, AppSettingsCore, AudioWriteChannelBehavior, AudioWriteDither,
     AudioWriteFormatConfig, AudioWriteSampleFormat, AudioWriteSampleRate, ConfigError,
-    DropTargetColor, DropTargetConfig, FeatureFlags, InteractionOptions, SimilarityAspectControl,
-    SimilarityAspectSettings, TooltipMode, UpdateChannel, UpdateSettings,
+    DEFAULT_RATING_DECAY_WEEKS, DropTargetColor, DropTargetConfig, FeatureFlags,
+    InteractionOptions, MAX_RATING_DECAY_WEEKS, MIN_RATING_DECAY_WEEKS, SimilarityAspectControl,
+    SimilarityAspectSettings, TooltipMode, UpdateChannel, UpdateSettings, clamp_rating_decay_weeks,
 };

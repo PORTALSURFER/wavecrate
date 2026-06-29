@@ -14,6 +14,9 @@ pub use audio_write::{
     AudioWriteSampleRate,
 };
 pub use errors::ConfigError;
-pub use interaction::{InteractionOptions, TooltipMode};
+pub use interaction::{
+    DEFAULT_RATING_DECAY_WEEKS, InteractionOptions, MAX_RATING_DECAY_WEEKS, MIN_RATING_DECAY_WEEKS,
+    TooltipMode, clamp_rating_decay_weeks,
+};
 pub use similarity::{SimilarityAspectControl, SimilarityAspectSettings};
 pub use updates::{UpdateChannel, UpdateSettings};

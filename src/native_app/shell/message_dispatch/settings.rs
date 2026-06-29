@@ -1,6 +1,10 @@
 use radiant::prelude as ui;
+use std::time::Instant;
+use wavecrate::sample_sources::config::clamp_rating_decay_weeks;
 
-use crate::native_app::app::{AudioSettingsDropdown, GuiMessage, NativeAppState, SettingsMessage};
+use crate::native_app::app::{
+    AudioSettingsDropdown, GuiMessage, NativeAppState, SettingsMessage, emit_gui_action,
+};
 
 impl NativeAppState {
     pub(super) fn apply_settings_message(
@@ -29,6 +33,7 @@ impl NativeAppState {
             SettingsMessage::SetAudioOutputSampleRate(sample_rate) => {
                 self.set_audio_output_sample_rate(sample_rate);
             }
+            SettingsMessage::SetRatingDecayWeeks(weeks) => self.set_rating_decay_weeks(weeks),
             SettingsMessage::PickTrashFolder => self.pick_trash_folder(context),
             SettingsMessage::ClearTrashFolder => self.clear_trash_folder(),
             SettingsMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
@@ -49,5 +54,23 @@ impl NativeAppState {
 
     fn toggle_audio_sample_rate_dropdown(&mut self) {
         self.toggle_audio_settings_dropdown(AudioSettingsDropdown::SampleRate);
+    }
+
+    fn set_rating_decay_weeks(&mut self, weeks: u16) {
+        let started_at = Instant::now();
+        let weeks = clamp_rating_decay_weeks(weeks);
+        if self.ui.settings.persisted.controls.rating_decay_weeks == weeks {
+            return;
+        }
+        self.ui.settings.persisted.controls.rating_decay_weeks = weeks;
+        self.persist_user_configuration("settings.rating_decay_weeks.persist", started_at);
+        emit_gui_action(
+            "settings.rating_decay_weeks",
+            Some("settings"),
+            Some(&weeks.to_string()),
+            "changed",
+            started_at,
+            None,
+        );
     }
 }

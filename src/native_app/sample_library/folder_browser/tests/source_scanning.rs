@@ -52,6 +52,79 @@ fn source_scan_installs_finished_tree_after_placeholder_selection() {
     assert!(!discovery_events.is_empty());
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
+    let root = temp_source_root("wavecrate-gui-rating-decay");
+    fs::write(root.join("unlocked.wav"), [0_u8; 8]).expect("write wav");
+    fs::write(root.join("locked.wav"), [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::load_default();
+    let initial_request = browser
+        .begin_add_source_path(root.clone(), 42)
+        .expect("new source should request scan");
+    assert!(browser.apply_scan_finished(scan_source_with_progress(
+        initial_request,
+        |_| {},
+        |_| {}
+    )));
+
+    let stale_curated_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_secs()
+        .saturating_sub(8 * 7 * 24 * 60 * 60 + 1) as i64;
+    let unlocked_relative = std::path::Path::new("unlocked.wav");
+    let locked_relative = std::path::Path::new("locked.wav");
+    let db = SourceDatabase::open(&root).expect("source db");
+    db.set_tag(unlocked_relative, Rating::KEEP_3)
+        .expect("seed unlocked rating");
+    db.set_last_curated_at(unlocked_relative, stale_curated_at)
+        .expect("seed unlocked curation time");
+    db.set_tag(locked_relative, Rating::KEEP_3)
+        .expect("seed locked rating");
+    db.set_locked(locked_relative, true)
+        .expect("seed locked flag");
+    db.set_last_curated_at(locked_relative, stale_curated_at)
+        .expect("seed locked curation time");
+
+    let mut decay_request = browser
+        .begin_selected_source_scan(43)
+        .expect("selected source refresh should queue");
+    decay_request.rating_decay_weeks = 4;
+    let result = scan_source_with_progress(decay_request, |_| {}, |_| {});
+    let unlocked_file = result
+        .folder
+        .all_files()
+        .into_iter()
+        .find(|file| file.name == "unlocked.wav")
+        .expect("unlocked file");
+    let locked_file = result
+        .folder
+        .all_files()
+        .into_iter()
+        .find(|file| file.name == "locked.wav")
+        .expect("locked file");
+
+    assert_eq!(unlocked_file.rating, Rating::KEEP_1);
+    assert_eq!(locked_file.rating, Rating::KEEP_3);
+    let rows = db.list_files().expect("decayed source db files");
+    assert_eq!(
+        rows.iter()
+            .find(|entry| entry.relative_path == unlocked_relative)
+            .expect("unlocked row")
+            .tag,
+        Rating::KEEP_1
+    );
+    assert_eq!(
+        rows.iter()
+            .find(|entry| entry.relative_path == locked_relative)
+            .expect("locked row")
+            .tag,
+        Rating::KEEP_3
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn non_wav_audio_looking_files_are_visible_but_not_supported_audio() {
     let root = temp_source_root("wavecrate-gui-unsupported-audio");

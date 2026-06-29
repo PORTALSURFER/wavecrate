@@ -59,6 +59,7 @@ fn native_file_open_adds_parent_source_before_loading_external_audio_file() {
             label: progress.label,
             root: external_root.path().to_path_buf(),
             database_root: external_root.path().to_path_buf(),
+            rating_decay_weeks: crate::native_app::sample_library::folder_browser::scan::FolderScanRequest::default_rating_decay_weeks(),
         },
         |_| {},
         |_| {},

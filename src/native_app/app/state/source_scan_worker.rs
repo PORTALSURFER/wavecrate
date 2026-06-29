@@ -106,6 +106,7 @@ mod tests {
             label: String::from("Source"),
             root: root.path().to_path_buf(),
             database_root: root.path().to_path_buf(),
+            rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
         }
     }
 

@@ -3,13 +3,13 @@ use radiant::prelude as ui;
 mod projection;
 
 use self::projection::{
-    CacheMaintenanceProjection, SettingsActionProjection, SettingsPanelRowProjection,
-    TrashFolderProjection, settings_panel_projection,
+    CacheMaintenanceProjection, RatingDecayProjection, SettingsActionProjection,
+    SettingsPanelRowProjection, TrashFolderProjection, settings_panel_projection,
 };
 use super::AUDIO_SETTINGS_LABELED_ROW_HEIGHT;
 use super::AUDIO_SETTINGS_ROW_SPACING;
 use super::dropdowns::{audio_host_dropdown, audio_output_dropdown, audio_sample_rate_dropdown};
-use crate::native_app::app::{AudioSettingsDropdown, GuiMessage};
+use crate::native_app::app::{AudioSettingsDropdown, GuiMessage, SettingsMessage};
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 
 pub(super) fn settings_content(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -33,6 +33,7 @@ fn settings_panel_row(
             audio_settings_dropdown_row(label, dropdown, snapshot)
         }
         SettingsPanelRowProjection::TrashFolder(projection) => trash_folder_section(projection),
+        SettingsPanelRowProjection::RatingDecay(projection) => rating_decay_section(projection),
         SettingsPanelRowProjection::CacheMaintenance(projection) => {
             cache_maintenance_section(projection)
         }
@@ -70,6 +71,22 @@ fn cache_maintenance_section(projection: CacheMaintenanceProjection) -> ui::View
         settings_action_button(projection.clear_action).fill_width(),
         AUDIO_SETTINGS_LABELED_ROW_HEIGHT,
     )
+}
+
+fn rating_decay_section(projection: RatingDecayProjection) -> ui::View<GuiMessage> {
+    let value_label = ui::text_line(projection.value_label, 18.0).width(92.0);
+    let slider = ui::slider(projection.slider_value)
+        .message(|value| {
+            GuiMessage::Settings(SettingsMessage::SetRatingDecayWeeks(
+                RatingDecayProjection::weeks_from_slider_value(value),
+            ))
+        })
+        .fill_width();
+    let control = ui::row([slider, value_label])
+        .spacing(8.0)
+        .fill_width()
+        .height(24.0);
+    ui::labeled_control(projection.label, control, AUDIO_SETTINGS_LABELED_ROW_HEIGHT)
 }
 
 fn settings_action_button(action: SettingsActionProjection) -> ui::View<GuiMessage> {
