@@ -126,6 +126,7 @@ fn default_shortcut_help_sections(state: &NativeAppState) -> [ShortcutHelpSectio
                     "Step through playback history",
                 ),
                 shortcut_help_item("X", x_help_label(state)),
+                shortcut_help_item("H", "Toggle harvest done"),
                 shortcut_help_item("Command-A", "Select all listed samples"),
                 shortcut_help_item("Command-C", "Copy play selection or selected file"),
                 shortcut_help_item("Command-X", "Cut selected files"),

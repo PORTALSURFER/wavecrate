@@ -90,6 +90,12 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
+            .any(|item| item.keys == "H" && item.action == "Toggle harvest done")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
             .any(|item| item.keys == "Left" && item.action == "Collapse selected folder")
     );
     assert!(

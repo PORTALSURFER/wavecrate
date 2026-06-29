@@ -23,6 +23,31 @@ fn loop_shortcut_routes_to_loop_toggle() {
 }
 
 #[test]
+fn h_shortcut_routes_to_harvest_done_toggle() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::H));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::ToggleSelectedHarvestDone)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn shift_h_shortcut_routes_to_harvest_done_toggle() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::H));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::ToggleSelectedHarvestDone)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn space_shortcut_routes_to_play_selected_sample() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Space));
@@ -333,6 +358,21 @@ fn e_shortcut_is_consumed_while_renaming() {
         .expect("begin rename should not fail");
 
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::E));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+#[test]
+fn h_shortcut_is_consumed_while_renaming() {
+    let (mut state, _source_root) = state_with_renamable_temp_sample("h-rename-hotkey.wav");
+    state
+        .library
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::H));
 
     assert_eq!(resolution.action, None);
     assert!(resolution.handled);

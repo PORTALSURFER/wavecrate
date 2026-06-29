@@ -203,6 +203,10 @@ fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {
             GuiMessage::ToggleLoopPlayback,
         )
         .bind(
+            ui::ShortcutGesture::any_shift(ui::KeyCode::H),
+            GuiMessage::ToggleSelectedHarvestDone,
+        )
+        .bind(
             transaction_list_shortcut(),
             GuiMessage::ToggleTransactionList,
         )

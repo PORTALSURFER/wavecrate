@@ -95,6 +95,7 @@ impl NativeAppState {
             | GuiMessage::MarkContextSampleHarvestDone
             | GuiMessage::MarkContextSampleHarvestIgnored
             | GuiMessage::ResetContextSampleHarvest
+            | GuiMessage::ToggleSelectedHarvestDone
             | GuiMessage::ShowContextSampleHarvestOrigin
             | GuiMessage::ShowContextSampleHarvestDerivatives
             | GuiMessage::OpenContextSampleHarvestDestination
