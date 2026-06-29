@@ -4,7 +4,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use super::{
     DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
     curation::{BrowserCurationMode, BrowserCurationScope},
-    harvest_filter::{HARVEST_FILTERS, HarvestFilter},
+    harvest_filter::{DEFAULT_HARVEST_FILTER, HARVEST_FILTERS, HarvestFilter},
     messages::FilterFamily,
     playback_type_filter::{PLAYBACK_TYPE_FILTERS, PlaybackTypeFilter},
     rating_filter::RATING_FILTER_LEVELS,
@@ -139,7 +139,13 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn harvest_filter(&self) -> Option<HarvestFilter> {
-        self.filters.harvest
+        self.filters
+            .harvest_enabled
+            .then_some(self.selected_harvest_filter())
+    }
+
+    pub(in crate::native_app) fn selected_harvest_filter(&self) -> HarvestFilter {
+        self.filters.harvest.unwrap_or(DEFAULT_HARVEST_FILTER)
     }
 
     pub(in crate::native_app) fn harvest_filter_enabled(&self) -> bool {
@@ -190,7 +196,12 @@ impl FolderBrowserState {
             FilterFamily::Name => set_bool(&mut self.filters.name_enabled, enabled),
             FilterFamily::Tags => set_bool(&mut self.filters.tags_enabled, enabled),
             FilterFamily::Curation => set_bool(&mut self.filters.curation.enabled, enabled),
-            FilterFamily::Harvest => set_bool(&mut self.filters.harvest_enabled, enabled),
+            FilterFamily::Harvest => {
+                if enabled && self.filters.harvest.is_none() {
+                    self.filters.harvest = Some(DEFAULT_HARVEST_FILTER);
+                }
+                set_bool(&mut self.filters.harvest_enabled, enabled)
+            }
             FilterFamily::PlaybackType => {
                 set_bool(&mut self.filters.playback_type_enabled, enabled)
             }
@@ -266,12 +277,11 @@ impl FolderBrowserState {
         if !HARVEST_FILTERS.contains(&filter) {
             return;
         }
-        let next = enabled.then_some(filter);
-        if self.filters.harvest == next {
+        if self.filters.harvest == Some(filter) && self.filters.harvest_enabled == enabled {
             return;
         }
-        self.filters.harvest = next;
-        self.filters.harvest_enabled = self.filters.harvest.is_some();
+        self.filters.harvest = Some(filter);
+        self.filters.harvest_enabled = enabled;
         self.clear_listing_reveals();
         self.retain_visible_file_selection_after_filter();
         self.reset_file_view();

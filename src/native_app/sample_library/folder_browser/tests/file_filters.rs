@@ -1,7 +1,7 @@
 use super::*;
 use crate::native_app::sample_library::folder_browser::commands::FilterFamily;
 use crate::native_app::sample_library::folder_browser::model::{
-    BrowserCurationScope, PlaybackTypeFilter,
+    BrowserCurationScope, HARVEST_FILTERS, HarvestFilter, PlaybackTypeFilter,
 };
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 use std::collections::{HashMap, HashSet};
@@ -736,6 +736,87 @@ fn filter_family_labels_disable_filters_without_discarding_selected_values() {
         "re-enabling should restore the preserved name filter value"
     );
     let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn enabling_harvest_filter_family_activates_default_all_mode() {
+    let mut browser = FolderBrowserState::load_default();
+
+    assert_eq!(browser.selected_harvest_filter(), HarvestFilter::All);
+    assert_eq!(browser.harvest_filter(), None);
+    assert!(!browser.harvest_mode_active());
+    assert!(!browser.harvest_context_menu_actions_active());
+    assert!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .all(|column| column.id != "harvest"),
+        "normal browsing should not show the Harvest column"
+    );
+
+    browser.apply_message(FolderBrowserMessage::SetFilterFamilyEnabled(
+        FilterFamily::Harvest,
+        true,
+    ));
+
+    assert_eq!(browser.selected_harvest_filter(), HarvestFilter::All);
+    assert_eq!(browser.harvest_filter(), Some(HarvestFilter::All));
+    assert!(browser.harvest_mode_active());
+    assert!(browser.harvest_context_menu_actions_active());
+    assert!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .any(|column| column.id == "harvest"),
+        "enabling Harvest with default All should immediately expose Harvest-gated UI"
+    );
+
+    browser.apply_message(FolderBrowserMessage::SetFilterFamilyEnabled(
+        FilterFamily::Harvest,
+        false,
+    ));
+
+    assert_eq!(browser.selected_harvest_filter(), HarvestFilter::All);
+    assert_eq!(browser.harvest_filter(), None);
+    assert!(!browser.harvest_mode_active());
+    assert!(!browser.harvest_context_menu_actions_active());
+    assert!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .all(|column| column.id != "harvest"),
+        "disabling Harvest should return to normal browsing"
+    );
+}
+
+#[test]
+fn harvest_filter_family_reactivation_preserves_each_selected_mode() {
+    for filter in HARVEST_FILTERS {
+        if filter == HarvestFilter::All {
+            continue;
+        }
+        let mut browser = FolderBrowserState::load_default();
+
+        browser.apply_message(FolderBrowserMessage::SetHarvestFilter(filter, true));
+        assert_eq!(browser.selected_harvest_filter(), filter);
+        assert_eq!(browser.harvest_filter(), Some(filter));
+
+        browser.apply_message(FolderBrowserMessage::SetFilterFamilyEnabled(
+            FilterFamily::Harvest,
+            false,
+        ));
+        assert_eq!(browser.selected_harvest_filter(), filter);
+        assert_eq!(browser.harvest_filter(), None);
+        assert!(!browser.harvest_mode_active());
+
+        browser.apply_message(FolderBrowserMessage::SetFilterFamilyEnabled(
+            FilterFamily::Harvest,
+            true,
+        ));
+        assert_eq!(browser.selected_harvest_filter(), filter);
+        assert_eq!(browser.harvest_filter(), Some(filter));
+        assert!(browser.harvest_mode_active());
+    }
 }
 
 #[test]

@@ -7,6 +7,8 @@ use wavecrate::sample_sources::{HarvestState, SourceId};
 
 use super::{FileEntry, FolderBrowserState};
 
+pub(in crate::native_app) const DEFAULT_HARVEST_FILTER: HarvestFilter = HarvestFilter::All;
+
 pub(in crate::native_app) const HARVEST_FILTERS: [HarvestFilter; 9] = [
     HarvestFilter::New,
     HarvestFilter::NewAndTouched,
