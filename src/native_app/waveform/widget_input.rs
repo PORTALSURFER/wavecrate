@@ -498,7 +498,7 @@ impl WaveformWidget {
     }
 
     fn selection_drag_is_inside_click_slop(&self, event: &CanvasGestureEvent) -> bool {
-        if !self.active_drag_is_selection_like() {
+        if !self.active_drag_uses_click_slop() {
             return false;
         }
         matches!(
@@ -513,7 +513,7 @@ impl WaveformWidget {
         event: &CanvasGestureEvent,
         fallback: CanvasPointer,
     ) -> f32 {
-        if !self.active_drag_is_selection_like() {
+        if !self.active_drag_uses_click_slop() {
             return fallback.normalized_x();
         }
         match event {
@@ -526,14 +526,10 @@ impl WaveformWidget {
         }
     }
 
-    fn active_drag_is_selection_like(&self) -> bool {
+    fn active_drag_uses_click_slop(&self) -> bool {
         matches!(
             self.active_drag_kind,
-            Some(
-                WaveformActiveDragKind::Selection(_)
-                    | WaveformActiveDragKind::SelectionResize(_, _)
-                    | WaveformActiveDragKind::SelectionMove(_)
-            )
+            Some(WaveformActiveDragKind::Selection(_))
         )
     }
 
