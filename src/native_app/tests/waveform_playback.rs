@@ -561,6 +561,49 @@ fn loop_toggle_after_spacebar_keeps_runtime_looping_past_original_end() {
 }
 
 #[test]
+fn loop_toggle_waits_for_pending_runtime_start_before_recovering() {
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-toggle-pending-start.wav", &[0; 4800])
+    else {
+        return;
+    };
+    scenario.play_selected_sample();
+    scenario.apply_playback_frame();
+
+    scenario.state.toggle_loop_playback();
+    let pending_loop_start = pending_runtime_playback_start_id(&scenario.state)
+        .expect("loop toggle should submit a looped runtime start");
+    scenario.state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: false,
+        elapsed: Some(std::time::Duration::from_millis(250)),
+        looping: false,
+        progress: Some(0.98),
+        error: None,
+    };
+
+    scenario.state.refresh_playback_progress();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        Some(pending_loop_start),
+        "stale one-shot progress must not trigger another loop recovery while the loop start is pending"
+    );
+
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    scenario.apply_playback_frame();
+
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        None,
+        "accepted loop starts must replace stale one-shot progress instead of immediately recovering again"
+    );
+    assert!(scenario.state.audio.playback_progress.active);
+    assert!(scenario.state.audio.playback_progress.looping);
+}
+
+#[test]
 fn loop_toggle_while_playing_recovers_when_current_span_is_missing() {
     let Some(mut scenario) =
         WaveformPlaybackScenario::loaded_with_player("loop-toggle-missing-span.wav", &[0; 4800])

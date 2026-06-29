@@ -1,4 +1,7 @@
-use std::{path::Path, time::Instant};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{NativeAppState, emit_gui_action, sample_path_label};
@@ -113,6 +116,11 @@ impl NativeAppState {
         }
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = Some(pending.span);
+        self.audio.playback_progress.active = true;
+        self.audio.playback_progress.elapsed = Some(Duration::ZERO);
+        self.audio.playback_progress.looping = self.audio.loop_playback;
+        self.audio.playback_progress.progress = Some(started.playback_start);
+        self.audio.playback_progress.error = None;
         if self.waveform.current.path() == Path::new(&pending.path) {
             if pending.show_start_marker {
                 self.waveform.current.start_playback(started.playback_start);
@@ -215,6 +223,12 @@ impl NativeAppState {
     fn refresh_runtime_playback_progress(&mut self) {
         if let Some(error) = self.audio.playback_progress.error.take() {
             self.stop_playback_after_progress_error(error);
+            return;
+        }
+        if self.audio.pending_runtime_start.is_some() {
+            if let Some(progress) = self.audio.playback_progress.progress {
+                self.waveform.current.set_playhead_ratio(progress);
+            }
             return;
         }
 
