@@ -48,7 +48,8 @@ fn top_control_bar_places_help_button_after_settings_gear() {
         settings.max.x <= help.min.x,
         "help button should sit to the right of the settings gear"
     );
-    assert!(help.width() <= 12.0);
+    assert_eq!(help.width(), 18.0);
+    assert_eq!(help.height(), 22.0);
 }
 
 #[test]
@@ -102,7 +103,8 @@ fn top_help_tooltips_button_paints_as_bare_question_mark() {
         .paint_plan
         .first_svg_rect_for_widget(help_id)
         .expect("help button should paint the question mark icon");
-    assert!(icon_rect.width() <= 12.0);
+    assert!(icon_rect.width() > 12.0);
+    assert!(icon_rect.width() <= 18.0);
     assert!(
         !frame
             .paint_plan
