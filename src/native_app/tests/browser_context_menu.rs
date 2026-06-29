@@ -859,6 +859,19 @@ fn visible_sample_names(state: &NativeAppState) -> Vec<String> {
         .collect()
 }
 
+fn harvest_state_for(
+    source_id: &wavecrate::sample_sources::SourceId,
+    relative_path: &str,
+) -> Option<wavecrate::sample_sources::HarvestState> {
+    let key = wavecrate::sample_sources::HarvestFileKey::new(
+        source_id.clone(),
+        PathBuf::from(relative_path),
+    );
+    wavecrate::sample_sources::library::harvest_file(&key)
+        .expect("load harvest row")
+        .map(|record| record.state)
+}
+
 #[test]
 fn sample_context_menu_open_harvest_destination_requires_primary_source() {
     let root = tempfile::tempdir().expect("source root");
@@ -884,6 +897,150 @@ fn sample_context_menu_open_harvest_destination_requires_primary_source() {
         "Set a Primary source before using a harvest destination"
     );
     assert!(state.ui.browser_interaction.context_menu.is_none());
+}
+
+#[test]
+fn mark_harvest_done_applies_to_explicit_selected_files() {
+    let root = tempfile::tempdir().expect("source root");
+    let kick = root.path().join("kick.wav");
+    let snare = root.path().join("snare.wav");
+    let hat = root.path().join("hat.wav");
+    for sample in [&kick, &snare, &hat] {
+        fs::write(sample, [0_u8; 8]).expect("write sample");
+    }
+    let source_id = wavecrate::sample_sources::SourceId::from_string(format!(
+        "harvest-context-menu-bulk-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        source_id.clone(),
+        root.path().to_path_buf(),
+    );
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state.library.folder_browser.set_harvest_filter(
+        crate::native_app::sample_library::folder_browser::model::HarvestFilter::NeedsReview,
+        true,
+    );
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        snare.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.open_sample_context_menu(kick.display().to_string(), Point::new(40.0, 120.0));
+    state.apply_message(GuiMessage::MarkContextSampleHarvestDone, &mut context);
+
+    assert_eq!(
+        harvest_state_for(&source_id, "kick.wav"),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(
+        harvest_state_for(&source_id, "snare.wav"),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(harvest_state_for(&source_id, "hat.wav"), None);
+    assert_eq!(state.ui.status.sample, "Marked harvest done 2 samples");
+    assert_eq!(visible_sample_names(&state), vec!["hat.wav"]);
+}
+
+#[test]
+fn mark_harvest_done_uses_selected_set_when_context_click_is_outside_selection() {
+    let root = tempfile::tempdir().expect("source root");
+    let kick = root.path().join("kick.wav");
+    let snare = root.path().join("snare.wav");
+    let hat = root.path().join("hat.wav");
+    for sample in [&kick, &snare, &hat] {
+        fs::write(sample, [0_u8; 8]).expect("write sample");
+    }
+    let source_id = wavecrate::sample_sources::SourceId::from_string(format!(
+        "harvest-context-menu-bulk-outside-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        source_id.clone(),
+        root.path().to_path_buf(),
+    );
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    state.library.folder_browser.select_file_with_modifiers(
+        snare.display().to_string(),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.open_sample_context_menu(hat.display().to_string(), Point::new(40.0, 120.0));
+    state.apply_message(GuiMessage::MarkContextSampleHarvestDone, &mut context);
+
+    assert_eq!(
+        harvest_state_for(&source_id, "kick.wav"),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(
+        harvest_state_for(&source_id, "snare.wav"),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
+    assert_eq!(harvest_state_for(&source_id, "hat.wav"), None);
+}
+
+#[test]
+fn mark_harvest_done_without_multi_selection_uses_context_clicked_sample() {
+    let root = tempfile::tempdir().expect("source root");
+    let kick = root.path().join("kick.wav");
+    let hat = root.path().join("hat.wav");
+    for sample in [&kick, &hat] {
+        fs::write(sample, [0_u8; 8]).expect("write sample");
+    }
+    let source_id = wavecrate::sample_sources::SourceId::from_string(format!(
+        "harvest-context-menu-single-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        source_id.clone(),
+        root.path().to_path_buf(),
+    );
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    state
+        .library
+        .folder_browser
+        .select_file(kick.display().to_string());
+    let mut context = ui::UiUpdateContext::default();
+
+    state.open_sample_context_menu(hat.display().to_string(), Point::new(40.0, 120.0));
+    state.apply_message(GuiMessage::MarkContextSampleHarvestDone, &mut context);
+
+    assert_eq!(harvest_state_for(&source_id, "kick.wav"), None);
+    assert_eq!(
+        harvest_state_for(&source_id, "hat.wav"),
+        Some(wavecrate::sample_sources::HarvestState::Done)
+    );
 }
 
 #[test]
