@@ -304,6 +304,83 @@ fn shortcut_help_modal_suppresses_waveform_transient_overlay() {
     );
 }
 
+#[test]
+fn waveform_context_menu_suppresses_waveform_transient_overlay() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.ui.browser_interaction.waveform_context_menu = Some(
+        crate::native_app::test_support::context_menu::WaveformContextMenu {
+            anchor: radiant::gui::types::Point::new(240.0, 160.0),
+            title: String::from("Playmark Selection"),
+            extract_to_harvest_destination: false,
+        },
+    );
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+    let theme = radiant::theme::ThemeTokens::default();
+    let frame = runtime.frame(&theme);
+    let mut primitives = Vec::new();
+
+    runtime.bridge_mut().paint_transient_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+    assert!(
+        !primitives
+            .iter()
+            .filter_map(|primitive| primitive.fill_rect())
+            .any(|fill| {
+                fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+                    && fill.color.r == 71
+                    && fill.color.g == 220
+                    && fill.color.b == 255
+            }),
+        "waveform context menus should keep live playback cursor overlays behind menu chrome"
+    );
+}
+
+#[test]
+fn waveform_context_menu_occludes_stopped_playhead_surface_marker() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.waveform.current.stop_playback();
+    state.waveform.current.set_playhead_ratio(0.25);
+    let menu = crate::native_app::test_support::context_menu::WaveformContextMenu {
+        anchor: radiant::gui::types::Point::new(240.0, 160.0),
+        title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
+    };
+    let menu_rect = crate::native_app::app_chrome::waveform_context_menu::overlay_rect(&menu);
+    state.ui.browser_interaction.waveform_context_menu = Some(menu);
+    let theme = radiant::theme::ThemeTokens::default();
+    let runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let stopped_playhead_fills = frame
+        .paint_plan
+        .fill_rects_for_widget(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
+        .filter(|fill| fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255)
+        .collect::<Vec<_>>();
+
+    assert!(
+        !stopped_playhead_fills.is_empty(),
+        "waveform context menus should keep the stopped playhead visible outside menu chrome"
+    );
+    assert!(
+        !stopped_playhead_fills
+            .iter()
+            .any(|fill| rects_overlap(fill.rect, menu_rect)),
+        "stopped playhead marker should not paint through the context-menu rectangle"
+    );
+}
+
 fn apply_gui_message_for_presentation_test(
     state: &mut NativeAppState,
     message: GuiMessage,
@@ -314,6 +391,10 @@ fn apply_gui_message_for_presentation_test(
     if !frame_message {
         context.request_repaint();
     }
+}
+
+fn rects_overlap(a: radiant::gui::types::Rect, b: radiant::gui::types::Rect) -> bool {
+    a.min.x < b.max.x && a.max.x > b.min.x && a.min.y < b.max.y && a.max.y > b.min.y
 }
 
 #[test]

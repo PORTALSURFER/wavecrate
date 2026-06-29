@@ -1,5 +1,6 @@
 use radiant::{
-    gui::types::{Rect, Rgba8},
+    gui::feedback::horizontal_value_cursor_rect,
+    gui::types::{Point, Rect, Rgba8},
     gui::visualization::{
         CanvasSelectionAffordancePaintParts, CanvasSelectionAffordanceStyle,
         CanvasSelectionGeometry, CanvasSelectionPaintStyle, DragHandleRole,
@@ -456,7 +457,44 @@ impl WaveformWidget {
             );
         }
         if let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio) {
-            paint.push_horizontal_value_cursor_fill(bounds, playhead_ratio, 2.0, PLAYHEAD_COLOR);
+            self.append_playhead_marker_paint(paint, bounds, playhead_ratio);
+        }
+    }
+
+    fn append_playhead_marker_paint(
+        &self,
+        paint: &mut WidgetPaint<'_>,
+        bounds: Rect,
+        playhead_ratio: f32,
+    ) {
+        const PLAYHEAD_WIDTH: f32 = 2.0;
+        let Some(cursor) = horizontal_value_cursor_rect(bounds, playhead_ratio, PLAYHEAD_WIDTH)
+        else {
+            return;
+        };
+        let Some(occlusion) = self.playhead_occlusion_rect else {
+            paint.push_visible_fill_rect(cursor, PLAYHEAD_COLOR);
+            return;
+        };
+        if !rects_overlap(cursor, occlusion) {
+            paint.push_visible_fill_rect(cursor, PLAYHEAD_COLOR);
+            return;
+        }
+
+        let top_max_y = occlusion.min.y.clamp(cursor.min.y, cursor.max.y);
+        if top_max_y > cursor.min.y {
+            paint.push_visible_fill_rect(
+                Rect::from_min_max(cursor.min, Point::new(cursor.max.x, top_max_y)),
+                PLAYHEAD_COLOR,
+            );
+        }
+
+        let bottom_min_y = occlusion.max.y.clamp(cursor.min.y, cursor.max.y);
+        if bottom_min_y < cursor.max.y {
+            paint.push_visible_fill_rect(
+                Rect::from_min_max(Point::new(cursor.min.x, bottom_min_y), cursor.max),
+                PLAYHEAD_COLOR,
+            );
         }
     }
 
@@ -681,6 +719,10 @@ impl WaveformWidget {
             DragHandleRole::LeadingControl => {}
         }
     }
+}
+
+fn rects_overlap(a: Rect, b: Rect) -> bool {
+    a.min.x < b.max.x && a.max.x > b.min.x && a.min.y < b.max.y && a.max.y > b.min.y
 }
 
 fn active_selection_drag_kind(
