@@ -31,11 +31,6 @@ impl WaveformState {
             WaveformInteraction::ZoomFull => {
                 self.zoom_full();
             }
-            WaveformInteraction::ZoomOut {
-                expand_silence_margin,
-            } => {
-                self.zoom_out(expand_silence_margin);
-            }
             WaveformInteraction::RememberPointerLocation { position } => {
                 self.context_menu_pointer_position = position
                     .x

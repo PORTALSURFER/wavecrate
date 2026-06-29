@@ -181,20 +181,16 @@ fn x_shortcut_routes_to_waveform_zoom_out_when_waveform_is_zoomed_in() {
 }
 
 #[test]
-fn shift_x_shortcut_routes_to_silence_margin_zoom_out_when_waveform_is_loaded() {
+/// Shift-X no longer routes to the removed silence-margin zoom-out command.
+fn shift_x_shortcut_is_unhandled_when_waveform_is_loaded() {
     let state = NativeAppStateFixture::default()
         .with_synthetic_waveform()
         .build();
     let resolution =
         default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::X));
 
-    assert_eq!(
-        resolution.action,
-        Some(GuiMessage::Waveform(WaveformInteraction::ZoomOut {
-            expand_silence_margin: true,
-        }))
-    );
-    assert!(resolution.handled);
+    assert_eq!(resolution.action, None);
+    assert!(!resolution.handled);
 }
 
 #[test]
@@ -205,7 +201,9 @@ fn x_shortcut_routes_to_waveform_zoom_full_from_silence_margin() {
     state
         .waveform
         .current
-        .apply_interaction(WaveformInteraction::ZoomOut {
+        .apply_interaction(WaveformInteraction::Wheel {
+            delta: radiant::gui::types::Vector2::new(0.0, 120.0),
+            anchor_ratio: 0.5,
             expand_silence_margin: true,
         });
     assert!(!state.waveform.current.fully_zoomed_out());

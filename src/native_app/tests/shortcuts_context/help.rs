@@ -117,10 +117,10 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .any(|item| item.keys == "X" && item.action == "Zoom out")
     );
     assert!(
-        sections
+        !sections
             .iter()
             .flat_map(|section| &section.items)
-            .any(|item| item.keys == "Shift-X" && item.action == "Zoom out with silence margin")
+            .any(|item| item.keys == "Shift-X" || item.action == "Zoom out with silence margin")
     );
     assert!(
         sections
