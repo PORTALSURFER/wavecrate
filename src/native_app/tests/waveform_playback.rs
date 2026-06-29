@@ -1097,6 +1097,162 @@ fn normal_playmark_harvest_extraction_creates_focuses_and_records_primary_deriva
     );
 }
 
+#[test]
+fn e_without_playmark_copies_protected_whole_file_to_primary_harvest_and_keeps_focus() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("protected source root");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let source_path = source_root.path().join("whole-protected.wav");
+    write_test_wav_i16(&source_path, &[0, 1024, -1024, 512]);
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    let harvest_source_folder = protected_source
+        .root
+        .file_name()
+        .expect("source root folder name")
+        .to_owned();
+    let expected = primary_root
+        .path()
+        .join("_Harvests")
+        .join(&harvest_source_folder)
+        .join("whole-protected_copy.wav");
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    let source_id = source_path.display().to_string();
+    state.library.folder_browser.select_file(source_id.clone());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        source_path.is_file(),
+        "protected origin should remain intact"
+    );
+    assert!(
+        expected.is_file(),
+        "whole-file copy should be written to Primary"
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(source_id.as_str()),
+        "whole-file fallback should preserve browser focus on the source sample"
+    );
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "whole-file fallback should not load the derivative automatically"
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("whole-protected.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::CopyToPrimary
+    );
+    assert_eq!(edges[0].source_range, None);
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("whole-protected_copy.wav")
+    );
+}
+
+#[test]
+fn e_without_playmark_copies_multi_selected_whole_files_to_harvest() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let first = source_root.path().join("whole-first.wav");
+    let second = source_root.path().join("whole-second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -1024, 512]);
+    write_test_wav_i16(&second, &[0, 512, -512, 256]);
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    let harvest_source_folder = source
+        .root
+        .file_name()
+        .expect("source root folder name")
+        .to_owned();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source.clone(),
+            primary_source,
+        ]);
+    assert_eq!(state.library.folder_browser.select_all_audio_files(), 2);
+    let selected_before = state.library.folder_browser.selected_file_paths();
+    let first_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(&harvest_source_folder)
+        .join("whole-first_copy.wav");
+    let second_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(&harvest_source_folder)
+        .join("whole-second_copy.wav");
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(first_copy.is_file());
+    assert!(second_copy.is_file());
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        selected_before,
+        "whole-file fallback should preserve the original multi-selection"
+    );
+    let first_parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("whole-first.wav"),
+    );
+    let second_parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("whole-second.wav"),
+    );
+    assert_eq!(
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&first_parent_key)
+            .expect("load first derivations")
+            .len(),
+        1
+    );
+    assert_eq!(
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&second_parent_key)
+            .expect("load second derivations")
+            .len(),
+        1
+    );
+}
+
 fn assert_extracted_file_metadata(
     state: &crate::native_app::test_support::state::NativeAppState,
     extracted: &std::path::Path,

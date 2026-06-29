@@ -1,6 +1,6 @@
 use crate::native_app::test_support::state::{
-    FolderBrowserMessage, GuiMessage, NativeAppState, NativeAppStateFixture, WaveformInteraction,
-    default_gui_shortcuts,
+    FolderBrowserMessage, FolderBrowserState, GuiMessage, NativeAppState, NativeAppStateFixture,
+    WaveformInteraction, default_gui_shortcuts,
 };
 use radiant::prelude as ui;
 
@@ -84,6 +84,15 @@ fn control_space_shortcut_routes_to_random_sample_range() {
         default_gui_shortcuts(&state).resolve(ui::KeyPress::with_control(ui::KeyCode::Space));
 
     assert_eq!(resolution.action, Some(GuiMessage::PlayRandomSampleRange));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn e_shortcut_routes_to_extract_playmarked_range_command() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::E));
+
+    assert_eq!(resolution.action, Some(GuiMessage::ExtractPlaymarkedRange));
     assert!(resolution.handled);
 }
 
@@ -241,16 +250,7 @@ fn command_v_shortcut_routes_to_paste_cut_files() {
 
 #[test]
 fn x_shortcut_is_consumed_while_renaming() {
-    let mut state = NativeAppState::load_default().expect("default state loads");
-    let sample_path = state
-        .library
-        .folder_browser
-        .selected_audio_files()
-        .first()
-        .expect("default assets include an audio sample")
-        .id
-        .clone();
-    state.library.folder_browser.select_file(sample_path);
+    let (mut state, _source_root) = state_with_renamable_temp_sample("x-rename.wav");
     state
         .library
         .folder_browser
@@ -261,6 +261,39 @@ fn x_shortcut_is_consumed_while_renaming() {
 
     assert_eq!(resolution.action, None);
     assert!(resolution.handled);
+}
+
+#[test]
+fn e_shortcut_is_consumed_while_renaming() {
+    let (mut state, _source_root) = state_with_renamable_temp_sample("e-rename.wav");
+    state
+        .library
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::E));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+fn state_with_renamable_temp_sample(name: &str) -> (NativeAppState, tempfile::TempDir) {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join(name);
+    std::fs::write(&sample_path, []).expect("sample file");
+    let folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let mut state = NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path.display().to_string());
+    (state, source_root)
 }
 
 #[test]
