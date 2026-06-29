@@ -8,7 +8,11 @@ use crate::native_app::waveform::{
     execute_waveform_extraction,
 };
 use radiant::gui::types::Point;
-use std::time::Instant;
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 use wavecrate::sample_sources::HarvestDerivationOperation;
 
 #[derive(Clone, Copy)]
@@ -31,6 +35,30 @@ impl PlaymarkedExtractionTarget {
             Self::HarvestDestination => "Extracting play range to harvest destination",
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct WholeFileHarvestExtractionResult {
+    pub(in crate::native_app) copied: Vec<WholeFileHarvestExtractionCopy>,
+    pub(in crate::native_app) failed: Vec<WholeFileHarvestExtractionFailure>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct WholeFileHarvestExtractionCopy {
+    pub(in crate::native_app) source_path: PathBuf,
+    pub(in crate::native_app) output_path: PathBuf,
+    pub(in crate::native_app) operation: HarvestDerivationOperation,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct WholeFileHarvestExtractionFailure {
+    pub(in crate::native_app) source_path: PathBuf,
+    pub(in crate::native_app) error: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WholeFileHarvestExtractionRequest {
+    copies: Vec<WholeFileHarvestExtractionCopy>,
 }
 
 impl NativeAppState {
@@ -178,6 +206,12 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let action = target.action_name();
+        if matches!(target, PlaymarkedExtractionTarget::Default)
+            && self.waveform.current.play_selection().is_none()
+        {
+            self.extract_selected_whole_files_to_harvest(context, started_at);
+            return;
+        }
         match self
             .waveform
             .current
@@ -250,6 +284,103 @@ impl NativeAppState {
                     Some(&error),
                 );
             }
+        }
+    }
+
+    fn extract_selected_whole_files_to_harvest(
+        &mut self,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
+        let action = "browser.extract_selected_whole_files_to_harvest";
+        let sources = self.library.folder_browser.selected_file_paths();
+        if sources.is_empty() {
+            let error = String::from("Mark a play range or select samples before extracting");
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                action,
+                Some("browser"),
+                None,
+                "blocked",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
+        let request = match self.selected_whole_file_harvest_extraction_request(sources) {
+            Ok(request) => request,
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    action,
+                    Some("browser"),
+                    None,
+                    "blocked",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        };
+        let count = request.copies.len();
+        self.ui.status.sample = format!(
+            "Extracting {count} selected {} to Harvest",
+            if count == 1 { "file" } else { "files" }
+        );
+        context
+            .business()
+            .blocking_io("gui-whole-file-harvest-extract")
+            .run(
+                move |_| execute_whole_file_harvest_extraction(request),
+                move |result| GuiMessage::SelectedWholeFilesHarvestExtractionFinished {
+                    started_at,
+                    result,
+                },
+            );
+    }
+
+    fn selected_whole_file_harvest_extraction_request(
+        &self,
+        sources: Vec<PathBuf>,
+    ) -> Result<WholeFileHarvestExtractionRequest, String> {
+        let mut reserved_outputs = HashSet::new();
+        let mut copies = Vec::with_capacity(sources.len());
+        for source_path in sources {
+            let target_folder = self.harvest_destination_for_origin(&source_path)?;
+            if let Some(error) = self
+                .library
+                .folder_browser
+                .folder_target_lock_error(&target_folder, "Extraction")
+            {
+                return Err(error);
+            }
+            let output_path = next_available_reserved_whole_file_harvest_copy_path(
+                &source_path,
+                &target_folder,
+                &reserved_outputs,
+            )?;
+            reserved_outputs.insert(output_path.clone());
+            copies.push(WholeFileHarvestExtractionCopy {
+                source_path,
+                operation: self.harvest_copy_operation_for_child(&output_path),
+                output_path,
+            });
+        }
+        Ok(WholeFileHarvestExtractionRequest { copies })
+    }
+
+    fn harvest_copy_operation_for_child(&self, child_path: &Path) -> HarvestDerivationOperation {
+        let Some((child_source, _)) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(child_path)
+        else {
+            return HarvestDerivationOperation::Copy;
+        };
+        if child_source.is_primary() {
+            HarvestDerivationOperation::CopyToPrimary
+        } else {
+            HarvestDerivationOperation::Copy
         }
     }
 
@@ -333,7 +464,7 @@ impl NativeAppState {
                     .path_is_in_protected_source(&completion.source_path);
                 let cross_source_derivative =
                     self.extraction_derivative_crosses_sources(&completion.source_path, &path);
-                let focus_derivative = protected_origin || cross_source_derivative;
+                let focus_derivative = cross_source_derivative && !protected_origin;
                 if focus_derivative {
                     self.library
                         .folder_browser
@@ -421,6 +552,82 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn finish_selected_whole_files_harvest_extraction(
+        &mut self,
+        started_at: Instant,
+        result: WholeFileHarvestExtractionResult,
+    ) {
+        let action = "browser.extract_selected_whole_files_to_harvest";
+        for copy in &result.copied {
+            self.library
+                .folder_browser
+                .refresh_file_path_across_sources(&copy.output_path);
+            self.record_harvest_whole_file_derivation(
+                &copy.source_path,
+                &copy.output_path,
+                copy.operation.clone(),
+            );
+        }
+
+        let copied_count = result.copied.len();
+        let failed_count = result.failed.len();
+        if copied_count == 0 {
+            let error = result
+                .failed
+                .first()
+                .map(|failure| {
+                    format!(
+                        "Whole-file extraction failed for {}: {}",
+                        sample_path_label(&failure.source_path),
+                        failure.error
+                    )
+                })
+                .unwrap_or_else(|| String::from("No selected files were extracted"));
+            self.ui.status.sample = error.clone();
+            emit_gui_action(
+                action,
+                Some("browser"),
+                None,
+                "error",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
+
+        self.ui.status.sample = if failed_count == 0 {
+            format!(
+                "Extracted {copied_count} selected {} to Harvest",
+                if copied_count == 1 { "file" } else { "files" }
+            )
+        } else {
+            format!(
+                "Extracted {copied_count} selected {} to Harvest; {failed_count} failed",
+                if copied_count == 1 { "file" } else { "files" }
+            )
+        };
+        let label = if copied_count == 1 {
+            result
+                .copied
+                .first()
+                .map(|copy| sample_path_label(&copy.output_path))
+        } else {
+            Some(format!("{copied_count} files"))
+        };
+        emit_gui_action(
+            action,
+            Some("browser"),
+            label.as_deref(),
+            if failed_count == 0 {
+                "success"
+            } else {
+                "partial"
+            },
+            started_at,
+            result.failed.first().map(|failure| failure.error.as_str()),
+        );
+    }
+
     fn extraction_derivative_crosses_sources(
         &self,
         source_path: &std::path::Path,
@@ -438,4 +645,64 @@ impl NativeAppState {
             .map(|(source, _)| source.id);
         source_id.is_some() && child_id.is_some() && source_id != child_id
     }
+}
+
+fn execute_whole_file_harvest_extraction(
+    request: WholeFileHarvestExtractionRequest,
+) -> WholeFileHarvestExtractionResult {
+    let mut copied = Vec::with_capacity(request.copies.len());
+    let mut failed = Vec::new();
+    for copy in request.copies {
+        let result = copy
+            .output_path
+            .parent()
+            .ok_or_else(|| String::from("Harvest copy has no destination folder"))
+            .and_then(|parent| {
+                wavecrate::sample_sources::harvest_file_ops::ensure_dir(
+                    parent,
+                    "Could not create harvest destination",
+                )
+            })
+            .and_then(|_| {
+                wavecrate::sample_sources::harvest_file_ops::copy_file(
+                    &copy.source_path,
+                    &copy.output_path,
+                    "Could not copy selected sample",
+                )
+            });
+        match result {
+            Ok(()) => copied.push(copy),
+            Err(error) => failed.push(WholeFileHarvestExtractionFailure {
+                source_path: copy.source_path,
+                error,
+            }),
+        }
+    }
+    WholeFileHarvestExtractionResult { copied, failed }
+}
+
+fn next_available_reserved_whole_file_harvest_copy_path(
+    source_path: &Path,
+    target_folder: &Path,
+    reserved_outputs: &HashSet<PathBuf>,
+) -> Result<PathBuf, String> {
+    let stem = source_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .ok_or_else(|| String::from("Source sample has no file name"))?;
+    for index in 0..10_000 {
+        let suffix = if index == 0 {
+            String::from("_copy")
+        } else {
+            format!("_copy_{index}")
+        };
+        let candidate = target_folder.join(format!("{stem}{suffix}.wav"));
+        if !candidate.exists() && !reserved_outputs.contains(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err(String::from(
+        "Could not find an available harvest copy file name",
+    ))
 }

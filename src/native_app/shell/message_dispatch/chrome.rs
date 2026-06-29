@@ -159,6 +159,9 @@ impl NativeAppState {
                 started_at,
                 context,
             ),
+            GuiMessage::SelectedWholeFilesHarvestExtractionFinished { started_at, result } => {
+                self.finish_selected_whole_files_harvest_extraction(started_at, result);
+            }
             _ => unreachable!("chrome dispatcher received a non-chrome message"),
         }
     }

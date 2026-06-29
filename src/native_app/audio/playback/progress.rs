@@ -1,4 +1,7 @@
-use std::{path::Path, time::Instant};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{NativeAppState, emit_gui_action, sample_path_label};
@@ -113,6 +116,11 @@ impl NativeAppState {
         }
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = Some(pending.span);
+        self.audio.playback_progress.active = true;
+        self.audio.playback_progress.elapsed = Some(Duration::ZERO);
+        self.audio.playback_progress.looping = self.audio.loop_playback;
+        self.audio.playback_progress.progress = Some(started.playback_start);
+        self.audio.playback_progress.error = None;
         if self.waveform.current.path() == Path::new(&pending.path) {
             if pending.show_start_marker {
                 self.waveform.current.start_playback(started.playback_start);
@@ -217,6 +225,12 @@ impl NativeAppState {
             self.stop_playback_after_progress_error(error);
             return;
         }
+        if self.audio.pending_runtime_start.is_some() {
+            if let Some(progress) = self.audio.playback_progress.progress {
+                self.waveform.current.set_playhead_ratio(progress);
+            }
+            return;
+        }
 
         let active = self.audio.playback_progress.active;
         let elapsed = self.audio.playback_progress.elapsed;
@@ -250,7 +264,7 @@ impl NativeAppState {
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        if self.blocking_modal_suppresses_waveform_transient_overlay() {
+        if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
         let Some(progress) = self.current_audio_progress_ratio() else {
@@ -273,7 +287,7 @@ impl NativeAppState {
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        if self.blocking_modal_suppresses_waveform_transient_overlay() {
+        if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
         self.paint_loading_overlay(context, primitives);
@@ -281,13 +295,15 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn should_paint_waveform_transient_overlay(&self) -> bool {
-        !self.blocking_modal_suppresses_waveform_transient_overlay()
+        !self.chrome_overlay_suppresses_waveform_transient_overlay()
             && (self.waveform.current.is_playing() || self.waveform.load.label.is_some())
     }
 
-    fn blocking_modal_suppresses_waveform_transient_overlay(&self) -> bool {
+    fn chrome_overlay_suppresses_waveform_transient_overlay(&self) -> bool {
         self.ui.chrome.shortcut_help_open
             || self.ui.chrome.transaction_list_open
+            || self.ui.browser_interaction.context_menu.is_some()
+            || self.ui.browser_interaction.waveform_context_menu.is_some()
             || self
                 .library
                 .folder_browser

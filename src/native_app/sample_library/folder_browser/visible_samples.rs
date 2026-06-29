@@ -48,6 +48,7 @@ pub(super) struct VisibleSampleWindowFiles<'a> {
 pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) file: &'a FileEntry,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
@@ -524,6 +525,7 @@ impl FolderBrowserState {
         VisibleSampleRow {
             file,
             selected: self.is_file_selected(&file.id),
+            focused: self.selected_file_id() == Some(file.id.as_str()),
             copy_flash: self.copied_file_flash_active(&file.id),
             drag_active: self.file_drag_active(),
             drag_source: self.file_drag_source(&file.id),

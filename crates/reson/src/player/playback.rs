@@ -147,6 +147,26 @@ impl AudioPlayer {
             PlaybackSeekBehavior::FrameOffset(offset_frames),
         )?;
 
+        if self.looping != looped {
+            return if looped {
+                self.start_with_looped_span_offset(
+                    bounded_start,
+                    bounded_end,
+                    duration,
+                    offset_seconds,
+                    metronome,
+                )
+            } else {
+                self.start_with_span_offset(
+                    bounded_start,
+                    bounded_end,
+                    duration,
+                    offset_seconds,
+                    metronome,
+                )
+            };
+        }
+
         let Some(playback_span) = self.active_playback_span.clone() else {
             return if looped {
                 self.start_with_looped_span_offset(

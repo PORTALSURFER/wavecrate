@@ -24,6 +24,7 @@ fn sample_hit_target(
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
         selected,
+        focused: false,
         copy_flash: false,
         cut_pending: false,
         drag_active,
@@ -35,10 +36,31 @@ fn sample_hit_target(
     })
 }
 
+fn sample_hit_target_with_focus(
+    selected: bool,
+    focused: bool,
+    cached: bool,
+) -> UiSurface<GuiMessage> {
+    sample_hit_target_with_model(SampleFileHitTargetModel {
+        file_id: "sample.wav",
+        selected,
+        focused,
+        copy_flash: false,
+        cut_pending: false,
+        drag_active: false,
+        drag_source: false,
+        cached,
+        missing: false,
+        hit_path: String::from("sample.wav"),
+        help_tooltips_enabled: false,
+    })
+}
+
 fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
         selected,
+        focused: false,
         copy_flash: true,
         cut_pending: false,
         drag_active: false,
@@ -54,6 +76,7 @@ fn sample_hit_target_with_cut_pending(selected: bool, cached: bool) -> UiSurface
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
         selected,
+        focused: false,
         copy_flash: false,
         cut_pending: true,
         drag_active: false,
@@ -121,6 +144,7 @@ fn production_hit_target_derives_stable_input_identity_from_sample_row_key() {
         SampleFileHitTargetModel {
             file_id: "sample.wav",
             selected: false,
+            focused: false,
             copy_flash: false,
             cut_pending: false,
             drag_active: false,
@@ -183,6 +207,102 @@ fn selected_fill() -> ui::Rgba8 {
     sample_row_palette_for_tests()
         .selected
         .expect("dense-row selected fill")
+}
+
+fn paints_selection_marker(plan: &SurfacePaintPlan, bounds: ui::Rect) -> bool {
+    plan.fill_rects().any(|fill| {
+        fill.rect.min.x == bounds.min.x + 1.0
+            && fill.rect.width() == 3.0
+            && fill.color == SELECTED_MARKER
+    })
+}
+
+fn paints_focus_outline(plan: &SurfacePaintPlan) -> bool {
+    plan.stroke_rects()
+        .any(|stroke| stroke.color == FOCUSED_OUTLINE && stroke.width == FOCUSED_OUTLINE_WIDTH)
+}
+
+#[test]
+/// Verifies selected rows keep the existing fill and leading marker without adding focus chrome.
+fn selected_rows_paint_selection_fill_and_marker_without_focus_outline() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let target = sample_hit_target_with_focus(true, false, false);
+    let plan = sample_widget_plan(&target, bounds);
+
+    assert!(
+        plan.fill_rects().any(|fill| fill.color == selected_fill()),
+        "selected rows should keep the selected fill"
+    );
+    assert!(
+        paints_selection_marker(&plan, bounds),
+        "selected rows should keep the leading selected marker"
+    );
+    assert!(
+        !paints_focus_outline(&plan),
+        "selection alone should not paint the focused-row outline"
+    );
+}
+
+#[test]
+/// Verifies focus can move independently from the selected set.
+fn focused_rows_paint_outline_without_selection_fill_or_marker() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let target = sample_hit_target_with_focus(false, true, false);
+    let plan = sample_widget_plan(&target, bounds);
+
+    assert!(
+        paints_focus_outline(&plan),
+        "focused rows should paint a crisp outline"
+    );
+    assert!(
+        !plan.fill_rects().any(|fill| fill.color == selected_fill()),
+        "focused-only rows should not borrow the selected fill"
+    );
+    assert!(
+        !paints_selection_marker(&plan, bounds),
+        "focused-only rows should not borrow the selected marker"
+    );
+}
+
+#[test]
+/// Verifies combined selected and focused state layers both visual treatments.
+fn selected_focused_rows_paint_selection_and_focus_together() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let target = sample_hit_target_with_focus(true, true, false);
+    let plan = sample_widget_plan(&target, bounds);
+
+    assert!(
+        plan.fill_rects().any(|fill| fill.color == selected_fill()),
+        "selected + focused rows should keep the selected fill"
+    );
+    assert!(
+        paints_selection_marker(&plan, bounds),
+        "selected + focused rows should keep the selected marker"
+    );
+    assert!(
+        paints_focus_outline(&plan),
+        "selected + focused rows should also paint the focus outline"
+    );
+}
+
+#[test]
+/// Verifies hover feedback does not mask the focus marker.
+fn focused_hover_rows_keep_focus_outline() {
+    let bounds = ui::Rect::from_size(120.0, 22.0);
+    let mut target = sample_hit_target_with_focus(false, true, false);
+    dispatch(
+        &mut target,
+        bounds,
+        WidgetInput::pointer_move(Point::new(34.0, 8.0)),
+    );
+
+    let plan = sample_widget_plan(&target, bounds);
+
+    assert!(paints_hover_fill(&plan));
+    assert!(
+        paints_focus_outline(&plan),
+        "hover feedback should not erase the focused-row outline"
+    );
 }
 
 #[test]

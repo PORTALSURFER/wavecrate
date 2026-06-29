@@ -28,13 +28,12 @@ impl WaveformState {
             WaveformInteraction::ZoomToPlaySelection => {
                 self.zoom_to_play_selection();
             }
+            WaveformInteraction::SlidePlaySelection { direction } => {
+                self.active_drag = None;
+                self.slide_play_selection_by_width(direction);
+            }
             WaveformInteraction::ZoomFull => {
                 self.zoom_full();
-            }
-            WaveformInteraction::ZoomOut {
-                expand_silence_margin,
-            } => {
-                self.zoom_out(expand_silence_margin);
             }
             WaveformInteraction::RememberPointerLocation { position } => {
                 self.context_menu_pointer_position = position

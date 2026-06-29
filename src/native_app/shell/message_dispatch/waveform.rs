@@ -112,7 +112,7 @@ impl NativeAppState {
             } | WaveformInteraction::BeginSelectionMove {
                 kind: WaveformSelectionKind::Play,
                 ..
-            }
+            } | WaveformInteraction::SlidePlaySelection { .. }
         );
         begins_play_selection_change
             .then(|| WaveformPlaySelectionSnapshot::from_waveform(&self.waveform.current))
@@ -294,9 +294,14 @@ fn waveform_interaction_updates_play_selection(
 ) -> bool {
     if !matches!(
         interaction,
-        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::FinishSelection { .. }
+        WaveformInteraction::UpdateSelection { .. }
+            | WaveformInteraction::FinishSelection { .. }
+            | WaveformInteraction::SlidePlaySelection { .. }
     ) {
         return false;
+    }
+    if matches!(interaction, WaveformInteraction::SlidePlaySelection { .. }) {
+        return true;
     }
     match active_drag {
         Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play)) => {
@@ -311,7 +316,11 @@ fn waveform_interaction_updates_play_selection(
 }
 
 fn waveform_interaction_finishes_play_selection_update(interaction: &WaveformInteraction) -> bool {
-    matches!(interaction, WaveformInteraction::FinishSelection { .. })
+    matches!(
+        interaction,
+        WaveformInteraction::FinishSelection { .. }
+            | WaveformInteraction::SlidePlaySelection { .. }
+    )
 }
 
 fn waveform_interaction_updates_edit_selection(
@@ -338,6 +347,7 @@ fn waveform_interaction_updates_edit_selection(
         | WaveformInteraction::FinishEditGain { .. }
         | WaveformInteraction::ClearEditFadeSilence { .. }
         | WaveformInteraction::SelectSimilarSection { .. } => true,
+        WaveformInteraction::SlidePlaySelection { .. } => false,
         WaveformInteraction::UpdateSelection { .. }
         | WaveformInteraction::FinishSelection { .. } => {
             matches!(
@@ -359,6 +369,7 @@ fn waveform_interaction_can_finish_mark_change(interaction: &WaveformInteraction
         interaction,
         WaveformInteraction::FinishSelection { .. }
             | WaveformInteraction::SelectSimilarSection { .. }
+            | WaveformInteraction::SlidePlaySelection { .. }
             | WaveformInteraction::ClearEditFadeSilence { .. }
             | WaveformInteraction::FinishEditFadeOuterGain { .. }
             | WaveformInteraction::FinishEditGain { .. }
@@ -369,8 +380,9 @@ fn play_selection_transaction_finishes(
     interaction: &WaveformInteraction,
     active_drag: Option<WaveformActiveDragKind>,
 ) -> bool {
-    matches!(interaction, WaveformInteraction::FinishSelection { .. })
-        && play_selection_drag_active(active_drag)
+    matches!(interaction, WaveformInteraction::SlidePlaySelection { .. })
+        || (matches!(interaction, WaveformInteraction::FinishSelection { .. })
+            && play_selection_drag_active(active_drag))
 }
 
 fn play_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bool {
@@ -444,13 +456,8 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
     match interaction {
         WaveformInteraction::Wheel { .. } => Some("waveform.zoom_wheel"),
         WaveformInteraction::ZoomToPlaySelection => Some("waveform.zoom_to_play_selection"),
+        WaveformInteraction::SlidePlaySelection { .. } => Some("waveform.playmark.slide"),
         WaveformInteraction::ZoomFull => Some("waveform.zoom_full"),
-        WaveformInteraction::ZoomOut {
-            expand_silence_margin: true,
-        } => Some("waveform.zoom_out_silence_margin"),
-        WaveformInteraction::ZoomOut {
-            expand_silence_margin: false,
-        } => Some("waveform.zoom_out"),
         WaveformInteraction::RememberPointerLocation { .. } => None,
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),

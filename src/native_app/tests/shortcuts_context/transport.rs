@@ -1,6 +1,6 @@
 use crate::native_app::test_support::state::{
-    FolderBrowserMessage, GuiMessage, NativeAppState, NativeAppStateFixture, WaveformInteraction,
-    default_gui_shortcuts,
+    FolderBrowserMessage, FolderBrowserState, GuiMessage, NativeAppState, NativeAppStateFixture,
+    WaveformInteraction, default_gui_shortcuts,
 };
 use radiant::prelude as ui;
 
@@ -19,6 +19,31 @@ fn loop_shortcut_routes_to_loop_toggle() {
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::L));
 
     assert_eq!(resolution.action, Some(GuiMessage::ToggleLoopPlayback));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn h_shortcut_routes_to_harvest_done_toggle() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::H));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::ToggleSelectedHarvestDone)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn shift_h_shortcut_routes_to_harvest_done_toggle() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::H));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::ToggleSelectedHarvestDone)
+    );
     assert!(resolution.handled);
 }
 
@@ -68,6 +93,68 @@ fn right_arrow_shortcut_routes_to_current_play_start() {
 }
 
 #[test]
+fn right_arrow_shortcut_routes_to_playmark_slide_when_playmark_is_active() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.2, 0.4);
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowRight));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(
+            WaveformInteraction::SlidePlaySelection { direction: 1 }
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn left_arrow_shortcut_routes_to_playmark_slide_when_playmark_is_active() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.4, 0.6);
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowLeft));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::Waveform(
+            WaveformInteraction::SlidePlaySelection { direction: -1 }
+        ))
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn right_arrow_shortcut_dispatch_slides_active_playmark_by_width() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.2, 0.4);
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowRight));
+
+    state.apply_message(
+        resolution.action.expect("right arrow action"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let selection = state
+        .waveform
+        .current
+        .play_selection()
+        .expect("playmark should remain active");
+    assert!((selection.start() - 0.4).abs() < 0.001);
+    assert!((selection.end() - 0.6).abs() < 0.001);
+    assert!((selection.width() - 0.2).abs() < 0.001);
+}
+
+#[test]
 fn option_space_shortcut_routes_to_random_sample_range() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution =
@@ -84,6 +171,15 @@ fn control_space_shortcut_routes_to_random_sample_range() {
         default_gui_shortcuts(&state).resolve(ui::KeyPress::with_control(ui::KeyCode::Space));
 
     assert_eq!(resolution.action, Some(GuiMessage::PlayRandomSampleRange));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn e_shortcut_routes_to_extract_playmarked_range_command() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::E));
+
+    assert_eq!(resolution.action, Some(GuiMessage::ExtractPlaymarkedRange));
     assert!(resolution.handled);
 }
 
@@ -181,20 +277,16 @@ fn x_shortcut_routes_to_waveform_zoom_out_when_waveform_is_zoomed_in() {
 }
 
 #[test]
-fn shift_x_shortcut_routes_to_silence_margin_zoom_out_when_waveform_is_loaded() {
+/// Shift-X no longer routes to the removed silence-margin zoom-out command.
+fn shift_x_shortcut_is_unhandled_when_waveform_is_loaded() {
     let state = NativeAppStateFixture::default()
         .with_synthetic_waveform()
         .build();
     let resolution =
         default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::X));
 
-    assert_eq!(
-        resolution.action,
-        Some(GuiMessage::Waveform(WaveformInteraction::ZoomOut {
-            expand_silence_margin: true,
-        }))
-    );
-    assert!(resolution.handled);
+    assert_eq!(resolution.action, None);
+    assert!(!resolution.handled);
 }
 
 #[test]
@@ -205,7 +297,9 @@ fn x_shortcut_routes_to_waveform_zoom_full_from_silence_margin() {
     state
         .waveform
         .current
-        .apply_interaction(WaveformInteraction::ZoomOut {
+        .apply_interaction(WaveformInteraction::Wheel {
+            delta: radiant::gui::types::Vector2::new(0.0, 120.0),
+            anchor_ratio: 0.5,
             expand_silence_margin: true,
         });
     assert!(!state.waveform.current.fully_zoomed_out());
@@ -241,16 +335,7 @@ fn command_v_shortcut_routes_to_paste_cut_files() {
 
 #[test]
 fn x_shortcut_is_consumed_while_renaming() {
-    let mut state = NativeAppState::load_default().expect("default state loads");
-    let sample_path = state
-        .library
-        .folder_browser
-        .selected_audio_files()
-        .first()
-        .expect("default assets include an audio sample")
-        .id
-        .clone();
-    state.library.folder_browser.select_file(sample_path);
+    let (mut state, _source_root) = state_with_renamable_temp_sample("x-rename.wav");
     state
         .library
         .folder_browser
@@ -261,6 +346,54 @@ fn x_shortcut_is_consumed_while_renaming() {
 
     assert_eq!(resolution.action, None);
     assert!(resolution.handled);
+}
+
+#[test]
+fn e_shortcut_is_consumed_while_renaming() {
+    let (mut state, _source_root) = state_with_renamable_temp_sample("e-rename.wav");
+    state
+        .library
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::E));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+#[test]
+fn h_shortcut_is_consumed_while_renaming() {
+    let (mut state, _source_root) = state_with_renamable_temp_sample("h-rename-hotkey.wav");
+    state
+        .library
+        .folder_browser
+        .begin_rename_selected()
+        .expect("begin rename should not fail");
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::H));
+
+    assert_eq!(resolution.action, None);
+    assert!(resolution.handled);
+}
+
+fn state_with_renamable_temp_sample(name: &str) -> (NativeAppState, tempfile::TempDir) {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join(name);
+    std::fs::write(&sample_path, []).expect("sample file");
+    let folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    let mut state = NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path.display().to_string());
+    (state, source_root)
 }
 
 #[test]

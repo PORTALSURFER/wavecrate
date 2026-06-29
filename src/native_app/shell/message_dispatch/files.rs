@@ -28,6 +28,7 @@ impl NativeAppState {
                 self.mark_context_sample_harvest_ignored()
             }
             GuiMessage::ResetContextSampleHarvest => self.reset_context_sample_harvest(),
+            GuiMessage::ToggleSelectedHarvestDone => self.toggle_selected_harvest_done(),
             GuiMessage::ShowContextSampleHarvestOrigin => {
                 self.show_context_sample_harvest_origin(context)
             }

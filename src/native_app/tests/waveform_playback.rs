@@ -490,6 +490,179 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
 }
 
 #[test]
+fn enabling_loop_during_active_fixed_range_playback_preserves_current_span() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    scenario
+        .state
+        .start_playback_fixed_span_without_history(0.25, 0.60)
+        .expect("fixed range playback starts");
+    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_playback_span_state(&scenario.state, 0.25, 0.60);
+    assert_waveform_progress_near(&scenario.state, 0.40);
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id,
+        "loop toggle should retarget the active source instead of queuing another play start"
+    );
+}
+
+#[test]
+fn enabling_loop_during_active_playmark_playback_keeps_selected_range_active() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    scenario.select_play_range(0.25, 0.60);
+    scenario.play_selected_sample();
+    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_playback_span_state(&scenario.state, 0.25, 0.60);
+    assert_waveform_progress_near(&scenario.state, 0.40);
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id,
+        "loop toggle should not require a second play command"
+    );
+}
+
+#[test]
+fn loop_toggle_after_spacebar_keeps_runtime_looping_past_original_end() {
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-toggle-runtime.wav", &[0; 4800])
+    else {
+        return;
+    };
+    scenario.play_selected_sample();
+    scenario.apply_playback_frame();
+
+    scenario.state.toggle_loop_playback();
+    scenario.apply_playback_frame();
+    std::thread::sleep(std::time::Duration::from_millis(140));
+    scenario.apply_playback_frame();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert!(
+        scenario.state.audio.playback_progress.looping,
+        "runtime playback should switch to looped mode after toggling Loop during spacebar playback"
+    );
+}
+
+#[test]
+fn loop_toggle_waits_for_pending_runtime_start_before_recovering() {
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-toggle-pending-start.wav", &[0; 4800])
+    else {
+        return;
+    };
+    scenario.play_selected_sample();
+    scenario.apply_playback_frame();
+
+    scenario.state.toggle_loop_playback();
+    let pending_loop_start = pending_runtime_playback_start_id(&scenario.state)
+        .expect("loop toggle should submit a looped runtime start");
+    scenario.state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: false,
+        elapsed: Some(std::time::Duration::from_millis(250)),
+        looping: false,
+        progress: Some(0.98),
+        error: None,
+    };
+
+    scenario.state.refresh_playback_progress();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        Some(pending_loop_start),
+        "stale one-shot progress must not trigger another loop recovery while the loop start is pending"
+    );
+
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    scenario.apply_playback_frame();
+
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        None,
+        "accepted loop starts must replace stale one-shot progress instead of immediately recovering again"
+    );
+    assert!(scenario.state.audio.playback_progress.active);
+    assert!(scenario.state.audio.playback_progress.looping);
+}
+
+#[test]
+fn loop_toggle_while_playing_recovers_when_current_span_is_missing() {
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-toggle-missing-span.wav", &[0; 4800])
+    else {
+        return;
+    };
+    scenario.play_selected_sample();
+    scenario.apply_playback_frame();
+    scenario.state.audio.current_playback_span = None;
+
+    scenario.state.toggle_loop_playback();
+    scenario.apply_playback_frame();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_eq!(scenario.state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        scenario.state.audio.playback_progress.looping,
+        "loop toggle should retarget from the visible loaded sample when span state is missing"
+    );
+}
+
+#[test]
+fn disabling_loop_during_active_playback_retargets_to_one_shot_tail() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    scenario.start_full_sample_loop();
+    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(!scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_playback_span_state(&scenario.state, 0.40, 1.0);
+    assert_waveform_progress_near(&scenario.state, 0.40);
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id,
+        "loop-off should retarget the active source into one-shot playback"
+    );
+}
+
+#[test]
+fn idle_loop_toggle_does_not_start_playback() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(!scenario.state.waveform.current.is_playing());
+    assert_eq!(scenario.state.audio.current_playback_span, None);
+    assert_eq!(pending_runtime_playback_start_id(&scenario.state), None);
+}
+
+#[test]
 fn playmark_selection_copy_uses_interactive_handoff_worker() {
     let mut scenario =
         WaveformPlaybackScenario::with_temp_wav("playmark-copy.wav", &[0, 1024, -1024, 512]);
@@ -759,6 +932,7 @@ fn playmark_extraction_writes_new_file_into_protected_source() {
     );
     protect_selected_source_for_test(&mut scenario.state);
     load_selected_sample_into_waveform(&mut scenario);
+    let source_path = scenario.state.waveform.current.path();
     let source_parent = scenario
         .state
         .waveform
@@ -773,19 +947,20 @@ fn playmark_extraction_writes_new_file_into_protected_source() {
 
     assert!(extracted.is_file());
     assert_eq!(extracted.parent(), Some(source_parent.as_path()));
-    let ticket = active_sample_load_ticket(&scenario.state).expect("extracted sample load queued");
-    scenario.state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            sample_load_completion(
-                ticket,
-                extracted.to_string_lossy().to_string(),
-                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
-                true,
-            ),
-        ),
-        &mut ui::UiUpdateContext::default(),
+    assert_eq!(
+        scenario.state.library.folder_browser.selected_file_id(),
+        Some(source_path.to_string_lossy().as_ref()),
+        "protected-source extraction should keep browser focus on the source sample"
     );
-    assert_eq!(scenario.state.waveform.current.path(), extracted);
+    assert_eq!(
+        scenario.state.waveform.current.path(),
+        source_path,
+        "protected-source extraction should keep the source sample loaded"
+    );
+    assert!(
+        active_sample_load_ticket(&scenario.state).is_none(),
+        "protected-source extraction should not load the derivative automatically"
+    );
     assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
 }
 
@@ -849,26 +1024,19 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
     );
     assert_eq!(
         scenario.state.library.folder_browser.selected_file_id(),
-        Some(extracted.to_string_lossy().as_ref())
+        Some(source_path.to_string_lossy().as_ref()),
+        "protected-source extraction should preserve source-file focus"
     );
     assert!(
         active_sample_load_validation_ticket(&scenario.state).is_none(),
-        "newly created derivatives should skip redundant path validation"
+        "protected-source extraction should not validate the derivative for auto-load"
     );
-    let ticket = active_sample_load_ticket(&scenario.state).expect("derivative sample load queued");
-    scenario.state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            sample_load_completion(
-                ticket,
-                extracted.to_string_lossy().to_string(),
-                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
-                true,
-            ),
-        ),
-        &mut ui::UiUpdateContext::default(),
+    assert!(
+        active_sample_load_ticket(&scenario.state).is_none(),
+        "protected-source extraction should not load the derivative automatically"
     );
-    assert_eq!(scenario.state.waveform.current.path(), extracted);
-    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+    assert_eq!(scenario.state.waveform.current.path(), source_path);
+    assert_extracted_metadata_tags(&scenario.state, &extracted, &["one-shot"]);
     let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
         protected_source.id.clone(),
         PathBuf::from("playmark-extract-protected-primary.wav"),
@@ -1097,7 +1265,172 @@ fn normal_playmark_harvest_extraction_creates_focuses_and_records_primary_deriva
     );
 }
 
+#[test]
+fn e_without_playmark_copies_protected_whole_file_to_primary_harvest_and_keeps_focus() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("protected source root");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let source_path = source_root.path().join("whole-protected.wav");
+    write_test_wav_i16(&source_path, &[0, 1024, -1024, 512]);
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    let harvest_source_folder = protected_source
+        .root
+        .file_name()
+        .expect("source root folder name")
+        .to_owned();
+    let expected = primary_root
+        .path()
+        .join("_Harvests")
+        .join(&harvest_source_folder)
+        .join("whole-protected_copy.wav");
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            primary_source.clone(),
+        ]);
+    let source_id = source_path.display().to_string();
+    state.library.folder_browser.select_file(source_id.clone());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        source_path.is_file(),
+        "protected origin should remain intact"
+    );
+    assert!(
+        expected.is_file(),
+        "whole-file copy should be written to Primary"
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(source_id.as_str()),
+        "whole-file fallback should preserve browser focus on the source sample"
+    );
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "whole-file fallback should not load the derivative automatically"
+    );
+    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        protected_source.id.clone(),
+        PathBuf::from("whole-protected.wav"),
+    );
+    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
+        .expect("load harvest parent")
+        .expect("harvest parent");
+    assert_eq!(
+        parent.state,
+        wavecrate::sample_sources::HarvestState::Touched
+    );
+    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
+        .expect("load harvest derivations");
+    assert_eq!(edges.len(), 1);
+    assert_eq!(
+        edges[0].operation,
+        wavecrate::sample_sources::HarvestDerivationOperation::CopyToPrimary
+    );
+    assert_eq!(edges[0].source_range, None);
+    assert_eq!(edges[0].child.key.source_id, primary_source.id);
+    assert_eq!(
+        edges[0].child.key.relative_path,
+        PathBuf::from("_Harvests")
+            .join(harvest_source_folder)
+            .join("whole-protected_copy.wav")
+    );
+}
+
+#[test]
+fn e_without_playmark_copies_multi_selected_whole_files_to_harvest() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let first = source_root.path().join("whole-first.wav");
+    let second = source_root.path().join("whole-second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -1024, 512]);
+    write_test_wav_i16(&second, &[0, 512, -512, 256]);
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf());
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    let harvest_source_folder = source
+        .root
+        .file_name()
+        .expect("source root folder name")
+        .to_owned();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source.clone(),
+            primary_source,
+        ]);
+    assert_eq!(state.library.folder_browser.select_all_audio_files(), 2);
+    let selected_before = state.library.folder_browser.selected_file_paths();
+    let first_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(&harvest_source_folder)
+        .join("whole-first_copy.wav");
+    let second_copy = primary_root
+        .path()
+        .join("_Harvests")
+        .join(&harvest_source_folder)
+        .join("whole-second_copy.wav");
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(first_copy.is_file());
+    assert!(second_copy.is_file());
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        selected_before,
+        "whole-file fallback should preserve the original multi-selection"
+    );
+    let first_parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("whole-first.wav"),
+    );
+    let second_parent_key = wavecrate::sample_sources::HarvestFileKey::new(
+        source.id.clone(),
+        PathBuf::from("whole-second.wav"),
+    );
+    assert_eq!(
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&first_parent_key)
+            .expect("load first derivations")
+            .len(),
+        1
+    );
+    assert_eq!(
+        wavecrate::sample_sources::library::harvest_derivations_for_parent(&second_parent_key)
+            .expect("load second derivations")
+            .len(),
+        1
+    );
+}
+
 fn assert_extracted_file_metadata(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    extracted: &std::path::Path,
+    tags: &[&str],
+) {
+    assert_extracted_metadata_tags(state, extracted, tags);
+    assert_extracted_file_keep_1_rating(state, extracted);
+}
+
+fn assert_extracted_metadata_tags(
     state: &crate::native_app::test_support::state::NativeAppState,
     extracted: &std::path::Path,
     tags: &[&str],
@@ -1111,7 +1444,6 @@ fn assert_extracted_file_metadata(
         state.metadata.tags_by_file.get(&file_id),
         Some(&expected_tags)
     );
-    assert_extracted_file_keep_1_rating(state, extracted);
 }
 
 fn assert_extracted_file_keep_1_rating(

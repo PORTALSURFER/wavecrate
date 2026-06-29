@@ -5,10 +5,13 @@ use super::super::{FileColumn, FileColumnKind, FolderBrowserState};
 impl FolderBrowserState {
     pub(in crate::native_app) fn visible_file_columns(&self) -> Vec<&FileColumn> {
         let collection_active = self.collection_focus_active();
+        let harvest_active = self.harvest_mode_active();
         self.sample_list
             .file_columns
             .iter()
-            .filter(|column| file_column_visible_in_context(column.kind, collection_active))
+            .filter(|column| {
+                file_column_visible_in_context(column.kind, collection_active, harvest_active)
+            })
             .collect()
     }
 
@@ -24,8 +27,13 @@ impl FolderBrowserState {
 pub(super) fn file_column_visible_in_context(
     kind: FileColumnKind,
     collection_active: bool,
+    harvest_active: bool,
 ) -> bool {
-    kind != FileColumnKind::SourceFolder || collection_active
+    match kind {
+        FileColumnKind::Harvest => harvest_active,
+        FileColumnKind::SourceFolder => collection_active,
+        _ => true,
+    }
 }
 
 pub(super) fn details_column_placements<'a>(

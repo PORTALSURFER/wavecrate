@@ -52,19 +52,6 @@ fn shift_zoom_out_extends_viewport_beyond_audio_bounds() {
 }
 
 #[test]
-fn keyboard_silence_margin_zoom_out_extends_full_viewport() {
-    let mut state = WaveformState::synthetic_for_tests();
-
-    state.apply_interaction(WaveformInteraction::ZoomOut {
-        expand_silence_margin: true,
-    });
-
-    assert!(state.viewport().start < 0);
-    assert!(state.viewport().end > state.frames() as i64);
-    assert!(!state.fully_zoomed_out());
-}
-
-#[test]
 fn plain_zoom_out_keeps_full_view_at_audio_bounds() {
     let mut state = WaveformState::synthetic_for_tests();
 
@@ -208,7 +195,9 @@ fn restoring_play_selection_range_zooms_only_when_region_cannot_fit_current_view
 fn zoom_full_restores_complete_waveform_view() {
     let mut state = WaveformState::synthetic_for_tests();
     state.set_play_selection_range(0.25, 0.50);
-    state.apply_interaction(WaveformInteraction::ZoomOut {
+    state.apply_interaction(WaveformInteraction::Wheel {
+        delta: Vector2::new(0.0, 120.0),
+        anchor_ratio: 0.5,
         expand_silence_margin: true,
     });
     assert!(!state.fully_zoomed_out());
@@ -438,6 +427,43 @@ fn playmark_top_handle_moves_range_without_resizing() {
     assert!((selection.width() - 0.4).abs() < 0.001);
     assert_eq!(state.play_mark_ratio(), Some(selection.start()));
     assert!(!state.is_playing());
+}
+
+#[test]
+fn keyboard_slide_moves_playmark_by_its_current_width_without_resizing() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.2, 0.35);
+
+    assert!(state.slide_play_selection_by_width(1));
+
+    let selection = state.play_selection().expect("slid playmark selection");
+    assert!((selection.start() - 0.35).abs() < 0.001);
+    assert!((selection.end() - 0.50).abs() < 0.001);
+    assert!((selection.width() - 0.15).abs() < 0.001);
+    assert_eq!(state.play_mark_ratio(), Some(selection.start()));
+
+    assert!(state.slide_play_selection_by_width(-1));
+    let selection = state.play_selection().expect("slid playmark selection");
+    assert!((selection.start() - 0.20).abs() < 0.001);
+    assert!((selection.end() - 0.35).abs() < 0.001);
+}
+
+#[test]
+fn keyboard_slide_clamps_playmark_at_sample_boundaries() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.set_play_selection_range(0.75, 1.0);
+
+    assert!(!state.slide_play_selection_by_width(1));
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.75, 1.0))
+    );
+
+    assert!(state.slide_play_selection_by_width(-1));
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.5, 0.75))
+    );
 }
 
 #[test]

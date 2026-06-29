@@ -95,6 +95,7 @@ impl NativeAppState {
             | GuiMessage::MarkContextSampleHarvestDone
             | GuiMessage::MarkContextSampleHarvestIgnored
             | GuiMessage::ResetContextSampleHarvest
+            | GuiMessage::ToggleSelectedHarvestDone
             | GuiMessage::ShowContextSampleHarvestOrigin
             | GuiMessage::ShowContextSampleHarvestDerivatives
             | GuiMessage::OpenContextSampleHarvestDestination
@@ -184,7 +185,8 @@ impl NativeAppState {
             | GuiMessage::WaveformDestructiveEditFinished(_)
             | GuiMessage::ExtractPlaymarkedRange
             | GuiMessage::ExtractPlaymarkedRangeToHarvestDestination
-            | GuiMessage::PlaySelectionExtractionFinished { .. } => {
+            | GuiMessage::PlaySelectionExtractionFinished { .. }
+            | GuiMessage::SelectedWholeFilesHarvestExtractionFinished { .. } => {
                 self.apply_chrome_dispatch(message, context);
             }
             GuiMessage::NavigateBrowser { .. }

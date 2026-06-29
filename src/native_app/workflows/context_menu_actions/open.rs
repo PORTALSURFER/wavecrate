@@ -182,9 +182,16 @@ impl NativeAppState {
         position: Point,
     ) {
         let started_at = Instant::now();
-        self.library
+        if !self
+            .library
             .folder_browser
-            .focus_file_preserving_selection(path.clone());
+            .explicit_multi_file_selection_active()
+            || self.library.folder_browser.is_file_selected(&path)
+        {
+            self.library
+                .folder_browser
+                .focus_file_preserving_selection(path.clone());
+        }
         let Some(path) = self.library.folder_browser.context_sample_path(&path) else {
             self.ui.status.sample = String::from("Sample is unavailable");
             emit_gui_action(

@@ -85,6 +85,7 @@ fn sample_browser_row(
         SampleFileHitTargetModel {
             file_id: row.file_id,
             selected: row.selected,
+            focused: row.focused,
             copy_flash: row.copy_flash,
             cut_pending: row.cut_pending,
             drag_active: row.drag_active,
