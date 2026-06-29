@@ -63,6 +63,11 @@ impl FolderBrowserState {
             .flatten()
     }
 
+    /// Returns true when the Harvest filter family has a selected active filter.
+    pub(in crate::native_app) fn harvest_mode_active(&self) -> bool {
+        self.active_harvest_filter().is_some()
+    }
+
     pub(in crate::native_app) fn selected_files(&self) -> &[FileEntry] {
         self.selected_folder()
             .map(|folder| folder.files.as_slice())
