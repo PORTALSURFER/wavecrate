@@ -97,6 +97,7 @@ fn settings_round_trip_fixture() -> SettingsRoundTripFixture {
                 input_monitoring_enabled: false,
                 normalized_audition_enabled: true,
                 advance_after_rating: true,
+                rating_decay_weeks: 8,
                 tooltip_mode: TooltipMode::Regular,
                 loop_lock_enabled: true,
             },

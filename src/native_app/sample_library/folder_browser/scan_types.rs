@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use super::{FileEntry, FolderEntry, collections::MissingCollectionSnapshot};
+use wavecrate::sample_sources::config::DEFAULT_RATING_DECAY_WEEKS;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderScanRequest {
@@ -9,6 +10,13 @@ pub(in crate::native_app) struct FolderScanRequest {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) root: PathBuf,
     pub(in crate::native_app) database_root: PathBuf,
+    pub(in crate::native_app) rating_decay_weeks: u16,
+}
+
+impl FolderScanRequest {
+    pub(in crate::native_app) fn default_rating_decay_weeks() -> u16 {
+        DEFAULT_RATING_DECAY_WEEKS
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -14,9 +14,10 @@ use crate::native_app::{
 impl NativeAppState {
     pub(in crate::native_app) fn launch_folder_scan(
         &mut self,
-        request: FolderScanRequest,
+        mut request: FolderScanRequest,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        request.rating_decay_weeks = self.ui.settings.persisted.controls.rating_decay_weeks;
         let started_at = Instant::now();
         let label = request.label.clone();
         let root = request.root.display().to_string();

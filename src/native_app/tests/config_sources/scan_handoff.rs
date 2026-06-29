@@ -56,6 +56,7 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
                 label: String::from("source"),
                 root: source_root.path().to_path_buf(),
                 database_root: source_root.path().to_path_buf(),
+                rating_decay_weeks: crate::native_app::sample_library::folder_browser::scan::FolderScanRequest::default_rating_decay_weeks(),
             },
             |_| {},
             |_| {},

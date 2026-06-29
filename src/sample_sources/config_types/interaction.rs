@@ -102,6 +102,9 @@ pub struct InteractionOptions {
     /// Advance selection after rating a sample.
     #[serde(default = "default_true")]
     pub advance_after_rating: bool,
+    /// Number of weeks before Keep ratings decay by one point.
+    #[serde(default = "default_rating_decay_weeks")]
+    pub rating_decay_weeks: u16,
     /// Tooltip detail level.
     #[serde(default = "default_tooltip_mode")]
     pub tooltip_mode: TooltipMode,
@@ -132,8 +135,26 @@ impl Default for InteractionOptions {
             input_monitoring_enabled: default_true(),
             normalized_audition_enabled: default_false(),
             advance_after_rating: true,
+            rating_decay_weeks: DEFAULT_RATING_DECAY_WEEKS,
             tooltip_mode: default_tooltip_mode(),
             loop_lock_enabled: default_false(),
         }
     }
+}
+
+/// Default number of weeks before a Keep rating decays by one point.
+pub const DEFAULT_RATING_DECAY_WEEKS: u16 = 4;
+/// Shortest supported Keep rating decay interval in weeks.
+pub const MIN_RATING_DECAY_WEEKS: u16 = 1;
+/// Longest supported Keep rating decay interval in weeks.
+pub const MAX_RATING_DECAY_WEEKS: u16 = 52;
+
+/// Serde default for `InteractionOptions::rating_decay_weeks`.
+pub fn default_rating_decay_weeks() -> u16 {
+    DEFAULT_RATING_DECAY_WEEKS
+}
+
+/// Clamp a Keep rating decay interval into the supported settings range.
+pub fn clamp_rating_decay_weeks(weeks: u16) -> u16 {
+    weeks.clamp(MIN_RATING_DECAY_WEEKS, MAX_RATING_DECAY_WEEKS)
 }

@@ -39,6 +39,7 @@ impl FolderBrowserState {
             label,
             root,
             database_root,
+            rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
         })
     }
 
@@ -80,6 +81,7 @@ impl FolderBrowserState {
             label: source.label,
             root: source.root,
             database_root: source.database_root,
+            rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
         })
     }
 
@@ -118,6 +120,7 @@ impl FolderBrowserState {
             label: source.label,
             root: source.root,
             database_root: source.database_root,
+            rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
         })
     }
 

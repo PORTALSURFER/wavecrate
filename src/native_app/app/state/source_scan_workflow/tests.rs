@@ -54,6 +54,7 @@ fn stale_finish_keeps_active_scan_owner() {
             label: request.label.clone(),
             root: request.root.clone(),
             database_root: request.database_root.clone(),
+            rating_decay_weeks: request.rating_decay_weeks,
         },
         |_| {},
         |_| {},

@@ -1,5 +1,8 @@
 use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, SettingsMessage};
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
+use wavecrate::sample_sources::config::{
+    MAX_RATING_DECAY_WEEKS, MIN_RATING_DECAY_WEEKS, clamp_rating_decay_weeks,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum SettingsPanelProjection {
@@ -35,6 +38,7 @@ pub(super) enum SettingsPanelRowProjection {
         dropdown: AudioSettingsDropdown,
     },
     TrashFolder(TrashFolderProjection),
+    RatingDecay(RatingDecayProjection),
     CacheMaintenance(CacheMaintenanceProjection),
 }
 
@@ -50,6 +54,22 @@ pub(super) struct TrashFolderProjection {
 pub(super) struct CacheMaintenanceProjection {
     pub(super) label: &'static str,
     pub(super) clear_action: SettingsActionProjection,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct RatingDecayProjection {
+    pub(super) label: &'static str,
+    pub(super) weeks: u16,
+    pub(super) slider_value: f32,
+    pub(super) value_label: String,
+}
+
+impl RatingDecayProjection {
+    pub(super) fn weeks_from_slider_value(value: f32) -> u16 {
+        let span = f32::from(MAX_RATING_DECAY_WEEKS - MIN_RATING_DECAY_WEEKS);
+        let weeks = f32::from(MIN_RATING_DECAY_WEEKS) + value.clamp(0.0, 1.0) * span;
+        clamp_rating_decay_weeks(weeks.round() as u16)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -102,6 +122,12 @@ fn general_settings_panel_rows(
 ) -> Vec<SettingsPanelRowProjection> {
     vec![
         SettingsPanelRowProjection::Title { label: "General" },
+        SettingsPanelRowProjection::RatingDecay(RatingDecayProjection {
+            label: "Rating Decay",
+            weeks: clamp_rating_decay_weeks(snapshot.rating_decay_weeks),
+            slider_value: rating_decay_slider_value(snapshot.rating_decay_weeks),
+            value_label: rating_decay_value_label(snapshot.rating_decay_weeks),
+        }),
         SettingsPanelRowProjection::TrashFolder(TrashFolderProjection {
             label: "Trash Folder",
             value: snapshot
@@ -126,6 +152,24 @@ fn general_settings_panel_rows(
             },
         }),
     ]
+}
+
+fn rating_decay_slider_value(weeks: u16) -> f32 {
+    let weeks = clamp_rating_decay_weeks(weeks);
+    let span = f32::from(MAX_RATING_DECAY_WEEKS - MIN_RATING_DECAY_WEEKS);
+    if span <= 0.0 {
+        return 0.0;
+    }
+    f32::from(weeks - MIN_RATING_DECAY_WEEKS) / span
+}
+
+fn rating_decay_value_label(weeks: u16) -> String {
+    let weeks = clamp_rating_decay_weeks(weeks);
+    if weeks == 1 {
+        "1 week".to_string()
+    } else {
+        format!("{weeks} weeks")
+    }
 }
 
 #[cfg(test)]
@@ -189,12 +233,23 @@ mod tests {
             panic!("expected general panel");
         };
 
-        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.len(), 4);
         assert_eq!(
             rows[0],
             SettingsPanelRowProjection::Title { label: "General" }
         );
-        let SettingsPanelRowProjection::TrashFolder(trash_folder) = &rows[1] else {
+        let SettingsPanelRowProjection::RatingDecay(rating_decay) = &rows[1] else {
+            panic!("expected rating decay row");
+        };
+        assert_eq!(rating_decay.label, "Rating Decay");
+        assert_eq!(rating_decay.weeks, snapshot.rating_decay_weeks);
+        assert_eq!(rating_decay.value_label, "4 weeks");
+        assert_eq!(
+            RatingDecayProjection::weeks_from_slider_value(rating_decay.slider_value),
+            snapshot.rating_decay_weeks
+        );
+
+        let SettingsPanelRowProjection::TrashFolder(trash_folder) = &rows[2] else {
             panic!("expected trash folder row");
         };
         assert_eq!(trash_folder.label, "Trash Folder");
@@ -210,7 +265,7 @@ mod tests {
             SettingsMessage::ClearTrashFolder
         );
 
-        let SettingsPanelRowProjection::CacheMaintenance(maintenance) = &rows[2] else {
+        let SettingsPanelRowProjection::CacheMaintenance(maintenance) = &rows[3] else {
             panic!("expected cache maintenance row");
         };
         assert_eq!(maintenance.label, "Maintenance");
@@ -231,10 +286,32 @@ mod tests {
         let SettingsPanelProjection::General { rows } = settings_panel_projection(&snapshot) else {
             panic!("expected general panel");
         };
-        let SettingsPanelRowProjection::TrashFolder(trash_folder) = &rows[1] else {
+        let SettingsPanelRowProjection::TrashFolder(trash_folder) = &rows[2] else {
             panic!("expected trash folder row");
         };
 
         assert_eq!(trash_folder.value, "wavecrate-trash");
+    }
+
+    #[test]
+    fn rating_decay_projection_clamps_and_formats_weeks() {
+        let snapshot = snapshot(|snapshot| {
+            snapshot.tab = AppSettingsTab::General;
+            snapshot.rating_decay_weeks = 12;
+        });
+
+        let SettingsPanelProjection::General { rows } = settings_panel_projection(&snapshot) else {
+            panic!("expected general panel");
+        };
+        let SettingsPanelRowProjection::RatingDecay(rating_decay) = &rows[1] else {
+            panic!("expected rating decay row");
+        };
+
+        assert_eq!(rating_decay.weeks, 12);
+        assert_eq!(rating_decay.value_label, "12 weeks");
+        assert_eq!(
+            RatingDecayProjection::weeks_from_slider_value(rating_decay.slider_value),
+            12
+        );
     }
 }

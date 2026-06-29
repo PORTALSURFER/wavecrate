@@ -10,7 +10,7 @@ use super::{
             FolderScanResult,
         },
     },
-    metadata::{SourceMetadataMap, rated_file_entry, source_rating_map},
+    metadata::{SourceMetadataMap, rated_file_entry, source_rating_map_with_rating_decay},
     traversal::{placeholder_folder, read_sorted_entries},
 };
 use wavecrate::sample_sources::{SourceDatabase, scanner};
@@ -21,7 +21,11 @@ pub(in crate::native_app) fn scan_source_with_progress(
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
     let ratings = if request.root.is_dir() {
-        source_rating_map(&request.root, &request.database_root)
+        source_rating_map_with_rating_decay(
+            &request.root,
+            &request.database_root,
+            request.rating_decay_weeks,
+        )
     } else {
         SourceMetadataMap::new()
     };

@@ -422,6 +422,7 @@ pub(in crate::native_app) enum SettingsMessage {
     SetAudioOutputHost(Option<String>),
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
+    SetRatingDecayWeeks(u16),
     PickTrashFolder,
     ClearTrashFolder,
     ClearRebuildableCaches,
