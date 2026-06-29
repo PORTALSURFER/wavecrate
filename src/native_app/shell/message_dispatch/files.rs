@@ -63,10 +63,11 @@ impl NativeAppState {
                 result,
             } => self.finish_context_sample_double(source_path, started_at, result, context),
             GuiMessage::SelectedFilesCopyFinished {
+                paths,
                 count,
                 started_at,
                 result,
-            } => self.finish_copy_selected_files(count, started_at, result),
+            } => self.finish_copy_selected_files(paths, count, started_at, result),
             GuiMessage::WaveformSelectionCopyExtracted {
                 completion,
                 playback_type,

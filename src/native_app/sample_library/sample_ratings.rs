@@ -50,6 +50,26 @@ impl NativeAppState {
         self.adjust_selected_rating_with_policy(delta, context, false);
     }
 
+    pub(in crate::native_app) fn add_keep_rating_to_handoff_paths(
+        &mut self,
+        paths: &[PathBuf],
+    ) -> Result<usize, String> {
+        let plan = self.rating_adjustment_plan_for_paths(paths, 1);
+        if plan.is_empty() {
+            return Ok(0);
+        }
+        let touched_paths = plan
+            .updates
+            .iter()
+            .map(|update| update.absolute_path.clone())
+            .collect::<Vec<_>>();
+        let applied = self.apply_rating_update_states(&plan.updates, RatingUpdateMode::After)?;
+        if applied > 0 {
+            self.mark_harvest_touched_for_paths(&touched_paths);
+        }
+        Ok(applied)
+    }
+
     fn adjust_selected_rating_with_policy(
         &mut self,
         delta: i8,
@@ -230,6 +250,62 @@ impl NativeAppState {
             .map(str::to_owned)
     }
 
+    fn rating_adjustment_plan_for_paths(
+        &self,
+        paths: &[PathBuf],
+        delta: i8,
+    ) -> RatingAdjustmentPlan {
+        if delta == 0 {
+            return RatingAdjustmentPlan::default();
+        }
+        let mut plan = RatingAdjustmentPlan::default();
+        let mut seen = Vec::new();
+        for path in paths.iter().map(|path| normalized_rating_path(path)) {
+            if seen.iter().any(|existing| existing == &path) {
+                continue;
+            }
+            seen.push(path.clone());
+            let Some((absolute_path, previous_rating, previous_locked)) =
+                self.rating_row_state_for_path(&path)
+            else {
+                continue;
+            };
+            if previous_locked || should_auto_trash_on_rating(previous_rating, delta) {
+                continue;
+            }
+            let Some((root, database_root, relative_path)) = self
+                .library
+                .folder_browser
+                .source_database_relative_file_path(&absolute_path)
+            else {
+                continue;
+            };
+            let Some((rating, locked)) = next_rating_state(previous_rating, delta) else {
+                continue;
+            };
+            plan.updates.push(RatingUpdate {
+                root,
+                database_root,
+                relative_path,
+                absolute_path,
+                previous_rating,
+                previous_locked,
+                rating,
+                locked,
+            });
+        }
+        plan
+    }
+
+    fn rating_row_state_for_path(&self, path: &Path) -> Option<(PathBuf, Rating, bool)> {
+        self.library
+            .folder_browser
+            .loaded_source_audio_files()
+            .into_iter()
+            .find(|file| normalized_rating_path(Path::new(&file.id)) == path)
+            .map(|file| (PathBuf::from(&file.id), file.rating, file.rating_locked))
+    }
+
     fn rating_adjustment_plan_for_selected_files(&self, delta: i8) -> RatingAdjustmentPlan {
         if delta == 0 {
             return RatingAdjustmentPlan::default();
@@ -363,6 +439,10 @@ fn next_rating_state(current: Rating, delta: i8) -> Option<(Rating, bool)> {
 
 fn should_auto_trash_on_rating(current: Rating, delta: i8) -> bool {
     current == Rating::TRASH_3 && delta < 0
+}
+
+fn normalized_rating_path(path: &Path) -> PathBuf {
+    path.components().collect()
 }
 
 impl RatingAdjustmentPlan {

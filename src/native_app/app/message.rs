@@ -185,6 +185,7 @@ pub(in crate::native_app) enum GuiMessage {
         result: Result<ContextSampleDoubleResult, String>,
     },
     SelectedFilesCopyFinished {
+        paths: Vec<PathBuf>,
         count: usize,
         started_at: Instant,
         result: Result<(), String>,
