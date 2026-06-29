@@ -490,6 +490,136 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
 }
 
 #[test]
+fn enabling_loop_during_active_fixed_range_playback_preserves_current_span() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    scenario
+        .state
+        .start_playback_fixed_span_without_history(0.25, 0.60)
+        .expect("fixed range playback starts");
+    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_playback_span_state(&scenario.state, 0.25, 0.60);
+    assert_waveform_progress_near(&scenario.state, 0.40);
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id,
+        "loop toggle should retarget the active source instead of queuing another play start"
+    );
+}
+
+#[test]
+fn enabling_loop_during_active_playmark_playback_keeps_selected_range_active() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    scenario.select_play_range(0.25, 0.60);
+    scenario.play_selected_sample();
+    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_playback_span_state(&scenario.state, 0.25, 0.60);
+    assert_waveform_progress_near(&scenario.state, 0.40);
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id,
+        "loop toggle should not require a second play command"
+    );
+}
+
+#[test]
+fn loop_toggle_after_spacebar_keeps_runtime_looping_past_original_end() {
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-toggle-runtime.wav", &[0; 4800])
+    else {
+        return;
+    };
+    scenario.play_selected_sample();
+    scenario.apply_playback_frame();
+
+    scenario.state.toggle_loop_playback();
+    scenario.apply_playback_frame();
+    std::thread::sleep(std::time::Duration::from_millis(140));
+    scenario.apply_playback_frame();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert!(
+        scenario.state.audio.playback_progress.looping,
+        "runtime playback should switch to looped mode after toggling Loop during spacebar playback"
+    );
+}
+
+#[test]
+fn loop_toggle_while_playing_recovers_when_current_span_is_missing() {
+    let Some(mut scenario) =
+        WaveformPlaybackScenario::loaded_with_player("loop-toggle-missing-span.wav", &[0; 4800])
+    else {
+        return;
+    };
+    scenario.play_selected_sample();
+    scenario.apply_playback_frame();
+    scenario.state.audio.current_playback_span = None;
+
+    scenario.state.toggle_loop_playback();
+    scenario.apply_playback_frame();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_eq!(scenario.state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        scenario.state.audio.playback_progress.looping,
+        "loop toggle should retarget from the visible loaded sample when span state is missing"
+    );
+}
+
+#[test]
+fn disabling_loop_during_active_playback_retargets_to_one_shot_tail() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+    scenario.start_full_sample_loop();
+    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(!scenario.state.audio.loop_playback);
+    assert!(scenario.state.waveform.current.is_playing());
+    assert_playback_span_state(&scenario.state, 0.40, 1.0);
+    assert_waveform_progress_near(&scenario.state, 0.40);
+    assert_eq!(
+        pending_runtime_playback_start_id(&scenario.state),
+        playback_start_id,
+        "loop-off should retarget the active source into one-shot playback"
+    );
+}
+
+#[test]
+fn idle_loop_toggle_does_not_start_playback() {
+    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+        return;
+    };
+
+    scenario.state.toggle_loop_playback();
+
+    assert!(scenario.state.audio.loop_playback);
+    assert!(!scenario.state.waveform.current.is_playing());
+    assert_eq!(scenario.state.audio.current_playback_span, None);
+    assert_eq!(pending_runtime_playback_start_id(&scenario.state), None);
+}
+
+#[test]
 fn playmark_selection_copy_uses_interactive_handoff_worker() {
     let mut scenario =
         WaveformPlaybackScenario::with_temp_wav("playmark-copy.wav", &[0, 1024, -1024, 512]);
