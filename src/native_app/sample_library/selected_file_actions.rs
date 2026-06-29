@@ -464,7 +464,7 @@ impl NativeAppState {
                     .path_is_in_protected_source(&completion.source_path);
                 let cross_source_derivative =
                     self.extraction_derivative_crosses_sources(&completion.source_path, &path);
-                let focus_derivative = protected_origin || cross_source_derivative;
+                let focus_derivative = cross_source_derivative && !protected_origin;
                 if focus_derivative {
                     self.library
                         .folder_browser

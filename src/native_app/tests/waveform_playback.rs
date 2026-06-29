@@ -932,6 +932,7 @@ fn playmark_extraction_writes_new_file_into_protected_source() {
     );
     protect_selected_source_for_test(&mut scenario.state);
     load_selected_sample_into_waveform(&mut scenario);
+    let source_path = scenario.state.waveform.current.path();
     let source_parent = scenario
         .state
         .waveform
@@ -946,19 +947,20 @@ fn playmark_extraction_writes_new_file_into_protected_source() {
 
     assert!(extracted.is_file());
     assert_eq!(extracted.parent(), Some(source_parent.as_path()));
-    let ticket = active_sample_load_ticket(&scenario.state).expect("extracted sample load queued");
-    scenario.state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            sample_load_completion(
-                ticket,
-                extracted.to_string_lossy().to_string(),
-                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
-                true,
-            ),
-        ),
-        &mut ui::UiUpdateContext::default(),
+    assert_eq!(
+        scenario.state.library.folder_browser.selected_file_id(),
+        Some(source_path.to_string_lossy().as_ref()),
+        "protected-source extraction should keep browser focus on the source sample"
     );
-    assert_eq!(scenario.state.waveform.current.path(), extracted);
+    assert_eq!(
+        scenario.state.waveform.current.path(),
+        source_path,
+        "protected-source extraction should keep the source sample loaded"
+    );
+    assert!(
+        active_sample_load_ticket(&scenario.state).is_none(),
+        "protected-source extraction should not load the derivative automatically"
+    );
     assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
 }
 
@@ -1022,26 +1024,19 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
     );
     assert_eq!(
         scenario.state.library.folder_browser.selected_file_id(),
-        Some(extracted.to_string_lossy().as_ref())
+        Some(source_path.to_string_lossy().as_ref()),
+        "protected-source extraction should preserve source-file focus"
     );
     assert!(
         active_sample_load_validation_ticket(&scenario.state).is_none(),
-        "newly created derivatives should skip redundant path validation"
+        "protected-source extraction should not validate the derivative for auto-load"
     );
-    let ticket = active_sample_load_ticket(&scenario.state).expect("derivative sample load queued");
-    scenario.state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
-            sample_load_completion(
-                ticket,
-                extracted.to_string_lossy().to_string(),
-                crate::native_app::test_support::state::WaveformState::load_path(extracted.clone()),
-                true,
-            ),
-        ),
-        &mut ui::UiUpdateContext::default(),
+    assert!(
+        active_sample_load_ticket(&scenario.state).is_none(),
+        "protected-source extraction should not load the derivative automatically"
     );
-    assert_eq!(scenario.state.waveform.current.path(), extracted);
-    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+    assert_eq!(scenario.state.waveform.current.path(), source_path);
+    assert_extracted_metadata_tags(&scenario.state, &extracted, &["one-shot"]);
     let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
         protected_source.id.clone(),
         PathBuf::from("playmark-extract-protected-primary.wav"),
@@ -1431,6 +1426,15 @@ fn assert_extracted_file_metadata(
     extracted: &std::path::Path,
     tags: &[&str],
 ) {
+    assert_extracted_metadata_tags(state, extracted, tags);
+    assert_extracted_file_keep_1_rating(state, extracted);
+}
+
+fn assert_extracted_metadata_tags(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    extracted: &std::path::Path,
+    tags: &[&str],
+) {
     let file_id = extracted.to_string_lossy().to_string();
     let expected_tags = tags
         .iter()
@@ -1440,7 +1444,6 @@ fn assert_extracted_file_metadata(
         state.metadata.tags_by_file.get(&file_id),
         Some(&expected_tags)
     );
-    assert_extracted_file_keep_1_rating(state, extracted);
 }
 
 fn assert_extracted_file_keep_1_rating(
