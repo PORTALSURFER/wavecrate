@@ -615,6 +615,39 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     assert!(frame.paint_plan.contains_text("Remove from collection"));
     assert!(!frame.paint_plan.contains_text("New Folder"));
     assert!(!frame.paint_plan.contains_text("Delete Folder"));
+    assert!(!frame.paint_plan.contains_text("Mark Harvest Done"));
+    assert!(!frame.paint_plan.contains_text("Ignore in Harvest"));
+    assert!(!frame.paint_plan.contains_text("Reset Harvest"));
+    assert!(!frame.paint_plan.contains_text("Show Harvest Origin"));
+    assert!(!frame.paint_plan.contains_text("Show Harvest Derivatives"));
+    assert!(!frame.paint_plan.contains_text("Open Harvest Destination"));
+    assert!(frame.paint_plan.contains_text("Duplicate Same"));
+    assert!(frame.paint_plan.contains_text("Duplicate Double"));
+    assert!(frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
+fn sample_context_menu_paints_harvest_actions_when_harvest_is_active() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("C:\\Samples\\kick.wav"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("kick.wav"),
+    };
+    let frame =
+        crate::native_app::test_support::context_menu::browser_context_menu_overlay_with_harvest_active(
+            &menu,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
     assert!(frame.paint_plan.contains_text("Mark Harvest Done"));
     assert!(frame.paint_plan.contains_text("Ignore in Harvest"));
     assert!(frame.paint_plan.contains_text("Reset Harvest"));
@@ -624,6 +657,30 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     assert!(frame.paint_plan.contains_text("Duplicate Same"));
     assert!(frame.paint_plan.contains_text("Duplicate Double"));
     assert!(frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
+fn harvest_context_menu_actions_are_active_for_selected_harvest_filter() {
+    let mut state = gui_state_for_span_tests();
+    assert!(
+        !state
+            .library
+            .folder_browser
+            .harvest_context_menu_actions_active()
+    );
+
+    state.library.folder_browser.set_harvest_filter(
+        crate::native_app::sample_library::folder_browser::model::HarvestFilter::All,
+        true,
+    );
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .harvest_context_menu_actions_active(),
+        "HarvestFilter::All is an intentional Harvest workflow mode"
+    );
 }
 
 #[test]

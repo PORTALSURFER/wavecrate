@@ -63,6 +63,10 @@ impl FolderBrowserState {
             .flatten()
     }
 
+    pub(in crate::native_app) fn harvest_context_menu_actions_active(&self) -> bool {
+        self.active_harvest_filter().is_some()
+    }
+
     pub(in crate::native_app) fn selected_files(&self) -> &[FileEntry] {
         self.selected_folder()
             .map(|folder| folder.files.as_slice())
