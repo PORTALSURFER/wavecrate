@@ -1,7 +1,7 @@
 //! Token authorization flow for the issue gateway.
 
 use super::transport;
-use super::wire::{self, IssueAuthError};
+use super::wire::{self, IssueAuthError, map_auth_status_error, redact_issue_gateway_text};
 
 pub(super) fn fetch_issue_token(auth_start_url: &str) -> Result<String, IssueAuthError> {
     let response = match transport::get_with_retry(auth_start_url) {
@@ -9,15 +9,18 @@ pub(super) fn fetch_issue_token(auth_start_url: &str) -> Result<String, IssueAut
         Err(ureq::Error::Status(code, response)) => {
             let body =
                 transport::read_auth_response_text(response).unwrap_or_else(|err| err.to_string());
-            return Err(IssueAuthError::ServerError(format!("HTTP {code}: {body}")));
+            return Err(map_auth_status_error(code, body));
         }
         Err(ureq::Error::Transport(err)) => {
-            return Err(IssueAuthError::Transport(err.to_string()));
+            return Err(IssueAuthError::Transport(redact_issue_gateway_text(
+                &err.to_string(),
+            )));
         }
     };
 
-    let body = transport::read_auth_response_text(response)
-        .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
+    let body = transport::read_auth_response_text(response).map_err(|err| {
+        IssueAuthError::InvalidResponse(redact_issue_gateway_text(&err.to_string()))
+    })?;
     wire::parse_issue_token(&body)
 }
 
@@ -35,15 +38,18 @@ pub(super) fn poll_issue_token(
         Err(ureq::Error::Status(code, response)) => {
             let body =
                 transport::read_auth_response_text(response).unwrap_or_else(|err| err.to_string());
-            return Err(IssueAuthError::ServerError(format!("HTTP {code}: {body}")));
+            return Err(map_auth_status_error(code, body));
         }
         Err(ureq::Error::Transport(err)) => {
-            return Err(IssueAuthError::Transport(err.to_string()));
+            return Err(IssueAuthError::Transport(redact_issue_gateway_text(
+                &err.to_string(),
+            )));
         }
     };
 
-    let body = transport::read_auth_response_text(response)
-        .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
+    let body = transport::read_auth_response_text(response).map_err(|err| {
+        IssueAuthError::InvalidResponse(redact_issue_gateway_text(&err.to_string()))
+    })?;
     wire::parse_poll_issue_token_response(&body)
 }
 

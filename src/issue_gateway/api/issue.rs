@@ -3,7 +3,7 @@
 use super::transport;
 use super::wire::{
     CreateIssueError, CreateIssueRequest, CreateIssueResponse, map_status_error,
-    parse_create_issue_response,
+    parse_create_issue_response, redact_issue_gateway_text,
 };
 use uuid::Uuid;
 
@@ -22,11 +22,13 @@ pub(super) fn create_issue(
             return Err(map_status_error(code, body));
         }
         Err(ureq::Error::Transport(err)) => {
-            return Err(CreateIssueError::Transport(err.to_string()));
+            return Err(CreateIssueError::Transport(redact_issue_gateway_text(
+                &err.to_string(),
+            )));
         }
     };
 
     let body = transport::read_issue_response_text(response)
-        .map_err(|err| CreateIssueError::Json(err.to_string()))?;
+        .map_err(|err| CreateIssueError::Json(redact_issue_gateway_text(&err.to_string())))?;
     parse_create_issue_response(&body)
 }
