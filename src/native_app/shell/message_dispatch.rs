@@ -40,6 +40,7 @@ impl NativeAppState {
             | GuiMessage::SetSimilarityAspectEnabled { .. }
             | GuiMessage::SetSimilarityAspectWeight { .. }
             | GuiMessage::SimilaritySettingsPersisted(_)
+            | GuiMessage::StarmapLayoutLoaded(_)
             | GuiMessage::SimilarityPrepStatusResolved(_)
             | GuiMessage::SimilarityPrepEnqueueFinished(_)
             | GuiMessage::SimilarityScoresResolved(_)

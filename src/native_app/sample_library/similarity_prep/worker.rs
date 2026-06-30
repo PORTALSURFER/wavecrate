@@ -22,7 +22,7 @@ mod analysis_enqueue;
 
 use analysis_enqueue::enqueue_analysis_backfill;
 
-pub(in crate::native_app) const NATIVE_SIMILARITY_UMAP_VERSION: &str = "v1";
+pub(in crate::native_app) use wavecrate::sample_sources::STARMAP_LAYOUT_UMAP_VERSION as NATIVE_SIMILARITY_UMAP_VERSION;
 const NATIVE_SIMILARITY_CLUSTER_MIN_SIZE: usize = 10;
 const ANALYZE_SAMPLE_JOB_TYPE: &str = "wav_metadata_v1";
 const EMBEDDING_BACKFILL_JOB_TYPE: &str = "embedding_backfill_v1";

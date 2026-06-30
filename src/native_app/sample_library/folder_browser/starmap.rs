@@ -4,12 +4,12 @@ use std::path::Path;
 
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use rusqlite::params_from_iter;
-use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceDatabaseConnectionRole};
+use wavecrate::sample_sources::{
+    STARMAP_LAYOUT_UMAP_VERSION, StarmapLayoutLoadRequest, StarmapLayoutLoadResult,
+    StarmapLayoutSample, StarmapSourceLayoutRequest,
+};
 use wavecrate_analysis::aspects::SimilarityAspect;
-use wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
 
-use crate::native_app::sample_library::similarity_prep::NATIVE_SIMILARITY_UMAP_VERSION;
 use crate::native_app::waveform::should_use_file_backed_wav_decode;
 
 use super::{FileEntry, FolderBrowserState, SimilarityAspectStrengths};
@@ -63,6 +63,8 @@ pub(super) struct StarmapLayoutCache {
     signature: Option<u64>,
     pub(super) points_by_file: HashMap<String, StarmapLayoutPoint>,
     listed_count: usize,
+    pending_load_signature: Option<u64>,
+    loaded_signature: Option<u64>,
     auto_prep_requested_signature: Option<u64>,
 }
 
@@ -70,6 +72,8 @@ impl StarmapLayoutCache {
     fn needs_similarity_prep(&self) -> bool {
         self.signature.is_some()
             && self.listed_count > 0
+            && self.loaded_signature == self.signature
+            && self.pending_load_signature != self.signature
             && self.points_by_file.len() < self.listed_count
             && self.auto_prep_requested_signature != self.signature
     }
@@ -107,17 +111,12 @@ impl FolderBrowserState {
         if self.sample_list.starmap_layout.signature == Some(signature) {
             return;
         }
-        let positions = match load_starmap_layout_positions(self, snapshot.rows()) {
-            Ok(positions) => positions,
-            Err(err) => {
-                tracing::debug!(error = %err, "starmap layout unavailable");
-                HashMap::new()
-            }
-        };
         self.sample_list.starmap_layout = StarmapLayoutCache {
             signature: Some(signature),
             listed_count: snapshot.rows().len(),
-            points_by_file: positions,
+            points_by_file: HashMap::new(),
+            pending_load_signature: None,
+            loaded_signature: None,
             auto_prep_requested_signature: None,
         };
     }
@@ -159,6 +158,69 @@ impl FolderBrowserState {
             }
         }
         source_ids
+    }
+
+    pub(in crate::native_app) fn take_starmap_layout_load_request(
+        &mut self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<StarmapLayoutLoadRequest> {
+        let (request, listed_count) = self.starmap_layout_load_request(tags_by_file);
+        let signature = request.signature;
+        if self.sample_list.starmap_layout.signature != Some(signature) {
+            self.sample_list.starmap_layout = StarmapLayoutCache {
+                signature: Some(signature),
+                listed_count,
+                points_by_file: HashMap::new(),
+                pending_load_signature: None,
+                loaded_signature: None,
+                auto_prep_requested_signature: None,
+            };
+        }
+        let cache = &mut self.sample_list.starmap_layout;
+        if cache.pending_load_signature == Some(signature)
+            || cache.loaded_signature == Some(signature)
+            || request.is_empty()
+        {
+            if request.is_empty() {
+                cache.loaded_signature = Some(signature);
+            }
+            return None;
+        }
+        cache.pending_load_signature = Some(signature);
+        Some(request)
+    }
+
+    pub(in crate::native_app) fn apply_starmap_layout_load_result(
+        &mut self,
+        result: StarmapLayoutLoadResult,
+    ) {
+        let cache = &mut self.sample_list.starmap_layout;
+        if cache.signature != Some(result.signature) {
+            return;
+        }
+        cache.pending_load_signature = None;
+        cache.loaded_signature = Some(result.signature);
+        match result.result {
+            Ok(points) => {
+                cache.points_by_file = points
+                    .into_iter()
+                    .map(|(file_id, point)| {
+                        (
+                            file_id,
+                            StarmapLayoutPoint {
+                                x: point.x,
+                                y: point.y,
+                                cluster_id: point.cluster_id,
+                            },
+                        )
+                    })
+                    .collect();
+            }
+            Err(error) => {
+                tracing::debug!(%error, "starmap layout unavailable");
+                cache.points_by_file.clear();
+            }
+        }
     }
 
     pub(in crate::native_app) fn starmap_projection(
@@ -311,125 +373,41 @@ fn instant_audition_ready_for_starmap(
         || instant_audition_sample_paths.contains(&file.id)
 }
 
-fn load_starmap_layout_positions(
-    browser: &FolderBrowserState,
-    files: &[&FileEntry],
-) -> Result<HashMap<String, StarmapLayoutPoint>, String> {
-    let mut by_source: HashMap<String, SourceLayoutRequest> = HashMap::new();
-    for file in files {
-        let path = Path::new(&file.id);
-        let Some((source, relative_path)) = browser.sample_source_for_file_path(path) else {
-            continue;
-        };
-        let sample_id = build_sample_id(source.id.as_str(), &relative_path);
-        by_source
-            .entry(source.id.as_str().to_string())
-            .or_insert_with(|| SourceLayoutRequest {
-                source,
-                samples: Vec::new(),
-            })
-            .samples
-            .push(FileLayoutSample {
-                file_id: file.id.clone(),
-                sample_id,
-            });
-    }
-
-    let mut raw_points = HashMap::new();
-    for request in by_source.values() {
-        load_source_layout_positions(request, &mut raw_points)?;
-    }
-    Ok(normalized_layout_points(raw_points))
-}
-
-#[derive(Clone, Debug)]
-struct SourceLayoutRequest {
-    source: SampleSource,
-    samples: Vec<FileLayoutSample>,
-}
-
-#[derive(Clone, Debug)]
-struct FileLayoutSample {
-    file_id: String,
-    sample_id: String,
-}
-
-fn load_source_layout_positions(
-    request: &SourceLayoutRequest,
-    positions: &mut HashMap<String, RawStarmapLayoutPoint>,
-) -> Result<(), String> {
-    let database_root = request
-        .source
-        .database_root()
-        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
-    let conn = SourceDatabase::open_connection_with_role_and_database_root(
-        &request.source.root,
-        database_root,
-        SourceDatabaseConnectionRole::UiRead,
-    )
-    .map_err(|err| format!("Open source DB failed: {err}"))?;
-    let file_by_sample_id = request
-        .samples
-        .iter()
-        .map(|sample| (sample.sample_id.as_str(), sample.file_id.as_str()))
-        .collect::<HashMap<_, _>>();
-    for chunk in request.samples.chunks(256) {
-        let mut query = String::from(
-            "SELECT layout_umap.sample_id, layout_umap.x, layout_umap.y, hdbscan_clusters.cluster_id \
-             FROM layout_umap \
-             LEFT JOIN hdbscan_clusters \
-                ON layout_umap.sample_id = hdbscan_clusters.sample_id \
-               AND hdbscan_clusters.model_id = ?1 \
-               AND hdbscan_clusters.method = ?3 \
-               AND hdbscan_clusters.umap_version = ?2 \
-             WHERE layout_umap.model_id = ?1 AND layout_umap.umap_version = ?2 AND layout_umap.sample_id IN (",
-        );
-        query.push_str(
-            &std::iter::repeat_n("?", chunk.len())
-                .collect::<Vec<_>>()
-                .join(","),
-        );
-        query.push(')');
-
-        let mut params = Vec::with_capacity(chunk.len() + 3);
-        params.push(SIMILARITY_MODEL_ID.to_string());
-        params.push(NATIVE_SIMILARITY_UMAP_VERSION.to_string());
-        params.push(String::from("umap"));
-        params.extend(chunk.iter().map(|sample| sample.sample_id.clone()));
-
-        let mut statement = conn
-            .prepare(&query)
-            .map_err(|err| format!("Prepare map layout query failed: {err}"))?;
-        let rows = statement
-            .query_map(params_from_iter(params.iter()), |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, f32>(1)?,
-                    row.get::<_, f32>(2)?,
-                    row.get::<_, Option<i32>>(3)?,
-                ))
-            })
-            .map_err(|err| format!("Query map layout failed: {err}"))?;
-        for row in rows {
-            let (sample_id, x, y, cluster_id) =
-                row.map_err(|err| format!("Decode map layout row failed: {err}"))?;
-            let Some(file_id) = file_by_sample_id.get(sample_id.as_str()) else {
+impl FolderBrowserState {
+    fn starmap_layout_load_request(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> (StarmapLayoutLoadRequest, usize) {
+        let snapshot = self.browser_listing_snapshot(tags_by_file);
+        let listed_count = snapshot.rows().len();
+        let mut by_source: HashMap<String, StarmapSourceLayoutRequest> = HashMap::new();
+        for file in snapshot.rows() {
+            let path = Path::new(&file.id);
+            let Some((source, relative_path)) = self.sample_source_for_file_path(path) else {
                 continue;
             };
-            positions.insert(
-                (*file_id).to_string(),
-                RawStarmapLayoutPoint { x, y, cluster_id },
-            );
+            let sample_id = build_sample_id(source.id.as_str(), &relative_path);
+            by_source
+                .entry(source.id.as_str().to_string())
+                .or_insert_with(|| StarmapSourceLayoutRequest {
+                    source,
+                    samples: Vec::new(),
+                })
+                .samples
+                .push(StarmapLayoutSample {
+                    file_id: file.id.clone(),
+                    sample_id,
+                });
         }
+        let signature = starmap_layout_signature(self.selected_source_id(), snapshot.rows());
+        (
+            StarmapLayoutLoadRequest {
+                signature,
+                sources: by_source.into_values().collect(),
+            },
+            listed_count,
+        )
     }
-    Ok(())
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct RawStarmapLayoutPoint {
-    x: f32,
-    y: f32,
-    cluster_id: Option<i32>,
 }
 
 fn build_sample_id(source_id: &str, relative_path: &Path) -> String {
@@ -443,53 +421,12 @@ fn build_sample_id(source_id: &str, relative_path: &Path) -> String {
 fn starmap_layout_signature(source_id: &str, files: &[&FileEntry]) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     source_id.hash(&mut hasher);
-    NATIVE_SIMILARITY_UMAP_VERSION.hash(&mut hasher);
+    STARMAP_LAYOUT_UMAP_VERSION.hash(&mut hasher);
     files.len().hash(&mut hasher);
     for file in files {
         file.id.hash(&mut hasher);
     }
     hasher.finish()
-}
-
-fn normalized_layout_points(
-    raw_points: HashMap<String, RawStarmapLayoutPoint>,
-) -> HashMap<String, StarmapLayoutPoint> {
-    if raw_points.is_empty() {
-        return HashMap::new();
-    }
-    let (mut min_x, mut max_x) = (f32::INFINITY, f32::NEG_INFINITY);
-    let (mut min_y, mut max_y) = (f32::INFINITY, f32::NEG_INFINITY);
-    for point in raw_points.values().copied() {
-        min_x = min_x.min(point.x);
-        max_x = max_x.max(point.x);
-        min_y = min_y.min(point.y);
-        max_y = max_y.max(point.y);
-    }
-    raw_points
-        .into_iter()
-        .map(|(file_id, point)| {
-            (
-                file_id,
-                StarmapLayoutPoint {
-                    x: normalize_layout_axis(point.x, min_x, max_x, 0.04, 0.96),
-                    y: normalize_layout_axis(point.y, min_y, max_y, 0.06, 0.94),
-                    cluster_id: point.cluster_id,
-                },
-            )
-        })
-        .collect()
-}
-
-fn normalize_layout_axis(value: f32, min: f32, max: f32, out_min: f32, out_max: f32) -> f32 {
-    if !value.is_finite() || !min.is_finite() || !max.is_finite() {
-        return (out_min + out_max) * 0.5;
-    }
-    let span = max - min;
-    if span.abs() <= f32::EPSILON {
-        return (out_min + out_max) * 0.5;
-    }
-    let unit = ((value - min) / span).clamp(0.0, 1.0);
-    out_min + (out_max - out_min) * unit
 }
 
 fn strongest_enabled_aspect(
@@ -658,6 +595,7 @@ const STARMAP_CLUSTER_PALETTE: [ui::Rgba8; 5] = [
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wavecrate::sample_sources::SampleSource;
 
     #[test]
     fn starmap_position_is_stable_and_bounded() {
@@ -694,45 +632,6 @@ mod tests {
         assert_ne!(fallback, layout);
         assert!((0.0..=1.0).contains(&fallback.0));
         assert!((0.0..=1.0).contains(&fallback.1));
-    }
-
-    #[test]
-    fn normalized_layout_positions_fill_map_domain() {
-        let positions = normalized_layout_points(HashMap::from([
-            (
-                String::from("a.wav"),
-                RawStarmapLayoutPoint {
-                    x: -1.0,
-                    y: 2.0,
-                    cluster_id: Some(3),
-                },
-            ),
-            (
-                String::from("b.wav"),
-                RawStarmapLayoutPoint {
-                    x: 1.0,
-                    y: 6.0,
-                    cluster_id: Some(7),
-                },
-            ),
-        ]));
-
-        assert_eq!(
-            positions.get("a.wav"),
-            Some(&StarmapLayoutPoint {
-                x: 0.04,
-                y: 0.06,
-                cluster_id: Some(3),
-            })
-        );
-        assert_eq!(
-            positions.get("b.wav"),
-            Some(&StarmapLayoutPoint {
-                x: 0.96,
-                y: 0.94,
-                cluster_id: Some(7),
-            })
-        );
     }
 
     #[test]
@@ -1163,6 +1062,8 @@ mod tests {
                     cluster_id: None,
                 },
             )]),
+            pending_load_signature: None,
+            loaded_signature: Some(42),
             auto_prep_requested_signature: None,
         };
 
@@ -1186,12 +1087,16 @@ mod tests {
                     cluster_id: None,
                 },
             )]),
+            pending_load_signature: None,
+            loaded_signature: Some(7),
             auto_prep_requested_signature: None,
         };
         let empty_listing = StarmapLayoutCache {
             signature: Some(8),
             listed_count: 0,
             points_by_file: HashMap::new(),
+            pending_load_signature: None,
+            loaded_signature: Some(8),
             auto_prep_requested_signature: None,
         };
 

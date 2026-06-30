@@ -1,14 +1,15 @@
 use std::{collections::VecDeque, path::Path};
 
 use radiant::prelude as ui;
-use wavecrate::sample_sources::{SampleSource, SourceId};
+use wavecrate::sample_sources::{
+    SampleSource, SourceId, StarmapLayoutLoadResult, load_starmap_layout,
+};
 
 use crate::native_app::app::{
     GuiMessage, NativeAppState, SampleBrowserDisplayMode, emit_gui_action,
 };
 
 mod worker;
-pub(in crate::native_app) use worker::NATIVE_SIMILARITY_UMAP_VERSION;
 use worker::{
     drain_similarity_prep_jobs, enqueue_similarity_prep_inner, finalize_similarity_prep_if_ready,
     resolve_similarity_prep_status, source_has_active_similarity_prep_jobs,
@@ -83,6 +84,38 @@ impl SimilarityPrepSource {
 }
 
 impl NativeAppState {
+    pub(in crate::native_app) fn maybe_start_starmap_layout_load(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.ui.chrome.sample_browser_display != SampleBrowserDisplayMode::Map {
+            return;
+        }
+        let Some(request) = self
+            .library
+            .folder_browser
+            .take_starmap_layout_load_request(&self.metadata.tags_by_file)
+        else {
+            return;
+        };
+        context
+            .business()
+            .background("gui-starmap-layout-load")
+            .run(
+                move |_| load_starmap_layout(request),
+                GuiMessage::StarmapLayoutLoaded,
+            );
+    }
+
+    pub(in crate::native_app) fn finish_starmap_layout_load(
+        &mut self,
+        result: StarmapLayoutLoadResult,
+    ) {
+        self.library
+            .folder_browser
+            .apply_starmap_layout_load_result(result);
+    }
+
     pub(in crate::native_app) fn maybe_prepare_starmap_similarity_layout(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,

@@ -12,6 +12,8 @@ pub mod duplicate_file_ops;
 mod file_move_metadata;
 #[doc(hidden)]
 pub mod harvest_file_ops;
+mod harvest_seen;
+mod starmap_layout;
 /// Scan tracking state to avoid duplicate work.
 pub mod scan_state {
     pub use wavecrate_scan::sample_sources::scan_state::ScanTracker;
@@ -65,6 +67,11 @@ pub use duplicate_file_ops::{
 #[doc(hidden)]
 pub use file_move_metadata::{
     SourcedFileMoveMetadata, persist_copied_file_metadata, persist_sourced_moved_file_metadata,
+};
+pub use harvest_seen::{HarvestSeenPersistRequest, HarvestSeenPersistResult, persist_harvest_seen};
+pub use starmap_layout::{
+    STARMAP_LAYOUT_UMAP_VERSION, StarmapLayoutLoadRequest, StarmapLayoutLoadResult,
+    StarmapLayoutPoint, StarmapLayoutSample, StarmapSourceLayoutRequest, load_starmap_layout,
 };
 pub use wavecrate_library::sample_sources::db::{SampleCollection, SampleSoundType};
 pub(crate) use wavecrate_library::sample_sources::is_supported_audio;

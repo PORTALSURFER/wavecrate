@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use wavecrate::{
     sample_sources::{
         HarvestDerivationOperation, HarvestFileIdentity, HarvestFileKey, HarvestMetadataSnapshot,
-        HarvestSourceRange, HarvestState, NewHarvestDerivation, SampleSource, SourceDatabase,
-        SourceId, WavEntry,
+        HarvestSeenPersistRequest, HarvestSeenPersistResult, HarvestSourceRange, HarvestState,
+        NewHarvestDerivation, SampleSource, WavEntry, persist_harvest_seen,
     },
     selection::SelectionRange,
 };
@@ -33,21 +33,6 @@ pub(in crate::native_app) struct HarvestFamilySummary {
     pub(in crate::native_app) missing_derivative_count: usize,
     pub(in crate::native_app) first_origin_label: Option<String>,
     pub(in crate::native_app) first_derivative_label: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::native_app) struct HarvestSeenPersistResult {
-    pub(in crate::native_app) file_id: String,
-    pub(in crate::native_app) result: Result<(), String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct HarvestSeenPersistRequest {
-    file_id: String,
-    source_id: SourceId,
-    source_root: PathBuf,
-    source_database_root: PathBuf,
-    relative_path: PathBuf,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1410,34 +1395,6 @@ fn source_db_entry_for_path(source: &SampleSource, relative_path: &Path) -> Opti
         .open_db()
         .ok()
         .and_then(|db| db.entry_for_path(relative_path).ok().flatten())
-}
-
-fn persist_harvest_seen(request: HarvestSeenPersistRequest) -> HarvestSeenPersistResult {
-    let result = persist_harvest_seen_inner(&request);
-    HarvestSeenPersistResult {
-        file_id: request.file_id,
-        result,
-    }
-}
-
-fn persist_harvest_seen_inner(request: &HarvestSeenPersistRequest) -> Result<(), String> {
-    let path = request.source_root.join(&request.relative_path);
-    let (file_size, modified_ns) = file_identity_metadata(&path);
-    let entry = SourceDatabase::open_read_only_with_database_root(
-        &request.source_root,
-        &request.source_database_root,
-    )
-    .ok()
-    .and_then(|db| db.entry_for_path(&request.relative_path).ok().flatten());
-    let identity = HarvestFileIdentity {
-        key: HarvestFileKey::new(request.source_id.clone(), request.relative_path.clone()),
-        file_size: file_size.or_else(|| entry.as_ref().map(|entry| entry.file_size)),
-        modified_ns: modified_ns.or_else(|| entry.as_ref().map(|entry| entry.modified_ns)),
-        content_hash: entry.and_then(|entry| entry.content_hash),
-    };
-    wavecrate::sample_sources::library::mark_harvest_seen(&identity)
-        .map(|_| ())
-        .map_err(|err| err.to_string())
 }
 
 fn file_identity_metadata(path: &Path) -> (Option<u64>, Option<i64>) {
