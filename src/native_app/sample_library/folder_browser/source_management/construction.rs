@@ -4,20 +4,19 @@ use wavecrate::sample_sources::SampleSource;
 impl FolderBrowserState {
     #[cfg(test)]
     pub(in crate::native_app) fn from_sample_sources(sources: &[SampleSource]) -> Self {
-        if sources.is_empty() {
-            return Self::load_default();
-        }
         let entries = sources
             .iter()
             .map(SourceEntry::from_sample_source)
+            .filter(|source| !source.is_default_assets_source())
             .collect::<Vec<_>>();
-        Self::from_sources(entries, sources[0].id.as_str().to_string())
+        if entries.is_empty() {
+            return Self::empty();
+        }
+        let selected_source = entries[0].id.clone();
+        Self::from_sources(entries, selected_source)
     }
 
     pub(in crate::native_app) fn from_sample_sources_deferred(sources: &[SampleSource]) -> Self {
-        if sources.is_empty() {
-            return Self::load_default();
-        }
         let scan_cache = load_source_scan_cache().unwrap_or_else(|error| {
             tracing::warn!("{error}; falling back to source disk scan");
             Default::default()
@@ -34,7 +33,12 @@ impl FolderBrowserState {
                 }
                 entry
             })
+            .filter(|source| !source.is_default_assets_source())
             .collect::<Vec<_>>();
-        Self::from_sources_deferred(entries, sources[0].id.as_str().to_string())
+        if entries.is_empty() {
+            return Self::empty();
+        }
+        let selected_source = entries[0].id.clone();
+        Self::from_sources_deferred(entries, selected_source)
     }
 }

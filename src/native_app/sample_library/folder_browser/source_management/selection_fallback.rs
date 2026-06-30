@@ -1,7 +1,4 @@
-use super::super::{
-    FolderBrowserState, FolderEntry, RemovedSource, SourceEntry,
-    scanning::{default_root_path, load_source_snapshot, placeholder_folder},
-};
+use super::super::{FolderBrowserState, FolderEntry, RemovedSource, scanning::placeholder_folder};
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn remove_source(
@@ -24,9 +21,6 @@ impl FolderBrowserState {
         };
         self.cancel_rename();
         self.clear_drag();
-        if self.source.sources.is_empty() {
-            self.install_default_assets_source();
-        }
         if self.source.selected_source == source.id {
             self.select_first_available_source();
         }
@@ -72,17 +66,9 @@ impl FolderBrowserState {
         self.prewarm_selected_source_audio_projection_cache();
     }
 
-    fn install_default_assets_source(&mut self) {
-        let root = default_root_path();
-        let mut source = SourceEntry::new("assets", "Assets", root.clone());
-        let snapshot = load_source_snapshot(root, source.database_root.clone());
-        source.root_folder = Some(snapshot.folder);
-        source.missing_collection_snapshot = snapshot.missing_collection_snapshot;
-        self.source.sources.push(source);
-    }
-
     fn select_first_available_source(&mut self) {
         let Some(source) = self.source.sources.first().cloned() else {
+            *self = Self::empty();
             return;
         };
         if let Some(root_folder) = source.root_folder {

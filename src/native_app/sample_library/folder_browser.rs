@@ -73,7 +73,9 @@ pub(in crate::native_app) use file_refresh::{
 };
 mod filesystem_refresh;
 mod scanning;
-use scanning::{default_root_path, file_entry, load_source_snapshot, placeholder_folder};
+#[cfg(test)]
+use scanning::load_source_snapshot;
+use scanning::{file_entry, placeholder_folder};
 
 mod curation;
 mod harvest_filter;

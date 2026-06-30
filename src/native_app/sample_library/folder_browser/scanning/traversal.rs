@@ -13,10 +13,6 @@ use super::{
     metadata::{SourceMetadataMap, rated_file_entry, source_rating_map},
 };
 
-pub(in crate::native_app::sample_library::folder_browser) fn default_root_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets")
-}
-
 pub(in crate::native_app::sample_library::folder_browser) struct LoadedSourceSnapshot {
     pub(in crate::native_app::sample_library::folder_browser) folder: FolderEntry,
     pub(in crate::native_app::sample_library::folder_browser) missing_collection_snapshot:

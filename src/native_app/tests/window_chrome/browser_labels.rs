@@ -1,18 +1,11 @@
 use super::*;
 
 #[test]
-fn default_folder_browser_loads_assets_root() {
+fn default_folder_browser_has_empty_source_list() {
     let browser = crate::native_app::test_support::state::FolderBrowserState::load_default();
-    assert!(browser.root_path().ends_with("assets"));
-    assert_eq!(browser.source_labels(), vec![String::from("Assets")]);
-    assert!(
-        !browser.selected_files().is_empty(),
-        "default assets source should expose bundled asset files"
-    );
-    assert!(
-        browser.selected_audio_files().is_empty(),
-        "bundled font/icon assets should not appear as audio samples"
-    );
+    assert_eq!(browser.source_labels(), Vec::<String>::new());
+    assert!(browser.selected_files().is_empty());
+    assert!(browser.selected_audio_files().is_empty());
 }
 
 #[test]

@@ -8,8 +8,10 @@ use super::{
     BrowserSelectionState, BrowserSourceState, CollectionPanelState,
     EMPTY_SIMILARITY_ASPECT_STRENGTHS, FolderBrowserMessage, FolderEntry,
     FolderSelectionToggleResult, FolderTreeState, SampleListState, SimilarityAspectStrengths,
-    SimilarityBrowserState, SourceEntry, default_root_path, path_id_matches, placeholder_folder,
+    SimilarityBrowserState, SourceEntry, path_id_matches, placeholder_folder,
 };
+#[cfg(test)]
+use super::{folder_label, path_id};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct FolderBrowserState {
@@ -25,15 +27,20 @@ pub(in crate::native_app) struct FolderBrowserState {
 }
 
 impl FolderBrowserState {
+    #[cfg(test)]
     pub(in crate::native_app) fn load_default() -> Self {
-        Self::from_root(default_root_path())
+        Self::empty()
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn from_root(root: PathBuf) -> Self {
-        let sources = vec![SourceEntry::new("assets", "Assets", root)];
-        Self::from_sources(sources, String::from("assets"))
+        let source_id = path_id(&root);
+        let label = folder_label(&root);
+        let sources = vec![SourceEntry::new(source_id.clone(), label, root)];
+        Self::from_sources(sources, source_id)
     }
 
+    #[cfg(test)]
     pub(super) fn from_sources(sources: Vec<SourceEntry>, selected_source: String) -> Self {
         let mut sources = sources;
         let source_index = selected_source_index(&sources, &selected_source);
@@ -75,6 +82,29 @@ impl FolderBrowserState {
         state.refresh_missing_collection_state();
         state.prewarm_selected_source_audio_projection_cache();
         state
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn empty() -> Self {
+        let root_id = String::new();
+        Self {
+            source: BrowserSourceState::new(Vec::new(), String::new()),
+            selection: BrowserSelectionState::new(root_id.clone()),
+            filters: BrowserFilterState::default(),
+            tree: FolderTreeState::new(
+                FolderEntry {
+                    id: root_id.clone(),
+                    name: String::new(),
+                    children: Vec::new(),
+                    files: Vec::new(),
+                },
+                root_id,
+            ),
+            rename: BrowserRenameState::default(),
+            drag_drop: BrowserDragDropState::new(),
+            collection_panel: CollectionPanelState::new(),
+            panel_layout: BrowserPanelLayoutState::new(),
+            sample_list: SampleListState::new(),
+        }
     }
 
     #[cfg(test)]
