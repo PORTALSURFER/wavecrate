@@ -13,6 +13,10 @@ impl FolderBrowserState {
         self.sample_list.reset_view();
     }
 
+    pub(super) fn request_selected_file_view_refollow_after_content_change(&mut self) {
+        self.sample_list.refollow_selected_after_content_change = true;
+    }
+
     pub(super) fn reconcile_file_view_after_tagged_content_change(
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
@@ -93,7 +97,16 @@ impl FolderBrowserState {
             ui::VirtualListProjection::new(total_items, viewport_rows, overscan_rows, guard_rows)
                 .with_context_row();
         let focus = ui::VirtualListFocusTarget::new(selected_file, selected_index);
-        let window = if should_preserve_runtime_viewport_for_focus_change(
+        let refollow_selected_after_content_change =
+            std::mem::take(&mut self.sample_list.refollow_selected_after_content_change);
+        let window = if refollow_selected_after_content_change {
+            self.sample_list
+                .follow_selection
+                .remember_focus_key(focus.key);
+            self.sample_list
+                .view_controller
+                .configure_projection_and_focus_optional(projection, focus.index)
+        } else if should_preserve_runtime_viewport_for_focus_change(
             &self.sample_list.follow_selection,
             &self.sample_list.view_controller,
             &focus,
