@@ -4,8 +4,6 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use radiant::guardrails::NonBlockingGuardrail;
-
 struct FacadeBudget {
     path: &'static str,
     max_lines: usize,
@@ -221,6 +219,54 @@ fn native_app_ui_update_paths_do_not_call_blocking_business_apis() {
 }
 
 #[test]
+fn native_app_blocking_guardrail_skips_cfg_test_fixture_blocks_only() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate_cfg_test_guardrail_fixture_{}",
+        std::process::id()
+    ));
+    let source = root.join("ui_action.rs");
+    fs::create_dir_all(&root).expect("create guardrail fixture dir");
+    fs::write(
+        &source,
+        r#"fn update() {
+    let value = 1;
+}
+
+#[cfg(test)]
+mod tests {
+    fn writes_fixture_file() {
+        std::fs::write("sample.wav", []).ok();
+    }
+}
+
+fn production_after_tests() {
+    std::fs::read("sample.wav").ok();
+}
+"#,
+    )
+    .expect("write guardrail fixture");
+
+    let report = wavecrate_non_blocking_guardrail()
+        .scan_roots([&root])
+        .expect_err("production read after cfg(test) module should still be reported");
+
+    assert_eq!(report.violations.len(), 1);
+    assert!(
+        report.violations[0].source_line.contains("std::fs::read"),
+        "production code after cfg(test) fixture should still be reported: {report:?}"
+    );
+    assert!(
+        report
+            .violations
+            .iter()
+            .all(|violation| !violation.source_line.contains("std::fs::write")),
+        "cfg(test) fixture internals should be ignored: {report:?}"
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn waveform_clipboard_staging_worker_does_not_touch_platform_clipboard() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let source_path =
@@ -418,8 +464,8 @@ fn is_export_line(line: &str) -> bool {
         || trimmed.starts_with("pub(crate) type ")
 }
 
-fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
-    let mut guardrail = NonBlockingGuardrail::app_update_paths()
+fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
+    let mut guardrail = WavecrateNonBlockingGuardrail::app_update_paths()
         .forbid_token(
             "open_for_user_metadata_write",
             "metadata database write",
@@ -669,6 +715,247 @@ fn wavecrate_non_blocking_guardrail() -> NonBlockingGuardrail {
     }
 
     guardrail
+}
+
+#[derive(Clone, Debug)]
+struct WavecrateNonBlockingGuardrail {
+    patterns: Vec<WavecrateBlockingPattern>,
+    allowlisted_path_fragments: Vec<WavecrateAllowedPathFragment>,
+}
+
+impl WavecrateNonBlockingGuardrail {
+    fn app_update_paths() -> Self {
+        Self {
+            patterns: default_non_blocking_patterns(),
+            allowlisted_path_fragments: Vec::new(),
+        }
+    }
+
+    fn forbid_token(
+        mut self,
+        token: &'static str,
+        label: &'static str,
+        guidance: &'static str,
+    ) -> Self {
+        self.patterns.push(WavecrateBlockingPattern {
+            token,
+            label,
+            guidance,
+        });
+        self
+    }
+
+    fn allow_path_fragment(
+        mut self,
+        fragment: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        self.allowlisted_path_fragments
+            .push(WavecrateAllowedPathFragment {
+                fragment: normalize_path_fragment(&fragment.into()),
+                reason: reason.into(),
+            });
+        self
+    }
+
+    fn scan_roots<I, P>(&self, roots: I) -> Result<(), WavecrateNonBlockingGuardrailReport>
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<Path>,
+    {
+        let mut report = WavecrateNonBlockingGuardrailReport::default();
+        for root in roots {
+            self.scan_path(root.as_ref(), &mut report);
+        }
+        if report.is_empty() {
+            Ok(())
+        } else {
+            Err(report)
+        }
+    }
+
+    fn scan_path(&self, path: &Path, report: &mut WavecrateNonBlockingGuardrailReport) {
+        if self.is_allowlisted(path) || !path.exists() {
+            return;
+        }
+        if path.is_dir() {
+            self.scan_dir(path, report);
+            return;
+        }
+        if path.extension().and_then(|extension| extension.to_str()) == Some("rs") {
+            self.scan_file(path, report);
+        }
+    }
+
+    fn scan_dir(&self, dir: &Path, report: &mut WavecrateNonBlockingGuardrailReport) {
+        match fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => self.scan_path(&entry.path(), report),
+                        Err(error) => report.read_errors.push(WavecrateGuardrailReadError {
+                            path: dir.to_owned(),
+                            error: error.to_string(),
+                        }),
+                    }
+                }
+            }
+            Err(error) => report.read_errors.push(WavecrateGuardrailReadError {
+                path: dir.to_owned(),
+                error: error.to_string(),
+            }),
+        }
+    }
+
+    fn scan_file(&self, path: &Path, report: &mut WavecrateNonBlockingGuardrailReport) {
+        let source = match fs::read_to_string(path) {
+            Ok(source) => source,
+            Err(error) => {
+                report.read_errors.push(WavecrateGuardrailReadError {
+                    path: path.to_owned(),
+                    error: error.to_string(),
+                });
+                return;
+            }
+        };
+        let mut cfg_test_pending = false;
+        let mut skipped_cfg_test_depth = None;
+        for (line_index, line) in source.lines().enumerate() {
+            if let Some(depth) = skipped_cfg_test_depth {
+                let next_depth = depth + brace_delta(line);
+                skipped_cfg_test_depth = (next_depth > 0).then_some(next_depth);
+                continue;
+            }
+
+            let trimmed = line.trim();
+            if is_cfg_test_line(trimmed) {
+                cfg_test_pending = true;
+                continue;
+            }
+            if cfg_test_pending {
+                if trimmed.is_empty()
+                    || trimmed.starts_with("//")
+                    || (trimmed.starts_with("#[") && !trimmed.starts_with("#[cfg("))
+                {
+                    continue;
+                }
+                let depth = brace_delta(line);
+                if depth > 0 {
+                    skipped_cfg_test_depth = Some(depth);
+                }
+                cfg_test_pending = false;
+                continue;
+            }
+
+            for pattern in &self.patterns {
+                if line.contains(pattern.token) {
+                    report.violations.push(WavecrateNonBlockingViolation {
+                        path: path.to_owned(),
+                        line: line_index + 1,
+                        token: pattern.token,
+                        label: pattern.label,
+                        guidance: pattern.guidance,
+                        source_line: line.trim().to_owned(),
+                    });
+                    break;
+                }
+            }
+        }
+    }
+
+    fn is_allowlisted(&self, path: &Path) -> bool {
+        let normalized = normalize_path_fragment(&path.to_string_lossy());
+        self.allowlisted_path_fragments
+            .iter()
+            .any(|allowlist| normalized.contains(&allowlist.fragment))
+    }
+}
+
+#[derive(Clone, Debug)]
+struct WavecrateBlockingPattern {
+    token: &'static str,
+    label: &'static str,
+    guidance: &'static str,
+}
+
+#[derive(Clone, Debug)]
+struct WavecrateAllowedPathFragment {
+    fragment: String,
+    #[allow(dead_code)]
+    reason: String,
+}
+
+#[derive(Clone, Debug, Default)]
+struct WavecrateNonBlockingGuardrailReport {
+    violations: Vec<WavecrateNonBlockingViolation>,
+    read_errors: Vec<WavecrateGuardrailReadError>,
+}
+
+impl WavecrateNonBlockingGuardrailReport {
+    fn is_empty(&self) -> bool {
+        self.violations.is_empty() && self.read_errors.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WavecrateNonBlockingViolation {
+    path: PathBuf,
+    line: usize,
+    token: &'static str,
+    label: &'static str,
+    guidance: &'static str,
+    source_line: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WavecrateGuardrailReadError {
+    path: PathBuf,
+    error: String,
+}
+
+fn default_non_blocking_patterns() -> Vec<WavecrateBlockingPattern> {
+    vec![
+        blocking_pattern("std::fs::", "filesystem API"),
+        blocking_pattern("fs::", "filesystem API"),
+        blocking_pattern(".exists()", "filesystem metadata check"),
+        blocking_pattern(".metadata()", "filesystem metadata check"),
+        blocking_pattern(".canonicalize()", "filesystem path resolution"),
+        blocking_pattern("std::thread::sleep", "thread sleep"),
+        blocking_pattern("thread::sleep", "thread sleep"),
+        blocking_pattern("std::thread::spawn", "manual thread spawn"),
+        blocking_pattern("thread::spawn", "manual thread spawn"),
+        blocking_pattern(".join()", "blocking join"),
+        blocking_pattern(".recv()", "blocking channel receive"),
+        blocking_pattern("blocking_recv", "blocking channel receive"),
+        blocking_pattern("SourceDatabase::open", "database open"),
+        blocking_pattern("SourceDatabase::open_fast", "database open"),
+        blocking_pattern("SourceDatabase::open_with_role", "database open"),
+        blocking_pattern("FileDialog::new", "direct file dialog"),
+        blocking_pattern("MessageDialog::new", "direct message dialog"),
+        blocking_pattern("open::that", "direct shell open"),
+        blocking_pattern("arboard::Clipboard", "direct clipboard access"),
+        blocking_pattern("std::process::Command", "direct process launch"),
+    ]
+}
+
+fn blocking_pattern(token: &'static str, label: &'static str) -> WavecrateBlockingPattern {
+    WavecrateBlockingPattern {
+        token,
+        label,
+        guidance: "route work through context.business() or a typed platform service",
+    }
+}
+
+fn normalize_path_fragment(fragment: &str) -> String {
+    fragment.replace('\\', "/")
+}
+
+fn brace_delta(line: &str) -> i32 {
+    line.chars().fold(0, |depth, ch| match ch {
+        '{' => depth + 1,
+        '}' => depth - 1,
+        _ => depth,
+    })
 }
 
 fn is_comment_or_empty(line: &str) -> bool {
