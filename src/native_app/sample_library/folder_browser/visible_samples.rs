@@ -84,6 +84,7 @@ pub(super) struct SampleListState {
     pub(super) projection_cache: VisibleSampleProjectionCache,
     pub(super) starmap_layout: StarmapLayoutCache,
     pub(super) listing_reveals: BrowserListingRevealState,
+    pub(super) refollow_selected_after_content_change: bool,
     copy_flash_file_ids: HashSet<String>,
     copy_flash_frames: u8,
 }
@@ -108,6 +109,7 @@ impl SampleListState {
             projection_cache: VisibleSampleProjectionCache::default(),
             starmap_layout: StarmapLayoutCache::default(),
             listing_reveals: BrowserListingRevealState::default(),
+            refollow_selected_after_content_change: false,
             copy_flash_file_ids: HashSet::new(),
             copy_flash_frames: 0,
         }
@@ -117,6 +119,7 @@ impl SampleListState {
         self.view_controller = ui::VirtualListController::default();
         self.follow_selection.clear();
         self.prepared_window = ui::VirtualListWindow::default();
+        self.refollow_selected_after_content_change = false;
     }
 
     pub(super) fn bump_content_revision(&mut self) {

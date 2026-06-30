@@ -9,6 +9,7 @@ use std::{
 use super::{
     BACKGROUND_STORE_SHUTDOWN_WAIT,
     identity::{CacheIdentity, cache_path_for_identity},
+    invalidation::current_path_generation,
     write::store_cached_waveform_file_now,
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
@@ -251,6 +252,7 @@ pub(super) struct CachedWaveformStoreJob {
     pub(super) file: WaveformFile,
     pub(super) identity: CacheIdentity,
     pub(super) cache_path: PathBuf,
+    pub(super) path_generation: u64,
 }
 
 impl CachedWaveformStoreJob {
@@ -264,10 +266,12 @@ impl CachedWaveformStoreJob {
         }
         let identity = CacheIdentity::for_path(&file.path).ok()?;
         let cache_path = cache_path_for_identity(&file.path, &identity).ok()?;
+        let path_generation = current_path_generation(&file.path);
         Some(Self {
             file: file.clone(),
             identity,
             cache_path,
+            path_generation,
         })
     }
 }

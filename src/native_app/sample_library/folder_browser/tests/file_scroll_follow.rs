@@ -123,6 +123,56 @@ fn file_scroll_tracking_uses_controller_runtime_viewport_after_scrollbar_update(
 }
 
 #[test]
+fn selected_file_refresh_follows_same_file_after_sort_index_changes() {
+    let root = temp_source_root("wavecrate-gui-file-scroll-refresh-selected-sort-index");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..100)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.sort_file_column(String::from("size"));
+    browser.select_file(path_id(&files[0]));
+
+    let initial = browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+    assert_eq!(initial.viewport_start, 0);
+
+    browser.apply_file_view_window_change(ui::VirtualListWindowChange {
+        offset_y: 40.0 * 22.0,
+        row_height: 22.0,
+        window: ui::VirtualListWindow {
+            total_items: 100,
+            viewport_start: 40,
+            viewport_end: 58,
+            window_start: 36,
+            window_end: 62,
+        },
+    });
+
+    fs::write(&files[0], [1_u8; 4096]).expect("rewrite selected wav");
+    assert!(browser.refresh_file_path(&files[0]));
+    let followed = browser.follow_selected_file_view_matching_tags(128, 4, 2, &Default::default());
+
+    assert_eq!(followed.viewport_start, 82);
+    assert!(
+        browser
+            .visible_samples(VisibleSampleQuery {
+                tags_by_file: &Default::default(),
+                cached_sample_paths: &Default::default(),
+            })
+            .rows
+            .iter()
+            .any(|row| row.file.id == path_id(&files[0]) && row.focused),
+        "refreshed selected file should remain materialized and focused after it moves in sort order"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn file_scrollbar_bottom_update_keeps_bottom_rows_materialized() {
     let root = temp_source_root("wavecrate-gui-file-scrollbar-bottom-window");
     let drums = root.join("drums");

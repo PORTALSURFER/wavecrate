@@ -17,6 +17,19 @@ impl NativeAppState {
         self.clear_sample_loading_state();
         self.waveform.load.selection.waveform_ready(path.as_str());
         let file_name = waveform.file_name();
+        self.log_sample_identity_waveform_checkpoint(
+            "browser.sample_load.finish_loaded_candidate",
+            "finish_loaded_sample_load",
+            Some(Path::new(&path)),
+            &waveform,
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.finish_loaded_before_replace",
+            "finish_loaded_sample_load",
+            Some(Path::new(&path)),
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         let remember_started_at = Instant::now();
         self.remember_waveform(&waveform);
         log_slow_sample_load_phase(
@@ -26,6 +39,12 @@ impl NativeAppState {
         );
         let replace_started_at = Instant::now();
         self.replace_waveform_deferred(waveform);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.finish_loaded_after_replace",
+            "finish_loaded_sample_load",
+            Some(Path::new(&path)),
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         log_slow_sample_load_phase(
             "browser.sample_load.finish.replace_waveform",
             &file_name,

@@ -215,6 +215,7 @@ impl NativeAppState {
                     Some(position),
                     playback_type,
                     HarvestDerivationOperation::Extract,
+                    false,
                     started_at,
                     context,
                 );

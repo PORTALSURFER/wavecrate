@@ -3,6 +3,7 @@ use super::super::{format::CachedPlaybackCacheFile, prune::PruneWaveformCacheOut
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::native_app::waveform::audio_file::waveform_cache) enum StoreWriteOutcome {
     Completed(StoreWriteReport),
+    StaleInput(StoreWriteReport),
     SerializeFailed(StoreWriteReport),
     TempWriteFailed(StoreWriteReport),
     RenameFailed(StoreWriteReport),
@@ -69,6 +70,7 @@ impl StoreWriteOutcome {
     ) -> &StoreWriteReport {
         match self {
             Self::Completed(report)
+            | Self::StaleInput(report)
             | Self::SerializeFailed(report)
             | Self::TempWriteFailed(report)
             | Self::RenameFailed(report) => report,
@@ -78,6 +80,7 @@ impl StoreWriteOutcome {
     pub(in crate::native_app::waveform::audio_file::waveform_cache) fn kind(&self) -> &'static str {
         match self {
             Self::Completed(_) => "completed",
+            Self::StaleInput(_) => "stale_input",
             Self::SerializeFailed(_) => "serialize_failed",
             Self::TempWriteFailed(_) => "temp_write_failed",
             Self::RenameFailed(_) => "rename_failed",

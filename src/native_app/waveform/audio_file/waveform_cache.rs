@@ -4,6 +4,9 @@ use super::WaveformFile;
 use diagnostics::log_stale_cache_entry;
 use format::CACHE_FORMAT_VERSION;
 use identity::CacheIdentity;
+pub(in crate::native_app) use invalidation::{
+    invalidate_persisted_waveform_cache_path, invalidate_persisted_waveform_cache_paths,
+};
 pub(in crate::native_app) use playback_load::{
     load_cached_waveform_file_for_playback, load_cached_waveform_file_summary,
 };
@@ -25,6 +28,7 @@ pub(in crate::native_app) use write::mark_cached_waveform_file_source_warm_attem
 mod diagnostics;
 mod format;
 mod identity;
+mod invalidation;
 mod playback_load;
 mod prune;
 mod read;

@@ -247,6 +247,10 @@ impl NativeAppState {
                         drag_position: None,
                         playback_type,
                         harvest_operation: HarvestDerivationOperation::Extract,
+                        focus_derivative: matches!(
+                            target,
+                            PlaymarkedExtractionTarget::HarvestDestination
+                        ),
                         started_at,
                     },
                 );
@@ -423,22 +427,24 @@ impl NativeAppState {
         drag_position: Option<Point>,
         playback_type: ExtractedFilePlaybackType,
         harvest_operation: HarvestDerivationOperation,
+        focus_derivative: bool,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         match completion.result {
             Ok(path) => {
+                self.evict_waveform_cache_path(&path);
                 self.waveform
                     .current
                     .mark_extracted_play_selection(&completion.source_path, completion.selection);
                 self.waveform.current.flash_play_selection();
+                let cross_source_derivative =
+                    self.extraction_derivative_crosses_sources(&completion.source_path, &path);
                 let protected_origin = self
                     .library
                     .folder_browser
                     .path_is_in_protected_source(&completion.source_path);
-                let cross_source_derivative =
-                    self.extraction_derivative_crosses_sources(&completion.source_path, &path);
-                let focus_derivative = cross_source_derivative && !protected_origin;
+                let focus_derivative = focus_derivative && cross_source_derivative;
                 if focus_derivative {
                     self.library
                         .folder_browser
@@ -446,6 +452,18 @@ impl NativeAppState {
                 } else {
                     self.library.folder_browser.refresh_file_path(&path);
                 }
+                self.log_sample_identity_checkpoint(
+                    "waveform.extract.finished_after_refresh",
+                    "finish_play_selection_extraction",
+                    Some(&path),
+                    Some(if protected_origin && cross_source_derivative {
+                        "protected_origin_cross_source_derivative"
+                    } else if cross_source_derivative {
+                        "cross_source_derivative"
+                    } else {
+                        "same_source_derivative"
+                    }),
+                );
                 let metadata_error = self
                     .assign_extracted_file_metadata(&path, playback_type, context)
                     .err();
@@ -457,6 +475,12 @@ impl NativeAppState {
                     harvest_operation,
                 );
                 if let Some(position) = drag_position {
+                    self.log_sample_identity_checkpoint(
+                        "waveform.extract.drag_started",
+                        "finish_play_selection_extraction",
+                        Some(&path),
+                        Some("drag_position_present"),
+                    );
                     self.library
                         .folder_browser
                         .begin_extracted_file_drag(path.clone(), position);
@@ -488,6 +512,26 @@ impl NativeAppState {
                             path.to_string_lossy().to_string(),
                             context,
                             started_at,
+                        );
+                        self.log_sample_identity_checkpoint(
+                            "waveform.extract.focused_derivative",
+                            "finish_play_selection_extraction",
+                            Some(&path),
+                            Some("auto_focused_and_load_queued"),
+                        );
+                    } else if protected_origin {
+                        self.log_sample_identity_checkpoint(
+                            "waveform.extract.protected_derivative_left_unfocused",
+                            "finish_play_selection_extraction",
+                            Some(&path),
+                            Some("preserve_protected_source_focus"),
+                        );
+                    } else {
+                        self.log_sample_identity_checkpoint(
+                            "waveform.extract.same_source_derivative_left_unfocused",
+                            "finish_play_selection_extraction",
+                            Some(&path),
+                            Some("current_behavior_no_auto_focus"),
                         );
                     }
                     let label = sample_path_label(&path);

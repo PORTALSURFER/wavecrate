@@ -79,7 +79,26 @@ impl NativeAppState {
         self.stop_current_sample_playback_for_load();
         self.clear_sample_loading_state();
         self.waveform.load.selection.start_cached(path);
+        self.log_sample_identity_waveform_checkpoint(
+            "browser.sample_load.memory_cache_candidate",
+            "start_memory_cached_sample",
+            Some(Path::new(path)),
+            &waveform,
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.memory_cache_before_replace",
+            "start_memory_cached_sample",
+            Some(Path::new(path)),
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         self.replace_waveform_deferred(waveform);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.memory_cache_after_replace",
+            "start_memory_cached_sample",
+            Some(Path::new(path)),
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         log_sample_load_timing(
             "browser.sample_load.memory_cache.replace_waveform",
             &file_name,
@@ -252,11 +271,6 @@ impl NativeAppState {
             }
             return Err(String::from("Audio output is starting"));
         }
-        let runtime = self
-            .audio
-            .playback_runtime
-            .as_ref()
-            .ok_or_else(|| String::from("audio player did not initialize"))?;
         let duration = self.waveform.current.duration_seconds();
         let source = if let Some(samples) = self.waveform.current.playback_samples() {
             PlaybackRuntimeSource::DecodedSamples {
@@ -309,6 +323,21 @@ impl NativeAppState {
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
+        self.log_sample_identity_checkpoint(
+            "playback.runtime.full_sample_request_built",
+            "start_current_full_sample_runtime_playback",
+            Some(&self.waveform.current.path()),
+            Some(if self.audio.loop_playback {
+                "looped"
+            } else {
+                "one_shot"
+            }),
+        );
+        let runtime = self
+            .audio
+            .playback_runtime
+            .as_ref()
+            .ok_or_else(|| String::from("audio player did not initialize"))?;
         let request_id = runtime
             .try_play(request)
             .map_err(|err| format!("submit playback request: {err:?}"))?;

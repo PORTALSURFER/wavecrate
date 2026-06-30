@@ -16,6 +16,9 @@ impl FolderBrowserState {
         let Some(parent) = path.parent() else {
             return false;
         };
+        let refreshed_file_id = path_id(path);
+        let refreshes_selected_file =
+            self.selection.selected_file_id() == Some(refreshed_file_id.as_str());
         let parent_id = path_id(parent);
         let Some(source) = self
             .source
@@ -37,6 +40,9 @@ impl FolderBrowserState {
             file_entry_for_source_path(&path.to_path_buf(), &source.root, &source_database_root),
         );
         self.tree.folders = vec![root_folder.clone()];
+        if refreshes_selected_file {
+            self.request_selected_file_view_refollow_after_content_change();
+        }
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
         true
@@ -46,6 +52,9 @@ impl FolderBrowserState {
         let Some(parent) = path.parent() else {
             return false;
         };
+        let refreshed_file_id = path_id(path);
+        let refreshes_selected_file =
+            self.selection.selected_file_id() == Some(refreshed_file_id.as_str());
         let Some(source_index) = self
             .source
             .sources
@@ -75,6 +84,9 @@ impl FolderBrowserState {
         }
         if self.source.selected_source == source_id {
             self.tree.folders = vec![root_folder.clone()];
+            if refreshes_selected_file {
+                self.request_selected_file_view_refollow_after_content_change();
+            }
         }
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
@@ -93,6 +105,10 @@ impl FolderBrowserState {
         };
         let source_root = self.source.sources[source_index].root.clone();
         let source_database_root = self.source.sources[source_index].database_root.clone();
+        let selected_file_id = self.selection.selected_file_id().map(str::to_owned);
+        let refreshes_selected_file = selected_file_id
+            .as_deref()
+            .is_some_and(|selected| paths.iter().any(|path| path_id(path) == selected));
         let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
             return false;
         };
@@ -115,6 +131,9 @@ impl FolderBrowserState {
         }
 
         self.tree.folders = vec![root_folder.clone()];
+        if refreshes_selected_file {
+            self.request_selected_file_view_refollow_after_content_change();
+        }
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
         true
@@ -134,6 +153,12 @@ impl FolderBrowserState {
             return false;
         };
         let selected_source = self.source.selected_source == source_id;
+        let selected_file_id = self.selection.selected_file_id().map(str::to_owned);
+        let refreshes_selected_file = selected_file_id.as_deref().is_some_and(|selected| {
+            entries
+                .iter()
+                .any(|entry| entry.file.id.as_str() == selected)
+        });
         let (source_changed, root_id) = {
             let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
                 return false;
@@ -159,6 +184,9 @@ impl FolderBrowserState {
                 && let Some(root_folder) = self.source.sources[source_index].root_folder.clone()
             {
                 self.tree.folders = vec![root_folder];
+            }
+            if refreshes_selected_file {
+                self.request_selected_file_view_refollow_after_content_change();
             }
         }
         self.bump_file_content_revision();

@@ -179,6 +179,15 @@ impl NativeAppState {
         strategy: SampleLoadStrategy,
     ) {
         let require_decoded_playback = autoplay && self.loop_playback_for_path_after_policy(&path);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.worker_queued",
+            "start_sample_load_with_priority",
+            Some(std::path::Path::new(&path)),
+            Some(match strategy {
+                SampleLoadStrategy::CacheThenDecode => "cache_then_decode",
+                SampleLoadStrategy::Decode => "decode",
+            }),
+        );
         let request =
             SampleLoadRequest::new(path, autoplay, priority, strategy, require_decoded_playback);
         let key = sample_resource_key(request.path());

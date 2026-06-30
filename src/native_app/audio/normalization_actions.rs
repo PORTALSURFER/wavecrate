@@ -42,6 +42,12 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let paths = self.library.folder_browser.selected_normalization_paths();
+        self.log_sample_identity_paths_checkpoint(
+            "browser.normalize.targets_from_selection",
+            "normalize_selected_samples",
+            &paths,
+            None,
+        );
         if paths.is_empty() {
             self.ui.status.sample = String::from("Select a sample to normalize");
             emit_gui_action(
@@ -69,6 +75,16 @@ impl NativeAppState {
                 return;
             }
         };
+        self.log_sample_identity_paths_checkpoint(
+            "browser.normalize.plan_ready",
+            "selected_normalization_plan",
+            &plan.paths,
+            Some(if plan.harvest_derivations.is_empty() {
+                "normal_source"
+            } else {
+                "protected_source_copy"
+            }),
+        );
         if let Some(error) = self.normalization_lock_error(&plan.paths) {
             self.ui.status.sample = error.clone();
             emit_gui_action(
@@ -151,6 +167,16 @@ impl NativeAppState {
         }
         self.pause_active_folder_cache_warm(context);
         let request = self.prepare_normalization_request(plan);
+        self.log_sample_identity_paths_checkpoint(
+            "browser.normalize.worker_queued",
+            "start_normalization_plan",
+            &request.paths,
+            Some(if request.normalizing_loaded {
+                "includes_loaded_waveform"
+            } else {
+                "selected_differs_from_loaded_waveform"
+            }),
+        );
         let label = normalize_progress_label(request.paths.len());
         let queued = self.background.normalization_queue.len();
         let priority = normalization_priority(request.paths.len());
@@ -196,6 +222,16 @@ impl NativeAppState {
         let loaded_path = self.waveform.current.path();
         let normalizing_loaded = plan.paths.iter().any(|path| path == &loaded_path);
         let was_playing = self.waveform.current.is_playing() && normalizing_loaded;
+        self.log_sample_identity_paths_checkpoint(
+            "browser.normalize.request_prepared",
+            "prepare_normalization_request",
+            &plan.paths,
+            Some(if normalizing_loaded {
+                "normalizing_loaded_waveform"
+            } else {
+                "normalizing_non_loaded_selection"
+            }),
+        );
         let restart_ratio = self
             .audio
             .playback_progress
@@ -387,6 +423,29 @@ impl NativeAppState {
                 .failed
                 .iter()
                 .any(|failure| failure.path == result.loaded_path);
+        let selected_normalized_path = selected_single_normalized_path(
+            &result.normalized,
+            self.library.folder_browser.selected_file_id(),
+        );
+        let reload_decision = if normalized_loaded {
+            "reload_loaded_waveform"
+        } else if selected_normalized_path.is_some() {
+            "reload_selected_normalized_path"
+        } else if result.was_playing && (skipped_loaded || failed_loaded) {
+            "resume_unchanged_loaded_waveform"
+        } else {
+            "no_waveform_reload"
+        };
+        self.log_sample_identity_paths_checkpoint(
+            "browser.normalize.finish_decision",
+            reload_decision,
+            &result.normalized,
+            Some(if result.normalizing_loaded {
+                "request_included_loaded_waveform"
+            } else {
+                "request_did_not_include_loaded_waveform"
+            }),
+        );
 
         if normalized_loaded {
             let playback = result.was_playing.then_some(WaveformPlaybackResume {
@@ -397,6 +456,14 @@ impl NativeAppState {
                 NormalizedWaveformReload {
                     path: &result.loaded_path,
                     playback,
+                },
+                context,
+            );
+        } else if let Some(path) = selected_normalized_path.as_deref() {
+            self.reload_normalized_waveform(
+                NormalizedWaveformReload {
+                    path,
+                    playback: None,
                 },
                 context,
             );
@@ -571,6 +638,18 @@ struct NormalizationWorkerRequest {
 
 fn normalize_progress_label(count: usize) -> String {
     format!("{count} sample{}", if count == 1 { "" } else { "s" })
+}
+
+fn selected_single_normalized_path(
+    normalized: &[PathBuf],
+    selected_file_id: Option<&str>,
+) -> Option<PathBuf> {
+    let [path] = normalized else {
+        return None;
+    };
+    selected_file_id
+        .is_some_and(|selected| selected == path.to_string_lossy().as_ref())
+        .then(|| path.clone())
 }
 
 fn run_normalization_worker(

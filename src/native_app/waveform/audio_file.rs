@@ -22,7 +22,8 @@ mod waveform_cache;
 pub(in crate::native_app) use cache_facade::cached_waveform_file_playback_ready_exists;
 pub(in crate::native_app) use cache_facade::{
     cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
-    flush_background_waveform_cache_stores_for_shutdown, load_cached_waveform_file_for_playback,
+    flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
+    invalidate_persisted_waveform_cache_paths, load_cached_waveform_file_for_playback,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 #[cfg(test)]

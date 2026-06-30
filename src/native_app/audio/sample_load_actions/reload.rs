@@ -13,6 +13,7 @@ impl NativeAppState {
         reload: super::NormalizedWaveformReload<'_>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let reload_resumes_playback = reload.playback.is_some();
         if let Some(playback) = reload.playback {
             let (_, previous_end) = playback.span.unwrap_or((0.0, 1.0));
             let start = playback.start_ratio.clamp(0.0, 1.0);
@@ -23,6 +24,16 @@ impl NativeAppState {
         self.library
             .folder_browser
             .select_file(reload.path.display().to_string());
+        self.log_sample_identity_checkpoint(
+            "browser.normalize.reload_select",
+            "reload_normalized_waveform",
+            Some(reload.path),
+            Some(if reload_resumes_playback {
+                "resume_playback"
+            } else {
+                "reload_without_playback"
+            }),
+        );
         self.start_normalized_waveform_reload(reload.path.display().to_string(), context);
     }
 
@@ -32,6 +43,12 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        self.log_sample_identity_checkpoint(
+            "browser.normalize.reload_start",
+            "start_normalized_waveform_reload",
+            Some(std::path::Path::new(&path)),
+            None,
+        );
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load();
         self.prepare_uncached_sample_load(&path, "normalization_reload_queued", started_at);

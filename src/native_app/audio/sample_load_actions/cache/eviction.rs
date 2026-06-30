@@ -3,13 +3,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::native_app::app::NativeAppState;
+use crate::native_app::{app::NativeAppState, waveform::invalidate_persisted_waveform_cache_path};
 
 const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 2048;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 impl NativeAppState {
     pub(in crate::native_app) fn evict_waveform_cache_path(&mut self, path: &Path) {
+        invalidate_persisted_waveform_cache_path(path);
         self.remove_waveform_cache_path(path);
         self.waveform.cache.order.retain(|cached| cached != path);
         self.waveform
@@ -34,6 +35,7 @@ impl NativeAppState {
             return;
         }
 
+        crate::native_app::waveform::invalidate_persisted_waveform_cache_paths(paths);
         let path_set = paths.iter().collect::<HashSet<_>>();
         for path in paths {
             self.remove_waveform_cache_path(path);

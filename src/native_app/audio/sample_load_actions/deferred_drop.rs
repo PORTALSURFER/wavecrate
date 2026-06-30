@@ -18,8 +18,21 @@ pub(super) fn defer_large_drop<T: Send + 'static>(value: T) {
 
 impl NativeAppState {
     pub(super) fn replace_waveform_deferred(&mut self, waveform: WaveformState) {
+        self.log_sample_identity_waveform_checkpoint(
+            "browser.sample_load.replace_waveform_deferred",
+            "replace_waveform_deferred",
+            Some(&waveform.path()),
+            &waveform,
+            Some("before_replace"),
+        );
         let previous = std::mem::replace(&mut self.waveform.current, waveform);
         defer_large_drop(previous);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.replace_waveform_deferred_done",
+            "replace_waveform_deferred",
+            Some(&self.waveform.current.path()),
+            Some("after_replace"),
+        );
     }
 }
 

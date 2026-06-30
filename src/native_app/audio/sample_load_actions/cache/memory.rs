@@ -25,7 +25,20 @@ impl NativeAppState {
                     .unwrap_or(0),
             file,
         };
+        self.log_sample_identity_waveform_checkpoint(
+            "browser.sample_cache.remember_candidate",
+            "remember_waveform",
+            Some(&waveform.path()),
+            waveform,
+            Some("before_insert"),
+        );
         self.insert_waveform_cache_entry(waveform.path(), entry);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_cache.remember_inserted",
+            "remember_waveform",
+            Some(&waveform.path()),
+            Some("after_insert"),
+        );
         log_slow_cache_phase(
             "browser.sample_cache.remember",
             &waveform.path(),
