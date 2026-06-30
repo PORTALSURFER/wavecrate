@@ -1,4 +1,5 @@
 use super::{DeleteRecoveryAction, DeleteRecoveryEntry, DeleteRecoveryStatus, SampleSource};
+use crate::app::controller::library::source_folders::delete_recovery::path_policy;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -29,11 +30,15 @@ pub(super) fn recovery_entry(
 pub(super) fn restore_staged_folder(
     staged: &Path,
     original: &Path,
+    staging_root: &Path,
+    source_root: &Path,
 ) -> Result<Option<String>, String> {
-    if !staged.exists() {
+    if !path_policy::path_exists_no_follow(staged)? {
         return Err("Staged folder missing".into());
     }
+    path_policy::ensure_existing_dir_under(staging_root, staged, "Staged delete folder")?;
     let (target, detail) = unique_restore_path(original);
+    path_policy::ensure_creatable_path_under(source_root, &target, "Delete restore destination")?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).map_err(|err| format!("Failed to restore folder: {err}"))?;
     }

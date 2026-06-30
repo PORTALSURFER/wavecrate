@@ -3,6 +3,7 @@ use super::{
     SampleSource, SourceId, journaled::recover_journaled_entry, load_journal, remove_entry,
     unjournaled,
 };
+use crate::app::controller::library::source_folders::delete_recovery::path_policy;
 use std::path::Path;
 
 pub(super) fn recover_staged_deletes(sources: &[SampleSource]) -> DeleteRecoveryReport {
@@ -18,7 +19,14 @@ fn recover_source(source: &SampleSource, report: &mut DeleteRecoveryReport) {
         return;
     }
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    if !staging_root.is_dir() {
+    if !path_policy::path_exists_no_follow(&staging_root).unwrap_or(false) {
+        return;
+    }
+    if let Err(err) = path_policy::ensure_staging_root(&source.root, &staging_root) {
+        report.errors.push(format!(
+            "Invalid delete staging root for {}: {err}",
+            source.root.display()
+        ));
         return;
     }
     let journal = match load_journal(&staging_root) {

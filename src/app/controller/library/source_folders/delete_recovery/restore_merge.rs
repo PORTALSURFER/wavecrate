@@ -5,6 +5,7 @@
 //! tree file-by-file, reuses exact matches, and preserves both copies when contents differ.
 
 use super::DeleteStagingInfo;
+use crate::app::controller::library::source_folders::delete_recovery::path_policy;
 use std::path::{Path, PathBuf};
 
 #[path = "restore_merge/filesystem.rs"]
@@ -94,6 +95,14 @@ pub(crate) fn restore_retained_folder_with_merge_with_stamp(
     staging_root: &Path,
     stamp: &str,
 ) -> Result<RetainedRestoreMergeReport, String> {
+    path_policy::validate_relative_path(&info.original_relative, "original_relative")?;
+    path_policy::validate_relative_path(&info.staged_relative, "staged_relative")?;
+    path_policy::ensure_existing_dir_under(
+        staging_root,
+        &info.staged_absolute,
+        "Retained staged folder",
+    )?;
+    path_policy::ensure_creatable_path_under(source_root, absolute, "Retained restore target")?;
     if !info.staged_absolute.is_dir() {
         return Err(format!(
             "Retained staged folder missing: {}",

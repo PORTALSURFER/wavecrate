@@ -9,6 +9,7 @@
 
 mod controller_apply;
 mod journal;
+mod path_policy;
 mod recovery;
 mod restore_merge;
 mod retained_resolution;
