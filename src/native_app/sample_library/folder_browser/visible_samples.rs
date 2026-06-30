@@ -78,6 +78,7 @@ pub(super) struct SampleListState {
     pub(super) view_controller: ui::VirtualListController,
     pub(super) follow_selection: ui::VirtualListFollowState<String>,
     pub(super) prepared_window: ui::VirtualListWindow,
+    pub(super) prepared_content_revision: u64,
     pub(super) content_revision: u64,
     pub(super) missing_collection_files: Vec<FileEntry>,
     pub(super) missing_collection_counts: BTreeMap<u8, usize>,
@@ -103,6 +104,7 @@ impl SampleListState {
             view_controller: ui::VirtualListController::default(),
             follow_selection: ui::VirtualListFollowState::default(),
             prepared_window: ui::VirtualListWindow::default(),
+            prepared_content_revision: 0,
             content_revision: 0,
             missing_collection_files: Vec::new(),
             missing_collection_counts: BTreeMap::new(),
@@ -119,6 +121,7 @@ impl SampleListState {
         self.view_controller = ui::VirtualListController::default();
         self.follow_selection.clear();
         self.prepared_window = ui::VirtualListWindow::default();
+        self.prepared_content_revision = self.content_revision;
         self.refollow_selected_after_content_change = false;
     }
 
@@ -454,12 +457,14 @@ impl FolderBrowserState {
         &mut self,
         policy: VisibleSampleWindowPolicy<'_>,
     ) -> ui::VirtualListWindow {
-        self.follow_selected_file_view_matching_tags(
+        let window = self.follow_selected_file_view_matching_tags(
             policy.viewport_rows,
             policy.overscan_rows,
             policy.guard_rows,
             policy.tags_by_file,
-        )
+        );
+        self.sample_list.prepared_content_revision = self.sample_list.content_revision;
+        window
     }
 
     pub(in crate::native_app) fn visible_samples<'a>(

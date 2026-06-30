@@ -432,6 +432,10 @@ impl FolderBrowserState {
         self.sample_list.bump_content_revision();
     }
 
+    pub(in crate::native_app) fn visible_sample_window_needs_content_refresh(&self) -> bool {
+        self.sample_list.prepared_content_revision != self.sample_list.content_revision
+    }
+
     pub(in crate::native_app) fn invalidate_visible_sample_projection_cache(&mut self) {
         self.sample_list.projection_cache.clear();
     }
