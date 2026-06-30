@@ -1,15 +1,14 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
     path::{Path, PathBuf},
 };
 
 use super::{
     FileMoveConflictBatch, FileMoveItem, FolderBrowserState, FolderDropResult, FolderMoveDropInput,
     FolderMoveRequest, FolderMoveSuccess, delete_workflow::fallback_after_deleted_focus,
-    drag_drop_relocation::persist_moved_folders_metadata,
     drag_drop_sourced_files::sourced_moved_files_from_items, file_move_conflicts::file_move_status,
-    path_helpers::path_id, selection_state::BrowserSelectionSnapshot,
+    file_move_execution::execute_folder_move_transaction, path_helpers::path_id,
+    selection_state::BrowserSelectionSnapshot,
 };
 
 impl FolderBrowserState {
@@ -368,9 +367,8 @@ impl FolderBrowserState {
         moves: &[(PathBuf, PathBuf)],
     ) -> Result<Option<String>, String> {
         self.select_source_root_for_folder_move_transaction(source_root)?;
-        let completed = rename_folders_with_rollback(moves)?;
-        let metadata_error =
-            persist_moved_folders_metadata(source_root, source_database_root, &completed).err();
+        let (completed, metadata_error) =
+            execute_folder_move_transaction(source_root, source_database_root, moves)?;
         for (old_path, new_path) in &completed {
             let Some(target_parent) = new_path.parent() else {
                 return Err(format!(
@@ -577,42 +575,5 @@ fn folder_move_status(moved_paths: &[(PathBuf, PathBuf)]) -> String {
             folders.len(),
             if folders.len() == 1 { "" } else { "s" }
         ),
-    }
-}
-
-fn rename_folders_with_rollback(
-    moves: &[(PathBuf, PathBuf)],
-) -> Result<Vec<(PathBuf, PathBuf)>, String> {
-    let mut completed = Vec::new();
-    for (old_path, new_path) in moves {
-        if !old_path.is_dir() {
-            rollback_moved_folders_for_transaction(&completed);
-            return Err(format!(
-                "Folder move failed: {} is missing",
-                old_path.display()
-            ));
-        }
-        if new_path.exists() {
-            rollback_moved_folders_for_transaction(&completed);
-            return Err(format!(
-                "Folder move failed: {} already exists",
-                new_path.display()
-            ));
-        }
-        if let Some(parent) = new_path.parent() {
-            fs::create_dir_all(parent).map_err(|err| format!("Folder move failed: {err}"))?;
-        }
-        if let Err(error) = fs::rename(old_path, new_path) {
-            rollback_moved_folders_for_transaction(&completed);
-            return Err(format!("Folder move failed: {error}"));
-        }
-        completed.push((old_path.clone(), new_path.clone()));
-    }
-    Ok(completed)
-}
-
-fn rollback_moved_folders_for_transaction(completed: &[(PathBuf, PathBuf)]) {
-    for (old_path, new_path) in completed.iter().rev() {
-        let _ = fs::rename(new_path, old_path);
     }
 }

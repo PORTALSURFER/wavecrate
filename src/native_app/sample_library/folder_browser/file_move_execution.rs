@@ -188,6 +188,54 @@ fn rollback_moved_folders(moved_paths: &[(PathBuf, PathBuf)]) -> Option<String> 
     (!errors.is_empty()).then(|| errors.join("; "))
 }
 
+pub(super) fn execute_folder_move_transaction(
+    source_root: &Path,
+    source_database_root: &Path,
+    moves: &[(PathBuf, PathBuf)],
+) -> Result<(Vec<(PathBuf, PathBuf)>, Option<String>), String> {
+    let completed = rename_folders_with_rollback(moves)?;
+    let metadata_error =
+        persist_moved_folders_metadata(source_root, source_database_root, &completed).err();
+    Ok((completed, metadata_error))
+}
+
+fn rename_folders_with_rollback(
+    moves: &[(PathBuf, PathBuf)],
+) -> Result<Vec<(PathBuf, PathBuf)>, String> {
+    let mut completed = Vec::new();
+    for (old_path, new_path) in moves {
+        if !old_path.is_dir() {
+            rollback_moved_folders_for_transaction(&completed);
+            return Err(format!(
+                "Folder move failed: {} is missing",
+                old_path.display()
+            ));
+        }
+        if new_path.exists() {
+            rollback_moved_folders_for_transaction(&completed);
+            return Err(format!(
+                "Folder move failed: {} already exists",
+                new_path.display()
+            ));
+        }
+        if let Some(parent) = new_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|err| format!("Folder move failed: {err}"))?;
+        }
+        if let Err(error) = std::fs::rename(old_path, new_path) {
+            rollback_moved_folders_for_transaction(&completed);
+            return Err(format!("Folder move failed: {error}"));
+        }
+        completed.push((old_path.clone(), new_path.clone()));
+    }
+    Ok(completed)
+}
+
+fn rollback_moved_folders_for_transaction(completed: &[(PathBuf, PathBuf)]) {
+    for (old_path, new_path) in completed.iter().rev() {
+        let _ = std::fs::rename(new_path, old_path);
+    }
+}
+
 fn execute_file_drop<Emit>(
     source_root: &Path,
     source_database_root: &Path,
@@ -608,6 +656,75 @@ mod tests {
                 .is_some_and(|progress| progress.completed == progress.total),
             "file move worker should finish progress at total: {progress:?}"
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_move_transaction_renames_folders_and_creates_missing_parent() {
+        let root = temp_dir("wavecrate-folder-move-transaction-success");
+        let source = root.join("source");
+        let destination = root.join("missing-parent").join("source");
+        fs::create_dir_all(&source).expect("create source");
+        fs::write(source.join("kick.wav"), b"kick").expect("write nested sample");
+
+        let (moved, metadata_error) =
+            execute_folder_move_transaction(&root, &root, &[(source.clone(), destination.clone())])
+                .expect("move folder transaction");
+
+        assert_eq!(moved, vec![(source.clone(), destination.clone())]);
+        assert!(metadata_error.is_none());
+        assert!(!source.exists());
+        assert_eq!(
+            fs::read(destination.join("kick.wav")).expect("read moved sample"),
+            b"kick"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_move_transaction_reports_destination_conflict() {
+        let root = temp_dir("wavecrate-folder-move-transaction-conflict");
+        let source = root.join("source");
+        let destination = root.join("destination");
+        fs::create_dir_all(&source).expect("create source");
+        fs::create_dir_all(&destination).expect("create destination");
+
+        let error =
+            execute_folder_move_transaction(&root, &root, &[(source.clone(), destination.clone())])
+                .expect_err("destination conflict should fail");
+
+        assert!(error.contains("already exists"), "{error}");
+        assert!(source.exists());
+        assert!(destination.exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_move_transaction_rolls_back_completed_folders_after_later_failure() {
+        let root = temp_dir("wavecrate-folder-move-transaction-rollback");
+        let first_source = root.join("first");
+        let second_source = root.join("missing");
+        let first_destination = root.join("target").join("first");
+        let second_destination = root.join("target").join("missing");
+        fs::create_dir_all(&first_source).expect("create first source");
+        fs::write(first_source.join("kick.wav"), b"kick").expect("write nested sample");
+
+        let error = execute_folder_move_transaction(
+            &root,
+            &root,
+            &[
+                (first_source.clone(), first_destination.clone()),
+                (second_source.clone(), second_destination),
+            ],
+        )
+        .expect_err("later missing folder should fail");
+
+        assert!(error.contains("is missing"), "{error}");
+        assert_eq!(
+            fs::read(first_source.join("kick.wav")).expect("first folder rolled back"),
+            b"kick"
+        );
+        assert!(!first_destination.exists());
         let _ = fs::remove_dir_all(root);
     }
 
