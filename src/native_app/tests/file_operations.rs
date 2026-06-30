@@ -77,6 +77,44 @@ fn assert_sample_rating(
     assert_eq!(persisted.locked, locked);
 }
 
+fn assert_sample_not_keep_rated(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    path: &Path,
+) {
+    let file_id = path.display().to_string();
+    let row = state
+        .library
+        .folder_browser
+        .loaded_source_audio_files()
+        .into_iter()
+        .find(|file| file.id == file_id)
+        .expect("source file should be loaded");
+    assert_eq!(row.rating, Rating::NEUTRAL);
+    assert!(!row.rating_locked);
+
+    let Some((source_root, source_database_root, relative_path)) = state
+        .library
+        .folder_browser
+        .source_database_relative_file_path(path)
+    else {
+        return;
+    };
+    let Ok(db) =
+        SourceDatabase::open_read_only_with_database_root(source_root, &source_database_root)
+    else {
+        return;
+    };
+    if let Some(persisted) = db
+        .list_files()
+        .expect("source database files should list")
+        .into_iter()
+        .find(|entry| entry.relative_path == relative_path)
+    {
+        assert_eq!(persisted.tag, Rating::NEUTRAL);
+        assert!(!persisted.locked);
+    }
+}
+
 fn assert_short_edge_faded_drag_extraction(path: &std::path::Path) {
     let samples = read_test_wav_i16(path);
     assert_eq!(samples.len(), 4);
@@ -272,6 +310,37 @@ fn waveform_selection_drag_start_prepares_extraction_for_external_handoff() {
         "cancelling the drag keeps the durable extraction that was offered externally"
     );
     assert!(!state.library.folder_browser.drag_active());
+}
+
+#[test]
+fn accepted_waveform_selection_external_drag_does_not_add_whole_file_keep_rating() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("drag-partial-rating.wav");
+    let source = std::path::PathBuf::from(&selected_file);
+    write_test_wav_i16(&source, &[0, 256, -256, 512]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(source.clone())
+            .expect("load waveform");
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+    let extraction = source.with_file_name("drag-partial-rating_extraction.wav");
+    let mut drag_context = ui::UiUpdateContext::default();
+
+    assert!(state.drag_waveform_play_selection(
+        DragHandleMessage::started(Point::new(20.0, 12.0)),
+        &mut drag_context,
+    ));
+    assert_sample_rating(&state, &extraction, Rating::KEEP_1, false);
+
+    let mut completion_context = ui::UiUpdateContext::default();
+    state.external_drag_completed(
+        Ok(ui::ExternalDragOutcome {
+            effect: ui::ExternalDragEffect::Copy,
+        }),
+        &mut completion_context,
+    );
+
+    assert_sample_rating(&state, &extraction, Rating::KEEP_1, false);
+    assert_sample_not_keep_rated(&state, &source);
 }
 
 #[test]

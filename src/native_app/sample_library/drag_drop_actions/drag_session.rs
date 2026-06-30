@@ -10,6 +10,21 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.arm_browser_drag_with_handoff_rating(context, true);
+    }
+
+    pub(in crate::native_app) fn arm_browser_drag_without_handoff_rating(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.arm_browser_drag_with_handoff_rating(context, false);
+    }
+
+    fn arm_browser_drag_with_handoff_rating(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        add_keep_rating: bool,
+    ) {
         let drag = self.library.folder_browser.drag_preview().map(|preview| {
             ui::DragRequest::new(
                 ui::DragPreview::text_sized(
@@ -22,7 +37,7 @@ impl NativeAppState {
             )
         });
         let external = self.library.folder_browser.external_drag_request();
-        self.arm_pending_internal_file_drag_paths(external.as_ref());
+        self.arm_pending_internal_file_drag_paths(external.as_ref(), add_keep_rating);
 
         context.begin_drag_session(drag, external, GuiMessage::ExternalDragCompleted);
     }
