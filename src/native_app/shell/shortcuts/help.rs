@@ -210,7 +210,7 @@ fn x_help_label(state: &NativeAppState) -> &'static str {
     if super::waveform_zoom_out_shortcut_active(state) {
         "Zoom out"
     } else {
-        "Mark sample and advance"
+        "Toggle focused sample selection"
     }
 }
 

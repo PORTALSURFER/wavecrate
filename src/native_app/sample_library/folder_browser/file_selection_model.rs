@@ -10,7 +10,7 @@ pub(super) struct FileSelectionModel {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct SelectionToggleAdvanceOutcome {
+pub(super) struct SelectionToggleOutcome {
     pub(super) toggled_id: String,
     pub(super) toggled_selected: bool,
     pub(super) focused_id: String,
@@ -142,12 +142,14 @@ impl FileSelectionModel {
         Some(target)
     }
 
-    pub(super) fn toggle_focused_and_advance(
+    pub(super) fn toggle_focused(
         &mut self,
         visible_ids: &[String],
-    ) -> Option<SelectionToggleAdvanceOutcome> {
+    ) -> Option<SelectionToggleOutcome> {
         let focused = self.focused_id.as_ref()?;
-        let current_index = visible_ids.iter().position(|id| id == focused)?;
+        if !visible_ids.iter().any(|id| id == focused) {
+            return None;
+        }
         let toggled_id = focused.clone();
         let already_marked = self.explicit && self.selected_ids.contains(&toggled_id);
         let toggled_selected = if already_marked {
@@ -158,10 +160,9 @@ impl FileSelectionModel {
             true
         };
         self.explicit = true;
-        let focused_id =
-            visible_ids[current_index.saturating_add(1).min(visible_ids.len() - 1)].clone();
+        let focused_id = toggled_id.clone();
         self.focused_id = Some(focused_id.clone());
-        Some(SelectionToggleAdvanceOutcome {
+        Some(SelectionToggleOutcome {
             toggled_id,
             toggled_selected,
             focused_id,
@@ -319,19 +320,41 @@ mod tests {
     }
 
     #[test]
-    fn toggle_focused_file_advances_within_visible_ids() {
+    fn toggle_focused_file_keeps_focus_within_visible_ids() {
         let visible_ids = ids(&["kick", "snare", "hat"]);
         let mut selection =
             FileSelectionModel::new(Some(String::from("kick")), HashSet::new(), false);
 
         let outcome = selection
-            .toggle_focused_and_advance(&visible_ids)
+            .toggle_focused(&visible_ids)
             .expect("focused file should toggle");
 
         assert_eq!(outcome.toggled_id, "kick");
         assert!(outcome.toggled_selected);
-        assert_eq!(outcome.focused_id, "snare");
-        assert_eq!(selection.focused_id(), Some("snare"));
+        assert_eq!(outcome.focused_id, "kick");
+        assert_eq!(selection.focused_id(), Some("kick"));
         assert_eq!(selection.active_ids(), set(&["kick"]));
+    }
+
+    #[test]
+    fn repeated_toggle_focused_file_selects_and_deselects_same_id() {
+        let visible_ids = ids(&["kick", "snare", "hat"]);
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("snare")), HashSet::new(), false);
+
+        let first = selection
+            .toggle_focused(&visible_ids)
+            .expect("focused file should select");
+        let second = selection
+            .toggle_focused(&visible_ids)
+            .expect("focused file should deselect");
+
+        assert_eq!(first.toggled_id, "snare");
+        assert!(first.toggled_selected);
+        assert_eq!(second.toggled_id, "snare");
+        assert!(!second.toggled_selected);
+        assert_eq!(selection.focused_id(), Some("snare"));
+        assert!(selection.selected_ids().is_empty());
+        assert!(selection.explicit());
     }
 }

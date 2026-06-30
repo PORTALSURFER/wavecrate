@@ -47,7 +47,7 @@ pub(super) struct VisibleSampleWindowFiles<'a> {
 
 pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) file: &'a FileEntry,
-    pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) explicitly_selected: bool,
     pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) drag_active: bool,
@@ -530,9 +530,10 @@ impl FolderBrowserState {
         show_new_harvest_badges: bool,
     ) -> VisibleSampleRow<'a> {
         let harvest_facts = harvest_lookup.facts_for_file(self, file);
+        let selected = self.is_file_selected(&file.id);
         VisibleSampleRow {
             file,
-            selected: self.is_file_selected(&file.id),
+            explicitly_selected: selected && self.selection.selected_file_ids_explicit(),
             focused: self.selected_file_id() == Some(file.id.as_str()),
             copy_flash: self.copied_file_flash_active(&file.id),
             drag_active: self.file_drag_active(),

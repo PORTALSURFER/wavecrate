@@ -23,7 +23,7 @@ fn sample_hit_target(
 ) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        selected,
+        explicitly_selected: selected,
         focused: false,
         copy_flash: false,
         cut_pending: false,
@@ -41,9 +41,17 @@ fn sample_hit_target_with_focus(
     focused: bool,
     cached: bool,
 ) -> UiSurface<GuiMessage> {
+    sample_hit_target_with_focus_and_explicit_selection(selected, focused, cached)
+}
+
+fn sample_hit_target_with_focus_and_explicit_selection(
+    explicitly_selected: bool,
+    focused: bool,
+    cached: bool,
+) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        selected,
+        explicitly_selected,
         focused,
         copy_flash: false,
         cut_pending: false,
@@ -59,7 +67,7 @@ fn sample_hit_target_with_focus(
 fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        selected,
+        explicitly_selected: selected,
         focused: false,
         copy_flash: true,
         cut_pending: false,
@@ -75,7 +83,7 @@ fn sample_hit_target_with_copy_flash(selected: bool, cached: bool) -> UiSurface<
 fn sample_hit_target_with_cut_pending(selected: bool, cached: bool) -> UiSurface<GuiMessage> {
     sample_hit_target_with_model(SampleFileHitTargetModel {
         file_id: "sample.wav",
-        selected,
+        explicitly_selected: selected,
         focused: false,
         copy_flash: false,
         cut_pending: true,
@@ -143,7 +151,7 @@ fn production_hit_target_derives_stable_input_identity_from_sample_row_key() {
         ui::empty(),
         SampleFileHitTargetModel {
             file_id: "sample.wav",
-            selected: false,
+            explicitly_selected: false,
             focused: false,
             copy_flash: false,
             cut_pending: false,
@@ -240,6 +248,27 @@ fn selected_rows_paint_selection_fill_and_marker_without_focus_outline() {
     assert!(
         !paints_focus_outline(&plan),
         "selection alone should not paint the focused-row outline"
+    );
+}
+
+#[test]
+/// Verifies the ordinary current row does not hide the explicit X-selection affordance.
+fn implicit_focused_selection_does_not_paint_explicit_selection_chrome() {
+    let bounds = ui::Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
+    let target = sample_hit_target_with_focus_and_explicit_selection(false, true, false);
+    let plan = sample_widget_plan(&target, bounds);
+
+    assert!(
+        paints_focus_outline(&plan),
+        "the current sample should keep the focused-row outline"
+    );
+    assert!(
+        !plan.fill_rects().any(|fill| fill.color == selected_fill()),
+        "implicit current-row selection should not already paint the marked-selection fill"
+    );
+    assert!(
+        !paints_selection_marker(&plan, bounds),
+        "implicit current-row selection should not already paint the marked-selection marker"
     );
 }
 

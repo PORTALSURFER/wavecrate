@@ -558,8 +558,8 @@ fn file_drag_drop_moves_shift_selected_offscreen_range() {
 }
 
 #[test]
-fn file_drag_drop_moves_explicit_selection_when_focus_has_advanced() {
-    let root = temp_source_root("wavecrate-gui-file-drag-explicit-focus-advanced");
+fn file_drag_drop_moves_explicit_selection_after_keyboard_focus_navigation() {
+    let root = temp_source_root("wavecrate-gui-file-drag-explicit-focus-navigation");
     let drums = root.join("drums");
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
@@ -575,12 +575,14 @@ fn file_drag_drop_moves_explicit_selection_when_focus_has_advanced() {
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&hat));
     browser
-        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .toggle_focused_sample_selection(&Default::default())
         .expect("mark first file");
     browser.navigate_vertical(1, false);
+    browser.navigate_vertical(1, false);
     browser
-        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .toggle_focused_sample_selection(&Default::default())
         .expect("mark third file");
+    browser.navigate_vertical(1, false);
     assert_eq!(browser.selected_file_id(), Some(path_id(&tom).as_str()));
     assert_eq!(
         browser.selected_file_paths(),

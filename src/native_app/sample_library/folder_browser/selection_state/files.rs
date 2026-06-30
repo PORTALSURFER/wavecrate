@@ -1,6 +1,6 @@
 use super::{BrowserSelectionSnapshot, BrowserSelectionState};
 use crate::native_app::sample_library::folder_browser::file_selection_model::{
-    FileSelectionModel, SelectionToggleAdvanceOutcome,
+    FileSelectionModel, SelectionToggleOutcome,
 };
 use radiant::widgets::PointerModifiers;
 use std::collections::HashSet;
@@ -158,12 +158,12 @@ impl BrowserSelectionState {
         Some(target)
     }
 
-    pub(in crate::native_app::sample_library::folder_browser) fn toggle_focused_file_and_advance(
+    pub(in crate::native_app::sample_library::folder_browser) fn toggle_focused_file(
         &mut self,
         visible_ids: &[String],
-    ) -> Option<SelectionToggleAdvanceOutcome> {
+    ) -> Option<SelectionToggleOutcome> {
         let mut selection = self.file_selection_model();
-        let outcome = selection.toggle_focused_and_advance(visible_ids)?;
+        let outcome = selection.toggle_focused(visible_ids)?;
         self.apply_file_selection_model(selection);
         Some(outcome)
     }

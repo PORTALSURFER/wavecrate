@@ -9,7 +9,7 @@ The waveform toolbar contains controls for tighter edits, loop checking, and ana
 - `Shift-X` zooms out with a silence margin.
 - Use the waveform drag handle to drag the loaded sample out when drag-out is supported.
 
-The same `X` key can mark a sample and advance when the waveform is already fully zoomed out and the browser is in that browsing context.
+The same `X` key can toggle the focused sample selection when the waveform is already fully zoomed out and the browser is in that browsing context.
 
 ## Editmark Effects
 

@@ -184,3 +184,22 @@ fn shortcut_help_space_label_reflects_sticky_random_playback() {
             .any(|item| item.keys == "Space" && item.action == "Play random sample section")
     );
 }
+
+#[test]
+fn shortcut_help_x_label_reflects_browser_selection_toggle() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let sections = shortcut_help_sections(&state);
+
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| { item.keys == "X" && item.action == "Toggle focused sample selection" })
+    );
+    assert!(
+        !sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "X" && item.action == "Mark sample and advance")
+    );
+}

@@ -7,7 +7,7 @@ mod navigation;
 mod selection_mutation;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::native_app) struct ToggleSelectedSampleAdvanceResult {
+pub(in crate::native_app) struct ToggleSelectedSampleResult {
     pub(in crate::native_app) toggled_id: String,
     pub(in crate::native_app) toggled_selected: bool,
     pub(in crate::native_app) focused_id: String,

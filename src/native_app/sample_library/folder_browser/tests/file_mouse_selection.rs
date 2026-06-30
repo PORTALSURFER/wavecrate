@@ -15,7 +15,7 @@ fn file_mouse_replace_selection_clears_toggle_marked_samples() {
     browser.activate_folder(path_id(&drums));
     browser.select_file(path_id(&hat));
     browser
-        .toggle_focused_sample_selection_and_advance(&Default::default())
+        .toggle_focused_sample_selection(&Default::default())
         .expect("mark first sample");
 
     browser.select_file(path_id(&snare));

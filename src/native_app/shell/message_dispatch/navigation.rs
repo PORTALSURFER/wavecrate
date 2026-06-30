@@ -34,7 +34,7 @@ impl NativeAppState {
             GuiMessage::ToggleSelectedSampleAndAdvance => {
                 self.ui.browser_interaction.clipboard_handoff_target =
                     ClipboardHandoffTarget::BrowserFiles;
-                self.toggle_selected_sample_and_advance(context);
+                self.toggle_focused_browser_selection(context);
             }
             GuiMessage::SelectAllSamples => {
                 self.ui.browser_interaction.clipboard_handoff_target =
