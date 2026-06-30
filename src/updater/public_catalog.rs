@@ -7,6 +7,13 @@ use crate::http_client;
 use super::UpdateError;
 
 const MAX_RELEASE_CATALOG_JSON_BYTES: usize = 512 * 1024;
+// Catalogs may retain historical files, but only these active release targets
+// are eligible for current public-download matching.
+const SUPPORTED_PUBLIC_RELEASE_TARGETS: &[(&str, &str)] = &[
+    ("windows", "x86_64"),
+    ("macos", "x86_64"),
+    ("macos", "aarch64"),
+];
 
 /// Public Wavecrate release catalog exposed by portalsurfer.org.
 pub const PUBLIC_RELEASE_CATALOG_URL: &str = "https://portalsurfer.org/wavecrate/api/v1/releases";
@@ -114,14 +121,14 @@ fn latest_available_public_release(
 }
 
 fn public_release_asset_suffix(platform: &str, arch: &str) -> Option<String> {
-    let platform = match platform {
-        "macos" | "windows" => platform,
-        _ => return None,
-    };
-    let arch = match arch {
-        "aarch64" | "x86_64" => arch,
-        _ => return None,
-    };
+    if !SUPPORTED_PUBLIC_RELEASE_TARGETS
+        .iter()
+        .any(|(supported_platform, supported_arch)| {
+            platform == *supported_platform && arch == *supported_arch
+        })
+    {
+        return None;
+    }
     Some(format!("{platform}-{arch}.zip"))
 }
 
@@ -251,9 +258,49 @@ mod tests {
     }
 
     #[test]
-    fn public_release_asset_suffix_rejects_unknown_targets() {
+    fn public_catalog_ignores_historical_linux_entries_for_current_downloads() {
+        let catalog = catalog(&[
+            release(242, "wavecrate-nightly-b242-macos-aarch64.zip"),
+            release(999, "wavecrate-nightly-b999-linux-x86_64.zip"),
+        ]);
+
+        let release = latest_available_public_release(&catalog, 241, "unknown", "macos", "aarch64")
+            .expect("new macos arm release");
+
+        assert_eq!(release.build_number, 242);
+        assert_eq!(release.build_id, "wavecrate-nightly-b242");
+    }
+
+    #[test]
+    fn public_catalog_rejects_linux_runtime_platform_even_with_matching_catalog_file() {
+        let catalog = catalog(&[release(999, "wavecrate-nightly-b999-linux-x86_64.zip")]);
+
+        assert!(
+            latest_available_public_release(&catalog, 241, "unknown", "linux", "x86_64").is_none()
+        );
+    }
+
+    #[test]
+    fn public_release_asset_suffix_accepts_supported_download_targets() {
+        assert_eq!(
+            public_release_asset_suffix("windows", "x86_64").as_deref(),
+            Some("windows-x86_64.zip")
+        );
+        assert_eq!(
+            public_release_asset_suffix("macos", "x86_64").as_deref(),
+            Some("macos-x86_64.zip")
+        );
+        assert_eq!(
+            public_release_asset_suffix("macos", "aarch64").as_deref(),
+            Some("macos-aarch64.zip")
+        );
+    }
+
+    #[test]
+    fn public_release_asset_suffix_rejects_unsupported_download_targets() {
         assert!(public_release_asset_suffix("freebsd", "x86_64").is_none());
         assert!(public_release_asset_suffix("linux", "x86_64").is_none());
+        assert!(public_release_asset_suffix("windows", "aarch64").is_none());
         assert!(public_release_asset_suffix("macos", "riscv64").is_none());
     }
 
