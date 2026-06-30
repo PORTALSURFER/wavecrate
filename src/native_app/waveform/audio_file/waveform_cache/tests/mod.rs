@@ -7,8 +7,9 @@ use super::{
     read::{CacheReadStatus, read_cached_waveform_file_outcome},
     store_queue::{CachedWaveformStoreJob, StoreEnqueueOutcome, test_store_queue},
     write::{
-        MarkerUpdateOutcome, PlaybackSidecarOutcome, playback_sample_bytes,
-        update_playback_ready_marker, write_playback_sidecar, write_playback_sidecar_outcome,
+        MarkerUpdateOutcome, PlaybackSidecarOutcome, StoreWriteOutcome, playback_sample_bytes,
+        store_cached_waveform_file_now, update_playback_ready_marker, write_playback_sidecar,
+        write_playback_sidecar_outcome,
     },
     *,
 };

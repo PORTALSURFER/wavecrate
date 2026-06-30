@@ -13,6 +13,9 @@ use super::{
         CacheIdentity, cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
         playback_sidecar_valid, source_warm_marker_path,
     },
+    invalidation::{
+        cleanup_cache_artifacts, commit_if_store_job_current, store_job_matches_current_file,
+    },
     prune::prune_waveform_cache_dir,
     store_queue::CachedWaveformStoreJob,
 };
@@ -26,6 +29,10 @@ mod outcome;
 
 pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> StoreWriteOutcome {
     let started_at = Instant::now();
+    if !store_job_matches_current_file(&job.file.path, &job.identity, job.path_generation) {
+        log_slow_cache_store(&job.file.path, started_at);
+        return StoreWriteOutcome::StaleInput(StoreWriteReport::default());
+    }
     let mut report = StoreWriteReport {
         initial_marker: update_playback_ready_marker(&job.cache_path, false),
         ..StoreWriteReport::default()
@@ -47,16 +54,29 @@ pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> Sto
         log_slow_cache_store(&job.file.path, started_at);
         return StoreWriteOutcome::TempWriteFailed(report);
     }
-    if fs::rename(&temp_path, &job.cache_path).is_err() {
+    let Some(rename_succeeded) =
+        commit_if_store_job_current(&job.file.path, &job.identity, job.path_generation, || {
+            if fs::rename(&temp_path, &job.cache_path).is_err() {
+                return false;
+            }
+            report.ready_marker = Some(update_playback_ready_marker(
+                &job.cache_path,
+                playback_ready,
+            ));
+            mark_source_warm_ready_for_cache_path(&job.cache_path);
+            true
+        })
+    else {
+        let _ = cleanup_file(&temp_path);
+        cleanup_cache_artifacts(&job.cache_path);
+        log_slow_cache_store(&job.file.path, started_at);
+        return StoreWriteOutcome::StaleInput(report);
+    };
+    if !rename_succeeded {
         let _ = cleanup_file(&temp_path);
         log_slow_cache_store(&job.file.path, started_at);
         return StoreWriteOutcome::RenameFailed(report);
     }
-    report.ready_marker = Some(update_playback_ready_marker(
-        &job.cache_path,
-        playback_ready,
-    ));
-    mark_source_warm_ready_for_cache_path(&job.cache_path);
     report.prune = Some(prune_waveform_cache_dir(
         &job.cache_path,
         MAX_PERSISTED_WAVEFORM_CACHE_BYTES,

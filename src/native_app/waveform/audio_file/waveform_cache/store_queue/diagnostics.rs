@@ -28,6 +28,16 @@ pub(super) fn log_store_completion(cache_path: &Path, outcome: StoreWriteOutcome
                 "Completed waveform cache persistence with write-side diagnostics"
             );
         }
+        StoreWriteOutcome::StaleInput(_) => {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.store_stale_input",
+                cache_path = %cache_path.display(),
+                outcome = outcome.kind(),
+                report = ?outcome.report(),
+                "Skipped stale waveform cache persistence"
+            );
+        }
         StoreWriteOutcome::SerializeFailed(_)
         | StoreWriteOutcome::TempWriteFailed(_)
         | StoreWriteOutcome::RenameFailed(_) => {

@@ -52,6 +52,61 @@ fn waveform_cache_misses_after_file_identity_changes() {
 }
 
 #[test]
+fn invalidating_path_removes_current_persisted_playback_cache() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("invalidate.wav");
+    fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+    let mut file = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        48_000,
+        1,
+        vec![0.0, 0.5, -0.5, 0.25],
+    );
+    file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
+
+    store_cached_waveform_file(&file);
+    assert!(cached_waveform_file_playback_ready_exists(&path));
+
+    invalidate_persisted_waveform_cache_path(&path);
+
+    assert!(!cached_waveform_file_playback_ready_exists(&path));
+    assert!(
+        load_cached_waveform_file_for_playback(path).is_none(),
+        "edited paths must not keep serving the pre-edit playback sidecar"
+    );
+}
+
+#[test]
+fn invalidating_path_makes_existing_store_job_stale() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("stale-store.wav");
+    fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+    let file = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        48_000,
+        1,
+        vec![0.0, 0.5, -0.5, 0.25],
+    );
+    let job = CachedWaveformStoreJob::new(&file).expect("store job");
+    let cache_path = job.cache_path.clone();
+
+    invalidate_persisted_waveform_cache_path(&path);
+
+    assert!(matches!(
+        store_cached_waveform_file_now(job),
+        StoreWriteOutcome::StaleInput(_)
+    ));
+    assert!(
+        !cache_path.exists(),
+        "stale background jobs must not recreate the invalidated disk cache"
+    );
+}
+
+#[test]
 fn waveform_cache_read_hit_can_still_be_rejected_as_stale_identity() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
