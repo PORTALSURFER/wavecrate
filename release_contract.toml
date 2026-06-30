@@ -7,9 +7,10 @@ targets = [
   "aarch64-apple-darwin"
 ]
 
+# Active release asset labels only. Inactive or future platforms are omitted so
+# asset generation cannot infer support outside the current target matrix.
 [platform_labels]
 windows = "windows"
-linux = "linux"
 macos = "macos"
 x86_64 = "x86_64"
 aarch64 = "aarch64"
