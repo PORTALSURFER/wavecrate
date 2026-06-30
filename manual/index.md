@@ -12,7 +12,7 @@ Wavecrate is a focused sample-library workstation for browsing large folders, au
 [![Wavecrate nightly release](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
 
 <div class="download-hero">
-  <div class="download-copy">Download the latest portable bundle.</div>
+  <div class="download-copy">Download the latest Windows or macOS portable bundle.</div>
   <a class="download-link" href="https://github.com/portalsurfer/wavecrate/releases/latest" id="release-link">
     View latest releases
   </a>
@@ -164,6 +164,7 @@ Wavecrate is a focused sample-library workstation for browsing large folders, au
           return;
         }
         var match = null;
+        // Current public downloads are Windows/macOS only; historical Linux assets are ignored here.
         var assetPattern =
           /^wavecrate-v\d+\.\d+\.\d+-(windows|macos)-(x86_64|aarch64)\.zip$/i;
         for (var i = 0; i < releases.length; i += 1) {
