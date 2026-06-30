@@ -46,7 +46,7 @@ remain the validation contract for development and release-risk checks:
 | Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
 | GUI semantic contracts | none | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, updates the rolling GitHub `nightly` release, and uploads downloads plus release log and full changelog to PortalSurfer |
+| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, updates the rolling GitHub `nightly` release, uploads the immutable release log to PortalSurfer, then maintains the full changelog from release-bound logs |
 
 The nextest policy is:
 
