@@ -351,26 +351,6 @@ impl NativeAppState {
         self.harvest_destination_for_source(&origin_source)
     }
 
-    pub(in crate::native_app) fn optional_harvest_destination_for_protected_origin(
-        &self,
-        source_path: &Path,
-    ) -> Option<PathBuf> {
-        let (origin_source, _) = self
-            .library
-            .folder_browser
-            .sample_source_for_file_path(source_path)?;
-        if !origin_source.is_protected() {
-            return None;
-        }
-        let primary_source = self.library.folder_browser.primary_sample_source()?;
-        Some(
-            primary_source
-                .root
-                .join(HARVEST_ROOT_FOLDER)
-                .join(harvest_source_folder_name(&origin_source)),
-        )
-    }
-
     pub(in crate::native_app) fn open_context_sample_harvest_destination(
         &mut self,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
@@ -797,12 +777,13 @@ impl NativeAppState {
     }
 
     fn harvest_destination_for_source(&self, source: &SampleSource) -> Result<PathBuf, String> {
-        let Some(primary_source) = self.library.folder_browser.primary_sample_source() else {
-            return Err(String::from(
+        let target_source = self
+            .library
+            .folder_browser
+            .default_writable_extraction_source(
                 "Set a Primary source before using a harvest destination",
-            ));
-        };
-        Ok(primary_source
+            )?;
+        Ok(target_source
             .root
             .join(HARVEST_ROOT_FOLDER)
             .join(harvest_source_folder_name(source)))

@@ -1123,7 +1123,7 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
 }
 
 #[test]
-fn protected_playmark_extraction_preserves_explicit_target_folder() {
+fn protected_playmark_extraction_redirects_explicit_protected_target_to_primary() {
     let config_root = tempfile::tempdir().expect("config root");
     let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
     let mut scenario = WaveformPlaybackScenario::with_temp_wav(
@@ -1146,7 +1146,7 @@ fn protected_playmark_extraction_preserves_explicit_target_folder() {
         wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
     scenario.state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
-            protected_source,
+            protected_source.clone(),
             primary_source,
         ]);
     scenario
@@ -1166,9 +1166,339 @@ fn protected_playmark_extraction_preserves_explicit_target_folder() {
     let routed = scenario
         .state
         .route_harvest_extraction_request(request)
-        .expect("explicit target should stay valid");
+        .expect("explicit protected target should redirect to primary");
+    let expected_folder = primary_root.path().join("_Harvests").join(
+        protected_source
+            .root
+            .file_name()
+            .expect("source root folder name"),
+    );
 
-    assert_eq!(routed.target_folder(), Ok(source_root.as_path()));
+    assert_eq!(routed.target_folder(), Ok(expected_folder.as_path()));
+}
+
+#[test]
+fn protected_playmark_extraction_without_writable_destination_reports_error() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected-no-primary.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.clone()).protected();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source,
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(None)
+        .expect("protected extraction request");
+
+    let error = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect_err("protected extraction requires a primary source");
+
+    assert_eq!(
+        error,
+        "Set a Primary source before extracting from a protected source"
+    );
+}
+
+#[test]
+fn protected_playmark_extraction_with_single_normal_source_routes_to_normal_harvest_destination() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected-single-normal.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let normal_root = tempfile::tempdir().expect("normal source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.clone()).protected();
+    let normal_source =
+        wavecrate::sample_sources::SampleSource::new(normal_root.path().to_path_buf());
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+            normal_source.clone(),
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(None)
+        .expect("protected extraction request");
+
+    let routed = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect("single normal source should be an unambiguous writable destination");
+    let expected_folder = normal_source.root.join("_Harvests").join(
+        protected_source
+            .root
+            .file_name()
+            .expect("source root folder name"),
+    );
+
+    assert_eq!(routed.target_folder(), Ok(expected_folder.as_path()));
+}
+
+#[test]
+fn protected_playmark_extraction_with_multiple_normal_sources_requires_primary() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected-many-normal.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let normal_a_root = tempfile::tempdir().expect("normal source root a");
+    let normal_b_root = tempfile::tempdir().expect("normal source root b");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.clone()).protected();
+    let normal_a = wavecrate::sample_sources::SampleSource::new(normal_a_root.path().to_path_buf());
+    let normal_b = wavecrate::sample_sources::SampleSource::new(normal_b_root.path().to_path_buf());
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source,
+            normal_a,
+            normal_b,
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(None)
+        .expect("protected extraction request");
+
+    let error = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect_err("multiple normal destinations require an explicit primary source");
+
+    assert_eq!(
+        error,
+        "Set a Primary source before extracting from a protected source"
+    );
+}
+
+#[test]
+fn normal_playmark_extraction_redirects_explicit_protected_target_to_primary_import() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-into-protected-target.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let protected_root = tempfile::tempdir().expect("protected target root");
+    let primary_root = tempfile::tempdir().expect("primary source root");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.clone());
+    let protected_target =
+        wavecrate::sample_sources::SampleSource::new(protected_root.path().to_path_buf())
+            .protected();
+    let primary_source =
+        wavecrate::sample_sources::SampleSource::new(primary_root.path().to_path_buf()).primary();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source,
+            protected_target,
+            primary_source.clone(),
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let protected_folder = protected_root.path().join("incoming");
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(Some(protected_folder))
+        .expect("explicit protected target extraction request");
+
+    let routed = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect("protected target should redirect to primary");
+
+    assert_eq!(
+        routed.target_folder(),
+        Ok(primary_source.primary_import_path().as_path())
+    );
+}
+
+#[test]
+fn normal_playmark_extraction_into_protected_target_uses_single_normal_source() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-into-protected-no-primary.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let protected_root = tempfile::tempdir().expect("protected target root");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.clone());
+    let protected_target =
+        wavecrate::sample_sources::SampleSource::new(protected_root.path().to_path_buf())
+            .protected();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source.clone(),
+            protected_target,
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let protected_folder = protected_root.path().join("incoming");
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(Some(protected_folder))
+        .expect("explicit protected target extraction request");
+
+    let routed = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect("single normal source should be an unambiguous writable destination");
+
+    assert_eq!(
+        routed.target_folder(),
+        Ok(source.primary_import_path().as_path())
+    );
+}
+
+#[test]
+fn normal_playmark_extraction_into_protected_target_with_multiple_normal_sources_requires_primary()
+{
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-into-protected-many-normal.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let normal_b_root = tempfile::tempdir().expect("normal source root b");
+    let protected_root = tempfile::tempdir().expect("protected target root");
+    let source = wavecrate::sample_sources::SampleSource::new(source_root.clone());
+    let normal_b = wavecrate::sample_sources::SampleSource::new(normal_b_root.path().to_path_buf());
+    let protected_target =
+        wavecrate::sample_sources::SampleSource::new(protected_root.path().to_path_buf())
+            .protected();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source,
+            normal_b,
+            protected_target,
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let protected_folder = protected_root.path().join("incoming");
+    let request = scenario
+        .state
+        .waveform
+        .current
+        .play_selection_extraction_request(Some(protected_folder))
+        .expect("explicit protected target extraction request");
+
+    let error = scenario
+        .state
+        .route_harvest_extraction_request(request)
+        .expect_err("multiple normal destinations require an explicit primary source");
+
+    assert_eq!(
+        error,
+        "Set a Primary source before extracting into a protected source"
+    );
 }
 
 #[test]
