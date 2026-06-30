@@ -303,6 +303,8 @@ impl NativeAppState {
                 channels: self.waveform.current.channels(),
             }
         };
+        let (playback_gain, playback_gain_normalization) =
+            self.runtime_playback_gain_for_span(0.0, 1.0);
         let request = PlaybackRuntimeRequest {
             source,
             mode: if self.audio.loop_playback {
@@ -318,8 +320,8 @@ impl NativeAppState {
                 }
             },
             volume: self.audio.volume,
-            playback_gain: 1.0,
-            playback_gain_normalization: self.playback_gain_normalization_for_span(0.0, 1.0),
+            playback_gain,
+            playback_gain_normalization,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };

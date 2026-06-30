@@ -305,7 +305,8 @@ impl NativeAppState {
         looped: bool,
     ) -> Result<(), String> {
         let metronome = self.playback_metronome_config_for_span(start, end, offset);
-        let playback_gain_normalization = self.playback_gain_normalization_for_span(start, end);
+        let (playback_gain, playback_gain_normalization) =
+            self.runtime_playback_gain_for_span(start, end);
         if let Some(runtime) = self.audio.playback_runtime.as_ref() {
             runtime
                 .try_retarget_span(PlaybackRuntimeSpanUpdate {
@@ -314,7 +315,7 @@ impl NativeAppState {
                     offset: f64::from(offset),
                     seek_to_offset,
                     looped,
-                    playback_gain: 1.0,
+                    playback_gain,
                     playback_gain_normalization,
                     metronome,
                 })

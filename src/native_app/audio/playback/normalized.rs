@@ -29,13 +29,24 @@ impl NativeAppState {
             .normalized_audition_gain_for_span(start, end)
     }
 
-    pub(in crate::native_app) fn playback_gain_normalization_for_span(
+    pub(in crate::native_app) fn runtime_playback_gain_for_span(
         &self,
         start: f32,
         end: f32,
-    ) -> Option<PlaybackRuntimeGainNormalization> {
-        self.audio
-            .normalized_audition_enabled
-            .then_some(PlaybackRuntimeGainNormalization::new(start, end))
+    ) -> (f32, Option<PlaybackRuntimeGainNormalization>) {
+        if !self.audio.normalized_audition_enabled {
+            return (1.0, None);
+        }
+        if self.waveform.current.playback_samples().is_some()
+            || self.waveform.current.playback_cache_file().is_some()
+        {
+            return (1.0, Some(PlaybackRuntimeGainNormalization::new(start, end)));
+        }
+        (
+            self.waveform
+                .current
+                .normalized_audition_gain_for_span(start, end),
+            None,
+        )
     }
 }

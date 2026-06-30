@@ -210,15 +210,16 @@ impl NativeAppState {
                 end: f64::from(command.resolved.end_ratio),
             },
         };
+        let (playback_gain, playback_gain_normalization) = self.runtime_playback_gain_for_span(
+            command.resolved.start_ratio,
+            command.resolved.end_ratio,
+        );
         Ok(PlaybackRuntimeRequest {
             source,
             mode,
             volume: self.audio.volume,
-            playback_gain: 1.0,
-            playback_gain_normalization: self.playback_gain_normalization_for_span(
-                command.resolved.start_ratio,
-                command.resolved.end_ratio,
-            ),
+            playback_gain,
+            playback_gain_normalization,
             edit_fade: edit_fade_range_from_selection(waveform.edit_selection()),
             metronome: self.playback_metronome_config_for_span(
                 command.resolved.start_ratio,
@@ -278,6 +279,70 @@ fn selection_contains_span(
 ) -> bool {
     const EPSILON: f32 = 0.000_1;
     start + EPSILON >= selection.start() && end <= selection.end() + EPSILON
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::{
+        test_support::state::{NativeAppStateFixture, WaveformState},
+        waveform::{
+            test_decoded_waveform_file_from_mono_samples,
+            test_file_backed_waveform_file_from_mono_samples,
+        },
+    };
+    use std::{path::PathBuf, sync::Arc};
+
+    #[test]
+    fn runtime_request_uses_summary_gain_for_file_backed_normalized_audition() {
+        let file = test_file_backed_waveform_file_from_mono_samples(
+            PathBuf::from("normalized-runtime-summary.wav"),
+            vec![0.1, 0.1, 0.25, 0.5, 0.1, 0.1, 0.8, 0.8],
+        );
+        let mut state = NativeAppStateFixture::default().build();
+        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
+        state.audio.normalized_audition_enabled = true;
+
+        let command = state.playback_command_for_intent(PlaybackIntent::fixed_region(0.25, 0.5));
+        let request = state
+            .playback_runtime_request(command)
+            .expect("runtime request");
+
+        assert!(matches!(
+            request.source,
+            PlaybackRuntimeSource::AudioFile { .. }
+        ));
+        assert!((request.playback_gain - 2.0).abs() < f32::EPSILON);
+        assert_eq!(request.playback_gain_normalization, None);
+    }
+
+    #[test]
+    fn runtime_request_keeps_runtime_normalization_for_decoded_samples() {
+        let file = test_decoded_waveform_file_from_mono_samples(
+            PathBuf::from("normalized-runtime-decoded.wav"),
+            vec![0.1, 0.1, 0.25, 0.5],
+        );
+        let mut state = NativeAppStateFixture::default().build();
+        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
+        state.audio.normalized_audition_enabled = true;
+
+        let command = state.playback_command_for_intent(PlaybackIntent::fixed_region(0.25, 0.5));
+        let request = state
+            .playback_runtime_request(command)
+            .expect("runtime request");
+
+        assert!(matches!(
+            request.source,
+            PlaybackRuntimeSource::DecodedSamples { .. }
+        ));
+        assert!((request.playback_gain - 1.0).abs() < f32::EPSILON);
+        assert_eq!(
+            request.playback_gain_normalization,
+            Some(wavecrate::audio::PlaybackRuntimeGainNormalization::new(
+                0.25, 0.5
+            ))
+        );
+    }
 }
 
 fn ratio_to_frame(ratio: f32, total_frames: u64) -> u64 {

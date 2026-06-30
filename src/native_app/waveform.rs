@@ -58,14 +58,17 @@ pub(in crate::native_app) use audio_file::cached_waveform_file_playback_ready_ex
 pub(super) use audio_file::store_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
-#[cfg(test)]
-pub(super) use audio_file::test_waveform_file_from_mono_samples;
 pub(in crate::native_app) use audio_file::{
     WaveformPlaybackReady, cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
     flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
     invalidate_persisted_waveform_cache_paths, load_cached_waveform_file_for_playback,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
     should_use_file_backed_wav_decode,
+};
+#[cfg(test)]
+pub(super) use audio_file::{
+    test_decoded_waveform_file_from_mono_samples, test_file_backed_waveform_file_from_mono_samples,
+    test_waveform_file_from_mono_samples,
 };
 
 mod similar_sections;
