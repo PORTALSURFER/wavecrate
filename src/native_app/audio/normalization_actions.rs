@@ -387,6 +387,10 @@ impl NativeAppState {
                 .failed
                 .iter()
                 .any(|failure| failure.path == result.loaded_path);
+        let selected_normalized_path = selected_single_normalized_path(
+            &result.normalized,
+            self.library.folder_browser.selected_file_id(),
+        );
 
         if normalized_loaded {
             let playback = result.was_playing.then_some(WaveformPlaybackResume {
@@ -397,6 +401,14 @@ impl NativeAppState {
                 NormalizedWaveformReload {
                     path: &result.loaded_path,
                     playback,
+                },
+                context,
+            );
+        } else if let Some(path) = selected_normalized_path.as_deref() {
+            self.reload_normalized_waveform(
+                NormalizedWaveformReload {
+                    path,
+                    playback: None,
                 },
                 context,
             );
@@ -571,6 +583,18 @@ struct NormalizationWorkerRequest {
 
 fn normalize_progress_label(count: usize) -> String {
     format!("{count} sample{}", if count == 1 { "" } else { "s" })
+}
+
+fn selected_single_normalized_path(
+    normalized: &[PathBuf],
+    selected_file_id: Option<&str>,
+) -> Option<PathBuf> {
+    let [path] = normalized else {
+        return None;
+    };
+    selected_file_id
+        .is_some_and(|selected| selected == path.to_string_lossy().as_ref())
+        .then(|| path.clone())
 }
 
 fn run_normalization_worker(

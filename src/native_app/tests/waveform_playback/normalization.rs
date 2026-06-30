@@ -702,6 +702,75 @@ fn bulk_waveform_cache_eviction_removes_pending_and_markers() {
 }
 
 #[test]
+fn normalize_finish_reloads_selected_sample_even_when_another_waveform_was_loaded() {
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("normalize-source.wav");
+    let loaded_path = PathBuf::from(&selected_file);
+    let extracted_path = source_root.path().join("normalize-source_extraction.wav");
+    write_test_wav_i16(&loaded_path, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&extracted_path, &[0, 512, -512, 256]);
+    state
+        .library
+        .folder_browser
+        .refresh_file_path(&extracted_path);
+    let extracted_id = extracted_path.display().to_string();
+    state
+        .library
+        .folder_browser
+        .select_file(extracted_id.clone());
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(loaded_path.clone())
+            .expect("source sample loads");
+    crate::native_app::test_support::waveform::normalize_wav_file_in_place(&extracted_path)
+        .expect("normalize selected extraction");
+    state.background.normalization_progress = Some(
+        crate::native_app::test_support::state::NormalizationProgress {
+            task_id: 42,
+            label: String::from("1 sample"),
+            completed: 1,
+            total: 1,
+            work_completed: 1_000,
+            work_total: 1_000,
+            queued: 0,
+            detail: extracted_id.clone(),
+        },
+    );
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.finish_normalization(
+        NormalizationResult {
+            task_id: 42,
+            source_id,
+            loaded_path,
+            normalizing_loaded: false,
+            was_playing: false,
+            restart_ratio: 0.0,
+            restart_span: None,
+            normalized: vec![extracted_path.clone()],
+            refreshed_files: Vec::new(),
+            skipped: Vec::new(),
+            failed: Vec::new(),
+            harvest_derivations: Vec::new(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(extracted_id.as_str())
+    );
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "normalizing a selected extraction should reload that extraction, not keep the previously loaded source audible"
+    );
+}
+
+#[test]
 fn normalize_finish_reloads_current_sample_without_waiting_on_queued_normalization() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("normalize-queue-reload.wav");
