@@ -344,7 +344,53 @@ impl WaveformState {
 pub(in crate::native_app) fn execute_waveform_extraction(
     request: WaveformExtractionRequest,
 ) -> WaveformExtractionCompletion {
+    tracing::debug!(
+        target: "wavecrate::debug::sample_identity",
+        event = "browser.extraction.execute_before",
+        trigger = "execute_waveform_extraction",
+        source_path = %request.source_path.display(),
+        target_folder = %request.target_folder().map(|path| path.display().to_string()).unwrap_or_else(|error| error),
+        selection_start = request.selection.start_f64(),
+        selection_end = request.selection.end_f64(),
+        sample_rate = request.sample_rate,
+        channels = request.channels,
+        loaded_frames = request.loaded_frames,
+        gain = request.gain,
+        "Sample identity extraction before execute"
+    );
     let result = request.execute();
+    match &result {
+        Ok(path) => {
+            crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
+                "browser.extraction.result_path",
+                "execute_waveform_extraction",
+                path,
+                Some("extracted"),
+            );
+            tracing::debug!(
+                target: "wavecrate::debug::sample_identity",
+                event = "browser.extraction.execute_after",
+                trigger = "execute_waveform_extraction",
+                source_path = %request.source_path.display(),
+                result_path = %path.display(),
+                selection_start = request.selection.start_f64(),
+                selection_end = request.selection.end_f64(),
+                "Sample identity extraction after execute"
+            );
+        }
+        Err(error) => {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_identity",
+                event = "browser.extraction.execute_after",
+                trigger = "execute_waveform_extraction",
+                source_path = %request.source_path.display(),
+                error,
+                selection_start = request.selection.start_f64(),
+                selection_end = request.selection.end_f64(),
+                "Sample identity extraction after execute"
+            );
+        }
+    }
     WaveformExtractionCompletion {
         source_path: request.source_path,
         selection: request.selection,

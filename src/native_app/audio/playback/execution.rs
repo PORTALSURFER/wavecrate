@@ -96,6 +96,15 @@ impl NativeAppState {
             "waveform",
             request_started_at,
         );
+        self.log_sample_identity_checkpoint(
+            "playback.runtime.request_built",
+            "submit_playback_command",
+            Some(&self.waveform.current.path()),
+            Some(match command.mode {
+                PlaybackMode::Looped { .. } => "looped",
+                PlaybackMode::OneShot => "one_shot",
+            }),
+        );
         let runtime = self
             .audio
             .playback_runtime

@@ -17,6 +17,13 @@ impl NativeAppState {
         self.clear_sample_loading_state();
         self.waveform.load.selection.waveform_ready(path.as_str());
         let file_name = waveform.file_name();
+        self.log_sample_identity_waveform_checkpoint(
+            "browser.sample_load.finish_loaded_candidate",
+            "finish_loaded_sample_load",
+            Some(Path::new(&path)),
+            &waveform,
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         self.log_sample_identity_checkpoint(
             "browser.sample_load.finish_loaded_before_replace",
             "finish_loaded_sample_load",

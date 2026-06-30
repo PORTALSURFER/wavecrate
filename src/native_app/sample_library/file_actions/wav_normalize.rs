@@ -32,23 +32,54 @@ pub(in crate::native_app) fn normalize_wav_file_in_place_with_progress(
     mut progress: impl FnMut(f32, &'static str),
 ) -> Result<WavNormalizationOutcome, String> {
     let started_at = Instant::now();
+    crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
+        "browser.normalization.path_before",
+        "normalize_wav_file_in_place_with_progress",
+        path,
+        Some("before_normalization"),
+    );
     ensure_normalizable_wav(path)?;
     progress(0.0, "Opening");
     let analyze_started_at = Instant::now();
     let analysis = analyze_wav_peak(path, |fraction| {
         progress(fraction * ANALYZE_PROGRESS_END, "Analyzing");
     })?;
+    tracing::debug!(
+        target: "wavecrate::debug::sample_identity",
+        event = "browser.normalization.analysis",
+        trigger = "normalize_wav_file_in_place_with_progress",
+        path = %path.display(),
+        sample_count = analysis.sample_count,
+        peak = analysis.peak,
+        sample_rate = analysis.spec.sample_rate,
+        channels = analysis.spec.channels,
+        bits_per_sample = analysis.spec.bits_per_sample,
+        sample_format = ?analysis.spec.sample_format,
+        "Sample identity normalization analysis"
+    );
     log_normalization_phase(path, "analyze", analyze_started_at);
     if analysis.sample_count == 0 {
         return Err(String::from("No audio data to normalize"));
     }
     if !analysis.peak.is_finite() || analysis.peak <= f32::EPSILON {
         progress(1.0, "Skipped");
+        crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
+            "browser.normalization.path_after_silent_skip",
+            "normalize_wav_file_in_place_with_progress",
+            path,
+            Some("silent_skip"),
+        );
         log_normalization_phase(path, "total_skipped_silent", started_at);
         return Ok(WavNormalizationOutcome::Skipped);
     }
     if (1.0 - analysis.peak).abs() <= NORMALIZED_PEAK_TOLERANCE {
         progress(1.0, "Already normalized");
+        crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
+            "browser.normalization.path_after_already_normalized_skip",
+            "normalize_wav_file_in_place_with_progress",
+            path,
+            Some("already_normalized_skip"),
+        );
         log_normalization_phase(path, "total_skipped_normalized", started_at);
         return Ok(WavNormalizationOutcome::Skipped);
     }
@@ -78,11 +109,28 @@ pub(in crate::native_app) fn normalize_wav_file_in_place_with_progress(
     if result.is_err() {
         let _ = std::fs::remove_file(&temp_path);
     }
-    result.map(|()| {
-        progress(1.0, "Done");
-        log_normalization_phase(path, "total_normalized", started_at);
-        WavNormalizationOutcome::Normalized
-    })
+    match result {
+        Ok(()) => {
+            crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
+                "browser.normalization.path_after_replace",
+                "normalize_wav_file_in_place_with_progress",
+                path,
+                Some("normalized"),
+            );
+            progress(1.0, "Done");
+            log_normalization_phase(path, "total_normalized", started_at);
+            Ok(WavNormalizationOutcome::Normalized)
+        }
+        Err(error) => {
+            crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
+                "browser.normalization.path_after_error",
+                "normalize_wav_file_in_place_with_progress",
+                path,
+                Some("error"),
+            );
+            Err(error)
+        }
+    }
 }
 
 fn ensure_normalizable_wav(path: &Path) -> Result<(), String> {

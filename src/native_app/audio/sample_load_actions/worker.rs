@@ -11,6 +11,7 @@ use crate::native_app::{
         log_loaded_sample_metadata, log_sample_load_timing,
         types::{SampleLoadRequest, SampleLoadStrategy},
     },
+    sample_identity_diagnostics::log_sample_identity_waveform_result,
 };
 
 const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
@@ -94,6 +95,13 @@ impl SampleLoadWorker {
             );
             let result = Ok(waveform);
             log_loaded_sample_metadata(self.request.path(), &result, "persisted_playback_cache");
+            log_sample_identity_waveform_result(
+                "browser.sample_load.worker.persisted_playback_cache_identity",
+                "load_cached_sample_or_decode",
+                std::path::Path::new(self.request.path()),
+                &result,
+                Some("persisted_playback_cache"),
+            );
             return result;
         }
 
@@ -148,6 +156,13 @@ impl SampleLoadWorker {
             true,
         );
         log_loaded_sample_metadata(self.request.path(), &result, "uncached_decode");
+        log_sample_identity_waveform_result(
+            "browser.sample_load.worker.uncached_decode_identity",
+            "load_decoded_sample",
+            std::path::Path::new(self.request.path()),
+            &result,
+            Some("uncached_decode"),
+        );
         result
     }
 
