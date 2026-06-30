@@ -37,6 +37,30 @@ pub enum SourceDbError {
     /// Read-only mode requires an existing database file.
     #[error("Read-only source DB mode requires an existing database file: {0}")]
     ReadOnlyDatabaseMissing(PathBuf),
+    /// Source database path policy rejected an unsafe local database path.
+    #[error("Unsafe source database path {path}: {reason}")]
+    UnsafeSourceDatabasePath {
+        /// Path rejected by the source DB path policy.
+        path: PathBuf,
+        /// Stable reason suitable for user-facing status and diagnostics.
+        reason: &'static str,
+    },
+    /// Failed to inspect a source database path before trusting it.
+    #[error("Could not inspect source database path {path}: {source}")]
+    InspectSourceDatabasePath {
+        /// Path that could not be inspected.
+        path: PathBuf,
+        /// Underlying IO error.
+        source: std::io::Error,
+    },
+    /// Failed to resolve a source database path before trusting it.
+    #[error("Could not resolve source database path {path}: {source}")]
+    ResolveSourceDatabasePath {
+        /// Path that could not be resolved.
+        path: PathBuf,
+        /// Underlying IO error.
+        source: std::io::Error,
+    },
     /// Failed to resolve the app-owned metadata folder for a protected source.
     #[error("Could not resolve external metadata storage for {path}: {source}")]
     ExternalMetadataRoot {

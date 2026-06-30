@@ -134,6 +134,9 @@ fn claim_checkpoint_window(db_path: &Path, now: Instant) -> bool {
 }
 
 fn open_checkpoint_connection(db_path: &Path) -> rusqlite::Result<Connection> {
+    if path_is_symlink(db_path).unwrap_or(false) {
+        return Err(rusqlite::Error::InvalidPath(db_path.to_path_buf()));
+    }
     let connection = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     connection.busy_timeout(CHECKPOINT_BUSY_TIMEOUT)?;
     Ok(connection)
@@ -150,8 +153,17 @@ fn run_passive_checkpoint(connection: Connection) -> rusqlite::Result<PassiveChe
 }
 
 fn wal_file_size(wal_path: &Path) -> Option<u64> {
-    match std::fs::metadata(wal_path) {
-        Ok(metadata) => Some(metadata.len()),
+    match std::fs::symlink_metadata(wal_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            tracing::warn!(
+                target: "perf::source_db",
+                wal_path = %wal_path.display(),
+                "Skipping WAL checkpoint because the WAL sidecar is a symlink"
+            );
+            None
+        }
+        Ok(metadata) if metadata.file_type().is_file() => Some(metadata.len()),
+        Ok(_) => None,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
         Err(err) => {
             tracing::debug!(
@@ -169,4 +181,27 @@ fn wal_path_for(db_path: &Path) -> PathBuf {
     let mut wal_name = OsString::from(db_path.as_os_str());
     wal_name.push("-wal");
     PathBuf::from(wal_name)
+}
+
+fn path_is_symlink(path: &Path) -> std::io::Result<bool> {
+    std::fs::symlink_metadata(path).map(|metadata| metadata.file_type().is_symlink())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn wal_file_size_ignores_symlinked_wal_sidecar() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let outside_wal = outside.path().join("outside-wal");
+        std::fs::write(&outside_wal, b"outside").unwrap();
+        let db_path = dir.path().join(".wavecrate.db");
+        let wal_path = wal_path_for(&db_path);
+        std::os::unix::fs::symlink(&outside_wal, &wal_path).unwrap();
+
+        assert_eq!(wal_file_size(&wal_path), None);
+    }
 }
