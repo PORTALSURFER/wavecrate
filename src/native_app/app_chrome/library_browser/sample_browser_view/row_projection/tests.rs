@@ -25,7 +25,7 @@ fn file_entry() -> FileEntry {
 fn visible_row(file: &FileEntry) -> VisibleSampleRow<'_> {
     VisibleSampleRow {
         file,
-        selected: false,
+        explicitly_selected: false,
         focused: false,
         copy_flash: false,
         drag_active: false,
@@ -45,10 +45,10 @@ fn visible_row(file: &FileEntry) -> VisibleSampleRow<'_> {
 }
 
 #[test]
-fn sample_row_display_preserves_selection_and_focus_separately() {
+fn sample_row_display_preserves_explicit_selection_and_focus_separately() {
     let file = file_entry();
     let mut row = visible_row(&file);
-    row.selected = true;
+    row.explicitly_selected = true;
     row.focused = false;
     let column = FileColumn::for_tests("name", "Name", 160.0);
 
@@ -61,10 +61,10 @@ fn sample_row_display_preserves_selection_and_focus_separately() {
         &HashMap::new(),
         None,
     );
-    let selected_only_selected = selected_only.selected;
+    let selected_only_explicitly_selected = selected_only.explicitly_selected;
     let selected_only_focused = selected_only.focused;
 
-    row.selected = false;
+    row.explicitly_selected = false;
     row.focused = true;
     let focused_only = sample_row_display(
         &row,
@@ -75,12 +75,12 @@ fn sample_row_display_preserves_selection_and_focus_separately() {
         &HashMap::new(),
         None,
     );
-    let focused_only_selected = focused_only.selected;
+    let focused_only_explicitly_selected = focused_only.explicitly_selected;
     let focused_only_focused = focused_only.focused;
 
-    assert!(selected_only_selected);
+    assert!(selected_only_explicitly_selected);
     assert!(!selected_only_focused);
-    assert!(!focused_only_selected);
+    assert!(!focused_only_explicitly_selected);
     assert!(focused_only_focused);
 }
 

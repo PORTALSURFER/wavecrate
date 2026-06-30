@@ -207,7 +207,7 @@ fn command_right_shortcut_routes_to_next_playback_history() {
 }
 
 #[test]
-fn x_shortcut_routes_to_toggle_selected_sample_and_advance() {
+fn x_shortcut_routes_to_toggle_focused_browser_selection() {
     let state = NativeAppState::load_default().expect("default state loads");
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::X));
 

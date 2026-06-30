@@ -272,7 +272,7 @@ impl NativeAppState {
         }
     }
 
-    pub(in crate::native_app) fn toggle_selected_sample_and_advance(
+    pub(in crate::native_app) fn toggle_focused_browser_selection(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
@@ -289,11 +289,11 @@ impl NativeAppState {
         let Some(result) = self
             .library
             .folder_browser
-            .toggle_focused_sample_selection_and_advance(&self.metadata.tags_by_file)
+            .toggle_focused_sample_selection(&self.metadata.tags_by_file)
         else {
             self.ui.status.sample = String::from("Select a sample to mark");
             emit_gui_action(
-                "browser.toggle_sample_selection_and_advance",
+                "browser.toggle_sample_selection",
                 Some("browser"),
                 None,
                 "short_circuit",
@@ -334,7 +334,7 @@ impl NativeAppState {
             sample_path_label(&result.toggled_id)
         );
         emit_gui_action(
-            "browser.toggle_sample_selection_and_advance",
+            "browser.toggle_sample_selection",
             Some("browser"),
             Some(&sample_path_label(&result.toggled_id)),
             "success",

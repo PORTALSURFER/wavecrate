@@ -71,7 +71,7 @@ const CACHED_MARKER: ui::Rgba8 = ui::Rgba8 {
 
 pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
-    pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) explicitly_selected: bool,
     pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) cut_pending: bool,
@@ -105,7 +105,10 @@ fn sample_file_hit_target_builder(
     model: &SampleFileHitTargetModel<'_>,
 ) -> ui::InteractiveRowUnderlayBuilder<GuiMessage> {
     let visual_state = ui::InteractiveRowVisualStateParts {
-        selected: model.selected || model.copy_flash || model.cut_pending || model.missing,
+        selected: model.explicitly_selected
+            || model.copy_flash
+            || model.cut_pending
+            || model.missing,
         ..ui::InteractiveRowVisualStateParts::default()
     };
     let underlay = ui::interactive_row_underlay(content)
@@ -115,7 +118,7 @@ fn sample_file_hit_target_builder(
         .style(SAMPLE_ROW_STYLE)
         .visual_state(visual_state)
         .leading_marker_if(
-            model.selected || model.cut_pending || model.missing,
+            model.explicitly_selected || model.cut_pending || model.missing,
             ui::DenseRowMarkerStyle::new(
                 ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
                 if model.missing {
@@ -128,7 +131,7 @@ fn sample_file_hit_target_builder(
             ),
         )
         .trailing_marker_if(
-            model.cached && !model.selected && !model.copy_flash && !model.cut_pending,
+            model.cached && !model.explicitly_selected && !model.copy_flash && !model.cut_pending,
             ui::DenseRowMarkerStyle::new(ui::DenseRowMarkerParts::trailing(2.0), CACHED_MARKER),
         )
         .outline_if(model.focused, sample_file_focus_outline());

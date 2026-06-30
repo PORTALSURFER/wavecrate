@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use radiant::widgets::PointerModifiers;
 
 use super::super::FolderBrowserState;
-use super::ToggleSelectedSampleAdvanceResult;
+use super::ToggleSelectedSampleResult;
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn select_file(&mut self, id: String) {
@@ -80,10 +80,10 @@ impl FolderBrowserState {
         self.select_audio_file_ids(ids)
     }
 
-    pub(in crate::native_app) fn toggle_focused_sample_selection_and_advance(
+    pub(in crate::native_app) fn toggle_focused_sample_selection(
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Option<ToggleSelectedSampleAdvanceResult> {
+    ) -> Option<ToggleSelectedSampleResult> {
         if self.rename_active() {
             return None;
         }
@@ -94,8 +94,8 @@ impl FolderBrowserState {
             self.focus_first_active_collection_file_matching_tags(tags_by_file)?;
         }
         let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
-        let outcome = self.selection.toggle_focused_file_and_advance(&file_ids)?;
-        Some(ToggleSelectedSampleAdvanceResult {
+        let outcome = self.selection.toggle_focused_file(&file_ids)?;
+        Some(ToggleSelectedSampleResult {
             toggled_id: outcome.toggled_id,
             toggled_selected: outcome.toggled_selected,
             focused_id: outcome.focused_id,

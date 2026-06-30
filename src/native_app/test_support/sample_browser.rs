@@ -48,7 +48,7 @@ pub(in crate::native_app) fn sample_file_hit_target(
         ui::empty(),
         SampleFileHitTargetModel {
             file_id: "sample.wav",
-            selected,
+            explicitly_selected: selected,
             focused: false,
             copy_flash: false,
             cut_pending: false,

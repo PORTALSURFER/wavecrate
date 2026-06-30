@@ -33,7 +33,7 @@ Press `Command-/` in the app to open the current context-aware shortcut overlay.
 | `Command-E` | Extract and trim the selection |
 | `W` | Open the waveform context menu |
 | `Z` | Zoom to the play selection |
-| `X` | Zoom out when the waveform is zoomed, or mark and advance in browser context |
+| `X` | Zoom out when the waveform is zoomed, or toggle the focused sample in browser context |
 | `Shift-X` | Zoom out with a silence margin |
 | `C` | Crop to the selection |
 | `D` | Trim the selection out |

@@ -84,7 +84,7 @@ fn sample_browser_row(
         row_content,
         SampleFileHitTargetModel {
             file_id: row.file_id,
-            selected: row.selected,
+            explicitly_selected: row.explicitly_selected,
             focused: row.focused,
             copy_flash: row.copy_flash,
             cut_pending: row.cut_pending,
