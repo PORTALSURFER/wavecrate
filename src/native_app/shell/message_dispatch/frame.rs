@@ -12,6 +12,7 @@ impl NativeAppState {
         self.maybe_start_release_update_check(context);
         self.maybe_start_waveform_cache_warm(context);
         self.maybe_start_active_folder_cache_warm(context);
+        self.maybe_start_starmap_layout_load(context);
         self.maybe_prepare_starmap_similarity_layout(context);
         self.flush_pending_play_selection_playback_retarget();
         self.advance_frame(context);

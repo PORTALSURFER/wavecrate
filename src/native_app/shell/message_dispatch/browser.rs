@@ -35,6 +35,9 @@ impl NativeAppState {
             GuiMessage::SimilaritySettingsPersisted(result) => {
                 self.finish_similarity_settings_persist(result);
             }
+            GuiMessage::StarmapLayoutLoaded(result) => {
+                self.finish_starmap_layout_load(result);
+            }
             GuiMessage::SimilarityPrepStatusResolved(result) => {
                 self.finish_similarity_prep_status(result);
             }
