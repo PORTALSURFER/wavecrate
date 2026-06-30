@@ -58,11 +58,13 @@ impl NativeAppState {
                     .map(|selection| (selection.start(), selection.end()))
             })
             .unwrap_or((0.0, 1.0));
-        let playback_gain_normalization =
-            self.playback_gain_normalization_for_span(current_span.0, current_span.1);
+        let (playback_gain, playback_gain_normalization) =
+            self.runtime_playback_gain_for_span(current_span.0, current_span.1);
         if let Some(runtime) = self.audio.playback_runtime.as_ref() {
-            let _ =
-                runtime.try_set_playback_gain_with_normalization(1.0, playback_gain_normalization);
+            let _ = runtime.try_set_playback_gain_with_normalization(
+                playback_gain,
+                playback_gain_normalization,
+            );
         } else {
             let gain = self.normalized_audition_gain_for_current_span();
             if let Some(player) = self.audio.player.as_mut() {

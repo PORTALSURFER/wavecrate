@@ -23,6 +23,29 @@ pub(in crate::native_app) fn test_waveform_file_from_mono_samples(
 }
 
 #[cfg(test)]
+pub(in crate::native_app) fn test_file_backed_waveform_file_from_mono_samples(
+    path: PathBuf,
+    samples: Vec<f32>,
+) -> WaveformFile {
+    let mut file = waveform_file_from_mono_samples(path, Arc::from([]), 48_000, 1, samples);
+    file.playback_samples = None;
+    file.playback_cache_file = None;
+    file
+}
+
+#[cfg(test)]
+pub(in crate::native_app) fn test_decoded_waveform_file_from_mono_samples(
+    path: PathBuf,
+    samples: Vec<f32>,
+) -> WaveformFile {
+    let mut file =
+        waveform_file_from_mono_samples(path, Arc::from([1_u8]), 48_000, 1, samples.clone());
+    file.playback_samples = Some(Arc::from(samples));
+    file.playback_cache_file = None;
+    file
+}
+
+#[cfg(test)]
 pub(in crate::native_app::waveform) fn synthetic_waveform_file() -> WaveformFile {
     let frames = SYNTHETIC_SAMPLE_RATE as usize * SYNTHETIC_SECONDS;
     let samples = (0..frames)

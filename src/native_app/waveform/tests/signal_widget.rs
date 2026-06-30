@@ -222,7 +222,7 @@ fn normalized_audition_signal_preview_uses_active_playmark_peak() {
 }
 
 #[test]
-fn normalized_audition_signal_preview_does_not_read_persisted_playback_cache() {
+fn normalized_audition_signal_preview_uses_summary_when_samples_are_file_backed() {
     let root = tempfile::tempdir().expect("temp root");
     let cache_path = root.path().join("normalized-playback-cache.pcm");
     write_interleaved_f32_file(
@@ -246,10 +246,32 @@ fn normalized_audition_signal_preview_does_not_read_persisted_playback_cache() {
     let playback_gain = state.normalized_audition_gain_for_span(0.25, 0.5);
     let preview = signal_gain_preview_for_state(&state, true).expect("normalized cache preview");
 
-    assert!((playback_gain - 1.0).abs() < f32::EPSILON);
+    assert!((playback_gain - 4.0).abs() < f32::EPSILON);
     assert_eq!(preview.start, 0.25);
     assert_eq!(preview.end, 0.5);
-    assert!((preview.gain - 1.0).abs() < f32::EPSILON);
+    assert!((preview.gain - playback_gain).abs() < f32::EPSILON);
+}
+
+#[test]
+fn normalized_audition_signal_preview_uses_playmark_summary_peak_for_long_files() {
+    let mut file = waveform_file_from_mono_samples(
+        "normalized-long-summary.wav".into(),
+        Arc::from([]),
+        48_000,
+        1,
+        vec![0.1, 0.1, 0.25, 0.5, 0.1, 0.1, 0.8, 0.8],
+    );
+    file.playback_samples = None;
+    let mut state = WaveformState::from_file(Arc::new(file));
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.5));
+
+    let playback_gain = state.normalized_audition_gain_for_span(0.25, 0.5);
+    let preview = signal_gain_preview_for_state(&state, true).expect("normalized long preview");
+
+    assert!((playback_gain - 2.0).abs() < f32::EPSILON);
+    assert_eq!(preview.start, 0.25);
+    assert_eq!(preview.end, 0.5);
+    assert!((preview.gain - playback_gain).abs() < f32::EPSILON);
 }
 
 #[test]

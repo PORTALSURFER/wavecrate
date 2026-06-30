@@ -57,8 +57,19 @@ pub(in crate::native_app::waveform) struct NormalizedAuditionGainCacheKey {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app::waveform) enum NormalizedAuditionGainSourceKey {
-    Samples { ptr: usize, sample_count: usize },
-    CacheFile { path: PathBuf, sample_count: u64 },
+    Samples {
+        ptr: usize,
+        sample_count: usize,
+    },
+    CacheFile {
+        path: PathBuf,
+        sample_count: u64,
+    },
+    Summary {
+        path: PathBuf,
+        content_revision: u64,
+        frames: usize,
+    },
 }
 
 impl NormalizedAuditionGainCache {
