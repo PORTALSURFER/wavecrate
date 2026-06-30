@@ -321,6 +321,7 @@ pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) cut_file_paste_task_id: Option<u64>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
     pub(in crate::native_app) pending_internal_file_drag_paths: HashSet<PathBuf>,
+    pub(in crate::native_app) pending_internal_file_drag_adds_keep_rating: bool,
     pub(in crate::native_app) file_move_conflict_apply_to_remaining: bool,
 }
 

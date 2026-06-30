@@ -484,7 +484,7 @@ impl NativeAppState {
                     self.library
                         .folder_browser
                         .begin_extracted_file_drag(path.clone(), position);
-                    self.arm_browser_drag(context);
+                    self.arm_browser_drag_without_handoff_rating(context);
                     let label = sample_path_label(&path);
                     self.ui.status.sample = match metadata_error {
                         Some(error) => {

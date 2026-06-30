@@ -729,7 +729,7 @@ fn playmark_selection_copy_extracts_into_current_folder_before_clipboard_handoff
     );
     let mut copy_finished_context = ui::UiUpdateContext::default();
     scenario.state.finish_waveform_selection_copy(
-        source_path,
+        source_path.clone(),
         selection,
         extracted.clone(),
         crate::native_app::app::ExtractedFilePlaybackType::OneShot,
@@ -739,6 +739,7 @@ fn playmark_selection_copy_extracts_into_current_folder_before_clipboard_handoff
         &mut copy_finished_context,
     );
     assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+    assert_source_file_not_keep_rated(&scenario.state, &source_path);
     let parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
         .expect("load harvest parent")
         .expect("harvest parent");
@@ -1536,6 +1537,45 @@ fn assert_extracted_file_keep_1_rating(
         .expect("extracted file should be persisted in the source database");
     assert_eq!(persisted.tag, wavecrate::sample_sources::Rating::KEEP_1);
     assert!(!persisted.locked);
+}
+
+fn assert_source_file_not_keep_rated(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    source: &std::path::Path,
+) {
+    let file_id = source.to_string_lossy().to_string();
+    let row = state
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.id == file_id)
+        .expect("source file should remain visible in the browser");
+    assert_eq!(row.rating, wavecrate::sample_sources::Rating::NEUTRAL);
+    assert!(!row.rating_locked);
+
+    let Some((source_root, source_database_root, relative_path)) = state
+        .library
+        .folder_browser
+        .source_database_relative_file_path(source)
+    else {
+        return;
+    };
+    let Ok(db) = wavecrate::sample_sources::SourceDatabase::open_read_only_with_database_root(
+        source_root,
+        &source_database_root,
+    ) else {
+        return;
+    };
+    if let Some(persisted) = db
+        .list_files()
+        .expect("source database files should list")
+        .into_iter()
+        .find(|entry| entry.relative_path == relative_path)
+    {
+        assert_eq!(persisted.tag, wavecrate::sample_sources::Rating::NEUTRAL);
+        assert!(!persisted.locked);
+    }
 }
 
 #[test]

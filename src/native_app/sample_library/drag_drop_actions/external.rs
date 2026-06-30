@@ -368,13 +368,21 @@ impl NativeAppState {
             .iter()
             .cloned()
             .collect::<Vec<_>>();
+        let handoff_adds_keep_rating = self
+            .ui
+            .browser_interaction
+            .pending_internal_file_drag_adds_keep_rating;
         context.end_drag();
         self.library.folder_browser.clear_drag();
         self.clear_pending_internal_file_drag_paths();
         self.ui.status.sample = match result {
             Ok(outcome) if outcome.accepted() => match outcome.effect {
                 ui::ExternalDragEffect::Copy | ui::ExternalDragEffect::Link => {
-                    let rating_error = self.add_keep_rating_to_handoff_paths(&handoff_paths).err();
+                    let rating_error = if handoff_adds_keep_rating {
+                        self.add_keep_rating_to_handoff_paths(&handoff_paths).err()
+                    } else {
+                        None
+                    };
                     match (outcome.effect, rating_error) {
                         (ui::ExternalDragEffect::Copy, None) => {
                             String::from("Dragged item externally")
