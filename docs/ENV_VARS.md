@@ -48,12 +48,17 @@ manual "force a nightly now" button with the same build/upload path.
 The workflow publishes an immutable nightly version tag named
 `nightly-b<build>-<short-sha>` for changelog history, updates the rolling GitHub
 `nightly` release for downloads, then uploads the same zips plus the generated
-Markdown release log and full changelog to the PortalSurfer Wavecrate
-release-upload API. Each PortalSurfer upload uses the matching
-`wavecrate-nightly-b<build>-<short-sha>` build id so the website can show a
-distinct nightly entry instead of stacking every nightly under one changelog
-group. GitHub Actions does not need SSH access or write access to the
-PortalSurfer frontend repository.
+Markdown release log to the PortalSurfer Wavecrate release-upload API. Each
+PortalSurfer upload uses the matching `wavecrate-nightly-b<build>-<short-sha>`
+build id so the website can show a distinct nightly entry instead of stacking
+every nightly under one changelog group. After the per-release log is visible in
+the public catalog, the workflow verifies that the fetched log body matches the
+generated immutable release log, then prepends that release-bound log to the
+existing site-wide changelog before uploading the maintained full changelog.
+The maintenance step refuses to preserve a full changelog whose historical
+sections are not already release-bound markdown logs.
+GitHub Actions does not need SSH access or write access to the PortalSurfer
+frontend repository.
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
 Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store
