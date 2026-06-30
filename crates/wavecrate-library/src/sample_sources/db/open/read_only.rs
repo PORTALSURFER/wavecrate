@@ -4,7 +4,7 @@ use rusqlite::Connection;
 
 use super::paths;
 use crate::sample_sources::db::{
-    SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, telemetry,
+    DB_FILE_NAME, SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, telemetry,
 };
 
 pub(super) fn open_read_only_source_database(
@@ -17,10 +17,8 @@ pub(super) fn open_read_only_source_database(
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
     }
 
-    let db_path = paths::read_only_db_path(database_root);
-    if !db_path.is_file() {
-        return Err(SourceDbError::ReadOnlyDatabaseMissing(db_path));
-    }
+    let db_path = paths::read_only_db_path(database_root)?
+        .ok_or_else(|| SourceDbError::ReadOnlyDatabaseMissing(database_root.join(DB_FILE_NAME)))?;
 
     let connect_started = std::time::Instant::now();
     let connection = match Connection::open_with_flags(&db_path, role.open_flags()) {

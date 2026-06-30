@@ -15,6 +15,15 @@ the old data can be interpreted safely.
   `library.db`. It owns configured source references and global analysis/cache
   state that is not source-local.
 
+## Source Database Path Policy
+
+Source-local database writes must stay inside the configured source/database
+root. Writable opens, read-only opens, legacy filename migration, and SQLite
+WAL/SHM sidecar handling must reject symlinked `.wavecrate.db`,
+`.wavecrate_samples.db`, and related sidecar paths before handing the path to
+SQLite or filesystem rename operations. Existing regular DB files and newly
+created DB parents must resolve under the canonical database root.
+
 ## Required Change Pattern
 
 Every schema change must update these pieces together:
