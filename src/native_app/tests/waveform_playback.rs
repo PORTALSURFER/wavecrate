@@ -809,6 +809,63 @@ fn playmark_extraction_marks_new_file_one_shot_and_keep_1_by_default() {
 }
 
 #[test]
+fn playmark_extraction_completion_evicts_reused_output_cache() {
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-reused-cache.wav",
+        &[0, 1024, -1024, 512, -256, 128],
+    );
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let source_path = scenario.state.waveform.current.path();
+    let selection = scenario
+        .state
+        .waveform
+        .current
+        .play_selection()
+        .expect("play selection");
+    let extracted = extraction_path_for_loaded_sample(&scenario);
+    write_test_wav_i16(&extracted, &[0, 256, -256]);
+    let stale = crate::native_app::test_support::state::WaveformState::load_path(extracted.clone())
+        .expect("stale extraction should load");
+    scenario.state.remember_waveform(&stale);
+    assert!(
+        scenario
+            .state
+            .waveform
+            .cache
+            .entries
+            .contains_key(&extracted),
+        "test must seed a stale cache entry for the reused extraction path"
+    );
+    write_test_wav_i16(&extracted, &[0, 1024, -1024, 512]);
+
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.finish_play_selection_extraction(
+        crate::native_app::waveform::WaveformExtractionCompletion {
+            source_path,
+            selection,
+            result: Ok(extracted.clone()),
+        },
+        None,
+        crate::native_app::app::ExtractedFilePlaybackType::OneShot,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract,
+        false,
+        std::time::Instant::now(),
+        &mut context,
+    );
+
+    assert!(
+        !scenario
+            .state
+            .waveform
+            .cache
+            .entries
+            .contains_key(&extracted),
+        "finishing an extraction must discard stale in-memory audio for the output path"
+    );
+}
+
+#[test]
 fn playmark_extraction_records_harvest_derivation_for_normal_source() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());

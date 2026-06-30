@@ -361,6 +361,7 @@ pub(in crate::native_app) fn execute_waveform_extraction(
     let result = request.execute();
     match &result {
         Ok(path) => {
+            super::audio_file::invalidate_persisted_waveform_cache_path(path);
             crate::native_app::sample_identity_diagnostics::log_sample_identity_path_event(
                 "browser.extraction.result_path",
                 "execute_waveform_extraction",

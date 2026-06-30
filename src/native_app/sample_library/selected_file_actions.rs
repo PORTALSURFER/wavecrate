@@ -433,6 +433,7 @@ impl NativeAppState {
     ) {
         match completion.result {
             Ok(path) => {
+                self.evict_waveform_cache_path(&path);
                 self.waveform
                     .current
                     .mark_extracted_play_selection(&completion.source_path, completion.selection);
