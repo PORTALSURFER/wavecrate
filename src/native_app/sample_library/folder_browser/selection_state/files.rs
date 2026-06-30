@@ -18,6 +18,18 @@ impl BrowserSelectionState {
         self.file_selection_model().active_ids()
     }
 
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_file_ids(
+        &self,
+    ) -> &HashSet<String> {
+        &self.selected_file_ids
+    }
+
+    pub(in crate::native_app::sample_library::folder_browser) fn selected_file_ids_explicit(
+        &self,
+    ) -> bool {
+        self.selected_file_ids_explicit
+    }
+
     pub(in crate::native_app::sample_library::folder_browser) fn selected_file_count(
         &self,
     ) -> usize {

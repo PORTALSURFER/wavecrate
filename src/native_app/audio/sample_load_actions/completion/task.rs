@@ -63,6 +63,12 @@ impl NativeAppState {
         match completion {
             SampleLoadCompletion::Stale { label } => {
                 self.audio.pending_sample_playback = None;
+                self.log_sample_identity_checkpoint(
+                    "browser.sample_load.finish_stale",
+                    "finish_sample_load",
+                    None,
+                    Some(label.as_str()),
+                );
                 emit_gui_action(
                     "browser.sample_load.finish",
                     Some("browser"),
@@ -83,6 +89,12 @@ impl NativeAppState {
                 self.ui.status.sample = format!("Could not load {label}: {error}");
                 self.ui.chrome.starmap_audition_queue.active_file_id = None;
                 self.start_next_starmap_audition_hit(context);
+                self.log_sample_identity_checkpoint(
+                    "browser.sample_load.finish_failed",
+                    "finish_sample_load",
+                    Some(Path::new(&path)),
+                    Some(error.as_str()),
+                );
                 emit_gui_action(
                     "browser.sample_load.finish",
                     Some("browser"),

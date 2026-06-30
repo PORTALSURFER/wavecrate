@@ -79,7 +79,19 @@ impl NativeAppState {
         self.stop_current_sample_playback_for_load();
         self.clear_sample_loading_state();
         self.waveform.load.selection.start_cached(path);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.memory_cache_before_replace",
+            "start_memory_cached_sample",
+            Some(Path::new(path)),
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         self.replace_waveform_deferred(waveform);
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.memory_cache_after_replace",
+            "start_memory_cached_sample",
+            Some(Path::new(path)),
+            Some(if autoplay { "autoplay" } else { "load_only" }),
+        );
         log_sample_load_timing(
             "browser.sample_load.memory_cache.replace_waveform",
             &file_name,

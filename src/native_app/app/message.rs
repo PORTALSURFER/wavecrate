@@ -298,6 +298,7 @@ pub(in crate::native_app) enum GuiMessage {
         drag_position: Option<Point>,
         playback_type: ExtractedFilePlaybackType,
         harvest_operation: HarvestDerivationOperation,
+        focus_derivative: bool,
         started_at: Instant,
     },
     SelectedWholeFilesHarvestExtractionFinished {

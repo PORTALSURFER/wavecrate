@@ -314,6 +314,7 @@ impl NativeAppState {
                 drag_position: None,
                 playback_type,
                 harvest_operation,
+                focus_derivative: true,
                 started_at,
             },
         );

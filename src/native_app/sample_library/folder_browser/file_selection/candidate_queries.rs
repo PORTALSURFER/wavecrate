@@ -47,6 +47,31 @@ impl FolderBrowserState {
         paths
     }
 
+    pub(in crate::native_app) fn active_file_ids_for_diagnostics(&self) -> Vec<String> {
+        let mut ids = self
+            .selection
+            .active_file_ids()
+            .into_iter()
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
+    pub(in crate::native_app) fn selected_file_ids_for_diagnostics(&self) -> Vec<String> {
+        let mut ids = self
+            .selection
+            .selected_file_ids()
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
+    pub(in crate::native_app) fn selected_file_ids_explicit_for_diagnostics(&self) -> bool {
+        self.selection.selected_file_ids_explicit()
+    }
+
     pub(in crate::native_app) fn first_audio_file_path(&self) -> Option<PathBuf> {
         self.source
             .sources
