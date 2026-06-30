@@ -44,7 +44,7 @@ pub(in crate::native_app) fn normalize_wav_file_in_place_with_progress(
     let analysis = analyze_wav_peak(path, |fraction| {
         progress(fraction * ANALYZE_PROGRESS_END, "Analyzing");
     })?;
-    tracing::debug!(
+    tracing::info!(
         target: "wavecrate::debug::sample_identity",
         event = "browser.normalization.analysis",
         trigger = "normalize_wav_file_in_place_with_progress",

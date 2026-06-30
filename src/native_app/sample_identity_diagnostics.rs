@@ -18,7 +18,7 @@ impl NativeAppState {
         requested_path: Option<&Path>,
         note: Option<&str>,
     ) {
-        if !sample_identity_debug_enabled() {
+        if !sample_identity_info_enabled() {
             return;
         }
         let selected_file_ids = self
@@ -38,7 +38,7 @@ impl NativeAppState {
         let loaded_path = self.waveform.current.path();
         let requested_path_fingerprint = requested_path.map(path_fingerprint);
         let loaded_waveform_fingerprint = waveform_fingerprint(&self.waveform.current);
-        tracing::debug!(
+        tracing::info!(
             target: "wavecrate::debug::sample_identity",
             event,
             trigger,
@@ -74,7 +74,7 @@ impl NativeAppState {
         requested_paths: &[PathBuf],
         note: Option<&str>,
     ) {
-        if !sample_identity_debug_enabled() {
+        if !sample_identity_info_enabled() {
             return;
         }
         let selected_file_ids = self
@@ -99,7 +99,7 @@ impl NativeAppState {
         );
         let loaded_path = self.waveform.current.path();
         let loaded_waveform_fingerprint = waveform_fingerprint(&self.waveform.current);
-        tracing::debug!(
+        tracing::info!(
             target: "wavecrate::debug::sample_identity",
             event,
             trigger,
@@ -136,7 +136,7 @@ impl NativeAppState {
         waveform: &WaveformState,
         note: Option<&str>,
     ) {
-        if !sample_identity_debug_enabled() {
+        if !sample_identity_info_enabled() {
             return;
         }
         let selected_file_ids = self
@@ -147,7 +147,7 @@ impl NativeAppState {
             .library
             .folder_browser
             .active_file_ids_for_diagnostics();
-        tracing::debug!(
+        tracing::info!(
             target: "wavecrate::debug::sample_identity",
             event,
             trigger,
@@ -172,13 +172,13 @@ pub(in crate::native_app) fn log_sample_identity_waveform_result(
     result: &Result<WaveformState, String>,
     note: Option<&str>,
 ) {
-    if !sample_identity_debug_enabled() {
+    if !sample_identity_info_enabled() {
         return;
     }
     match result {
         Ok(waveform) => {
-            tracing::debug!(
-                target: "wavecrate::debug::sample_identity",
+            tracing::info!(
+            target: "wavecrate::debug::sample_identity",
                 event,
                 trigger,
                 requested_path = %requested_path.display(),
@@ -189,8 +189,8 @@ pub(in crate::native_app) fn log_sample_identity_waveform_result(
             );
         }
         Err(error) => {
-            tracing::debug!(
-                target: "wavecrate::debug::sample_identity",
+            tracing::info!(
+            target: "wavecrate::debug::sample_identity",
                 event,
                 trigger,
                 requested_path = %requested_path.display(),
@@ -209,11 +209,11 @@ pub(in crate::native_app) fn log_sample_identity_path_event(
     path: &Path,
     note: Option<&str>,
 ) {
-    if !sample_identity_debug_enabled() {
+    if !sample_identity_info_enabled() {
         return;
     }
-    tracing::debug!(
-        target: "wavecrate::debug::sample_identity",
+    tracing::info!(
+            target: "wavecrate::debug::sample_identity",
         event,
         trigger,
         path = %path.display(),
@@ -223,8 +223,8 @@ pub(in crate::native_app) fn log_sample_identity_path_event(
     );
 }
 
-fn sample_identity_debug_enabled() -> bool {
-    tracing::enabled!(target: "wavecrate::debug::sample_identity", tracing::Level::DEBUG)
+fn sample_identity_info_enabled() -> bool {
+    tracing::enabled!(target: "wavecrate::debug::sample_identity", tracing::Level::INFO)
 }
 
 fn sorted_path_strings<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Vec<String> {

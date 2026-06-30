@@ -344,7 +344,7 @@ impl WaveformState {
 pub(in crate::native_app) fn execute_waveform_extraction(
     request: WaveformExtractionRequest,
 ) -> WaveformExtractionCompletion {
-    tracing::debug!(
+    tracing::info!(
         target: "wavecrate::debug::sample_identity",
         event = "browser.extraction.execute_before",
         trigger = "execute_waveform_extraction",
@@ -367,28 +367,28 @@ pub(in crate::native_app) fn execute_waveform_extraction(
                 path,
                 Some("extracted"),
             );
-            tracing::debug!(
-                target: "wavecrate::debug::sample_identity",
-                event = "browser.extraction.execute_after",
-                trigger = "execute_waveform_extraction",
-                source_path = %request.source_path.display(),
-                result_path = %path.display(),
-                selection_start = request.selection.start_f64(),
-                selection_end = request.selection.end_f64(),
-                "Sample identity extraction after execute"
-            );
+            tracing::info!(
+            target: "wavecrate::debug::sample_identity",
+                    event = "browser.extraction.execute_after",
+                    trigger = "execute_waveform_extraction",
+                    source_path = %request.source_path.display(),
+                    result_path = %path.display(),
+                    selection_start = request.selection.start_f64(),
+                    selection_end = request.selection.end_f64(),
+                    "Sample identity extraction after execute"
+                );
         }
         Err(error) => {
-            tracing::debug!(
-                target: "wavecrate::debug::sample_identity",
-                event = "browser.extraction.execute_after",
-                trigger = "execute_waveform_extraction",
-                source_path = %request.source_path.display(),
-                error,
-                selection_start = request.selection.start_f64(),
-                selection_end = request.selection.end_f64(),
-                "Sample identity extraction after execute"
-            );
+            tracing::info!(
+            target: "wavecrate::debug::sample_identity",
+                    event = "browser.extraction.execute_after",
+                    trigger = "execute_waveform_extraction",
+                    source_path = %request.source_path.display(),
+                    error,
+                    selection_start = request.selection.start_f64(),
+                    selection_end = request.selection.end_f64(),
+                    "Sample identity extraction after execute"
+                );
         }
     }
     WaveformExtractionCompletion {
