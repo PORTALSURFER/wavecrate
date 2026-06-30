@@ -171,13 +171,19 @@ fn starmap_items_for_display(
 
 fn waveform_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bool {
     state.waveform.current.active_drag_kind().is_some()
+        && !state
+            .library
+            .folder_browser
+            .visible_sample_window_needs_content_refresh()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::native_app::sample_library::folder_browser::FolderBrowserState;
     use crate::native_app::test_support::state::{NativeAppStateFixture, WaveformInteraction};
     use crate::native_app::waveform::WaveformSelectionKind;
+    use std::fs;
 
     #[test]
     fn list_mode_projection_does_not_build_starmap_items() {
@@ -204,6 +210,46 @@ mod tests {
                 visible_ratio: 0.25,
             });
 
+        assert!(waveform_drag_defers_sample_browser_preparation(&state));
+    }
+
+    #[test]
+    fn active_waveform_drag_allows_sample_browser_preparation_after_file_refresh() {
+        let root = tempfile::tempdir().expect("source root");
+        let source = root.path().join("source");
+        fs::create_dir_all(&source).expect("create source folder");
+        let original = source.join("original.wav");
+        let extracted = source.join("original_extraction.wav");
+        fs::write(&original, [0_u8; 8]).expect("write original");
+        let mut state = NativeAppStateFixture::default()
+            .with_folder_browser(FolderBrowserState::from_root(source.clone()))
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.set_play_selection_range(0.2, 0.4);
+        prepare_sample_browser_view(&mut state);
+
+        state
+            .waveform
+            .current
+            .apply_interaction(WaveformInteraction::BeginSelectionMove {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.25,
+            });
+        fs::write(&extracted, [1_u8; 8]).expect("write extraction");
+        assert!(state.library.folder_browser.refresh_file_path(&extracted));
+
+        assert!(!waveform_drag_defers_sample_browser_preparation(&state));
+        prepare_sample_browser_view(&mut state);
+        let projection = SampleBrowserViewProjection::from_prepared_app_state(&state);
+
+        assert!(
+            projection
+                .visible_samples
+                .rows
+                .iter()
+                .any(|row| row.file.id == extracted.to_string_lossy().as_ref()),
+            "extracted row should be visible before the active playmark drag ends"
+        );
         assert!(waveform_drag_defers_sample_browser_preparation(&state));
     }
 
