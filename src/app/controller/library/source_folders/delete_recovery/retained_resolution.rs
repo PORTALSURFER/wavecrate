@@ -9,8 +9,8 @@ use super::retained_restore_reconcile::{
     apply_retained_restore_db_entries, snapshot_existing_restore_entries,
 };
 use super::{
-    DELETE_STAGING_DIR, DeleteStagingInfo, mark_delete_restore_pending_db, purge_deleted_folder,
-    recover_staged_deletes, remove_delete_entry,
+    DELETE_STAGING_DIR, DeleteStagingInfo, mark_delete_restore_pending_db, path_policy,
+    purge_deleted_folder, recover_staged_deletes, remove_delete_entry,
 };
 use crate::app::controller::jobs::{
     FileOpMessage, RetainedDeleteResolutionEntry, RetainedDeleteResolutionRequest,
@@ -89,13 +89,23 @@ fn restore_retained_entry(
 ) -> Result<EntryResolutionOutcome, String> {
     let source = SampleSource::new_with_id(entry.source_id.clone(), entry.source_root.clone());
     let staging_root = source.root.join(DELETE_STAGING_DIR);
-    let absolute = source.root.join(&entry.relative_path);
+    path_policy::ensure_staging_root(&source.root, &staging_root)?;
+    let relative_path = path_policy::validate_relative_path(&entry.relative_path, "relative_path")?;
+    let staged_relative =
+        path_policy::validate_relative_path(&entry.staged_relative, "staged_relative")?;
+    let absolute = path_policy::contained_child(&source.root, &relative_path, "relative_path")?;
     let staged = DeleteStagingInfo {
         id: entry.id.clone(),
-        original_relative: entry.relative_path.clone(),
-        staged_relative: entry.staged_relative.clone(),
-        staged_absolute: staging_root.join(&entry.staged_relative),
+        original_relative: relative_path.clone(),
+        staged_relative: staged_relative.clone(),
+        staged_absolute: staging_root.join(&staged_relative),
     };
+    path_policy::ensure_existing_dir_under(
+        &staging_root,
+        &staged.staged_absolute,
+        "Retained staged folder",
+    )?;
+    path_policy::ensure_creatable_path_under(&source.root, &absolute, "Retained restore target")?;
     let existing_entries = snapshot_existing_restore_entries(&source, &entry.deleted_entries)?;
     let stamp = new_restore_stamp()?;
     mark_delete_restore_pending_db(&staging_root, &staged.id, &stamp)?;
@@ -119,11 +129,15 @@ fn purge_retained_entry(
 ) -> Result<EntryResolutionOutcome, String> {
     let source = SampleSource::new_with_id(entry.source_id.clone(), entry.source_root.clone());
     let staging_root = source.root.join(DELETE_STAGING_DIR);
+    path_policy::ensure_staging_root(&source.root, &staging_root)?;
+    let relative_path = path_policy::validate_relative_path(&entry.relative_path, "relative_path")?;
+    let staged_relative =
+        path_policy::validate_relative_path(&entry.staged_relative, "staged_relative")?;
     let staged = DeleteStagingInfo {
         id: entry.id.clone(),
-        original_relative: entry.relative_path.clone(),
-        staged_relative: entry.staged_relative.clone(),
-        staged_absolute: staging_root.join(&entry.staged_relative),
+        original_relative: relative_path,
+        staged_relative: staged_relative.clone(),
+        staged_absolute: staging_root.join(&staged_relative),
     };
     purge_deleted_folder(&staged, &staging_root)?;
     Ok(EntryResolutionOutcome {

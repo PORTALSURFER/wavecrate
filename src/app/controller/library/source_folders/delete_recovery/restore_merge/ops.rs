@@ -5,6 +5,8 @@ use super::util::{
     timestamped_conflict_path,
 };
 use super::{RestoredFileDisposition, RetainedRestoreMergeReport, filesystem, reporting};
+use crate::app::controller::library::source_folders::delete_recovery::path_policy;
+use std::fs;
 use std::path::Path;
 use time::{OffsetDateTime, format_description::FormatItem, macros::format_description};
 
@@ -16,7 +18,8 @@ pub(super) fn merge_directory(
     stamp: &str,
     report: &mut RetainedRestoreMergeReport,
 ) -> Result<(), String> {
-    if !target_dir.exists() {
+    path_policy::ensure_existing_dir_under(source_root, staged_dir, "Retained staged folder")?;
+    if !path_policy::path_exists_no_follow(target_dir)? {
         return move_whole_directory(
             staged_dir,
             target_dir,
@@ -27,7 +30,11 @@ pub(super) fn merge_directory(
             report,
         );
     }
-    if !target_dir.is_dir() {
+    path_policy::reject_symlink(target_dir, "Retained restore target")?;
+    path_policy::ensure_existing_path_under(source_root, target_dir, "Retained restore target")?;
+    let target_metadata = fs::symlink_metadata(target_dir)
+        .map_err(|err| format!("Failed to inspect retained restore target: {err}"))?;
+    if !target_metadata.file_type().is_dir() {
         report.had_conflicts = true;
         let fallback = timestamped_conflict_path(target_dir, "recovered", stamp);
         let final_relative = source_relative(source_root, &fallback)?;
@@ -47,7 +54,15 @@ pub(super) fn merge_directory(
             .ok_or_else(|| format!("Staged path missing file name: {}", staged_child.display()))?;
         let target_child = target_dir.join(name);
         let child_relative = source_relative(source_root, &target_child)?;
-        if staged_child.is_dir() {
+        let staged_metadata = fs::symlink_metadata(&staged_child)
+            .map_err(|err| format!("Failed to inspect retained staged entry: {err}"))?;
+        if staged_metadata.file_type().is_symlink() {
+            return Err(format!(
+                "Retained staged entry must not be a symlink: {}",
+                staged_child.display()
+            ));
+        }
+        if staged_metadata.file_type().is_dir() {
             merge_directory(
                 &staged_child,
                 &target_child,
@@ -56,7 +71,7 @@ pub(super) fn merge_directory(
                 stamp,
                 report,
             )?;
-        } else if staged_child.is_file() {
+        } else if staged_metadata.file_type().is_file() {
             merge_file(
                 &staged_child,
                 &target_child,
@@ -108,7 +123,7 @@ fn merge_file(
     stamp: &str,
     report: &mut RetainedRestoreMergeReport,
 ) -> Result<(), String> {
-    if !target_file.exists() {
+    if !path_policy::path_exists_no_follow(target_file)? {
         move_file_to_path(
             staged_file,
             target_file,
@@ -119,7 +134,15 @@ fn merge_file(
         )?;
         return Ok(());
     }
-    if !target_file.is_file() {
+    path_policy::reject_symlink(target_file, "Retained restore target file")?;
+    path_policy::ensure_existing_path_under(
+        source_root,
+        target_file,
+        "Retained restore target file",
+    )?;
+    let target_metadata = fs::symlink_metadata(target_file)
+        .map_err(|err| format!("Failed to inspect retained restore target file: {err}"))?;
+    if !target_metadata.file_type().is_file() {
         report.had_conflicts = true;
         let fallback = timestamped_conflict_path(target_file, "recovered", stamp);
         let final_relative = source_relative(source_root, &fallback)?;

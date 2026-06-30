@@ -2,6 +2,7 @@ use super::load_journal;
 use super::remove_entry;
 use super::store::{insert_entry, update_entry, update_journal_stage};
 use super::{DeleteJournal, DeleteJournalEntry, DeleteJournalStage, DeleteStagingInfo};
+use crate::app::controller::library::source_folders::delete_recovery::path_policy;
 use crate::sample_sources::WavEntry;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,8 +15,19 @@ pub(crate) fn stage_folder_for_delete(
     relative: &Path,
     deleted_entries: &[WavEntry],
 ) -> Result<DeleteStagingInfo, String> {
+    let source_root = path_policy::source_root_for_staging_root(staging_root)?;
+    let relative = path_policy::validate_relative_path(relative, "original_relative")?;
+    let expected_absolute =
+        path_policy::contained_child(&source_root, &relative, "original_relative")?;
+    if absolute != expected_absolute {
+        return Err(format!(
+            "Folder delete path does not match source-relative path: {}",
+            relative.display()
+        ));
+    }
+    path_policy::ensure_existing_dir_under(&source_root, absolute, "Folder delete source")?;
     let journal = load_journal(staging_root)?;
-    let staged_relative = unique_staging_relative(staging_root, &journal, relative);
+    let staged_relative = unique_staging_relative(staging_root, &journal, &relative);
     let staged_absolute = staging_root.join(&staged_relative);
     ensure_staging_parent(&staged_absolute, staging_root)?;
     let id = new_delete_op_id();
@@ -75,7 +87,13 @@ pub(crate) fn purge_deleted_folder(
     info: &DeleteStagingInfo,
     staging_root: &Path,
 ) -> Result<(), String> {
-    if info.staged_absolute.exists() {
+    validate_staging_info(info, staging_root)?;
+    if path_policy::path_exists_no_follow(&info.staged_absolute)? {
+        path_policy::ensure_existing_dir_under(
+            staging_root,
+            &info.staged_absolute,
+            "Retained delete staged folder",
+        )?;
         fs::remove_dir_all(&info.staged_absolute).map_err(|err| {
             format!(
                 "Failed to purge deleted folder {}: {err}",
@@ -94,6 +112,14 @@ pub(crate) fn restore_deleted_folder(
     absolute: &Path,
     staging_root: &Path,
 ) -> Result<(), String> {
+    let source_root = path_policy::source_root_for_staging_root(staging_root)?;
+    validate_staging_info(info, staging_root)?;
+    path_policy::ensure_existing_dir_under(
+        staging_root,
+        &info.staged_absolute,
+        "Retained delete staged folder",
+    )?;
+    path_policy::ensure_creatable_path_under(&source_root, absolute, "Restore destination")?;
     if let Some(parent) = absolute.parent() {
         fs::create_dir_all(parent).map_err(|err| {
             format!(
@@ -120,6 +146,9 @@ pub(crate) fn restage_deleted_folder(
     info: &DeleteStagingInfo,
     deleted_entries: &[WavEntry],
 ) -> Result<(), String> {
+    let source_root = path_policy::source_root_for_staging_root(staging_root)?;
+    validate_staging_info(info, staging_root)?;
+    path_policy::ensure_existing_dir_under(&source_root, absolute, "Restored folder")?;
     let entry = DeleteJournalEntry {
         id: info.id.clone(),
         original_relative: info.original_relative.to_string_lossy().to_string(),
@@ -156,6 +185,14 @@ pub(crate) fn rollback_staged_folder(
     staging_root: &Path,
     err: &str,
 ) -> Result<(), String> {
+    let source_root = path_policy::source_root_for_staging_root(staging_root)?;
+    validate_staging_info(info, staging_root)?;
+    path_policy::ensure_existing_dir_under(
+        staging_root,
+        &info.staged_absolute,
+        "Rollback staged folder",
+    )?;
+    path_policy::ensure_creatable_path_under(&source_root, absolute, "Rollback destination")?;
     let rollback_context = format!(
         " (original: {}, staged: {})",
         info.original_relative.display(),
@@ -218,6 +255,20 @@ fn staging_relative_is_available(
 }
 
 fn ensure_staging_parent(staged: &Path, staging_root: &Path) -> Result<(), String> {
+    let source_root = path_policy::source_root_for_staging_root(staging_root)?;
+    if path_policy::path_exists_no_follow(staging_root)? {
+        path_policy::ensure_staging_root(&source_root, staging_root)?;
+    } else {
+        path_policy::ensure_creatable_path_under(
+            &source_root,
+            staging_root,
+            "Delete staging root",
+        )?;
+        fs::create_dir_all(staging_root)
+            .map_err(|err| format!("Failed to prepare folder delete staging: {err}"))?;
+        mark_staging_root_hidden(staging_root);
+    }
+    path_policy::ensure_creatable_path_under(staging_root, staged, "Delete staging path")?;
     if let Some(parent) = staged.parent() {
         fs::create_dir_all(parent)
             .map_err(|err| format!("Failed to prepare folder delete staging: {err}"))?;
@@ -262,4 +313,31 @@ fn now_epoch_seconds() -> Result<i64, String> {
         .duration_since(UNIX_EPOCH)
         .map_err(|err| format!("System time error: {err}"))?;
     Ok(now.as_secs() as i64)
+}
+
+fn validate_staging_info(info: &DeleteStagingInfo, staging_root: &Path) -> Result<(), String> {
+    let original_relative =
+        path_policy::validate_relative_path(&info.original_relative, "original_relative")?;
+    let staged_relative =
+        path_policy::validate_relative_path(&info.staged_relative, "staged_relative")?;
+    if original_relative != info.original_relative {
+        return Err(format!(
+            "Invalid retained delete original path: {}",
+            info.original_relative.display()
+        ));
+    }
+    if staged_relative != info.staged_relative {
+        return Err(format!(
+            "Invalid retained delete staged path: {}",
+            info.staged_relative.display()
+        ));
+    }
+    let expected_staged = staging_root.join(&staged_relative);
+    if expected_staged != info.staged_absolute {
+        return Err(format!(
+            "Retained delete staged path does not match staging root: {}",
+            info.staged_absolute.display()
+        ));
+    }
+    Ok(())
 }

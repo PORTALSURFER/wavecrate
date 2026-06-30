@@ -1,10 +1,13 @@
 use super::*;
+use crate::app::controller::library::source_folders::delete_recovery::path_policy;
 
 pub(super) fn journaled_staged_roots(journal: &DeleteJournal) -> Vec<PathBuf> {
     journal
         .entries
         .iter()
-        .map(|entry| PathBuf::from(&entry.staged_relative))
+        .filter_map(|entry| {
+            path_policy::validate_journal_relative(&entry.staged_relative, "staged_relative").ok()
+        })
         .collect()
 }
 
@@ -25,7 +28,10 @@ pub(super) fn find_unjournaled_staged_roots(
                 continue;
             }
             let path = entry.path();
-            if !path.is_dir() {
+            let Ok(metadata) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() || !metadata.file_type().is_dir() {
                 continue;
             }
             let child_relative = relative.join(entry.file_name());

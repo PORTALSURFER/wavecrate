@@ -2599,6 +2599,9 @@ Contract:
 * startup recovery restores incomplete deletes conservatively
 * fully committed deletes remain recoverable until explicit restore or purge
 * explicit restore merges carefully and keeps both copies when content differs
+* recovery journal paths are untrusted and must be validated as relative,
+  symlink-free, and contained under the source or delete-staging root before
+  restore, restage, rollback, retained restore, or purge filesystem effects
 
 ### Updater Policy
 
