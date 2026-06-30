@@ -47,11 +47,27 @@ impl NativeAppState {
             .persisted
             .controls
             .normalized_audition_enabled = enabled;
-        let gain = self.normalized_audition_gain_for_current_span();
+        let current_span = self
+            .audio
+            .current_playback_span
+            .or_else(|| {
+                self.waveform
+                    .current
+                    .play_selection()
+                    .filter(|selection| selection.width() > 0.0)
+                    .map(|selection| (selection.start(), selection.end()))
+            })
+            .unwrap_or((0.0, 1.0));
+        let playback_gain_normalization =
+            self.playback_gain_normalization_for_span(current_span.0, current_span.1);
         if let Some(runtime) = self.audio.playback_runtime.as_ref() {
-            let _ = runtime.try_set_playback_gain(gain);
-        } else if let Some(player) = self.audio.player.as_mut() {
-            player.set_playback_gain(gain);
+            let _ =
+                runtime.try_set_playback_gain_with_normalization(1.0, playback_gain_normalization);
+        } else {
+            let gain = self.normalized_audition_gain_for_current_span();
+            if let Some(player) = self.audio.player.as_mut() {
+                player.set_playback_gain(gain);
+            }
         }
         self.persist_top_bar_audio_settings(context);
     }

@@ -1,4 +1,5 @@
 use crate::native_app::app::NativeAppState;
+use wavecrate::audio::PlaybackRuntimeGainNormalization;
 
 impl NativeAppState {
     pub(in crate::native_app) fn normalized_audition_gain_for_current_span(&self) -> f32 {
@@ -26,5 +27,15 @@ impl NativeAppState {
         self.waveform
             .current
             .normalized_audition_gain_for_span(start, end)
+    }
+
+    pub(in crate::native_app) fn playback_gain_normalization_for_span(
+        &self,
+        start: f32,
+        end: f32,
+    ) -> Option<PlaybackRuntimeGainNormalization> {
+        self.audio
+            .normalized_audition_enabled
+            .then_some(PlaybackRuntimeGainNormalization::new(start, end))
     }
 }
