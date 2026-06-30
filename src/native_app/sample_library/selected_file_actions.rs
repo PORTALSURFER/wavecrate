@@ -379,14 +379,34 @@ impl NativeAppState {
         &self,
         request: WaveformExtractionRequest,
     ) -> Result<WaveformExtractionRequest, String> {
-        if request.has_explicit_target_folder() {
+        if let Some(target_folder) =
+            self.harvest_destination_for_protected_origin(request.source_path())?
+        {
+            wavecrate::sample_sources::harvest_file_ops::ensure_dir(
+                &target_folder,
+                "Could not create harvest destination",
+            )?;
+            return Ok(request.with_target_folder(target_folder));
+        }
+
+        if !request.has_explicit_target_folder() {
             return Ok(request);
         }
-        let Some(target_folder) =
-            self.optional_harvest_destination_for_protected_origin(request.source_path())
-        else {
+        let target_folder = request.target_folder()?;
+        if !self
+            .library
+            .folder_browser
+            .path_is_in_protected_source(target_folder)
+        {
             return Ok(request);
-        };
+        }
+        let target_source = self
+            .library
+            .folder_browser
+            .default_writable_extraction_source(
+                "Set a Primary source before extracting into a protected source",
+            )?;
+        let target_folder = target_source.primary_import_path();
         wavecrate::sample_sources::harvest_file_ops::ensure_dir(
             &target_folder,
             "Could not create harvest destination",

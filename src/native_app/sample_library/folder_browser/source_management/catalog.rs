@@ -179,6 +179,29 @@ impl FolderBrowserState {
             .map(SourceEntry::as_sample_source)
     }
 
+    pub(in crate::native_app) fn default_writable_extraction_source(
+        &self,
+        error: impl Into<String>,
+    ) -> Result<SampleSource, String> {
+        let error = error.into();
+        if let Some(source) = self.primary_sample_source() {
+            return Ok(source);
+        }
+
+        let mut normal_sources = self.source.sources.iter().filter(|source| {
+            !source.is_default_assets_source()
+                && !source.is_missing()
+                && source.role == SourceRole::Normal
+        });
+        let Some(source) = normal_sources.next() else {
+            return Err(error);
+        };
+        if normal_sources.next().is_some() {
+            return Err(error);
+        }
+        Ok(source.as_sample_source())
+    }
+
     pub(in crate::native_app) fn source_is_removable(&self, source_id: &str) -> bool {
         self.source
             .sources
