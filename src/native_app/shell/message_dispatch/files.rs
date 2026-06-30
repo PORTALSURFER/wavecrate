@@ -53,10 +53,15 @@ impl NativeAppState {
             GuiMessage::CopySelectedFiles => self.copy_selected_files(context),
             GuiMessage::CutSelectedFiles => self.cut_selected_files(),
             GuiMessage::PasteCutFiles => self.paste_cut_files(context),
-            GuiMessage::DuplicateContextSampleSame => self.duplicate_context_sample_same(),
+            GuiMessage::DuplicateContextSampleSame => self.duplicate_context_sample_same(context),
             GuiMessage::DuplicateContextSampleDouble => {
                 self.duplicate_context_sample_double(context)
             }
+            GuiMessage::ContextSampleSameFinished {
+                source_path,
+                started_at,
+                result,
+            } => self.finish_context_sample_same(source_path, started_at, result, context),
             GuiMessage::ContextSampleDoubleFinished {
                 source_path,
                 started_at,

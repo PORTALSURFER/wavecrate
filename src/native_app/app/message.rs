@@ -33,7 +33,6 @@ use crate::native_app::sample_library::folder_browser::scan::{
 };
 use crate::native_app::sample_library::harvest_tracking::HarvestSeenPersistResult;
 use crate::native_app::sample_library::native_file_open_actions::NativeAudioDocumentOpenValidation;
-use crate::native_app::sample_library::selected_file_actions::WholeFileHarvestExtractionResult;
 use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
 };
@@ -41,7 +40,6 @@ use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult
 use crate::native_app::waveform::WaveformInteraction;
 use crate::native_app::waveform::{SimilarSectionsResult, WaveformExtractionCompletion};
 use crate::native_app::waveform_edits::WaveformDestructiveEditResult;
-use crate::native_app::workflows::context_menu_actions::ContextSampleDoubleResult;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) enum TrashMoveTarget {
@@ -179,10 +177,15 @@ pub(in crate::native_app) enum GuiMessage {
     PasteCutFiles,
     DuplicateContextSampleSame,
     DuplicateContextSampleDouble,
+    ContextSampleSameFinished {
+        source_path: PathBuf,
+        started_at: Instant,
+        result: Result<wavecrate::sample_sources::ContextSampleSameResult, String>,
+    },
     ContextSampleDoubleFinished {
         source_path: PathBuf,
         started_at: Instant,
-        result: Result<ContextSampleDoubleResult, String>,
+        result: Result<wavecrate::sample_sources::ContextSampleDoubleResult, String>,
     },
     SelectedFilesCopyFinished {
         paths: Vec<PathBuf>,
@@ -298,7 +301,7 @@ pub(in crate::native_app) enum GuiMessage {
     },
     SelectedWholeFilesHarvestExtractionFinished {
         started_at: Instant,
-        result: WholeFileHarvestExtractionResult,
+        result: wavecrate::sample_sources::WholeFileHarvestExtractionResult,
     },
     NavigateBrowser {
         delta: i32,

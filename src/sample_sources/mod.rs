@@ -7,6 +7,8 @@
 
 /// User configuration loading/saving for sample sources.
 pub mod config;
+#[doc(hidden)]
+pub mod duplicate_file_ops;
 mod file_move_metadata;
 #[doc(hidden)]
 pub mod harvest_file_ops;
@@ -53,6 +55,13 @@ pub mod library {
     };
 }
 
+pub use duplicate_file_ops::{
+    ContextSampleDoubleResult, ContextSampleSameResult, DuplicateDoubleRequest,
+    DuplicateSameRequest, WholeFileHarvestExtractionCopy, WholeFileHarvestExtractionFailure,
+    WholeFileHarvestExtractionPlan, WholeFileHarvestExtractionRequest,
+    WholeFileHarvestExtractionResult, execute_duplicate_context_sample_double,
+    execute_duplicate_context_sample_same, execute_whole_file_harvest_extraction,
+};
 #[doc(hidden)]
 pub use file_move_metadata::{
     SourcedFileMoveMetadata, persist_copied_file_metadata, persist_sourced_moved_file_metadata,
