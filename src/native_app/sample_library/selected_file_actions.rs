@@ -9,11 +9,13 @@ use crate::native_app::waveform::{
 };
 use radiant::gui::types::Point;
 use std::{
-    collections::HashSet,
     path::{Path, PathBuf},
     time::Instant,
 };
-use wavecrate::sample_sources::HarvestDerivationOperation;
+use wavecrate::sample_sources::{
+    HarvestDerivationOperation, WholeFileHarvestExtractionPlan, WholeFileHarvestExtractionRequest,
+    WholeFileHarvestExtractionResult, execute_whole_file_harvest_extraction,
+};
 
 #[derive(Clone, Copy)]
 enum PlaymarkedExtractionTarget {
@@ -35,30 +37,6 @@ impl PlaymarkedExtractionTarget {
             Self::HarvestDestination => "Extracting play range to harvest destination",
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::native_app) struct WholeFileHarvestExtractionResult {
-    pub(in crate::native_app) copied: Vec<WholeFileHarvestExtractionCopy>,
-    pub(in crate::native_app) failed: Vec<WholeFileHarvestExtractionFailure>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::native_app) struct WholeFileHarvestExtractionCopy {
-    pub(in crate::native_app) source_path: PathBuf,
-    pub(in crate::native_app) output_path: PathBuf,
-    pub(in crate::native_app) operation: HarvestDerivationOperation,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::native_app) struct WholeFileHarvestExtractionFailure {
-    pub(in crate::native_app) source_path: PathBuf,
-    pub(in crate::native_app) error: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct WholeFileHarvestExtractionRequest {
-    copies: Vec<WholeFileHarvestExtractionCopy>,
 }
 
 impl NativeAppState {
@@ -343,7 +321,6 @@ impl NativeAppState {
         &self,
         sources: Vec<PathBuf>,
     ) -> Result<WholeFileHarvestExtractionRequest, String> {
-        let mut reserved_outputs = HashSet::new();
         let mut copies = Vec::with_capacity(sources.len());
         for source_path in sources {
             let target_folder = self.harvest_destination_for_origin(&source_path)?;
@@ -354,26 +331,23 @@ impl NativeAppState {
             {
                 return Err(error);
             }
-            let output_path = next_available_reserved_whole_file_harvest_copy_path(
-                &source_path,
-                &target_folder,
-                &reserved_outputs,
-            )?;
-            reserved_outputs.insert(output_path.clone());
-            copies.push(WholeFileHarvestExtractionCopy {
+            copies.push(WholeFileHarvestExtractionPlan {
+                operation: self.harvest_copy_operation_for_target_folder(&target_folder),
                 source_path,
-                operation: self.harvest_copy_operation_for_child(&output_path),
-                output_path,
+                target_folder,
             });
         }
         Ok(WholeFileHarvestExtractionRequest { copies })
     }
 
-    fn harvest_copy_operation_for_child(&self, child_path: &Path) -> HarvestDerivationOperation {
+    fn harvest_copy_operation_for_target_folder(
+        &self,
+        target_folder: &Path,
+    ) -> HarvestDerivationOperation {
         let Some((child_source, _)) = self
             .library
             .folder_browser
-            .sample_source_for_file_path(child_path)
+            .sample_source_for_file_path(target_folder)
         else {
             return HarvestDerivationOperation::Copy;
         };
@@ -645,64 +619,4 @@ impl NativeAppState {
             .map(|(source, _)| source.id);
         source_id.is_some() && child_id.is_some() && source_id != child_id
     }
-}
-
-fn execute_whole_file_harvest_extraction(
-    request: WholeFileHarvestExtractionRequest,
-) -> WholeFileHarvestExtractionResult {
-    let mut copied = Vec::with_capacity(request.copies.len());
-    let mut failed = Vec::new();
-    for copy in request.copies {
-        let result = copy
-            .output_path
-            .parent()
-            .ok_or_else(|| String::from("Harvest copy has no destination folder"))
-            .and_then(|parent| {
-                wavecrate::sample_sources::harvest_file_ops::ensure_dir(
-                    parent,
-                    "Could not create harvest destination",
-                )
-            })
-            .and_then(|_| {
-                wavecrate::sample_sources::harvest_file_ops::copy_file(
-                    &copy.source_path,
-                    &copy.output_path,
-                    "Could not copy selected sample",
-                )
-            });
-        match result {
-            Ok(()) => copied.push(copy),
-            Err(error) => failed.push(WholeFileHarvestExtractionFailure {
-                source_path: copy.source_path,
-                error,
-            }),
-        }
-    }
-    WholeFileHarvestExtractionResult { copied, failed }
-}
-
-fn next_available_reserved_whole_file_harvest_copy_path(
-    source_path: &Path,
-    target_folder: &Path,
-    reserved_outputs: &HashSet<PathBuf>,
-) -> Result<PathBuf, String> {
-    let stem = source_path
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .filter(|stem| !stem.is_empty())
-        .ok_or_else(|| String::from("Source sample has no file name"))?;
-    for index in 0..10_000 {
-        let suffix = if index == 0 {
-            String::from("_copy")
-        } else {
-            format!("_copy_{index}")
-        };
-        let candidate = target_folder.join(format!("{stem}{suffix}.wav"));
-        if !candidate.exists() && !reserved_outputs.contains(&candidate) {
-            return Ok(candidate);
-        }
-    }
-    Err(String::from(
-        "Could not find an available harvest copy file name",
-    ))
 }
