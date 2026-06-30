@@ -205,7 +205,8 @@ impl NativeAppState {
             source,
             mode,
             volume: self.audio.volume,
-            playback_gain: self.normalized_audition_gain_for_span(
+            playback_gain: 1.0,
+            playback_gain_normalization: self.playback_gain_normalization_for_span(
                 command.resolved.start_ratio,
                 command.resolved.end_ratio,
             ),

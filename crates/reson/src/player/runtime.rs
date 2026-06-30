@@ -1,6 +1,9 @@
 use std::{
     collections::VecDeque,
-    path::PathBuf,
+    fs::File,
+    io::{BufReader, Read, Seek, SeekFrom},
+    ops::Range,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -14,6 +17,8 @@ use super::{AudioPlayer, EditFadeRange, PlaybackMetronomeConfig};
 use crate::output::ResolvedOutput;
 
 const DEFAULT_PLAYBACK_COMMAND_QUEUE: usize = 8;
+const F32_SAMPLE_BYTES: usize = std::mem::size_of::<f32>();
+const NORMALIZED_GAIN_READ_SAMPLES: usize = 4096;
 
 /// Monotonic id assigned to playback runtime commands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -158,7 +163,21 @@ pub struct PlaybackRuntimeSpanUpdate {
     pub seek_to_offset: bool,
     pub looped: bool,
     pub playback_gain: f32,
+    pub playback_gain_normalization: Option<PlaybackRuntimeGainNormalization>,
     pub metronome: Option<PlaybackMetronomeConfig>,
+}
+
+/// Runtime-owned gain normalization for one normalized playback span.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlaybackRuntimeGainNormalization {
+    pub start: f32,
+    pub end: f32,
+}
+
+impl PlaybackRuntimeGainNormalization {
+    pub fn new(start: f32, end: f32) -> Self {
+        Self { start, end }
+    }
 }
 
 /// Complete neutral playback-start request.
@@ -168,6 +187,7 @@ pub struct PlaybackRuntimeRequest {
     pub mode: PlaybackRuntimeMode,
     pub volume: f32,
     pub playback_gain: f32,
+    pub playback_gain_normalization: Option<PlaybackRuntimeGainNormalization>,
     pub edit_fade: Option<EditFadeRange>,
     pub metronome: Option<PlaybackMetronomeConfig>,
 }
@@ -276,8 +296,20 @@ impl PlaybackRuntimeHandle {
 
     /// Submit a non-blocking playback-gain update for current and future playback.
     pub fn try_set_playback_gain(&self, gain: f32) -> Result<(), PlaybackRuntimeSubmitError> {
+        self.try_set_playback_gain_with_normalization(gain, None)
+    }
+
+    /// Submit a non-blocking playback-gain update with runtime-owned normalization.
+    pub fn try_set_playback_gain_with_normalization(
+        &self,
+        gain: f32,
+        normalization: Option<PlaybackRuntimeGainNormalization>,
+    ) -> Result<(), PlaybackRuntimeSubmitError> {
         self.commands
-            .try_send(PlaybackRuntimeCommand::SetPlaybackGain { gain })
+            .try_send(PlaybackRuntimeCommand::SetPlaybackGain {
+                gain,
+                normalization,
+            })
             .map_err(map_try_send_error)
     }
 
@@ -341,6 +373,7 @@ enum PlaybackRuntimeCommand {
     },
     SetPlaybackGain {
         gain: f32,
+        normalization: Option<PlaybackRuntimeGainNormalization>,
     },
     Shutdown,
 }
@@ -353,7 +386,11 @@ trait PlaybackRuntimeExecutor: Send + 'static {
     fn stop(&mut self) -> Result<(), String>;
     fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String>;
     fn set_volume(&mut self, volume: f32);
-    fn set_playback_gain(&mut self, gain: f32);
+    fn set_playback_gain(
+        &mut self,
+        gain: f32,
+        normalization: Option<PlaybackRuntimeGainNormalization>,
+    );
     fn progress(&mut self) -> PlaybackRuntimeProgress;
 }
 
@@ -372,7 +409,12 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRuntimeStartedData, String> {
         self.player.set_volume(request.volume);
-        self.player.set_playback_gain(request.playback_gain);
+        self.player
+            .set_playback_gain(runtime_playback_gain_for_source(
+                request.playback_gain,
+                request.playback_gain_normalization,
+                &request.source,
+            ));
         let output = self.player.output_details().clone();
         request.source.apply_to_player(&mut self.player);
         self.player.set_edit_fade_state(request.edit_fade);
@@ -391,7 +433,12 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
     }
 
     fn retarget_span(&mut self, update: PlaybackRuntimeSpanUpdate) -> Result<f32, String> {
-        self.player.set_playback_gain(update.playback_gain);
+        self.player
+            .set_playback_gain(runtime_playback_gain_for_player(
+                update.playback_gain,
+                update.playback_gain_normalization,
+                &self.player,
+            ));
         if update.looped {
             self.player.retarget_looped_range_with_metronome(
                 update.start,
@@ -419,8 +466,17 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         self.player.set_volume(volume);
     }
 
-    fn set_playback_gain(&mut self, gain: f32) {
-        self.player.set_playback_gain(gain);
+    fn set_playback_gain(
+        &mut self,
+        gain: f32,
+        normalization: Option<PlaybackRuntimeGainNormalization>,
+    ) {
+        self.player
+            .set_playback_gain(runtime_playback_gain_for_player(
+                gain,
+                normalization,
+                &self.player,
+            ));
     }
 
     fn progress(&mut self) -> PlaybackRuntimeProgress {
@@ -499,8 +555,11 @@ fn run_playback_runtime(
             CoalescedCommand::SetVolume { volume } => {
                 executor.set_volume(volume);
             }
-            CoalescedCommand::SetPlaybackGain { gain } => {
-                executor.set_playback_gain(gain);
+            CoalescedCommand::SetPlaybackGain {
+                gain,
+                normalization,
+            } => {
+                executor.set_playback_gain(gain, normalization);
             }
             CoalescedCommand::Shutdown => return,
         }
@@ -534,6 +593,7 @@ enum CoalescedCommand {
     },
     SetPlaybackGain {
         gain: f32,
+        normalization: Option<PlaybackRuntimeGainNormalization>,
     },
     Shutdown,
 }
@@ -699,9 +759,13 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
         }
         PlaybackRuntimeCommand::PollProgress { id } => CoalescedCommand::PollProgress { id },
         PlaybackRuntimeCommand::SetVolume { volume } => CoalescedCommand::SetVolume { volume },
-        PlaybackRuntimeCommand::SetPlaybackGain { gain } => {
-            CoalescedCommand::SetPlaybackGain { gain }
-        }
+        PlaybackRuntimeCommand::SetPlaybackGain {
+            gain,
+            normalization,
+        } => CoalescedCommand::SetPlaybackGain {
+            gain,
+            normalization,
+        },
         PlaybackRuntimeCommand::Shutdown => CoalescedCommand::Shutdown,
     }
 }
@@ -741,9 +805,175 @@ fn map_try_send_error(error: TrySendError<PlaybackRuntimeCommand>) -> PlaybackRu
     }
 }
 
+fn runtime_playback_gain_for_source(
+    base_gain: f32,
+    normalization: Option<PlaybackRuntimeGainNormalization>,
+    source: &PlaybackRuntimeSource,
+) -> f32 {
+    let Some(normalization) = normalization else {
+        return sanitize_playback_gain(base_gain);
+    };
+    let normalized = normalized_gain_for_runtime_source(source, normalization).unwrap_or(1.0);
+    sanitize_playback_gain(base_gain * normalized)
+}
+
+fn runtime_playback_gain_for_player(
+    base_gain: f32,
+    normalization: Option<PlaybackRuntimeGainNormalization>,
+    player: &AudioPlayer,
+) -> f32 {
+    let Some(normalization) = normalization else {
+        return sanitize_playback_gain(base_gain);
+    };
+    let normalized = normalized_gain_for_player(player, normalization).unwrap_or(1.0);
+    sanitize_playback_gain(base_gain * normalized)
+}
+
+fn sanitize_playback_gain(gain: f32) -> f32 {
+    if gain.is_finite() && gain > 0.0 {
+        gain
+    } else {
+        1.0
+    }
+}
+
+fn normalized_gain_for_runtime_source(
+    source: &PlaybackRuntimeSource,
+    normalization: PlaybackRuntimeGainNormalization,
+) -> Option<f32> {
+    match source {
+        PlaybackRuntimeSource::DecodedSamples {
+            samples, channels, ..
+        } => normalized_gain_for_interleaved_span(
+            samples,
+            *channels,
+            normalization.start,
+            normalization.end,
+        ),
+        PlaybackRuntimeSource::InterleavedF32File {
+            path,
+            sample_count,
+            channels,
+            ..
+        } => normalized_gain_for_interleaved_f32_file_span(
+            path,
+            (*sample_count).try_into().ok()?,
+            *channels,
+            normalization.start,
+            normalization.end,
+        ),
+        PlaybackRuntimeSource::AudioBytes { .. } | PlaybackRuntimeSource::AudioFile { .. } => None,
+    }
+}
+
+fn normalized_gain_for_player(
+    player: &AudioPlayer,
+    normalization: PlaybackRuntimeGainNormalization,
+) -> Option<f32> {
+    let channels = usize::from(player.track_channels.unwrap_or(1)).max(1);
+    if let Some(samples) = player.playback_samples.as_ref() {
+        return normalized_gain_for_interleaved_span(
+            samples,
+            channels,
+            normalization.start,
+            normalization.end,
+        );
+    }
+    match player.current_audio.as_ref()? {
+        super::AudioPlaybackSource::InterleavedF32File { path, sample_count } => {
+            normalized_gain_for_interleaved_f32_file_span(
+                path,
+                (*sample_count).try_into().ok()?,
+                channels,
+                normalization.start,
+                normalization.end,
+            )
+        }
+        super::AudioPlaybackSource::Bytes(_) | super::AudioPlaybackSource::File(_) => None,
+    }
+}
+
+fn normalized_gain_for_interleaved_span(
+    samples: &[f32],
+    channels: usize,
+    start: f32,
+    end: f32,
+) -> Option<f32> {
+    let bounds = interleaved_span_sample_bounds(samples.len(), channels, start, end)?;
+    let peak = samples[bounds]
+        .iter()
+        .fold(0.0_f32, |peak, sample| peak.max(sample.abs()));
+    Some(normalized_gain_from_peak(peak))
+}
+
+fn normalized_gain_for_interleaved_f32_file_span(
+    path: &Path,
+    sample_count: usize,
+    channels: usize,
+    start: f32,
+    end: f32,
+) -> Option<f32> {
+    let bounds = interleaved_span_sample_bounds(sample_count, channels, start, end)?;
+    let mut reader = BufReader::new(File::open(path).ok()?);
+    let byte_offset = bounds.start.checked_mul(F32_SAMPLE_BYTES)? as u64;
+    reader.seek(SeekFrom::Start(byte_offset)).ok()?;
+
+    let mut remaining = bounds.end.saturating_sub(bounds.start);
+    let mut bytes = vec![0_u8; NORMALIZED_GAIN_READ_SAMPLES * F32_SAMPLE_BYTES];
+    let mut peak = 0.0_f32;
+    while remaining > 0 {
+        let samples_to_read = remaining.min(NORMALIZED_GAIN_READ_SAMPLES);
+        let byte_len = samples_to_read * F32_SAMPLE_BYTES;
+        reader.read_exact(&mut bytes[..byte_len]).ok()?;
+        for sample in bytes[..byte_len].chunks_exact(F32_SAMPLE_BYTES) {
+            peak = peak.max(f32::from_le_bytes(sample.try_into().ok()?).abs());
+        }
+        remaining -= samples_to_read;
+    }
+    Some(normalized_gain_from_peak(peak))
+}
+
+fn interleaved_span_sample_bounds(
+    sample_count: usize,
+    channels: usize,
+    start: f32,
+    end: f32,
+) -> Option<Range<usize>> {
+    if sample_count == 0 || !start.is_finite() || !end.is_finite() {
+        return None;
+    }
+    let channels = channels.max(1);
+    let total_frames = sample_count / channels;
+    if total_frames == 0 {
+        return None;
+    }
+    let (start, end) = if start <= end {
+        (start, end)
+    } else {
+        (end, start)
+    };
+    let start_frame = (start.clamp(0.0, 1.0) * total_frames as f32).floor() as usize;
+    let mut end_frame = (end.clamp(0.0, 1.0) * total_frames as f32).ceil() as usize;
+    if end_frame <= start_frame {
+        end_frame = (start_frame + 1).min(total_frames);
+    }
+    let start_idx = start_frame.saturating_mul(channels);
+    let end_idx = end_frame.saturating_mul(channels).min(sample_count);
+    (start_idx < end_idx).then_some(start_idx..end_idx)
+}
+
+fn normalized_gain_from_peak(peak: f32) -> f32 {
+    if peak.is_finite() && peak > f32::EPSILON {
+        1.0 / peak
+    } else {
+        1.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::sync::{Arc, Mutex};
 
     #[derive(Clone)]
@@ -808,7 +1038,12 @@ mod tests {
 
         fn set_volume(&mut self, _volume: f32) {}
 
-        fn set_playback_gain(&mut self, _gain: f32) {}
+        fn set_playback_gain(
+            &mut self,
+            _gain: f32,
+            _normalization: Option<PlaybackRuntimeGainNormalization>,
+        ) {
+        }
 
         fn progress(&mut self) -> PlaybackRuntimeProgress {
             PlaybackRuntimeProgress {
@@ -1011,6 +1246,52 @@ mod tests {
         assert_eq!(retargeted.lock().expect("retargeted").as_slice(), &[update]);
     }
 
+    #[test]
+    fn runtime_normalization_reads_interleaved_f32_file_span() {
+        let root = tempfile::tempdir().expect("temp root");
+        let path = root.path().join("normalized-runtime.pcm");
+        let mut file = File::create(&path).expect("create f32 cache");
+        for sample in [
+            0.1_f32, 0.1, 0.1, 0.1, 0.25, 0.5, 0.2, 0.2, 0.9, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1,
+        ] {
+            file.write_all(&sample.to_le_bytes()).expect("write sample");
+        }
+        let source = PlaybackRuntimeSource::InterleavedF32File {
+            path,
+            sample_count: 16,
+            duration: 1.0,
+            sample_rate: 48_000,
+            channels: 1,
+        };
+
+        let gain = runtime_playback_gain_for_source(
+            1.0,
+            Some(PlaybackRuntimeGainNormalization::new(0.25, 0.5)),
+            &source,
+        );
+
+        assert!((gain - 2.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn runtime_normalization_uses_decoded_samples_without_file_io() {
+        let source = PlaybackRuntimeSource::DecodedSamples {
+            audio_bytes: Arc::from([]),
+            samples: Arc::from([0.1_f32, -0.25, 0.5, -0.2]),
+            duration: 1.0,
+            sample_rate: 48_000,
+            channels: 1,
+        };
+
+        let gain = runtime_playback_gain_for_source(
+            1.0,
+            Some(PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            &source,
+        );
+
+        assert!((gain - 2.0).abs() < f32::EPSILON);
+    }
+
     fn test_request(start: f64) -> PlaybackRuntimeRequest {
         PlaybackRuntimeRequest {
             source: PlaybackRuntimeSource::AudioBytes {
@@ -1022,6 +1303,7 @@ mod tests {
             mode: PlaybackRuntimeMode::OneShot { start, end: 1.0 },
             volume: 1.0,
             playback_gain: 1.0,
+            playback_gain_normalization: None,
             edit_fade: None,
             metronome: None,
         }
@@ -1049,6 +1331,7 @@ mod tests {
             seek_to_offset: true,
             looped,
             playback_gain: 1.0,
+            playback_gain_normalization: None,
             metronome: None,
         }
     }

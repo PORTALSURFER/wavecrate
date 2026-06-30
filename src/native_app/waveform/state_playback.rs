@@ -1,5 +1,3 @@
-use std::{fs::File, io::BufReader};
-
 use super::{
     WaveformState,
     state::{NormalizedAuditionGainCacheKey, NormalizedAuditionGainSourceKey},
@@ -64,18 +62,7 @@ impl WaveformState {
             )
             .map(wavecrate::audio::normalized_gain_from_peak);
         }
-        let cache_file = self.file.playback_cache_file.as_ref()?;
-        let sample_count = usize::try_from(cache_file.sample_count).ok()?;
-        let file = File::open(&cache_file.path).ok()?;
-        let mut reader = BufReader::new(file);
-        wavecrate::audio::peak_for_interleaved_f32_reader_span(
-            &mut reader,
-            sample_count,
-            self.file.channels,
-            start,
-            end,
-        )
-        .map(wavecrate::audio::normalized_gain_from_peak)
+        None
     }
 
     pub(in crate::native_app) fn is_playing(&self) -> bool {
