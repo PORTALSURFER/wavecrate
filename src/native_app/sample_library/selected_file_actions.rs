@@ -432,13 +432,9 @@ impl NativeAppState {
                     .current
                     .mark_extracted_play_selection(&completion.source_path, completion.selection);
                 self.waveform.current.flash_play_selection();
-                let protected_origin = self
-                    .library
-                    .folder_browser
-                    .path_is_in_protected_source(&completion.source_path);
                 let cross_source_derivative =
                     self.extraction_derivative_crosses_sources(&completion.source_path, &path);
-                let focus_derivative = cross_source_derivative && !protected_origin;
+                let focus_derivative = cross_source_derivative;
                 if focus_derivative {
                     self.library
                         .folder_browser
