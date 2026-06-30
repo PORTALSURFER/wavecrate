@@ -158,3 +158,46 @@ pub(crate) fn handle_issue_token_deleted(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::jobs::IssueGatewayCreateResult;
+    use crate::issue_gateway::api::CreateIssueError;
+
+    #[test]
+    fn issue_gateway_error_status_and_log_do_not_include_raw_response_body() {
+        let (mut controller, _source) = crate::app::controller::test_support::dummy_controller();
+        controller.ui.feedback_issue.submitting = true;
+        let body = r#"{
+            "error": "Authorization: Bearer secret-token-12345678901234567890",
+            "message": "Issue body: private production note from /Users/portal/secret.wav",
+            "request_id": "req_public_42"
+        }"#;
+
+        handle_issue_gateway_created(
+            &mut controller,
+            IssueGatewayCreateResult {
+                result: Err(CreateIssueError::status_for_tests(400, body)),
+            },
+        );
+
+        let last_error = controller
+            .ui
+            .feedback_issue
+            .last_error
+            .as_deref()
+            .expect("last error");
+        let status_text = controller.ui.status.text.as_str();
+        let status_log = controller.ui.status.log.join("\n");
+        for sink in [last_error, status_text, status_log.as_str()] {
+            assert!(!sink.contains("secret-token"));
+            assert!(!sink.contains("Bearer secret"));
+            assert!(!sink.contains("private production note"));
+            assert!(!sink.contains("/Users/portal"));
+            assert!(sink.contains("HTTP 400"));
+            assert!(sink.contains("req_public_42"));
+        }
+        assert!(!controller.ui.feedback_issue.submitting);
+    }
+}
