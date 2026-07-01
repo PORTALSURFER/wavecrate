@@ -205,13 +205,8 @@ fn runtime_identity(channel: UpdateChannel) -> RuntimeIdentity {
     let platform = platform_raw;
     let arch_raw = std::env::consts::ARCH;
     let arch = arch_raw;
-    let target = match (platform, arch) {
-        ("windows", "x86_64") => "x86_64-pc-windows-msvc",
-        ("windows", "aarch64") => "aarch64-pc-windows-msvc",
-        ("macos", "x86_64") => "x86_64-apple-darwin",
-        ("macos", "aarch64") => "aarch64-apple-darwin",
-        _ => "unknown",
-    };
+    let target = crate::updater::supported_release_target_for_platform_arch(platform, arch)
+        .unwrap_or("unknown");
     RuntimeIdentity {
         app: crate::updater::APP_NAME.to_string(),
         channel,

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use wavecrate::updater::{
     APP_NAME, ApplyPlan, REPO_SLUG, RuntimeIdentity, UpdateChannel, UpdateError, UpdaterRunArgs,
-    apply_update,
+    apply_update, supported_release_target_for_platform_arch,
 };
 
 #[cfg(test)]
@@ -172,55 +172,43 @@ Options:\n\
 }
 
 fn default_target() -> Option<String> {
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        return Some("x86_64-pc-windows-msvc".to_string());
-    }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        return Some("x86_64-unknown-linux-gnu".to_string());
-    }
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    {
-        return Some("aarch64-unknown-linux-gnu".to_string());
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        return Some("x86_64-apple-darwin".to_string());
-    }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        return Some("aarch64-apple-darwin".to_string());
-    }
-    #[allow(unreachable_code)]
-    None
+    supported_release_target_for_platform_arch(default_platform_label()?, default_arch_label()?)
+        .map(str::to_string)
 }
 
 fn default_platform() -> Option<String> {
+    let platform = default_platform_label()?;
+    supported_release_target_for_platform_arch(platform, default_arch_label()?)?;
+    Some(platform.to_string())
+}
+
+fn default_arch() -> Option<String> {
+    let arch = default_arch_label()?;
+    supported_release_target_for_platform_arch(default_platform_label()?, arch)?;
+    Some(arch.to_string())
+}
+
+fn default_platform_label() -> Option<&'static str> {
     #[cfg(target_os = "windows")]
     {
-        return Some("windows".to_string());
-    }
-    #[cfg(target_os = "linux")]
-    {
-        return Some("linux".to_string());
+        return Some("windows");
     }
     #[cfg(target_os = "macos")]
     {
-        return Some("macos".to_string());
+        return Some("macos");
     }
     #[allow(unreachable_code)]
     None
 }
 
-fn default_arch() -> Option<String> {
+fn default_arch_label() -> Option<&'static str> {
     #[cfg(target_arch = "x86_64")]
     {
-        return Some("x86_64".to_string());
+        return Some("x86_64");
     }
     #[cfg(target_arch = "aarch64")]
     {
-        return Some("aarch64".to_string());
+        return Some("aarch64");
     }
     #[allow(unreachable_code)]
     None

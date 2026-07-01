@@ -5,17 +5,9 @@ use serde::Deserialize;
 
 use crate::http_client;
 
-use super::{UpdateChannel, UpdateError};
+use super::{UpdateChannel, UpdateError, release_contract};
 
 const MAX_RELEASE_CATALOG_JSON_BYTES: usize = 512 * 1024;
-// Catalogs may retain historical files, but only these active release targets
-// are eligible for current public-download matching.
-const SUPPORTED_PUBLIC_RELEASE_TARGETS: &[(&str, &str)] = &[
-    ("windows", "x86_64"),
-    ("macos", "x86_64"),
-    ("macos", "aarch64"),
-];
-
 /// Public Wavecrate release catalog exposed by portalsurfer.org.
 pub const PUBLIC_RELEASE_CATALOG_URL: &str = "https://portalsurfer.org/wavecrate/api/v1/releases";
 /// Human-facing Wavecrate download page on portalsurfer.org.
@@ -80,14 +72,14 @@ pub fn check_public_release_catalog(
     let bytes = http_client::read_response_bytes(response, MAX_RELEASE_CATALOG_JSON_BYTES)
         .map_err(|err| UpdateError::Http(err.to_string()))?;
     let catalog: PublicReleaseCatalog = serde_json::from_slice(&bytes)?;
-    Ok(latest_available_public_release(
+    latest_available_public_release(
         &catalog,
         request.current_build_number,
         &request.current_build_sha,
         &request.platform,
         &request.arch,
         request.channel,
-    ))
+    )
 }
 
 fn latest_available_public_release(
@@ -97,8 +89,10 @@ fn latest_available_public_release(
     platform: &str,
     arch: &str,
     channel: UpdateChannel,
-) -> Option<PublicReleaseInfo> {
-    let asset_suffix = public_release_asset_suffix(platform, arch)?;
+) -> Result<Option<PublicReleaseInfo>, UpdateError> {
+    let Some(asset_suffix) = public_release_asset_suffix(platform, arch)? else {
+        return Ok(None);
+    };
     let releases = catalog
         .releases
         .iter()
@@ -108,9 +102,12 @@ fn latest_available_public_release(
     let latest = releases
         .iter()
         .copied()
-        .max_by(compare_public_release_recency)?;
+        .max_by(compare_public_release_recency);
+    let Some(latest) = latest else {
+        return Ok(None);
+    };
     if latest.matches_build_sha(current_build_sha) {
-        return None;
+        return Ok(None);
     }
     if let Some(current_release) = releases
         .iter()
@@ -118,13 +115,13 @@ fn latest_available_public_release(
         .filter(|release| release.matches_build_sha(current_build_sha))
         .max_by(compare_public_release_recency)
     {
-        return release_is_newer_than(latest, current_release)
-            .then(|| PublicReleaseInfo::from_catalog_release(latest));
+        return Ok(release_is_newer_than(latest, current_release)
+            .then(|| PublicReleaseInfo::from_catalog_release(latest)));
     }
     if latest.build_number <= current_build_number {
-        return None;
+        return Ok(None);
     }
-    Some(PublicReleaseInfo::from_catalog_release(latest))
+    Ok(Some(PublicReleaseInfo::from_catalog_release(latest)))
 }
 
 fn release_matches_channel(release: &PublicReleaseCatalogRelease, channel: UpdateChannel) -> bool {
@@ -138,16 +135,11 @@ fn release_matches_channel(release: &PublicReleaseCatalogRelease, channel: Updat
     }
 }
 
-fn public_release_asset_suffix(platform: &str, arch: &str) -> Option<String> {
-    if !SUPPORTED_PUBLIC_RELEASE_TARGETS
-        .iter()
-        .any(|(supported_platform, supported_arch)| {
-            platform == *supported_platform && arch == *supported_arch
-        })
-    {
-        return None;
+fn public_release_asset_suffix(platform: &str, arch: &str) -> Result<Option<String>, UpdateError> {
+    if !release_contract::supports_platform_arch(platform, arch)? {
+        return Ok(None);
     }
-    Some(format!("{platform}-{arch}.zip"))
+    Ok(Some(format!("{platform}-{arch}.zip")))
 }
 
 fn map_http_error(err: ureq::Error) -> UpdateError {
@@ -258,6 +250,7 @@ mod tests {
             "aarch64",
             UpdateChannel::Nightly,
         )
+        .expect("release contract")
         .expect("new macos arm release");
 
         assert_eq!(release.build_number, 242);
@@ -277,6 +270,7 @@ mod tests {
                 "aarch64",
                 UpdateChannel::Nightly
             )
+            .expect("release contract")
             .is_none()
         );
     }
@@ -294,6 +288,7 @@ mod tests {
                 "aarch64",
                 UpdateChannel::Nightly
             )
+            .expect("release contract")
             .is_none()
         );
     }
@@ -313,6 +308,7 @@ mod tests {
             "aarch64",
             UpdateChannel::Nightly,
         )
+        .expect("release contract")
         .expect("new macos arm release");
 
         assert_eq!(release.build_number, 242);
@@ -332,6 +328,7 @@ mod tests {
                 "x86_64",
                 UpdateChannel::Nightly
             )
+            .expect("release contract")
             .is_none()
         );
     }
@@ -339,25 +336,43 @@ mod tests {
     #[test]
     fn public_release_asset_suffix_accepts_supported_download_targets() {
         assert_eq!(
-            public_release_asset_suffix("windows", "x86_64").as_deref(),
+            public_release_asset_suffix("windows", "x86_64")
+                .unwrap()
+                .as_deref(),
             Some("windows-x86_64.zip")
         );
         assert_eq!(
-            public_release_asset_suffix("macos", "x86_64").as_deref(),
+            public_release_asset_suffix("macos", "x86_64")
+                .unwrap()
+                .as_deref(),
             Some("macos-x86_64.zip")
         );
         assert_eq!(
-            public_release_asset_suffix("macos", "aarch64").as_deref(),
+            public_release_asset_suffix("macos", "aarch64")
+                .unwrap()
+                .as_deref(),
             Some("macos-aarch64.zip")
         );
     }
 
     #[test]
     fn public_release_asset_suffix_rejects_unsupported_download_targets() {
-        assert!(public_release_asset_suffix("freebsd", "x86_64").is_none());
-        assert!(public_release_asset_suffix("linux", "x86_64").is_none());
-        assert!(public_release_asset_suffix("windows", "aarch64").is_none());
-        assert!(public_release_asset_suffix("macos", "riscv64").is_none());
+        assert_eq!(
+            public_release_asset_suffix("freebsd", "x86_64").unwrap(),
+            None
+        );
+        assert_eq!(
+            public_release_asset_suffix("linux", "x86_64").unwrap(),
+            None
+        );
+        assert_eq!(
+            public_release_asset_suffix("windows", "aarch64").unwrap(),
+            None
+        );
+        assert_eq!(
+            public_release_asset_suffix("macos", "riscv64").unwrap(),
+            None
+        );
     }
 
     #[test]
@@ -385,6 +400,7 @@ mod tests {
             "aarch64",
             UpdateChannel::Nightly,
         )
+        .expect("release contract")
         .expect("newer release by public catalog recency");
 
         assert_eq!(release.build_id, "wavecrate-nightly-b242-4c969d95");
@@ -416,6 +432,7 @@ mod tests {
                 "aarch64",
                 UpdateChannel::Nightly
             )
+            .expect("release contract")
             .is_none()
         );
     }
@@ -438,6 +455,7 @@ mod tests {
                 "aarch64",
                 UpdateChannel::Nightly
             )
+            .expect("release contract")
             .is_none()
         );
         assert!(
@@ -449,6 +467,7 @@ mod tests {
                 "aarch64",
                 UpdateChannel::Nightly
             )
+            .expect("release contract")
             .is_some()
         );
     }
@@ -487,6 +506,7 @@ mod tests {
             "x86_64",
             UpdateChannel::Stable,
         )
+        .expect("release contract")
         .expect("stable");
         let rc = latest_available_public_release(
             &catalog,
@@ -496,6 +516,7 @@ mod tests {
             "x86_64",
             UpdateChannel::Rc,
         )
+        .expect("release contract")
         .expect("rc");
         let nightly = latest_available_public_release(
             &catalog,
@@ -505,6 +526,7 @@ mod tests {
             "x86_64",
             UpdateChannel::Nightly,
         )
+        .expect("release contract")
         .expect("nightly");
 
         assert_eq!(stable.version, "19.1.0");
