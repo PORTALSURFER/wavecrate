@@ -37,7 +37,7 @@ pub(in crate::native_app) fn default_gui_shortcuts(
         .layer_when(
             state.ui.browser_interaction.context_menu.is_some()
                 || state.ui.browser_interaction.waveform_context_menu.is_some(),
-            ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
+            context_menu_modal_shortcuts(),
         )
         .layer_when(
             state
@@ -135,6 +135,18 @@ fn collection_focus_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
         ui::KeyPress::new(ui::KeyCode::Escape),
         GuiMessage::FolderBrowser(FolderBrowserMessage::ExitCollectionFocus),
     )
+}
+
+fn context_menu_modal_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::modal()
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Escape),
+            GuiMessage::CloseContextMenu,
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::W),
+            GuiMessage::CloseContextMenu,
+        )
 }
 
 fn pending_destructive_edit_shortcuts() -> ui::ShortcutLayer<GuiMessage> {

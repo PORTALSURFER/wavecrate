@@ -23,6 +23,9 @@ impl NativeAppState {
         &mut self,
         context: &radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
+        if self.close_open_context_menu() {
+            return;
+        }
         if self
             .waveform
             .current
@@ -80,6 +83,16 @@ impl NativeAppState {
             context.current_pointer_position(),
         );
         self.open_source_context_menu(source_id, anchor);
+    }
+
+    fn close_open_context_menu(&mut self) -> bool {
+        let open = self.ui.browser_interaction.context_menu.is_some()
+            || self.ui.browser_interaction.waveform_context_menu.is_some();
+        if open {
+            self.ui.browser_interaction.context_menu = None;
+            self.ui.browser_interaction.waveform_context_menu = None;
+        }
+        open
     }
 
     pub(in crate::native_app) fn open_source_context_menu(

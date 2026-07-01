@@ -38,6 +38,17 @@ fn context_menu_escape_shortcut_closes_context_menu() {
 }
 
 #[test]
+fn context_menu_w_shortcut_closes_context_menu() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.browser_interaction.context_menu = Some(sample_context_menu("C:\\samples\\kick.wav"));
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::W));
+
+    assert_eq!(resolution.action, Some(GuiMessage::CloseContextMenu));
+    assert!(resolution.handled);
+}
+
+#[test]
 fn waveform_context_menu_escape_shortcut_closes_context_menu() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
@@ -47,6 +58,21 @@ fn waveform_context_menu_escape_shortcut_closes_context_menu() {
     });
 
     let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(resolution.action, Some(GuiMessage::CloseContextMenu));
+    assert!(resolution.handled);
+}
+
+#[test]
+fn waveform_context_menu_w_shortcut_closes_context_menu() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.browser_interaction.waveform_context_menu = Some(WaveformContextMenu {
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
+    });
+
+    let resolution = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::W));
 
     assert_eq!(resolution.action, Some(GuiMessage::CloseContextMenu));
     assert!(resolution.handled);

@@ -432,6 +432,35 @@ fn global_context_menu_uses_live_pointer_position_over_stale_sample_anchor() {
 }
 
 #[test]
+fn w_command_toggles_open_browser_context_menu_closed() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.browser_interaction.context_menu = Some(
+        crate::native_app::test_support::context_menu::BrowserContextMenu {
+            kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+            path: PathBuf::from("Documents"),
+            source_id: None,
+            source_role: wavecrate::sample_sources::SourceRole::Normal,
+            source_removable: false,
+            folder_locked: false,
+            folder_lock_inherited: false,
+            metadata_tag: None,
+            collection: None,
+            sample_missing: false,
+            sample_keep_locked: false,
+            anchor: Point::new(72.0, 142.0),
+            title: String::from("Documents"),
+        },
+    );
+
+    state.apply_message(
+        GuiMessage::OpenContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
+}
+
+#[test]
 fn global_context_menu_opens_selected_folder_menu_at_matching_pointer_anchor() {
     let root = tempfile::tempdir().expect("source root");
     let mut state = gui_state_for_span_tests();
@@ -578,6 +607,25 @@ fn w_command_opens_playmark_context_menu_at_live_pointer_over_stale_waveform_anc
         .waveform_context_menu
         .expect("playmark context menu opens");
     assert_eq!(menu.anchor, live_pointer);
+}
+
+#[test]
+fn w_command_toggles_open_playmark_context_menu_closed() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.browser_interaction.waveform_context_menu = Some(
+        crate::native_app::test_support::context_menu::WaveformContextMenu {
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("Playmark Selection"),
+            extract_to_harvest_destination: false,
+        },
+    );
+
+    state.apply_message(
+        GuiMessage::OpenContextMenu,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.ui.browser_interaction.waveform_context_menu, None);
 }
 
 #[test]
