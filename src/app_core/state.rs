@@ -4,7 +4,8 @@
 //! instead of reaching into the legacy `app` tree directly. Most entries are
 //! compatibility aliases while the legacy controller still owns the backing UI
 //! state, but this file is the documented boundary for state ownership during
-//! migration.
+//! migration. The active ownership inventory and exit criteria live next to the
+//! single legacy crossing in `app_core::app_api`.
 
 use crate::app_core::actions::NativeBrowserTagTarget;
 use crate::app_core::app_api::state as app_state;
