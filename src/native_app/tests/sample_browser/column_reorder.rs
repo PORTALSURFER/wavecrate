@@ -199,7 +199,16 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
     runtime.dispatch_event(Event::pointer_move(hover_size_left));
     runtime.dispatch_event(Event::pointer_move(hover_size_left_update));
     let dragging_frame = runtime.frame_with_default_theme();
-    let marker = dragging_frame
+    let marker = column_drop_marker_rect(&dragging_frame);
+    let boundary_delta = marker.min.x - size_rect.min.x;
+    assert!(
+        boundary_delta.abs() <= 1.0,
+        "drop marker should paint at the size header insertion boundary, marker={marker:?}, size={size_rect:?}, delta={boundary_delta}",
+    );
+}
+
+fn column_drop_marker_rect(frame: &SurfaceFrame) -> Rect {
+    frame
         .paint_plan
         .fill_rects()
         .find(|fill| {
@@ -207,11 +216,6 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
                 && fill.rect.width() <= 2.5
                 && fill.rect.height() >= 20.0
         })
-        .expect("dragging over a later visible header should paint the drop marker");
-    let handle_gap = marker.rect.min.x - size_rect.min.x;
-    assert!(
-        (-120.0..=2.0).contains(&handle_gap),
-        "drop marker should paint in the size header's leading drop region, marker={:?}, size={size_rect:?}, gap={handle_gap}",
-        marker.rect
-    );
+        .map(|fill| fill.rect)
+        .expect("active column drag should paint the drop marker")
 }

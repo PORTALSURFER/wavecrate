@@ -160,21 +160,24 @@ fn sample_browser_header(
     let header_cells = columns
         .iter()
         .flat_map(|column| sample_header_cells(column, sort, &similarity_header));
-    let header = ui::row([
+    let details_header = ui::compact_details_header_row(header_cells)
+        .fill_width()
+        .height(24.0);
+    let details_header = match drag_marker_x {
+        Some(marker_x) => ui::stack([details_header, column_drop_marker(marker_x)])
+            .fill_width()
+            .height(24.0),
+        None => details_header,
+    };
+    ui::row([
         ui::spacer()
             .width(SAMPLE_SIMILARITY_TOGGLE_HEADER_WIDTH)
             .height(24.0),
-        ui::compact_details_header_row(header_cells).fill_width(),
+        details_header,
     ])
     .spacing(0.0)
     .fill_width()
-    .height(24.0);
-    let Some(marker_x) = drag_marker_x else {
-        return header;
-    };
-    ui::stack([header, column_drop_marker(marker_x)])
-        .fill_width()
-        .height(24.0)
+    .height(24.0)
 }
 
 fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
