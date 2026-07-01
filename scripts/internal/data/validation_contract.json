@@ -25,6 +25,7 @@
     ],
     "syntax_bash": [
       "scripts/agent.sh",
+      "scripts/internal/setup_headless_audio.sh",
       "scripts/internal/agent/run_agent_ci_checks.sh",
       "scripts/internal/agent/run_agent_preflight.sh",
       "scripts/ci.sh",

@@ -12,6 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 # shellcheck source=scripts/internal/setup_headless_audio.sh
 source "$ROOT_DIR/scripts/internal/setup_headless_audio.sh"
+# Tooling-only Linux fallback for headless perf hosts; not product support.
 wavecrate_setup_headless_audio "perf_guard"
 
 RADIANT_RUNTIME_FILE="$ROOT_DIR/vendor/radiant/src/gui_runtime/native_vello.rs"
