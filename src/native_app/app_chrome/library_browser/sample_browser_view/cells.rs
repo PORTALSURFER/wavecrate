@@ -28,6 +28,8 @@ const SAMPLE_NAME_BADGE_LIMIT: usize = 4;
 pub(super) const RATING_MARKER_SIDE: u8 = 5;
 pub(super) const LOCKED_KEEP_RATING_MARKER_SIDE: u8 = 7;
 pub(super) const LOCKED_KEEP_RATING_COLOR: ui::Rgba8 = ui::Rgba8::new(232, 188, 56, 245);
+/// Keeps right-aligned collection markers left of the header resize-divider gutter.
+pub(super) const COLLECTION_MARKER_RIGHT_INSET: u8 = 14;
 const SIMILARITY_ANCHOR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
     ui::Rgba8::new(238, 238, 238, 220),
     ui::Rgba8::new(255, 160, 82, 255),
@@ -125,7 +127,11 @@ fn sample_rename_cell(rename: FileRenameView, width: f32) -> ui::View<GuiMessage
 /// Render the passive collection-membership marker cell.
 pub(super) fn sample_collection_cell(colors: Vec<ui::Rgba8>, width: f32) -> ui::View<GuiMessage> {
     ui::compact_details_cell(
-        ui::marker_run_colors(colors).side(6).gap(4).inset(4).view(),
+        ui::marker_run_colors(colors)
+            .side(6)
+            .gap(4)
+            .inset(COLLECTION_MARKER_RIGHT_INSET)
+            .view(),
         Some(width),
     )
 }
