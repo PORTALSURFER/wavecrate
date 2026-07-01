@@ -40,7 +40,6 @@ pub(crate) trait DragDropActions {
         shift_down: bool,
         alt_down: bool,
     );
-    fn refresh_drag_position(&mut self, pos: UiPoint, shift_down: bool, alt_down: bool);
     fn finish_active_drag(&mut self);
 }
 
@@ -141,24 +140,6 @@ impl DragDropActions for DragDropController<'_> {
         {
             let _ = shift_down;
             *keep_source_focused = true;
-        }
-    }
-
-    fn refresh_drag_position(&mut self, pos: UiPoint, shift_down: bool, alt_down: bool) {
-        if self.ui.drag.payload.is_some() {
-            if self.ui.drag.pointer_left_window {
-                return;
-            }
-            self.ui.drag.position = Some(pos);
-            self.ui.drag.copy_on_drop = alt_down;
-            if let Some(DragPayload::Selection {
-                keep_source_focused,
-                ..
-            }) = self.ui.drag.payload.as_mut()
-            {
-                let _ = shift_down;
-                *keep_source_focused = true;
-            }
         }
     }
 

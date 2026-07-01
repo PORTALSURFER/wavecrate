@@ -77,12 +77,6 @@ impl AppController {
             .update_active_drag(pos, source, target, shift_down, alt_down);
     }
 
-    /// Update the stored drag pointer position (used when egui pointer positions are missing).
-    pub fn refresh_drag_position(&mut self, pos: UiPoint, shift_down: bool, alt_down: bool) {
-        self.drag_drop()
-            .refresh_drag_position(pos, shift_down, alt_down);
-    }
-
     /// Finish the active drag gesture and apply any resulting action.
     pub fn finish_active_drag(&mut self) {
         self.drag_drop().finish_active_drag();
