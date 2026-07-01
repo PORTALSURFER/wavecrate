@@ -375,7 +375,7 @@ flush boundaries. Accepted values: `1`, `true`, `on`, `yes`
 ## Performance guard benchmark overrides
 
 - `WAVECRATE_PERF_GUARD_OUT`
-Output path used by `scripts/perf.sh guard` for the benchmark JSON report.
+Output path used by `scripts/perf.* guard` for the benchmark JSON report.
 Default: `target/perf/bench.json`.
 
 - `WAVECRATE_PERF_GUARD_GUI_ROWS`
@@ -401,13 +401,22 @@ Default: `16`.
 
 - `WAVECRATE_PERF_GUARD_RUNS`
 Number of full `wavecrate-bench` benchmark CLI runs executed by
-`scripts/perf.sh guard`. When greater than `1`, the guard reports median
+`scripts/perf.* guard`. When greater than `1`, the guard reports median
 percentiles across runs and the p95 spread across runs. Default: `1`.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_PROFILE`
-When set to `1`/`true`/`on`/`yes`, `scripts/perf.sh guard` also captures
+When set to `1`/`true`/`on`/`yes`, `scripts/perf.* guard` also captures
 native startup timing logs by launching `wavecrate` under timeout and parsing
 `RADIANT_NATIVE_STARTUP_PROFILE` output. Default: disabled (`0`).
+For release-risk startup evidence, run this guard on supported app platforms.
+The Bash `scripts/perf.sh calibrate-startup` command is Linux developer-only
+threshold-refresh tooling and is not product Linux support.
+
+- `WAVECRATE_PERF_GUARD_STARTUP_HIDDEN`
+Optional developer-only startup-profile flag. When set to `1`/`true`/`on`/`yes`,
+Wavecrate keeps its native window hidden after surface setup while preserving
+first-present timing diagnostics. Leave this unset for release-risk startup
+evidence because hidden-window captures do not measure user-visible first paint.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_TIMEOUT_SECS`
 Timeout (seconds) used for each startup-profile capture run when startup
@@ -429,12 +438,12 @@ Default: `<WAVECRATE_PERF_GUARD_OUT>.startup_summary.json`.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_OUT`
 Optional output env file path for startup threshold locking. When set and
-startup profiling succeeds, `scripts/perf.sh guard` writes startup threshold
+startup profiling succeeds, `scripts/perf.* guard` writes startup threshold
 assignments to this file using `scripts/internal/perf/perf_startup_lock_thresholds.py`.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_IN`
 Optional startup threshold lock-file input path sourced by
-`scripts/perf.sh guard` before threshold parsing. Defaults to the tracked
+`scripts/perf.* guard` before threshold parsing. Defaults to the tracked
 lock file at `scripts/internal/perf/locks/startup_thresholds.env`. Set to an empty value
 to disable auto-loading.
 
@@ -445,7 +454,7 @@ Minimum valid startup-profile run count required before writing
 
 - `WAVECRATE_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT`
 Optional output env file path for frame-quality threshold locking. When set,
-`scripts/perf.sh guard` writes calibrated frame-jank and missed-present
+`scripts/perf.* guard` writes calibrated frame-jank and missed-present
 threshold assignments to this path using
 `scripts/internal/perf/perf_frame_quality_lock_thresholds.py`.
 
@@ -508,7 +517,7 @@ interaction benchmark results. Default: `8000`.
 
 - `WAVECRATE_PERF_WARN_FRAME_JANK_RATIO`
 Warning threshold (ratio `0.0..=1.0`) for per-scenario frame-jank proxy share
-reported by `scripts/perf.sh guard` from benchmark latency samples above
+reported by `scripts/perf.* guard` from benchmark latency samples above
 `frame_budget_us` (`16667us`). Default: `0.10`.
 
 - `WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO`
@@ -517,7 +526,7 @@ proxy share. Unset by default.
 
 - `WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO`
 Warning threshold (ratio `0.0..=1.0`) for per-scenario missed-present proxy
-share reported by `scripts/perf.sh guard` from benchmark latency samples
+share reported by `scripts/perf.* guard` from benchmark latency samples
 above `2 * frame_budget_us` (`33334us`). Default: `0.05`.
 
 - `WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO`

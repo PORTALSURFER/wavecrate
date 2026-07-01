@@ -16,8 +16,10 @@ dispatcher maps. These are the public entrypoints people should run directly:
   entrypoints.
 - `check.{sh,ps1}`: focused guardrails and report helpers.
 - `run.{sh,ps1}`: sandbox, cleanup, log, and bug-bundle helpers.
-- `perf.{sh,ps1}`: performance guard and calibration commands. The startup
-  threshold calibration helper is currently bash-only.
+- `perf.{sh,ps1}`: performance guard commands. `scripts/perf.* guard` is the
+  maintained local/manual or release-risk perf lane. The Bash-only
+  `calibrate-startup` command is optional Linux developer tooling for refreshing
+  startup threshold lock files; it is not shipped Linux product support.
 - `gui.ps1`: Windows GUI validation lanes.
 
 PowerShell compatibility wrappers also remain available for the older

@@ -5,6 +5,15 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: scripts/perf.sh <guard|calibrate-startup|wheel-stability> [args...]
+
+Commands:
+  guard              Run the maintained local/manual perf guard.
+  wheel-stability    Collect wheel-latency stability evidence.
+  calibrate-startup  Linux developer-only startup threshold refresh helper.
+
+`calibrate-startup` requires WAYLAND_DISPLAY or DISPLAY and does not represent
+shipped Linux product support. Use `scripts/perf.* guard` for release-risk
+startup perf evidence on supported app platforms.
 EOF
 }
 

@@ -319,6 +319,13 @@ per-launch diagnostics trail.
   - `bash scripts/perf.sh guard`
   - `powershell -ExecutionPolicy Bypass -File scripts/perf.ps1 guard`
 
+Startup threshold calibration is not a release lane by itself. The Bash
+`scripts/perf.sh calibrate-startup` command is optional Linux developer tooling
+for refreshing startup threshold lock files on compositor-backed hosts. Current
+release-risk startup perf evidence should be collected with `scripts/perf.* guard`
+on supported app platforms, using `WAVECRATE_PERF_GUARD_STARTUP_PROFILE=1` when
+first-paint startup timing evidence is required.
+
 ## CI reference
 
 GitHub CI and local wrappers together cover:

@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Parse native startup timing logs emitted by "
-            "WAVECRATE_NATIVE_STARTUP_PROFILE and print a guard summary."
+            "RADIANT_NATIVE_STARTUP_PROFILE and print a guard summary."
         )
     )
     parser.add_argument(

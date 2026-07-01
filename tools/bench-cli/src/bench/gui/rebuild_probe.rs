@@ -12,7 +12,9 @@ use super::interactions::{
     },
 };
 use super::workspace::wait_for_rows;
-use wavecrate::app_core::actions::NativeUiAction;
+use wavecrate::app_core::actions::{
+    NativeBrowserAction, NativeOptionsAction, NativeUiAction, NativeWaveformAction,
+};
 use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use wavecrate::app_core::state::{SampleBrowserSort, TriageFlagFilter};
 use wavecrate::app_core::ui_bridge::{
@@ -132,7 +134,9 @@ fn probe_wheel(
                 _ => -2,
             };
             step = step.saturating_add(1);
-            controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta });
+            controller.apply_ui_action(NativeUiAction::Browser(
+                NativeBrowserAction::MoveBrowserFocus { delta },
+            ));
         },
     )
 }
@@ -281,9 +285,9 @@ fn probe_volume(
         measure_iters,
         false,
         |controller, step| {
-            controller.apply_ui_action(NativeUiAction::SetVolume {
+            controller.apply_ui_action(NativeUiAction::Options(NativeOptionsAction::SetVolume {
                 value_milli: volume_milli_for_step(step),
-            });
+            }));
         },
     )
 }
@@ -301,9 +305,11 @@ fn probe_idle_cursor_motion(
         measure_iters,
         true,
         |controller, _| {
-            controller.apply_ui_action(NativeUiAction::SetWaveformCursor {
-                position_milli: ((step.saturating_mul(37) % 1000) + 1) as u16,
-            });
+            controller.apply_ui_action(NativeUiAction::Waveform(
+                NativeWaveformAction::SetWaveformCursorPrecise {
+                    position_nanos: ((step.saturating_mul(37) % 1000) + 1) as u32 * 1_000_000,
+                },
+            ));
             step = step.saturating_add(1);
         },
     )
