@@ -1,8 +1,8 @@
 use super::super::cells::{
-    LOCKED_KEEP_RATING_COLOR, LOCKED_KEEP_RATING_MARKER_SIDE, RATING_MARKER_SIDE,
-    SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL, muted_sample_file_cell,
-    sample_collection_cell, sample_file_cell, sample_playback_type_cell, sample_rating_cell,
-    sample_similarity_cell,
+    COLLECTION_MARKER_RIGHT_INSET, LOCKED_KEEP_RATING_COLOR, LOCKED_KEEP_RATING_MARKER_SIDE,
+    RATING_MARKER_SIDE, SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL,
+    muted_sample_file_cell, sample_collection_cell, sample_file_cell, sample_playback_type_cell,
+    sample_rating_cell, sample_similarity_cell,
 };
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
@@ -184,6 +184,78 @@ fn collection_cell_paints_each_collection_membership_color() {
                 .expect("third collection color")
         ),
         "collection column should paint the third collection color"
+    );
+}
+
+#[test]
+/// Verifies collection markers remain clipped to their own column cell.
+fn collection_cell_keeps_markers_inside_narrow_column_bounds() {
+    let collections = [
+        SampleCollection::new(0).expect("collection"),
+        SampleCollection::new(1).expect("collection"),
+        SampleCollection::new(2).expect("collection"),
+    ];
+    let theme = ThemeTokens::default();
+    let folder_browser = FolderBrowserState::load_default();
+    let collection_colors = collections
+        .into_iter()
+        .filter_map(|collection| folder_browser.collection_color(collection))
+        .collect::<Vec<_>>();
+    let column_width = 24.0;
+    let frame = sample_collection_cell(collection_colors.clone(), column_width)
+        .view_frame_at_size(Vector2::new(column_width, 20.0), &theme);
+
+    let marker_rects = frame
+        .paint_plan
+        .fill_rects()
+        .filter(|fill| collection_colors.contains(&fill.color))
+        .map(|fill| fill.rect)
+        .collect::<Vec<_>>();
+
+    assert!(
+        !marker_rects.is_empty(),
+        "collection cell should paint visible collection markers"
+    );
+    assert!(
+        marker_rects.iter().all(|rect| {
+            rect.min.x >= 0.0
+                && rect.max.x <= column_width
+                && rect.min.y >= 0.0
+                && rect.max.y <= 20.0
+        }),
+        "collection markers should stay inside the collection column bounds: {marker_rects:?}"
+    );
+}
+
+#[test]
+/// Verifies collection markers reserve the header divider gutter.
+fn collection_cell_keeps_markers_left_of_header_divider_gutter() {
+    let collections = [
+        SampleCollection::new(0).expect("collection"),
+        SampleCollection::new(1).expect("collection"),
+        SampleCollection::new(2).expect("collection"),
+    ];
+    let theme = ThemeTokens::default();
+    let folder_browser = FolderBrowserState::load_default();
+    let collection_colors = collections
+        .into_iter()
+        .filter_map(|collection| folder_browser.collection_color(collection))
+        .collect::<Vec<_>>();
+    let column_width = 58.0;
+    let frame = sample_collection_cell(collection_colors.clone(), column_width)
+        .view_frame_at_size(Vector2::new(column_width, 20.0), &theme);
+
+    let max_marker_x = frame
+        .paint_plan
+        .fill_rects()
+        .filter(|fill| collection_colors.contains(&fill.color))
+        .map(|fill| fill.rect.max.x)
+        .max_by(f32::total_cmp)
+        .expect("collection cell should paint visible collection markers");
+
+    assert!(
+        max_marker_x <= column_width - COLLECTION_MARKER_RIGHT_INSET as f32,
+        "collection markers should end left of the header divider gutter: max_marker_x={max_marker_x}"
     );
 }
 
