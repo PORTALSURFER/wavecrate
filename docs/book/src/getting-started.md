@@ -36,7 +36,7 @@ After a source is added:
 
 ## Where Wavecrate Stores Settings
 
-Wavecrate keeps app data in a `.wavecrate` folder inside your supported operating system config directory.
+On supported app platforms, Wavecrate keeps app data in a `.wavecrate` folder inside the operating system config directory.
 
 - macOS: `~/Library/Application Support/.wavecrate/`
 - Windows: `%APPDATA%\\.wavecrate\\`
