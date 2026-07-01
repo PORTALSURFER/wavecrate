@@ -3,6 +3,9 @@ use radiant::prelude as ui;
 use super::identity::{RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE, retained_folder_row_key};
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::SIDEBAR_ROW_STYLE;
+use crate::native_app::sample_library::context_menu_target::{
+    BrowserContextPointerAnchor, BrowserContextPointerTarget,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::{
@@ -130,6 +133,12 @@ fn standard_folder_row(folder: &VisibleFolder, id: String) -> ui::View<GuiMessag
 
 fn folder_row_actions(id: String) -> ui::InteractiveRowActions<GuiMessage> {
     ui::row_actions()
+        .hover_key(id.clone(), |id, position| {
+            GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
+                target: BrowserContextPointerTarget::Folder(id),
+                position,
+            })
+        })
         .primary_with_modifiers_key(id.clone(), |id, modifiers| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id, modifiers))
         })

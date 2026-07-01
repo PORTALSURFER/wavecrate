@@ -22,7 +22,9 @@ use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
 };
 use crate::native_app::metadata::MetadataTagPersistResult;
-use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
+use crate::native_app::sample_library::context_menu_target::{
+    BrowserContextPointerAnchor, BrowserContextTargetKind,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::commands::RenameCommitCompletion;
 use crate::native_app::sample_library::folder_browser::commands::{
@@ -84,6 +86,7 @@ pub(in crate::native_app) enum GuiMessage {
         path: String,
         position: Point,
     },
+    RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor),
     DragSampleFile {
         path: String,
         drag: DragHandleMessage,

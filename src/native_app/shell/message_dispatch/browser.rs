@@ -85,6 +85,9 @@ impl NativeAppState {
                     ClipboardHandoffTarget::BrowserFiles;
                 self.open_sample_context_menu(path, position);
             }
+            GuiMessage::RememberBrowserContextMenuPointerAnchor(anchor) => {
+                self.ui.browser_interaction.context_menu_pointer_anchor = Some(anchor);
+            }
             GuiMessage::DragSampleFile { path, drag } => {
                 self.ui.browser_interaction.clipboard_handoff_target =
                     ClipboardHandoffTarget::BrowserFiles;

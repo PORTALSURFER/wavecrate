@@ -7,6 +7,9 @@ use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
 use crate::native_app::app_chrome::view_models::library_sidebar::SourceRowViewModel;
+use crate::native_app::sample_library::context_menu_target::{
+    BrowserContextPointerAnchor, BrowserContextPointerTarget,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use wavecrate::sample_sources::SourceRole;
 
@@ -44,15 +47,28 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
         )
         .selected(source.selected)
         .outline(source_row_outline())
-        .actions(ui::row_actions().primary_secondary_key(
-            source.id.clone(),
-            |source_id| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id)),
-            |source_id, position| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                    source_id, position,
-                ))
-            },
-        ))
+        .actions(
+            ui::row_actions()
+                .hover_key(source.id.clone(), |source_id, position| {
+                    GuiMessage::RememberBrowserContextMenuPointerAnchor(
+                        BrowserContextPointerAnchor {
+                            target: BrowserContextPointerTarget::Source(source_id),
+                            position,
+                        },
+                    )
+                })
+                .primary_secondary_key(
+                    source.id.clone(),
+                    |source_id| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
+                    },
+                    |source_id, position| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                            source_id, position,
+                        ))
+                    },
+                ),
+        )
         .fill_width()
         .height(SOURCE_ROW_HEIGHT)
 }
