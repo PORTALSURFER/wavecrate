@@ -242,6 +242,30 @@ that validation did not leak fixture sources into the real startup profile.
    so the session writes to the dedicated `sandbox` profile instead of the live
    profile.
 
+### Windows installer identity
+
+New Windows installer runs are Wavecrate-branded only. The installer display
+name, publisher value, default install directory, Start Menu folder, and
+uninstall registry key must use `Wavecrate`; new installs must not register a
+`SemPal` uninstall entry.
+
+The SemPal compatibility path is uninstall-only. `wavecrate-installer
+--uninstall` first reads the Wavecrate uninstall key and then falls back to the
+legacy SemPal key so older installs can still be removed with the current
+binary. During install or uninstall, a legacy SemPal uninstall key is removed
+only when its `InstallLocation` points at the same installation being updated or
+removed. A separate old SemPal install is not silently deleted by a Wavecrate
+install.
+
+Focused validation for installer identity changes:
+
+- `cargo test -p wavecrate-installer`
+- `cargo run -p wavecrate-installer -- --dry-run`
+- On Windows, inspect `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Wavecrate`
+  after a real install and confirm `DisplayName=Wavecrate`,
+  `Publisher=Wavecrate`, and `UninstallString` points at
+  `wavecrate-installer.exe --uninstall`.
+
 ### Database migration and compatibility
 
 Use this lane when changing `.wavecrate.db`, `library.db`, source metadata
