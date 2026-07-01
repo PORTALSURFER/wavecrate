@@ -30,6 +30,29 @@ pub(in crate::native_app) struct BrowserContextMenu {
     pub(in crate::native_app) title: String,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct BrowserContextPointerAnchor {
+    pub(in crate::native_app) target: BrowserContextPointerTarget,
+    pub(in crate::native_app) position: Point,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum BrowserContextPointerTarget {
+    Source(String),
+    Folder(String),
+    Collection(SampleCollection),
+    Sample(String),
+}
+
+impl BrowserContextPointerAnchor {
+    pub(in crate::native_app) fn new(
+        target: BrowserContextPointerTarget,
+        position: Point,
+    ) -> Option<Self> {
+        (position.x.is_finite() && position.y.is_finite()).then_some(Self { target, position })
+    }
+}
+
 pub(in crate::native_app) fn target_label(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())

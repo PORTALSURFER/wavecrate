@@ -2,10 +2,11 @@ use radiant::gui::types::Point;
 use std::path::Path;
 use std::time::Instant;
 
-use crate::native_app::app::{NativeAppState, emit_gui_action};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::context_menu_target as context_menu;
 use crate::native_app::sample_library::context_menu_target::{
-    BrowserContextMenu, BrowserContextTargetKind,
+    BrowserContextMenu, BrowserContextPointerAnchor, BrowserContextPointerTarget,
+    BrowserContextTargetKind,
 };
 use crate::native_app::sample_library::file_actions::sample_path_label;
 use crate::native_app::sample_library::folder_browser::view_contract::collection_hotkey;
@@ -18,14 +19,20 @@ const FOLDER_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 96.0, y: 240.0 };
 const SOURCE_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 96.0, y: 120.0 };
 
 impl NativeAppState {
-    pub(in crate::native_app) fn open_context_menu_from_shortcut(&mut self) {
+    pub(in crate::native_app) fn open_context_menu_from_shortcut(
+        &mut self,
+        context: &radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.close_open_context_menu() {
+            return;
+        }
         if self
             .waveform
             .current
             .play_selection_context_menu_anchor()
             .is_some()
         {
-            self.open_play_selection_context_menu_from_shortcut();
+            self.open_play_selection_context_menu_from_shortcut(context.current_pointer_position());
             return;
         }
         if let Some(file_id) = self
@@ -34,11 +41,23 @@ impl NativeAppState {
             .selected_file_id()
             .map(str::to_owned)
         {
-            self.open_sample_context_menu(file_id, SAMPLE_CONTEXT_SHORTCUT_ANCHOR);
+            let target = BrowserContextPointerTarget::Sample(file_id.clone());
+            let anchor = self.context_menu_pointer_position_for(
+                &target,
+                SAMPLE_CONTEXT_SHORTCUT_ANCHOR,
+                context.current_pointer_position(),
+            );
+            self.open_sample_context_menu(file_id, anchor);
             return;
         }
         if let Some(collection) = self.library.folder_browser.selected_collection() {
-            self.open_collection_context_menu(collection, COLLECTION_CONTEXT_SHORTCUT_ANCHOR);
+            let target = BrowserContextPointerTarget::Collection(collection);
+            let anchor = self.context_menu_pointer_position_for(
+                &target,
+                COLLECTION_CONTEXT_SHORTCUT_ANCHOR,
+                context.current_pointer_position(),
+            );
+            self.open_collection_context_menu(collection, anchor);
             return;
         }
         if let Some(folder_id) = self
@@ -47,11 +66,33 @@ impl NativeAppState {
             .selected_folder_id()
             .map(str::to_owned)
         {
-            self.open_folder_context_menu(folder_id, FOLDER_CONTEXT_SHORTCUT_ANCHOR);
+            let target = BrowserContextPointerTarget::Folder(folder_id.clone());
+            let anchor = self.context_menu_pointer_position_for(
+                &target,
+                FOLDER_CONTEXT_SHORTCUT_ANCHOR,
+                context.current_pointer_position(),
+            );
+            self.open_folder_context_menu(folder_id, anchor);
             return;
         }
         let source_id = self.library.folder_browser.selected_source_id().to_owned();
-        self.open_source_context_menu(source_id, SOURCE_CONTEXT_SHORTCUT_ANCHOR);
+        let target = BrowserContextPointerTarget::Source(source_id.clone());
+        let anchor = self.context_menu_pointer_position_for(
+            &target,
+            SOURCE_CONTEXT_SHORTCUT_ANCHOR,
+            context.current_pointer_position(),
+        );
+        self.open_source_context_menu(source_id, anchor);
+    }
+
+    fn close_open_context_menu(&mut self) -> bool {
+        let open = self.ui.browser_interaction.context_menu.is_some()
+            || self.ui.browser_interaction.waveform_context_menu.is_some();
+        if open {
+            self.ui.browser_interaction.context_menu = None;
+            self.ui.browser_interaction.waveform_context_menu = None;
+        }
+        open
     }
 
     pub(in crate::native_app) fn open_source_context_menu(
@@ -59,6 +100,10 @@ impl NativeAppState {
         source_id: String,
         position: Point,
     ) {
+        self.remember_context_menu_pointer_anchor(
+            BrowserContextPointerTarget::Source(source_id.clone()),
+            position,
+        );
         let started_at = Instant::now();
         let Some(path) = self.library.folder_browser.source_root_path(&source_id) else {
             self.ui.status.sample = String::from("Source is unavailable");
@@ -101,6 +146,10 @@ impl NativeAppState {
         folder_id: String,
         position: Point,
     ) {
+        self.remember_context_menu_pointer_anchor(
+            BrowserContextPointerTarget::Folder(folder_id.clone()),
+            position,
+        );
         let started_at = Instant::now();
         let Some(path) = self.library.folder_browser.folder_path(&folder_id) else {
             self.ui.status.sample = String::from("Folder is unavailable");
@@ -154,6 +203,10 @@ impl NativeAppState {
         collection: SampleCollection,
         position: Point,
     ) {
+        self.remember_context_menu_pointer_anchor(
+            BrowserContextPointerTarget::Collection(collection),
+            position,
+        );
         let title = self
             .library
             .folder_browser
@@ -184,6 +237,10 @@ impl NativeAppState {
         path: String,
         position: Point,
     ) {
+        self.remember_context_menu_pointer_anchor(
+            BrowserContextPointerTarget::Sample(path.clone()),
+            position,
+        );
         let started_at = Instant::now();
         if !self
             .library
@@ -265,6 +322,37 @@ impl NativeAppState {
             anchor: position,
             title: tag,
         });
+    }
+}
+
+impl NativeAppState {
+    pub(in crate::native_app) fn remember_context_menu_pointer_anchor(
+        &mut self,
+        target: BrowserContextPointerTarget,
+        position: Point,
+    ) {
+        if let Some(anchor) = BrowserContextPointerAnchor::new(target, position) {
+            self.ui.browser_interaction.context_menu_pointer_anchor = Some(anchor);
+        }
+    }
+
+    fn context_menu_pointer_position_for(
+        &self,
+        target: &BrowserContextPointerTarget,
+        fallback: Point,
+        current_pointer_position: Option<Point>,
+    ) -> Point {
+        current_pointer_position
+            .filter(|position| position.x.is_finite() && position.y.is_finite())
+            .or_else(|| {
+                self.ui
+                    .browser_interaction
+                    .context_menu_pointer_anchor
+                    .as_ref()
+                    .filter(|anchor| &anchor.target == target)
+                    .map(|anchor| anchor.position)
+            })
+            .unwrap_or(fallback)
     }
 }
 
