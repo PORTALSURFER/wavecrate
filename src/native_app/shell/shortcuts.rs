@@ -7,6 +7,8 @@ use crate::native_app::app::{
 use crate::native_app::waveform::WaveformInteraction;
 
 mod help;
+#[cfg(test)]
+pub(in crate::native_app) use help::shortcut_help_bindings;
 pub(in crate::native_app) use help::{
     ShortcutHelpItem, ShortcutHelpSection, shortcut_help_sections,
 };
