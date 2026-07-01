@@ -56,6 +56,7 @@ pub(super) fn check_for_updates(
 
     match request.channel {
         UpdateChannel::Stable => stable_outcome(&request.current_version, release),
+        UpdateChannel::Rc => rc_outcome(&request.current_version, release),
         UpdateChannel::Nightly => nightly_outcome(&request.last_seen_nightly_published_at, release),
     }
 }
@@ -72,6 +73,30 @@ fn stable_outcome(
     };
     let latest = Version::parse(version_text).map_err(|err| {
         UpdateError::Invalid(format!("Invalid stable version '{version_text}': {err}"))
+    })?;
+    if &latest > current {
+        Ok(UpdateCheckOutcome::UpdateAvailable {
+            tag,
+            html_url: release.html_url,
+            published_at: release.published_at,
+        })
+    } else {
+        Ok(UpdateCheckOutcome::UpToDate)
+    }
+}
+
+fn rc_outcome(
+    current: &Version,
+    release: github::Release,
+) -> Result<UpdateCheckOutcome, UpdateError> {
+    let tag = release.tag_name.trim().to_string();
+    let Some(version_text) = tag.strip_prefix('v') else {
+        return Err(UpdateError::Invalid(format!(
+            "RC release tag must be 'v{{VERSION}}' or 'v{{VERSION}}-rc.N', got '{tag}'"
+        )));
+    };
+    let latest = Version::parse(version_text).map_err(|err| {
+        UpdateError::Invalid(format!("Invalid RC version '{version_text}': {err}"))
     })?;
     if &latest > current {
         Ok(UpdateCheckOutcome::UpdateAvailable {

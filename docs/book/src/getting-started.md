@@ -3,16 +3,16 @@
 ## Install
 
 1. Open the Wavecrate download page.
-2. Download the latest macOS or Windows alpha bundle.
+2. Download the latest macOS or Windows stable, RC, or nightly bundle.
 3. Unzip the bundle.
 4. Launch Wavecrate.
 5. Add a sample folder from the Sources panel.
 
 Wavecrate works with ordinary local folders. It does not upload your samples or require a cloud library.
 
-Wavecrate alpha app builds currently support macOS and Windows. Linux is not currently supported for app installs.
+Wavecrate app builds currently support macOS and Windows. Linux is not currently supported for app installs.
 
-> Alpha warning: Wavecrate includes destructive actions that can modify, rename, move, or delete files when you choose those commands. Keep backups for important sample folders.
+> Safety warning: Wavecrate includes destructive actions that can modify, rename, move, or delete files when you choose those commands. Keep backups for important sample folders.
 
 ## Add Your First Source
 

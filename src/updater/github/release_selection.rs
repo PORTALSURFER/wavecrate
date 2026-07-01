@@ -51,6 +51,18 @@ fn release_has_required_assets(
             };
             asset_validation::stable_release_has_assets(release, version_text, identity)
         }
+        UpdateChannel::Rc => {
+            let Some(version_text) = release.tag_name.strip_prefix('v') else {
+                return Ok(false);
+            };
+            if release.prerelease {
+                if !version_text.contains("-rc.") {
+                    return Ok(false);
+                }
+                return asset_validation::rc_release_has_assets(release, version_text, identity);
+            }
+            asset_validation::stable_release_has_assets(release, version_text, identity)
+        }
         UpdateChannel::Nightly => {
             if release.tag_name != "nightly" {
                 return Ok(false);
@@ -74,7 +86,7 @@ mod tests {
                 release(
                     "v1.2.2",
                     false,
-                    &["wavecrate-v1.2.2-windows-x86_64.zip".to_string()],
+                    &["wavecrate-1.2.2-windows-x86_64.zip".to_string()],
                 ),
                 release("v1.2.3", false, &stable_assets("1.2.3")),
             ],
@@ -108,6 +120,24 @@ mod tests {
     }
 
     #[test]
+    fn rc_selection_accepts_rc_prereleases_and_stable_releases() {
+        let identity = identity(UpdateChannel::Rc);
+        let selected = select_release_with_assets(
+            vec![
+                release("nightly", true, &nightly_assets()),
+                release("v1.2.3-beta.1", true, &rc_assets("1.2.3-beta.1")),
+                release("v1.2.3-rc.2", true, &rc_assets("1.2.3-rc.2")),
+                release("v1.2.3", false, &stable_assets("1.2.3")),
+            ],
+            UpdateChannel::Rc,
+            &identity,
+        )
+        .expect("rc release");
+
+        assert_eq!(selected.tag_name, "v1.2.3-rc.2");
+    }
+
+    #[test]
     fn summary_listing_preserves_matching_release_order_and_limit() {
         let identity = identity(UpdateChannel::Stable);
         let summaries = list_releases_with_assets(
@@ -137,10 +167,14 @@ mod tests {
 
     fn stable_assets(version: &str) -> Vec<String> {
         vec![
-            format!("wavecrate-v{version}-windows-x86_64.zip"),
-            format!("checksums-v{version}.txt"),
-            format!("checksums-v{version}.txt.sig"),
+            format!("wavecrate-{version}-windows-x86_64.zip"),
+            format!("checksums-{version}.txt"),
+            format!("checksums-{version}.txt.sig"),
         ]
+    }
+
+    fn rc_assets(version: &str) -> Vec<String> {
+        stable_assets(version)
     }
 
     fn nightly_assets() -> Vec<String> {

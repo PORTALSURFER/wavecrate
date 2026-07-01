@@ -43,6 +43,8 @@ pub enum UpdateChannel {
     /// Stable release channel.
     #[default]
     Stable,
+    /// Release candidate channel.
+    Rc,
     /// Nightly/pre-release channel.
     Nightly,
 }

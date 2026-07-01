@@ -1,10 +1,11 @@
 //! Public PortalSurfer release-catalog checks.
 
+use semver::Version;
 use serde::Deserialize;
 
 use crate::http_client;
 
-use super::UpdateError;
+use super::{UpdateChannel, UpdateError};
 
 const MAX_RELEASE_CATALOG_JSON_BYTES: usize = 512 * 1024;
 // Catalogs may retain historical files, but only these active release targets
@@ -33,17 +34,20 @@ pub struct PublicReleaseCheckRequest {
     pub platform: String,
     /// Runtime architecture label used in release file names.
     pub arch: String,
+    /// Update channel to select from the public catalog.
+    pub channel: UpdateChannel,
 }
 
 impl PublicReleaseCheckRequest {
     /// Build a request for the current binary and target.
-    pub fn current(current_build_number: u64) -> Self {
+    pub fn current(current_build_number: u64, channel: UpdateChannel) -> Self {
         Self {
             catalog_url: PUBLIC_RELEASE_CATALOG_URL.to_string(),
             current_build_number,
             current_build_sha: env!("WAVECRATE_BUILD_GIT_SHA").to_string(),
             platform: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
+            channel,
         }
     }
 }
@@ -82,6 +86,7 @@ pub fn check_public_release_catalog(
         &request.current_build_sha,
         &request.platform,
         &request.arch,
+        request.channel,
     ))
 }
 
@@ -91,11 +96,13 @@ fn latest_available_public_release(
     current_build_sha: &str,
     platform: &str,
     arch: &str,
+    channel: UpdateChannel,
 ) -> Option<PublicReleaseInfo> {
     let asset_suffix = public_release_asset_suffix(platform, arch)?;
     let releases = catalog
         .releases
         .iter()
+        .filter(|release| release_matches_channel(release, channel))
         .filter(|release| release.has_download_for(&asset_suffix))
         .collect::<Vec<_>>();
     let latest = releases
@@ -118,6 +125,17 @@ fn latest_available_public_release(
         return None;
     }
     Some(PublicReleaseInfo::from_catalog_release(latest))
+}
+
+fn release_matches_channel(release: &PublicReleaseCatalogRelease, channel: UpdateChannel) -> bool {
+    let Ok(version) = Version::parse(&release.version) else {
+        return channel == UpdateChannel::Nightly && release.version == "nightly";
+    };
+    match channel {
+        UpdateChannel::Stable => version.pre.is_empty(),
+        UpdateChannel::Rc => version.pre.is_empty() || version.pre.as_str().starts_with("rc."),
+        UpdateChannel::Nightly => version.pre.as_str().starts_with("nightly."),
+    }
 }
 
 fn public_release_asset_suffix(platform: &str, arch: &str) -> Option<String> {
@@ -232,8 +250,15 @@ mod tests {
             release(243, "wavecrate-nightly-b243-macos-x86_64.zip"),
         ]);
 
-        let release = latest_available_public_release(&catalog, 241, "unknown", "macos", "aarch64")
-            .expect("new macos arm release");
+        let release = latest_available_public_release(
+            &catalog,
+            241,
+            "unknown",
+            "macos",
+            "aarch64",
+            UpdateChannel::Nightly,
+        )
+        .expect("new macos arm release");
 
         assert_eq!(release.build_number, 242);
         assert_eq!(release.build_id, "wavecrate-nightly-b242");
@@ -244,7 +269,15 @@ mod tests {
         let catalog = catalog(&[release(241, "wavecrate-nightly-b241-macos-aarch64.zip")]);
 
         assert!(
-            latest_available_public_release(&catalog, 241, "unknown", "macos", "aarch64").is_none()
+            latest_available_public_release(
+                &catalog,
+                241,
+                "unknown",
+                "macos",
+                "aarch64",
+                UpdateChannel::Nightly
+            )
+            .is_none()
         );
     }
 
@@ -253,7 +286,15 @@ mod tests {
         let catalog = catalog(&[release(242, "wavecrate-nightly-b242-windows-x86_64.zip")]);
 
         assert!(
-            latest_available_public_release(&catalog, 241, "unknown", "macos", "aarch64").is_none()
+            latest_available_public_release(
+                &catalog,
+                241,
+                "unknown",
+                "macos",
+                "aarch64",
+                UpdateChannel::Nightly
+            )
+            .is_none()
         );
     }
 
@@ -264,8 +305,15 @@ mod tests {
             release(999, "wavecrate-nightly-b999-linux-x86_64.zip"),
         ]);
 
-        let release = latest_available_public_release(&catalog, 241, "unknown", "macos", "aarch64")
-            .expect("new macos arm release");
+        let release = latest_available_public_release(
+            &catalog,
+            241,
+            "unknown",
+            "macos",
+            "aarch64",
+            UpdateChannel::Nightly,
+        )
+        .expect("new macos arm release");
 
         assert_eq!(release.build_number, 242);
         assert_eq!(release.build_id, "wavecrate-nightly-b242");
@@ -276,7 +324,15 @@ mod tests {
         let catalog = catalog(&[release(999, "wavecrate-nightly-b999-linux-x86_64.zip")]);
 
         assert!(
-            latest_available_public_release(&catalog, 241, "unknown", "linux", "x86_64").is_none()
+            latest_available_public_release(
+                &catalog,
+                241,
+                "unknown",
+                "linux",
+                "x86_64",
+                UpdateChannel::Nightly
+            )
+            .is_none()
         );
     }
 
@@ -327,6 +383,7 @@ mod tests {
             "d7fd3205abcdef00",
             "macos",
             "aarch64",
+            UpdateChannel::Nightly,
         )
         .expect("newer release by public catalog recency");
 
@@ -356,7 +413,8 @@ mod tests {
                 5_975,
                 "4c969d95abcdef00",
                 "macos",
-                "aarch64"
+                "aarch64",
+                UpdateChannel::Nightly
             )
             .is_none()
         );
@@ -372,13 +430,86 @@ mod tests {
         )]);
 
         assert!(
-            latest_available_public_release(&catalog, 5_975, "<unknown>", "macos", "aarch64")
-                .is_none()
+            latest_available_public_release(
+                &catalog,
+                5_975,
+                "<unknown>",
+                "macos",
+                "aarch64",
+                UpdateChannel::Nightly
+            )
+            .is_none()
         );
         assert!(
-            latest_available_public_release(&catalog, 241, "<unknown>", "macos", "aarch64")
-                .is_some()
+            latest_available_public_release(
+                &catalog,
+                241,
+                "<unknown>",
+                "macos",
+                "aarch64",
+                UpdateChannel::Nightly
+            )
+            .is_some()
         );
+    }
+
+    #[test]
+    fn public_catalog_filters_stable_rc_and_nightly_channels() {
+        let catalog = catalog(&[
+            release_with_version(
+                250,
+                "wavecrate-19.1.0-nightly.20260701+abcdef0",
+                "19.1.0-nightly.20260701+abcdef0",
+                "wavecrate-19.1.0-nightly.20260701+abcdef0-windows-x86_64.zip",
+                "2026-07-01T20:00:00.000Z",
+            ),
+            release_with_version(
+                251,
+                "wavecrate-19.1.0-rc.1",
+                "19.1.0-rc.1",
+                "wavecrate-19.1.0-rc.1-windows-x86_64.zip",
+                "2026-07-02T20:00:00.000Z",
+            ),
+            release_with_version(
+                252,
+                "wavecrate-19.1.0",
+                "19.1.0",
+                "wavecrate-19.1.0-windows-x86_64.zip",
+                "2026-07-03T20:00:00.000Z",
+            ),
+        ]);
+
+        let stable = latest_available_public_release(
+            &catalog,
+            1,
+            "unknown",
+            "windows",
+            "x86_64",
+            UpdateChannel::Stable,
+        )
+        .expect("stable");
+        let rc = latest_available_public_release(
+            &catalog,
+            1,
+            "unknown",
+            "windows",
+            "x86_64",
+            UpdateChannel::Rc,
+        )
+        .expect("rc");
+        let nightly = latest_available_public_release(
+            &catalog,
+            1,
+            "unknown",
+            "windows",
+            "x86_64",
+            UpdateChannel::Nightly,
+        )
+        .expect("nightly");
+
+        assert_eq!(stable.version, "19.1.0");
+        assert_eq!(rc.version, "19.1.0");
+        assert_eq!(nightly.version, "19.1.0-nightly.20260701+abcdef0");
     }
 
     fn catalog(releases: &[PublicReleaseCatalogRelease]) -> PublicReleaseCatalog {
@@ -406,6 +537,24 @@ mod tests {
             build_id: build_id.to_string(),
             build_number,
             version: "nightly".to_string(),
+            released_at: released_at.to_string(),
+            files: vec![PublicReleaseCatalogFile {
+                name: file_name.to_string(),
+            }],
+        }
+    }
+
+    fn release_with_version(
+        build_number: u64,
+        build_id: &str,
+        version: &str,
+        file_name: &str,
+        released_at: &str,
+    ) -> PublicReleaseCatalogRelease {
+        PublicReleaseCatalogRelease {
+            build_id: build_id.to_string(),
+            build_number,
+            version: version.to_string(),
             released_at: released_at.to_string(),
             files: vec![PublicReleaseCatalogFile {
                 name: file_name.to_string(),

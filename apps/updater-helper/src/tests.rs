@@ -121,6 +121,19 @@ fn parse_args_rejects_unknown_channel() {
 }
 
 #[test]
+fn parse_args_accepts_rc_channel() {
+    let (args, _headless) = parse_args(vec![
+        "--channel".to_string(),
+        "rc".to_string(),
+        "--install-dir".to_string(),
+        sample_install_dir().display().to_string(),
+    ])
+    .expect("parse args");
+
+    assert_eq!(args.identity.channel, UpdateChannel::Rc);
+}
+
+#[test]
 fn parse_args_rejects_unknown_argument_with_help_text() {
     let err = parse_args(vec![
         "--install-dir".to_string(),

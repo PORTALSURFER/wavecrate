@@ -33,7 +33,12 @@ pub(crate) fn expected_zip_asset_name(
         UpdateChannel::Stable => {
             let version =
                 version.ok_or_else(|| UpdateError::Invalid("Missing stable version".into()))?;
-            Ok(format!("{APP_NAME}-v{version}-{platform}-{arch}.zip"))
+            Ok(format!("{APP_NAME}-{version}-{platform}-{arch}.zip"))
+        }
+        UpdateChannel::Rc => {
+            let version =
+                version.ok_or_else(|| UpdateError::Invalid("Missing RC version".into()))?;
+            Ok(format!("{APP_NAME}-{version}-{platform}-{arch}.zip"))
         }
         UpdateChannel::Nightly => Ok(format!("{APP_NAME}-nightly-{platform}-{arch}.zip")),
     }
@@ -48,7 +53,12 @@ pub(crate) fn expected_checksums_name(
         UpdateChannel::Stable => {
             let version =
                 version.ok_or_else(|| UpdateError::Invalid("Missing stable version".into()))?;
-            Ok(format!("checksums-v{version}.txt"))
+            Ok(format!("checksums-{version}.txt"))
+        }
+        UpdateChannel::Rc => {
+            let version =
+                version.ok_or_else(|| UpdateError::Invalid("Missing RC version".into()))?;
+            Ok(format!("checksums-{version}.txt"))
         }
         UpdateChannel::Nightly => Ok("checksums-nightly.txt".to_string()),
     }
@@ -63,7 +73,12 @@ pub(crate) fn expected_checksums_signature_name(
         UpdateChannel::Stable => {
             let version =
                 version.ok_or_else(|| UpdateError::Invalid("Missing stable version".into()))?;
-            Ok(format!("checksums-v{version}.txt.sig"))
+            Ok(format!("checksums-{version}.txt.sig"))
+        }
+        UpdateChannel::Rc => {
+            let version =
+                version.ok_or_else(|| UpdateError::Invalid("Missing RC version".into()))?;
+            Ok(format!("checksums-{version}.txt.sig"))
         }
         UpdateChannel::Nightly => Ok("checksums-nightly.txt.sig".to_string()),
     }

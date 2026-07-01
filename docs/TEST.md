@@ -46,7 +46,9 @@ remain the validation contract for development and release-risk checks:
 | Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
 | GUI semantic contracts | none | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, updates the rolling GitHub `nightly` release, uploads the immutable release log to PortalSurfer, then maintains the full changelog from release-bound logs |
+| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, embeds `X.Y.Z-nightly.DATE+SHA` metadata, updates the rolling GitHub `nightly` release, uploads the immutable release log to PortalSurfer, then maintains the full changelog from release-bound logs |
+| RC release | `Wavecrate RC release` manual dispatch | release workflow dispatch | Builds Windows/macOS RC assets from `release/X.Y`, validates the requested package version and branch, runs workspace tests, and publishes `vX.Y.Z-rc.N` as a GitHub pre-release |
+| Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs workspace tests, and publishes `vX.Y.Z` as the normal GitHub release |
 
 The nextest policy is:
 
@@ -57,8 +59,8 @@ The nextest policy is:
   stale-removal behavior.
 - The default nextest profile stays unfiltered for maintainers who want the
   complete suite and are prepared to triage environment-specific failures.
-- Local nextest runs are the source of test evidence while GitHub Actions is
-  narrowed to the nightly release workflow.
+- Local nextest runs remain the primary development evidence. GitHub release
+  workflows add packaging-time checks for nightly, RC, and stable artifacts.
 
 The non-blocking app architecture is enforced by
 `scripts/check.* non-blocking-architecture`, and that check is required by

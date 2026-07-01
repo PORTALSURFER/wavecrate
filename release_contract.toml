@@ -1,6 +1,6 @@
 app_name = "wavecrate"
 repo_slug = "PORTALSURFER/wavecrate"
-channels = ["nightly"]
+channels = ["nightly", "rc", "stable"]
 targets = [
   "x86_64-pc-windows-msvc",
   "x86_64-apple-darwin",
@@ -17,8 +17,14 @@ aarch64 = "aarch64"
 
 [templates]
 nightly_asset = "{APP_NAME}-nightly-{platform}-{arch}.zip"
+rc_asset = "{APP_NAME}-{version}-rc.{rc_number}-{platform}-{arch}.zip"
+stable_asset = "{APP_NAME}-{version}-{platform}-{arch}.zip"
 nightly_checksums = "checksums-nightly.txt"
 nightly_checksums_sig = "checksums-nightly.txt.sig"
+rc_checksums = "checksums-{version}-rc.{rc_number}.txt"
+rc_checksums_sig = "checksums-{version}-rc.{rc_number}.txt.sig"
+stable_checksums = "checksums-{version}.txt"
+stable_checksums_sig = "checksums-{version}.txt.sig"
 
 [archive_layout]
 root_dir = "{APP_NAME}"
