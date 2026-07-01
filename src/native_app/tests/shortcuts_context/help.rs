@@ -1,5 +1,6 @@
 use crate::native_app::test_support::state::{
-    GuiMessage, NativeAppState, default_gui_shortcuts, shortcut_help_sections,
+    GuiMessage, NativeAppState, default_gui_shortcuts, shortcut_help_bindings,
+    shortcut_help_sections,
 };
 use radiant::prelude as ui;
 
@@ -90,13 +91,25 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
         sections
             .iter()
             .flat_map(|section| &section.items)
-            .any(|item| item.keys == "H" && item.action == "Toggle harvest done")
+            .any(|item| item.keys == "Esc" && item.action == "Stop playback")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "H / Shift-H" && item.action == "Toggle harvest done")
     );
     assert!(
         sections
             .iter()
             .flat_map(|section| &section.items)
             .any(|item| item.keys == "Left" && item.action == "Collapse selected folder")
+    );
+    assert!(
+        sections
+            .iter()
+            .flat_map(|section| &section.items)
+            .any(|item| item.keys == "Right" && item.action == "Play from current play start")
     );
     assert!(
         sections
@@ -119,7 +132,7 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .any(|item| item.keys == "Z" && item.action == "Zoom to play selection")
     );
     assert!(
-        sections
+        !sections
             .iter()
             .flat_map(|section| &section.items)
             .any(|item| item.keys == "Left / Right" && item.action == "Slide play selection")
@@ -131,7 +144,7 @@ fn shortcut_help_model_includes_global_and_active_context_sections() {
             .any(|item| item.keys == "R" && item.action == "Reverse selection")
     );
     assert!(
-        sections
+        !sections
             .iter()
             .flat_map(|section| &section.items)
             .any(|item| item.keys == "X" && item.action == "Zoom out")
@@ -200,6 +213,117 @@ fn shortcut_help_x_label_reflects_browser_selection_toggle() {
         !sections
             .iter()
             .flat_map(|section| &section.items)
-            .any(|item| item.keys == "X" && item.action == "Mark sample and advance")
+            .any(|item| {
+                item.keys == "X"
+                    && (item.action == "Mark sample and advance" || item.action == "Zoom out")
+            })
     );
+}
+
+#[test]
+fn shortcut_help_documented_bindings_resolve_to_registered_actions() {
+    let state = NativeAppState::load_default().expect("default state loads");
+
+    for binding in shortcut_help_bindings(&state) {
+        let resolution = default_gui_shortcuts(&state).resolve(binding.press);
+        assert_eq!(
+            resolution.action,
+            Some(binding.message.clone()),
+            "{} {} should resolve to {}",
+            binding.section,
+            binding.keys,
+            binding.action
+        );
+        assert!(
+            resolution.handled,
+            "{} {} should be handled",
+            binding.section, binding.keys
+        );
+    }
+}
+
+#[test]
+fn shortcut_help_context_bindings_resolve_to_active_actions() {
+    let mut shortcut_help = NativeAppState::load_default().expect("default state loads");
+    shortcut_help.ui.chrome.shortcut_help_open = true;
+    assert_context_help_bindings_resolve(&shortcut_help, "Shortcut Help");
+
+    let mut transactions = NativeAppState::load_default().expect("default state loads");
+    transactions.ui.chrome.transaction_list_open = true;
+    assert_context_help_bindings_resolve(&transactions, "Transactions Modal");
+
+    let mut jobs = NativeAppState::load_default().expect("default state loads");
+    jobs.ui.chrome.job_details_open = true;
+    assert_context_help_bindings_resolve(&jobs, "Jobs");
+
+    let mut curation_dropdown = NativeAppState::load_default().expect("default state loads");
+    curation_dropdown.ui.chrome.curation_filter_dropdown_open = true;
+    assert_context_help_bindings_resolve(&curation_dropdown, "Dropdown");
+
+    let mut selected_tag = NativeAppState::load_default().expect("default state loads");
+    selected_tag.metadata.selected_tag = Some(String::from("bass"));
+    assert_context_help_bindings_resolve(&selected_tag, "Selected Tag");
+}
+
+#[test]
+fn shortcut_help_bindings_cover_registered_shortcut_layers() {
+    let mut states = vec![NativeAppState::load_default().expect("default state loads")];
+
+    let mut shortcut_help = NativeAppState::load_default().expect("default state loads");
+    shortcut_help.ui.chrome.shortcut_help_open = true;
+    states.push(shortcut_help);
+
+    let mut transactions = NativeAppState::load_default().expect("default state loads");
+    transactions.ui.chrome.transaction_list_open = true;
+    states.push(transactions);
+
+    let mut curation_dropdown = NativeAppState::load_default().expect("default state loads");
+    curation_dropdown.ui.chrome.curation_filter_dropdown_open = true;
+    states.push(curation_dropdown);
+
+    let mut selected_tag = NativeAppState::load_default().expect("default state loads");
+    selected_tag.metadata.selected_tag = Some(String::from("bass"));
+    states.push(selected_tag);
+
+    for state in states {
+        let documented = shortcut_help_bindings(&state);
+        let catalog = default_gui_shortcuts(&state);
+        for binding in catalog
+            .layers()
+            .layers()
+            .iter()
+            .flat_map(|layer| layer.bindings())
+        {
+            assert!(
+                documented.iter().any(|documented| {
+                    documented.gesture == binding.gesture && documented.message == binding.action
+                }),
+                "missing shortcut help row for {:?} -> {:?}",
+                binding.gesture,
+                binding.action
+            );
+        }
+    }
+}
+
+fn assert_context_help_bindings_resolve(state: &NativeAppState, section: &str) {
+    for binding in shortcut_help_bindings(state)
+        .into_iter()
+        .filter(|binding| binding.section == section)
+    {
+        let resolution = default_gui_shortcuts(state).resolve(binding.press);
+        assert_eq!(
+            resolution.action,
+            Some(binding.message.clone()),
+            "{} {} should resolve to {}",
+            binding.section,
+            binding.keys,
+            binding.action
+        );
+        assert!(
+            resolution.handled,
+            "{} {} should be handled",
+            binding.section, binding.keys
+        );
+    }
 }

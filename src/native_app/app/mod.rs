@@ -56,6 +56,8 @@ pub(super) use crate::native_app::sample_library::folder_browser::commands::{
 };
 pub(super) use crate::native_app::sample_library::folder_browser::scan::FolderScanProgress;
 pub(super) use crate::native_app::shell::emit_gui_action;
+#[cfg(test)]
+pub(super) use crate::native_app::shell::shortcuts::shortcut_help_bindings;
 pub(super) use crate::native_app::shell::shortcuts::{
     ShortcutHelpItem, ShortcutHelpSection, default_gui_shortcuts, shortcut_help_sections,
 };

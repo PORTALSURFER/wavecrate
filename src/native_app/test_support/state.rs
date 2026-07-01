@@ -5,7 +5,7 @@ pub(in crate::native_app) use crate::native_app::app::{
     MetadataMessage, NativeAppState, NativeFileDropHover, NormalizationProgress,
     PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady, SettingsAppState, StartupState,
     StatusState, UiAppState, WaveformAppState, default_gui_shortcuts, format_sample_rate_label,
-    shortcut_help_sections, view,
+    shortcut_help_bindings, shortcut_help_sections, view,
 };
 use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
 pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
