@@ -35,6 +35,158 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
 }
 
 #[test]
+fn folder_context_menu_opens_downward_when_space_allows() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("Documents"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Documents"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let action_text_rect = frame
+        .paint_plan
+        .first_text_run("Open in Explorer")
+        .map(|text| text.rect)
+        .expect("folder context menu action text should render");
+
+    assert!(
+        action_text_rect.min.y > menu.anchor.y,
+        "menu should open below the pointer when there is room: action={action_text_rect:?}, anchor={:?}",
+        menu.anchor
+    );
+}
+
+#[test]
+fn folder_context_menu_flips_upward_near_bottom_edge() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("Documents"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 520.0),
+        title: String::from("Documents"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let first_action = frame
+        .paint_plan
+        .first_text_run("Open in Explorer")
+        .map(|text| text.rect)
+        .expect("folder context menu action text should render");
+    let final_action = frame
+        .paint_plan
+        .first_text_run("Delete Folder")
+        .map(|text| text.rect)
+        .expect("folder context menu final action should render");
+
+    assert!(
+        first_action.min.y < menu.anchor.y,
+        "menu should flip above the pointer near the bottom edge: action={first_action:?}, anchor={:?}",
+        menu.anchor
+    );
+    assert!(
+        final_action.max.y <= 540.0,
+        "flipped menu should remain visible inside the viewport: final={final_action:?}"
+    );
+}
+
+#[test]
+fn harvest_sample_context_menu_flips_using_dynamic_height() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("C:\\Samples\\kick.wav"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 520.0),
+        title: String::from("kick.wav"),
+    };
+    let frame =
+        crate::native_app::test_support::context_menu::browser_context_menu_overlay_with_harvest_active(
+            &menu,
+        )
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let first_action = frame
+        .paint_plan
+        .first_text_run("Reveal in Explorer")
+        .map(|text| text.rect)
+        .expect("sample context menu action text should render");
+    let final_action = frame
+        .paint_plan
+        .first_text_run("Open Harvest Destination")
+        .map(|text| text.rect)
+        .expect("harvest context menu final action should render");
+
+    assert!(
+        first_action.min.y < menu.anchor.y,
+        "dynamic-height harvest menu should flip above the pointer: action={first_action:?}, anchor={:?}",
+        menu.anchor
+    );
+    assert!(
+        final_action.max.y <= 540.0,
+        "dynamic-height harvest menu should remain visible: final={final_action:?}"
+    );
+}
+
+#[test]
+fn playmark_context_menu_flips_upward_near_bottom_edge() {
+    let menu = crate::native_app::test_support::context_menu::WaveformContextMenu {
+        anchor: Point::new(240.0, 520.0),
+        title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
+    };
+    let frame = crate::native_app::test_support::context_menu::waveform_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let first_action = frame
+        .paint_plan
+        .first_text_run("Play Selection")
+        .map(|text| text.rect)
+        .expect("playmark context menu action should render");
+    let final_action = frame
+        .paint_plan
+        .first_text_run("Find Similar Sections")
+        .map(|text| text.rect)
+        .expect("playmark context menu final action should render");
+
+    assert!(
+        first_action.min.y < menu.anchor.y,
+        "playmark menu should flip above the pointer near the bottom edge: action={first_action:?}, anchor={:?}",
+        menu.anchor
+    );
+    assert!(
+        final_action.max.y <= 540.0,
+        "flipped playmark menu should remain visible: final={final_action:?}"
+    );
+}
+
+#[test]
 fn folder_context_menu_outside_click_closes_menu() {
     let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
         kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
