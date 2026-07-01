@@ -144,7 +144,7 @@ for run in $(seq 1 "$RUNS"); do
     STARTUP_LOG_PATHS+=("$startup_log")
     echo "[perf_guard] capturing native startup profile (run ${run}/${RUNS})"
     set +e
-    WAVECRATE_NATIVE_STARTUP_PROFILE=1 \
+    RADIANT_NATIVE_STARTUP_PROFILE=1 \
       timeout --signal=TERM --kill-after=1s "${STARTUP_TIMEOUT_SECS}s" \
       "$startup_binary" >"$startup_log" 2>&1
     startup_status=$?

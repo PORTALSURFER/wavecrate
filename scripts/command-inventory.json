@@ -62,7 +62,7 @@
     },
     {
       "path": "scripts/perf.sh",
-      "role": "Runtime performance helpers, including bash-only calibration.",
+      "role": "Runtime performance helpers; bash-only startup calibration is Linux developer tooling, not a supported-platform release lane.",
       "windows_supported": false
     },
     {
