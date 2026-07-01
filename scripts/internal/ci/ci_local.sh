@@ -12,6 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 # shellcheck source=scripts/internal/setup_headless_audio.sh
 source "$ROOT_DIR/scripts/internal/setup_headless_audio.sh"
+# Tooling-only Linux fallback for headless agent/CI hosts; not product support.
 wavecrate_setup_headless_audio "ci_local"
 # shellcheck source=scripts/internal/use_cargo_cache.sh
 source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"

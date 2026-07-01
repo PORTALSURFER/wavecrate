@@ -4,7 +4,7 @@ use super::super::options::BenchOptions;
 use super::attribution::{GuiInteractionSegmentAttribution, SegmentAttributionSummary};
 use super::interactions::{execute_interaction_step, prime_map_cache_for_benchmark};
 use super::workspace::wait_for_rows;
-use wavecrate::app_core::actions::NativeUiAction;
+use wavecrate::app_core::actions::{NativeBrowserAction, NativeUiAction, NativeWaveformAction};
 use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use wavecrate::app_core::ui_bridge::{
     ProjectionSegmentLookupCount, ProjectionSegmentProbeMeasurement,
@@ -57,7 +57,9 @@ pub(super) fn collect_interaction_segment_attribution(
                 _ => -2,
             };
             rows_step = rows_step.saturating_add(1);
-            controller.apply_ui_action(NativeUiAction::MoveBrowserFocus { delta });
+            controller.apply_ui_action(NativeUiAction::Browser(
+                NativeBrowserAction::MoveBrowserFocus { delta },
+            ));
         },
     );
 
@@ -84,9 +86,11 @@ pub(super) fn collect_interaction_segment_attribution(
         warmup_iters,
         measure_iters,
         |controller, _| {
-            controller.apply_ui_action(NativeUiAction::SetWaveformCursor {
-                position_milli: ((waveform_step % 1000) + 1) as u16,
-            });
+            controller.apply_ui_action(NativeUiAction::Waveform(
+                NativeWaveformAction::SetWaveformCursorPrecise {
+                    position_nanos: ((waveform_step % 1000) + 1) as u32 * 1_000_000,
+                },
+            ));
             waveform_step = waveform_step.saturating_add(37);
         },
     );

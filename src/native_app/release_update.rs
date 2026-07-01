@@ -22,6 +22,7 @@ impl NativeAppState {
 
         let ticket = self.background.release_update_check_task.begin();
         let current_build_number = current_build_number();
+        let channel = release_update_channel(self.ui.settings.persisted.updates.channel);
         self.ui.release_update.begin_check();
         context
             .business()
@@ -29,7 +30,7 @@ impl NativeAppState {
             .run(
                 move |_| ui::TaskCompletion {
                     ticket,
-                    output: run_release_update_check(current_build_number),
+                    output: run_release_update_check(current_build_number, channel),
                 },
                 GuiMessage::ReleaseUpdateCheckFinished,
             );
@@ -66,11 +67,30 @@ impl NativeAppState {
     }
 }
 
-fn run_release_update_check(current_build_number: u64) -> ReleaseUpdateCheckResult {
+fn run_release_update_check(
+    current_build_number: u64,
+    channel: wavecrate::updater::UpdateChannel,
+) -> ReleaseUpdateCheckResult {
     wavecrate::updater::check_public_release_catalog(
-        wavecrate::updater::PublicReleaseCheckRequest::current(current_build_number),
+        wavecrate::updater::PublicReleaseCheckRequest::current(current_build_number, channel),
     )
     .map_err(|err| err.to_string())
+}
+
+fn release_update_channel(
+    channel: wavecrate::sample_sources::config::UpdateChannel,
+) -> wavecrate::updater::UpdateChannel {
+    match channel {
+        wavecrate::sample_sources::config::UpdateChannel::Stable => {
+            wavecrate::updater::UpdateChannel::Stable
+        }
+        wavecrate::sample_sources::config::UpdateChannel::Rc => {
+            wavecrate::updater::UpdateChannel::Rc
+        }
+        wavecrate::sample_sources::config::UpdateChannel::Nightly => {
+            wavecrate::updater::UpdateChannel::Nightly
+        }
+    }
 }
 
 fn current_build_number() -> u64 {

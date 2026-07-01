@@ -7,7 +7,7 @@ use super::super::config_defaults::default_true;
 /// Config keys: `channel`, `check_on_startup`, `last_seen_nightly_published_at`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateSettings {
-    /// Selected update channel (stable or nightly).
+    /// Selected update channel.
     #[serde(default)]
     pub channel: UpdateChannel,
     /// Whether to check for updates on startup.
@@ -36,6 +36,8 @@ pub enum UpdateChannel {
     /// Receive stable releases only.
     #[default]
     Stable,
+    /// Receive release candidates and stable releases.
+    Rc,
     /// Receive nightly/pre-release builds.
     Nightly,
 }

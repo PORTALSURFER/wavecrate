@@ -15,8 +15,10 @@ PLATFORM=""
 ARCH=""
 CHANNEL=""
 VERSION=""
+TARGET_VERSION=""
 BUILD_NUMBER=""
 GIT_SHA=""
+BUILD_DATE=""
 
 is_truthy() {
   local value
@@ -29,7 +31,7 @@ is_truthy() {
 
 usage() {
   cat <<'EOF'
-Usage: build_release_zip.sh --target <triple> --platform <label> --arch <label> --channel <stable|nightly> [--version <x.y.z>] [--build-number <n>] [--git-sha <sha>] [--out-dir <path>]
+Usage: build_release_zip.sh --target <triple> --platform <label> --arch <label> --channel <stable|rc|nightly> --version <semver> [--target-version <x.y.z>] [--build-number <n>] [--git-sha <sha>] [--build-date <YYYY-MM-DD>] [--out-dir <path>]
 EOF
 }
 
@@ -55,12 +57,20 @@ while [[ $# -gt 0 ]]; do
       VERSION="$2"
       shift 2
       ;;
+    --target-version)
+      TARGET_VERSION="$2"
+      shift 2
+      ;;
     --build-number)
       BUILD_NUMBER="$2"
       shift 2
       ;;
     --git-sha)
       GIT_SHA="$2"
+      shift 2
+      ;;
+    --build-date)
+      BUILD_DATE="$2"
       shift 2
       ;;
     --out-dir)
@@ -79,8 +89,20 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$TARGET" || -z "$PLATFORM" || -z "$ARCH" || -z "$CHANNEL" ]]; then
+if [[ -z "$TARGET" || -z "$PLATFORM" || -z "$ARCH" || -z "$CHANNEL" || -z "$VERSION" ]]; then
   usage >&2
+  exit 1
+fi
+
+if [[ -z "$TARGET_VERSION" ]]; then
+  TARGET_VERSION="$(awk -F '"' '/^version =/ { print $2; exit }' Cargo.toml)"
+fi
+if [[ -z "$TARGET_VERSION" || ! "$TARGET_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Target version must be MAJOR.MINOR.PATCH." >&2
+  exit 1
+fi
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(rc|nightly)\.[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+  echo "Version must be stable, rc, or nightly semver." >&2
   exit 1
 fi
 
@@ -100,14 +122,28 @@ if [[ -n "$GIT_SHA" ]]; then
     exit 1
   fi
 fi
+if [[ -z "$BUILD_DATE" ]]; then
+  BUILD_DATE="$(date -u '+%Y-%m-%d')"
+fi
+if [[ ! "$BUILD_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+  echo "Build date must be YYYY-MM-DD." >&2
+  exit 1
+fi
 
 case "$CHANNEL" in
   stable)
-    if [[ -z "$VERSION" ]]; then
-      echo "Stable releases require --version." >&2
+    if [[ "$VERSION" != "$TARGET_VERSION" ]]; then
+      echo "Stable release version must equal target version." >&2
       exit 1
     fi
-    ZIP_NAME="${APP_NAME}-v${VERSION}${BUILD_LABEL}-${PLATFORM}-${ARCH}.zip"
+    ZIP_NAME="${APP_NAME}-${VERSION}-${PLATFORM}-${ARCH}.zip"
+    ;;
+  rc)
+    if [[ ! "$VERSION" =~ ^${TARGET_VERSION//./\\.}-rc\.[0-9]+$ ]]; then
+      echo "RC release version must be ${TARGET_VERSION}-rc.N." >&2
+      exit 1
+    fi
+    ZIP_NAME="${APP_NAME}-${VERSION}-${PLATFORM}-${ARCH}.zip"
     ;;
   nightly)
     ZIP_NAME="${APP_NAME}-nightly${BUILD_LABEL}-${PLATFORM}-${ARCH}.zip"
@@ -126,6 +162,10 @@ if ! is_truthy "$SKIP_BUILD"; then
   if [[ -n "$GIT_SHA" ]]; then
     env_args+=("WAVECRATE_GIT_SHA=$GIT_SHA")
   fi
+  env_args+=("WAVECRATE_RELEASE_VERSION=$VERSION")
+  env_args+=("WAVECRATE_RELEASE_CHANNEL=$CHANNEL")
+  env_args+=("WAVECRATE_RELEASE_TARGET_VERSION=$TARGET_VERSION")
+  env_args+=("WAVECRATE_RELEASE_BUILD_DATE=$BUILD_DATE")
   env "${env_args[@]}" "$BUILD_CARGO_BIN" build --release -p "$APP_NAME" --bin "$APP_NAME" --target "$TARGET"
 fi
 
@@ -141,12 +181,12 @@ ROOT_DIR="${WORK_DIR}/${APP_NAME}"
 mkdir -p "$ROOT_DIR"
 
 write_update_manifest() {
-  python3 - "$ROOT_DIR" "$APP_NAME" "$CHANNEL" "$TARGET" "$PLATFORM" "$ARCH" <<'PY'
+  python3 - "$ROOT_DIR" "$APP_NAME" "$CHANNEL" "$TARGET" "$PLATFORM" "$ARCH" "$VERSION" "$TARGET_VERSION" "$GIT_SHA" "$BUILD_DATE" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-root, app, channel, target, platform, arch = sys.argv[1:]
+root, app, channel, target, platform, arch, version, target_version, commit, build_date = sys.argv[1:]
 root_path = Path(root)
 files = sorted(
     path.relative_to(root_path).as_posix()
@@ -160,6 +200,10 @@ manifest = {
     "target": target,
     "platform": platform,
     "arch": arch,
+    "version": version,
+    "target_version": target_version,
+    "commit": commit,
+    "build_date": build_date,
     "files": files,
 }
 (root_path / "update-manifest.json").write_text(
@@ -181,7 +225,7 @@ create_macos_app_bundle() {
 
   icon_name="$(basename "$APP_ICON_SOURCE")"
   bundle_version="${BUILD_NUMBER:-0}"
-  short_version="${VERSION:-$(awk -F '"' '/^version =/ { print $2; exit }' Cargo.toml)}"
+  short_version="${TARGET_VERSION}"
 
   mkdir -p "$macos_dir" "$resources_dir"
   cp "$executable_source" "${macos_dir}/${APP_NAME}"

@@ -40,6 +40,8 @@ pub mod logging;
 /// events; it does not define UI widgets, input handling policies, or layout
 /// logic.
 pub mod native_runtime;
+/// Build-time release metadata.
+pub mod release_metadata;
 /// Sample source management.
 pub mod sample_sources;
 /// Selection math utilities.

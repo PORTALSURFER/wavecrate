@@ -1,52 +1,52 @@
 //! Deterministic interaction-step helpers shared by GUI benchmark scenarios.
 
-use wavecrate::app_core::actions::NativeUiAction;
+use wavecrate::app_core::actions::{NativeUiAction, NativeWaveformAction};
 use wavecrate::app_core::state::{SampleBrowserSort, TriageFlagFilter};
 
 /// Return a deterministic waveform action for a benchmark step index.
 pub(in crate::bench::gui) fn waveform_action_for_step(step: usize) -> NativeUiAction {
     match step % 6 {
-        0 => NativeUiAction::SeekWaveform {
-            position_milli: 320,
-        },
-        1 => NativeUiAction::SetWaveformCursor {
-            position_milli: 480,
-        },
-        2 => NativeUiAction::SetWaveformSelectionRange {
+        0 => NativeUiAction::Waveform(NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 320_000_000,
+        }),
+        1 => NativeUiAction::Waveform(NativeWaveformAction::SetWaveformCursorPrecise {
+            position_nanos: 480_000_000,
+        }),
+        2 => NativeUiAction::Waveform(NativeWaveformAction::SetWaveformSelectionRange {
             start_micros: 220_000,
             end_micros: 660_000,
             snap_override: false,
             preserve_view_edge: false,
-        },
-        3 => NativeUiAction::ZoomWaveform {
+        }),
+        3 => NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveform {
             zoom_in: true,
             steps: 2,
             anchor_ratio_micros: None,
-        },
-        4 => NativeUiAction::ZoomWaveformToSelection,
-        _ => NativeUiAction::ZoomWaveformFull,
+        }),
+        4 => NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveformToSelection),
+        _ => NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveformFull),
     }
 }
 
 /// Return an adjacent pan/zoom waveform action for a benchmark step index.
 pub(in crate::bench::gui) fn adjacent_waveform_action_for_step(step: usize) -> NativeUiAction {
     match step % 4 {
-        0 => NativeUiAction::SeekWaveform {
-            position_milli: 380,
-        },
-        1 => NativeUiAction::SeekWaveform {
-            position_milli: 410,
-        },
-        2 => NativeUiAction::ZoomWaveform {
+        0 => NativeUiAction::Waveform(NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 380_000_000,
+        }),
+        1 => NativeUiAction::Waveform(NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 410_000_000,
+        }),
+        2 => NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
             anchor_ratio_micros: None,
-        },
-        _ => NativeUiAction::ZoomWaveform {
+        }),
+        _ => NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
             anchor_ratio_micros: None,
-        },
+        }),
     }
 }
 

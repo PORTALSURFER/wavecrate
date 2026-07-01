@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
-# Calibrate startup-first-paint perf thresholds on a compositor-backed host and
-# write/update the tracked startup threshold lock file.
+# Optional Linux developer-only startup threshold calibration.
+#
+# Release-risk startup perf evidence is owned by scripts/perf.* guard on
+# supported app platforms. This helper remains for contributor threshold refresh
+# on Linux compositor-backed hosts; it does not imply shipped Linux app support.
 
 set -euo pipefail
 
@@ -12,11 +15,11 @@ LOCK_OUT="${WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_OUT:-$ROOT_DIR/scripts/interna
 RUNS="${WAVECRATE_PERF_GUARD_RUNS:-7}"
 
 if [[ -z "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" ]]; then
-  echo "[perf_guard] ERROR: startup calibration requires a compositor-backed host (WAYLAND_DISPLAY or DISPLAY)." >&2
+  echo "[perf_guard] ERROR: developer-only startup calibration requires a Linux compositor-backed host (WAYLAND_DISPLAY or DISPLAY)." >&2
   exit 2
 fi
 
-echo "[perf_guard] calibrating startup thresholds (runs=${RUNS})"
+echo "[perf_guard] calibrating startup thresholds with Linux developer tooling (runs=${RUNS})"
 WAVECRATE_PERF_GUARD_RUNS="$RUNS" \
 WAVECRATE_PERF_GUARD_STARTUP_PROFILE=1 \
 WAVECRATE_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS=1 \

@@ -21,10 +21,23 @@ Overrides the build tool used by `scripts/internal/release/build_release_zip.sh`
 `cargo`).
 
 - `WAVECRATE_CHECKSUMS_ED25519_KEY`
-CI secret used by `.github/workflows/release-build.yml` to sign release checksum
-files. This is expected to be an Ed25519 private key in PEM form that OpenSSL
-can use for `pkeyutl -sign`. The release workflow also accepts the legacy
+CI secret used by the release workflows to sign release checksum files. This is
+expected to be an Ed25519 private key in PEM form that OpenSSL can use for
+`pkeyutl -sign`. The release workflows also accept the legacy
 `SEMPAL_CHECKSUMS_ED25519_KEY` secret name as a compatibility fallback.
+
+- `WAVECRATE_RELEASE_VERSION`
+Full semver release identity embedded into a packaged binary. Examples:
+`19.1.0-nightly.20260701+abc1234`, `19.1.0-rc.1`, `19.1.0`.
+
+- `WAVECRATE_RELEASE_CHANNEL`
+Embedded release channel: `nightly`, `rc`, or `stable`.
+
+- `WAVECRATE_RELEASE_TARGET_VERSION`
+Stable target version for the release train, such as `19.1.0`.
+
+- `WAVECRATE_RELEASE_BUILD_DATE`
+UTC build date embedded into the binary in `YYYY-MM-DD` form.
 
 - `WAVECRATE_DISABLE_SCCACHE`
 When set to `1`, repo Cargo helper scripts force direct `rustc` and clear any
@@ -39,17 +52,35 @@ and its wrapper probe passes. Default: unset, so repo scripts use direct
 
 ### Release upload secrets
 
-The `release-build.yml` workflow is the only GitHub Actions workflow in this
-repo. It publishes rolling `nightly` builds only: Windows x86_64 plus macOS
+Wavecrate has three public release workflows:
+
+- `.github/workflows/release-build.yml`
+  - automatic and manual nightly builds from `main`
+- `.github/workflows/release-rc.yml`
+  - manual release-candidate builds from `release/X.Y`
+- `.github/workflows/release-stable.yml`
+  - manual stable releases from `release/X.Y`
+
+Nightly runs publish rolling `nightly` builds for Windows x86_64 plus macOS
 x86_64/aarch64 assets from the current `main` commit. The schedule is
 `19:30 UTC` (evening in Europe/Amsterdam), and `workflow_dispatch` provides a
 manual "force a nightly now" button with the same build/upload path.
 
-The workflow publishes an immutable nightly version tag named
-`nightly-b<build>-<short-sha>` for changelog history, updates the rolling GitHub
+RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
+`release/X.Y` for the requested `X.Y.Z` version, and the package manifest must
+already carry that target version. RC releases are published as GitHub
+pre-releases tagged `vX.Y.Z-rc.N`.
+
+Stable runs require `version` and `branch` inputs. The branch must be
+`release/X.Y`, the package manifest must match `X.Y.Z`, and the latest
+`vX.Y.Z-rc.N` tag must point at the same commit being promoted. Stable releases
+are published as normal GitHub releases tagged `vX.Y.Z`.
+
+The nightly workflow publishes an immutable nightly version tag named like
+`19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub
 `nightly` release for downloads, then uploads the same zips plus the generated
 Markdown release log to the PortalSurfer Wavecrate release-upload API. Each
-PortalSurfer upload uses the matching `wavecrate-nightly-b<build>-<short-sha>`
+PortalSurfer upload uses the matching `wavecrate-<nightly-version>`
 build id so the website can show a distinct nightly entry instead of stacking
 every nightly under one changelog group. After the per-release log is visible in
 the public catalog, the workflow verifies that the fetched log body matches the
@@ -70,10 +101,10 @@ Optional upload endpoint. Defaults to
 `https://portalsurfer.org/wavecrate/api/v1/release-uploads` and must end with
 `/release-uploads`.
 
-### macOS nightly signing secrets
+### macOS release signing secrets
 
-Nightly macOS zips are packaged as `Wavecrate.app` bundles. On GitHub Actions,
-the release workflow signs them with Developer ID, submits them to Apple
+macOS zips are packaged as `Wavecrate.app` bundles. On GitHub Actions, the
+release workflows sign them with Developer ID, submit them to Apple
 notarization, staples the ticket, and only then uploads the zip to GitHub and
 PortalSurfer.
 
@@ -287,7 +318,9 @@ When set, ALSA uses the provided config file path instead of system defaults.
 On headless Linux runs, `scripts/ci.sh local` and `scripts/perf.sh guard`
 set this automatically to `scripts/internal/alsa_headless.conf` unless already defined.
 This routes default playback probing to a dummy sink to reduce `ALSA lib`
-warning noise in test/bench logs.
+warning noise in test/bench logs. This is developer validation tooling for
+headless Linux CI/agent/perf hosts only and does not describe shipped Linux app
+support.
 
 ## UI and runtime profiling
 
@@ -344,7 +377,7 @@ flush boundaries. Accepted values: `1`, `true`, `on`, `yes`
 ## Performance guard benchmark overrides
 
 - `WAVECRATE_PERF_GUARD_OUT`
-Output path used by `scripts/perf.sh guard` for the benchmark JSON report.
+Output path used by `scripts/perf.* guard` for the benchmark JSON report.
 Default: `target/perf/bench.json`.
 
 - `WAVECRATE_PERF_GUARD_GUI_ROWS`
@@ -370,13 +403,22 @@ Default: `16`.
 
 - `WAVECRATE_PERF_GUARD_RUNS`
 Number of full `wavecrate-bench` benchmark CLI runs executed by
-`scripts/perf.sh guard`. When greater than `1`, the guard reports median
+`scripts/perf.* guard`. When greater than `1`, the guard reports median
 percentiles across runs and the p95 spread across runs. Default: `1`.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_PROFILE`
-When set to `1`/`true`/`on`/`yes`, `scripts/perf.sh guard` also captures
+When set to `1`/`true`/`on`/`yes`, `scripts/perf.* guard` also captures
 native startup timing logs by launching `wavecrate` under timeout and parsing
 `RADIANT_NATIVE_STARTUP_PROFILE` output. Default: disabled (`0`).
+For release-risk startup evidence, run this guard on supported app platforms.
+The Bash `scripts/perf.sh calibrate-startup` command is Linux developer-only
+threshold-refresh tooling and is not product Linux support.
+
+- `WAVECRATE_PERF_GUARD_STARTUP_HIDDEN`
+Optional developer-only startup-profile flag. When set to `1`/`true`/`on`/`yes`,
+Wavecrate keeps its native window hidden after surface setup while preserving
+first-present timing diagnostics. Leave this unset for release-risk startup
+evidence because hidden-window captures do not measure user-visible first paint.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_TIMEOUT_SECS`
 Timeout (seconds) used for each startup-profile capture run when startup
@@ -398,12 +440,12 @@ Default: `<WAVECRATE_PERF_GUARD_OUT>.startup_summary.json`.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_OUT`
 Optional output env file path for startup threshold locking. When set and
-startup profiling succeeds, `scripts/perf.sh guard` writes startup threshold
+startup profiling succeeds, `scripts/perf.* guard` writes startup threshold
 assignments to this file using `scripts/internal/perf/perf_startup_lock_thresholds.py`.
 
 - `WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_IN`
 Optional startup threshold lock-file input path sourced by
-`scripts/perf.sh guard` before threshold parsing. Defaults to the tracked
+`scripts/perf.* guard` before threshold parsing. Defaults to the tracked
 lock file at `scripts/internal/perf/locks/startup_thresholds.env`. Set to an empty value
 to disable auto-loading.
 
@@ -414,7 +456,7 @@ Minimum valid startup-profile run count required before writing
 
 - `WAVECRATE_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT`
 Optional output env file path for frame-quality threshold locking. When set,
-`scripts/perf.sh guard` writes calibrated frame-jank and missed-present
+`scripts/perf.* guard` writes calibrated frame-jank and missed-present
 threshold assignments to this path using
 `scripts/internal/perf/perf_frame_quality_lock_thresholds.py`.
 
@@ -477,7 +519,7 @@ interaction benchmark results. Default: `8000`.
 
 - `WAVECRATE_PERF_WARN_FRAME_JANK_RATIO`
 Warning threshold (ratio `0.0..=1.0`) for per-scenario frame-jank proxy share
-reported by `scripts/perf.sh guard` from benchmark latency samples above
+reported by `scripts/perf.* guard` from benchmark latency samples above
 `frame_budget_us` (`16667us`). Default: `0.10`.
 
 - `WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO`
@@ -486,7 +528,7 @@ proxy share. Unset by default.
 
 - `WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO`
 Warning threshold (ratio `0.0..=1.0`) for per-scenario missed-present proxy
-share reported by `scripts/perf.sh guard` from benchmark latency samples
+share reported by `scripts/perf.* guard` from benchmark latency samples
 above `2 * frame_budget_us` (`33334us`). Default: `0.05`.
 
 - `WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO`

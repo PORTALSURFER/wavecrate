@@ -14,7 +14,8 @@ Also checks toolchain sanity:
 - pinned Rust toolchain vs rust-toolchain.toml
 - rustfmt/clippy present for the pinned toolchain
 - presence of `rg` (ripgrep)
-Also prints the expected `.wavecrate/logs` locations for each OS.
+Also prints developer diagnostic `.wavecrate/logs` locations for each OS.
+Linux/WSL paths are contributor/agent tooling hints, not shipped app support.
 #>
 
 $failures = 0
@@ -23,6 +24,14 @@ $warnings = 0
 function Write-Info([string]$Message) { Write-Host "[doctor] $Message" }
 function Write-Warn([string]$Message) { Write-Warning "[doctor][warn] $Message"; $script:warnings++ }
 function Write-Err([string]$Message) { Write-Error "[doctor][error] $Message"; $script:failures++ }
+
+function Get-PlatformFlag([string]$Name, [bool]$Fallback) {
+  $value = Get-Variable -Name $Name -Scope Global -ErrorAction SilentlyContinue
+  if ($null -ne $value) {
+    return [bool]$value.Value
+  }
+  return $Fallback
+}
 
 function Write-BootstrapHint {
   Write-Warn "Run bootstrap to install pinned toolchain + tools:"
@@ -33,10 +42,14 @@ function Write-BootstrapHint {
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Write-Info "Repo: $rootDir"
 
+$isWindowsHost = Get-PlatformFlag -Name "IsWindows" -Fallback ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT)
+$isMacOsHost = Get-PlatformFlag -Name "IsMacOS" -Fallback $false
+$isLinuxHost = Get-PlatformFlag -Name "IsLinux" -Fallback ((-not $isWindowsHost) -and (-not $isMacOsHost))
+
 $os =
-  if ($IsWindows) { "windows" }
-  elseif ($IsMacOS) { "macos" }
-  elseif ($IsLinux) { "linux" }
+  if ($isWindowsHost) { "windows" }
+  elseif ($isMacOsHost) { "macos" }
+  elseif ($isLinuxHost) { "linux" }
   else { "unknown" }
 Write-Info "OS: $os"
 
@@ -162,19 +175,22 @@ if ([string]::IsNullOrWhiteSpace($asioDir)) {
   }
 }
 
-Write-Info "Expected log locations:"
-Write-Info "  Linux:   `$HOME/.config/.wavecrate/logs"
-Write-Info "  macOS:   `$HOME/Library/Application Support/.wavecrate/logs"
-if ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
-  Write-Info ("  Windows: {0}" -f (Join-Path $env:APPDATA ".wavecrate\\logs"))
+Write-Info "Expected developer diagnostic log locations:"
+Write-Info "  Supported app installs:"
+Write-Info "    macOS:   `$HOME/Library/Application Support/.wavecrate/logs"
+if ($isWindowsHost -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
+  $windowsLogDir = Join-Path (Join-Path $env:APPDATA ".wavecrate") "logs"
+  Write-Info ("    Windows: {0}" -f $windowsLogDir)
 } else {
-  Write-Info "  Windows: %APPDATA%\\.wavecrate\\logs"
+  Write-Info "    Windows: %APPDATA%\.wavecrate\logs"
 }
-if ($IsLinux -and (Test-Path -LiteralPath "/proc/version")) {
+Write-Info "  Developer/agent tooling only; Linux is not a shipped app install target:"
+Write-Info "    Linux:   `$HOME/.config/.wavecrate/logs"
+if ($isLinuxHost -and (Test-Path -LiteralPath "/proc/version")) {
   try {
     $procVersion = Get-Content -LiteralPath "/proc/version" -Raw
     if ($procVersion -match "(?i)microsoft") {
-      Write-Info "  WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.wavecrate/logs"
+      Write-Info "    WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.wavecrate/logs"
     }
   } catch {
     # best-effort WSL detection; ignore errors

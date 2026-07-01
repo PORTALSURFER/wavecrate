@@ -46,7 +46,9 @@ remain the validation contract for development and release-risk checks:
 | Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
 | GUI semantic contracts | none | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, updates the rolling GitHub `nightly` release, uploads the immutable release log to PortalSurfer, then maintains the full changelog from release-bound logs |
+| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, embeds `X.Y.Z-nightly.DATE+SHA` metadata, updates the rolling GitHub `nightly` release, uploads the immutable release log to PortalSurfer, then maintains the full changelog from release-bound logs |
+| RC release | `Wavecrate RC release` manual dispatch | release workflow dispatch | Builds Windows/macOS RC assets from `release/X.Y`, validates the requested package version and branch, runs workspace tests, and publishes `vX.Y.Z-rc.N` as a GitHub pre-release |
+| Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs workspace tests, and publishes `vX.Y.Z` as the normal GitHub release |
 
 The nextest policy is:
 
@@ -57,8 +59,8 @@ The nextest policy is:
   stale-removal behavior.
 - The default nextest profile stays unfiltered for maintainers who want the
   complete suite and are prepared to triage environment-specific failures.
-- Local nextest runs are the source of test evidence while GitHub Actions is
-  narrowed to the nightly release workflow.
+- Local nextest runs remain the primary development evidence. GitHub release
+  workflows add packaging-time checks for nightly, RC, and stable artifacts.
 
 The non-blocking app architecture is enforced by
 `scripts/check.* non-blocking-architecture`, and that check is required by
@@ -78,6 +80,18 @@ Windows note:
   temp space when the default temp directory is unusable
 - set `WAVECRATE_ENABLE_SCCACHE=1` only when you explicitly want wrapper caching
 - do not run multiple cargo test commands concurrently
+
+Headless Linux audio note:
+
+- `scripts/internal/setup_headless_audio.sh` is retained as developer
+  validation tooling for Bash CI, agent, and perf lanes that may run on
+  headless Linux hosts
+- `scripts/ci.sh local` and `scripts/perf.sh guard` source it to set
+  `ALSA_CONFIG_PATH=scripts/internal/alsa_headless.conf` only when the host is
+  Linux, no display server is present, and the caller has not already set
+  `ALSA_CONFIG_PATH`
+- this dummy ALSA path reduces CPAL/ALSA missing-device warning noise in
+  test/bench logs and does not represent shipped Linux app support
 
 ## Safe feature-change checklist
 
@@ -240,6 +254,30 @@ that validation did not leak fixture sources into the real startup profile.
    so the session writes to the dedicated `sandbox` profile instead of the live
    profile.
 
+### Windows installer identity
+
+New Windows installer runs are Wavecrate-branded only. The installer display
+name, publisher value, default install directory, Start Menu folder, and
+uninstall registry key must use `Wavecrate`; new installs must not register a
+`SemPal` uninstall entry.
+
+The SemPal compatibility path is uninstall-only. `wavecrate-installer
+--uninstall` first reads the Wavecrate uninstall key and then falls back to the
+legacy SemPal key so older installs can still be removed with the current
+binary. During install or uninstall, a legacy SemPal uninstall key is removed
+only when its `InstallLocation` points at the same installation being updated or
+removed. A separate old SemPal install is not silently deleted by a Wavecrate
+install.
+
+Focused validation for installer identity changes:
+
+- `cargo test -p wavecrate-installer`
+- `cargo run -p wavecrate-installer -- --dry-run`
+- On Windows, inspect `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Wavecrate`
+  after a real install and confirm `DisplayName=Wavecrate`,
+  `Publisher=Wavecrate`, and `UninstallString` points at
+  `wavecrate-installer.exe --uninstall`.
+
 ### Database migration and compatibility
 
 Use this lane when changing `.wavecrate.db`, `library.db`, source metadata
@@ -292,6 +330,13 @@ per-launch diagnostics trail.
 - local perf guard:
   - `bash scripts/perf.sh guard`
   - `powershell -ExecutionPolicy Bypass -File scripts/perf.ps1 guard`
+
+Startup threshold calibration is not a release lane by itself. The Bash
+`scripts/perf.sh calibrate-startup` command is optional Linux developer tooling
+for refreshing startup threshold lock files on compositor-backed hosts. Current
+release-risk startup perf evidence should be collected with `scripts/perf.* guard`
+on supported app platforms, using `WAVECRATE_PERF_GUARD_STARTUP_PROFILE=1` when
+first-paint startup timing evidence is required.
 
 ## CI reference
 

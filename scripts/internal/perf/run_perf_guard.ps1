@@ -186,8 +186,8 @@ function Invoke-StartupProfileRun {
   $stderrPath = "$OutputPath.stderr.log"
   Remove-Item -LiteralPath $stdoutPath, $stderrPath, $OutputPath -ErrorAction SilentlyContinue
 
-  $previousStartupProfile = $env:WAVECRATE_NATIVE_STARTUP_PROFILE
-  $env:WAVECRATE_NATIVE_STARTUP_PROFILE = "1"
+  $previousStartupProfile = $env:RADIANT_NATIVE_STARTUP_PROFILE
+  $env:RADIANT_NATIVE_STARTUP_PROFILE = "1"
   try {
     $process = Start-Process `
       -FilePath $BinaryPath `
@@ -202,9 +202,9 @@ function Invoke-StartupProfileRun {
     }
   } finally {
     if ($null -eq $previousStartupProfile) {
-      Remove-Item Env:WAVECRATE_NATIVE_STARTUP_PROFILE -ErrorAction SilentlyContinue
+      Remove-Item Env:RADIANT_NATIVE_STARTUP_PROFILE -ErrorAction SilentlyContinue
     } else {
-      $env:WAVECRATE_NATIVE_STARTUP_PROFILE = $previousStartupProfile
+      $env:RADIANT_NATIVE_STARTUP_PROFILE = $previousStartupProfile
     }
   }
 
@@ -226,7 +226,7 @@ $startupProfileEnabled = Get-BoolEnvFlag -Name "WAVECRATE_PERF_GUARD_STARTUP_PRO
 $startupTimeoutSecs = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_STARTUP_TIMEOUT_SECS" -Default 6
 $startupRequireValidRuns = Get-BoolEnvFlag -Name "WAVECRATE_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS"
 $startupLockEnvOut = [Environment]::GetEnvironmentVariable("WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_OUT")
-$startupLockEnvIn = Get-EnvString -Name "WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_IN" -Default (Join-Path $rootDir "scripts\perf\locks\startup_thresholds.env")
+$startupLockEnvIn = Get-EnvString -Name "WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_IN" -Default (Join-Path $rootDir "scripts\internal\perf\locks\startup_thresholds.env")
 $startupLockMinValidRuns = Get-OptionalEnvInt -Name "WAVECRATE_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS"
 
 if ($runs -lt 1) {
@@ -235,13 +235,27 @@ if ($runs -lt 1) {
 
 if ($startupProfileEnabled -and (Test-Path $startupLockEnvIn)) {
   Get-Content $startupLockEnvIn | ForEach-Object {
-    if ($_ -match '^\s*(?:#|$)') {
+    $line = $_.Trim()
+    if ($line -match '^\s*(?:#|$)') {
       return
     }
-    if ($_ -match 'WAVECRATE_PERF_[A-Z0-9_]+=') {
-      $parts = $_ -split '=', 2
-      $name = $parts[0].Trim(' :${}" ')
-      $value = $parts[1].Trim(' "}')
+
+    $name = $null
+    $value = $null
+    $isDefaultAssignment = $false
+    if ($line -match '^:\s*"\$\{(?<name>WAVECRATE_PERF_[A-Z0-9_]+):=(?<value>[^}]*)\}"\s*$') {
+      $name = $Matches["name"]
+      $value = $Matches["value"]
+      $isDefaultAssignment = $true
+    } elseif ($line -match '^(?:export\s+)?(?<name>WAVECRATE_PERF_[A-Z0-9_]+)=(?<value>.*)$') {
+      $name = $Matches["name"]
+      $value = $Matches["value"].Trim(' "')
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($name)) {
+      if ($isDefaultAssignment -and -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name))) {
+        return
+      }
       [Environment]::SetEnvironmentVariable($name, $value)
     }
   }

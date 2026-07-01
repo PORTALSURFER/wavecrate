@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # Environment sanity checks for local development and agent runs.
-# Prints common pitfalls called out in README and where to find logs.
+# Prints common pitfalls called out in README and developer diagnostic log paths.
+# Linux/WSL paths are contributor/agent tooling hints, not shipped app support.
 
 set -euo pipefail
 
@@ -125,12 +126,14 @@ else
   info "CPAL_ASIO_DIR: not set (OK unless building Windows ASIO support)"
 fi
 
-info "Expected log locations:"
-info "  Linux:   \$HOME/.config/.wavecrate/logs"
-info "  macOS:   \$HOME/Library/Application Support/.wavecrate/logs"
-info "  Windows: %APPDATA%\\\\.wavecrate\\\\logs"
+info "Expected developer diagnostic log locations:"
+info "  Supported app installs:"
+info "    macOS:   \$HOME/Library/Application Support/.wavecrate/logs"
+info "    Windows: %APPDATA%\\.wavecrate\\logs"
+info "  Developer/agent tooling only; Linux is not a shipped app install target:"
+info "    Linux:   \$HOME/.config/.wavecrate/logs"
 if (( is_wsl == 1 )); then
-  info "  WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.wavecrate/logs"
+  info "    WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.wavecrate/logs"
 fi
 
 if (( failures > 0 )); then

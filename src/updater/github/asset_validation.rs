@@ -25,6 +25,15 @@ pub(super) fn nightly_release_has_assets(
     Ok(has_assets(release, &required))
 }
 
+pub(super) fn rc_release_has_assets(
+    release: &Release,
+    version_text: &str,
+    identity: &RuntimeIdentity,
+) -> Result<bool, UpdateError> {
+    let required = rc_required_assets(identity, version_text)?;
+    Ok(has_assets(release, &required))
+}
+
 pub(super) fn validate_tagged_release_assets(
     release: &Release,
     tag: &str,
@@ -51,6 +60,12 @@ fn required_assets_for_tag(
                 UpdateError::Invalid(format!("Stable tag must start with 'v', got '{tag}'"))
             })?;
             stable_required_assets(identity, version_text)
+        }
+        UpdateChannel::Rc => {
+            let version_text = tag.strip_prefix('v').ok_or_else(|| {
+                UpdateError::Invalid(format!("RC tag must start with 'v', got '{tag}'"))
+            })?;
+            rc_required_assets(identity, version_text)
         }
         UpdateChannel::Nightly => {
             if tag != "nightly" {
@@ -82,6 +97,17 @@ fn nightly_required_assets(identity: &RuntimeIdentity) -> Result<[String; 3], Up
     ])
 }
 
+fn rc_required_assets(
+    identity: &RuntimeIdentity,
+    version_text: &str,
+) -> Result<[String; 3], UpdateError> {
+    Ok([
+        expected_zip_asset_name(identity, Some(version_text))?,
+        expected_checksums_name(identity, Some(version_text))?,
+        expected_checksums_signature_name(identity, Some(version_text))?,
+    ])
+}
+
 fn has_assets(release: &Release, required: &[String; 3]) -> bool {
     required
         .iter()
@@ -99,9 +125,9 @@ mod tests {
             "v1.2.3",
             false,
             &[
-                "wavecrate-v1.2.3-windows-x86_64.zip",
-                "checksums-v1.2.3.txt",
-                "checksums-v1.2.3.txt.sig",
+                "wavecrate-1.2.3-windows-x86_64.zip",
+                "checksums-1.2.3.txt",
+                "checksums-1.2.3.txt.sig",
             ],
         );
 
@@ -114,10 +140,7 @@ mod tests {
         let release = release_with_assets(
             "v1.2.3",
             false,
-            &[
-                "wavecrate-v1.2.3-windows-x86_64.zip",
-                "checksums-v1.2.3.txt",
-            ],
+            &["wavecrate-1.2.3-windows-x86_64.zip", "checksums-1.2.3.txt"],
         );
 
         assert!(!stable_release_has_assets(&release, "1.2.3", &identity).unwrap());
@@ -137,6 +160,22 @@ mod tests {
         );
 
         assert!(nightly_release_has_assets(&release, &identity).unwrap());
+    }
+
+    #[test]
+    fn rc_asset_validation_requires_rc_zip_checksums_and_signature() {
+        let identity = identity(UpdateChannel::Rc);
+        let release = release_with_assets(
+            "v1.2.3-rc.2",
+            true,
+            &[
+                "wavecrate-1.2.3-rc.2-windows-x86_64.zip",
+                "checksums-1.2.3-rc.2.txt",
+                "checksums-1.2.3-rc.2.txt.sig",
+            ],
+        );
+
+        assert!(rc_release_has_assets(&release, "1.2.3-rc.2", &identity).unwrap());
     }
 
     fn identity(channel: UpdateChannel) -> RuntimeIdentity {

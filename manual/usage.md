@@ -10,6 +10,12 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 * TOC
 {:toc}
 
+## Documentation status
+
+This is the current lightweight GitHub Pages usage guide. The expanded public
+docs live at <https://portalsurfer.org/wavecrate/docs/>; both surfaces document
+the same shipped app platforms: macOS and Windows.
+
 ## Quick start
 - Add a source folder with **+** or by dropping it onto the Sources panel; the first `.wav` row auto-loads and starts playback.
 - Drag on the waveform with the primary mouse button to create a play mark selection, or use the secondary mouse button to create an edit mark selection for destructive in-place edits (crop, trim, reverse, fades, mute, smooth, normalize).
@@ -24,7 +30,7 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 - **Resizable sidebar:** Drag the divider to resize Sources and the main view.
 
 ## Configuration and storage
-- Wavecrate alpha app builds currently support macOS and Windows. Linux is not currently supported for app installs.
+- Wavecrate app builds currently support macOS and Windows. Linux is not currently supported for app installs.
 - App files live in a single `.wavecrate` folder inside your supported OS config directory. You can override the base dir with `WAVECRATE_CONFIG_HOME`.
   - Windows: `%APPDATA%\\.wavecrate\\`
   - macOS: `~/Library/Application Support/.wavecrate/`

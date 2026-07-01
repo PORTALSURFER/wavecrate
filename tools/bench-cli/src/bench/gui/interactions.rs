@@ -5,7 +5,10 @@ pub(super) mod step_patterns;
 
 use super::super::{options::BenchOptions, stats};
 use super::workspace::wait_for_rows;
-use wavecrate::app_core::actions::{NativeAppBridge, NativeMotionModel, NativeUiAction};
+use wavecrate::app_core::actions::{
+    NativeAppBridge, NativeBrowserAction, NativeMotionModel, NativeOptionsAction, NativeUiAction,
+    NativeWaveformAction,
+};
 use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use wavecrate::app_core::state::{
     MapBounds, MapPoint, MapQueryBounds, SampleBrowserSort, TriageFlagFilter,
@@ -71,7 +74,9 @@ pub(super) fn bench_wheel_latency(
             };
             step = step.saturating_add(1);
             timer.mark_input_done();
-            bridge.reduce_action(NativeUiAction::MoveBrowserFocus { delta });
+            bridge.reduce_action(NativeUiAction::Browser(
+                NativeBrowserAction::MoveBrowserFocus { delta },
+            ));
             timer.mark_apply_done();
             let _ = bridge.project_model();
             timer.mark_pull_done();
@@ -284,9 +289,9 @@ pub(super) fn bench_volume_drag_latency(
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            bridge.reduce_action(NativeUiAction::SetVolume {
+            bridge.reduce_action(NativeUiAction::Options(NativeOptionsAction::SetVolume {
                 value_milli: volume_milli_for_step(step),
-            });
+            }));
             step = step.saturating_add(1);
             timer.mark_apply_done();
             let _ = bridge.project_model();
@@ -307,9 +312,11 @@ pub(super) fn bench_idle_cursor_motion_latency(
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            bridge.reduce_action(NativeUiAction::SetWaveformCursor {
-                position_milli: ((step.saturating_mul(37) % 1000) + 1) as u16,
-            });
+            bridge.reduce_action(NativeUiAction::Waveform(
+                NativeWaveformAction::SetWaveformCursorPrecise {
+                    position_nanos: ((step.saturating_mul(37) % 1000) + 1) as u32 * 1_000_000,
+                },
+            ));
             step = step.saturating_add(1);
             timer.mark_apply_done();
             let _: Option<NativeMotionModel> = bridge.project_motion_model();
@@ -350,7 +357,9 @@ fn interaction_warmup(options: &BenchOptions) -> usize {
 
 /// Prime map cache fields so interaction benchmarks avoid cold-start query cost.
 pub(super) fn prime_map_cache_for_benchmark(controller: &mut AppController) -> Result<(), String> {
-    controller.apply_ui_action(NativeUiAction::SetBrowserTab { map: true });
+    controller.apply_ui_action(NativeUiAction::Browser(
+        NativeBrowserAction::SetBrowserTab { map: true },
+    ));
     let source_id = controller
         .ui
         .sources
