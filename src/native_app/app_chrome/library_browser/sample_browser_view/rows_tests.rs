@@ -188,6 +188,46 @@ fn collection_cell_paints_each_collection_membership_color() {
 }
 
 #[test]
+/// Verifies collection markers remain clipped to their own column cell.
+fn collection_cell_keeps_markers_inside_narrow_column_bounds() {
+    let collections = [
+        SampleCollection::new(0).expect("collection"),
+        SampleCollection::new(1).expect("collection"),
+        SampleCollection::new(2).expect("collection"),
+    ];
+    let theme = ThemeTokens::default();
+    let folder_browser = FolderBrowserState::load_default();
+    let collection_colors = collections
+        .into_iter()
+        .filter_map(|collection| folder_browser.collection_color(collection))
+        .collect::<Vec<_>>();
+    let column_width = 24.0;
+    let frame = sample_collection_cell(collection_colors.clone(), column_width)
+        .view_frame_at_size(Vector2::new(column_width, 20.0), &theme);
+
+    let marker_rects = frame
+        .paint_plan
+        .fill_rects()
+        .filter(|fill| collection_colors.contains(&fill.color))
+        .map(|fill| fill.rect)
+        .collect::<Vec<_>>();
+
+    assert!(
+        !marker_rects.is_empty(),
+        "collection cell should paint visible collection markers"
+    );
+    assert!(
+        marker_rects.iter().all(|rect| {
+            rect.min.x >= 0.0
+                && rect.max.x <= column_width
+                && rect.min.y >= 0.0
+                && rect.max.y <= 20.0
+        }),
+        "collection markers should stay inside the collection column bounds: {marker_rects:?}"
+    );
+}
+
+#[test]
 /// Verifies playback-type cells paint compact type labels.
 fn playback_type_cell_paints_loop_label() {
     let theme = ThemeTokens::default();
