@@ -643,7 +643,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 534.0);
+    assert_eq!(feedback.marker_x, 533.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -668,6 +668,65 @@ fn sample_file_column_drag_reorders_columns() {
         ]
     );
 }
+
+#[test]
+fn sample_file_column_drag_feedback_tracks_resized_and_narrow_boundaries() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+        String::from("name"),
+        radiant::widgets::DragHandleMessage::started(Point::new(0.0, 0.0)),
+    ));
+    browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+        String::from("name"),
+        radiant::widgets::DragHandleMessage::moved(Point::new(120.0, 0.0)),
+    ));
+    browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+        String::from("collection"),
+        radiant::widgets::DragHandleMessage::started(Point::new(0.0, 0.0)),
+    ));
+    browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+        String::from("collection"),
+        radiant::widgets::DragHandleMessage::moved(Point::new(-80.0, 0.0)),
+    ));
+
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::started(Point::new(404.0, 0.0)),
+    ));
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::moved(Point::new(660.0, 0.0)),
+    ));
+
+    let feedback = browser
+        .file_column_drag_feedback()
+        .expect("resized column drag should project visual feedback");
+    assert_eq!(feedback.marker_x, 643.0);
+
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::ended(Point::new(660.0, 0.0)),
+    ));
+
+    assert_eq!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "name",
+            "playback_type",
+            "collection",
+            "extension",
+            "rating",
+            "size",
+            "modified"
+        ]
+    );
+}
+
 #[test]
 /// Hiding Harvest preserves the stored width and order for later reactivation.
 fn hidden_harvest_column_preserves_resize_and_order_when_reactivated() {

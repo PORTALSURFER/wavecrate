@@ -181,6 +181,11 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
             crate::native_app::ui::ids::RETAINED_SAMPLE_HEADER_CELL_ID,
             "size",
         ));
+    let extension_resize_id =
+        radiant::prelude::compact_details_header_resize_id(radiant::widgets::stable_widget_id(
+            crate::native_app::ui::ids::RETAINED_SAMPLE_HEADER_CELL_ID,
+            "extension",
+        ));
     let rating_rect = *runtime
         .layout()
         .rects
@@ -191,6 +196,11 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
         .rects
         .get(&size_header_id)
         .expect("size column header hit target should be laid out");
+    let extension_resize_rect = *runtime
+        .layout()
+        .rects
+        .get(&extension_resize_id)
+        .expect("extension column divider should be laid out");
     let press = rating_rect.center();
     let hover_size_left = Point::new(size_rect.min.x + 12.0, press.y);
     let hover_size_left_update = Point::new(hover_size_left.x + 1.0, hover_size_left.y);
@@ -199,7 +209,16 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
     runtime.dispatch_event(Event::pointer_move(hover_size_left));
     runtime.dispatch_event(Event::pointer_move(hover_size_left_update));
     let dragging_frame = runtime.frame_with_default_theme();
-    let marker = dragging_frame
+    let marker = column_drop_marker_rect(&dragging_frame);
+    let divider_delta = marker.center().x - extension_resize_rect.center().x;
+    assert!(
+        divider_delta.abs() <= 2.0,
+        "drop marker should paint on the dotted divider before the size header, marker={marker:?}, divider={extension_resize_rect:?}, delta={divider_delta}",
+    );
+}
+
+fn column_drop_marker_rect(frame: &SurfaceFrame) -> Rect {
+    frame
         .paint_plan
         .fill_rects()
         .find(|fill| {
@@ -207,11 +226,6 @@ fn full_gui_column_drag_marker_uses_header_local_coordinates() {
                 && fill.rect.width() <= 2.5
                 && fill.rect.height() >= 20.0
         })
-        .expect("dragging over a later visible header should paint the drop marker");
-    let handle_gap = marker.rect.min.x - size_rect.min.x;
-    assert!(
-        (-120.0..=2.0).contains(&handle_gap),
-        "drop marker should paint in the size header's leading drop region, marker={:?}, size={size_rect:?}, gap={handle_gap}",
-        marker.rect
-    );
+        .map(|fill| fill.rect)
+        .expect("active column drag should paint the drop marker")
 }
