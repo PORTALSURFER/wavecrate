@@ -13,11 +13,14 @@ mod paths;
 mod registry;
 mod shortcuts;
 
-const APP_NAME: &str = "SemPal";
-#[cfg(target_os = "windows")]
-const APP_PUBLISHER: &str = "SemPal";
-#[cfg(target_os = "windows")]
-const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\SemPal";
+const APP_NAME: &str = "Wavecrate";
+#[cfg(any(test, target_os = "windows"))]
+const APP_PUBLISHER: &str = "Wavecrate";
+#[cfg(any(test, target_os = "windows"))]
+const UNINSTALL_KEY: &str = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wavecrate";
+#[cfg(any(test, target_os = "windows"))]
+const LEGACY_UNINSTALL_KEYS: &[&str] =
+    &["Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\SemPal"];
 
 fn main() -> ExitCode {
     match run_with_args(
@@ -113,9 +116,26 @@ fn run_headless_install() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::install::{PlanAction, plan_install};
-    use super::{InstallerEntryCommand, run_with_args, select_entry_command};
+    use super::{
+        APP_NAME, APP_PUBLISHER, InstallerEntryCommand, LEGACY_UNINSTALL_KEYS, UNINSTALL_KEY,
+        run_with_args, select_entry_command,
+    };
     use std::cell::Cell;
     use std::fs;
+
+    #[test]
+    fn installer_identity_uses_wavecrate_branding_with_explicit_legacy_uninstall_fallback() {
+        assert_eq!(APP_NAME, "Wavecrate");
+        assert_eq!(APP_PUBLISHER, "Wavecrate");
+        assert_eq!(
+            UNINSTALL_KEY,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Wavecrate"
+        );
+        assert_eq!(
+            LEGACY_UNINSTALL_KEYS,
+            &["Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\SemPal"]
+        );
+    }
 
     #[test]
     fn dry_run_plans_bundle_copies() {
