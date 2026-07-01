@@ -81,6 +81,18 @@ Windows note:
 - set `WAVECRATE_ENABLE_SCCACHE=1` only when you explicitly want wrapper caching
 - do not run multiple cargo test commands concurrently
 
+Headless Linux audio note:
+
+- `scripts/internal/setup_headless_audio.sh` is retained as developer
+  validation tooling for Bash CI, agent, and perf lanes that may run on
+  headless Linux hosts
+- `scripts/ci.sh local` and `scripts/perf.sh guard` source it to set
+  `ALSA_CONFIG_PATH=scripts/internal/alsa_headless.conf` only when the host is
+  Linux, no display server is present, and the caller has not already set
+  `ALSA_CONFIG_PATH`
+- this dummy ALSA path reduces CPAL/ALSA missing-device warning noise in
+  test/bench logs and does not represent shipped Linux app support
+
 ## Safe feature-change checklist
 
 Before push:

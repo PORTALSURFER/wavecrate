@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# Configure a dummy ALSA backend for headless Linux runs so CI logs are not
-# flooded with "cannot find card" / "Unknown PCM default" noise.
+# Developer-validation helper only. Wavecrate does not ship Linux app builds.
+# This configures a dummy ALSA backend for headless Linux CI/agent/perf runs so
+# logs are not flooded with "cannot find card" / "Unknown PCM default" noise.
 wavecrate_setup_headless_audio() {
   local log_prefix="${1:-headless_audio}"
 

@@ -318,7 +318,9 @@ When set, ALSA uses the provided config file path instead of system defaults.
 On headless Linux runs, `scripts/ci.sh local` and `scripts/perf.sh guard`
 set this automatically to `scripts/internal/alsa_headless.conf` unless already defined.
 This routes default playback probing to a dummy sink to reduce `ALSA lib`
-warning noise in test/bench logs.
+warning noise in test/bench logs. This is developer validation tooling for
+headless Linux CI/agent/perf hosts only and does not describe shipped Linux app
+support.
 
 ## UI and runtime profiling
 
