@@ -1,11 +1,13 @@
-//! Release contract checks for active targets and nightly asset labels.
+//! Release contract checks for active targets and release asset labels.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use toml::Value;
 
 const RELEASE_CONTRACT: &str = include_str!("../release_contract.toml");
-const RELEASE_WORKFLOW: &str = include_str!("../.github/workflows/release-build.yml");
+const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.yml");
+const RC_WORKFLOW: &str = include_str!("../.github/workflows/release-rc.yml");
+const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml");
 
 #[test]
 fn platform_labels_are_active_release_labels_only() {
@@ -28,13 +30,45 @@ fn platform_labels_are_active_release_labels_only() {
 fn release_contract_targets_match_nightly_workflow_matrix() {
     let contract = parse_contract();
     let targets = contract_targets(&contract);
-    let workflow_targets = workflow_release_targets();
+    let workflow_targets = workflow_release_targets(NIGHTLY_WORKFLOW);
 
     assert_eq!(
         workflow_targets,
         active_target_matrix(&targets),
         "release_contract.toml targets must match the nightly release workflow matrix"
     );
+}
+
+#[test]
+fn release_contract_targets_match_manual_release_workflow_matrices() {
+    let contract = parse_contract();
+    let targets = contract_targets(&contract);
+    let active = active_target_matrix(&targets);
+
+    assert_eq!(
+        workflow_release_targets(RC_WORKFLOW),
+        active,
+        "RC workflow matrix must match release_contract.toml targets"
+    );
+    assert_eq!(
+        workflow_release_targets(STABLE_WORKFLOW),
+        active,
+        "stable workflow matrix must match release_contract.toml targets"
+    );
+}
+
+#[test]
+fn release_contract_declares_required_channels() {
+    let contract = parse_contract();
+    let channels: BTreeSet<_> = contract
+        .get("channels")
+        .and_then(Value::as_array)
+        .expect("channels")
+        .iter()
+        .map(|channel| channel.as_str().expect("channel string"))
+        .collect();
+
+    assert_eq!(channels, BTreeSet::from(["nightly", "rc", "stable"]));
 }
 
 #[test]
@@ -69,6 +103,64 @@ fn release_contract_template_emits_supported_nightly_asset_names() {
     assert!(
         asset_names.iter().all(|name| !name.contains("linux")),
         "nightly assets generated from the release contract must not include Linux"
+    );
+}
+
+#[test]
+fn release_contract_templates_emit_supported_rc_and_stable_asset_names() {
+    let contract = parse_contract();
+    let targets = contract_targets(&contract);
+    let templates = contract
+        .get("templates")
+        .and_then(Value::as_table)
+        .expect("templates");
+    let rc_template = templates
+        .get("rc_asset")
+        .and_then(Value::as_str)
+        .expect("rc_asset template");
+    let stable_template = templates
+        .get("stable_asset")
+        .and_then(Value::as_str)
+        .expect("stable_asset template");
+
+    let rc_names: BTreeSet<String> = active_target_matrix(&targets)
+        .iter()
+        .map(|target| apply_asset_template(rc_template, app_name(&contract), target, "19.1.0", "2"))
+        .collect();
+    let stable_names: BTreeSet<String> = active_target_matrix(&targets)
+        .iter()
+        .map(|target| {
+            apply_asset_template(stable_template, app_name(&contract), target, "19.1.0", "2")
+        })
+        .collect();
+
+    assert_eq!(
+        rc_names,
+        BTreeSet::from([
+            "wavecrate-19.1.0-rc.2-macos-aarch64.zip".to_string(),
+            "wavecrate-19.1.0-rc.2-macos-x86_64.zip".to_string(),
+            "wavecrate-19.1.0-rc.2-windows-x86_64.zip".to_string(),
+        ])
+    );
+    assert_eq!(
+        stable_names,
+        BTreeSet::from([
+            "wavecrate-19.1.0-macos-aarch64.zip".to_string(),
+            "wavecrate-19.1.0-macos-x86_64.zip".to_string(),
+            "wavecrate-19.1.0-windows-x86_64.zip".to_string(),
+        ])
+    );
+}
+
+#[test]
+fn stable_workflow_requires_matching_rc_before_publish() {
+    assert!(
+        STABLE_WORKFLOW.contains("requires at least one RC tag"),
+        "stable workflow must fail when no RC exists"
+    );
+    assert!(
+        STABLE_WORKFLOW.contains("Latest RC ${rc_tag} points at"),
+        "stable workflow must require the latest RC tag to point at the stable target commit"
     );
 }
 
@@ -143,12 +235,27 @@ fn arch_for_target(target: &str) -> String {
         .expect("target arch")
 }
 
-fn workflow_release_targets() -> BTreeSet<ReleaseTarget> {
+fn apply_asset_template(
+    template: &str,
+    app_name: &str,
+    target: &ReleaseTarget,
+    version: &str,
+    rc_number: &str,
+) -> String {
+    template
+        .replace("{APP_NAME}", app_name)
+        .replace("{version}", version)
+        .replace("{rc_number}", rc_number)
+        .replace("{platform}", &target.platform)
+        .replace("{arch}", &target.arch)
+}
+
+fn workflow_release_targets(workflow: &str) -> BTreeSet<ReleaseTarget> {
     let mut targets = BTreeSet::new();
     let mut entry = BTreeMap::new();
     let mut in_matrix_include = false;
 
-    for line in RELEASE_WORKFLOW.lines() {
+    for line in workflow.lines() {
         let trimmed = line.trim();
         if trimmed == "include:" {
             in_matrix_include = true;

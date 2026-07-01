@@ -24,7 +24,7 @@ description: How to set up Wavecrate, triage samples, edit waveforms, and manage
 - **Resizable sidebar:** Drag the divider to resize Sources and the main view.
 
 ## Configuration and storage
-- Wavecrate alpha app builds currently support macOS and Windows. Linux is not currently supported for app installs.
+- Wavecrate app builds currently support macOS and Windows. Linux is not currently supported for app installs.
 - App files live in a single `.wavecrate` folder inside your supported OS config directory. You can override the base dir with `WAVECRATE_CONFIG_HOME`.
   - Windows: `%APPDATA%\\.wavecrate\\`
   - macOS: `~/Library/Application Support/.wavecrate/`

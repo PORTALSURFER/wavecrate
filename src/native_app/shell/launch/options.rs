@@ -7,13 +7,14 @@ use wavecrate::native_runtime::{WAVECRATE_UI_FONT_BYTES, wavecrate_ui_font_path}
 use super::icon::wavecrate_window_icon;
 
 const APP_NAME: &str = "Wavecrate";
-const RELEASE_CHANNEL: &str = "Alpha";
 
 pub(in crate::native_app) fn default_window_title() -> String {
+    let metadata = wavecrate::release_metadata::CURRENT;
     format!(
-        "{APP_NAME} {} b{} - {RELEASE_CHANNEL}",
-        env!("CARGO_PKG_VERSION"),
-        env!("WAVECRATE_BUILD_NUMBER")
+        "{APP_NAME} {} b{} - {}",
+        metadata.version,
+        metadata.build_number,
+        metadata.release_channel().display_label()
     )
 }
 

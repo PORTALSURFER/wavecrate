@@ -35,7 +35,7 @@ mod tests;
 pub struct UpdateManifest {
     /// Application name.
     pub app: String,
-    /// Channel label (stable/nightly).
+    /// Channel label (stable/rc/nightly).
     pub channel: String,
     /// Target identifier.
     pub target: String,
@@ -56,7 +56,7 @@ impl UpdateManifest {
                 expected.app, self.app
             )));
         }
-        if self.channel != channel_label(expected.channel) {
+        if !manifest_channel_allowed(&self.channel, expected.channel) {
             return Err(UpdateError::Invalid(format!(
                 "Manifest channel mismatch: expected {}, got {}",
                 channel_label(expected.channel),
@@ -145,6 +145,13 @@ where
     };
     let version = match args.identity.channel {
         UpdateChannel::Stable => Some(
+            release
+                .tag_name
+                .strip_prefix('v')
+                .ok_or_else(|| UpdateError::Invalid(format!("Invalid tag {}", release.tag_name)))?
+                .to_string(),
+        ),
+        UpdateChannel::Rc => Some(
             release
                 .tag_name
                 .strip_prefix('v')
@@ -268,6 +275,14 @@ fn apply_files_and_dirs(
 fn channel_label(channel: UpdateChannel) -> &'static str {
     match channel {
         UpdateChannel::Stable => "stable",
+        UpdateChannel::Rc => "rc",
         UpdateChannel::Nightly => "nightly",
+    }
+}
+
+fn manifest_channel_allowed(manifest_channel: &str, expected_channel: UpdateChannel) -> bool {
+    match expected_channel {
+        UpdateChannel::Rc => manifest_channel == "rc" || manifest_channel == "stable",
+        channel => manifest_channel == channel_label(channel),
     }
 }

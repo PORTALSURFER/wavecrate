@@ -9,9 +9,9 @@ fn manual_release_asset_pattern_accepts_current_supported_platforms() {
     let pattern = manual_release_asset_pattern();
 
     for name in [
-        "wavecrate-v1.2.3-windows-x86_64.zip",
-        "wavecrate-v1.2.3-macos-x86_64.zip",
-        "wavecrate-v1.2.3-macos-aarch64.zip",
+        "wavecrate-1.2.3-windows-x86_64.zip",
+        "wavecrate-1.2.3-macos-x86_64.zip",
+        "wavecrate-1.2.3-macos-aarch64.zip",
     ] {
         assert!(pattern.is_match(name), "{name} should match");
     }
@@ -24,6 +24,10 @@ fn manual_release_asset_pattern_rejects_unsupported_linux_assets() {
     for name in [
         "wavecrate-v1.2.3-linux-x86_64.zip",
         "wavecrate-v1.2.3-linux-aarch64.zip",
+        "wavecrate-1.2.3-linux-x86_64.zip",
+        "wavecrate-1.2.3-linux-aarch64.zip",
+        "wavecrate-1.2.3-rc.1-windows-x86_64.zip",
+        "wavecrate-1.2.3-nightly.20260701+abcdef0-windows-x86_64.zip",
     ] {
         assert!(
             !pattern.is_match(name),

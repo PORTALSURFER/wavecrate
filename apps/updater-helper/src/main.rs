@@ -93,6 +93,7 @@ impl ArgState {
                 let value = next_value(args, i, "--channel")?;
                 self.channel = match value.as_str() {
                     "stable" => UpdateChannel::Stable,
+                    "rc" => UpdateChannel::Rc,
                     "nightly" => UpdateChannel::Nightly,
                     other => return Err(format!("Unknown channel '{other}'")),
                 };
@@ -158,7 +159,7 @@ fn help_text() -> String {
     format!(
         "Usage: {APP_NAME}-updater --install-dir <dir> [options]\n\n\
 Options:\n\
-  --channel <stable|nightly>   Update channel (default: stable)\n\
+  --channel <stable|rc|nightly> Update channel (default: stable)\n\
   --repo <OWNER/REPO>          GitHub repository (default: {REPO_SLUG})\n\
   --target <TRIPLE>            Target triple (default: detected)\n\
   --platform <LABEL>           Platform label (default: detected)\n\

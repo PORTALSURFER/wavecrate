@@ -142,7 +142,8 @@ impl AppController {
         if self.runtime.jobs.update_check_in_progress() {
             return;
         }
-        let current_version = match semver::Version::parse(env!("CARGO_PKG_VERSION")) {
+        let current_version = match semver::Version::parse(crate::release_metadata::CURRENT.version)
+        {
             Ok(v) => v,
             Err(_) => semver::Version::new(0, 0, 0),
         };
@@ -190,6 +191,7 @@ fn startup_update_check_should_skip_for_exe(exe: &Path) -> bool {
 fn map_channel(channel: crate::sample_sources::config::UpdateChannel) -> UpdateChannel {
     match channel {
         crate::sample_sources::config::UpdateChannel::Stable => UpdateChannel::Stable,
+        crate::sample_sources::config::UpdateChannel::Rc => UpdateChannel::Rc,
         crate::sample_sources::config::UpdateChannel::Nightly => UpdateChannel::Nightly,
     }
 }

@@ -51,8 +51,11 @@ scripts/internal/release/build_release_zip.sh \
   --platform macos \
   --arch aarch64 \
   --channel nightly \
+  --version "19.1.0-nightly.$(date -u +%Y%m%d)+$(git rev-parse --short=8 HEAD)" \
+  --target-version 19.1.0 \
   --build-number 1 \
-  --git-sha "$(git rev-parse HEAD)"
+  --git-sha "$(git rev-parse HEAD)" \
+  --build-date "$(date -u +%Y-%m-%d)"
 ```
 
 Set `WAVECRATE_MACOS_SIGNING=1` only when intentionally testing the full

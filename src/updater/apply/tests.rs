@@ -1,8 +1,46 @@
+use super::super::RuntimeIdentity;
 use super::*;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use tempfile::tempdir;
+
+fn identity(channel: UpdateChannel) -> RuntimeIdentity {
+    RuntimeIdentity {
+        app: "wavecrate".to_string(),
+        channel,
+        target: "target".to_string(),
+        platform: "macos".to_string(),
+        arch: "x86_64".to_string(),
+    }
+}
+
+fn manifest(channel: &str) -> UpdateManifest {
+    UpdateManifest {
+        app: "wavecrate".to_string(),
+        channel: channel.to_string(),
+        target: "target".to_string(),
+        platform: "macos".to_string(),
+        arch: "x86_64".to_string(),
+        files: vec!["update-manifest.json".to_string()],
+    }
+}
+
+#[test]
+fn rc_identity_accepts_stable_manifest() {
+    manifest("stable")
+        .validate(&identity(UpdateChannel::Rc))
+        .unwrap();
+}
+
+#[test]
+fn stable_identity_rejects_rc_manifest() {
+    let err = manifest("rc")
+        .validate(&identity(UpdateChannel::Stable))
+        .unwrap_err();
+
+    assert!(err.to_string().contains("Manifest channel mismatch"));
+}
 
 #[test]
 fn relaunch_app_errors_when_executable_missing() {

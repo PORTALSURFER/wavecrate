@@ -22,9 +22,11 @@ jobs:
       target_sha: ${{ steps.target.outputs.target_sha }}
       build_number: ${{ steps.target.outputs.build_number }}
       nightly_version: ${{ steps.target.outputs.nightly_version }}
+      target_version: ${{ steps.target.outputs.target_version }}
       portal_build_id: ${{ steps.target.outputs.portal_build_id }}
       previous_nightly_sha: ${{ steps.target.outputs.previous_nightly_sha }}
       released_at: ${{ steps.target.outputs.released_at }}
+      build_date: ${{ steps.target.outputs.build_date }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +43,9 @@ jobs:
           previous_nightly_sha="$(scripts/internal/release/github_ref_sha.sh --allow-missing "$REPOSITORY" tags/nightly)"
           build_number="$(git rev-list --count "$target_sha")"
           short_sha="${target_sha::8}"
-          nightly_version="nightly-b${build_number}-${short_sha}"
+          target_version="$(awk -F '"' '/^version =/ { print $2; exit }' Cargo.toml)"
+          build_date="$(date -u '+%Y%m%d')"
+          nightly_version="${target_version}-nightly.${build_date}+${short_sha}"
           portal_build_id="wavecrate-${nightly_version}"
           released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
@@ -53,9 +57,11 @@ jobs:
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
           echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
           echo "nightly_version=$nightly_version" >> "$GITHUB_OUTPUT"
+          echo "target_version=$target_version" >> "$GITHUB_OUTPUT"
           echo "portal_build_id=$portal_build_id" >> "$GITHUB_OUTPUT"
           echo "previous_nightly_sha=$previous_nightly_sha" >> "$GITHUB_OUTPUT"
           echo "released_at=$released_at" >> "$GITHUB_OUTPUT"
+          echo "build_date=${build_date:0:4}-${build_date:4:2}-${build_date:6:2}" >> "$GITHUB_OUTPUT"
 
   release-log:
     name: Generate nightly release log
@@ -265,8 +271,11 @@ jobs:
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
             --channel nightly \
+            --version "${{ needs.resolve-main.outputs.nightly_version }}" \
+            --target-version "${{ needs.resolve-main.outputs.target_version }}" \
             --build-number "$BUILD_NUMBER" \
             --git-sha "$TARGET_SHA" \
+            --build-date "${{ needs.resolve-main.outputs.build_date }}" \
             --out-dir dist/release
       - name: Uniquify checksums entry
         shell: bash
@@ -453,6 +462,7 @@ jobs:
           UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
           TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
           BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
+          RELEASE_VERSION: ${{ needs.resolve-main.outputs.nightly_version }}
           PORTAL_BUILD_ID: ${{ needs.resolve-main.outputs.portal_build_id }}
           RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
         run: |
@@ -464,7 +474,7 @@ jobs:
             exit 1
           fi
 
-          version="nightly"
+          version="$RELEASE_VERSION"
           build_id="$PORTAL_BUILD_ID"
           released_at="${RELEASED_AT}"
 

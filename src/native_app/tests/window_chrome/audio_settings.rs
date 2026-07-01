@@ -1,11 +1,13 @@
 use super::*;
 
 #[test]
-fn default_window_title_marks_versioned_alpha_build() {
+fn default_window_title_marks_versioned_release_channel() {
+    let metadata = wavecrate::release_metadata::CURRENT;
     let expected = format!(
-        "Wavecrate {} b{} - Alpha",
-        env!("CARGO_PKG_VERSION"),
-        env!("WAVECRATE_BUILD_NUMBER")
+        "Wavecrate {} b{} - {}",
+        metadata.version,
+        metadata.build_number,
+        metadata.release_channel().display_label()
     );
 
     assert_eq!(

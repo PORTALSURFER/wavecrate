@@ -21,10 +21,23 @@ Overrides the build tool used by `scripts/internal/release/build_release_zip.sh`
 `cargo`).
 
 - `WAVECRATE_CHECKSUMS_ED25519_KEY`
-CI secret used by `.github/workflows/release-build.yml` to sign release checksum
-files. This is expected to be an Ed25519 private key in PEM form that OpenSSL
-can use for `pkeyutl -sign`. The release workflow also accepts the legacy
+CI secret used by the release workflows to sign release checksum files. This is
+expected to be an Ed25519 private key in PEM form that OpenSSL can use for
+`pkeyutl -sign`. The release workflows also accept the legacy
 `SEMPAL_CHECKSUMS_ED25519_KEY` secret name as a compatibility fallback.
+
+- `WAVECRATE_RELEASE_VERSION`
+Full semver release identity embedded into a packaged binary. Examples:
+`19.1.0-nightly.20260701+abc1234`, `19.1.0-rc.1`, `19.1.0`.
+
+- `WAVECRATE_RELEASE_CHANNEL`
+Embedded release channel: `nightly`, `rc`, or `stable`.
+
+- `WAVECRATE_RELEASE_TARGET_VERSION`
+Stable target version for the release train, such as `19.1.0`.
+
+- `WAVECRATE_RELEASE_BUILD_DATE`
+UTC build date embedded into the binary in `YYYY-MM-DD` form.
 
 - `WAVECRATE_DISABLE_SCCACHE`
 When set to `1`, repo Cargo helper scripts force direct `rustc` and clear any
@@ -39,17 +52,35 @@ and its wrapper probe passes. Default: unset, so repo scripts use direct
 
 ### Release upload secrets
 
-The `release-build.yml` workflow is the only GitHub Actions workflow in this
-repo. It publishes rolling `nightly` builds only: Windows x86_64 plus macOS
+Wavecrate has three public release workflows:
+
+- `.github/workflows/release-build.yml`
+  - automatic and manual nightly builds from `main`
+- `.github/workflows/release-rc.yml`
+  - manual release-candidate builds from `release/X.Y`
+- `.github/workflows/release-stable.yml`
+  - manual stable releases from `release/X.Y`
+
+Nightly runs publish rolling `nightly` builds for Windows x86_64 plus macOS
 x86_64/aarch64 assets from the current `main` commit. The schedule is
 `19:30 UTC` (evening in Europe/Amsterdam), and `workflow_dispatch` provides a
 manual "force a nightly now" button with the same build/upload path.
 
-The workflow publishes an immutable nightly version tag named
-`nightly-b<build>-<short-sha>` for changelog history, updates the rolling GitHub
+RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
+`release/X.Y` for the requested `X.Y.Z` version, and the package manifest must
+already carry that target version. RC releases are published as GitHub
+pre-releases tagged `vX.Y.Z-rc.N`.
+
+Stable runs require `version` and `branch` inputs. The branch must be
+`release/X.Y`, the package manifest must match `X.Y.Z`, and the latest
+`vX.Y.Z-rc.N` tag must point at the same commit being promoted. Stable releases
+are published as normal GitHub releases tagged `vX.Y.Z`.
+
+The nightly workflow publishes an immutable nightly version tag named like
+`19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub
 `nightly` release for downloads, then uploads the same zips plus the generated
 Markdown release log to the PortalSurfer Wavecrate release-upload API. Each
-PortalSurfer upload uses the matching `wavecrate-nightly-b<build>-<short-sha>`
+PortalSurfer upload uses the matching `wavecrate-<nightly-version>`
 build id so the website can show a distinct nightly entry instead of stacking
 every nightly under one changelog group. After the per-release log is visible in
 the public catalog, the workflow verifies that the fetched log body matches the
@@ -70,10 +101,10 @@ Optional upload endpoint. Defaults to
 `https://portalsurfer.org/wavecrate/api/v1/release-uploads` and must end with
 `/release-uploads`.
 
-### macOS nightly signing secrets
+### macOS release signing secrets
 
-Nightly macOS zips are packaged as `Wavecrate.app` bundles. On GitHub Actions,
-the release workflow signs them with Developer ID, submits them to Apple
+macOS zips are packaged as `Wavecrate.app` bundles. On GitHub Actions, the
+release workflows sign them with Developer ID, submit them to Apple
 notarization, staples the ticket, and only then uploads the zip to GitHub and
 PortalSurfer.
 

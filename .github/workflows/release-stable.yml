@@ -1,0 +1,313 @@
+name: Wavecrate stable release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version, for example 19.1.0
+        required: true
+        type: string
+      branch:
+        description: Release branch, for example release/19.1
+        required: true
+        type: string
+      release_notes:
+        description: Optional release notes
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wavecrate-stable-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve stable target
+    runs-on: ubuntu-latest
+    outputs:
+      target_sha: ${{ steps.resolve.outputs.target_sha }}
+      target_version: ${{ steps.resolve.outputs.target_version }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+      build_number: ${{ steps.resolve.outputs.build_number }}
+      build_date: ${{ steps.resolve.outputs.build_date }}
+      rc_tag: ${{ steps.resolve.outputs.rc_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.branch }}
+      - name: Validate stable inputs
+        id: resolve
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "version must be MAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          minor_branch="$(awk -F. '{ print $1 "." $2 }' <<<"$VERSION")"
+          if [[ "$BRANCH" != "release/${minor_branch}" ]]; then
+            echo "branch must be release/${minor_branch} for version ${VERSION}" >&2
+            exit 1
+          fi
+          manifest_version="$(awk -F '"' '/^version =/ { print $2; exit }' Cargo.toml)"
+          if [[ "$manifest_version" != "$VERSION" ]]; then
+            echo "Cargo.toml version ${manifest_version} does not match ${VERSION}" >&2
+            exit 1
+          fi
+          target_sha="$(git rev-parse HEAD)"
+          mapfile -t rc_tags < <(git tag -l "v${VERSION}-rc.*" --sort=-v:refname)
+          if [[ ${#rc_tags[@]} -eq 0 ]]; then
+            echo "Stable release ${VERSION} requires at least one RC tag v${VERSION}-rc.N" >&2
+            exit 1
+          fi
+          rc_tag="${rc_tags[0]}"
+          rc_sha="$(git rev-list -n 1 "$rc_tag")"
+          if [[ "$rc_sha" != "$target_sha" ]]; then
+            echo "Latest RC ${rc_tag} points at ${rc_sha}; stable target is ${target_sha}" >&2
+            exit 1
+          fi
+          release_tag="v${VERSION}"
+          existing="$(git rev-parse -q --verify "refs/tags/${release_tag}^{commit}" 2>/dev/null || true)"
+          if [[ -n "$existing" && "$existing" != "$target_sha" ]]; then
+            echo "Tag ${release_tag} already points at ${existing}, not ${target_sha}" >&2
+            exit 1
+          fi
+          build_number="$(git rev-list --count "$target_sha")"
+          build_date="$(date -u '+%Y-%m-%d')"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "target_version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+          echo "build_date=$build_date" >> "$GITHUB_OUTPUT"
+          echo "rc_tag=$rc_tag" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Run stable validation tests
+    runs-on: ubuntu-latest
+    needs: resolve
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+          ref: ${{ needs.resolve.outputs.target_sha }}
+      - name: Checkout Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
+            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          key_path="$HOME/.ssh/radiant_submodule_key"
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
+            git submodule update --init --recursive vendor/radiant
+          rm -f "$key_path"
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Run tests
+        run: cargo test --workspace --locked
+
+  build:
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }} stable
+    runs-on: ${{ matrix.os }}
+    needs: [resolve, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows
+            arch: x86_64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            platform: macos
+            arch: x86_64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            platform: macos
+            arch: aarch64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          ref: ${{ needs.resolve.outputs.target_sha }}
+      - name: Checkout Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
+            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          key_path="$HOME/.ssh/radiant_submodule_key"
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
+            git submodule update --init --recursive vendor/radiant
+          rm -f "$key_path"
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Fetch ASIO SDK (Windows)
+        if: ${{ matrix.platform == 'windows' }}
+        shell: pwsh
+        run: |
+          git lfs install --local
+          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/audiosdk/asio "$env:GITHUB_WORKSPACE/asio"
+          git -C "$env:GITHUB_WORKSPACE/asio" submodule update --init --recursive
+          git -C "$env:GITHUB_WORKSPACE/asio" lfs pull
+          $asioRoot = Join-Path $env:GITHUB_WORKSPACE "asio"
+          $asioHeader = Get-ChildItem -Path $asioRoot -Recurse -Filter "asiodrivers.h" -File | Select-Object -First 1
+          if (-not $asioHeader) { throw "ASIO header not found under $asioRoot" }
+          $sdkDir = Split-Path -Parent (Split-Path -Parent $asioHeader.FullName)
+          if (-not (Test-Path (Join-Path $sdkDir "host")) -or -not (Test-Path (Join-Path $sdkDir "common"))) {
+            throw "ASIO SDK directory not found for $($asioHeader.FullName)"
+          }
+          "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
+      - name: Build stable zip
+        shell: bash
+        env:
+          BUILD_NUMBER: ${{ needs.resolve.outputs.build_number }}
+          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
+          WAVECRATE_MACOS_SIGNING: ${{ matrix.platform == 'macos' && '1' || '0' }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64 }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          APPLE_NOTARY_KEY_BASE64: ${{ secrets.APPLE_NOTARY_KEY_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+        run: |
+          scripts/internal/release/build_release_zip.sh \
+            --target "${{ matrix.target }}" \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --channel stable \
+            --version "${{ needs.resolve.outputs.target_version }}" \
+            --target-version "${{ needs.resolve.outputs.target_version }}" \
+            --build-number "$BUILD_NUMBER" \
+            --git-sha "$TARGET_SHA" \
+            --build-date "${{ needs.resolve.outputs.build_date }}" \
+            --out-dir dist/release
+          mv dist/release/checksums-entry.txt \
+            "dist/release/checksums-entry-${{ matrix.platform }}-${{ matrix.arch }}.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/release
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub stable release
+    runs-on: ubuntu-latest
+    needs: [resolve, build]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.target_sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/artifacts
+          pattern: release-*
+          merge-multiple: true
+      - name: Assemble stable release files
+        shell: bash
+        env:
+          VERSION: ${{ needs.resolve.outputs.target_version }}
+          TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
+          RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          RELEASE_NOTES: ${{ inputs.release_notes }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          cp dist/artifacts/*.zip dist/release/
+          cat dist/artifacts/checksums-entry-*.txt > "dist/release/checksums-${VERSION}.txt"
+          {
+            echo "# Wavecrate ${VERSION}"
+            echo
+            echo "- Channel: Stable"
+            echo "- Commit: ${TARGET_SHA}"
+            echo "- Promoted from: ${RC_TAG}"
+            echo
+            if [[ -n "$RELEASE_NOTES" ]]; then
+              printf '%s\n' "$RELEASE_NOTES"
+            else
+              echo "Stable release promoted from ${RC_TAG}."
+            fi
+          } > dist/release/release-log.md
+      - name: Sign release checksums
+        env:
+          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
+          VERSION: ${{ needs.resolve.outputs.target_version }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
+            echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY or SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
+            exit 1
+          fi
+          key_path="dist/release/checksums-signing-key.pem"
+          printf "%s" "$CHECKSUMS_SIGNING_KEY" > "$key_path"
+          openssl pkeyutl -sign -inkey "$key_path" -rawin \
+            -in "dist/release/checksums-${VERSION}.txt" \
+            -out "dist/release/checksums-${VERSION}.txt.sig.bin"
+          base64 -w 0 "dist/release/checksums-${VERSION}.txt.sig.bin" \
+            > "dist/release/checksums-${VERSION}.txt.sig"
+          rm -f "$key_path" "dist/release/checksums-${VERSION}.txt.sig.bin"
+      - name: Publish stable release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.resolve.outputs.release_tag }}
+          name: Wavecrate ${{ needs.resolve.outputs.target_version }}
+          target_commitish: ${{ needs.resolve.outputs.target_sha }}
+          body_path: dist/release/release-log.md
+          prerelease: false
+          make_latest: true
+          files: dist/release/*
