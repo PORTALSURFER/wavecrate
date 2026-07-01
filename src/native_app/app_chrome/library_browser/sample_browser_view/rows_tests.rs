@@ -1,14 +1,20 @@
 use super::super::cells::{
-    COLLECTION_MARKER_RIGHT_INSET, LOCKED_KEEP_RATING_COLOR, LOCKED_KEEP_RATING_MARKER_SIDE,
-    RATING_MARKER_SIDE, SIMILARITY_ASPECT_DISABLED_TRACK, SIMILARITY_SCORE_FILL,
-    muted_sample_file_cell, sample_collection_cell, sample_file_cell, sample_playback_type_cell,
-    sample_rating_cell, sample_similarity_cell,
+    COMPACT_COLUMN_CONTENT_TRAILING_GUTTER, LOCKED_KEEP_RATING_COLOR,
+    LOCKED_KEEP_RATING_MARKER_SIDE, RATING_MARKER_SIDE, SIMILARITY_ASPECT_DISABLED_TRACK,
+    SIMILARITY_SCORE_FILL, muted_sample_file_cell, sample_collection_cell, sample_file_cell,
+    sample_harvest_badge_cell, sample_playback_type_cell, sample_rating_cell,
+    sample_similarity_cell,
 };
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
 use super::*;
 use crate::native_app::sample_library::folder_browser::{FolderBrowserState, model::FileEntry};
-use radiant::{layout::Vector2, prelude::IntoView, theme::ThemeTokens};
+use radiant::{
+    layout::Vector2,
+    prelude::{self as ui, IntoView},
+    runtime::PaintPrimitive,
+    theme::ThemeTokens,
+};
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
 /// Builds a representative file entry for row rendering tests.
@@ -29,6 +35,29 @@ fn file_entry() -> FileEntry {
         collection: None,
         collections: Vec::new(),
     }
+}
+
+fn fill_rects_with_colors(
+    frame: &radiant::runtime::SurfaceFrame,
+) -> Vec<(radiant::prelude::Rect, radiant::prelude::Rgba8)> {
+    let mut rects = frame
+        .paint_plan
+        .fill_rects()
+        .map(|fill| (fill.rect, fill.color))
+        .collect::<Vec<_>>();
+    for primitive in &frame.paint_plan.primitives {
+        if let PaintPrimitive::FillRectBatch(batch) = primitive {
+            rects.extend(batch.rects.iter().copied().map(|rect| (rect, batch.color)));
+        }
+    }
+    rects
+}
+
+fn fill_rects(frame: &radiant::runtime::SurfaceFrame) -> Vec<radiant::prelude::Rect> {
+    fill_rects_with_colors(frame)
+        .into_iter()
+        .map(|(rect, _)| rect)
+        .collect()
 }
 
 #[test]
@@ -91,6 +120,30 @@ fn sample_text_uses_primary_theme_color() {
             .text_runs()
             .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
         "sample rows should not express loaded/cache state through text color"
+    );
+}
+
+#[test]
+/// Verifies long sample names end before the header divider gutter.
+fn sample_text_keeps_long_label_left_of_header_divider_gutter() {
+    let theme = ThemeTokens::default();
+    let column_width = 240.0;
+    let frame = sample_file_cell(
+        String::from("KAB1_0_AmenBreak_Original_FullStem"),
+        column_width,
+    )
+    .view_frame_at_size(Vector2::new(column_width, 20.0), &theme);
+
+    let text = frame
+        .paint_plan
+        .text_runs()
+        .find(|run| run.text == "KAB1_0_AmenBreak_Original_FullStem")
+        .expect("sample name text should paint");
+
+    assert!(
+        text.rect.max.x <= column_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER,
+        "sample name text should end left of the header divider gutter: rect={:?}",
+        text.rect
     );
 }
 
@@ -254,8 +307,165 @@ fn collection_cell_keeps_markers_left_of_header_divider_gutter() {
         .expect("collection cell should paint visible collection markers");
 
     assert!(
-        max_marker_x <= column_width - COLLECTION_MARKER_RIGHT_INSET as f32,
+        max_marker_x <= column_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER,
         "collection markers should end left of the header divider gutter: max_marker_x={max_marker_x}"
+    );
+}
+
+#[test]
+/// Verifies rating markers reserve the same divider gutter as collection markers.
+fn rating_cell_keeps_markers_left_of_header_divider_gutter() {
+    let theme = ThemeTokens::default();
+    let column_width = 68.0;
+    let frame = sample_rating_cell(RatingIndicator::new(Rating::KEEP_3, false), column_width)
+        .view_frame_at_size(Vector2::new(column_width, 20.0), &theme);
+
+    let marker_rects = fill_rects(&frame);
+
+    assert!(
+        !marker_rects.is_empty(),
+        "rating cell should paint visible rating markers"
+    );
+    assert!(
+        marker_rects.iter().all(|rect| {
+            rect.min.x >= 0.0
+                && rect.max.x <= column_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER
+                && rect.min.y >= 0.0
+                && rect.max.y <= 20.0
+        }),
+        "rating markers should stay inside the rating column content bounds: {marker_rects:?}"
+    );
+}
+
+#[test]
+/// Verifies Harvest badges reserve the shared divider gutter.
+fn harvest_cell_keeps_badges_left_of_header_divider_gutter() {
+    let theme = ThemeTokens::default();
+    let column_width = 74.0;
+    let frame = sample_harvest_badge_cell(
+        vec![String::from("touch"), String::from("D3")],
+        column_width,
+    )
+    .view_frame_at_size(Vector2::new(column_width, 20.0), &theme);
+
+    let text_rects = frame
+        .paint_plan
+        .text_runs()
+        .filter(|run| run.text == "touch" || run.text == "D3")
+        .map(|run| run.rect)
+        .collect::<Vec<_>>();
+
+    assert!(
+        !text_rects.is_empty(),
+        "harvest cell should paint visible Harvest badge text"
+    );
+    assert!(
+        text_rects.iter().all(|rect| {
+            rect.min.x >= 0.0
+                && rect.max.x <= column_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER
+                && rect.min.y >= 0.0
+                && rect.max.y <= 20.0
+        }),
+        "Harvest badge text should stay inside the Harvest column content bounds: {text_rects:?}"
+    );
+}
+
+#[test]
+/// Verifies compact content does not bleed across neighboring columns.
+fn compact_column_content_stays_inside_adjacent_column_boundaries() {
+    let theme = ThemeTokens::default();
+    let folder_browser = FolderBrowserState::load_default();
+    let collection = SampleCollection::new(0).expect("collection");
+    let collection_color = folder_browser
+        .collection_color(collection)
+        .expect("collection color");
+    let rating = RatingIndicator::new(Rating::KEEP_3, false);
+    let rating_color = rating.color().expect("rating marker color");
+
+    let name_width = 240.0;
+    let rating_width = 68.0;
+    let harvest_width = 74.0;
+    let collection_width = 58.0;
+    let row_padding = 8.0;
+    let column_spacing = 10.0;
+    let name_start = row_padding;
+    let rating_start = name_start + name_width + column_spacing;
+    let harvest_start = rating_start + rating_width + column_spacing;
+    let collection_start = harvest_start + harvest_width + column_spacing;
+    let row_width = collection_start + collection_width + row_padding;
+    let frame = ui::compact_details_row([
+        sample_file_cell(
+            String::from("KAB1_0_AmenBreak_Original_FullStem"),
+            name_width,
+        ),
+        sample_rating_cell(rating, rating_width),
+        sample_harvest_badge_cell(
+            vec![String::from("touch"), String::from("D3")],
+            harvest_width,
+        ),
+        sample_collection_cell(vec![collection_color], collection_width),
+    ])
+    .view_frame_at_size(Vector2::new(row_width, 22.0), &theme);
+
+    let fills = fill_rects_with_colors(&frame);
+    let rating_rects = fills
+        .iter()
+        .filter_map(|(rect, color)| (*color == rating_color).then_some(*rect))
+        .collect::<Vec<_>>();
+    let collection_rects = fills
+        .iter()
+        .filter_map(|(rect, color)| (*color == collection_color).then_some(*rect))
+        .collect::<Vec<_>>();
+    let harvest_text_rects = frame
+        .paint_plan
+        .text_runs()
+        .filter(|run| run.text == "touch" || run.text == "D3")
+        .map(|run| run.rect)
+        .collect::<Vec<_>>();
+    let name_text_rects = frame
+        .paint_plan
+        .text_runs()
+        .filter(|run| run.text == "KAB1_0_AmenBreak_Original_FullStem")
+        .map(|run| run.rect)
+        .collect::<Vec<_>>();
+
+    assert!(
+        !name_text_rects.is_empty(),
+        "adjacent row should paint sample name text"
+    );
+    assert!(
+        !rating_rects.is_empty(),
+        "adjacent row should paint rating markers"
+    );
+    assert!(
+        !harvest_text_rects.is_empty(),
+        "adjacent row should paint Harvest badge text"
+    );
+    assert!(
+        !collection_rects.is_empty(),
+        "adjacent row should paint collection markers"
+    );
+    assert!(
+        name_text_rects
+            .iter()
+            .all(|rect| rect.max.x
+                <= name_start + name_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER),
+        "sample name text should not bleed into the rating column: {name_text_rects:?}"
+    );
+    assert!(
+        rating_rects.iter().all(|rect| rect.max.x
+            <= rating_start + rating_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER),
+        "rating markers should not bleed into the Harvest column: {rating_rects:?}"
+    );
+    assert!(
+        harvest_text_rects.iter().all(|rect| rect.max.x
+            <= harvest_start + harvest_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER),
+        "Harvest badges should not bleed into the collection column: {harvest_text_rects:?}"
+    );
+    assert!(
+        collection_rects.iter().all(|rect| rect.max.x
+            <= collection_start + collection_width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER),
+        "collection markers should not bleed past their column: {collection_rects:?}"
     );
 }
 

@@ -28,8 +28,8 @@ const SAMPLE_NAME_BADGE_LIMIT: usize = 4;
 pub(super) const RATING_MARKER_SIDE: u8 = 5;
 pub(super) const LOCKED_KEEP_RATING_MARKER_SIDE: u8 = 7;
 pub(super) const LOCKED_KEEP_RATING_COLOR: ui::Rgba8 = ui::Rgba8::new(232, 188, 56, 245);
-/// Keeps right-aligned collection markers left of the header resize-divider gutter.
-pub(super) const COLLECTION_MARKER_RIGHT_INSET: u8 = 14;
+/// Keeps compact column content left of the header resize-divider gutter.
+pub(super) const COMPACT_COLUMN_CONTENT_TRAILING_GUTTER: f32 = 14.0;
 const SIMILARITY_ANCHOR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
     ui::Rgba8::new(238, 238, 238, 220),
     ui::Rgba8::new(255, 160, 82, 255),
@@ -107,9 +107,9 @@ pub(super) fn sample_playback_type_cell(
 
 /// Render the passive playback-type cell.
 fn render_playback_type_cell(label: String, available: bool, width: f32) -> ui::View<GuiMessage> {
-    let text = ui::text(label).height(18.0).fill_width();
+    let text = compact_text(label);
     let text = if available { text } else { text.muted_text() };
-    ui::compact_details_cell(text, Some(width))
+    compact_column_content_cell(text, width)
 }
 
 fn sample_rename_cell(rename: FileRenameView, width: f32) -> ui::View<GuiMessage> {
@@ -126,13 +126,9 @@ fn sample_rename_cell(rename: FileRenameView, width: f32) -> ui::View<GuiMessage
 
 /// Render the passive collection-membership marker cell.
 pub(super) fn sample_collection_cell(colors: Vec<ui::Rgba8>, width: f32) -> ui::View<GuiMessage> {
-    ui::compact_details_cell(
-        ui::marker_run_colors(colors)
-            .side(6)
-            .gap(4)
-            .inset(COLLECTION_MARKER_RIGHT_INSET)
-            .view(),
-        Some(width),
+    compact_column_content_cell(
+        ui::marker_run_colors(colors).side(6).gap(4).inset(0).view(),
+        width,
     )
 }
 
@@ -219,23 +215,23 @@ pub(super) fn muted_sample_file_cell(value: String, width: f32) -> ui::View<GuiM
 /// Render a projected passive rating cell.
 fn render_rating_cell(projection: RatingCellProjection, width: f32) -> ui::View<GuiMessage> {
     if projection == RatingCellProjection::LockedKeepMarker {
-        return ui::compact_details_cell(
+        return compact_column_content_cell(
             ui::marker_run(Some(LOCKED_KEEP_RATING_COLOR), 1)
                 .side(LOCKED_KEEP_RATING_MARKER_SIDE)
                 .gap(4)
-                .inset(4)
+                .inset(0)
                 .view(),
-            Some(width),
+            width,
         );
     }
 
-    ui::compact_details_cell(
+    compact_column_content_cell(
         ui::marker_run(projection.marker_color(), projection.marker_count())
             .side(RATING_MARKER_SIDE)
             .gap(4)
-            .inset(4)
+            .inset(0)
             .view(),
-        Some(width),
+        width,
     )
 }
 
@@ -246,9 +242,9 @@ pub(super) fn sample_file_cell(value: String, width: f32) -> ui::View<GuiMessage
 }
 
 fn sample_file_cell_with_tone(value: String, width: f32, muted: bool) -> ui::View<GuiMessage> {
-    let text = ui::text(value);
+    let text = compact_text(value);
     let text = if muted { text.muted_text() } else { text };
-    ui::compact_details_cell(text, Some(width))
+    compact_column_content_cell(text, width)
 }
 
 fn sample_name_cell(
@@ -261,21 +257,21 @@ fn sample_name_cell(
         return sample_file_cell_with_tone(text, width, muted);
     }
     let mut cells = Vec::with_capacity(badges.len() + 1);
-    let name = ui::text(text).height(18.0).fill_width();
+    let name = compact_text(text).fill_width();
     cells.push(if muted { name.muted_text() } else { name });
     cells.extend(sample_badge_views(badges));
-    ui::compact_details_cell(ui::row(cells).spacing(4.0).fill_width(), Some(width))
+    compact_column_content_cell(ui::row(cells).spacing(4.0).fill_width(), width)
 }
 
 fn sample_badge_run_cell(badges: Vec<String>, muted: bool, width: f32) -> ui::View<GuiMessage> {
     if badges.is_empty() {
         return sample_file_cell_with_tone(String::new(), width, muted);
     }
-    ui::compact_details_cell(
+    compact_column_content_cell(
         ui::row(sample_badge_views(badges))
             .spacing(4.0)
             .fill_width(),
-        Some(width),
+        width,
     )
 }
 
@@ -299,6 +295,25 @@ fn sample_passive_badge(label: String) -> ui::View<GuiMessage> {
     ui::passive_badge(label)
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
         .height(14.0)
+}
+
+fn compact_text(text: impl Into<String>) -> ui::View<GuiMessage> {
+    ui::text(text).height(18.0).truncate()
+}
+
+fn compact_column_content_cell(content: ui::View<GuiMessage>, width: f32) -> ui::View<GuiMessage> {
+    let content_width = (width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER).max(0.0);
+    ui::compact_details_cell(
+        ui::row([content.width(content_width).height(20.0)])
+            .spacing(0.0)
+            .height(20.0),
+        Some(width),
+    )
+}
+
+#[cfg(test)]
+pub(super) fn sample_harvest_badge_cell(badges: Vec<String>, width: f32) -> ui::View<GuiMessage> {
+    sample_badge_run_cell(badges, false, width)
 }
 
 static SIMILARITY_ANCHOR_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
