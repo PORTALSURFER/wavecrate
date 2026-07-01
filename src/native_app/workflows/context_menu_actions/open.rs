@@ -29,7 +29,7 @@ impl NativeAppState {
             .play_selection_context_menu_anchor()
             .is_some()
         {
-            self.open_play_selection_context_menu_from_shortcut();
+            self.open_play_selection_context_menu_from_shortcut(context.current_pointer_position());
             return;
         }
         if let Some(file_id) = self
