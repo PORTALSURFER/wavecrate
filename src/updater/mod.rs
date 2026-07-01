@@ -11,6 +11,7 @@ mod fs_ops;
 mod github;
 mod path_guard;
 mod public_catalog;
+mod release_contract;
 
 use std::path::PathBuf;
 
@@ -28,6 +29,7 @@ pub use public_catalog::{
     PUBLIC_RELEASE_CATALOG_URL, PUBLIC_RELEASE_PAGE_URL, PublicReleaseCheckRequest,
     PublicReleaseInfo, check_public_release_catalog,
 };
+pub use release_contract::supported_release_target_for_platform_arch;
 
 /// Canonical app name used by the release contract.
 pub const APP_NAME: &str = "wavecrate";

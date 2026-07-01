@@ -3,6 +3,7 @@
 //! These helpers keep the GitHub release contract in one place so the apply and
 //! discovery paths derive identical asset names for the current runtime.
 
+use super::release_contract;
 use super::{APP_NAME, RuntimeIdentity, UpdateChannel, UpdateError};
 
 /// Return the expected zip asset name for a runtime identity.
@@ -10,25 +11,14 @@ pub(crate) fn expected_zip_asset_name(
     identity: &RuntimeIdentity,
     version: Option<&str>,
 ) -> Result<String, UpdateError> {
-    let platform = match identity.platform.as_str() {
-        "windows" | "macos" => identity.platform.as_str(),
-        _ => {
-            return Err(UpdateError::Invalid(format!(
-                "Unsupported platform/arch {}/{}",
-                identity.platform, identity.arch
-            )));
-        }
-    };
-    let arch = match identity.arch.as_str() {
-        "x86_64" => "x86_64",
-        "aarch64" => "aarch64",
-        _ => {
-            return Err(UpdateError::Invalid(format!(
-                "Unsupported platform/arch {}/{}",
-                identity.platform, identity.arch
-            )));
-        }
-    };
+    let platform = identity.platform.as_str();
+    let arch = identity.arch.as_str();
+    if !release_contract::supports_platform_arch(platform, arch)? {
+        return Err(UpdateError::Invalid(format!(
+            "Unsupported platform/arch {}/{}",
+            identity.platform, identity.arch
+        )));
+    }
     match identity.channel {
         UpdateChannel::Stable => {
             let version =
@@ -89,17 +79,69 @@ mod tests {
     use super::*;
 
     #[test]
-    fn expected_zip_asset_name_rejects_linux_runtime_identity() {
-        let identity = RuntimeIdentity {
-            app: APP_NAME.to_string(),
-            channel: UpdateChannel::Stable,
-            target: "x86_64-unknown-linux-gnu".to_string(),
-            platform: "linux".to_string(),
-            arch: "x86_64".to_string(),
-        };
+    fn expected_zip_asset_name_emits_supported_nightly_assets() {
+        assert_eq!(
+            expected_zip_asset_name(&identity(UpdateChannel::Nightly, "windows", "x86_64"), None)
+                .unwrap(),
+            "wavecrate-nightly-windows-x86_64.zip"
+        );
+        assert_eq!(
+            expected_zip_asset_name(&identity(UpdateChannel::Nightly, "macos", "x86_64"), None)
+                .unwrap(),
+            "wavecrate-nightly-macos-x86_64.zip"
+        );
+        assert_eq!(
+            expected_zip_asset_name(&identity(UpdateChannel::Nightly, "macos", "aarch64"), None)
+                .unwrap(),
+            "wavecrate-nightly-macos-aarch64.zip"
+        );
+    }
 
-        let err = expected_zip_asset_name(&identity, Some("1.2.3")).unwrap_err();
+    #[test]
+    fn expected_zip_asset_name_emits_supported_tagged_assets() {
+        assert_eq!(
+            expected_zip_asset_name(
+                &identity(UpdateChannel::Stable, "windows", "x86_64"),
+                Some("19.1.0")
+            )
+            .unwrap(),
+            "wavecrate-19.1.0-windows-x86_64.zip"
+        );
+        assert_eq!(
+            expected_zip_asset_name(
+                &identity(UpdateChannel::Rc, "macos", "aarch64"),
+                Some("19.1.0-rc.2")
+            )
+            .unwrap(),
+            "wavecrate-19.1.0-rc.2-macos-aarch64.zip"
+        );
+    }
+
+    #[test]
+    fn expected_zip_asset_name_rejects_unpublished_release_targets() {
+        assert_unsupported("linux", "x86_64");
+        assert_unsupported("windows", "aarch64");
+        assert_unsupported("macos", "riscv64");
+    }
+
+    fn assert_unsupported(platform: &str, arch: &str) {
+        let err = expected_zip_asset_name(
+            &identity(UpdateChannel::Stable, platform, arch),
+            Some("1.2.3"),
+        )
+        .unwrap_err();
 
         assert!(err.to_string().contains("Unsupported platform/arch"));
+    }
+
+    fn identity(channel: UpdateChannel, platform: &str, arch: &str) -> RuntimeIdentity {
+        let identity = RuntimeIdentity {
+            app: APP_NAME.to_string(),
+            channel,
+            target: "target".to_string(),
+            platform: platform.to_string(),
+            arch: arch.to_string(),
+        };
+        identity
     }
 }
