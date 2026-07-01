@@ -1,6 +1,9 @@
 use super::*;
+#[cfg(unix)]
 use crate::app::controller::library::source_folders::delete_recovery::DeleteStagingInfo;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 
 #[test]
 fn recover_rejects_parent_dir_original_without_restoring_outside_source() {

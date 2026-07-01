@@ -5,13 +5,17 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::tempdir;
 
+const MACOS_TARGET: &str = "x86_64-apple-darwin";
+const MACOS_PLATFORM: &str = "macos";
+const X86_64_ARCH: &str = "x86_64";
+
 fn identity(channel: UpdateChannel) -> RuntimeIdentity {
     RuntimeIdentity {
         app: "wavecrate".to_string(),
         channel,
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
     }
 }
 
@@ -19,9 +23,9 @@ fn manifest(channel: &str) -> UpdateManifest {
     UpdateManifest {
         app: "wavecrate".to_string(),
         channel: channel.to_string(),
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
         files: vec!["update-manifest.json".to_string()],
     }
 }
@@ -48,9 +52,9 @@ fn relaunch_app_errors_when_executable_missing() {
     let manifest = UpdateManifest {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
         files: Vec::new(),
     };
     let err = relaunch_app(tmp.path(), "wavecrate", &manifest).unwrap_err();
@@ -80,9 +84,9 @@ fn apply_files_and_dirs_keeps_running_executable_on_stage_failure() {
     let manifest = UpdateManifest {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
         files: vec![running_name.clone()],
     };
 
@@ -106,7 +110,7 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
     let installed_manifest_json = r#"{
   "app": "wavecrate",
   "channel": "stable",
-  "target": "target",
+  "target": "x86_64-apple-darwin",
   "platform": "macos",
   "arch": "x86_64",
   "files": ["update-manifest.json", "current.txt", "old.txt"]
@@ -123,9 +127,9 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
     let next_manifest = UpdateManifest {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
         files: vec![
             "update-manifest.json".to_string(),
             "current.txt".to_string(),
@@ -157,7 +161,7 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
     let installed_manifest_json = r#"{
   "app": "wavecrate",
   "channel": "stable",
-  "target": "target",
+  "target": "x86_64-apple-darwin",
   "platform": "macos",
   "arch": "x86_64",
   "files": ["update-manifest.json", "current.txt"]
@@ -177,9 +181,9 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
     let next_manifest = UpdateManifest {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
         files: vec![
             "update-manifest.json".to_string(),
             "current.txt".to_string(),
@@ -219,7 +223,7 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
     let installed_manifest_json = r#"{
   "app": "wavecrate",
   "channel": "stable",
-  "target": "target",
+  "target": "x86_64-apple-darwin",
   "platform": "macos",
   "arch": "x86_64",
   "files": ["update-manifest.json", "current.txt", "stale/stale.txt"]
@@ -235,9 +239,9 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
     let next_manifest = UpdateManifest {
         app: "wavecrate".to_string(),
         channel: "stable".to_string(),
-        target: "target".to_string(),
-        platform: "macos".to_string(),
-        arch: "x86_64".to_string(),
+        target: MACOS_TARGET.to_string(),
+        platform: MACOS_PLATFORM.to_string(),
+        arch: X86_64_ARCH.to_string(),
         files: vec![
             "update-manifest.json".to_string(),
             "current.txt".to_string(),

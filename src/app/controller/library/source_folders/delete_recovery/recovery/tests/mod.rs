@@ -9,8 +9,11 @@ use super::*;
 use crate::app::controller::library::source_folders::delete_recovery::restore_merge::restore_retained_folder_with_merge_with_stamp;
 use crate::app::controller::library::source_folders::delete_recovery::{
     DeleteRecoveryAction, DeleteRecoveryStatus, mark_delete_restore_pending_db,
-    mark_delete_retained, purge_deleted_folder, restore_deleted_folder, rollback_staged_folder,
-    stage_folder_for_delete,
+    mark_delete_retained, stage_folder_for_delete,
+};
+#[cfg(unix)]
+use crate::app::controller::library::source_folders::delete_recovery::{
+    purge_deleted_folder, restore_deleted_folder, rollback_staged_folder,
 };
 use crate::sample_sources::SampleSource;
 use std::fs;
