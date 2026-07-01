@@ -643,7 +643,7 @@ fn sample_file_column_drag_reorders_columns() {
         .expect("active column drag should project visual feedback");
     assert_eq!(feedback.label, "Rating");
     assert_eq!(feedback.pointer, Point::new(560.0, 0.0));
-    assert_eq!(feedback.marker_x, 546.0);
+    assert_eq!(feedback.marker_x, 533.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
@@ -702,7 +702,7 @@ fn sample_file_column_drag_feedback_tracks_resized_and_narrow_boundaries() {
     let feedback = browser
         .file_column_drag_feedback()
         .expect("resized column drag should project visual feedback");
-    assert_eq!(feedback.marker_x, 656.0);
+    assert_eq!(feedback.marker_x, 643.0);
 
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
