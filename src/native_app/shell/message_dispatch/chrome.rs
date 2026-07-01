@@ -130,7 +130,7 @@ impl NativeAppState {
                 self.request_apply_edit_selection_effects(context);
             }
             GuiMessage::OpenContextMenu => {
-                self.open_context_menu_from_shortcut();
+                self.open_context_menu_from_shortcut(context);
             }
             GuiMessage::ConfirmPendingWaveformDestructiveEdit => {
                 self.confirm_pending_waveform_destructive_edit(context);

@@ -3,6 +3,7 @@ use crate::native_app::sample_library::context_menu_target::{
     BrowserContextPointerAnchor, BrowserContextPointerTarget,
 };
 use crate::native_app::test_support::state::GuiMessage;
+use radiant::runtime::RuntimeUpdateSnapshot;
 
 #[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
@@ -389,6 +390,45 @@ fn global_context_menu_ignores_stale_sample_pointer_anchor_after_focus_changes()
         .expect("sample context menu opens");
     assert_eq!(menu.path, snare);
     assert_eq!(menu.anchor, Point::new(720.0, 520.0));
+}
+
+#[test]
+fn global_context_menu_uses_live_pointer_position_over_stale_sample_anchor() {
+    let root = tempfile::tempdir().expect("source root");
+    let kick = root.path().join("kick.wav");
+    let snare = root.path().join("snare.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(snare.display().to_string());
+    state.apply_message(
+        GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
+            target: BrowserContextPointerTarget::Sample(kick.display().to_string()),
+            position: Point::new(333.0, 222.0),
+        }),
+        &mut ui::UiUpdateContext::default(),
+    );
+    let live_pointer = Point::new(610.0, 388.0);
+    let mut context = ui::UiUpdateContext::from_runtime_snapshot(
+        RuntimeUpdateSnapshot::with_current_pointer_position(Some(live_pointer)),
+    );
+
+    state.apply_message(GuiMessage::OpenContextMenu, &mut context);
+
+    let menu = state
+        .ui
+        .browser_interaction
+        .context_menu
+        .expect("sample context menu opens");
+    assert_eq!(menu.path, snare);
+    assert_eq!(menu.anchor, live_pointer);
 }
 
 #[test]

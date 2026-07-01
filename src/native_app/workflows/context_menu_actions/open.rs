@@ -2,7 +2,7 @@ use radiant::gui::types::Point;
 use std::path::Path;
 use std::time::Instant;
 
-use crate::native_app::app::{NativeAppState, emit_gui_action};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::context_menu_target as context_menu;
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextPointerAnchor, BrowserContextPointerTarget,
@@ -19,7 +19,10 @@ const FOLDER_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 96.0, y: 240.0 };
 const SOURCE_CONTEXT_SHORTCUT_ANCHOR: Point = Point { x: 96.0, y: 120.0 };
 
 impl NativeAppState {
-    pub(in crate::native_app) fn open_context_menu_from_shortcut(&mut self) {
+    pub(in crate::native_app) fn open_context_menu_from_shortcut(
+        &mut self,
+        context: &radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
         if self
             .waveform
             .current
@@ -36,15 +39,21 @@ impl NativeAppState {
             .map(str::to_owned)
         {
             let target = BrowserContextPointerTarget::Sample(file_id.clone());
-            let anchor =
-                self.context_menu_pointer_position_for(&target, SAMPLE_CONTEXT_SHORTCUT_ANCHOR);
+            let anchor = self.context_menu_pointer_position_for(
+                &target,
+                SAMPLE_CONTEXT_SHORTCUT_ANCHOR,
+                context.current_pointer_position(),
+            );
             self.open_sample_context_menu(file_id, anchor);
             return;
         }
         if let Some(collection) = self.library.folder_browser.selected_collection() {
             let target = BrowserContextPointerTarget::Collection(collection);
-            let anchor =
-                self.context_menu_pointer_position_for(&target, COLLECTION_CONTEXT_SHORTCUT_ANCHOR);
+            let anchor = self.context_menu_pointer_position_for(
+                &target,
+                COLLECTION_CONTEXT_SHORTCUT_ANCHOR,
+                context.current_pointer_position(),
+            );
             self.open_collection_context_menu(collection, anchor);
             return;
         }
@@ -55,15 +64,21 @@ impl NativeAppState {
             .map(str::to_owned)
         {
             let target = BrowserContextPointerTarget::Folder(folder_id.clone());
-            let anchor =
-                self.context_menu_pointer_position_for(&target, FOLDER_CONTEXT_SHORTCUT_ANCHOR);
+            let anchor = self.context_menu_pointer_position_for(
+                &target,
+                FOLDER_CONTEXT_SHORTCUT_ANCHOR,
+                context.current_pointer_position(),
+            );
             self.open_folder_context_menu(folder_id, anchor);
             return;
         }
         let source_id = self.library.folder_browser.selected_source_id().to_owned();
         let target = BrowserContextPointerTarget::Source(source_id.clone());
-        let anchor =
-            self.context_menu_pointer_position_for(&target, SOURCE_CONTEXT_SHORTCUT_ANCHOR);
+        let anchor = self.context_menu_pointer_position_for(
+            &target,
+            SOURCE_CONTEXT_SHORTCUT_ANCHOR,
+            context.current_pointer_position(),
+        );
         self.open_source_context_menu(source_id, anchor);
     }
 
@@ -312,13 +327,18 @@ impl NativeAppState {
         &self,
         target: &BrowserContextPointerTarget,
         fallback: Point,
+        current_pointer_position: Option<Point>,
     ) -> Point {
-        self.ui
-            .browser_interaction
-            .context_menu_pointer_anchor
-            .as_ref()
-            .filter(|anchor| &anchor.target == target)
-            .map(|anchor| anchor.position)
+        current_pointer_position
+            .filter(|position| position.x.is_finite() && position.y.is_finite())
+            .or_else(|| {
+                self.ui
+                    .browser_interaction
+                    .context_menu_pointer_anchor
+                    .as_ref()
+                    .filter(|anchor| &anchor.target == target)
+                    .map(|anchor| anchor.position)
+            })
             .unwrap_or(fallback)
     }
 }
