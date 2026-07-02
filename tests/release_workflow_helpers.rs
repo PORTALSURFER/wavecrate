@@ -504,6 +504,28 @@ fn portalsurfer_upload_catalog_verifier_rejects_different_timestamps() {
     );
 }
 
+#[test]
+fn published_release_verifier_adds_portalsurfer_download_tokens_to_file_urls() {
+    let script = repo_path("scripts/internal/release/verify_published_release.py");
+    let python = format!(
+        r#"
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("verify_published_release", {script:?})
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+url = module.portalsurfer_download_url(
+    "https://portalsurfer.org/wavecrate/api/v1/releases/build/files/file.zip/download?existing=1",
+    "token with spaces",
+)
+assert url == "https://portalsurfer.org/wavecrate/api/v1/releases/build/files/file.zip/download?existing=1&download_token=token+with+spaces", url
+"#,
+        script = script.display().to_string(),
+    );
+    run_success(Command::new("python3").arg("-c").arg(python));
+}
+
 fn generate_ed25519_key(path: &Path) -> bool {
     let keygen = Command::new("openssl")
         .arg("genpkey")

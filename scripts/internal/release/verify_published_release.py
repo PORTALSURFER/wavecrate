@@ -88,6 +88,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""), help="GitHub repo owner/name")
     parser.add_argument("--portal-catalog-url", help="PortalSurfer releases catalog URL")
     parser.add_argument("--portal-build-id", help="PortalSurfer release build_id to inspect")
+    parser.add_argument(
+        "--portal-download-token",
+        help="Pre-issued PortalSurfer download token for fixture or diagnostic runs",
+    )
     parser.add_argument("--build-number", type=int, help="Expected PortalSurfer build number")
     parser.add_argument(
         "--source",
@@ -411,6 +415,7 @@ class local_asset_dir:
 
     def download_portalsurfer_assets(self, asset_dir: Path) -> None:
         entries = {str(item.get("name")): item for item in release_file_entries(self.release) if item.get("name")}
+        download_token = self.args.portal_download_token or fetch_portalsurfer_download_token(self.args)
         for asset in self.required_assets:
             entry = entries.get(asset)
             if not entry:
@@ -418,7 +423,10 @@ class local_asset_dir:
             url = str(entry.get("url") or entry.get("download_url") or entry.get("href") or "")
             if not url:
                 raise SystemExit(f"PortalSurfer catalog entry for {asset} does not include a download URL")
-            download_url(resolve_portalsurfer_url(self.args, url), asset_dir / asset)
+            download_url(
+                portalsurfer_download_url(resolve_portalsurfer_url(self.args, url), download_token),
+                asset_dir / asset,
+            )
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
         if self.temp:
@@ -642,6 +650,32 @@ def download_url(url: str, path: Path) -> None:
 
 def request_for_url(url: str) -> urllib.request.Request:
     return urllib.request.Request(url, headers={"User-Agent": "wavecrate-release-verifier"})
+
+
+def fetch_portalsurfer_download_token(args: argparse.Namespace) -> str:
+    response = fetch_json(portalsurfer_gate_url(args))
+    if response.get("build_id") != args.portal_build_id:
+        raise SystemExit(
+            f"PortalSurfer gate build id mismatch: {response.get('build_id')} != {args.portal_build_id}"
+        )
+    token = response.get("download_token")
+    if not isinstance(token, str) or not token:
+        raise SystemExit("PortalSurfer gate did not return a download token")
+    return token
+
+
+def portalsurfer_gate_url(args: argparse.Namespace) -> str:
+    releases_base = (args.portal_catalog_url or "https://portalsurfer.org/wavecrate/api/v1/releases").rstrip("/")
+    build_id = urllib.parse.quote(str(args.portal_build_id), safe="")
+    return f"{releases_base}/{build_id}/gate?donation_amount=0.00"
+
+
+def portalsurfer_download_url(url: str, download_token: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query = [(key, value) for key, value in query if key != "download_token"]
+    query.append(("download_token", download_token))
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def resolve_portalsurfer_url(args: argparse.Namespace, url: str) -> str:
