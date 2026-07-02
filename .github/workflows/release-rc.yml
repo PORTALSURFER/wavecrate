@@ -38,6 +38,8 @@ jobs:
       release_tag: ${{ steps.resolve.outputs.release_tag }}
       build_number: ${{ steps.resolve.outputs.build_number }}
       build_date: ${{ steps.resolve.outputs.build_date }}
+      portal_build_id: ${{ steps.resolve.outputs.portal_build_id }}
+      released_at: ${{ steps.resolve.outputs.released_at }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,12 +82,16 @@ jobs:
           fi
           build_number="$(git rev-list --count "$target_sha")"
           build_date="$(date -u '+%Y-%m-%d')"
+          portal_build_id="wavecrate-${release_version}"
+          released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
           echo "target_version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "release_version=$release_version" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
           echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
           echo "build_date=$build_date" >> "$GITHUB_OUTPUT"
+          echo "portal_build_id=$portal_build_id" >> "$GITHUB_OUTPUT"
+          echo "released_at=$released_at" >> "$GITHUB_OUTPUT"
 
   test:
     name: Run RC validation tests
@@ -248,3 +254,18 @@ jobs:
           prerelease: true
           make_latest: false
           files: dist/release/*
+      - name: Publish PortalSurfer RC release
+        shell: bash
+        env:
+          PORTALSURFER_RELEASE_UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
+          PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
+        run: |
+          scripts/internal/release/publish_portalsurfer_release.sh \
+            --channel rc \
+            --build-id "${{ needs.resolve.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve.outputs.build_number }}" \
+            --release-version "${{ needs.resolve.outputs.release_version }}" \
+            --released-at "${{ needs.resolve.outputs.released_at }}" \
+            --artifact-dir dist/release \
+            --release-log dist/release/release-log.md \
+            --full-changelog-out dist/release/changelog.md

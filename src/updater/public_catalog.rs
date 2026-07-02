@@ -530,8 +530,35 @@ mod tests {
         .expect("nightly");
 
         assert_eq!(stable.version, "19.1.0");
+        assert_eq!(stable.build_id, "wavecrate-19.1.0");
         assert_eq!(rc.version, "19.1.0");
+        assert_eq!(rc.build_id, "wavecrate-19.1.0");
         assert_eq!(nightly.version, "19.1.0-nightly.20260701+abcdef0");
+    }
+
+    #[test]
+    fn public_catalog_exposes_rc_when_no_newer_stable_supersedes_it() {
+        let catalog = catalog(&[release_with_version(
+            251,
+            "wavecrate-19.1.0-rc.1",
+            "19.1.0-rc.1",
+            "wavecrate-19.1.0-rc.1-macos-aarch64.zip",
+            "2026-07-02T20:00:00.000Z",
+        )]);
+
+        let rc = latest_available_public_release(
+            &catalog,
+            1,
+            "unknown",
+            "macos",
+            "aarch64",
+            UpdateChannel::Rc,
+        )
+        .expect("release contract")
+        .expect("rc");
+
+        assert_eq!(rc.build_id, "wavecrate-19.1.0-rc.1");
+        assert_eq!(rc.version, "19.1.0-rc.1");
     }
 
     fn catalog(releases: &[PublicReleaseCatalogRelease]) -> PublicReleaseCatalog {

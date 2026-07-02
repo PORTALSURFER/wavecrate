@@ -105,13 +105,17 @@ under `scripts/internal/release/`:
 - `sign_release_checksums.sh` signs and optionally verifies checksum files.
 - `validate_promoted_rc_release.py` verifies that stable promotion is backed by
   a complete RC GitHub prerelease before stable builds start.
+- `publish_portalsurfer_release.sh` uploads release files and the generated log
+  to PortalSurfer, verifies the public catalog and per-release changelog, then
+  updates and verifies the full Wavecrate changelog.
 - `prune_github_release_assets.sh` removes stale assets from a rolling GitHub
   release before upload.
 
 RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
 `release/X.Y` for the requested `X.Y.Z` version, and the package manifest must
 already carry that target version. RC releases are published as GitHub
-pre-releases tagged `vX.Y.Z-rc.N`.
+pre-releases tagged `vX.Y.Z-rc.N` and as PortalSurfer catalog entries with build
+ids like `wavecrate-X.Y.Z-rc.N`.
 
 Stable runs require `version` and `branch` inputs. The branch must be
 `release/X.Y`, the package manifest must match `X.Y.Z`, and the latest
@@ -120,7 +124,11 @@ promotion also validates that the promoted RC exists as a GitHub prerelease with
 the expected platform zips from `release_contract.toml`, a checksum file,
 checksum signature, downloadable assets whose hashes match the checksum file,
 and a release-bound `Wavecrate X.Y.Z-rc.N` log body. Stable releases are
-published as normal GitHub releases tagged `vX.Y.Z`.
+published as normal GitHub releases tagged `vX.Y.Z` and as PortalSurfer catalog
+entries with build ids like `wavecrate-X.Y.Z`. RC and stable PortalSurfer
+publication uploads the generated release zips, checksum file, checksum
+signature, and release log, then verifies the catalog entry, per-release
+changelog, and full Wavecrate changelog round trips.
 
 The nightly workflow publishes an immutable nightly version tag named like
 `19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub

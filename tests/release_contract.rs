@@ -21,6 +21,8 @@ const CHECKOUT_RADIANT_SCRIPT: &str =
 const RELEASE_ZIP_SCRIPT: &str = include_str!("../scripts/internal/release/build_release_zip.sh");
 const RELEASE_LOG_SCRIPT: &str =
     include_str!("../scripts/internal/release/generate_release_log.sh");
+const PUBLISH_PORTALSURFER_SCRIPT: &str =
+    include_str!("../scripts/internal/release/publish_portalsurfer_release.sh");
 const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
     include_str!("../scripts/internal/release/sign_release_checksums.sh");
 const VALIDATE_PROMOTED_RC_SCRIPT: &str =
@@ -313,6 +315,47 @@ fn rc_and_stable_workflows_use_structured_release_log_generator() {
 }
 
 #[test]
+fn rc_and_stable_workflows_publish_to_portalsurfer_catalog() {
+    for (name, workflow, channel) in [
+        ("RC workflow", RC_WORKFLOW, "rc"),
+        ("stable workflow", STABLE_WORKFLOW, "stable"),
+    ] {
+        assert!(
+            workflow.contains("scripts/internal/release/publish_portalsurfer_release.sh \\"),
+            "{name} must publish release artifacts through the shared PortalSurfer helper"
+        );
+        assert!(
+            workflow.contains(&format!("--channel {channel} \\")),
+            "{name} must pass the explicit PortalSurfer channel"
+        );
+        assert!(
+            workflow.contains("PORTALSURFER_RELEASE_UPLOAD_TOKEN"),
+            "{name} must use the PortalSurfer upload token"
+        );
+        assert!(
+            workflow.contains("--artifact-dir dist/release"),
+            "{name} must publish the same assembled release files used for GitHub"
+        );
+        assert!(
+            workflow.contains("--release-log dist/release/release-log.md"),
+            "{name} must upload the generated release-bound markdown log"
+        );
+        assert!(
+            workflow.contains("--full-changelog-out dist/release/changelog.md"),
+            "{name} must update the full PortalSurfer changelog"
+        );
+    }
+    assert!(
+        RC_WORKFLOW.contains("portal_build_id=\"wavecrate-${release_version}\""),
+        "RC PortalSurfer build ids must include the RC version"
+    );
+    assert!(
+        STABLE_WORKFLOW.contains("portal_build_id=\"wavecrate-${VERSION}\""),
+        "stable PortalSurfer build ids must include the stable version"
+    );
+}
+
+#[test]
 fn structured_release_log_generator_declares_required_sections() {
     for section in [
         "## Release Metadata",
@@ -461,6 +504,28 @@ fn shared_release_helpers_keep_policy_visible_and_strict() {
     assert!(
         SIGN_RELEASE_CHECKSUMS_SCRIPT.contains("--verify-public-key"),
         "checksum signing helper must preserve public-key verification support"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("--channel <nightly|rc|stable>"),
+        "PortalSurfer publish helper must keep channel explicit"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("X-Wavecrate-Release-Channel"),
+        "PortalSurfer publish helper must send channel metadata"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("assemble_portal_changelog.py"),
+        "PortalSurfer publish helper must update the full changelog"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .contains("Fetched changelog body does not match generated release log"),
+        "PortalSurfer publish helper must verify per-release changelog round trips"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .contains("Fetched full changelog body does not match generated changelog"),
+        "PortalSurfer publish helper must verify full changelog round trips"
     );
     assert!(
         VALIDATE_PROMOTED_RC_SCRIPT.contains("gh\","),
