@@ -32,8 +32,9 @@ Use the lightest lane that still gives trustworthy coverage for the change.
 
 ## Validation and release lane contract
 
-GitHub Actions currently owns only nightly packaging and upload. Local wrappers
-remain the validation contract for development and release-risk checks:
+GitHub Actions owns release packaging, upload, and the release workflow
+validation gates. Local wrappers remain the primary validation contract for
+development and release-risk checks:
 
 | Lane | GitHub job | Local command | Policy |
 | --- | --- | --- | --- |
@@ -46,7 +47,7 @@ remain the validation contract for development and release-risk checks:
 | Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
 | GUI semantic contracts | none | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Builds Windows/macOS nightly assets from `main`, embeds `X.Y.Z-nightly.DATE+SHA` metadata, verifies the checksum signing key against the pinned public key before public publication, uploads and verifies the immutable PortalSurfer release plus full changelog first, then refreshes the rolling GitHub `nightly` release assets and promotes the immutable and rolling GitHub tags as the final public identity step |
+| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Resolves the exact `main` SHA, runs `cargo test --workspace --locked` on Ubuntu before package builds or publication, builds Windows/macOS nightly assets from that SHA, embeds `X.Y.Z-nightly.DATE+SHA` metadata, verifies the checksum signing key against the pinned public key before public publication, uploads and verifies the immutable PortalSurfer release plus full changelog first, then refreshes the rolling GitHub `nightly` release assets and promotes the immutable and rolling GitHub tags as the final public identity step |
 | RC release | `Wavecrate RC release` manual dispatch | release workflow dispatch | Builds Windows/macOS RC assets from `release/X.Y`, validates the requested package version and branch, runs workspace tests, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z-rc.N` as a GitHub pre-release |
 | Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs workspace tests, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z` as the normal GitHub release |
 
@@ -60,7 +61,14 @@ The nextest policy is:
 - The default nextest profile stays unfiltered for maintainers who want the
   complete suite and are prepared to triage environment-specific failures.
 - Local nextest runs remain the primary development evidence. GitHub release
-  workflows add packaging-time checks for nightly, RC, and stable artifacts.
+  workflows add deterministic packaging-time checks for nightly, RC, and stable
+  artifacts.
+- Nightly uses `cargo test --workspace --locked` on `ubuntu-latest` to match
+  the RC/stable release gate before any package build or public publication.
+  It is intentionally narrower than local `ci-required` nextest coverage so the
+  scheduled release lane stays deterministic in GitHub Actions; quarantined,
+  GUI/manual, and performance checks remain explicit local or issue-specific
+  release-risk evidence.
 
 The non-blocking app architecture is enforced by
 `scripts/check.* non-blocking-architecture`, and that check is required by

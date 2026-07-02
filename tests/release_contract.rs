@@ -65,6 +65,67 @@ fn release_contract_targets_match_nightly_workflow_matrix() {
 }
 
 #[test]
+fn nightly_workflow_runs_validation_before_build_and_publish() {
+    assert!(
+        NIGHTLY_WORKFLOW.contains("test:\n    name: Run nightly validation tests"),
+        "nightly workflow must define a dedicated validation job"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("ref: ${{ needs.resolve-main.outputs.target_sha }}"),
+        "nightly validation must run against the exact resolved main SHA"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("fetch-depth: 0"),
+        "nightly validation must have enough history for workspace tests that inspect git state"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/checkout_radiant_submodule.sh"),
+        "nightly validation must check out the Radiant submodule like RC/stable validation"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/emit_rust_toolchain_channel.py"),
+        "nightly validation must use the pinned Rust toolchain"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("run: cargo test --workspace --locked"),
+        "nightly validation must run the release workspace test lane"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, test]"),
+        "nightly package builds must wait for validation"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, test, release-log, build]"),
+        "PortalSurfer nightly publication must wait for validation"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW
+            .contains("needs: [resolve-main, test, release-log, build, publish-frontend]"),
+        "GitHub nightly promotion must wait for validation and PortalSurfer publication"
+    );
+
+    let test_position = NIGHTLY_WORKFLOW
+        .find("name: Run nightly validation tests")
+        .expect("nightly validation job");
+    let build_position = NIGHTLY_WORKFLOW
+        .find("nightly\n    runs-on: ${{ matrix.os }}")
+        .expect("nightly build job");
+    let publish_frontend_position = NIGHTLY_WORKFLOW
+        .find("name: Upload PortalSurfer nightly downloads")
+        .expect("PortalSurfer nightly publish job");
+    let publish_github_position = NIGHTLY_WORKFLOW
+        .find("name: Promote GitHub nightly")
+        .expect("GitHub nightly publish job");
+
+    assert!(
+        test_position < build_position
+            && test_position < publish_frontend_position
+            && test_position < publish_github_position,
+        "nightly validation job should be declared before build and publish jobs"
+    );
+}
+
+#[test]
 fn release_contract_targets_match_manual_release_workflow_matrices() {
     let contract = parse_contract();
     let targets = contract_targets(&contract);
@@ -219,12 +280,13 @@ fn nightly_workflow_promotes_public_identity_after_public_surfaces_are_ready() {
         "nightly runs must not use cancellation-prone public promotion"
     );
     assert!(
-        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, release-log, build, publish-frontend]"),
-        "GitHub nightly promotion must wait for the PortalSurfer upload and verifier job"
+        NIGHTLY_WORKFLOW
+            .contains("needs: [resolve-main, test, release-log, build, publish-frontend]"),
+        "GitHub nightly promotion must wait for validation plus the PortalSurfer upload and verifier job"
     );
     assert!(
-        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, release-log, build]"),
-        "PortalSurfer upload must be able to complete before GitHub nightly identity promotion"
+        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, test, release-log, build]"),
+        "PortalSurfer upload must wait for validation and be able to complete before GitHub nightly identity promotion"
     );
     assert!(
         !NIGHTLY_WORKFLOW.contains("needs: [resolve-main, publish-github]"),

@@ -174,10 +174,35 @@ jobs:
           path: dist/release/release-log.md
           if-no-files-found: error
 
+  test:
+    name: Run nightly validation tests
+    runs-on: ubuntu-latest
+    needs: resolve-main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+          ref: ${{ needs.resolve-main.outputs.target_sha }}
+      - name: Checkout Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: scripts/internal/release/checkout_radiant_submodule.sh
+      - name: Read pinned Rust toolchain from rust-toolchain.toml
+        id: rust_toolchain
+        shell: bash
+        run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Run tests
+        run: cargo test --workspace --locked
+
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} nightly
     runs-on: ${{ matrix.os }}
-    needs: resolve-main
+    needs: [resolve-main, test]
     strategy:
       fail-fast: false
       matrix:
@@ -248,7 +273,7 @@ jobs:
   publish-github:
     name: Promote GitHub nightly
     runs-on: ubuntu-latest
-    needs: [resolve-main, release-log, build, publish-frontend]
+    needs: [resolve-main, test, release-log, build, publish-frontend]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -365,7 +390,7 @@ jobs:
   publish-frontend:
     name: Upload PortalSurfer nightly downloads
     runs-on: ubuntu-latest
-    needs: [resolve-main, release-log, build]
+    needs: [resolve-main, test, release-log, build]
     steps:
       - uses: actions/checkout@v4
         with:
