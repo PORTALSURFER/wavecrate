@@ -27,26 +27,33 @@ fn playmark_context_menu_commands(
     extract_to_harvest_destination: bool,
 ) -> Vec<ui::MenuCommand<GuiMessage>> {
     let mut commands = vec![
-        ui::MenuCommand::new("Play Selection", GuiMessage::PlaySelectedSample),
-        ui::MenuCommand::new("Extract Selection", GuiMessage::ExtractPlaymarkedRange),
+        ui::MenuCommand::new("Play Selection", GuiMessage::PlaySelectedSample).hotkey_hint("Space"),
+        ui::MenuCommand::new("Extract Selection", GuiMessage::ExtractPlaymarkedRange)
+            .hotkey_hint("E"),
         ui::MenuCommand::new(
             "Extract and Trim",
             GuiMessage::RequestExtractAndTrimPlaymarkSelection,
-        ),
+        )
+        .hotkey_hint("Cmd-E"),
         ui::MenuCommand::new(
             "Crop to Selection",
             GuiMessage::RequestCropPlaymarkSelection,
         )
+        .hotkey_hint("C")
         .danger(),
-        ui::MenuCommand::new("Trim Selection", GuiMessage::RequestTrimPlaymarkSelection).danger(),
+        ui::MenuCommand::new("Trim Selection", GuiMessage::RequestTrimPlaymarkSelection)
+            .hotkey_hint("D")
+            .danger(),
         ui::MenuCommand::new(
             "Reverse Selection",
             GuiMessage::RequestReversePlaymarkSelection,
-        ),
+        )
+        .hotkey_hint("R"),
         ui::MenuCommand::new(
             "Zoom to Selection",
             GuiMessage::Waveform(WaveformInteraction::ZoomToPlaySelection),
-        ),
+        )
+        .hotkey_hint("Z"),
         ui::MenuCommand::new("Find Similar Sections", GuiMessage::ToggleSimilarSections),
     ];
     if extract_to_harvest_destination {

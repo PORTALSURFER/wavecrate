@@ -3,7 +3,7 @@ use crate::native_app::sample_library::context_menu_target::{
     BrowserContextPointerAnchor, BrowserContextPointerTarget,
 };
 use crate::native_app::test_support::state::GuiMessage;
-use radiant::runtime::RuntimeUpdateSnapshot;
+use radiant::runtime::{PaintTextAlign, RuntimeUpdateSnapshot};
 
 #[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
@@ -272,6 +272,57 @@ fn playmark_context_menu_paints_selection_actions() {
             "{label} should render in the playmark context menu"
         );
     }
+}
+
+#[test]
+fn playmark_context_menu_paints_shortcut_hints_in_trailing_column() {
+    let menu = crate::native_app::test_support::context_menu::WaveformContextMenu {
+        anchor: Point::new(240.0, 180.0),
+        title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
+    };
+    let frame = crate::native_app::test_support::context_menu::waveform_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let play_label = frame
+        .paint_plan
+        .first_text_run("Play Selection")
+        .expect("play label should paint");
+    let extract_label = frame
+        .paint_plan
+        .first_text_run("Extract Selection")
+        .expect("extract label should paint");
+    let space_hint = frame
+        .paint_plan
+        .first_text_run("Space")
+        .expect("space shortcut hint should paint");
+    let extract_hint = frame
+        .paint_plan
+        .first_text_run("E")
+        .expect("extract shortcut hint should paint");
+
+    assert_eq!(play_label.align, PaintTextAlign::Left);
+    assert_eq!(extract_label.align, PaintTextAlign::Left);
+    assert_eq!(space_hint.align, PaintTextAlign::Right);
+    assert_eq!(extract_hint.align, PaintTextAlign::Right);
+    assert!(
+        (play_label.rect.min.x - extract_label.rect.min.x).abs() < 0.01,
+        "menu labels should share a left column: play={:?}, extract={:?}",
+        play_label.rect,
+        extract_label.rect
+    );
+    assert!(
+        (space_hint.rect.max.x - extract_hint.rect.max.x).abs() < 0.01,
+        "shortcut hints should share a right column: space={:?}, extract={:?}",
+        space_hint.rect,
+        extract_hint.rect
+    );
+    assert!(
+        play_label.rect.max.x < space_hint.rect.min.x,
+        "label and shortcut hint should be separate columns: label={:?}, hint={:?}",
+        play_label.rect,
+        space_hint.rect
+    );
 }
 
 #[test]
