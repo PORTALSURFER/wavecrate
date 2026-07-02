@@ -20,6 +20,7 @@ try {
   $appCoreDir = Join-Path $rootDir "src/app_core"
   $allowedFile = Join-Path $appCoreDir "app_api.rs"
   $allowedTransitionalFiles = @(
+    (Join-Path $appCoreDir "browser_source_state.rs")
     (Join-Path $appCoreDir "invalidation_contracts.rs")
   )
 
