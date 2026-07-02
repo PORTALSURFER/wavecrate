@@ -235,24 +235,21 @@ impl WaveformWidget {
         }
     }
 
-    fn append_live_playmark_resize_beat_guide_paint(
+    fn append_live_selection_preview_beat_guide_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
         preview: super::widget::LiveSelectionPreview,
     ) {
-        if preview.kind != WaveformSelectionKind::Play
-            || !matches!(
-                self.active_drag_kind,
-                Some(WaveformActiveDragKind::SelectionResize(
-                    WaveformSelectionKind::Play,
-                    _
-                ))
-            )
-        {
-            return;
+        match self.active_drag_kind {
+            Some(WaveformActiveDragKind::SelectionMove(kind))
+            | Some(WaveformActiveDragKind::SelectionResize(kind, _))
+                if kind == preview.kind =>
+            {
+                self.append_beat_guide_paint(paint, bounds, Some(preview.selection));
+            }
+            _ => {}
         }
-        self.append_beat_guide_paint(paint, bounds, Some(preview.selection));
     }
 
     fn append_beat_guide_paint(
@@ -313,7 +310,7 @@ impl WaveformWidget {
                     Some(preview.selection),
                     style,
                 );
-                self.append_live_playmark_resize_beat_guide_paint(&mut paint, bounds, preview);
+                self.append_live_selection_preview_beat_guide_paint(&mut paint, bounds, preview);
                 self.append_selection_affordance_paint(
                     &mut paint,
                     geometry,
@@ -342,6 +339,7 @@ impl WaveformWidget {
                     Some(preview.selection),
                     style,
                 );
+                self.append_live_selection_preview_beat_guide_paint(&mut paint, bounds, preview);
                 self.append_selection_affordance_paint(
                     &mut paint,
                     geometry,
