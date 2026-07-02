@@ -91,6 +91,21 @@ run the RC workflow against the prepared `release/X.Y` branch. Stable promotion
 then runs against the same release branch after the latest `vX.Y.Z-rc.N` tag has
 passed review.
 
+The release workflows keep channel policy in YAML but share operational helpers
+under `scripts/internal/release/`:
+
+- `checkout_radiant_submodule.sh` configures the private Radiant submodule.
+- `emit_rust_toolchain_channel.py` emits the pinned Rust toolchain channel for
+  `dtolnay/rust-toolchain`.
+- `setup_windows_asio_sdk.ps1` prepares the Windows ASIO SDK path.
+- `build_release_artifact.sh` wraps package creation and per-platform checksum
+  entry naming.
+- `assemble_release_files.sh` copies built zips and assembles the channel
+  checksum file.
+- `sign_release_checksums.sh` signs and optionally verifies checksum files.
+- `prune_github_release_assets.sh` removes stale assets from a rolling GitHub
+  release before upload.
+
 RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
 `release/X.Y` for the requested `X.Y.Z` version, and the package manifest must
 already carry that target version. RC releases are published as GitHub

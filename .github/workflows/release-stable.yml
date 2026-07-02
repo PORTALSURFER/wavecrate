@@ -103,34 +103,11 @@ jobs:
         shell: bash
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
-            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          key_path="$HOME/.ssh/radiant_submodule_key"
-          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
-          chmod 600 "$key_path"
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
-          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive vendor/radiant
-          rm -f "$key_path"
+        run: scripts/internal/release/checkout_radiant_submodule.sh
       - name: Read pinned Rust toolchain
         id: rust_toolchain
         shell: bash
-        run: |
-          set -euo pipefail
-          channel="$(python3 - <<'PY'
-          import tomllib
-          from pathlib import Path
-          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
-          print(data.get("toolchain", {}).get("channel", "stable"))
-          PY
-          )"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+        run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
@@ -166,53 +143,18 @@ jobs:
         shell: bash
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
-            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          key_path="$HOME/.ssh/radiant_submodule_key"
-          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
-          chmod 600 "$key_path"
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
-          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive vendor/radiant
-          rm -f "$key_path"
+        run: scripts/internal/release/checkout_radiant_submodule.sh
       - name: Read pinned Rust toolchain
         id: rust_toolchain
         shell: bash
-        run: |
-          set -euo pipefail
-          channel="$(python3 - <<'PY'
-          import tomllib
-          from pathlib import Path
-          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
-          print(data.get("toolchain", {}).get("channel", "stable"))
-          PY
-          )"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+        run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
       - name: Fetch ASIO SDK (Windows)
         if: ${{ matrix.platform == 'windows' }}
         shell: pwsh
-        run: |
-          git lfs install --local
-          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/audiosdk/asio "$env:GITHUB_WORKSPACE/asio"
-          git -C "$env:GITHUB_WORKSPACE/asio" submodule update --init --recursive
-          git -C "$env:GITHUB_WORKSPACE/asio" lfs pull
-          $asioRoot = Join-Path $env:GITHUB_WORKSPACE "asio"
-          $asioHeader = Get-ChildItem -Path $asioRoot -Recurse -Filter "asiodrivers.h" -File | Select-Object -First 1
-          if (-not $asioHeader) { throw "ASIO header not found under $asioRoot" }
-          $sdkDir = Split-Path -Parent (Split-Path -Parent $asioHeader.FullName)
-          if (-not (Test-Path (Join-Path $sdkDir "host")) -or -not (Test-Path (Join-Path $sdkDir "common"))) {
-            throw "ASIO SDK directory not found for $($asioHeader.FullName)"
-          }
-          "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
+        run: ./scripts/internal/release/setup_windows_asio_sdk.ps1
       - name: Build stable zip
         shell: bash
         env:
@@ -226,7 +168,7 @@ jobs:
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
           APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
         run: |
-          scripts/internal/release/build_release_zip.sh \
+          scripts/internal/release/build_release_artifact.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
@@ -237,8 +179,6 @@ jobs:
             --git-sha "$TARGET_SHA" \
             --build-date "${{ needs.resolve.outputs.build_date }}" \
             --out-dir dist/release
-          mv dist/release/checksums-entry.txt \
-            "dist/release/checksums-entry-${{ matrix.platform }}-${{ matrix.arch }}.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}-${{ matrix.arch }}
@@ -275,11 +215,10 @@ jobs:
           RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
           set -euo pipefail
-          mkdir -p dist/release
-          cp dist/artifacts/*.zip dist/release/
           checksum_name="checksums-${VERSION}.txt"
           checksum_sig_name="${checksum_name}.sig"
-          cat dist/artifacts/checksums-entry-*.txt > "dist/release/${checksum_name}"
+          scripts/internal/release/assemble_release_files.sh \
+            --checksum-name "$checksum_name"
           scripts/internal/release/generate_release_log.sh \
             --channel stable \
             --version "$VERSION" \
@@ -297,19 +236,9 @@ jobs:
           CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
           VERSION: ${{ needs.resolve.outputs.target_version }}
         run: |
-          set -euo pipefail
-          if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
-            echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY or SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
-            exit 1
-          fi
-          key_path="dist/release/checksums-signing-key.pem"
-          printf "%s" "$CHECKSUMS_SIGNING_KEY" > "$key_path"
-          openssl pkeyutl -sign -inkey "$key_path" -rawin \
-            -in "dist/release/checksums-${VERSION}.txt" \
-            -out "dist/release/checksums-${VERSION}.txt.sig.bin"
-          base64 -w 0 "dist/release/checksums-${VERSION}.txt.sig.bin" \
-            > "dist/release/checksums-${VERSION}.txt.sig"
-          rm -f "$key_path" "dist/release/checksums-${VERSION}.txt.sig.bin"
+          scripts/internal/release/sign_release_checksums.sh \
+            --checksum-file "dist/release/checksums-${VERSION}.txt" \
+            --signature-file "dist/release/checksums-${VERSION}.txt.sig"
       - name: Publish stable release
         uses: softprops/action-gh-release@v1
         with:
