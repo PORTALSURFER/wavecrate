@@ -1,5 +1,5 @@
 use super::*;
-use crate::app_core::controller::build_named_gui_fixture_controller;
+use crate::app_core::gui_fixtures::build_named_gui_fixture_controller;
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use std::path::Path;
 

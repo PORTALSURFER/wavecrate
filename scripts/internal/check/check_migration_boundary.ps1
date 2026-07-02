@@ -21,8 +21,11 @@ try {
   $allowedFile = Join-Path $appCoreDir "app_api.rs"
   $allowedTransitionalFiles = @(
     (Join-Path $appCoreDir "browser_source_state.rs")
+    (Join-Path $appCoreDir "controller/runtime_facade.rs")
+    (Join-Path $appCoreDir "gui_fixtures.rs")
     (Join-Path $appCoreDir "invalidation_contracts.rs")
     (Join-Path $appCoreDir "projection_state.rs")
+    (Join-Path $appCoreDir "wav_edit_support.rs")
   )
 
   if (-not (Test-Path -LiteralPath $appCoreDir)) {

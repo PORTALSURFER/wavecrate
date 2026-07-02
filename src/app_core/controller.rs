@@ -1,8 +1,7 @@
-//! Backend-neutral controller aliases for migration consumers.
+//! Backend-neutral controller facade for migration consumers.
 //!
-//! These aliases keep UI runtime entrypoints stable while the runtime-agnostic
-//! controller API remains sourced from the current `app` implementation during
-//! migration.
+//! The facade keeps UI runtime entrypoints stable while the current legacy
+//! controller remains the backend implementation during migration.
 
 /// UI runtime action dispatch orchestration and telemetry helpers.
 mod action_dispatch;
@@ -14,20 +13,16 @@ mod frame_preparation;
 mod map_actions;
 /// Prompt, progress, and update UI action dispatch helpers.
 mod prompt_update_actions;
+/// App-core-owned runtime facade over the retained legacy controller backend.
+mod runtime_facade;
 /// UI-runtime controller startup helpers.
 mod startup;
 /// Focused waveform-UI action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
-use crate::app_core::app_api::controller as current_controller;
-use current_controller::AppController as CurrentAppController;
-pub(crate) use current_controller::{
-    build_named_gui_fixture_controller, supports_wav_destructive_edits,
-};
 pub(crate) use frame_preparation::UiFramePreparationPlan;
-pub use startup::build_ui_app_controller;
-/// Runtime-facing app controller type used by migration hosts.
-pub type AppController = CurrentAppController;
+pub use runtime_facade::AppController;
+pub(crate) use startup::build_ui_app_controller;
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 #[cfg(test)]
@@ -38,7 +33,7 @@ use map_actions::apply_map_ui_action;
 use prompt_update_actions::apply_prompt_and_update_ui_action;
 use waveform_actions::apply_waveform_ui_action;
 
-/// Backend-neutral UI-runtime orchestration helpers.
+/// Backend-neutral UI-runtime orchestration helpers exposed by the facade.
 pub trait AppControllerUiRuntimeExt {
     /// Apply per-frame controller maintenance before projecting the UI model.
     ///

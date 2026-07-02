@@ -6,7 +6,7 @@ use crate::{
             NativeAppBridge, NativeDirtySegments, NativeFrameBuildResult, NativeMotionModel,
             NativeSegmentRevisions, NativeUiAction,
         },
-        controller::build_named_gui_fixture_controller,
+        gui_fixtures::build_named_gui_fixture_controller,
         ui_bridge::{WavecrateUiBridge, new_ui_bridge, new_ui_bridge_with_controller},
     },
     app_dirs::PersistenceProfileGuard,

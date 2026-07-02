@@ -13,8 +13,14 @@ pub(crate) mod browser_source_state;
 /// Retained map projection query/cache contracts owned by app-core.
 pub(crate) mod map_projection_contracts;
 
+/// Deterministic GUI fixture builders that return app-core runtime facades.
+pub(crate) mod gui_fixtures;
+
 /// Projection, prompt, drag/drop, map, audio, status, and waveform state contracts.
 pub(crate) mod projection_state;
+
+/// WAV destructive-edit support checks owned by app-core projection helpers.
+pub(crate) mod wav_edit_support;
 
 /// Retained UI invalidation contracts owned by app-core.
 pub(crate) mod invalidation_contracts;
