@@ -190,8 +190,17 @@ fn nightly_workflow_publishes_packager_outputs_as_github_assets() {
         "GitHub nightly release must upload the assembled dist/release assets"
     );
     assert!(
-        !NIGHTLY_WORKFLOW.contains("wavecrate-nightly-b"),
+        RELEASE_ZIP_SCRIPT.contains("ZIP_NAME=\"${APP_NAME}-nightly-${PLATFORM}-${ARCH}.zip\""),
         "rolling GitHub nightly workflow must not introduce build-numbered asset names"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW
+            .contains("portal_build_id=\"wavecrate-nightly-b${build_number}-${short_sha}\""),
+        "PortalSurfer nightly build ids must be immutable and URL-path safe"
+    );
+    assert!(
+        !NIGHTLY_WORKFLOW.contains("portal_build_id=\"wavecrate-${nightly_version}\""),
+        "PortalSurfer nightly build ids must not contain SemVer build metadata '+' characters"
     );
 }
 

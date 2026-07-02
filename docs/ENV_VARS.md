@@ -140,12 +140,14 @@ The nightly workflow publishes an immutable nightly version tag named like
 `19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub
 `nightly` release for downloads, then uploads the same zips plus the generated
 Markdown release log to the PortalSurfer Wavecrate release-upload API. Each
-PortalSurfer upload uses the matching `wavecrate-<nightly-version>`
+PortalSurfer upload uses a path-safe `wavecrate-nightly-b<build>-<short-sha>`
 build id so the website can show a distinct nightly entry instead of stacking
-every nightly under one changelog group. After the per-release log is visible in
-the public catalog, the workflow verifies that the fetched log body matches the
-generated immutable release log, then prepends that release-bound log to the
-existing site-wide changelog before uploading the maintained full changelog.
+every nightly under one changelog group, while the release log and package
+manifest keep the full SemVer nightly version. After the per-release log is
+visible in the public catalog, the workflow verifies that the fetched log body
+matches the generated immutable release log, then prepends that release-bound
+log to the existing site-wide changelog before uploading the maintained full
+changelog.
 The nightly workflow also verifies the rolling GitHub release assets and the
 PortalSurfer catalog downloads after publication.
 The maintenance step refuses to preserve a full changelog whose historical

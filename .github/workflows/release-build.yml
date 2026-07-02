@@ -46,7 +46,7 @@ jobs:
           target_version="$(awk -F '"' '/^version =/ { print $2; exit }' Cargo.toml)"
           build_date="$(date -u '+%Y%m%d')"
           nightly_version="${target_version}-nightly.${build_date}+${short_sha}"
-          portal_build_id="wavecrate-${nightly_version}"
+          portal_build_id="wavecrate-nightly-b${build_number}-${short_sha}"
           released_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
           if [[ -z "$build_number" || ! "$build_number" =~ ^[0-9]+$ ]]; then
