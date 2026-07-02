@@ -108,7 +108,27 @@ impl NativeAppState {
                 path,
                 waveform,
                 autoplay,
-            } => self.finish_loaded_sample_load(path, *waveform, autoplay, started_at, context),
+            } => {
+                if self.waveform.load.selection.selected_path.as_deref() != Some(path.as_str()) {
+                    self.audio.pending_sample_playback = None;
+                    self.log_sample_identity_checkpoint(
+                        "browser.sample_load.finish_unexpected_path",
+                        "finish_sample_load",
+                        Some(Path::new(&path)),
+                        self.waveform.load.selection.selected_path.as_deref(),
+                    );
+                    emit_gui_action(
+                        "browser.sample_load.finish",
+                        Some("browser"),
+                        Some(&sample_path_label(path.as_str())),
+                        "stale_selection",
+                        started_at,
+                        None,
+                    );
+                    return;
+                }
+                self.finish_loaded_sample_load(path, *waveform, autoplay, started_at, context);
+            }
         }
     }
 }

@@ -26,6 +26,7 @@ pub(in crate::native_app) struct SampleLoadPathValidation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app::audio::sample_load_actions) enum SampleLoadPathValidationIntent {
     Foreground { autoplay: bool },
+    Selection { autoplay: bool },
     Navigation,
 }
 
@@ -76,7 +77,7 @@ impl NativeAppState {
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,
-            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            SampleLoadPathValidationIntent::Selection { autoplay: true },
             started_at,
             context,
         );
@@ -114,7 +115,7 @@ impl NativeAppState {
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,
-            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            SampleLoadPathValidationIntent::Selection { autoplay: true },
             started_at,
             context,
         );
@@ -223,6 +224,7 @@ impl NativeAppState {
     ) {
         let trigger = match &intent {
             SampleLoadPathValidationIntent::Foreground { .. } => "foreground",
+            SampleLoadPathValidationIntent::Selection { .. } => "selection",
             SampleLoadPathValidationIntent::Navigation => "navigation",
         };
         self.log_sample_identity_checkpoint(
@@ -275,8 +277,27 @@ impl NativeAppState {
         {
             return;
         }
+        if !self.validated_sample_load_is_current_browser_selection(&validation) {
+            self.audio.pending_sample_playback = None;
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(validation.path.as_str())),
+                "validation_stale_selection",
+                started_at,
+                None,
+            );
+            return;
+        }
         match validation.intent {
             SampleLoadPathValidationIntent::Foreground { autoplay } => self
+                .load_sample_with_autoplay_validated(
+                    validation.path,
+                    context,
+                    autoplay,
+                    started_at,
+                ),
+            SampleLoadPathValidationIntent::Selection { autoplay } => self
                 .load_sample_with_autoplay_validated(
                     validation.path,
                     context,
@@ -286,6 +307,21 @@ impl NativeAppState {
             SampleLoadPathValidationIntent::Navigation => {
                 self.load_navigation_sample_validated(validation.path, context, started_at);
             }
+        }
+    }
+
+    fn validated_sample_load_is_current_browser_selection(
+        &self,
+        validation: &SampleLoadPathValidation,
+    ) -> bool {
+        match validation.intent {
+            SampleLoadPathValidationIntent::Selection { .. }
+            | SampleLoadPathValidationIntent::Navigation => self
+                .library
+                .folder_browser
+                .selected_file_id()
+                .is_some_and(|selected| selected == validation.path),
+            SampleLoadPathValidationIntent::Foreground { .. } => true,
         }
     }
 
