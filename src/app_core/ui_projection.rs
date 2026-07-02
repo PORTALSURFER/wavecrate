@@ -10,7 +10,6 @@ use crate::app_core::actions::{
     NativeDragOverlayModel as DragOverlayModel, NativeFocusContextModel as FocusContextModel,
     NativeProgressOverlayModel as ProgressOverlayModel,
 };
-use crate::app_core::controller::supports_wav_destructive_edits;
 #[cfg(test)]
 use crate::app_core::state::{
     BrowserDuplicateCleanupState, CompareAnchorState, DestructiveEditPrompt,
@@ -22,6 +21,7 @@ use crate::app_core::state::{
     DragPayload, DragTarget, FocusContext, SampleBrowserTab, TriageFlagColumn, UiPoint, UiState,
 };
 use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
+use crate::app_core::wav_edit_support::supports_wav_destructive_edits;
 use std::sync::atomic::AtomicU64;
 
 #[cfg(test)]

@@ -5,5 +5,8 @@
 
 src/app_core/app_api.rs
 src/app_core/browser_source_state.rs
+src/app_core/controller/runtime_facade.rs
+src/app_core/gui_fixtures.rs
 src/app_core/invalidation_contracts.rs
 src/app_core/projection_state.rs
+src/app_core/wav_edit_support.rs

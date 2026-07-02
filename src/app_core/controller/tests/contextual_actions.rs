@@ -1,5 +1,5 @@
 use super::*;
-use crate::app_core::controller::build_named_gui_fixture_controller;
+use crate::app_core::gui_fixtures::build_named_gui_fixture_controller;
 use std::path::Path;
 
 fn with_fixture_controller(tag: &str, run: impl FnOnce(&mut AppController)) {

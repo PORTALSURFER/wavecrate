@@ -101,7 +101,7 @@ impl WavecrateUiBridge {
     /// Benchmark and fixture harnesses use this to drive the retained native
     /// bridge over a known controller snapshot without loading persisted app
     /// configuration a second time.
-    pub fn from_fixture_controller(controller: AppController) -> Self {
+    pub(crate) fn from_fixture_controller(controller: AppController) -> Self {
         Self {
             controller,
             projection_cache: projection_cache::UiProjectionCache::default(),
