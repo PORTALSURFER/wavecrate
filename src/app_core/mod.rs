@@ -13,6 +13,9 @@ pub(crate) mod browser_source_state;
 /// Retained map projection query/cache contracts owned by app-core.
 pub(crate) mod map_projection_contracts;
 
+/// Projection, prompt, drag/drop, map, audio, status, and waveform state contracts.
+pub(crate) mod projection_state;
+
 /// Retained UI invalidation contracts owned by app-core.
 pub(crate) mod invalidation_contracts;
 

@@ -22,6 +22,7 @@ try {
   $allowedTransitionalFiles = @(
     (Join-Path $appCoreDir "browser_source_state.rs")
     (Join-Path $appCoreDir "invalidation_contracts.rs")
+    (Join-Path $appCoreDir "projection_state.rs")
   )
 
   if (-not (Test-Path -LiteralPath $appCoreDir)) {
