@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: wavecrate-nightly-release-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   resolve-main:
@@ -246,9 +246,9 @@ jobs:
           if-no-files-found: error
 
   publish-github:
-    name: Publish GitHub nightly
+    name: Promote GitHub nightly
     runs-on: ubuntu-latest
-    needs: [resolve-main, release-log, build]
+    needs: [resolve-main, release-log, build, publish-frontend]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -273,7 +273,32 @@ jobs:
             --checksum-file dist/release/checksums-nightly.txt \
             --signature-file dist/release/checksums-nightly.txt.sig \
             --verify-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
-      - name: Publish nightly tags
+      - name: Refresh rolling nightly release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! gh release view nightly --repo "$REPOSITORY" >/dev/null 2>&1; then
+            echo "Rolling nightly GitHub release is missing; refusing to promote without an existing rolling surface." >&2
+            exit 1
+          fi
+          mapfile -t release_files < <(find dist/release -maxdepth 1 -type f | sort)
+          if [[ ${#release_files[@]} -eq 0 ]]; then
+            echo "No assembled release files found in dist/release." >&2
+            exit 1
+          fi
+          gh release upload nightly --repo "$REPOSITORY" --clobber "${release_files[@]}"
+      - name: Remove stale nightly assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          scripts/internal/release/prune_github_release_assets.sh \
+            --tag nightly \
+            --repo "$REPOSITORY" \
+            --release-dir dist/release
+      - name: Promote nightly tags
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -308,25 +333,19 @@ jobs:
               -f ref="refs/tags/nightly" \
               -f sha="${TARGET_SHA}"
           fi
-      - name: Remove stale nightly assets
+      - name: Update rolling nightly release metadata
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
         run: |
-          scripts/internal/release/prune_github_release_assets.sh \
-            --tag nightly \
+          gh release edit nightly \
             --repo "$REPOSITORY" \
-            --release-dir dist/release
-      - name: Upload nightly release assets
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: nightly
-          name: Wavecrate Nightly
-          target_commitish: ${{ needs.resolve-main.outputs.target_sha }}
-          body_path: dist/release/release-log.md
-          prerelease: true
-          make_latest: false
-          files: dist/release/*
+            --title "Wavecrate Nightly" \
+            --notes-file dist/release/release-log.md \
+            --prerelease \
+            --latest=false \
+            --target "$TARGET_SHA"
       - name: Verify published GitHub nightly release
         shell: bash
         env:
@@ -346,7 +365,7 @@ jobs:
   publish-frontend:
     name: Upload PortalSurfer nightly downloads
     runs-on: ubuntu-latest
-    needs: [resolve-main, publish-github]
+    needs: [resolve-main, release-log, build]
     steps:
       - uses: actions/checkout@v4
         with:

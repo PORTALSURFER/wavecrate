@@ -188,8 +188,9 @@ fn nightly_workflow_publishes_packager_outputs_as_github_assets() {
         "GitHub nightly checksums must be assembled from packager checksum entries"
     );
     assert!(
-        NIGHTLY_WORKFLOW.contains("files: dist/release/*"),
-        "GitHub nightly release must upload the assembled dist/release assets"
+        NIGHTLY_WORKFLOW.contains("gh release upload nightly")
+            && NIGHTLY_WORKFLOW.contains("--clobber \"${release_files[@]}\""),
+        "GitHub nightly release must refresh the assembled dist/release assets"
     );
     assert!(
         RELEASE_ZIP_SCRIPT.contains("ZIP_NAME=\"${APP_NAME}-nightly-${PLATFORM}-${ARCH}.zip\""),
@@ -203,6 +204,52 @@ fn nightly_workflow_publishes_packager_outputs_as_github_assets() {
     assert!(
         !NIGHTLY_WORKFLOW.contains("portal_build_id=\"wavecrate-${nightly_version}\""),
         "PortalSurfer nightly build ids must not contain SemVer build metadata '+' characters"
+    );
+}
+
+#[test]
+fn nightly_workflow_promotes_public_identity_after_public_surfaces_are_ready() {
+    assert!(
+        NIGHTLY_WORKFLOW.contains("cancel-in-progress: false"),
+        "nightly runs must not cancel an in-flight public promotion"
+    );
+    assert!(
+        !NIGHTLY_WORKFLOW.contains("cancel-in-progress: true"),
+        "nightly runs must not use cancellation-prone public promotion"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, release-log, build, publish-frontend]"),
+        "GitHub nightly promotion must wait for the PortalSurfer upload and verifier job"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("needs: [resolve-main, release-log, build]"),
+        "PortalSurfer upload must be able to complete before GitHub nightly identity promotion"
+    );
+    assert!(
+        !NIGHTLY_WORKFLOW.contains("needs: [resolve-main, publish-github]"),
+        "PortalSurfer upload must not wait on rolling GitHub identity promotion"
+    );
+
+    let refresh_assets = NIGHTLY_WORKFLOW
+        .find("Refresh rolling nightly release assets")
+        .expect("rolling nightly asset refresh step");
+    let promote_tags = NIGHTLY_WORKFLOW
+        .find("Promote nightly tags")
+        .expect("nightly tag promotion step");
+    let update_metadata = NIGHTLY_WORKFLOW
+        .find("Update rolling nightly release metadata")
+        .expect("nightly release metadata update step");
+    let verify_github = NIGHTLY_WORKFLOW
+        .find("Verify published GitHub nightly release")
+        .expect("GitHub nightly verifier step");
+
+    assert!(
+        refresh_assets < promote_tags,
+        "rolling GitHub assets must be refreshed before nightly tags move"
+    );
+    assert!(
+        promote_tags < update_metadata && update_metadata < verify_github,
+        "rolling GitHub metadata and verification must happen after tag promotion"
     );
 }
 

@@ -113,7 +113,7 @@ under `scripts/internal/release/`:
   to PortalSurfer, verifies the public catalog and per-release changelog, then
   updates and verifies the full Wavecrate changelog.
 - `prune_github_release_assets.sh` removes stale assets from a rolling GitHub
-  release before upload.
+  release during promotion.
 
 RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
 `release/X.Y` for the requested `X.Y.Z` version, and the package manifest must
@@ -136,20 +136,27 @@ verifies the catalog entry, per-release changelog, and full Wavecrate changelog
 round trips, and finally downloads the public PortalSurfer assets back to verify
 their checksums, signature, and embedded manifests.
 
-The nightly workflow publishes an immutable nightly version tag named like
-`19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub
-`nightly` release for downloads, then uploads the same zips plus the generated
-Markdown release log to the PortalSurfer Wavecrate release-upload API. Each
-PortalSurfer upload uses a path-safe `wavecrate-nightly-b<build>-<short-sha>`
-build id so the website can show a distinct nightly entry instead of stacking
-every nightly under one changelog group, while the release log and package
-manifest keep the full SemVer nightly version. After the per-release log is
-visible in the public catalog, the workflow verifies that the fetched log body
-matches the generated immutable release log, then prepends that release-bound
-log to the existing site-wide changelog before uploading the maintained full
-changelog.
-The nightly workflow also verifies the rolling GitHub release assets and the
-PortalSurfer catalog downloads after publication.
+The nightly workflow uploads the generated zips, checksum files, and Markdown
+release log to the PortalSurfer Wavecrate release-upload API before moving the
+rolling GitHub `nightly` identity. Each PortalSurfer upload uses a path-safe
+`wavecrate-nightly-b<build>-<short-sha>` build id so the website can show a
+distinct nightly entry instead of stacking every nightly under one changelog
+group, while the release log and package manifest keep the full SemVer nightly
+version. After the per-release log is visible in the public catalog, the
+workflow verifies that the fetched log body matches the generated immutable
+release log, then prepends that release-bound log to the existing site-wide
+changelog before uploading the maintained full changelog.
+Only after PortalSurfer publication has been verified does the workflow refresh
+the rolling GitHub `nightly` release assets, publish the immutable nightly
+version tag named like `19.1.0-nightly.20260701+abc1234`, move the rolling
+`nightly` tag, and update the rolling release metadata. Scheduled and manual
+nightly runs do not cancel an in-flight run because tag movement is the final
+public identity transition. If a run fails after PortalSurfer upload begins but
+before GitHub promotion, rerun the workflow for the same `main` commit; the
+same immutable PortalSurfer build id is overwritten and reverified before the
+rolling GitHub identity moves.
+The nightly workflow verifies both the PortalSurfer catalog downloads and the
+rolling GitHub release assets after their respective publication points.
 The maintenance step refuses to preserve a full changelog whose historical
 sections are not already release-bound markdown logs.
 GitHub Actions does not need SSH access or write access to the PortalSurfer
