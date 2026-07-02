@@ -236,7 +236,8 @@ impl NativeAppState {
                 Ok(false) => {}
                 Err(error) => {
                     self.flash_denied_destructive_selection_for_error(&error, kind, target);
-                    self.ui.status.sample = error;
+                    self.ui.status.sample =
+                        self.denied_destructive_edit_status(&error, kind, target);
                     return;
                 }
             }
@@ -253,7 +254,8 @@ impl NativeAppState {
                 Ok(false) => {}
                 Err(error) => {
                     self.flash_denied_destructive_selection_for_error(&error, kind, target);
-                    self.ui.status.sample = error;
+                    self.ui.status.sample =
+                        self.denied_destructive_edit_status(&error, kind, target);
                     return;
                 }
             }
@@ -263,7 +265,7 @@ impl NativeAppState {
             Ok(request) => request,
             Err(error) => {
                 self.flash_denied_destructive_selection_for_error(&error, kind, target);
-                self.ui.status.sample = error;
+                self.ui.status.sample = self.denied_destructive_edit_status(&error, kind, target);
                 return;
             }
         };
@@ -273,7 +275,11 @@ impl NativeAppState {
                 .browser_interaction
                 .pending_waveform_destructive_edit = None;
             if let Err(error) = self.queue_destructive_edit_request(request, context) {
-                self.ui.status.sample = format!("{} failed: {error}", kind.action_label());
+                self.ui.status.sample = format!(
+                    "{} failed: {}",
+                    kind.action_label(),
+                    self.denied_destructive_edit_status(&error, kind, target)
+                );
             }
             return;
         }
@@ -503,7 +509,8 @@ impl NativeAppState {
                     }
                     Err(error) => {
                         self.flash_denied_destructive_selection_for_error(&error, kind, target);
-                        self.ui.status.sample = error;
+                        self.ui.status.sample =
+                            self.denied_destructive_edit_status(&error, kind, target);
                     }
                 }
             }
@@ -530,14 +537,19 @@ impl NativeAppState {
         };
 
         let denied_selection = request.selection;
+        let denied_path = request.absolute_path.clone();
         let result = self.queue_destructive_edit_request(request, context);
         if let Err(error) = result {
+            self.flash_protected_source_block_if_error(&error, &denied_path);
             self.flash_denied_waveform_selection_for_error(
                 &error,
                 Some(denied_selection),
                 WaveformSelectionKind::Edit,
             );
-            self.ui.status.sample = format!("Edit failed: {error}");
+            self.ui.status.sample = format!(
+                "Edit failed: {}",
+                self.protected_source_status_or_error(&error, &denied_path)
+            );
         }
     }
 
@@ -669,15 +681,28 @@ impl NativeAppState {
         kind: WaveformDestructiveEditKind,
         target: WaveformDestructiveEditTarget,
     ) {
-        let selection = self
-            .destructive_edit_target_for_kind(kind, target)
-            .ok()
-            .map(|(_, selection)| selection);
+        let target_result = self.destructive_edit_target_for_kind(kind, target).ok();
+        if let Some((path, _)) = target_result.as_ref() {
+            self.flash_protected_source_block_if_error(error, path);
+        }
+        let selection = target_result.map(|(_, selection)| selection);
         self.flash_denied_waveform_selection_for_error(
             error,
             selection,
             target.fallback_selection_kind(),
         );
+    }
+
+    fn denied_destructive_edit_status(
+        &self,
+        error: &str,
+        kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
+    ) -> String {
+        let Some((path, _)) = self.destructive_edit_target_for_kind(kind, target).ok() else {
+            return error.to_string();
+        };
+        self.protected_source_status_or_error(error, &path)
     }
 
     pub(in crate::native_app) fn flash_denied_waveform_selection_for_error(

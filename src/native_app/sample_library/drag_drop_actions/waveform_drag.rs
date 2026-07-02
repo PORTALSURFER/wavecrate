@@ -71,7 +71,8 @@ impl NativeAppState {
             .folder_browser
             .file_change_lock_error(path.as_path(), "Sample move")
         {
-            self.ui.status.sample = error.clone();
+            self.flash_protected_source_block_if_error(&error, path.as_path());
+            self.ui.status.sample = self.protected_source_status_or_error(&error, path.as_path());
             emit_gui_action(
                 "waveform.loaded_sample_drag.start",
                 Some("waveform"),

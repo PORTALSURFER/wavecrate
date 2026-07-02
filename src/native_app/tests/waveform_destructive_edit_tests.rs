@@ -358,6 +358,17 @@ fn protected_extract_without_writable_target_opens_target_source_prompt() {
             .is_none()
     );
     assert!(state.ui.status.sample.contains("writable target source"));
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .protected_source_error_flash_frames(),
+        0
+    );
+    assert_eq!(
+        state.waveform.current.protected_source_error_flash_frames(),
+        0
+    );
 
     state.apply_message(
         GuiMessage::CancelProtectedExtractionTargetSource,
@@ -370,6 +381,73 @@ fn protected_extract_without_writable_target_opens_target_source_prompt() {
             .browser_interaction
             .pending_protected_extraction_target_source
             .is_none()
+    );
+}
+
+#[test]
+fn blocked_protected_source_destructive_edit_flashes_source_file_and_waveform() {
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-reverse-blocked.wav");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.75);
+
+    state.apply_message(
+        GuiMessage::RequestReverseWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let initial_browser_frames = state
+        .library
+        .folder_browser
+        .protected_source_error_flash_frames();
+    let initial_waveform_frames = state.waveform.current.protected_source_error_flash_frames();
+    assert!(initial_browser_frames > 0);
+    assert!(initial_waveform_frames > 0);
+    assert_eq!(
+        state.ui.status.sample,
+        "Protected source cannot be modified"
+    );
+    assert_protected_source_error_projected(&state, &selected_file, &protected_source.id);
+
+    state.apply_message(GuiMessage::Frame, &mut ui::UiUpdateContext::default());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .protected_source_error_flash_frames()
+            < initial_browser_frames
+    );
+    assert!(state.waveform.current.protected_source_error_flash_frames() < initial_waveform_frames);
+
+    state.apply_message(
+        GuiMessage::RequestReverseWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .protected_source_error_flash_frames(),
+        initial_browser_frames
+    );
+    assert_eq!(
+        state.waveform.current.protected_source_error_flash_frames(),
+        initial_waveform_frames
     );
 }
 
@@ -2071,6 +2149,37 @@ fn select_waveform_range(
     state.apply_message(
         GuiMessage::Waveform(WaveformInteraction::FinishSelection { visible_ratio: end }),
         &mut ui::UiUpdateContext::default(),
+    );
+}
+
+fn assert_protected_source_error_projected(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    selected_file: &str,
+    protected_source_id: &wavecrate::sample_sources::SourceId,
+) {
+    let tags_by_file = std::collections::HashMap::new();
+    let cached_sample_paths = std::collections::HashSet::new();
+    let visible = state.library.folder_browser.visible_samples(
+        crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery {
+            tags_by_file: &tags_by_file,
+            cached_sample_paths: &cached_sample_paths,
+        },
+    );
+    assert!(
+        visible
+            .rows
+            .iter()
+            .any(|row| row.file.id == selected_file && row.protected_source_error_flash),
+        "selected protected file row should carry protected-source error flash"
+    );
+
+    let source_selector = crate::native_app::app_chrome::view_models::library_sidebar::
+        SourceSelectorViewModel::from_folder_browser(&state.library.folder_browser, false);
+    assert!(
+        source_selector.rows.iter().any(|row| {
+            row.id == protected_source_id.as_str() && row.protected_source_error_flash
+        }),
+        "protected source row should carry protected-source error flash"
     );
 }
 

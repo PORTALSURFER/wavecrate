@@ -2,7 +2,8 @@ use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT,
     SOURCE_ROW_LABEL_PADDING_X, source_add_button, source_add_button_tooltip_for_tests,
-    source_missing_color_for_tests, source_role_icon_color_for_tests, source_row,
+    source_missing_color_for_tests, source_protected_error_icon_color_for_tests,
+    source_role_icon_color_for_source_for_tests, source_role_icon_color_for_tests, source_row,
     source_row_outline_for_tests,
 };
 use super::source_selector;
@@ -325,6 +326,33 @@ fn protected_source_row_uses_role_icon_instead_of_text_badge() {
         "protected sources should not render the old text badge"
     );
     assert_no_left_source_marker!(frame);
+}
+
+#[test]
+fn protected_source_error_flash_tints_lock_icon_red() {
+    let mut source = test_source("source-protected-flash");
+    source.role = SourceRole::Protected;
+    let mut state =
+        FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    state.flash_protected_source_error_paths([std::path::PathBuf::from("C:/samples/kick.wav")]);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first().expect("source row");
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
+
+    assert!(
+        row.protected_source_error_flash,
+        "protected source flash should reach the source row view model"
+    );
+    assert!(
+        frame.paint_plan.svgs().next().is_some(),
+        "protected source should still paint its lock icon during the flash"
+    );
+    assert_eq!(
+        source_role_icon_color_for_source_for_tests(row),
+        source_protected_error_icon_color_for_tests(),
+        "protected source lock icon should flash with the red error tint"
+    );
 }
 
 #[test]

@@ -14,13 +14,22 @@ use crate::native_app::ui::ids as widget_ids;
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 
 use super::{
-    WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformEditFadeHandle,
+    DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WAVEFORM_HEIGHT,
+    WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformEditFadeHandle,
     WaveformEditFadeOuterGainHandle, WaveformFile, WaveformInteraction, WaveformSelectionKind,
     WaveformState, WaveformViewport,
     audio_file::{gain_preview_for_range_with_gain, gain_preview_for_selection},
     edit_preview_for_selection,
     widget_geometry::WaveformSelectionHandleHover,
 };
+
+const fn protected_source_error_flash_visible(frames: u8) -> bool {
+    if frames == 0 {
+        return false;
+    }
+    let elapsed = DENIED_SELECTION_FLASH_FRAMES.saturating_sub(frames);
+    ((elapsed / DENIED_SELECTION_FLASH_PULSE_FRAMES) % 2) == 0
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app::waveform) struct LiveSelectionPreview {
@@ -162,6 +171,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     play_selection_denied_flash_frames: u8,
     edit_selection_denied_flash_frames: u8,
     copy_flash_frames: u8,
+    protected_source_error_flash_frames: u8,
     sample_slide_frame_offset: Option<i64>,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
@@ -219,6 +229,7 @@ impl WaveformWidgetProps {
             play_selection_denied_flash_frames: state.play_selection_denied_flash_frames(),
             edit_selection_denied_flash_frames: state.edit_selection_denied_flash_frames(),
             copy_flash_frames: state.copy_flash_frames(),
+            protected_source_error_flash_frames: state.protected_source_error_flash_frames(),
             sample_slide_frame_offset: state.pending_sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
@@ -271,6 +282,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) play_selection_denied_flash_frames: u8,
     pub(super) edit_selection_denied_flash_frames: u8,
     pub(super) copy_flash_frames: u8,
+    pub(super) protected_source_error_flash_frames: u8,
     pub(super) sample_slide_frame_offset: Option<i64>,
     pub(super) beat_guides_enabled: bool,
     pub(super) beat_guide_count: u8,
@@ -306,6 +318,7 @@ impl WaveformWidget {
             play_selection_denied_flash_frames,
             edit_selection_denied_flash_frames,
             copy_flash_frames,
+            protected_source_error_flash_frames,
             sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
@@ -338,6 +351,7 @@ impl WaveformWidget {
             play_selection_denied_flash_frames,
             edit_selection_denied_flash_frames,
             copy_flash_frames,
+            protected_source_error_flash_frames,
             sample_slide_frame_offset,
             beat_guides_enabled,
             beat_guide_count,
@@ -410,6 +424,7 @@ impl Widget for WaveformWidget {
         _theme: &ThemeTokens,
     ) {
         self.append_copy_flash_paint(primitives, bounds);
+        self.append_protected_source_error_flash_paint(primitives, bounds);
         self.append_selection_and_marker_paint(primitives, bounds);
         self.append_edit_fade_paint(primitives, bounds);
     }
@@ -441,6 +456,22 @@ impl WaveformWidget {
             self.common.id,
             bounds,
             ui::Rgba8::new(255, 174, 89, 46),
+        );
+    }
+
+    fn append_protected_source_error_flash_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
+        if !protected_source_error_flash_visible(self.protected_source_error_flash_frames) {
+            return;
+        }
+        push_fill_rect(
+            primitives,
+            self.common.id,
+            bounds,
+            ui::Rgba8::new(255, 69, 54, 62),
         );
     }
 

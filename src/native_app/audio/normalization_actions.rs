@@ -85,8 +85,9 @@ impl NativeAppState {
                 "protected_source_copy"
             }),
         );
-        if let Some(error) = self.normalization_lock_error(&plan.paths) {
-            self.ui.status.sample = error.clone();
+        if let Some((blocked_path, error)) = self.normalization_lock_error(&plan.paths) {
+            self.flash_protected_source_block_if_error(&error, blocked_path);
+            self.ui.status.sample = self.protected_source_status_or_error(&error, blocked_path);
             emit_gui_action(
                 "browser.normalize_selected_samples",
                 Some("browser"),
@@ -153,8 +154,9 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        if let Some(error) = self.normalization_lock_error(&plan.paths) {
-            self.ui.status.sample = error.clone();
+        if let Some((blocked_path, error)) = self.normalization_lock_error(&plan.paths) {
+            self.flash_protected_source_block_if_error(&error, blocked_path);
+            self.ui.status.sample = self.protected_source_status_or_error(&error, blocked_path);
             emit_gui_action(
                 "browser.normalize_selected_samples",
                 Some("browser"),
@@ -339,11 +341,12 @@ impl NativeAppState {
         }))
     }
 
-    fn normalization_lock_error(&self, paths: &[PathBuf]) -> Option<String> {
+    fn normalization_lock_error<'a>(&self, paths: &'a [PathBuf]) -> Option<(&'a PathBuf, String)> {
         paths.iter().find_map(|path| {
             self.library
                 .folder_browser
                 .file_change_lock_error(path, "Normalize")
+                .map(|error| (path, error))
         })
     }
 

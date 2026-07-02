@@ -40,6 +40,7 @@ pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
     playback_visual_generation: u64,
     play_selection_flash_active: bool,
     copy_flash_frames: u8,
+    protected_source_error_flash_frames: u8,
     drag_hover_auto_expand_pending: bool,
     folder_progress_active: bool,
     normalization_progress_active: bool,
@@ -443,6 +444,11 @@ impl FrameRepaintScopeSnapshot {
                 .folder_browser
                 .copy_flash_frames()
                 .max(state.waveform.current.copy_flash_frames()),
+            protected_source_error_flash_frames: state
+                .library
+                .folder_browser
+                .protected_source_error_flash_frames()
+                .max(state.waveform.current.protected_source_error_flash_frames()),
             drag_hover_auto_expand_pending: state
                 .library
                 .folder_browser
@@ -473,6 +479,7 @@ impl FrameRepaintScopeSnapshot {
     fn requires_surface_frame(self) -> bool {
         self.play_selection_flash_active
             || self.copy_flash_frames > 0
+            || self.protected_source_error_flash_frames > 0
             || self.folder_progress_active
             || self.file_move_progress_active
             || self.source_cache_progress_active
@@ -488,6 +495,7 @@ impl FrameRepaintScopeSnapshot {
             && self.playback_visual_generation == after.playback_visual_generation
             && self.play_selection_flash_active == after.play_selection_flash_active
             && self.copy_flash_frames == after.copy_flash_frames
+            && self.protected_source_error_flash_frames == after.protected_source_error_flash_frames
             && self.drag_hover_auto_expand_pending == after.drag_hover_auto_expand_pending
             && self.folder_progress_active == after.folder_progress_active
             && self.normalization_progress_active == after.normalization_progress_active

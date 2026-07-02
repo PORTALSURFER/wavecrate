@@ -14,6 +14,7 @@ use super::{
 use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
 
 const COPY_FLASH_FRAMES: u8 = 12;
+const PROTECTED_SOURCE_ERROR_FLASH_FRAMES: u8 = 24;
 
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct VisibleSampleQuery<'a> {
@@ -50,6 +51,7 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) explicitly_selected: bool,
     pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) copy_flash: bool,
+    pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
     pub(in crate::native_app) cached: bool,
@@ -88,6 +90,9 @@ pub(super) struct SampleListState {
     pub(super) refollow_selected_after_content_change: bool,
     copy_flash_file_ids: HashSet<String>,
     copy_flash_frames: u8,
+    protected_source_error_flash_file_ids: HashSet<String>,
+    protected_source_error_flash_source_ids: HashSet<String>,
+    protected_source_error_flash_frames: u8,
 }
 
 impl SampleListState {
@@ -114,6 +119,9 @@ impl SampleListState {
             refollow_selected_after_content_change: false,
             copy_flash_file_ids: HashSet::new(),
             copy_flash_frames: 0,
+            protected_source_error_flash_file_ids: HashSet::new(),
+            protected_source_error_flash_source_ids: HashSet::new(),
+            protected_source_error_flash_frames: 0,
         }
     }
 
@@ -453,6 +461,72 @@ impl FolderBrowserState {
         }
     }
 
+    pub(in crate::native_app) fn flash_protected_source_error_paths<I, P>(&mut self, paths: I)
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<std::path::Path>,
+    {
+        let mut file_ids = HashSet::new();
+        let mut source_ids = HashSet::new();
+        for path in paths {
+            let path = path.as_ref();
+            if let Some(file_id) = copy_flash_file_id(path) {
+                file_ids.insert(file_id);
+            }
+            if let Some(source_id) = self.protected_source_id_for_path(path) {
+                source_ids.insert(source_id);
+            }
+        }
+        self.sample_list.protected_source_error_flash_file_ids = file_ids;
+        self.sample_list.protected_source_error_flash_source_ids = source_ids;
+        self.sample_list.protected_source_error_flash_frames = if self
+            .sample_list
+            .protected_source_error_flash_file_ids
+            .is_empty()
+            && self
+                .sample_list
+                .protected_source_error_flash_source_ids
+                .is_empty()
+        {
+            0
+        } else {
+            PROTECTED_SOURCE_ERROR_FLASH_FRAMES
+        };
+    }
+
+    pub(in crate::native_app) fn protected_source_error_flash_frames(&self) -> u8 {
+        self.sample_list.protected_source_error_flash_frames
+    }
+
+    pub(in crate::native_app) fn advance_protected_source_error_flash_frame(&mut self) {
+        if self.sample_list.protected_source_error_flash_frames == 0 {
+            return;
+        }
+        self.sample_list.protected_source_error_flash_frames = self
+            .sample_list
+            .protected_source_error_flash_frames
+            .saturating_sub(1);
+        if self.sample_list.protected_source_error_flash_frames == 0 {
+            self.sample_list
+                .protected_source_error_flash_file_ids
+                .clear();
+            self.sample_list
+                .protected_source_error_flash_source_ids
+                .clear();
+        }
+    }
+
+    pub(in crate::native_app) fn source_protected_error_flash_active(
+        &self,
+        source_id: &str,
+    ) -> bool {
+        self.sample_list.protected_source_error_flash_frames > 0
+            && self
+                .sample_list
+                .protected_source_error_flash_source_ids
+                .contains(source_id)
+    }
+
     pub(in crate::native_app) fn prepare_visible_sample_window(
         &mut self,
         policy: VisibleSampleWindowPolicy<'_>,
@@ -536,6 +610,7 @@ impl FolderBrowserState {
             explicitly_selected: selected && self.selection.selected_file_ids_explicit(),
             focused: self.selected_file_id() == Some(file.id.as_str()),
             copy_flash: self.copied_file_flash_active(&file.id),
+            protected_source_error_flash: self.protected_source_error_file_flash_active(&file.id),
             drag_active: self.file_drag_active(),
             drag_source: self.file_drag_source(&file.id),
             cached: query.cached_sample_paths.contains(&file.id),
@@ -587,6 +662,24 @@ impl FolderBrowserState {
 
     pub(super) fn copied_file_flash_active(&self, file_id: &str) -> bool {
         self.copy_flash_active() && self.sample_list.copy_flash_file_ids.contains(file_id)
+    }
+
+    pub(super) fn protected_source_error_file_flash_active(&self, file_id: &str) -> bool {
+        self.sample_list.protected_source_error_flash_frames > 0
+            && self
+                .sample_list
+                .protected_source_error_flash_file_ids
+                .contains(file_id)
+    }
+
+    fn protected_source_id_for_path(&self, path: &std::path::Path) -> Option<String> {
+        self.source
+            .sources
+            .iter()
+            .filter(|source| path.starts_with(&source.root))
+            .max_by_key(|source| source.root.components().count())
+            .filter(|source| source.is_protected())
+            .map(|source| source.id.clone())
     }
 }
 

@@ -51,6 +51,7 @@ pub(in crate::native_app) fn sample_file_hit_target(
             explicitly_selected: selected,
             focused: false,
             copy_flash: false,
+            protected_source_error_flash: false,
             cut_pending: false,
             drag_active,
             drag_source,

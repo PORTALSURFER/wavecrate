@@ -189,6 +189,8 @@ impl WaveformState {
                 self.edit_selection_denied_flash_frames =
                     self.edit_selection_denied_flash_frames.saturating_sub(1);
                 self.copy_flash_frames = self.copy_flash_frames.saturating_sub(1);
+                self.protected_source_error_flash_frames =
+                    self.protected_source_error_flash_frames.saturating_sub(1);
             }
         }
     }
