@@ -105,6 +105,10 @@ under `scripts/internal/release/`:
 - `sign_release_checksums.sh` signs and optionally verifies checksum files.
 - `validate_promoted_rc_release.py` verifies that stable promotion is backed by
   a complete RC GitHub prerelease before stable builds start.
+- `verify_published_release.py` downloads public GitHub or PortalSurfer release
+  assets after publication, verifies checksum signatures and zip hashes, and
+  inspects each `update-manifest.json` for the expected channel, version,
+  commit, build date, target, platform, and architecture.
 - `publish_portalsurfer_release.sh` uploads release files and the generated log
   to PortalSurfer, verifies the public catalog and per-release changelog, then
   updates and verifies the full Wavecrate changelog.
@@ -125,10 +129,12 @@ the expected platform zips from `release_contract.toml`, a checksum file,
 checksum signature, downloadable assets whose hashes match the checksum file,
 and a release-bound `Wavecrate X.Y.Z-rc.N` log body. Stable releases are
 published as normal GitHub releases tagged `vX.Y.Z` and as PortalSurfer catalog
-entries with build ids like `wavecrate-X.Y.Z`. RC and stable PortalSurfer
-publication uploads the generated release zips, checksum file, checksum
-signature, and release log, then verifies the catalog entry, per-release
-changelog, and full Wavecrate changelog round trips.
+entries with build ids like `wavecrate-X.Y.Z`. RC and stable workflows verify the
+published GitHub release assets, then PortalSurfer publication uploads the
+generated release zips, checksum file, checksum signature, and release log,
+verifies the catalog entry, per-release changelog, and full Wavecrate changelog
+round trips, and finally downloads the public PortalSurfer assets back to verify
+their checksums, signature, and embedded manifests.
 
 The nightly workflow publishes an immutable nightly version tag named like
 `19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub
@@ -140,10 +146,44 @@ every nightly under one changelog group. After the per-release log is visible in
 the public catalog, the workflow verifies that the fetched log body matches the
 generated immutable release log, then prepends that release-bound log to the
 existing site-wide changelog before uploading the maintained full changelog.
+The nightly workflow also verifies the rolling GitHub release assets and the
+PortalSurfer catalog downloads after publication.
 The maintenance step refuses to preserve a full changelog whose historical
 sections are not already release-bound markdown logs.
 GitHub Actions does not need SSH access or write access to the PortalSurfer
 frontend repository.
+
+To rerun the GitHub verifier for a published stable release, use the resolved
+release metadata from the workflow run:
+
+```bash
+scripts/internal/release/verify_published_release.py \
+  --surface github \
+  --channel stable \
+  --version 19.1.0 \
+  --target-version 19.1.0 \
+  --commit <target-sha> \
+  --build-date <yyyy-mm-dd> \
+  --tag v19.1.0 \
+  --repo PORTALSURFER/wavecrate \
+  --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
+```
+
+To rerun the PortalSurfer verifier for the same release:
+
+```bash
+scripts/internal/release/verify_published_release.py \
+  --surface portalsurfer \
+  --channel stable \
+  --version 19.1.0 \
+  --target-version 19.1.0 \
+  --commit <target-sha> \
+  --build-date <yyyy-mm-dd> \
+  --portal-catalog-url https://portalsurfer.org/wavecrate/api/v1/releases \
+  --portal-build-id wavecrate-19.1.0 \
+  --build-number <build-number> \
+  --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
+```
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
 Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store

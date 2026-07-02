@@ -254,6 +254,21 @@ jobs:
           prerelease: true
           make_latest: false
           files: dist/release/*
+      - name: Verify published GitHub RC release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/internal/release/verify_published_release.py \
+            --channel rc \
+            --version "${{ needs.resolve.outputs.release_version }}" \
+            --target-version "${{ needs.resolve.outputs.target_version }}" \
+            --commit "${{ needs.resolve.outputs.target_sha }}" \
+            --build-date "${{ needs.resolve.outputs.build_date }}" \
+            --tag "${{ needs.resolve.outputs.release_tag }}" \
+            --repo "${{ github.repository }}" \
+            --source GitHub \
+            --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
       - name: Publish PortalSurfer RC release
         shell: bash
         env:
@@ -269,3 +284,22 @@ jobs:
             --artifact-dir dist/release \
             --release-log dist/release/release-log.md \
             --full-changelog-out dist/release/changelog.md
+      - name: Verify published PortalSurfer RC release artifacts
+        shell: bash
+        env:
+          PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
+        run: |
+          upload_base="${PORTALSURFER_RELEASE_UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
+          upload_base="${upload_base%/}"
+          scripts/internal/release/verify_published_release.py \
+            --surface portalsurfer \
+            --channel rc \
+            --version "${{ needs.resolve.outputs.release_version }}" \
+            --target-version "${{ needs.resolve.outputs.target_version }}" \
+            --commit "${{ needs.resolve.outputs.target_sha }}" \
+            --build-date "${{ needs.resolve.outputs.build_date }}" \
+            --portal-catalog-url "${upload_base%/release-uploads}/releases" \
+            --portal-build-id "${{ needs.resolve.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve.outputs.build_number }}" \
+            --source PortalSurfer \
+            --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
