@@ -32,6 +32,31 @@ fn fill_index(
         .unwrap_or_else(|| panic!("expected fill for {label}, got {fills:?}"))
 }
 
+fn beat_guide_fills<'a>(fills: &'a [&PaintFillRect]) -> Vec<&'a PaintFillRect> {
+    fills
+        .iter()
+        .copied()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 214, 188, 170)
+        })
+        .collect()
+}
+
+fn assert_beat_guides_at(fills: &[&PaintFillRect], expected_xs: &[f32]) {
+    let guides = beat_guide_fills(fills);
+    assert_eq!(guides.len(), expected_xs.len(), "got guides {guides:?}");
+    for expected_x in expected_xs {
+        assert!(
+            guides.iter().any(|fill| {
+                (fill.rect.center().x - expected_x).abs() < 0.01
+                    && (fill.rect.min.y - 11.0).abs() < 0.01
+                    && (fill.rect.max.y - 69.0).abs() < 0.01
+            }),
+            "expected beat guide at x={expected_x}, got {guides:?}"
+        );
+    }
+}
+
 #[test]
 fn overlay_paint_projects_play_edit_and_playhead_markers() {
     let mut state = WaveformState::synthetic_for_tests();
@@ -925,6 +950,85 @@ fn beat_guides_do_not_paint_during_live_selection_creation_preview() {
                 && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
         }),
         "the live selection preview should still paint"
+    );
+}
+
+#[test]
+fn beat_guides_paint_from_live_playmark_slide_preview() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.35, 0.75),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert_beat_guides_at(&fills, &[90.0, 110.0, 130.0]);
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 70.0).abs() < 0.001
+                && (fill.rect.max.x - 150.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "the live slid playmark selection should still paint"
+    );
+}
+
+#[test]
+fn beat_guides_paint_from_live_editmark_slide_preview() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.edit_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Edit,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Edit,
+        selection: wavecrate::selection::SelectionRange::new(0.35, 0.75),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert_beat_guides_at(&fills, &[90.0, 110.0, 130.0]);
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 70.0).abs() < 0.001
+                && (fill.rect.max.x - 150.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+        }),
+        "the live slid editmark selection should still paint"
+    );
+}
+
+#[test]
+fn beat_guides_remain_hidden_for_live_slide_preview_when_disabled() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, false, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.35, 0.75),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(
+        beat_guide_fills(&fills).is_empty(),
+        "disabled beat guides should not paint during live slide previews"
     );
 }
 
