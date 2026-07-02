@@ -122,7 +122,7 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
     assert!(
         !bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::WaveformState)
     );
     assert_eq!(
         bridge.projection_key_snapshot.as_ref(),
@@ -143,7 +143,7 @@ fn flush_pending_waveform_actions_reuses_derived_snapshot_for_view_updates() {
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::WaveformState)
     );
     let Some(snapshot_key) = bridge.projection_key_snapshot.as_ref() else {
         panic!("waveform flush should retain a projection key snapshot");
@@ -176,7 +176,7 @@ fn assert_pending_zoom_flush_before_immediate_action(action: NativeUiAction) {
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::WaveformState)
     );
 }
 

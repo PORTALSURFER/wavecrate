@@ -18,8 +18,8 @@ use super::{
 };
 use crate::app_core::{
     actions::{NativeAppModel, NativeMotionModel},
-    controller::{AppControllerUiRuntimeExt, DerivedNodeId, UiFramePreparationPlan},
-    ui_bridge::invalidation::InvalidationReason,
+    controller::{AppControllerUiRuntimeExt, UiFramePreparationPlan},
+    ui_bridge::invalidation::{InvalidationNode, InvalidationReason},
 };
 use std::{
     sync::Arc,
@@ -130,11 +130,12 @@ impl WavecrateUiBridge {
         let flush_start = profiling.then(Instant::now);
         let dirty_nodes = self.controller.dirty_derived_nodes_in_topo_order();
         let mut projection_key_dirty = false;
-        for node in dirty_nodes {
-            if node == DerivedNodeId::WaveformRenderInputs {
+        for legacy_node in dirty_nodes {
+            let node = InvalidationNode::from_legacy(legacy_node);
+            if node == InvalidationNode::WaveformRenderInputs {
                 let should_refresh = super::invalidation::waveform_render_inputs_require_refresh(
                     self.controller
-                        .derived_dirty_reason(node)
+                        .derived_dirty_reason(legacy_node)
                         .map(InvalidationReason::from_legacy),
                 );
                 if should_refresh {
@@ -143,10 +144,10 @@ impl WavecrateUiBridge {
                 }
                 trace_waveform_image_refresh(should_refresh);
             }
-            if node == DerivedNodeId::NativeAppProjectionKey {
+            if node == InvalidationNode::NativeAppProjectionKey {
                 projection_key_dirty = true;
             }
-            self.controller.clear_derived_dirty_node(node);
+            self.controller.clear_derived_dirty_node(legacy_node);
         }
         if projection_key_dirty {
             self.projection_cache.invalidate_key_only();

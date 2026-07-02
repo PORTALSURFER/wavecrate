@@ -2,7 +2,7 @@ use crate::app_core::actions::{
     NativeAppBridge, NativeDirtySegments, NativeSegmentRevisions, NativeUiAction,
 };
 use crate::app_core::controller::AppController;
-use crate::app_core::controller::{DerivedNodeId, DirtyReason};
+use crate::app_core::invalidation_contracts::InvalidationNode;
 use crate::app_core::state::{
     AudioHostView, AudioPickerTarget, MapBounds, MapPoint, MapQueryBounds, PlaybackAgeFilterChip,
     SampleBrowserSort, SampleBrowserTab, StatusTone, TriageFlagColumn, TriageFlagFilter,
@@ -69,6 +69,30 @@ fn test_bridge(size: u32) -> WavecrateUiBridge {
         gui_test_recorder: None,
         last_action_handled: None,
         runtime_exit_emitted: false,
+    }
+}
+
+trait AppCoreInvalidationTestExt {
+    fn is_invalidation_node_dirty_for_test(&self, node: InvalidationNode) -> bool;
+
+    fn mark_invalidation_source_dirty_for_test(
+        &mut self,
+        source: InvalidationNode,
+        reason: InvalidationReason,
+    );
+}
+
+impl AppCoreInvalidationTestExt for AppController {
+    fn is_invalidation_node_dirty_for_test(&self, node: InvalidationNode) -> bool {
+        self.is_derived_node_dirty_for_test(node.legacy())
+    }
+
+    fn mark_invalidation_source_dirty_for_test(
+        &mut self,
+        source: InvalidationNode,
+        reason: InvalidationReason,
+    ) {
+        self.mark_derived_source_dirty(source.legacy(), reason.legacy());
     }
 }
 

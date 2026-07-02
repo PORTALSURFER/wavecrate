@@ -10,6 +10,9 @@ pub(crate) mod browser_projection_cache;
 /// Retained map projection query/cache contracts owned by app-core.
 pub(crate) mod map_projection_contracts;
 
+/// Retained UI invalidation contracts owned by app-core.
+pub(crate) mod invalidation_contracts;
+
 /// Controller aliases and helpers used by migration-facing runtimes.
 pub mod controller;
 

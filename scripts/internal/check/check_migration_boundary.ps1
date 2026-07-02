@@ -8,6 +8,7 @@ Checks the migration boundary between legacy `crate::app` and `src/app_core`.
 .DESCRIPTION
 Fails if any file under `src/app_core` references `crate::app::` except:
 - `src/app_core/app_api.rs`
+- focused transitional adapter files listed by the script
 
 This mirrors `scripts/internal/check/check_migration_boundary.sh` for Windows environments that
 don’t have `bash`/`rg` available.
@@ -18,7 +19,9 @@ Push-Location $rootDir
 try {
   $appCoreDir = Join-Path $rootDir "src/app_core"
   $allowedFile = Join-Path $appCoreDir "app_api.rs"
-  $allowedTransitionalFiles = @()
+  $allowedTransitionalFiles = @(
+    (Join-Path $appCoreDir "invalidation_contracts.rs")
+  )
 
   if (-not (Test-Path -LiteralPath $appCoreDir)) {
     throw "Expected app_core directory not found: $appCoreDir"
@@ -70,4 +73,3 @@ try {
 } finally {
   Pop-Location
 }
-
