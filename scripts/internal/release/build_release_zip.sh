@@ -106,14 +106,12 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(rc|nightly)\.[0-9A-Za-z.-]+)?(\+
   exit 1
 fi
 
-BUILD_LABEL=""
 if [[ -n "$BUILD_NUMBER" ]]; then
   BUILD_NUMBER="${BUILD_NUMBER#b}"
   if [[ -z "$BUILD_NUMBER" || ! "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
     echo "Build number must be numeric." >&2
     exit 1
   fi
-  BUILD_LABEL="-b${BUILD_NUMBER}"
 fi
 if [[ -n "$GIT_SHA" ]]; then
   GIT_SHA="$(printf '%s' "$GIT_SHA" | tr -d '[:space:]')"
@@ -146,7 +144,7 @@ case "$CHANNEL" in
     ZIP_NAME="${APP_NAME}-${VERSION}-${PLATFORM}-${ARCH}.zip"
     ;;
   nightly)
-    ZIP_NAME="${APP_NAME}-nightly${BUILD_LABEL}-${PLATFORM}-${ARCH}.zip"
+    ZIP_NAME="${APP_NAME}-nightly-${PLATFORM}-${ARCH}.zip"
     ;;
   *)
     echo "Unknown channel: $CHANNEL" >&2

@@ -8,6 +8,8 @@ const RELEASE_CONTRACT: &str = include_str!("../release_contract.toml");
 const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.yml");
 const RC_WORKFLOW: &str = include_str!("../.github/workflows/release-rc.yml");
 const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml");
+const RELEASE_ZIP_SCRIPT: &str = include_str!("../scripts/internal/release/build_release_zip.sh");
+const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 
 #[test]
 fn platform_labels_are_active_release_labels_only() {
@@ -103,6 +105,73 @@ fn release_contract_template_emits_supported_nightly_asset_names() {
     assert!(
         asset_names.iter().all(|name| !name.contains("linux")),
         "nightly assets generated from the release contract must not include Linux"
+    );
+}
+
+#[test]
+fn release_packager_uses_contract_nightly_asset_name_without_build_number() {
+    let contract = parse_contract();
+    let nightly_template = contract
+        .get("templates")
+        .and_then(Value::as_table)
+        .and_then(|templates| templates.get("nightly_asset"))
+        .and_then(Value::as_str)
+        .expect("nightly_asset template");
+    let expected_assignment = format!(
+        r#"ZIP_NAME="{}""#,
+        nightly_template
+            .replace("{APP_NAME}", "${APP_NAME}")
+            .replace("{platform}", "${PLATFORM}")
+            .replace("{arch}", "${ARCH}")
+    );
+    let expected_updater_format = nightly_template
+        .replace("{APP_NAME}", "{APP_NAME}")
+        .replace("{platform}", "{platform}")
+        .replace("{arch}", "{arch}");
+
+    assert!(
+        RELEASE_ZIP_SCRIPT.contains(&expected_assignment),
+        "nightly packager ZIP_NAME must match release_contract.toml: {expected_assignment}"
+    );
+    assert!(
+        UPDATER_ASSET_NAMES.contains(&expected_updater_format),
+        "GitHub updater nightly asset lookup must match release_contract.toml: {expected_updater_format}"
+    );
+    assert!(
+        !RELEASE_ZIP_SCRIPT.contains("nightly${BUILD_LABEL}"),
+        "rolling GitHub nightly assets must not include build-number labels"
+    );
+    assert!(
+        RELEASE_ZIP_SCRIPT.contains(r#"printf "%s  %s\n" "$SHA" "$ZIP_NAME""#),
+        "checksums-entry.txt must list the exact zip filename selected by the packager"
+    );
+}
+
+#[test]
+fn nightly_workflow_publishes_packager_outputs_as_github_assets() {
+    assert!(
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/build_release_zip.sh \\"),
+        "nightly workflow must use the shared release zip packager"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("--channel nightly \\"),
+        "nightly workflow must call the packager in nightly mode"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("cp dist/artifacts/*.zip dist/release/"),
+        "GitHub nightly release must publish the zip filenames emitted by the packager"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("cat \"${entries[@]}\" > dist/release/checksums-nightly.txt"),
+        "GitHub nightly checksums must be assembled from packager checksum entries"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("files: dist/release/*"),
+        "GitHub nightly release must upload the assembled dist/release assets"
+    );
+    assert!(
+        !NIGHTLY_WORKFLOW.contains("wavecrate-nightly-b"),
+        "rolling GitHub nightly workflow must not introduce build-numbered asset names"
     );
 }
 
