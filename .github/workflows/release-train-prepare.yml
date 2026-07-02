@@ -1,0 +1,89 @@
+name: Wavecrate release train prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable target version, for example 19.1.0
+        required: true
+        type: string
+      source_ref:
+        description: Source commit, branch, or tag used as the release branch base
+        required: true
+        default: main
+        type: string
+      push_branch:
+        description: Push or update release/X.Y after validation
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wavecrate-release-train-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare release train
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.source_ref }}
+      - name: Checkout Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
+            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          key_path="$HOME/.ssh/radiant_submodule_key"
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
+            git submodule update --init --recursive vendor/radiant
+          rm -f "$key_path"
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import pathlib
+          import tomllib
+
+          data = tomllib.loads(pathlib.Path("rust-toolchain.toml").read_text())
+          print(f"channel={data.get('toolchain', {}).get('channel', 'stable')}")
+          PY
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Configure release bot identity
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Prepare release train
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          PUSH_BRANCH: ${{ inputs.push_branch }}
+        run: |
+          set -euo pipefail
+          args=(--version "$VERSION" --source-ref HEAD)
+          if [[ "$PUSH_BRANCH" == "true" ]]; then
+            args+=(--push)
+          else
+            args+=(--dry-run)
+          fi
+          scripts/internal/release/prepare_release_train.py "${args[@]}"
