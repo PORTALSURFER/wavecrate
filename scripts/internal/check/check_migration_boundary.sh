@@ -8,6 +8,7 @@ ALLOWED_FILE="$APP_CORE_DIR/app_api.rs"
 ALLOWED_TRANSITIONAL_FILES=(
   "$APP_CORE_DIR/browser_source_state.rs"
   "$APP_CORE_DIR/invalidation_contracts.rs"
+  "$APP_CORE_DIR/projection_state.rs"
 )
 
 matches=()

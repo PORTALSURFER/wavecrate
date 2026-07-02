@@ -3,7 +3,7 @@
 //! The legacy controller still stores the backing UI state during migration, so
 //! these contracts remain representation aliases for now. Keeping the aliases
 //! grouped here gives browser/source/folder projections one explicit app-core
-//! ownership point instead of depending on the broad `app_api::state` bridge.
+//! ownership point instead of depending on a broad legacy state bridge.
 
 use crate::app_core::actions::NativeBrowserTagTarget;
 
