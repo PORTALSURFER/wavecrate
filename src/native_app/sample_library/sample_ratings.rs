@@ -130,6 +130,10 @@ impl NativeAppState {
             rating: previous_rating,
             locked: false,
         };
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         let applied = match self
             .apply_rating_update_states(std::slice::from_ref(&update), RatingUpdateMode::After)
         {
@@ -164,7 +168,10 @@ impl NativeAppState {
         self.register_rating_transaction_with_label("Unlock sample", vec![update]);
         self.library
             .folder_browser
-            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+            .reconcile_visible_file_selection_after_tag_filter(
+                previous_visible_ids,
+                &self.metadata.tags_by_file,
+            );
         emit_gui_action(
             "browser.context_menu.sample.unlock",
             Some("browser"),
@@ -183,6 +190,10 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let advance_visible_ids = self.rating_advance_visible_ids_before_adjustment(allow_advance);
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         let advance_previous_index = advance_visible_ids.as_ref().and_then(|_| {
             self.library
                 .folder_browser
@@ -264,7 +275,10 @@ impl NativeAppState {
         if applied > 0 {
             self.library
                 .folder_browser
-                .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+                .reconcile_visible_file_selection_after_tag_filter(
+                    previous_visible_ids,
+                    &self.metadata.tags_by_file,
+                );
         }
     }
 

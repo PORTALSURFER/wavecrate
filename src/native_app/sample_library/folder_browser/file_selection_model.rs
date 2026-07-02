@@ -169,15 +169,45 @@ impl FileSelectionModel {
         })
     }
 
-    pub(super) fn retain_visible(&mut self, visible_ids: &HashSet<String>) {
-        self.selected_ids.retain(|id| visible_ids.contains(id));
-        if self
-            .focused_id
+    pub(super) fn reconcile_visible(
+        &mut self,
+        previous_visible_ids: &[String],
+        visible_ids: &[String],
+    ) {
+        let visible_id_set = visible_ids.iter().cloned().collect::<HashSet<_>>();
+        let previous_focused_id = self.focused_id.clone();
+        self.selected_ids.retain(|id| visible_id_set.contains(id));
+
+        if previous_focused_id
             .as_ref()
-            .is_some_and(|id| !visible_ids.contains(id))
+            .is_some_and(|id| visible_id_set.contains(id))
         {
-            self.focused_id = None;
+            return;
         }
+
+        self.focused_id = previous_focused_id
+            .as_ref()
+            .and_then(|id| {
+                previous_visible_ids
+                    .iter()
+                    .position(|candidate| candidate == id)
+            })
+            .and_then(|previous_index| {
+                if visible_ids.is_empty() {
+                    None
+                } else {
+                    visible_ids.get(previous_index.min(visible_ids.len() - 1))
+                }
+            })
+            .cloned();
+
+        if !self.explicit {
+            self.selected_ids.clear();
+            if let Some(focused_id) = self.focused_id.clone() {
+                self.selected_ids.insert(focused_id);
+            }
+        }
+
         if self.focused_id.is_none() && self.selected_ids.is_empty() {
             self.explicit = false;
         }
@@ -308,15 +338,42 @@ mod tests {
     }
 
     #[test]
-    fn retain_visible_removes_hidden_focus_and_selected_ids() {
+    fn reconcile_visible_moves_hidden_focus_to_next_row() {
         let mut selection =
             FileSelectionModel::new(Some(String::from("kick")), set(&["kick", "hat"]), true);
 
-        selection.retain_visible(&set(&["hat"]));
+        selection.reconcile_visible(&ids(&["kick", "hat"]), &ids(&["hat"]));
 
-        assert_eq!(selection.focused_id(), None);
+        assert_eq!(selection.focused_id(), Some("hat"));
         assert!(selection.explicit());
         assert_eq!(selection.active_ids(), set(&["hat"]));
+    }
+
+    #[test]
+    fn reconcile_visible_moves_hidden_focus_to_previous_row_at_end() {
+        let mut selection = FileSelectionModel::new(
+            Some(String::from("hat")),
+            set(&["kick", "snare", "hat"]),
+            false,
+        );
+
+        selection.reconcile_visible(&ids(&["kick", "snare", "hat"]), &ids(&["kick"]));
+
+        assert_eq!(selection.focused_id(), Some("kick"));
+        assert!(!selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["kick"]));
+    }
+
+    #[test]
+    fn reconcile_visible_clears_focus_when_no_rows_remain() {
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick"]), false);
+
+        selection.reconcile_visible(&ids(&["kick"]), &[]);
+
+        assert_eq!(selection.focused_id(), None);
+        assert!(!selection.explicit());
+        assert!(selection.active_ids().is_empty());
     }
 
     #[test]

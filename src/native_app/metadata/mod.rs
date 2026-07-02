@@ -109,13 +109,19 @@ impl NativeAppState {
         }
     }
 
-    pub(super) fn retain_visible_file_selection_after_metadata_tag_change(&mut self) {
+    pub(super) fn retain_visible_file_selection_after_metadata_tag_change(
+        &mut self,
+        previous_visible_ids: Vec<String>,
+    ) {
         self.library
             .folder_browser
             .invalidate_visible_sample_projection_cache();
         self.library
             .folder_browser
-            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+            .reconcile_visible_file_selection_after_tag_filter(
+                previous_visible_ids,
+                &self.metadata.tags_by_file,
+            );
     }
 
     pub(in crate::native_app) fn metadata_tag_selection_state(

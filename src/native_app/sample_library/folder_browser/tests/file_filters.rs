@@ -615,7 +615,7 @@ fn copied_file_flash_projects_to_visible_rows_and_clears() {
 }
 
 #[test]
-fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
+fn name_filter_moves_hidden_focus_to_remaining_visible_file() {
     let root = temp_source_root("wavecrate-gui-name-filter");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
@@ -643,7 +643,7 @@ fn name_filter_limits_selected_audio_files_and_clears_hidden_selection() {
             .collect::<Vec<_>>(),
         vec!["Deep Kick.wav"]
     );
-    assert_eq!(browser.selected_file_id(), None);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
 
     browser.apply_message(FolderBrowserMessage::NameFilterInput(
         TextInputMessage::Changed {
@@ -820,6 +820,55 @@ fn harvest_filter_family_reactivation_preserves_each_selected_mode() {
 }
 
 #[test]
+fn harvest_filter_state_change_moves_hidden_focus_to_next_visible_file() {
+    let root = temp_source_root("wavecrate-gui-harvest-filter-focus");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let first = drums.join("001.wav");
+    let focused = drums.join("002.wav");
+    let next = drums.join("003.wav");
+    for file in [&first, &focused, &next] {
+        fs::write(file, []).expect("write sample file");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.apply_message(FolderBrowserMessage::SetHarvestFilter(
+        HarvestFilter::New,
+        true,
+    ));
+    browser.select_file(path_id(&focused));
+    let previous_visible_ids = browser.selected_audio_file_ids();
+    let focused_key = wavecrate::sample_sources::HarvestFileKey::new(
+        wavecrate::sample_sources::SourceId::from_string(path_id(&root)),
+        focused
+            .strip_prefix(&root)
+            .expect("focused file should be under root")
+            .to_path_buf(),
+    );
+    let focused_identity = wavecrate::sample_sources::HarvestFileIdentity::new(focused_key);
+    wavecrate::sample_sources::library::upsert_harvest_file(&focused_identity)
+        .expect("upsert harvest file");
+    wavecrate::sample_sources::library::set_harvest_state(
+        &focused_identity.key,
+        wavecrate::sample_sources::HarvestState::Done,
+    )
+    .expect("set harvest state");
+
+    browser.refresh_after_harvest_state_change_matching_tags(previous_visible_ids, &HashMap::new());
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&next).as_str()));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["001.wav", "003.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn rating_filter_limits_visible_samples_and_can_combine_levels() {
     let root = temp_source_root("wavecrate-gui-rating-filter");
     let drums = root.join("drums");
@@ -898,7 +947,7 @@ fn rating_filter_can_show_unrated_samples() {
 }
 
 #[test]
-fn rating_filter_clears_selection_hidden_by_filter() {
+fn rating_filter_moves_hidden_focus_to_remaining_visible_file() {
     let root = temp_source_root("wavecrate-gui-rating-filter-selection");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
@@ -914,7 +963,7 @@ fn rating_filter_clears_selection_hidden_by_filter() {
 
     browser.apply_message(FolderBrowserMessage::ToggleRatingFilter(1, true));
 
-    assert_eq!(browser.selected_file_id(), None);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&keep).as_str()));
     assert_eq!(
         browser
             .selected_audio_files()
@@ -945,12 +994,13 @@ fn playback_type_filter_limits_visible_samples_and_combines_modes() {
         (path_id(&shot), vec![String::from("one-shot")]),
     ]);
     let cached_sample_paths = HashSet::new();
+    let previous_visible_ids = browser.selected_audio_file_ids_matching_tags(&tags_by_file);
 
     browser.apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
         PlaybackTypeFilter::Loop,
         true,
     ));
-    browser.retain_visible_file_selection_after_tag_filter(&tags_by_file);
+    browser.reconcile_visible_file_selection_after_tag_filter(previous_visible_ids, &tags_by_file);
 
     let visible = browser.visible_samples(VisibleSampleQuery {
         tags_by_file: &tags_by_file,
@@ -965,7 +1015,10 @@ fn playback_type_filter_limits_visible_samples_and_combines_modes() {
             .collect::<Vec<_>>(),
         vec!["loop.wav"]
     );
-    assert_eq!(browser.selected_file_id(), None);
+    assert_eq!(
+        browser.selected_file_id(),
+        Some(path_id(&loop_file).as_str())
+    );
 
     browser.apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
         PlaybackTypeFilter::OneShot,
@@ -1226,7 +1279,7 @@ fn disabling_folder_subtree_listing_drops_hidden_nested_file_selection() {
 }
 
 #[test]
-fn tag_filter_limits_selected_audio_files_and_clears_hidden_selection() {
+fn tag_filter_moves_hidden_focus_to_remaining_visible_file() {
     let root = temp_source_root("wavecrate-gui-tag-filter");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
@@ -1247,13 +1300,14 @@ fn tag_filter_limits_selected_audio_files_and_clears_hidden_selection() {
         (path_id(&snare), vec![String::from("Drum")]),
         (path_id(&hat), vec![String::from("Metal")]),
     ]);
+    let previous_visible_ids = browser.selected_audio_file_ids_matching_tags(&tags_by_file);
 
     browser.apply_message(FolderBrowserMessage::TagFilterInput(
         TextInputMessage::Changed {
             value: String::from("drum, warm"),
         },
     ));
-    browser.retain_visible_file_selection_after_tag_filter(&tags_by_file);
+    browser.reconcile_visible_file_selection_after_tag_filter(previous_visible_ids, &tags_by_file);
 
     assert_eq!(
         browser
@@ -1263,7 +1317,7 @@ fn tag_filter_limits_selected_audio_files_and_clears_hidden_selection() {
             .collect::<Vec<_>>(),
         vec!["Deep Kick.wav"]
     );
-    assert_eq!(browser.selected_file_id(), None);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
 
     browser.apply_message(FolderBrowserMessage::TagFilterInput(
         TextInputMessage::Changed {

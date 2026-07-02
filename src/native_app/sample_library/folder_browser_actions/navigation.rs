@@ -25,12 +25,19 @@ impl NativeAppState {
         &mut self,
         message: radiant::widgets::TextInputMessage,
     ) {
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         self.library
             .folder_browser
             .apply_message(FolderBrowserMessage::TagFilterInput(message));
         self.library
             .folder_browser
-            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+            .reconcile_visible_file_selection_after_tag_filter(
+                previous_visible_ids,
+                &self.metadata.tags_by_file,
+            );
     }
 
     pub(super) fn toggle_folder_browser_playback_type_filter(
@@ -38,6 +45,10 @@ impl NativeAppState {
         filter: PlaybackTypeFilter,
         enabled: bool,
     ) {
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         self.library
             .folder_browser
             .apply_message(FolderBrowserMessage::TogglePlaybackTypeFilter(
@@ -45,7 +56,10 @@ impl NativeAppState {
             ));
         self.library
             .folder_browser
-            .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+            .reconcile_visible_file_selection_after_tag_filter(
+                previous_visible_ids,
+                &self.metadata.tags_by_file,
+            );
     }
 
     pub(super) fn toggle_similarity_anchor(

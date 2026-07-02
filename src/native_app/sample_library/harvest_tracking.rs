@@ -419,6 +419,10 @@ impl NativeAppState {
         else {
             return;
         };
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         let target_state = if targets
             .iter()
             .all(|target| target.state == HarvestState::Done)
@@ -435,6 +439,7 @@ impl NativeAppState {
                 self.finish_toggle_selected_harvest_done_error(
                     &targets,
                     applied_any,
+                    &previous_visible_ids,
                     started_at,
                     error.to_string(),
                 );
@@ -447,6 +452,7 @@ impl NativeAppState {
                 self.finish_toggle_selected_harvest_done_error(
                     &targets,
                     applied_any,
+                    &previous_visible_ids,
                     started_at,
                     error.to_string(),
                 );
@@ -457,7 +463,10 @@ impl NativeAppState {
 
         self.library
             .folder_browser
-            .refresh_after_harvest_state_change();
+            .refresh_after_harvest_state_change_matching_tags(
+                previous_visible_ids,
+                &self.metadata.tags_by_file,
+            );
         let target_label = harvest_state_targets_label(&targets);
         self.ui.status.sample = harvest_state_toggle_status(target_state, &targets);
         emit_gui_action(
@@ -960,6 +969,10 @@ impl NativeAppState {
         ) else {
             return;
         };
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
 
         let mut changed = false;
         for target in &targets {
@@ -969,7 +982,10 @@ impl NativeAppState {
                 if changed {
                     self.library
                         .folder_browser
-                        .refresh_after_harvest_state_change();
+                        .refresh_after_harvest_state_change_matching_tags(
+                            previous_visible_ids.clone(),
+                            &self.metadata.tags_by_file,
+                        );
                 }
                 self.ui.status.sample = format!("Update harvest state failed: {error}");
                 emit_gui_action(
@@ -991,7 +1007,10 @@ impl NativeAppState {
                     if changed {
                         self.library
                             .folder_browser
-                            .refresh_after_harvest_state_change();
+                            .refresh_after_harvest_state_change_matching_tags(
+                                previous_visible_ids.clone(),
+                                &self.metadata.tags_by_file,
+                            );
                     }
                     self.ui.status.sample = format!("Update harvest state failed: {error}");
                     emit_gui_action(
@@ -1009,7 +1028,10 @@ impl NativeAppState {
 
         self.library
             .folder_browser
-            .refresh_after_harvest_state_change();
+            .refresh_after_harvest_state_change_matching_tags(
+                previous_visible_ids,
+                &self.metadata.tags_by_file,
+            );
         let target_label = harvest_state_targets_label(&targets);
         self.ui.status.sample = format!("{status_prefix} {target_label}");
         emit_gui_action(
@@ -1211,13 +1233,17 @@ impl NativeAppState {
         &mut self,
         targets: &[HarvestStateTarget],
         applied_any: bool,
+        previous_visible_ids: &[String],
         started_at: std::time::Instant,
         error: String,
     ) {
         if applied_any {
             self.library
                 .folder_browser
-                .refresh_after_harvest_state_change();
+                .refresh_after_harvest_state_change_matching_tags(
+                    previous_visible_ids.to_vec(),
+                    &self.metadata.tags_by_file,
+                );
         }
         let target_label = harvest_state_targets_label(targets);
         self.ui.status.sample = format!("Update harvest state failed: {error}");

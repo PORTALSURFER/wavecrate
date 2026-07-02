@@ -146,7 +146,7 @@ impl FolderBrowserState {
             .collect()
     }
 
-    pub(in crate::native_app::sample_library::folder_browser) fn selected_audio_file_ids_matching_tags(
+    pub(in crate::native_app) fn selected_audio_file_ids_matching_tags(
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Vec<String> {

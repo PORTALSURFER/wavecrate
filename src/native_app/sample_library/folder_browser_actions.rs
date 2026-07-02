@@ -43,12 +43,19 @@ impl NativeAppState {
                 self.toggle_folder_browser_playback_type_filter(filter, enabled);
             }
             FolderBrowserMessage::SetCurationScope(scope, enabled) => {
+                let previous_visible_ids = self
+                    .library
+                    .folder_browser
+                    .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
                 self.library
                     .folder_browser
                     .set_curation_scope(scope, enabled);
                 self.library
                     .folder_browser
-                    .retain_visible_file_selection_after_tag_filter(&self.metadata.tags_by_file);
+                    .reconcile_visible_file_selection_after_tag_filter(
+                        previous_visible_ids,
+                        &self.metadata.tags_by_file,
+                    );
                 self.focus_visible_browser_file_after_filter_change(context);
             }
             FolderBrowserMessage::DropOnFolder(folder_id) => {

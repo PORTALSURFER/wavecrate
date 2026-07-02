@@ -168,13 +168,31 @@ impl BrowserSelectionState {
         Some(outcome)
     }
 
+    pub(in crate::native_app::sample_library::folder_browser) fn reconcile_visible_files(
+        &mut self,
+        previous_visible_ids: &[String],
+        visible_ids: &[String],
+    ) {
+        let mut selection = self.file_selection_model();
+        selection.reconcile_visible(previous_visible_ids, visible_ids);
+        self.apply_file_selection_model(selection);
+    }
+
     pub(in crate::native_app::sample_library::folder_browser) fn retain_visible_files(
         &mut self,
         visible_ids: &HashSet<String>,
     ) {
-        let mut selection = self.file_selection_model();
-        selection.retain_visible(visible_ids);
-        self.apply_file_selection_model(selection);
+        self.selected_file_ids.retain(|id| visible_ids.contains(id));
+        if self
+            .selected_file
+            .as_ref()
+            .is_some_and(|id| !visible_ids.contains(id))
+        {
+            self.selected_file = None;
+        }
+        if self.selected_file_ids.is_empty() {
+            self.selected_file_ids_explicit = false;
+        }
     }
 
     pub(in crate::native_app::sample_library::folder_browser) fn set_focus_file_set(
