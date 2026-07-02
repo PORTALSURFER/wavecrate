@@ -4,4 +4,4 @@
 # Keep it as small as possible and delete entries once migration completes.
 
 src/app_core/app_api.rs
-
+src/app_core/invalidation_contracts.rs

@@ -1,4 +1,5 @@
-use super::{AppController, DerivedNodeId};
+use super::AppController;
+use crate::app_core::invalidation_contracts::InvalidationNode;
 
 /// Internal frame-preparation plans used by the UI bridge.
 ///
@@ -159,13 +160,18 @@ impl AppController {
     fn can_prepare_retained_pull_base(&self) -> bool {
         !self.is_playing()
             && !self.has_waveform_ui_frame_work()
-            && !self.is_derived_node_dirty(DerivedNodeId::MapState)
+            && !self.is_invalidation_node_dirty(InvalidationNode::MapState)
+    }
+
+    /// Return whether the retained dirty graph contains one app-core invalidation node.
+    fn is_invalidation_node_dirty(&self, node: InvalidationNode) -> bool {
+        self.is_derived_node_dirty(node.legacy())
     }
 
     /// Return true when queued transport work still needs a frame-time flush.
     fn has_transport_ui_frame_work(&self) -> bool {
         self.has_pending_volume_setting_flush()
-            || self.is_derived_node_dirty(DerivedNodeId::TransportState)
+            || self.is_invalidation_node_dirty(InvalidationNode::TransportState)
     }
 
     /// Return true when queued metadata work still needs a frame-time flush.
@@ -177,7 +183,7 @@ impl AppController {
     fn has_waveform_ui_frame_work(&self) -> bool {
         self.has_pending_waveform_seek_commit()
             || self.has_pending_waveform_image_refresh()
-            || self.is_derived_node_dirty(DerivedNodeId::WaveformState)
+            || self.is_invalidation_node_dirty(InvalidationNode::WaveformState)
     }
 
     /// Return true when queued startup work still needs a frame-time flush.

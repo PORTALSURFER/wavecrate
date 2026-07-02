@@ -11,7 +11,7 @@
 //! | `AppController`, startup/test fixture helpers, and WAV edit-support predicate | `src/app::controller` | Intentionally still owned by `src/app` while mature runtime behavior remains there | `OPT-992` | App-core exposes a narrow runtime facade; fixture construction is test-owned; domain helpers no longer require broad controller aliases |
 //! | Browser projection cache, selected-path lookup, preload-window, and auto-rename row state | `src/app_core::browser_projection_cache` | App-core owned as of `OPT-987` | Done | Remaining work should keep new browser projection contracts in app-core and avoid reintroducing bridge aliases |
 //! | Map projection cache key, projected map-point entry, and UMAP point query payload | `src/app_core::map_projection_contracts` | App-core owned as of `OPT-988` | Done | Remaining work should keep new map projection contracts in app-core and avoid reintroducing bridge aliases |
-//! | Dirty graph node/reason aliases used by frame preparation and invalidation adapters | `src/app::controller::state::runtime` | Ready for app-core invalidation ownership | `OPT-989` | App-core frame preparation and bridge invalidation use app-core invalidation names; legacy conversion is isolated or removed |
+//! | Dirty graph node/reason contracts used by frame preparation and invalidation adapters | `src/app_core::invalidation_contracts` | App-core owned as of `OPT-989`; conversion to the retained controller dirty graph is isolated in the contract adapter | Done | Remaining work should keep app-core invalidation names at frame-prep/bridge call sites and avoid reintroducing bridge aliases |
 //! | Browser, source, folder, and library-hygiene state DTOs exposed through the wildcard state bridge | `src/app::state` | Ready for app-core state ownership | `OPT-990` | Browser/source/folder projections and tests use app-core DTOs or focused builders |
 //! | Waveform, prompt, drag/drop, map, audio/options, progress, update, and status state DTOs exposed through the wildcard state bridge | `src/app::state` | Ready for app-core state ownership | `OPT-991` | Covered projection/action consumers use app-core DTOs or focused builders |
 //!
@@ -25,9 +25,6 @@ pub(crate) mod controller {
     pub(crate) use crate::app::controller::{
         AppController, build_named_gui_fixture_controller, supports_wav_destructive_edits,
     };
-
-    pub(crate) type DerivedNodeId = crate::app::controller::state::runtime::DerivedNodeId;
-    pub(crate) type DirtyReason = crate::app::controller::state::runtime::DirtyReason;
 }
 
 pub(crate) mod state {

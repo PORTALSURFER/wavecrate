@@ -15,12 +15,12 @@ fn mark_dirty_for_waveform_action_marks_graph_nodes() {
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::WaveformState)
     );
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::NativeAppProjectionKey)
     );
 }
 
@@ -38,12 +38,12 @@ fn mark_dirty_for_waveform_click_play_marks_transport_state_dirty() {
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::TransportState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::TransportState)
     );
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::NativeAppProjectionKey)
     );
 }
 
@@ -59,27 +59,27 @@ fn mark_dirty_for_browser_focus_action_stays_targeted() {
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::BrowserState)
     );
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::NativeAppProjectionKey)
     );
     assert!(
         !bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::MapState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::MapState)
     );
     assert!(
         !bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::TransportState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::TransportState)
     );
     assert!(
         !bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::StatusState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::StatusState)
     );
 }
 
@@ -104,31 +104,31 @@ fn mark_dirty_for_tree_actions_stays_targeted() {
         assert!(
             bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::BrowserState),
             "browser state should be dirty for {action:?}"
         );
         assert!(
             bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::NativeAppProjectionKey),
             "projection key should be dirty for {action:?}"
         );
         assert!(
             !bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::MapState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::MapState),
             "map state should stay clean for {action:?}"
         );
         assert!(
             !bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::TransportState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::TransportState),
             "transport state should stay clean for {action:?}"
         );
         assert!(
             !bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::StatusState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::StatusState),
             "status state should stay clean for {action:?}"
         );
     }
@@ -155,37 +155,37 @@ fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
         assert!(
             bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::BrowserState),
             "browser state should be dirty for {action:?}"
         );
         assert!(
             bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::WaveformState),
             "waveform state should be dirty for {action:?}"
         );
         assert!(
             bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::NativeAppProjectionKey),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::NativeAppProjectionKey),
             "projection key should be dirty for {action:?}"
         );
         assert!(
             !bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::MapState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::MapState),
             "map state should stay clean for {action:?}"
         );
         assert!(
             !bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::TransportState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::TransportState),
             "transport state should stay clean for {action:?}"
         );
         assert!(
             !bridge
                 .controller
-                .is_derived_node_dirty_for_test(DerivedNodeId::StatusState),
+                .is_invalidation_node_dirty_for_test(InvalidationNode::StatusState),
             "status state should stay clean for {action:?}"
         );
     }
@@ -203,22 +203,22 @@ fn mark_dirty_for_unclassified_action_keeps_broad_invalidation() {
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::BrowserState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::BrowserState)
     );
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::MapState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::MapState)
     );
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::TransportState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::TransportState)
     );
     assert!(
         bridge
             .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::StatusState)
+            .is_invalidation_node_dirty_for_test(InvalidationNode::StatusState)
     );
 }
 

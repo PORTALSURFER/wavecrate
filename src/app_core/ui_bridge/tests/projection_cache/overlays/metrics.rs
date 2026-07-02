@@ -35,14 +35,14 @@ fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
         last_action_handled: None,
         runtime_exit_emitted: false,
     };
-    bridge.controller.mark_derived_source_dirty(
-        DerivedNodeId::WaveformState,
-        DirtyReason::WaveformOverlayAction,
+    bridge.controller.mark_invalidation_source_dirty_for_test(
+        InvalidationNode::WaveformState,
+        InvalidationReason::WaveformOverlayAction,
     );
     bridge.flush_derived_updates_before_pull(false);
-    bridge.controller.mark_derived_source_dirty(
-        DerivedNodeId::WaveformState,
-        DirtyReason::WaveformViewAction,
+    bridge.controller.mark_invalidation_source_dirty_for_test(
+        InvalidationNode::WaveformState,
+        InvalidationReason::WaveformViewAction,
     );
     bridge.flush_derived_updates_before_pull(false);
 

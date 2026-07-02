@@ -115,9 +115,10 @@ fn search_query_actions_stay_on_full_model_pull_preparation() {
 #[test]
 fn browser_dirty_state_uses_browser_retained_pull_plan() {
     let mut bridge = test_bridge(16);
-    bridge
-        .controller
-        .mark_derived_source_dirty(DerivedNodeId::BrowserState, DirtyReason::BrowserAction);
+    bridge.controller.mark_invalidation_source_dirty_for_test(
+        InvalidationNode::BrowserState,
+        InvalidationReason::BrowserAction,
+    );
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
@@ -129,9 +130,10 @@ fn browser_dirty_state_uses_browser_retained_pull_plan() {
 #[test]
 fn browser_retained_pull_clears_dirty_nodes_after_projection() {
     let mut bridge = test_bridge(16);
-    bridge
-        .controller
-        .mark_derived_source_dirty(DerivedNodeId::BrowserState, DirtyReason::BrowserAction);
+    bridge.controller.mark_invalidation_source_dirty_for_test(
+        InvalidationNode::BrowserState,
+        InvalidationReason::BrowserAction,
+    );
 
     let _ = bridge.pull_model_arc_snapshot();
 
@@ -224,9 +226,9 @@ fn mixed_retained_work_keeps_full_model_pull_plan() {
 #[test]
 fn waveform_dirty_state_keeps_full_model_pull_plan() {
     let mut bridge = test_bridge(16);
-    bridge.controller.mark_derived_source_dirty(
-        DerivedNodeId::WaveformState,
-        DirtyReason::WaveformViewAction,
+    bridge.controller.mark_invalidation_source_dirty_for_test(
+        InvalidationNode::WaveformState,
+        InvalidationReason::WaveformViewAction,
     );
 
     assert_eq!(

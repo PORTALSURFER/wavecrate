@@ -28,10 +28,6 @@ pub(crate) use frame_preparation::UiFramePreparationPlan;
 pub use startup::build_ui_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = CurrentAppController;
-/// Retained controller dirty graph node identifiers used by frame preparation and bridge adapters.
-pub(crate) type DerivedNodeId = current_controller::DerivedNodeId;
-/// Retained controller dirty graph reason identifiers used by bridge adapters.
-pub(crate) type DirtyReason = current_controller::DirtyReason;
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 #[cfg(test)]
