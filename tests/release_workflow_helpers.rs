@@ -4,6 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use serde_json::json;
+use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 #[test]
@@ -180,6 +182,177 @@ fn build_release_artifact_helper_names_zip_and_checksum_entry() {
     );
 }
 
+#[test]
+fn promoted_rc_validator_accepts_complete_release_fixture() {
+    let temp = tempfile::tempdir().expect("create promoted RC fixture");
+    let (release_json, asset_dir) =
+        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 19.1.0-rc.2\n", true);
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/validate_promoted_rc_release.py",
+            ))
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--rc-tag")
+            .arg("v19.1.0-rc.2")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir),
+    );
+}
+
+#[test]
+fn promoted_rc_validator_verifies_checksum_signature_when_public_key_is_supplied() {
+    let temp = tempfile::tempdir().expect("create promoted RC fixture");
+    let (release_json, asset_dir) =
+        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 19.1.0-rc.2\n", true);
+    let key = temp.path().join("ed25519.pem");
+    let keygen = Command::new("openssl")
+        .arg("genpkey")
+        .arg("-algorithm")
+        .arg("Ed25519")
+        .arg("-out")
+        .arg(&key)
+        .output()
+        .expect("run openssl key generation");
+    if !keygen.status.success() {
+        let stderr = String::from_utf8_lossy(&keygen.stderr);
+        if stderr.contains("Algorithm Ed25519 not found") {
+            eprintln!(
+                "local openssl does not support Ed25519 key generation; skipping validator signature roundtrip"
+            );
+            return;
+        }
+        panic!(
+            "openssl key generation failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&keygen.stdout),
+            stderr
+        );
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let key_pem = fs::read_to_string(&key).expect("read generated key");
+
+    run_success(
+        Command::new("bash")
+            .arg(repo_path(
+                "scripts/internal/release/sign_release_checksums.sh",
+            ))
+            .arg("--checksum-file")
+            .arg(asset_dir.join("checksums-19.1.0-rc.2.txt"))
+            .arg("--signature-file")
+            .arg(asset_dir.join("checksums-19.1.0-rc.2.txt.sig"))
+            .env("CHECKSUMS_SIGNING_KEY", key_pem),
+    );
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/validate_promoted_rc_release.py",
+            ))
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--rc-tag")
+            .arg("v19.1.0-rc.2")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir)
+            .arg("--checksum-public-key")
+            .arg(expected_pubkey.trim()),
+    );
+}
+
+#[test]
+fn promoted_rc_validator_rejects_missing_release_assets() {
+    let temp = tempfile::tempdir().expect("create promoted RC fixture");
+    let missing = "wavecrate-19.1.0-rc.2-macos-aarch64.zip";
+    let (release_json, asset_dir) = write_promoted_rc_fixture(
+        &temp,
+        Some(missing),
+        false,
+        "# Wavecrate 19.1.0-rc.2\n",
+        true,
+    );
+
+    let output = run_failure(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/validate_promoted_rc_release.py",
+            ))
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--rc-tag")
+            .arg("v19.1.0-rc.2")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("RC release is missing required assets"),
+        "missing asset failure should name the release asset problem\nstderr:\n{stderr}"
+    );
+}
+
+#[test]
+fn promoted_rc_validator_rejects_undownloadable_release_assets() {
+    let temp = tempfile::tempdir().expect("create promoted RC fixture");
+    let missing = "wavecrate-19.1.0-rc.2-macos-aarch64.zip";
+    let (release_json, asset_dir) =
+        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 19.1.0-rc.2\n", true);
+    fs::remove_file(asset_dir.join(missing)).expect("remove fixture asset");
+
+    let output = run_failure(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/validate_promoted_rc_release.py",
+            ))
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--rc-tag")
+            .arg("v19.1.0-rc.2")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Downloaded RC asset is missing"),
+        "missing asset failure should prove the asset was not downloadable\nstderr:\n{stderr}"
+    );
+}
+
+#[test]
+fn promoted_rc_validator_rejects_checksum_mismatches() {
+    let temp = tempfile::tempdir().expect("create promoted RC fixture");
+    let (release_json, asset_dir) =
+        write_promoted_rc_fixture(&temp, None, true, "# Wavecrate 19.1.0-rc.2\n", true);
+
+    let output = run_failure(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/validate_promoted_rc_release.py",
+            ))
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--rc-tag")
+            .arg("v19.1.0-rc.2")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Checksum mismatch"),
+        "checksum failure should report the mismatched asset\nstderr:\n{stderr}"
+    );
+}
+
 fn expected_public_key(key: &Path, temp: &TempDir) -> String {
     let pub_der = temp.path().join("public.der");
     run_success(
@@ -210,6 +383,59 @@ fn expected_public_key(key: &Path, temp: &TempDir) -> String {
     String::from_utf8(output.stdout).expect("pubkey utf-8")
 }
 
+fn write_promoted_rc_fixture(
+    temp: &TempDir,
+    missing_asset: Option<&str>,
+    corrupt_checksum: bool,
+    body: &str,
+    is_prerelease: bool,
+) -> (std::path::PathBuf, std::path::PathBuf) {
+    let asset_dir = temp.path().join("assets");
+    fs::create_dir_all(&asset_dir).expect("create asset dir");
+    let zip_assets = [
+        "wavecrate-19.1.0-rc.2-macos-aarch64.zip",
+        "wavecrate-19.1.0-rc.2-macos-x86_64.zip",
+        "wavecrate-19.1.0-rc.2-windows-x86_64.zip",
+    ];
+    let checksum_asset = "checksums-19.1.0-rc.2.txt";
+    let signature_asset = "checksums-19.1.0-rc.2.txt.sig";
+
+    let mut checksum_lines = Vec::new();
+    for zip in zip_assets {
+        let bytes = format!("fixture bytes for {zip}\n");
+        if missing_asset != Some(zip) {
+            fs::write(asset_dir.join(zip), bytes.as_bytes()).expect("write fixture zip");
+        }
+        let mut hash = format!("{:x}", Sha256::digest(bytes.as_bytes()));
+        if corrupt_checksum && zip.ends_with("windows-x86_64.zip") {
+            hash = "0".repeat(64);
+        }
+        checksum_lines.push(format!("{hash}  {zip}\n"));
+    }
+    fs::write(asset_dir.join(checksum_asset), checksum_lines.concat()).expect("write checksum");
+    fs::write(asset_dir.join(signature_asset), "c2lnbmF0dXJl\n").expect("write signature");
+
+    let asset_names = [zip_assets.as_slice(), &[checksum_asset, signature_asset]]
+        .concat()
+        .into_iter()
+        .filter(|asset| missing_asset != Some(*asset))
+        .map(|name| json!({ "name": name }))
+        .collect::<Vec<_>>();
+    let release = json!({
+        "tagName": "v19.1.0-rc.2",
+        "isPrerelease": is_prerelease,
+        "body": body,
+        "assets": asset_names,
+    });
+    let release_json = temp.path().join("release.json");
+    fs::write(
+        &release_json,
+        serde_json::to_string_pretty(&release).expect("serialize release json"),
+    )
+    .expect("write release json");
+    (release_json, asset_dir)
+}
+
 fn repo_root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
 }
@@ -226,4 +452,15 @@ fn run_success(command: &mut Command) {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+fn run_failure(command: &mut Command) -> std::process::Output {
+    let output = command.output().expect("run command");
+    assert!(
+        !output.status.success(),
+        "command should fail\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output
 }

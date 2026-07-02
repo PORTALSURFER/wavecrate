@@ -88,6 +88,16 @@ jobs:
           echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
           echo "build_date=$build_date" >> "$GITHUB_OUTPUT"
           echo "rc_tag=$rc_tag" >> "$GITHUB_OUTPUT"
+      - name: Validate promoted RC GitHub release artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/internal/release/validate_promoted_rc_release.py \
+            --version "${{ steps.resolve.outputs.target_version }}" \
+            --rc-tag "${{ steps.resolve.outputs.rc_tag }}" \
+            --repo "${{ github.repository }}" \
+            --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
 
   test:
     name: Run stable validation tests
@@ -104,7 +114,7 @@ jobs:
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
         run: scripts/internal/release/checkout_radiant_submodule.sh
-      - name: Read pinned Rust toolchain
+      - name: Read pinned Rust toolchain from rust-toolchain.toml
         id: rust_toolchain
         shell: bash
         run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"
@@ -144,7 +154,7 @@ jobs:
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
         run: scripts/internal/release/checkout_radiant_submodule.sh
-      - name: Read pinned Rust toolchain
+      - name: Read pinned Rust toolchain from rust-toolchain.toml
         id: rust_toolchain
         shell: bash
         run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"

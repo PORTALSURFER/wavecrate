@@ -204,7 +204,7 @@ jobs:
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
         run: scripts/internal/release/checkout_radiant_submodule.sh
-      - name: Read pinned Rust toolchain
+      - name: Read pinned Rust toolchain from rust-toolchain.toml
         id: rust_toolchain
         shell: bash
         run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"

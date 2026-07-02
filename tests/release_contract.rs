@@ -23,6 +23,8 @@ const RELEASE_LOG_SCRIPT: &str =
     include_str!("../scripts/internal/release/generate_release_log.sh");
 const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
     include_str!("../scripts/internal/release/sign_release_checksums.sh");
+const VALIDATE_PROMOTED_RC_SCRIPT: &str =
+    include_str!("../scripts/internal/release/validate_promoted_rc_release.py");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 
 #[test]
@@ -248,6 +250,36 @@ fn stable_workflow_requires_matching_rc_before_publish() {
 }
 
 #[test]
+fn stable_workflow_validates_promoted_rc_release_before_publish() {
+    assert!(
+        STABLE_WORKFLOW.contains("scripts/internal/release/validate_promoted_rc_release.py \\"),
+        "stable workflow must validate the promoted RC GitHub release"
+    );
+    assert!(
+        STABLE_WORKFLOW.contains("--rc-tag \"${{ steps.resolve.outputs.rc_tag }}\""),
+        "stable workflow must validate the exact latest RC tag selected by resolve"
+    );
+    assert!(
+        STABLE_WORKFLOW.contains("--repo \"${{ github.repository }}\""),
+        "stable workflow must validate the RC release in the current GitHub repository"
+    );
+    assert!(
+        STABLE_WORKFLOW.contains("--checksum-public-key"),
+        "stable workflow must verify the promoted RC checksum signature"
+    );
+    let validate_position = STABLE_WORKFLOW
+        .find("Validate promoted RC GitHub release artifacts")
+        .expect("stable workflow validation step");
+    let test_job_position = STABLE_WORKFLOW
+        .find("name: Run stable validation tests")
+        .expect("stable workflow test job");
+    assert!(
+        validate_position < test_job_position,
+        "stable workflow must validate the promoted RC before stable test/build jobs start"
+    );
+}
+
+#[test]
 fn rc_and_stable_workflows_use_structured_release_log_generator() {
     for (name, workflow) in [
         ("RC workflow", RC_WORKFLOW),
@@ -429,6 +461,22 @@ fn shared_release_helpers_keep_policy_visible_and_strict() {
     assert!(
         SIGN_RELEASE_CHECKSUMS_SCRIPT.contains("--verify-public-key"),
         "checksum signing helper must preserve public-key verification support"
+    );
+    assert!(
+        VALIDATE_PROMOTED_RC_SCRIPT.contains("gh\","),
+        "promoted RC validator must use GitHub CLI for live release validation"
+    );
+    assert!(
+        VALIDATE_PROMOTED_RC_SCRIPT.contains("release_contract.toml"),
+        "promoted RC validator must derive expected assets from the release contract"
+    );
+    assert!(
+        VALIDATE_PROMOTED_RC_SCRIPT.contains("RC release is missing required assets"),
+        "promoted RC validator must fail clearly when release assets are incomplete"
+    );
+    assert!(
+        VALIDATE_PROMOTED_RC_SCRIPT.contains("Checksum mismatch"),
+        "promoted RC validator must compare checksum entries to downloaded zip hashes"
     );
 }
 
