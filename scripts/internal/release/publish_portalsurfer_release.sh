@@ -187,36 +187,17 @@ PY
 
 catalog_file="$response_dir/releases.json"
 curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
-python3 - "$catalog_file" "$BUILD_ID" "$BUILD_NUMBER" "$RELEASE_VERSION" "$RELEASED_AT" "${uploaded_names[@]}" <<'PY'
-import json
-import sys
-
-catalog_path = sys.argv[1]
-expected_build = sys.argv[2]
-expected_build_number = int(sys.argv[3])
-expected_version = sys.argv[4]
-expected_released_at = sys.argv[5]
-expected_files = set(sys.argv[6:])
-catalog = json.loads(open(catalog_path, encoding="utf-8").read())
-releases = catalog.get("releases") or []
-release = next((item for item in releases if item.get("build_id") == expected_build), None)
-if release is None:
-    raise SystemExit(f"Release catalog does not list {expected_build}")
-if release.get("build_number") != expected_build_number:
-    raise SystemExit(f"Release catalog build number mismatch: {release.get('build_number')} != {expected_build_number}")
-if release.get("version") != expected_version:
-    raise SystemExit(f"Release catalog version mismatch: {release.get('version')} != {expected_version}")
-if release.get("released_at") != expected_released_at:
-    raise SystemExit(f"Release catalog timestamp mismatch: {release.get('released_at')} != {expected_released_at}")
-catalog_files = {item.get("name") for item in release.get("files") or []}
-missing = sorted(expected_files - catalog_files)
-if missing:
-    raise SystemExit(f"Release catalog is missing files: {', '.join(missing)}")
-changelog = release.get("changelog") or {}
-if changelog.get("format") != "markdown" or not changelog.get("url"):
-    raise SystemExit("Release catalog is missing the markdown changelog link")
-print(f"Uploaded {len(expected_files)} Wavecrate release file(s) to {expected_build}")
-PY
+catalog_args=(
+  --catalog-file "$catalog_file"
+  --build-id "$BUILD_ID"
+  --build-number "$BUILD_NUMBER"
+  --release-version "$RELEASE_VERSION"
+  --released-at "$RELEASED_AT"
+)
+for uploaded_name in "${uploaded_names[@]}"; do
+  catalog_args+=(--expected-file "$uploaded_name")
+done
+python3 scripts/internal/release/verify_portalsurfer_upload_catalog.py "${catalog_args[@]}"
 
 changelog_catalog_file="$response_dir/changelog-catalog.json"
 curl --fail-with-body --retry 3 --retry-delay 2 \

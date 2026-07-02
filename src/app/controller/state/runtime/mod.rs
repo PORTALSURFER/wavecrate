@@ -49,9 +49,9 @@ pub(crate) use projection_runtime::{ProjectionRevisionDirtyMask, ProjectionRunti
 pub(crate) use similarity_runtime::{
     SimilarityPrepStage, SimilarityPrepState, SimilarityRuntimeState,
 };
+pub(crate) use source_lane::ActiveAutoRenameBatchSnapshot;
 #[cfg(test)]
-pub(crate) use source_lane::AutoRenameBatchRowSnapshot;
-pub(crate) use source_lane::{ActiveAutoRenameBatchSnapshot, AutoRenameBatchRowState};
+pub(crate) use source_lane::{AutoRenameBatchRowSnapshot, AutoRenameBatchRowState};
 pub(crate) use source_lane::{
     BrowserRenameBusyDecision, BrowserRenameIntentKey, MetadataRollback,
     PendingBrowserAutoRenameIntent, PendingMetadataMutation, PendingSourceHydration,

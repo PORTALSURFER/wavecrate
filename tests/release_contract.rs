@@ -27,6 +27,8 @@ const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
     include_str!("../scripts/internal/release/sign_release_checksums.sh");
 const VALIDATE_PROMOTED_RC_SCRIPT: &str =
     include_str!("../scripts/internal/release/validate_promoted_rc_release.py");
+const VERIFY_PORTALSURFER_UPLOAD_CATALOG_SCRIPT: &str =
+    include_str!("../scripts/internal/release/verify_portalsurfer_upload_catalog.py");
 const VERIFY_PUBLISHED_RELEASE_SCRIPT: &str =
     include_str!("../scripts/internal/release/verify_published_release.py");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
@@ -363,6 +365,19 @@ fn rc_and_stable_workflows_publish_to_portalsurfer_catalog() {
     assert!(
         STABLE_WORKFLOW.contains("portal_build_id=\"wavecrate-${VERSION}\""),
         "stable PortalSurfer build ids must include the stable version"
+    );
+}
+
+#[test]
+fn portalsurfer_publish_helper_uses_shared_catalog_verifier() {
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .contains("scripts/internal/release/verify_portalsurfer_upload_catalog.py"),
+        "PortalSurfer publish helper must verify the catalog through the shared upload verifier"
+    );
+    assert!(
+        VERIFY_PORTALSURFER_UPLOAD_CATALOG_SCRIPT.contains("parse_released_at"),
+        "PortalSurfer upload catalog verifier must normalize release timestamp precision"
     );
 }
 
