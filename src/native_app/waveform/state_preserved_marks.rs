@@ -47,6 +47,7 @@ impl WaveformState {
         self.edit_selection_flash_frames = marks.edit_selection_flash_frames;
         self.play_selection_denied_flash_frames = 0;
         self.edit_selection_denied_flash_frames = 0;
+        self.protected_source_error_flash_frames = 0;
         self.active_drag = None;
         self.pending_playback_start = None;
         self.pending_sample_slide_frame_offset = None;

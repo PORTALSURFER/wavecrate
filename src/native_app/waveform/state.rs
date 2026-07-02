@@ -28,6 +28,7 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) play_selection_denied_flash_frames: u8,
     pub(in crate::native_app::waveform) edit_selection_denied_flash_frames: u8,
     pub(in crate::native_app::waveform) copy_flash_frames: u8,
+    pub(in crate::native_app::waveform) protected_source_error_flash_frames: u8,
     pub(in crate::native_app::waveform) active_drag: Option<WaveformDrag>,
     pub(in crate::native_app::waveform) pending_playback_start: Option<f32>,
     pub(in crate::native_app::waveform) pending_sample_slide_frame_offset: Option<i64>,

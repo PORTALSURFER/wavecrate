@@ -41,6 +41,7 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) scanning: bool,
     pub(in crate::native_app) missing: bool,
+    pub(in crate::native_app) protected_source_error_flash: bool,
 }
 
 pub(in crate::native_app) struct FolderTreeViewModel {
@@ -198,7 +199,9 @@ impl SourceSelectorViewModel {
         let rows: Vec<_> = folder_browser
             .sources()
             .iter()
-            .map(|source| SourceRowViewModel::from_source(source, selected_source_id))
+            .map(|source| {
+                SourceRowViewModel::from_source(source, selected_source_id, folder_browser)
+            })
             .collect();
         let missing_count = rows.iter().filter(|source| source.missing).count();
 
@@ -211,7 +214,11 @@ impl SourceSelectorViewModel {
 }
 
 impl SourceRowViewModel {
-    fn from_source(source: &SourceEntry, selected_source_id: &str) -> Self {
+    fn from_source(
+        source: &SourceEntry,
+        selected_source_id: &str,
+        folder_browser: &FolderBrowserState,
+    ) -> Self {
         Self {
             id: source.id.clone(),
             label: source.label.clone(),
@@ -219,6 +226,8 @@ impl SourceRowViewModel {
             selected: selected_source_id == source.id,
             scanning: source.loading_task.is_some(),
             missing: source.is_missing(),
+            protected_source_error_flash: folder_browser
+                .source_protected_error_flash_active(&source.id),
         }
     }
 }

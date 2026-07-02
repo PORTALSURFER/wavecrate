@@ -124,7 +124,9 @@ impl NativeAppState {
                 .folder_browser
                 .file_change_lock_error(&view.source_path, "File conflict");
             if let Some(error) = source_error.or(target_error) {
-                self.ui.status.sample = error.clone();
+                self.flash_protected_source_block_if_error(&error, &view.source_path);
+                self.ui.status.sample =
+                    self.protected_source_status_or_error(&error, &view.source_path);
                 emit_gui_action(
                     "browser.drag_drop.conflict",
                     Some("browser"),

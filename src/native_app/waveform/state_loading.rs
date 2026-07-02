@@ -135,6 +135,7 @@ impl WaveformState {
             play_selection_denied_flash_frames: 0,
             edit_selection_denied_flash_frames: 0,
             copy_flash_frames: 0,
+            protected_source_error_flash_frames: 0,
             active_drag: None::<WaveformDrag>,
             pending_playback_start: None,
             pending_sample_slide_frame_offset: None,

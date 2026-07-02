@@ -87,6 +87,7 @@ fn sample_browser_row(
             explicitly_selected: row.explicitly_selected,
             focused: row.focused,
             copy_flash: row.copy_flash,
+            protected_source_error_flash: row.protected_source_error_flash,
             cut_pending: row.cut_pending,
             drag_active: row.drag_active,
             drag_source: row.drag_source,

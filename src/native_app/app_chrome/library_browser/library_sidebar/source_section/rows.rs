@@ -21,6 +21,8 @@ const SOURCE_ROLE_ICON_WIDTH: f32 = 32.0;
 const SOURCE_MISSING_BADGE_WIDTH: f32 = 56.0;
 const SOURCE_MISSING_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
 const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
+const SOURCE_PROTECTED_ERROR_FILL: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 145);
+const SOURCE_PROTECTED_ERROR_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 175);
 const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
 const SOURCE_ROW_OUTLINE_WIDTH: f32 = 1.0;
 const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
@@ -40,37 +42,40 @@ fn source_add_icon() -> ui::SvgIcon {
 
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source);
-    sidebar_row_underlay(visual)
+    let row = sidebar_row_underlay(visual)
         .stable_row_identity(
             RETAINED_SOURCE_ROW_INPUT_SCOPE,
             retained_source_row_key(source.id.as_str()),
         )
-        .selected(source.selected)
-        .outline(source_row_outline())
-        .actions(
-            ui::row_actions()
-                .hover_key(source.id.clone(), |source_id, position| {
-                    GuiMessage::RememberBrowserContextMenuPointerAnchor(
-                        BrowserContextPointerAnchor {
-                            target: BrowserContextPointerTarget::Source(source_id),
-                            position,
-                        },
-                    )
+        .selected(source.selected || source.protected_source_error_flash)
+        .outline(source_row_outline());
+    let row = if source.protected_source_error_flash {
+        row.dense_chrome_palette(source_protected_error_palette())
+    } else {
+        row
+    };
+    row.actions(
+        ui::row_actions()
+            .hover_key(source.id.clone(), |source_id, position| {
+                GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
+                    target: BrowserContextPointerTarget::Source(source_id),
+                    position,
                 })
-                .primary_secondary_key(
-                    source.id.clone(),
-                    |source_id| {
-                        GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
-                    },
-                    |source_id, position| {
-                        GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                            source_id, position,
-                        ))
-                    },
-                ),
-        )
-        .fill_width()
-        .height(SOURCE_ROW_HEIGHT)
+            })
+            .primary_secondary_key(
+                source.id.clone(),
+                |source_id| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
+                },
+                |source_id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                        source_id, position,
+                    ))
+                },
+            ),
+    )
+    .fill_width()
+    .height(SOURCE_ROW_HEIGHT)
 }
 
 fn source_row_label(source: &SourceRowViewModel) -> String {
@@ -133,6 +138,16 @@ fn source_row_outline() -> ui::DenseRowOutlineStyle {
         SOURCE_ROW_OUTLINE_COLOR,
         SOURCE_ROW_OUTLINE_WIDTH,
     )
+}
+
+fn source_protected_error_palette() -> ui::DenseRowPalette {
+    ui::DenseRowPalette::new()
+        .selected(SOURCE_PROTECTED_ERROR_FILL)
+        .selected_hovered(SOURCE_PROTECTED_ERROR_HOVER_FILL)
+        .interaction_fills(
+            SOURCE_PROTECTED_ERROR_HOVER_FILL,
+            SOURCE_PROTECTED_ERROR_HOVER_FILL,
+        )
 }
 
 pub(super) fn source_missing_color() -> ui::Rgba8 {

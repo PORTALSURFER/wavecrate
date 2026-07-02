@@ -133,6 +133,9 @@ impl NativeAppState {
         self.library.folder_browser.advance_copy_flash_frame();
         self.library
             .folder_browser
+            .advance_protected_source_error_flash_frame();
+        self.library
+            .folder_browser
             .advance_drag_hover_folder_auto_expand();
         log_slow_frame_phase("ui.frame.update.waveform_interaction", waveform_started_at);
         let playback_events_started_at = Instant::now();

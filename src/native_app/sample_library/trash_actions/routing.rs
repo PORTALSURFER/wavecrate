@@ -382,12 +382,14 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
-        if let Some(error) = paths.iter().find_map(|path| {
+        if let Some((blocked_path, error)) = paths.iter().find_map(|path| {
             self.library
                 .folder_browser
                 .file_change_lock_error(path, "File trash")
+                .map(|error| (path, error))
         }) {
-            self.ui.status.sample = error.clone();
+            self.flash_protected_source_block_if_error(&error, blocked_path);
+            self.ui.status.sample = self.protected_source_status_or_error(&error, blocked_path);
             emit_gui_action(
                 action,
                 Some("browser"),

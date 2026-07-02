@@ -15,6 +15,18 @@ const COPY_FLASH_FILL: ui::Rgba8 = ui::Rgba8 {
     b: 255,
     a: 118,
 };
+const PROTECTED_SOURCE_ERROR_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 69,
+    b: 54,
+    a: 155,
+};
+const PROTECTED_SOURCE_ERROR_HOVER_FILL: ui::Rgba8 = ui::Rgba8 {
+    r: 255,
+    g: 82,
+    b: 62,
+    a: 185,
+};
 const CUT_PENDING_FILL: ui::Rgba8 = ui::Rgba8 {
     r: 182,
     g: 111,
@@ -77,6 +89,7 @@ pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) explicitly_selected: bool,
     pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) copy_flash: bool,
+    pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) cut_pending: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drag_source: bool,
@@ -110,6 +123,7 @@ fn sample_file_hit_target_builder(
     let visual_state = ui::InteractiveRowVisualStateParts {
         selected: model.explicitly_selected
             || model.copy_flash
+            || model.protected_source_error_flash
             || model.cut_pending
             || model.missing,
         ..ui::InteractiveRowVisualStateParts::default()
@@ -173,6 +187,17 @@ fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::D
                 .selected(COPY_FLASH_FILL)
                 .selected_hovered(COPY_FLASH_FILL)
                 .interaction_fills(COPY_FLASH_FILL, COPY_FLASH_FILL),
+        );
+    }
+    if model.protected_source_error_flash {
+        return Some(
+            ui::DenseRowPalette::new()
+                .selected(PROTECTED_SOURCE_ERROR_FILL)
+                .selected_hovered(PROTECTED_SOURCE_ERROR_HOVER_FILL)
+                .interaction_fills(
+                    PROTECTED_SOURCE_ERROR_HOVER_FILL,
+                    PROTECTED_SOURCE_ERROR_HOVER_FILL,
+                ),
         );
     }
     if model.missing {
