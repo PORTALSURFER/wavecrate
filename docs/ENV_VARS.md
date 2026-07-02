@@ -52,8 +52,10 @@ and its wrapper probe passes. Default: unset, so repo scripts use direct
 
 ### Release upload secrets
 
-Wavecrate has three public release workflows:
+Wavecrate has four public release workflows:
 
+- `.github/workflows/release-train-prepare.yml`
+  - manual release-train branch/version preparation for `release/X.Y`
 - `.github/workflows/release-build.yml`
   - automatic and manual nightly builds from `main`
 - `.github/workflows/release-rc.yml`
@@ -65,6 +67,29 @@ Nightly runs publish rolling `nightly` builds for Windows x86_64 plus macOS
 x86_64/aarch64 assets from the current `main` commit. The schedule is
 `19:30 UTC` (evening in Europe/Amsterdam), and `workflow_dispatch` provides a
 manual "force a nightly now" button with the same build/upload path.
+
+Before the first RC for a train, run the release-train prep workflow or the
+equivalent local command. The prep lane validates an `X.Y.Z` stable target
+version, derives `release/X.Y`, checks out the requested source commit, updates
+Wavecrate release-package manifests and `Cargo.lock`, rejects stale prerelease
+package versions such as `alpha` or `beta`, and runs focused release contract
+validation. The workflow defaults to dry-run mode; it only pushes or updates the
+`release/X.Y` branch when `push_branch` is explicitly set to `true`.
+
+Local equivalent:
+
+```bash
+scripts/internal/release/prepare_release_train.py \
+  --version 19.1.0 \
+  --source-ref main \
+  --push
+```
+
+Use the workflow dry run first when preparing a new train, then re-run with
+`push_branch=true` once the source commit and version are correct. After prep,
+run the RC workflow against the prepared `release/X.Y` branch. Stable promotion
+then runs against the same release branch after the latest `vX.Y.Z-rc.N` tag has
+passed review.
 
 RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
 `release/X.Y` for the requested `X.Y.Z` version, and the package manifest must

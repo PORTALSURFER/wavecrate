@@ -6,8 +6,12 @@ use toml::Value;
 
 const RELEASE_CONTRACT: &str = include_str!("../release_contract.toml");
 const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.yml");
+const RELEASE_TRAIN_PREP_WORKFLOW: &str =
+    include_str!("../.github/workflows/release-train-prepare.yml");
 const RC_WORKFLOW: &str = include_str!("../.github/workflows/release-rc.yml");
 const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml");
+const RELEASE_TRAIN_PREP_SCRIPT: &str =
+    include_str!("../scripts/internal/release/prepare_release_train.py");
 const RELEASE_ZIP_SCRIPT: &str = include_str!("../scripts/internal/release/build_release_zip.sh");
 const RELEASE_LOG_SCRIPT: &str =
     include_str!("../scripts/internal/release/generate_release_log.sh");
@@ -289,6 +293,58 @@ fn structured_release_log_generator_declares_required_sections() {
     assert!(
         RELEASE_LOG_SCRIPT.contains("git log --no-merges --pretty=format:'- %s'"),
         "release log generator must keep a deterministic commit-list fallback"
+    );
+}
+
+#[test]
+fn release_train_prep_workflow_is_manual_and_explicit_about_branch_pushes() {
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW.contains("workflow_dispatch:"),
+        "release train prep must be a manual workflow"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW.contains("push_branch:"),
+        "release train prep must require an explicit push_branch input"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW.contains("default: false"),
+        "release train prep must default to dry-run/no-push"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW.contains("scripts/internal/release/prepare_release_train.py"),
+        "release train prep workflow must invoke the shared prep script"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW.contains("--dry-run"),
+        "release train prep workflow must support validation without mutation"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW.contains("--push"),
+        "release train prep workflow must only push behind an explicit input"
+    );
+}
+
+#[test]
+fn release_train_prep_script_enforces_version_and_package_scope() {
+    assert!(
+        RELEASE_TRAIN_PREP_SCRIPT.contains("VERSION_RE = re.compile"),
+        "prep script must validate MAJOR.MINOR.PATCH versions"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_SCRIPT.contains("RELEASE_PACKAGE_RE = re.compile"),
+        "prep script must derive release package scope from package names"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_SCRIPT.contains("not VERSION_RE.fullmatch(package.version)"),
+        "prep script must reject stale prerelease package versions"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_SCRIPT.contains("cargo(\"test\", \"--test\", \"release_contract\", \"--test\", \"manual_release_matching\")"),
+        "prep script must run focused release contract validation"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_SCRIPT.contains("validate_lockfile_versions(version)"),
+        "prep script must verify Cargo.lock release package versions"
     );
 }
 
