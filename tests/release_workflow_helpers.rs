@@ -447,6 +447,63 @@ fn published_release_verifier_rejects_manifest_mismatches() {
     );
 }
 
+#[test]
+fn portalsurfer_upload_catalog_verifier_accepts_equivalent_timestamp_precision() {
+    let temp = tempfile::tempdir().expect("create PortalSurfer catalog fixture");
+    let catalog = temp.path().join("catalog.json");
+    write_portalsurfer_upload_catalog(&catalog, "2026-07-02T10:10:24.000Z");
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/verify_portalsurfer_upload_catalog.py",
+            ))
+            .arg("--catalog-file")
+            .arg(&catalog)
+            .arg("--build-id")
+            .arg("wavecrate-nightly-b6242-5e5f4198")
+            .arg("--build-number")
+            .arg("6242")
+            .arg("--release-version")
+            .arg("19.1.0-nightly.20260702+5e5f4198")
+            .arg("--released-at")
+            .arg("2026-07-02T10:10:24Z")
+            .arg("--expected-file")
+            .arg("wavecrate-nightly-macos-aarch64.zip"),
+    );
+}
+
+#[test]
+fn portalsurfer_upload_catalog_verifier_rejects_different_timestamps() {
+    let temp = tempfile::tempdir().expect("create PortalSurfer catalog fixture");
+    let catalog = temp.path().join("catalog.json");
+    write_portalsurfer_upload_catalog(&catalog, "2026-07-02T10:10:25.000Z");
+
+    let output = run_failure(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/verify_portalsurfer_upload_catalog.py",
+            ))
+            .arg("--catalog-file")
+            .arg(&catalog)
+            .arg("--build-id")
+            .arg("wavecrate-nightly-b6242-5e5f4198")
+            .arg("--build-number")
+            .arg("6242")
+            .arg("--release-version")
+            .arg("19.1.0-nightly.20260702+5e5f4198")
+            .arg("--released-at")
+            .arg("2026-07-02T10:10:24Z")
+            .arg("--expected-file")
+            .arg("wavecrate-nightly-macos-aarch64.zip"),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Release catalog timestamp mismatch"),
+        "timestamp mismatch should still fail for a different instant\nstderr:\n{stderr}"
+    );
+}
+
 fn generate_ed25519_key(path: &Path) -> bool {
     let keygen = Command::new("openssl")
         .arg("genpkey")
@@ -468,6 +525,34 @@ fn generate_ed25519_key(path: &Path) -> bool {
         String::from_utf8_lossy(&keygen.stdout),
         stderr
     );
+}
+
+fn write_portalsurfer_upload_catalog(path: &Path, released_at: &str) {
+    let catalog = json!({
+        "app": "wavecrate",
+        "releases": [{
+            "build_id": "wavecrate-nightly-b6242-5e5f4198",
+            "build_number": 6242,
+            "version": "19.1.0-nightly.20260702+5e5f4198",
+            "released_at": released_at,
+            "changelog": {
+                "title": "Wavecrate nightly",
+                "format": "markdown",
+                "url": "/wavecrate/api/v1/releases/wavecrate-nightly-b6242-5e5f4198/changelog"
+            },
+            "files": [{
+                "name": "wavecrate-nightly-macos-aarch64.zip",
+                "url": "/wavecrate/api/v1/releases/wavecrate-nightly-b6242-5e5f4198/files/wavecrate-nightly-macos-aarch64.zip/download",
+                "sha256": "0".repeat(64),
+                "size_bytes": 123
+            }]
+        }]
+    });
+    fs::write(
+        path,
+        serde_json::to_string_pretty(&catalog).expect("serialize PortalSurfer catalog"),
+    )
+    .expect("write PortalSurfer catalog fixture");
 }
 
 fn expected_public_key(key: &Path, temp: &TempDir) -> String {
