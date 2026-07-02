@@ -12,9 +12,17 @@ const RC_WORKFLOW: &str = include_str!("../.github/workflows/release-rc.yml");
 const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml");
 const RELEASE_TRAIN_PREP_SCRIPT: &str =
     include_str!("../scripts/internal/release/prepare_release_train.py");
+const ASSEMBLE_RELEASE_FILES_SCRIPT: &str =
+    include_str!("../scripts/internal/release/assemble_release_files.sh");
+const BUILD_RELEASE_ARTIFACT_SCRIPT: &str =
+    include_str!("../scripts/internal/release/build_release_artifact.sh");
+const CHECKOUT_RADIANT_SCRIPT: &str =
+    include_str!("../scripts/internal/release/checkout_radiant_submodule.sh");
 const RELEASE_ZIP_SCRIPT: &str = include_str!("../scripts/internal/release/build_release_zip.sh");
 const RELEASE_LOG_SCRIPT: &str =
     include_str!("../scripts/internal/release/generate_release_log.sh");
+const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
+    include_str!("../scripts/internal/release/sign_release_checksums.sh");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 
 #[test]
@@ -156,19 +164,19 @@ fn release_packager_uses_contract_nightly_asset_name_without_build_number() {
 #[test]
 fn nightly_workflow_publishes_packager_outputs_as_github_assets() {
     assert!(
-        NIGHTLY_WORKFLOW.contains("scripts/internal/release/build_release_zip.sh \\"),
-        "nightly workflow must use the shared release zip packager"
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/build_release_artifact.sh \\"),
+        "nightly workflow must use the shared release artifact builder"
     );
     assert!(
         NIGHTLY_WORKFLOW.contains("--channel nightly \\"),
         "nightly workflow must call the packager in nightly mode"
     );
     assert!(
-        NIGHTLY_WORKFLOW.contains("cp dist/artifacts/*.zip dist/release/"),
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/assemble_release_files.sh"),
         "GitHub nightly release must publish the zip filenames emitted by the packager"
     );
     assert!(
-        NIGHTLY_WORKFLOW.contains("cat \"${entries[@]}\" > dist/release/checksums-nightly.txt"),
+        NIGHTLY_WORKFLOW.contains("--checksum-name checksums-nightly.txt"),
         "GitHub nightly checksums must be assembled from packager checksum entries"
     );
     assert!(
@@ -345,6 +353,82 @@ fn release_train_prep_script_enforces_version_and_package_scope() {
     assert!(
         RELEASE_TRAIN_PREP_SCRIPT.contains("validate_lockfile_versions(version)"),
         "prep script must verify Cargo.lock release package versions"
+    );
+}
+
+#[test]
+fn release_workflows_use_shared_setup_build_and_signing_helpers() {
+    for (name, workflow) in [
+        ("nightly workflow", NIGHTLY_WORKFLOW),
+        ("RC workflow", RC_WORKFLOW),
+        ("stable workflow", STABLE_WORKFLOW),
+    ] {
+        assert!(
+            workflow.contains("scripts/internal/release/checkout_radiant_submodule.sh"),
+            "{name} must use the shared Radiant checkout helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/emit_rust_toolchain_channel.py"),
+            "{name} must use the shared Rust toolchain channel helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/setup_windows_asio_sdk.ps1"),
+            "{name} must use the shared Windows ASIO setup helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/build_release_artifact.sh"),
+            "{name} must use the shared release artifact build helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/assemble_release_files.sh"),
+            "{name} must use the shared release assembly helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/sign_release_checksums.sh"),
+            "{name} must use the shared checksum signing helper"
+        );
+    }
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW
+            .contains("scripts/internal/release/checkout_radiant_submodule.sh"),
+        "release train prep must use the shared Radiant checkout helper"
+    );
+    assert!(
+        RELEASE_TRAIN_PREP_WORKFLOW
+            .contains("scripts/internal/release/emit_rust_toolchain_channel.py"),
+        "release train prep must use the shared Rust toolchain channel helper"
+    );
+    assert!(
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/prune_github_release_assets.sh"),
+        "nightly workflow must use the shared rolling-release asset pruning helper"
+    );
+}
+
+#[test]
+fn shared_release_helpers_keep_policy_visible_and_strict() {
+    assert!(
+        CHECKOUT_RADIANT_SCRIPT.contains("Missing RADIANT_SUBMODULE_DEPLOY_KEY"),
+        "Radiant checkout helper must fail clearly when the deploy key is missing"
+    );
+    assert!(
+        BUILD_RELEASE_ARTIFACT_SCRIPT.contains("--channel <nightly|rc|stable>"),
+        "artifact build helper must keep release channel explicit"
+    );
+    assert!(
+        BUILD_RELEASE_ARTIFACT_SCRIPT.contains("build_release_zip.sh"),
+        "artifact build helper must delegate to the canonical zip packager"
+    );
+    assert!(
+        ASSEMBLE_RELEASE_FILES_SCRIPT.contains("No checksums entry files found"),
+        "release assembly helper must fail when checksum entries are missing"
+    );
+    assert!(
+        SIGN_RELEASE_CHECKSUMS_SCRIPT.contains("Missing CHECKSUMS_SIGNING_KEY"),
+        "checksum signing helper must fail clearly when the signing key is missing"
+    );
+    assert!(
+        SIGN_RELEASE_CHECKSUMS_SCRIPT.contains("--verify-public-key"),
+        "checksum signing helper must preserve public-key verification support"
     );
 }
 

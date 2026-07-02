@@ -203,56 +203,18 @@ jobs:
         shell: bash
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
-            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          key_path="$HOME/.ssh/radiant_submodule_key"
-          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
-          chmod 600 "$key_path"
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
-          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive vendor/radiant
-          rm -f "$key_path"
+        run: scripts/internal/release/checkout_radiant_submodule.sh
       - name: Read pinned Rust toolchain
         id: rust_toolchain
         shell: bash
-        run: |
-          set -euo pipefail
-          channel="$(python3 - <<'PY'
-          import tomllib
-          from pathlib import Path
-
-          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
-          print(data.get("toolchain", {}).get("channel", "stable"))
-          PY
-          )"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+        run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
       - name: Fetch ASIO SDK (Windows)
         if: ${{ matrix.platform == 'windows' }}
         shell: pwsh
-        run: |
-          git lfs install --local
-          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/audiosdk/asio "$env:GITHUB_WORKSPACE/asio"
-          git -C "$env:GITHUB_WORKSPACE/asio" submodule update --init --recursive
-          git -C "$env:GITHUB_WORKSPACE/asio" lfs pull
-          $asioRoot = Join-Path $env:GITHUB_WORKSPACE "asio"
-          $asioHeader = Get-ChildItem -Path $asioRoot -Recurse -Filter "asiodrivers.h" -File | Select-Object -First 1
-          if (-not $asioHeader) {
-            throw "ASIO header not found under $asioRoot"
-          }
-          $sdkDir = Split-Path -Parent (Split-Path -Parent $asioHeader.FullName)
-          if (-not (Test-Path (Join-Path $sdkDir "host")) -or -not (Test-Path (Join-Path $sdkDir "common"))) {
-            throw "ASIO SDK directory not found for $($asioHeader.FullName)"
-          }
-          "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
+        run: ./scripts/internal/release/setup_windows_asio_sdk.ps1
       - name: Build nightly zip
         shell: bash
         env:
@@ -266,7 +228,7 @@ jobs:
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
           APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
         run: |
-          scripts/internal/release/build_release_zip.sh \
+          scripts/internal/release/build_release_artifact.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
@@ -277,11 +239,6 @@ jobs:
             --git-sha "$TARGET_SHA" \
             --build-date "${{ needs.resolve-main.outputs.build_date }}" \
             --out-dir dist/release
-      - name: Uniquify checksums entry
-        shell: bash
-        run: |
-          mv dist/release/checksums-entry.txt \
-            "dist/release/checksums-entry-${{ matrix.platform }}-${{ matrix.arch }}.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.platform }}-${{ matrix.arch }}
@@ -307,59 +264,15 @@ jobs:
           path: dist/release
       - name: Assemble release files
         shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist/release
-          cp dist/artifacts/*.zip dist/release/
-          shopt -s nullglob
-          entries=(dist/artifacts/checksums-entry-*.txt)
-          if [[ ${#entries[@]} -eq 0 ]]; then
-            echo "No checksums entry files found." >&2
-            exit 1
-          fi
-          cat "${entries[@]}" > dist/release/checksums-nightly.txt
+        run: scripts/internal/release/assemble_release_files.sh --checksum-name checksums-nightly.txt
       - name: Sign release checksums
         env:
           CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
         run: |
-          set -euo pipefail
-          if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
-            echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY or SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
-            exit 1
-          fi
-          key_path="dist/release/checksums-signing-key.pem"
-          printf "%s" "$CHECKSUMS_SIGNING_KEY" > "$key_path"
-          openssl pkeyutl -sign -inkey "$key_path" -rawin \
-            -in dist/release/checksums-nightly.txt \
-            -out dist/release/checksums-nightly.txt.sig.bin
-          base64 -w 0 dist/release/checksums-nightly.txt.sig.bin \
-            > dist/release/checksums-nightly.txt.sig
-          rm -f "$key_path"
-      - name: Verify release checksum signature
-        env:
-          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
-            echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY or SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
-            exit 1
-          fi
-          key_path="dist/release/checksums-signing-key.pem"
-          pub_der="dist/release/checksums-signing-key.pub.der"
-          sig_bin="dist/release/checksums-nightly.txt.sig.bin"
-          printf "%s" "$CHECKSUMS_SIGNING_KEY" > "$key_path"
-          openssl pkey -in "$key_path" -pubout -outform DER -out "$pub_der"
-          tail -c 32 "$pub_der" | base64 -w 0 > dist/release/checksums-pubkey.txt
-          openssl pkeyutl -verify -pubin -inkey "$pub_der" -rawin \
-            -in dist/release/checksums-nightly.txt \
-            -sigfile "$sig_bin"
-          expected_pubkey="8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4="
-          actual_pubkey="$(cat dist/release/checksums-pubkey.txt)"
-          if [[ "$actual_pubkey" != "$expected_pubkey" ]]; then
-            echo "Public key mismatch: $actual_pubkey" >&2
-            exit 1
-          fi
-          rm -f "$key_path" "$pub_der" dist/release/checksums-pubkey.txt "$sig_bin"
+          scripts/internal/release/sign_release_checksums.sh \
+            --checksum-file dist/release/checksums-nightly.txt \
+            --signature-file dist/release/checksums-nightly.txt.sig \
+            --verify-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
       - name: Publish nightly tags
         env:
           GH_TOKEN: ${{ github.token }}
@@ -400,24 +313,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          current_assets="$(mktemp)"
-          for asset_path in dist/release/*; do
-            basename "$asset_path"
-          done | sort > "$current_assets"
-          if ! gh release view nightly --repo "$REPOSITORY" --json assets --jq '.assets[].name' >/tmp/nightly-assets.txt 2>/dev/null; then
-            rm -f "$current_assets"
-            exit 0
-          fi
-          while IFS= read -r asset_name; do
-            if [[ -z "$asset_name" ]]; then
-              continue
-            fi
-            if ! grep -Fxq "$asset_name" "$current_assets"; then
-              gh release delete-asset nightly "$asset_name" --repo "$REPOSITORY" --yes
-            fi
-          done </tmp/nightly-assets.txt
-          rm -f "$current_assets" /tmp/nightly-assets.txt
+          scripts/internal/release/prune_github_release_assets.sh \
+            --tag nightly \
+            --repo "$REPOSITORY" \
+            --release-dir dist/release
       - name: Upload nightly release assets
         uses: softprops/action-gh-release@v1
         with:

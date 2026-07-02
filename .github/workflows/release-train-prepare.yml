@@ -38,33 +38,11 @@ jobs:
         shell: bash
         env:
           RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$RADIANT_SUBMODULE_DEPLOY_KEY" ]]; then
-            echo "Missing RADIANT_SUBMODULE_DEPLOY_KEY secret." >&2
-            exit 1
-          fi
-          mkdir -p ~/.ssh
-          key_path="$HOME/.ssh/radiant_submodule_key"
-          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > "$key_path"
-          chmod 600 "$key_path"
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
-          GIT_SSH_COMMAND="ssh -i $key_path -o IdentitiesOnly=yes" \
-            git submodule update --init --recursive vendor/radiant
-          rm -f "$key_path"
+        run: scripts/internal/release/checkout_radiant_submodule.sh
       - name: Read pinned Rust toolchain
         id: rust_toolchain
         shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import pathlib
-          import tomllib
-
-          data = tomllib.loads(pathlib.Path("rust-toolchain.toml").read_text())
-          print(f"channel={data.get('toolchain', {}).get('channel', 'stable')}")
-          PY
+        run: scripts/internal/release/emit_rust_toolchain_channel.py >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
