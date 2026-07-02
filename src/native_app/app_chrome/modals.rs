@@ -13,8 +13,9 @@ use crate::native_app::{
 use radiant::prelude as ui;
 
 use self::projection::{
-    FileMoveConflictProjection, FolderDeleteConfirmationProjection, ShortcutHelpProjection,
-    TransactionListProjection, TransactionListRowProjection, WaveformDestructiveEditProjection,
+    FileMoveConflictProjection, FolderDeleteConfirmationProjection,
+    ProtectedExtractionTargetSourceProjection, ShortcutHelpProjection, TransactionListProjection,
+    TransactionListRowProjection, WaveformDestructiveEditProjection,
 };
 use crate::native_app::app::NativeAppState;
 
@@ -221,6 +222,37 @@ pub(in crate::native_app) fn waveform_destructive_edit_confirmation(
         GuiMessage::CancelPendingWaveformDestructiveEdit,
     )
     .key(identity::WAVEFORM_DESTRUCTIVE_EDIT_MODAL_KEY)
+}
+
+pub(in crate::native_app) fn protected_extraction_target_source(
+    state: &NativeAppState,
+) -> ui::View<GuiMessage> {
+    let projection = ProtectedExtractionTargetSourceProjection::from_state(state);
+    let content = ui::column([
+        ui::text_line(projection.title, 24.0).fill_width(),
+        ui::text_line(projection.message, 20.0).fill_width(),
+        ui::button_row([
+            ui::button("Add Target Source")
+                .primary()
+                .message(GuiMessage::AddProtectedExtractionTargetSource)
+                .width(142.0),
+            ui::button("Cancel")
+                .message(GuiMessage::CancelProtectedExtractionTargetSource)
+                .width(72.0),
+        ]),
+    ])
+    .spacing(6.0)
+    .fill_width()
+    .fill_height();
+
+    ui::closeable_dialog_layer(
+        "Target Source Required",
+        content,
+        ui::WidgetTone::Warning,
+        ui::Vector2::new(560.0, 190.0),
+        GuiMessage::CancelProtectedExtractionTargetSource,
+    )
+    .key(identity::PROTECTED_EXTRACTION_TARGET_SOURCE_MODAL_KEY)
 }
 
 fn transaction_list_summary(projection: &TransactionListProjection) -> ui::View<GuiMessage> {

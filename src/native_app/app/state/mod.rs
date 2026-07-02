@@ -31,9 +31,11 @@ pub(in crate::native_app) use ui_state::ReleaseUpdateStatus;
 pub(in crate::native_app) use ui_state::{
     ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, ExtractedFilePlaybackType,
     MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT, PendingFolderDelete,
+    PendingProtectedExtractionAction, PendingProtectedExtractionTargetSource,
     PendingWaveformDestructiveEdit, SampleBrowserDisplayMode, SettingsAppState,
     StarmapAuditionDragState, StarmapViewport, StarmapViewportChange, StartupState, StatusState,
     UiAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    WaveformDestructiveEditTarget,
 };
 pub(in crate::native_app) use waveform::{
     PendingPlaySelectionRetargetCycle, WaveformAppState, WaveformEditSelectionSnapshot,

@@ -76,6 +76,15 @@ impl SourceScanWorkflow {
         browser.begin_add_source_path(root, task_id)
     }
 
+    pub(in crate::native_app) fn begin_add_source_path_preserving_selection(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        root: PathBuf,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        browser.begin_add_source_path_preserving_selection(root, task_id)
+    }
+
     pub(in crate::native_app) fn begin_select_source(
         &mut self,
         browser: &mut FolderBrowserState,

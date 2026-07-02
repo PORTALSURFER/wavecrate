@@ -49,6 +49,18 @@ impl LibraryAppState {
             .begin_add_source_path(&mut self.folder_browser, root, task_id)
     }
 
+    pub(in crate::native_app) fn begin_add_source_path_preserving_selection(
+        &mut self,
+        root: std::path::PathBuf,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.source_scan.begin_add_source_path_preserving_selection(
+            &mut self.folder_browser,
+            root,
+            task_id,
+        )
+    }
+
     pub(in crate::native_app) fn begin_select_source(
         &mut self,
         id: String,

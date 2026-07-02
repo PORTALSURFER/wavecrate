@@ -186,6 +186,9 @@ impl NativeAppState {
             | GuiMessage::OpenContextMenu
             | GuiMessage::ConfirmPendingWaveformDestructiveEdit
             | GuiMessage::CancelPendingWaveformDestructiveEdit
+            | GuiMessage::AddProtectedExtractionTargetSource
+            | GuiMessage::ProtectedExtractionTargetSourceDialogFinished(_)
+            | GuiMessage::CancelProtectedExtractionTargetSource
             | GuiMessage::WaveformDestructiveEditFinished(_)
             | GuiMessage::ExtractPlaymarkedRange
             | GuiMessage::ExtractPlaymarkedRangeToHarvestDestination

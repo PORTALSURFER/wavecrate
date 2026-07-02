@@ -138,6 +138,15 @@ impl NativeAppState {
             GuiMessage::CancelPendingWaveformDestructiveEdit => {
                 self.cancel_pending_waveform_destructive_edit();
             }
+            GuiMessage::AddProtectedExtractionTargetSource => {
+                self.add_protected_extraction_target_source(context);
+            }
+            GuiMessage::ProtectedExtractionTargetSourceDialogFinished(result) => {
+                self.finish_protected_extraction_target_source_dialog(result, context);
+            }
+            GuiMessage::CancelProtectedExtractionTargetSource => {
+                self.cancel_protected_extraction_target_source();
+            }
             GuiMessage::WaveformDestructiveEditFinished(completion) => {
                 self.finish_waveform_destructive_edit(completion, context);
             }

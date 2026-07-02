@@ -143,6 +143,27 @@ impl WaveformDestructiveEditProjection {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ProtectedExtractionTargetSourceProjection {
+    pub(super) title: String,
+    pub(super) message: String,
+}
+
+impl ProtectedExtractionTargetSourceProjection {
+    pub(super) fn from_state(state: &NativeAppState) -> Self {
+        let pending = state
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .as_ref()
+            .expect("protected extraction target modal requires pending target source state");
+        Self {
+            title: pending.title.clone(),
+            message: pending.message.clone(),
+        }
+    }
+}
+
 fn transaction_list_summary(state: &NativeAppState) -> String {
     format!(
         "{} | {} | {}",

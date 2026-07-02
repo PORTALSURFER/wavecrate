@@ -60,14 +60,40 @@ impl NativeAppState {
         self.queue_add_source_path(path, started_at, context);
     }
 
-    fn queue_add_source_path(
+    pub(in crate::native_app) fn queue_add_source_path(
         &mut self,
         path: PathBuf,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
+    ) -> Option<String> {
+        self.queue_add_source_path_with_selection(path, started_at, context, true)
+    }
+
+    pub(in crate::native_app) fn queue_add_source_path_preserving_selection(
+        &mut self,
+        path: PathBuf,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Option<String> {
+        self.queue_add_source_path_with_selection(path, started_at, context, false)
+    }
+
+    fn queue_add_source_path_with_selection(
+        &mut self,
+        path: PathBuf,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        select_source: bool,
+    ) -> Option<String> {
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.library.begin_add_source_path(path, task_id) {
+        let request = if select_source {
+            self.library.begin_add_source_path(path.clone(), task_id)
+        } else {
+            self.library
+                .begin_add_source_path_preserving_selection(path.clone(), task_id)
+        };
+        let source_id = if let Some(request) = request {
+            let source_id = request.source_id.clone();
             let label = request.label.clone();
             emit_gui_action(
                 "folder_browser.add_source_dialog",
@@ -78,6 +104,7 @@ impl NativeAppState {
                 None,
             );
             self.launch_folder_scan(request, context);
+            Some(source_id)
         } else {
             emit_gui_action(
                 "folder_browser.add_source_dialog",
@@ -87,6 +114,10 @@ impl NativeAppState {
                 started_at,
                 Some("source_not_queued"),
             );
-        }
+            self.library
+                .folder_browser
+                .source_id_for_root_path(path.as_path())
+        };
+        source_id
     }
 }

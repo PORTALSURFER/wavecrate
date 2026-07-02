@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::super::{
     FolderBrowserState, SourceEntry, scan::FolderTreeRefreshRequest,
@@ -63,6 +63,14 @@ impl FolderBrowserState {
             .iter()
             .find(|source| source.id == source_id)
             .map(|source| source.root.clone())
+    }
+
+    pub(in crate::native_app) fn source_id_for_root_path(&self, root: &Path) -> Option<String> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.root == root)
+            .map(|source| source.id.clone())
     }
 
     pub(in crate::native_app) fn refresh_source_availability_from_disk(

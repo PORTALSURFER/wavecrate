@@ -37,11 +37,12 @@ pub(in crate::native_app) use state::{
     ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, ExtractedFilePlaybackType,
     FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
     MetadataAppState, NativeAppState, PendingFolderDelete, PendingPlaySelectionRetargetCycle,
-    PendingPlaybackStart, PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit,
-    SampleBrowserDisplayMode, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
-    SourceScanFinish, StarmapAuditionDragState, StarmapViewport, StarmapViewportChange,
-    StartupState, StatusState, UiAppState, WaveformAppState, WaveformDestructiveEditKind,
-    WaveformDestructiveEditPrompt, WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot,
+    PendingPlaybackStart, PendingProtectedExtractionAction, PendingProtectedExtractionTargetSource,
+    PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit, SampleBrowserDisplayMode,
+    SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish,
+    StarmapAuditionDragState, StarmapViewport, StarmapViewportChange, StartupState, StatusState,
+    UiAppState, WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    WaveformDestructiveEditTarget, WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot,
     WaveformPlaySelectionSnapshot, run_folder_scan_worker,
 };
 
