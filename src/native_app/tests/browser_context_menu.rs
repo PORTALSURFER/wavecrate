@@ -39,6 +39,90 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
 }
 
 #[test]
+fn folder_context_menu_paints_registered_shortcut_hints() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("Documents"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Documents"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    for (label, hint) in [
+        ("New Folder", "N"),
+        ("Rename Folder", "F2 / Cmd-R"),
+        ("Delete Folder", "Delete / Backspace"),
+    ] {
+        let label_run = frame
+            .paint_plan
+            .first_text_run(label)
+            .unwrap_or_else(|| panic!("{label} should paint"));
+        let hint_run = frame
+            .paint_plan
+            .first_text_run(hint)
+            .unwrap_or_else(|| panic!("{hint} should paint"));
+
+        assert_eq!(label_run.align, PaintTextAlign::Left);
+        assert_eq!(hint_run.align, PaintTextAlign::Right);
+        assert!(
+            label_run.rect.max.x < hint_run.rect.min.x,
+            "{label} and {hint} should not overlap: label={:?}, hint={:?}",
+            label_run.rect,
+            hint_run.rect
+        );
+    }
+}
+
+#[test]
+fn sample_context_menu_paints_move_to_trash_shortcut_hint() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("kick.wav"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("kick.wav"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let label = frame
+        .paint_plan
+        .first_text_run("Move to Trash")
+        .expect("trash label should paint");
+    let hint = frame
+        .paint_plan
+        .first_text_run("Delete / Backspace")
+        .expect("trash shortcut hint should paint");
+
+    assert_eq!(label.align, PaintTextAlign::Left);
+    assert_eq!(hint.align, PaintTextAlign::Right);
+    assert!(
+        label.rect.max.x < hint.rect.min.x,
+        "trash label and shortcut should not overlap: label={:?}, hint={:?}",
+        label.rect,
+        hint.rect
+    );
+}
+
+#[test]
 fn folder_context_menu_opens_downward_when_space_allows() {
     let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
         kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
