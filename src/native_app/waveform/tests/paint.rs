@@ -899,6 +899,73 @@ fn resize_selection_paints_once_from_base_layer_when_preview_is_live() {
 }
 
 #[test]
+fn playmark_resize_drag_ghost_paints_active_handle_without_double_painting_selection() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.8));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionResize(
+        WaveformSelectionKind::Play,
+        WaveformSelectionEdge::End,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.8),
+    });
+
+    let runtime_plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let runtime_fills = fill_rects(&runtime_plan);
+
+    assert!(
+        runtime_fills.iter().any(|fill| {
+            (fill.rect.min.x - 156.5).abs() < 0.001
+                && (fill.rect.max.x - 163.5).abs() < 0.001
+                && (fill.rect.min.y - 0.0).abs() < 0.001
+                && (fill.rect.max.y - 22.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 178)
+        }),
+        "active resize handle should paint a drag ghost"
+    );
+    assert!(
+        runtime_fills.iter().all(|fill| {
+            !((fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 160.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48))
+        }),
+        "drag ghost must not reintroduce runtime double-painting of the playmark range"
+    );
+}
+
+#[test]
+fn playmark_move_drag_ghost_paints_body_handle_on_live_preview() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.25, 0.65),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 59.0).abs() < 0.001
+                && (fill.rect.max.x - 121.0).abs() < 0.001
+                && (fill.rect.min.y - 0.0).abs() < 0.001
+                && (fill.rect.max.y - 7.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 178)
+        }),
+        "active move handle should paint a drag ghost over the live preview"
+    );
+}
+
+#[test]
 fn committed_selection_paints_as_resize_fallback_until_preview_is_live() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

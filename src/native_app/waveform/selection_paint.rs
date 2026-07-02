@@ -43,6 +43,7 @@ const PLAY_START_MARKER_COLOR: Rgba8 = Rgba8::new(204, 255, 255, 245);
 const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
 const HOVER_CURSOR_COLOR: Rgba8 = Rgba8::new(255, 255, 255, 210);
 const PLAY_HANDLE_ACTION_HOVER_COLOR: Rgba8 = Rgba8::new(255, 202, 112, 255);
+const PLAY_HANDLE_DRAG_GHOST_ALPHA: u8 = 178;
 const HANDLE_HOVER_ALPHA: u8 = 255;
 const EDIT_RESIZE_HANDLE_ALPHA: u8 = 190;
 const EDIT_GAIN_HANDLE_ALPHA: u8 = 225;
@@ -366,6 +367,49 @@ impl WaveformWidget {
                     ),
                 );
             }
+        }
+    }
+
+    pub(super) fn append_playmark_drag_ghost_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
+        let Some(preview) = self.live_selection_preview_for_kind(WaveformSelectionKind::Play)
+        else {
+            return;
+        };
+        let Some(role) = self.active_playmark_drag_ghost_role() else {
+            return;
+        };
+        let Some(geometry) = self.selection_geometry(bounds, Some(preview.selection)) else {
+            return;
+        };
+        let edge_bounds = match role {
+            DragHandleRole::Start | DragHandleRole::End => {
+                bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT)
+            }
+            _ => bounds,
+        };
+        let mut paint = WidgetPaint::new(primitives, self.common.id);
+        self.append_hover_selection_handle_fill(
+            &mut paint,
+            geometry,
+            edge_bounds,
+            role,
+            PLAY_HANDLE_ACTION_HOVER_COLOR.with_alpha(PLAY_HANDLE_DRAG_GHOST_ALPHA),
+        );
+    }
+
+    fn active_playmark_drag_ghost_role(&self) -> Option<DragHandleRole> {
+        match self.active_drag_kind {
+            Some(WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, edge)) => {
+                Some(waveform_selection_edge_role(edge))
+            }
+            Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play)) => {
+                Some(DragHandleRole::Body)
+            }
+            _ => None,
         }
     }
 
