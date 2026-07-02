@@ -103,6 +103,8 @@ under `scripts/internal/release/`:
 - `assemble_release_files.sh` copies built zips and assembles the channel
   checksum file.
 - `sign_release_checksums.sh` signs and optionally verifies checksum files.
+- `validate_promoted_rc_release.py` verifies that stable promotion is backed by
+  a complete RC GitHub prerelease before stable builds start.
 - `prune_github_release_assets.sh` removes stale assets from a rolling GitHub
   release before upload.
 
@@ -113,8 +115,12 @@ pre-releases tagged `vX.Y.Z-rc.N`.
 
 Stable runs require `version` and `branch` inputs. The branch must be
 `release/X.Y`, the package manifest must match `X.Y.Z`, and the latest
-`vX.Y.Z-rc.N` tag must point at the same commit being promoted. Stable releases
-are published as normal GitHub releases tagged `vX.Y.Z`.
+`vX.Y.Z-rc.N` tag must point at the same commit being promoted. Stable
+promotion also validates that the promoted RC exists as a GitHub prerelease with
+the expected platform zips from `release_contract.toml`, a checksum file,
+checksum signature, downloadable assets whose hashes match the checksum file,
+and a release-bound `Wavecrate X.Y.Z-rc.N` log body. Stable releases are
+published as normal GitHub releases tagged `vX.Y.Z`.
 
 The nightly workflow publishes an immutable nightly version tag named like
 `19.1.0-nightly.20260701+abc1234` for changelog history, updates the rolling GitHub
