@@ -48,6 +48,14 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             pending_destructive_edit_shortcuts(),
         )
         .layer_when(
+            state
+                .ui
+                .browser_interaction
+                .pending_protected_extraction_target_source
+                .is_some(),
+            protected_extraction_target_source_shortcuts(),
+        )
+        .layer_when(
             state.audio_settings_dropdown_open(),
             ui::ShortcutLayer::modal_escape(GuiMessage::Settings(
                 SettingsMessage::CloseAudioSettingsDropdowns,
@@ -159,6 +167,13 @@ fn pending_destructive_edit_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::Escape),
             GuiMessage::CancelPendingWaveformDestructiveEdit,
         )
+}
+
+fn protected_extraction_target_source_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::modal().bind(
+        ui::KeyPress::new(ui::KeyCode::Escape),
+        GuiMessage::CancelProtectedExtractionTargetSource,
+    )
 }
 
 fn default_shortcuts(state: &NativeAppState) -> ui::ShortcutLayer<GuiMessage> {

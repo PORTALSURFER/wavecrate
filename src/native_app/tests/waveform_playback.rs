@@ -981,7 +981,7 @@ fn playmark_extraction_marks_new_file_loop_and_keep_1_when_looping_at_request_ti
 }
 
 #[test]
-fn playmark_extraction_writes_new_file_into_protected_source() {
+fn playmark_extraction_from_protected_source_without_target_prompts_without_writing_derivative() {
     let config_root = tempfile::tempdir().expect("config root");
     let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
     let mut scenario = WaveformPlaybackScenario::with_temp_wav(
@@ -991,20 +991,27 @@ fn playmark_extraction_writes_new_file_into_protected_source() {
     protect_selected_source_for_test(&mut scenario.state);
     load_selected_sample_into_waveform(&mut scenario);
     let source_path = scenario.state.waveform.current.path();
-    let source_parent = scenario
-        .state
-        .waveform
-        .current
-        .path()
-        .parent()
-        .expect("source sample parent")
-        .to_path_buf();
+    let extracted = extraction_path_for_loaded_sample(&scenario);
     scenario.select_play_range(0.25, 0.60);
 
-    let extracted = run_playmark_extraction(&mut scenario);
+    let mut context = ui::UiUpdateContext::default();
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
 
-    assert!(extracted.is_file());
-    assert_eq!(extracted.parent(), Some(source_parent.as_path()));
+    assert!(
+        !extracted.exists(),
+        "protected-source extraction should not write beside the source without a target"
+    );
+    assert!(
+        scenario
+            .state
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .is_some()
+    );
     assert_eq!(
         scenario.state.library.folder_browser.selected_file_id(),
         Some(source_path.to_string_lossy().as_ref()),
@@ -1019,7 +1026,6 @@ fn playmark_extraction_writes_new_file_into_protected_source() {
         active_sample_load_ticket(&scenario.state).is_none(),
         "protected-source extraction should not load the derivative automatically"
     );
-    assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
 }
 
 #[test]
@@ -1198,7 +1204,7 @@ fn protected_playmark_extraction_without_writable_destination_reports_error() {
         wavecrate::sample_sources::SampleSource::new(source_root.clone()).protected();
     scenario.state.library.folder_browser =
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
-            protected_source,
+            protected_source.clone(),
         ]);
     scenario
         .state
@@ -1222,6 +1228,102 @@ fn protected_playmark_extraction_without_writable_destination_reports_error() {
     assert_eq!(
         error,
         "Set a Primary source before extracting from a protected source"
+    );
+}
+
+#[test]
+fn protected_playmark_extraction_without_writable_destination_opens_target_source_prompt() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let mut scenario = WaveformPlaybackScenario::with_temp_wav(
+        "playmark-extract-protected-prompt.wav",
+        &[0, 1024, -1024, 512],
+    );
+    let target_root = tempfile::tempdir().expect("target source root");
+    let source_path = PathBuf::from(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .selected_file_id()
+            .expect("selected source sample"),
+    );
+    let source_root = source_path.parent().expect("sample parent").to_path_buf();
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.clone()).protected();
+    scenario.state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+        ]);
+    scenario
+        .state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+    load_selected_sample_into_waveform(&mut scenario);
+    scenario.select_play_range(0.25, 0.60);
+    let harvest_source_folder = source_root.file_name().expect("source root folder name");
+    let extracted = target_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("playmark-extract-protected-prompt_extraction.wav");
+    let mut context = ui::UiUpdateContext::default();
+
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+
+    let pending = scenario
+        .state
+        .ui
+        .browser_interaction
+        .pending_protected_extraction_target_source
+        .as_ref()
+        .expect("protected playmark extraction should prompt for a writable target source");
+    assert_eq!(
+        pending.action,
+        crate::native_app::app::PendingProtectedExtractionAction::ExtractPlaymarkedRange
+    );
+
+    scenario.state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ProtectedExtractionTargetSourceDialogFinished(
+            Ok(radiant::runtime::PlatformResponse::Path(
+                target_root.path().to_path_buf(),
+            )),
+        ),
+        &mut context,
+    );
+    run_command_for_tests(&mut scenario.state, context.into_command());
+
+    assert!(
+        extracted.is_file(),
+        "protected playmark extraction should resume into the added target source"
+    );
+    assert_eq!(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .source_root_path(scenario.state.library.folder_browser.selected_source_id())
+            .as_deref(),
+        Some(protected_source.root.as_path()),
+        "adding an extraction target source should keep focus on the protected source"
+    );
+    assert_eq!(
+        scenario.state.library.folder_browser.selected_file_id(),
+        Some(source_path.to_string_lossy().as_ref()),
+        "adding an extraction target source should keep the protected file selected"
+    );
+    assert_eq!(scenario.state.waveform.current.path(), source_path);
+    assert!(
+        scenario
+            .state
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .is_none()
     );
 }
 
@@ -1733,6 +1835,96 @@ fn e_without_playmark_copies_protected_whole_file_to_primary_harvest_and_keeps_f
         PathBuf::from("_Harvests")
             .join(harvest_source_folder)
             .join("whole-protected_copy.wav")
+    );
+}
+
+#[test]
+fn e_without_playmark_from_protected_source_opens_target_source_prompt() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let (_lock, _guard) = set_waveform_test_config_base(config_root.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("protected source root");
+    let target_root = tempfile::tempdir().expect("target source root");
+    let source_path = source_root.path().join("whole-protected-no-target.wav");
+    write_test_wav_i16(&source_path, &[0, 1024, -1024, 512]);
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    let expected = target_root
+        .path()
+        .join("_Harvests")
+        .join(
+            source_root
+                .path()
+                .file_name()
+                .expect("source root folder name"),
+        )
+        .join("whole-protected-no-target_copy.wav");
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(source_path.display().to_string());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ExtractPlaymarkedRange,
+        &mut context,
+    );
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_protected_extraction_target_source
+        .as_ref()
+        .expect("whole-file protected extraction should prompt for a writable target source");
+    assert_eq!(
+        pending.action,
+        crate::native_app::app::PendingProtectedExtractionAction::ExtractPlaymarkedRange
+    );
+    assert!(
+        state.ui.status.sample.contains("writable target source"),
+        "status should point to the visible target-source prompt"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ProtectedExtractionTargetSourceDialogFinished(
+            Ok(radiant::runtime::PlatformResponse::Path(
+                target_root.path().to_path_buf(),
+            )),
+        ),
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        expected.is_file(),
+        "whole-file protected extraction should resume into the added target source"
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .source_root_path(state.library.folder_browser.selected_source_id())
+            .as_deref(),
+        Some(protected_source.root.as_path()),
+        "adding an extraction target source should keep focus on the protected source"
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(source_path.to_string_lossy().as_ref()),
+        "adding an extraction target source should keep the protected file selected"
+    );
+    let target_source_id = state
+        .library
+        .folder_browser
+        .source_id_for_root_path(target_root.path())
+        .expect("target source should be configured");
+    assert_eq!(
+        state.library.folder_browser.source_role(&target_source_id),
+        Some(wavecrate::sample_sources::SourceRole::Primary)
     );
 }
 

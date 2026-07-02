@@ -4,12 +4,15 @@ use std::{
 };
 
 use radiant::prelude as ui;
+use radiant::prelude::PlatformResultExt as _;
 use wavecrate::sample_sources::{HarvestDerivationOperation, config::AudioWriteFormatConfig};
 use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
-    ExtractedFilePlaybackType, GuiMessage, NativeAppState, PendingWaveformDestructiveEdit,
-    WaveformDestructiveEditKind, WaveformDestructiveEditUiContext, sample_path_label,
+    ExtractedFilePlaybackType, GuiMessage, NativeAppState, PendingProtectedExtractionAction,
+    PendingProtectedExtractionTargetSource, PendingWaveformDestructiveEdit,
+    WaveformDestructiveEditKind, WaveformDestructiveEditTarget, WaveformDestructiveEditUiContext,
+    sample_path_label,
 };
 use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
 use crate::native_app::transaction_history::TransactionContext;
@@ -22,12 +25,6 @@ pub(in crate::native_app) use worker::WaveformDestructiveEditResult;
 use worker::{AppliedWaveformEdit, WaveformDestructiveEditWorkerRequest};
 
 const WAVEFORM_DESTRUCTIVE_EDIT_TASK_NAME: &str = "gui-waveform-destructive-edit";
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum WaveformDestructiveEditTarget {
-    ActiveSelection,
-    PlaySelection,
-}
 
 #[derive(Default)]
 struct WaveformDestructiveEditQueueOptions {
@@ -298,6 +295,12 @@ impl NativeAppState {
         if !self.harvest_copy_edits_enabled_for_path(&absolute_path) {
             return Ok(false);
         }
+        if self.protected_extraction_needs_target_source(&absolute_path) {
+            self.request_protected_extraction_target_source(
+                PendingProtectedExtractionAction::WaveformDestructiveEdit { kind, target },
+            );
+            return Ok(true);
+        }
         let request = self
             .waveform
             .current
@@ -376,6 +379,141 @@ impl NativeAppState {
             .is_some_and(|(source, _)| {
                 source.is_protected() || self.library.folder_browser.harvest_filter().is_some()
             })
+    }
+
+    pub(in crate::native_app) fn protected_extraction_needs_target_source(
+        &self,
+        source_path: &Path,
+    ) -> bool {
+        let protected_origin = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(source_path)
+            .is_some_and(|(source, _)| source.is_protected());
+        protected_origin
+            && self
+                .library
+                .folder_browser
+                .default_writable_extraction_source(
+                    "Set a Primary source before extracting from a protected source",
+                )
+                .is_err()
+    }
+
+    pub(in crate::native_app) fn request_protected_extraction_target_source(
+        &mut self,
+        action: PendingProtectedExtractionAction,
+    ) {
+        let prompt = PendingProtectedExtractionTargetSource {
+            action,
+            title: String::from("Target source required"),
+            message: String::from(
+                "This sample is in a protected source. Add a writable target source and Wavecrate will continue the extraction there.",
+            ),
+        };
+        self.ui
+            .browser_interaction
+            .pending_protected_extraction_target_source = Some(prompt);
+        self.ui.status.sample =
+            String::from("Add a writable target source before extracting from a protected source");
+    }
+
+    pub(in crate::native_app) fn add_protected_extraction_target_source(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .is_none()
+        {
+            return;
+        }
+        context.pick_folder(
+            ui::FileDialogRequest::new().title("Add target source"),
+            GuiMessage::ProtectedExtractionTargetSourceDialogFinished,
+        );
+    }
+
+    pub(in crate::native_app) fn finish_protected_extraction_target_source_dialog(
+        &mut self,
+        result: ui::PlatformResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let path = match result.into_path_or_canceled() {
+            Ok(Some(path)) => path,
+            Ok(None) => return,
+            Err(error) => {
+                self.ui.status.sample = format!("Add target source failed: {error}");
+                return;
+            }
+        };
+        let Some(source_id) =
+            self.queue_add_source_path_preserving_selection(path, started_at, context)
+        else {
+            self.ui.status.sample = String::from("Add target source failed: source was not queued");
+            return;
+        };
+        if let Err(error) = self.library.folder_browser.set_primary_source(&source_id) {
+            self.ui.status.sample = format!("Add target source failed: {error}");
+            return;
+        }
+        self.retry_pending_protected_extraction(context);
+    }
+
+    pub(in crate::native_app) fn cancel_protected_extraction_target_source(&mut self) {
+        self.ui
+            .browser_interaction
+            .pending_protected_extraction_target_source = None;
+        self.ui.status.sample = String::from("Protected extraction cancelled");
+    }
+
+    fn retry_pending_protected_extraction(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(pending) = self
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .take()
+        else {
+            return;
+        };
+        match pending.action {
+            PendingProtectedExtractionAction::WaveformDestructiveEdit { kind, target } => {
+                let Some(harvest_operation) = harvest_region_copy_operation(kind) else {
+                    self.ui.status.sample =
+                        String::from("Protected extraction target is unavailable");
+                    return;
+                };
+                match self.queue_harvest_region_copy_request(
+                    kind,
+                    target,
+                    harvest_operation,
+                    Instant::now(),
+                    context,
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        self.ui.status.sample =
+                            String::from("Protected extraction target is unavailable");
+                    }
+                    Err(error) => {
+                        self.flash_denied_destructive_selection_for_error(&error, kind, target);
+                        self.ui.status.sample = error;
+                    }
+                }
+            }
+            PendingProtectedExtractionAction::ExtractPlaymarkedRange => {
+                self.extract_playmarked_range(context);
+            }
+            PendingProtectedExtractionAction::ExtractPlaymarkedRangeToHarvestDestination => {
+                self.extract_playmarked_range_to_harvest_destination(context);
+            }
+        }
     }
 
     pub(in crate::native_app) fn confirm_pending_waveform_destructive_edit(

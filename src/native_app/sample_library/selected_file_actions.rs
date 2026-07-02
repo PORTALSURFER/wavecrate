@@ -1,4 +1,6 @@
-use crate::native_app::app::{ExtractedFilePlaybackType, GuiMessage, NativeAppState};
+use crate::native_app::app::{
+    ExtractedFilePlaybackType, GuiMessage, NativeAppState, PendingProtectedExtractionAction,
+};
 use crate::native_app::app::{emit_gui_action, sample_path_label};
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
@@ -35,6 +37,15 @@ impl PlaymarkedExtractionTarget {
         match self {
             Self::Default => "Extracting play range",
             Self::HarvestDestination => "Extracting play range to harvest destination",
+        }
+    }
+
+    fn pending_protected_extraction_action(self) -> PendingProtectedExtractionAction {
+        match self {
+            Self::Default => PendingProtectedExtractionAction::ExtractPlaymarkedRange,
+            Self::HarvestDestination => {
+                PendingProtectedExtractionAction::ExtractPlaymarkedRangeToHarvestDestination
+            }
         }
     }
 }
@@ -200,6 +211,20 @@ impl NativeAppState {
                 let request = request.with_gain(
                     self.normalized_audition_gain_for_span(selection.start(), selection.end()),
                 );
+                if self.protected_extraction_needs_target_source(request.source_path()) {
+                    self.request_protected_extraction_target_source(
+                        target.pending_protected_extraction_action(),
+                    );
+                    emit_gui_action(
+                        action,
+                        Some("waveform"),
+                        None,
+                        "blocked",
+                        started_at,
+                        Some("target_source_required"),
+                    );
+                    return;
+                }
                 let request = match self.route_playmarked_extraction_request(request, target) {
                     Ok(request) => request,
                     Err(error) => {
@@ -286,6 +311,23 @@ impl NativeAppState {
                 "blocked",
                 started_at,
                 Some(&error),
+            );
+            return;
+        }
+        if sources
+            .iter()
+            .any(|source_path| self.protected_extraction_needs_target_source(source_path))
+        {
+            self.request_protected_extraction_target_source(
+                PendingProtectedExtractionAction::ExtractPlaymarkedRange,
+            );
+            emit_gui_action(
+                action,
+                Some("browser"),
+                None,
+                "blocked",
+                started_at,
+                Some("target_source_required"),
             );
             return;
         }

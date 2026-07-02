@@ -17,6 +17,23 @@ impl FolderBrowserState {
         root: PathBuf,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
+        self.begin_add_source_path_with_selection(root, task_id, true)
+    }
+
+    pub(in crate::native_app) fn begin_add_source_path_preserving_selection(
+        &mut self,
+        root: PathBuf,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.begin_add_source_path_with_selection(root, task_id, false)
+    }
+
+    fn begin_add_source_path_with_selection(
+        &mut self,
+        root: PathBuf,
+        task_id: u64,
+        select_source: bool,
+    ) -> Option<FolderScanRequest> {
         if let Some(index) = self
             .source
             .sources
@@ -24,7 +41,11 @@ impl FolderBrowserState {
             .position(|source| source.root == root)
         {
             let id = self.source.sources[index].id.clone();
-            return self.begin_select_source(id, task_id);
+            return if select_source {
+                self.begin_select_source(id, task_id)
+            } else {
+                self.begin_source_scan_without_selection(index, task_id)
+            };
         }
         let id = path_id(&root);
         let label = folder_label(&root);
@@ -32,13 +53,43 @@ impl FolderBrowserState {
         source.loading_task = Some(task_id);
         let database_root = source.database_root.clone();
         self.source.sources.push(source);
-        self.select_pending_source(id.clone(), placeholder_folder(&root));
+        if select_source {
+            self.select_pending_source(id.clone(), placeholder_folder(&root));
+        }
         Some(FolderScanRequest {
             task_id,
             source_id: id,
             label,
             root,
             database_root,
+            rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
+        })
+    }
+
+    fn begin_source_scan_without_selection(
+        &mut self,
+        source_index: usize,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        if self.source.sources[source_index]
+            .refresh_availability_from_disk()
+            .is_missing()
+        {
+            return None;
+        }
+        if self.source.sources[source_index].root_folder.is_some()
+            || self.source.sources[source_index].loading_task.is_some()
+        {
+            return None;
+        }
+        self.source.sources[source_index].loading_task = Some(task_id);
+        let source = self.source.sources[source_index].clone();
+        Some(FolderScanRequest {
+            task_id,
+            source_id: source.id,
+            label: source.label,
+            root: source.root,
+            database_root: source.database_root,
             rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
         })
     }

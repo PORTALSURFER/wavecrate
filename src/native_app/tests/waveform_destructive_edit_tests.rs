@@ -122,6 +122,31 @@ fn enter_confirms_pending_destructive_edit_modal() {
 }
 
 #[test]
+fn escape_cancels_protected_extraction_target_source_modal() {
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    let prompt = crate::native_app::app::PendingProtectedExtractionTargetSource {
+        action: crate::native_app::app::PendingProtectedExtractionAction::ExtractPlaymarkedRange,
+        title: String::from("Target source required"),
+        message: String::from("Add a writable target source."),
+    };
+    state
+        .ui
+        .browser_interaction
+        .pending_protected_extraction_target_source = Some(prompt);
+
+    let resolution = crate::native_app::test_support::state::default_gui_shortcuts(&state)
+        .resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::CancelProtectedExtractionTargetSource)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn crop_request_uses_play_selection_when_no_edit_selection_exists() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("crop.wav");
     let path = PathBuf::from(&selected_file);
@@ -280,6 +305,145 @@ fn protected_extract_and_trim_extracts_to_primary_without_mutating_origin() {
             .join(harvest_source_folder)
             .join("protected-extract-trim_extraction.wav")
     );
+}
+
+#[test]
+fn protected_extract_without_writable_target_opens_target_source_prompt() {
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-extract-needs-target.wav");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current = crate::native_app::test_support::state::WaveformState::load_path(path)
+        .expect("load waveform");
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+
+    state.apply_message(
+        GuiMessage::RequestExtractAndTrimWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    let pending = state
+        .ui
+        .browser_interaction
+        .pending_protected_extraction_target_source
+        .as_ref()
+        .expect("protected extraction should prompt for a writable target source");
+    assert_eq!(
+        pending.action,
+        crate::native_app::app::PendingProtectedExtractionAction::WaveformDestructiveEdit {
+            kind: crate::native_app::app::WaveformDestructiveEditKind::ExtractAndTrimSelection,
+            target: crate::native_app::app::WaveformDestructiveEditTarget::ActiveSelection,
+        }
+    );
+    assert!(
+        pending.message.contains("protected source"),
+        "message should explain the protected-source requirement: {}",
+        pending.message
+    );
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_waveform_destructive_edit
+            .is_none()
+    );
+    assert!(state.ui.status.sample.contains("writable target source"));
+
+    state.apply_message(
+        GuiMessage::CancelProtectedExtractionTargetSource,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .is_none()
+    );
+}
+
+#[test]
+fn protected_extract_target_source_dialog_marks_primary_and_resumes_extraction() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let (mut state, source_root, selected_file) =
+        native_app_state_with_temp_sample("protected-extract-add-target.wav");
+    let target_root = tempfile::tempdir().expect("target source root");
+    let protected_source =
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            protected_source.clone(),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(selected_file.clone());
+    let path = PathBuf::from(&selected_file);
+    let harvest_source_folder = source_root
+        .path()
+        .file_name()
+        .expect("source root folder name");
+    let extracted = target_root
+        .path()
+        .join("_Harvests")
+        .join(harvest_source_folder)
+        .join("protected-extract-add-target_extraction.wav");
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    state.apply_message(
+        GuiMessage::RequestExtractAndTrimWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .is_some()
+    );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::ProtectedExtractionTargetSourceDialogFinished(Ok(
+            radiant::runtime::PlatformResponse::Path(target_root.path().to_path_buf()),
+        )),
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_protected_extraction_target_source
+            .is_none()
+    );
+    let target_source_id = state
+        .library
+        .folder_browser
+        .source_id_for_root_path(target_root.path())
+        .expect("target source should be configured");
+    assert_eq!(
+        state.library.folder_browser.source_role(&target_source_id),
+        Some(wavecrate::sample_sources::SourceRole::Primary)
+    );
+    assert_samples_close(&read_test_wav_f32(&path), &[0.0, 1_000.0, 2_000.0, 3_000.0]);
+    assert_samples_close(&read_test_wav_f32(&extracted), &[1_000.0]);
 }
 
 #[test]

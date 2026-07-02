@@ -320,6 +320,8 @@ pub(in crate::native_app) struct BrowserInteractionState {
     pub(in crate::native_app) pending_folder_delete: Option<PendingFolderDelete>,
     pub(in crate::native_app) pending_waveform_destructive_edit:
         Option<PendingWaveformDestructiveEdit>,
+    pub(in crate::native_app) pending_protected_extraction_target_source:
+        Option<PendingProtectedExtractionTargetSource>,
     pub(in crate::native_app) cut_file_clipboard: Option<CutFileClipboard>,
     pub(in crate::native_app) cut_file_paste_task_id: Option<u64>,
     pub(in crate::native_app) native_file_drop_hover: Option<NativeFileDropHover>,
@@ -388,6 +390,23 @@ pub(in crate::native_app) struct PendingWaveformDestructiveEdit {
     pub(in crate::native_app) selection: SelectionRange,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct PendingProtectedExtractionTargetSource {
+    pub(in crate::native_app) action: PendingProtectedExtractionAction,
+    pub(in crate::native_app) title: String,
+    pub(in crate::native_app) message: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum PendingProtectedExtractionAction {
+    WaveformDestructiveEdit {
+        kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
+    },
+    ExtractPlaymarkedRange,
+    ExtractPlaymarkedRangeToHarvestDestination,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum WaveformDestructiveEditKind {
     CropSelection,
@@ -397,6 +416,12 @@ pub(in crate::native_app) enum WaveformDestructiveEditKind {
     ExtractAndTrimSelection,
     ApplyEditSelectionEffects,
     SlideSampleAudio { frame_offset: i64 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum WaveformDestructiveEditTarget {
+    ActiveSelection,
+    PlaySelection,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

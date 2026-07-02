@@ -95,6 +95,7 @@ pub(in crate::native_app) fn sample_workspace_overlays(
     ui::overlays()
         .dismissible_context_menu_opt(context_menu_overlay(state), GuiMessage::CloseContextMenu)
         .blocking_modal_opt(folder_delete_confirmation_overlay(state))
+        .blocking_modal_opt(protected_extraction_target_source_overlay(state))
         .blocking_modal_opt(waveform_destructive_edit_overlay(state))
         .blocking_modal_opt(file_move_conflict_overlay(state))
         .blocking_modal_opt(shortcut_help_overlay(state))
@@ -146,6 +147,17 @@ fn waveform_destructive_edit_overlay(state: &NativeAppState) -> Option<ui::View<
         .pending_waveform_destructive_edit
         .is_some()
         .then(|| modals::waveform_destructive_edit_confirmation(state))
+}
+
+fn protected_extraction_target_source_overlay(
+    state: &NativeAppState,
+) -> Option<ui::View<GuiMessage>> {
+    state
+        .ui
+        .browser_interaction
+        .pending_protected_extraction_target_source
+        .is_some()
+        .then(|| modals::protected_extraction_target_source(state))
 }
 
 fn shortcut_help_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
