@@ -429,6 +429,11 @@ fn release_workflows_verify_published_artifacts_after_publication() {
         VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("pkeyutl"),
         "post-publish verifier must verify checksum signatures"
     );
+    assert!(
+        VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("/gate?donation_amount=0.00")
+            && VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("download_token"),
+        "PortalSurfer post-publish downloads must verify through the public download gate"
+    );
 }
 
 #[test]
