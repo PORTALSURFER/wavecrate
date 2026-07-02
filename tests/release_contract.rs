@@ -25,6 +25,8 @@ const PUBLISH_PORTALSURFER_SCRIPT: &str =
     include_str!("../scripts/internal/release/publish_portalsurfer_release.sh");
 const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
     include_str!("../scripts/internal/release/sign_release_checksums.sh");
+const WRITE_RELEASE_SUMMARY_SCRIPT: &str =
+    include_str!("../scripts/internal/release/write_release_step_summary.sh");
 const VALIDATE_PROMOTED_RC_SCRIPT: &str =
     include_str!("../scripts/internal/release/validate_promoted_rc_release.py");
 const VERIFY_PORTALSURFER_UPLOAD_CATALOG_SCRIPT: &str =
@@ -122,6 +124,105 @@ fn nightly_workflow_runs_validation_before_build_and_publish() {
             && test_position < publish_frontend_position
             && test_position < publish_github_position,
         "nightly validation job should be declared before build and publish jobs"
+    );
+}
+
+#[test]
+fn release_workflows_define_timeouts_and_step_summaries() {
+    for (workflow_name, workflow, jobs) in [
+        (
+            "nightly workflow",
+            NIGHTLY_WORKFLOW,
+            &[
+                ("resolve-main", "10"),
+                ("release-log", "20"),
+                ("test", "75"),
+                ("build", "120"),
+                ("publish-github", "30"),
+                ("publish-frontend", "45"),
+            ][..],
+        ),
+        (
+            "RC workflow",
+            RC_WORKFLOW,
+            &[
+                ("resolve", "15"),
+                ("test", "75"),
+                ("build", "120"),
+                ("publish", "45"),
+            ][..],
+        ),
+        (
+            "stable workflow",
+            STABLE_WORKFLOW,
+            &[
+                ("resolve", "30"),
+                ("test", "75"),
+                ("build", "120"),
+                ("publish", "45"),
+            ][..],
+        ),
+        (
+            "release train prep workflow",
+            RELEASE_TRAIN_PREP_WORKFLOW,
+            &[("prepare", "60")][..],
+        ),
+    ] {
+        for (job, minutes) in jobs {
+            assert_job_timeout(workflow_name, workflow, job, minutes);
+        }
+        assert!(
+            workflow.contains("if: ${{ always() }}"),
+            "{workflow_name} must write release summaries from always() steps"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/write_release_step_summary.sh \\"),
+            "{workflow_name} must use the shared release summary helper"
+        );
+    }
+}
+
+#[test]
+fn portalsurfer_publish_helper_bounds_http_and_summarizes_state() {
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .contains("PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS=\"${PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS:-10}\""),
+        "PortalSurfer helper must default to a bounded connect timeout"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .contains("PORTALSURFER_RELEASE_MAX_TIME_SECONDS=\"${PORTALSURFER_RELEASE_MAX_TIME_SECONDS:-300}\""),
+        "PortalSurfer helper must default to a bounded per-request transfer timeout"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .contains("--connect-timeout \"$PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS\"")
+            && PUBLISH_PORTALSURFER_SCRIPT
+                .contains("--max-time \"$PORTALSURFER_RELEASE_MAX_TIME_SECONDS\""),
+        "PortalSurfer curl calls must include connection and total transfer bounds"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT
+            .matches("curl \"${curl_args[@]}\"")
+            .count()
+            >= 5,
+        "PortalSurfer upload, commit, and verification fetches must use the bounded curl policy"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("write_portalsurfer_summary \"$status_code\""),
+        "PortalSurfer helper must summarize success or the failed upload phase"
+    );
+    assert!(
+        WRITE_RELEASE_SUMMARY_SCRIPT.contains("GITHUB_STEP_SUMMARY")
+            && WRITE_RELEASE_SUMMARY_SCRIPT.contains("SHA-256")
+            && WRITE_RELEASE_SUMMARY_SCRIPT.contains("PortalSurfer catalog"),
+        "release summary helper must write structured public release metadata"
+    );
+    assert!(
+        !WRITE_RELEASE_SUMMARY_SCRIPT.contains("UPLOAD_TOKEN")
+            && !WRITE_RELEASE_SUMMARY_SCRIPT.contains("SIGNING_KEY")
+            && !WRITE_RELEASE_SUMMARY_SCRIPT.contains("APPLE_"),
+        "release summary helper must not read or print release secrets"
     );
 }
 
@@ -911,6 +1012,35 @@ fn workflow_release_targets(workflow: &str) -> BTreeSet<ReleaseTarget> {
     insert_workflow_entry(&mut targets, &mut entry);
 
     targets
+}
+
+fn assert_job_timeout(workflow_name: &str, workflow: &str, job: &str, minutes: &str) {
+    let block = workflow_job_block(workflow, job);
+    assert!(
+        block.contains(&format!("timeout-minutes: {minutes}")),
+        "{workflow_name} job {job} must declare timeout-minutes: {minutes}"
+    );
+}
+
+fn workflow_job_block(workflow: &str, job: &str) -> String {
+    let marker = format!("  {job}:");
+    let mut found = false;
+    let mut block = Vec::new();
+    for line in workflow.lines() {
+        if line == marker {
+            found = true;
+            block.push(line);
+            continue;
+        }
+        if found && line.starts_with("  ") && !line.starts_with("    ") && line.ends_with(':') {
+            break;
+        }
+        if found {
+            block.push(line);
+        }
+    }
+    assert!(found, "workflow job {job} must exist");
+    block.join("\n")
 }
 
 fn insert_workflow_entry(

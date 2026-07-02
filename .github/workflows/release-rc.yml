@@ -31,6 +31,7 @@ jobs:
   resolve:
     name: Resolve RC target
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       target_sha: ${{ steps.resolve.outputs.target_sha }}
       target_version: ${{ steps.resolve.outputs.target_version }}
@@ -96,6 +97,7 @@ jobs:
   test:
     name: Run RC validation tests
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     needs: resolve
     steps:
       - uses: actions/checkout@v4
@@ -121,6 +123,7 @@ jobs:
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} RC
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     needs: [resolve, test]
     strategy:
       fail-fast: false
@@ -192,6 +195,7 @@ jobs:
   publish:
     name: Publish GitHub RC
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [resolve, build]
     steps:
       - uses: actions/checkout@v4
@@ -304,3 +308,27 @@ jobs:
             --build-number "${{ needs.resolve.outputs.build_number }}" \
             --source PortalSurfer \
             --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
+      - name: Summarize RC release publication
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SUMMARY_STATUS: ${{ job.status }}
+          PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
+        run: |
+          upload_base="${PORTALSURFER_RELEASE_UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
+          upload_base="${upload_base%/}"
+          scripts/internal/release/write_release_step_summary.sh \
+            --title "RC release publication" \
+            --status "$SUMMARY_STATUS" \
+            --channel rc \
+            --version "${{ needs.resolve.outputs.release_version }}" \
+            --target-version "${{ needs.resolve.outputs.target_version }}" \
+            --commit "${{ needs.resolve.outputs.target_sha }}" \
+            --build-id "${{ needs.resolve.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve.outputs.build_number }}" \
+            --github-tag "${{ needs.resolve.outputs.release_tag }}" \
+            --github-release-url "https://github.com/${{ github.repository }}/releases/tag/${{ needs.resolve.outputs.release_tag }}" \
+            --portal-catalog-url "${upload_base%/release-uploads}/releases" \
+            --portal-build-id "${{ needs.resolve.outputs.portal_build_id }}" \
+            --artifact-dir dist/release \
+            --checksum-file "dist/release/checksums-${{ needs.resolve.outputs.release_version }}.txt"

@@ -75,6 +75,77 @@ fn assemble_release_files_copies_zips_and_combines_checksum_entries() {
 }
 
 #[test]
+fn release_summary_helper_writes_public_metadata_without_secret_values() {
+    let temp = tempfile::tempdir().expect("create summary fixture");
+    let artifact_dir = temp.path().join("release");
+    let summary_file = temp.path().join("summary.md");
+    fs::create_dir_all(&artifact_dir).expect("create release dir");
+    fs::write(
+        artifact_dir.join("wavecrate-19.1.0-windows-x86_64.zip"),
+        "not a real zip but enough for summary hashing\n",
+    )
+    .expect("write artifact");
+    fs::write(
+        artifact_dir.join("checksums-19.1.0.txt"),
+        "abc  wavecrate-19.1.0-windows-x86_64.zip\n",
+    )
+    .expect("write checksum");
+
+    run_success(
+        Command::new("bash")
+            .arg(repo_path(
+                "scripts/internal/release/write_release_step_summary.sh",
+            ))
+            .arg("--title")
+            .arg("Stable release publication")
+            .arg("--status")
+            .arg("success")
+            .arg("--channel")
+            .arg("stable")
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--target-version")
+            .arg("19.1.0")
+            .arg("--commit")
+            .arg("abcdef123456")
+            .arg("--build-id")
+            .arg("wavecrate-19.1.0")
+            .arg("--build-number")
+            .arg("6258")
+            .arg("--github-release-url")
+            .arg("https://github.com/PORTALSURFER/wavecrate/releases/tag/v19.1.0")
+            .arg("--portal-catalog-url")
+            .arg("https://portalsurfer.org/wavecrate/api/v1/releases")
+            .arg("--portal-build-id")
+            .arg("wavecrate-19.1.0")
+            .arg("--artifact-dir")
+            .arg(&artifact_dir)
+            .arg("--checksum-file")
+            .arg(artifact_dir.join("checksums-19.1.0.txt"))
+            .arg("--note")
+            .arg("fixture note")
+            .env("GITHUB_STEP_SUMMARY", &summary_file)
+            .env(
+                "PORTALSURFER_RELEASE_UPLOAD_TOKEN",
+                "super-secret-upload-token",
+            )
+            .env("CHECKSUMS_SIGNING_KEY", "super-secret-signing-key")
+            .env(
+                "APPLE_DEVELOPER_ID_APPLICATION_CERT_BASE64",
+                "super-secret-apple-cert",
+            ),
+    );
+
+    let summary = fs::read_to_string(summary_file).expect("read summary");
+    assert!(summary.contains("## Stable release publication"));
+    assert!(summary.contains("wavecrate-19.1.0-windows-x86_64.zip"));
+    assert!(summary.contains("checksums-19.1.0.txt"));
+    assert!(summary.contains("PortalSurfer catalog"));
+    assert!(summary.contains("SHA-256"));
+    assert!(!summary.contains("super-secret"));
+}
+
+#[test]
 fn checksum_signing_helper_writes_signature_and_verifies_expected_pubkey() {
     let temp = tempfile::tempdir().expect("create signing fixture");
     let key = temp.path().join("ed25519.pem");
