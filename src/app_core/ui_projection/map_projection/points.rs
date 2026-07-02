@@ -1,6 +1,7 @@
 use super::super::waveform_projection::normalized_to_milli;
-use crate::app_core::controller::{
-    AppController, ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey,
+use crate::app_core::controller::AppController;
+use crate::app_core::map_projection_contracts::{
+    ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey,
 };
 use crate::app_core::state::{MapBounds, MapPoint};
 use std::collections::HashSet;

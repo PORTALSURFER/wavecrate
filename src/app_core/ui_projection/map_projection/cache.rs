@@ -1,4 +1,5 @@
-use crate::app_core::controller::{AppController, ProjectedMapPointsCacheKey, UmapPointQuery};
+use crate::app_core::controller::AppController;
+use crate::app_core::map_projection_contracts::{ProjectedMapPointsCacheKey, UmapPointQuery};
 use crate::app_core::state::{MapBounds, MapPoint, MapQueryBounds};
 use crate::app_core::ui::MAX_RENDERED_MAP_POINTS;
 use crate::sample_sources::SourceId;

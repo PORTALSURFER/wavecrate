@@ -1,8 +1,8 @@
-use super::super::super::super::super::state::MapQueryBounds;
-use super::super::UmapPointQuery;
 use super::{
     bounds::load_umap_bounds, clusters::load_umap_cluster_centroids, points::load_umap_points,
 };
+use crate::app_core::map_projection_contracts::UmapPointQuery;
+use crate::app_core::state::MapQueryBounds;
 use crate::sample_sources::SourceId;
 use rusqlite::Connection;
 

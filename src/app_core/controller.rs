@@ -28,12 +28,6 @@ pub(crate) use frame_preparation::UiFramePreparationPlan;
 pub use startup::build_ui_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = CurrentAppController;
-/// Retained map-point cache key used by ui-projection helpers.
-pub(crate) type ProjectedMapPointsCacheKey = current_controller::ProjectedMapPointsCacheKey;
-/// Retained normalized map-point cache entry used by ui-projection helpers.
-pub(crate) type ProjectedMapPointCacheEntry = current_controller::ProjectedMapPointCacheEntry;
-/// Map-point query payload alias used by ui-projection map projection.
-pub(crate) type UmapPointQuery<'a> = current_controller::UmapPointQuery<'a>;
 /// Retained controller dirty graph node identifiers used by frame preparation and bridge adapters.
 pub(crate) type DerivedNodeId = current_controller::DerivedNodeId;
 /// Retained controller dirty graph reason identifiers used by bridge adapters.

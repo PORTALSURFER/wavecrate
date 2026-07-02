@@ -43,6 +43,9 @@ pub(crate) mod updates;
 use crate::app_core::browser_projection_cache::{
     ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry, ProjectedSelectedPathsLookup,
 };
+use crate::app_core::map_projection_contracts::{
+    ProjectedMapPointCacheEntry, ProjectedMapPointsCacheKey,
+};
 pub(crate) use crate::app_core::state::StatusTone;
 use crate::{
     app::state::UiState,
@@ -80,7 +83,6 @@ use tracing::info;
 
 #[cfg(test)]
 pub(crate) use ui::loading::ApplyWavEntriesParams;
-pub(crate) use ui::starmap_view::UmapPointQuery;
 pub(crate) use ui::status_message::StatusMessage;
 
 pub(crate) const MIN_SELECTION_WIDTH: f32 = 0.001;
@@ -92,28 +94,6 @@ pub(crate) const RANDOM_HISTORY_LIMIT: usize = 20;
 pub(crate) const FOCUS_HISTORY_LIMIT: usize = 100;
 pub(crate) const UNDO_LIMIT: usize = 20;
 pub(crate) const STATUS_LOG_LIMIT: usize = 200;
-
-/// Cache key for retained map-point projection payloads.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ProjectedMapPointsCacheKey {
-    /// Stable hash of the active source identifier.
-    pub source_id_hash: u64,
-    /// Stable hash of the active UMAP version.
-    pub umap_version_hash: u64,
-    /// Monotonic revision for cached map points.
-    pub points_revision: u64,
-    /// Bitwise query minimum X bound.
-    pub query_min_x_bits: u32,
-    /// Bitwise query maximum X bound.
-    pub query_max_x_bits: u32,
-    /// Bitwise query minimum Y bound.
-    pub query_min_y_bits: u32,
-    /// Bitwise query maximum Y bound.
-    pub query_max_y_bits: u32,
-}
-
-/// Retained immutable map-point payload reused across native map projections.
-pub(crate) type ProjectedMapPointCacheEntry = crate::app_core::actions::NativeMapPointModel;
 
 /// Maintains app state and bridges core logic to the active GUI runtime.
 pub struct AppController {

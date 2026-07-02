@@ -2,6 +2,7 @@
 
 use crate::app::controller::library::analysis_jobs;
 use crate::app::state::SampleBrowserTab;
+use crate::app_core::map_projection_contracts::UmapPointQuery;
 use std::collections::HashMap;
 
 use super::connections::open_cached_source_db;
