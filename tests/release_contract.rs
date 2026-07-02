@@ -32,6 +32,7 @@ const VERIFY_PORTALSURFER_UPLOAD_CATALOG_SCRIPT: &str =
 const VERIFY_PUBLISHED_RELEASE_SCRIPT: &str =
     include_str!("../scripts/internal/release/verify_published_release.py");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
+const CHECKSUMS_PUBLIC_KEY: &str = "8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=";
 
 #[test]
 fn platform_labels_are_active_release_labels_only() {
@@ -444,7 +445,7 @@ fn release_workflows_verify_published_artifacts_after_publication() {
             "{name} must verify the published assets with the matching release channel"
         );
         assert!(
-            workflow.contains("--checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4="),
+            workflow.contains(&format!("--checksum-public-key {CHECKSUMS_PUBLIC_KEY}")),
             "{name} must verify checksum signatures with the pinned public key"
         );
         assert!(
@@ -481,6 +482,36 @@ fn release_workflows_verify_published_artifacts_after_publication() {
             && VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("download_token"),
         "PortalSurfer post-publish downloads must verify through the public download gate"
     );
+}
+
+#[test]
+fn release_workflows_verify_signing_key_before_public_github_publish() {
+    for (name, workflow, publish_step) in [
+        (
+            "nightly workflow",
+            NIGHTLY_WORKFLOW,
+            "Refresh rolling nightly release assets",
+        ),
+        ("RC workflow", RC_WORKFLOW, "Publish RC release"),
+        ("stable workflow", STABLE_WORKFLOW, "Publish stable release"),
+    ] {
+        let sign_position = workflow
+            .find("scripts/internal/release/sign_release_checksums.sh \\")
+            .unwrap_or_else(|| panic!("{name} must sign release checksums"));
+        let publish_position = workflow
+            .find(publish_step)
+            .unwrap_or_else(|| panic!("{name} must publish a public GitHub release"));
+        assert!(
+            sign_position < publish_position,
+            "{name} must sign and verify checksums before public GitHub release publication"
+        );
+
+        let pre_publish = &workflow[sign_position..publish_position];
+        assert!(
+            pre_publish.contains(&format!("--verify-public-key {CHECKSUMS_PUBLIC_KEY}")),
+            "{name} must verify the checksum signing key against the pinned public key before public GitHub release publication"
+        );
+    }
 }
 
 #[test]
