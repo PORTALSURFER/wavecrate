@@ -21,6 +21,17 @@ fn assert_no_white_hover_border(plan: &SurfacePaintPlan) {
     );
 }
 
+fn fill_index(
+    fills: &[&PaintFillRect],
+    label: &str,
+    predicate: impl Fn(&PaintFillRect) -> bool,
+) -> usize {
+    fills
+        .iter()
+        .position(|fill| predicate(fill))
+        .unwrap_or_else(|| panic!("expected fill for {label}, got {fills:?}"))
+}
+
 #[test]
 fn overlay_paint_projects_play_edit_and_playhead_markers() {
     let mut state = WaveformState::synthetic_for_tests();
@@ -278,6 +289,97 @@ fn editmark_bottom_resize_handles_paint_on_base_edit_selection() {
             && (fill.rect.max.y - 80.0).abs() < 0.001
             && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
     }));
+}
+
+#[test]
+fn playmark_resize_handles_paint_above_boundary_and_play_start_lines() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    let left_boundary = fill_index(&fills, "left playmark boundary", |fill| {
+        (fill.rect.center().x - 40.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+    });
+    let right_boundary = fill_index(&fills, "right playmark boundary", |fill| {
+        (fill.rect.center().x - 120.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+    });
+    let play_start_marker = fill_index(&fills, "play-start marker", |fill| {
+        (fill.rect.center().x - 40.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
+    });
+    let left_handle = fill_index(&fills, "left playmark resize handle", |fill| {
+        (fill.rect.min.x - 36.5).abs() < 0.001
+            && (fill.rect.max.x - 43.5).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 22.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 220)
+    });
+    let right_handle = fill_index(&fills, "right playmark resize handle", |fill| {
+        (fill.rect.min.x - 116.5).abs() < 0.001
+            && (fill.rect.max.x - 123.5).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 22.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 220)
+    });
+
+    assert!(
+        left_boundary < left_handle,
+        "left resize handle should paint above the playmark boundary line"
+    );
+    assert!(
+        right_boundary < right_handle,
+        "right resize handle should paint above the playmark boundary line"
+    );
+    assert!(
+        play_start_marker < left_handle,
+        "left resize handle should paint above the bright play-start marker"
+    );
+}
+
+#[test]
+fn editmark_resize_handles_paint_above_boundary_lines() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    let left_boundary = fill_index(&fills, "left editmark boundary", |fill| {
+        (fill.rect.center().x - 40.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+    });
+    let right_boundary = fill_index(&fills, "right editmark boundary", |fill| {
+        (fill.rect.center().x - 120.0).abs() < 1.0
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+    });
+    let left_handle = fill_index(&fills, "left editmark resize handle", |fill| {
+        (fill.rect.min.x - 36.5).abs() < 0.001
+            && (fill.rect.max.x - 43.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+    });
+    let right_handle = fill_index(&fills, "right editmark resize handle", |fill| {
+        (fill.rect.min.x - 116.5).abs() < 0.001
+            && (fill.rect.max.x - 123.5).abs() < 0.001
+            && (fill.rect.min.y - 58.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 190)
+    });
+
+    assert!(
+        left_boundary < left_handle,
+        "left editmark resize handle should paint above the boundary line"
+    );
+    assert!(
+        right_boundary < right_handle,
+        "right editmark resize handle should paint above the boundary line"
+    );
 }
 
 #[test]

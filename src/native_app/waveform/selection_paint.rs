@@ -58,23 +58,28 @@ impl WaveformWidget {
         bounds: Rect,
     ) {
         let mut paint = WidgetPaint::new(primitives, self.common.id);
-        if self.extracted_range_overlays_visible() {
-            self.append_extracted_range_paint(&mut paint, bounds);
-        }
-        if self.similar_section_overlays_visible() {
-            self.append_similar_section_paint(&mut paint, bounds);
-        }
-        if self.should_paint_committed_selection(WaveformSelectionKind::Play)
-            && let Some(geometry) = self.selection_geometry(bounds, self.play_selection)
+        let mut handle_primitives = Vec::new();
         {
-            self.append_play_selection_paint(&mut paint, bounds, geometry);
-        }
-        if self.should_paint_committed_selection(WaveformSelectionKind::Edit)
-            && let Some(geometry) = self.selection_geometry(bounds, self.edit_selection)
-        {
-            self.append_edit_selection_paint(&mut paint, bounds, geometry);
+            let mut handle_paint = WidgetPaint::new(&mut handle_primitives, self.common.id);
+            if self.extracted_range_overlays_visible() {
+                self.append_extracted_range_paint(&mut paint, bounds);
+            }
+            if self.similar_section_overlays_visible() {
+                self.append_similar_section_paint(&mut paint, bounds);
+            }
+            if self.should_paint_committed_selection(WaveformSelectionKind::Play)
+                && let Some(geometry) = self.selection_geometry(bounds, self.play_selection)
+            {
+                self.append_play_selection_paint(&mut paint, &mut handle_paint, bounds, geometry);
+            }
+            if self.should_paint_committed_selection(WaveformSelectionKind::Edit)
+                && let Some(geometry) = self.selection_geometry(bounds, self.edit_selection)
+            {
+                self.append_edit_selection_paint(&mut paint, &mut handle_paint, bounds, geometry);
+            }
         }
         self.append_marker_paint(&mut paint, bounds);
+        paint.primitives_mut().extend(handle_primitives);
     }
 
     fn append_extracted_range_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
@@ -162,6 +167,7 @@ impl WaveformWidget {
     fn append_play_selection_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
+        handle_paint: &mut WidgetPaint<'_>,
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
@@ -188,7 +194,7 @@ impl WaveformWidget {
         );
         self.append_selection_boundary_cursors(paint, bounds, self.play_selection, style, 1.25);
         self.append_selection_affordance_paint(
-            paint,
+            handle_paint,
             geometry,
             CanvasSelectionAffordanceStyle::new()
                 .with_edge(selection_resize_edge_style())
@@ -385,6 +391,7 @@ impl WaveformWidget {
     fn append_edit_selection_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
+        handle_paint: &mut WidgetPaint<'_>,
         bounds: Rect,
         geometry: CanvasSelectionGeometry,
     ) {
@@ -411,16 +418,21 @@ impl WaveformWidget {
         );
         self.append_selection_boundary_cursors(paint, bounds, self.edit_selection, style, 1.25);
         self.append_selection_affordance_paint(
-            paint,
+            handle_paint,
             geometry,
             CanvasSelectionAffordanceStyle::new().with_body(selection_move_handle_style()),
             style.affordance_paint_parts(bounds),
         );
         if let Some(selection) = self.edit_selection {
-            self.append_edit_selection_resize_handle_paint(paint, bounds, geometry, selection);
+            self.append_edit_selection_resize_handle_paint(
+                handle_paint,
+                bounds,
+                geometry,
+                selection,
+            );
         }
         self.append_edit_gain_handle_for_geometry_paint(
-            paint,
+            handle_paint,
             bounds,
             geometry,
             edit_selection_handle_color(denied_flash_active).with_alpha(
