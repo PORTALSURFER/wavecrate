@@ -923,9 +923,79 @@ fn committed_selection_paints_as_resize_fallback_until_preview_is_live() {
 }
 
 #[test]
-fn beat_guides_do_not_paint_during_live_selection_creation_preview() {
+fn beat_guides_paint_from_live_playmark_creation_preview() {
     let state = WaveformState::synthetic_for_tests();
-    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 16);
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert_beat_guides_at(&fills, &[60.0, 80.0, 100.0]);
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }),
+        "the live playmark creation preview should still paint"
+    );
+}
+
+#[test]
+fn beat_guides_paint_from_live_editmark_creation_preview() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Edit,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Edit,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert_beat_guides_at(&fills, &[60.0, 80.0, 100.0]);
+    assert!(
+        fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 46)
+        }),
+        "the live editmark creation preview should still paint"
+    );
+}
+
+#[test]
+fn beat_guides_update_for_wider_live_creation_preview() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, true, 4);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.1, 0.7),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(200.0, 80.0));
+    let fills = fill_rects(&plan);
+
+    assert_beat_guides_at(&fills, &[50.0, 80.0, 110.0]);
+}
+
+#[test]
+fn beat_guides_remain_hidden_for_live_creation_preview_when_disabled() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state_with_beat_guides(&state, false, 4);
     widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
         WaveformSelectionKind::Play,
     ));
@@ -938,18 +1008,8 @@ fn beat_guides_do_not_paint_during_live_selection_creation_preview() {
     let fills = fill_rects(&plan);
 
     assert!(
-        fills.iter().all(
-            |fill| (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (255, 214, 188, 170)
-        ),
-        "beat guides should wait for drag release during fresh selection creation"
-    );
-    assert!(
-        fills.iter().any(|fill| {
-            (fill.rect.min.x - 40.0).abs() < 0.001
-                && (fill.rect.max.x - 120.0).abs() < 0.001
-                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
-        }),
-        "the live selection preview should still paint"
+        beat_guide_fills(&fills).is_empty(),
+        "disabled beat guides should not paint during live creation previews"
     );
 }
 

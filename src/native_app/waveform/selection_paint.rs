@@ -242,7 +242,8 @@ impl WaveformWidget {
         preview: super::widget::LiveSelectionPreview,
     ) {
         match self.active_drag_kind {
-            Some(WaveformActiveDragKind::SelectionMove(kind))
+            Some(WaveformActiveDragKind::Selection(kind))
+            | Some(WaveformActiveDragKind::SelectionMove(kind))
             | Some(WaveformActiveDragKind::SelectionResize(kind, _))
                 if kind == preview.kind =>
             {
