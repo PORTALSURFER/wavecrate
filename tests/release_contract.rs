@@ -9,6 +9,8 @@ const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.
 const RC_WORKFLOW: &str = include_str!("../.github/workflows/release-rc.yml");
 const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml");
 const RELEASE_ZIP_SCRIPT: &str = include_str!("../scripts/internal/release/build_release_zip.sh");
+const RELEASE_LOG_SCRIPT: &str =
+    include_str!("../scripts/internal/release/generate_release_log.sh");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 
 #[test]
@@ -230,6 +232,63 @@ fn stable_workflow_requires_matching_rc_before_publish() {
     assert!(
         STABLE_WORKFLOW.contains("Latest RC ${rc_tag} points at"),
         "stable workflow must require the latest RC tag to point at the stable target commit"
+    );
+}
+
+#[test]
+fn rc_and_stable_workflows_use_structured_release_log_generator() {
+    for (name, workflow) in [
+        ("RC workflow", RC_WORKFLOW),
+        ("stable workflow", STABLE_WORKFLOW),
+    ] {
+        assert!(
+            workflow.contains("fetch-depth: 0"),
+            "{name} must fetch full history so release log ranges can be generated"
+        );
+        assert!(
+            workflow.contains("tool: git-cliff"),
+            "{name} must install git-cliff for generated release logs"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/generate_release_log.sh \\"),
+            "{name} must invoke the shared structured release-log generator"
+        );
+        assert!(
+            workflow.contains("body_path: dist/release/release-log.md"),
+            "{name} must publish the generated release log as the GitHub release body"
+        );
+    }
+    assert!(
+        !RC_WORKFLOW.contains("Release candidate for final validation."),
+        "RC workflow must not fall back to a manual-only minimal release body"
+    );
+    assert!(
+        !STABLE_WORKFLOW.contains("Stable release promoted from ${RC_TAG}."),
+        "stable workflow must not fall back to a manual-only minimal release body"
+    );
+}
+
+#[test]
+fn structured_release_log_generator_declares_required_sections() {
+    for section in [
+        "## Release Metadata",
+        "## Artifacts",
+        "## Checksums",
+        "## Manual Notes",
+        "## Generated Changes",
+    ] {
+        assert!(
+            RELEASE_LOG_SCRIPT.contains(section),
+            "release log generator must declare {section}"
+        );
+    }
+    assert!(
+        RELEASE_LOG_SCRIPT.contains("git cliff"),
+        "release log generator must try git-cliff before using the fallback"
+    );
+    assert!(
+        RELEASE_LOG_SCRIPT.contains("git log --no-merges --pretty=format:'- %s'"),
+        "release log generator must keep a deterministic commit-list fallback"
     );
 }
 
