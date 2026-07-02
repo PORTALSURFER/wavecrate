@@ -254,7 +254,8 @@ jobs:
         run: |
           scripts/internal/release/sign_release_checksums.sh \
             --checksum-file "dist/release/checksums-${VERSION}.txt" \
-            --signature-file "dist/release/checksums-${VERSION}.txt.sig"
+            --signature-file "dist/release/checksums-${VERSION}.txt.sig" \
+            --verify-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
       - name: Publish stable release
         uses: softprops/action-gh-release@v1
         with:
