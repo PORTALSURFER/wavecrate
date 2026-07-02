@@ -1,4 +1,5 @@
-use super::super::{UmapPoint, UmapPointQuery};
+use super::super::UmapPoint;
+use crate::app_core::map_projection_contracts::UmapPointQuery;
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 
