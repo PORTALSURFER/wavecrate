@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 APP_CORE_DIR="$ROOT_DIR/src/app_core"
 ALLOWED_FILE="$APP_CORE_DIR/app_api.rs"
 ALLOWED_TRANSITIONAL_FILES=(
+  "$APP_CORE_DIR/browser_source_state.rs"
   "$APP_CORE_DIR/invalidation_contracts.rs"
 )
 

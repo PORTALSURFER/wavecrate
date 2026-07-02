@@ -7,6 +7,9 @@ mod app_api;
 /// Retained browser projection cache contracts owned by app-core.
 pub(crate) mod browser_projection_cache;
 
+/// Browser, source, folder, and library-hygiene state contracts owned by app-core.
+pub(crate) mod browser_source_state;
+
 /// Retained map projection query/cache contracts owned by app-core.
 pub(crate) mod map_projection_contracts;
 
