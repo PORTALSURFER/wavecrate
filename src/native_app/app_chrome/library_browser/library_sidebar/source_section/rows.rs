@@ -21,6 +21,7 @@ const SOURCE_ROLE_ICON_WIDTH: f32 = 32.0;
 const SOURCE_MISSING_BADGE_WIDTH: f32 = 56.0;
 const SOURCE_MISSING_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
 const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
+const SOURCE_PROTECTED_ERROR_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 255);
 const SOURCE_PROTECTED_ERROR_FILL: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 145);
 const SOURCE_PROTECTED_ERROR_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 175);
 const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
@@ -116,16 +117,31 @@ fn source_status_indicator(source: &SourceRowViewModel) -> ui::View<GuiMessage> 
             .height(SOURCE_ROW_HEIGHT);
     }
     match source.role {
-        SourceRole::Protected => source_role_icon(&SOURCE_ROLE_PROTECTED_ICON),
-        SourceRole::Primary => source_role_icon(&SOURCE_ROLE_PRIMARY_ICON),
+        SourceRole::Protected => {
+            source_role_icon(&SOURCE_ROLE_PROTECTED_ICON, source_role_icon_color(source))
+        }
+        SourceRole::Primary => {
+            source_role_icon(&SOURCE_ROLE_PRIMARY_ICON, source_role_icon_color(source))
+        }
         SourceRole::Normal => ui::spacer()
             .width(SOURCE_ROLE_ICON_WIDTH)
             .height(SOURCE_ROW_HEIGHT),
     }
 }
 
-fn source_role_icon(cache: &'static ui::SvgIconTintCache) -> ui::View<GuiMessage> {
-    ui::icon_button(cache.icon(SOURCE_ROLE_ICON_COLOR))
+fn source_role_icon_color(source: &SourceRowViewModel) -> ui::Rgba8 {
+    if source.role == SourceRole::Protected && source.protected_source_error_flash {
+        SOURCE_PROTECTED_ERROR_ICON_COLOR
+    } else {
+        SOURCE_ROLE_ICON_COLOR
+    }
+}
+
+fn source_role_icon(
+    cache: &'static ui::SvgIconTintCache,
+    color: ui::Rgba8,
+) -> ui::View<GuiMessage> {
+    ui::icon_button(cache.icon(color))
         .bare()
         .passive()
         .width(SOURCE_ROLE_ICON_WIDTH)
@@ -162,6 +178,18 @@ pub(super) fn source_missing_color_for_tests() -> ui::Rgba8 {
 #[cfg(test)]
 pub(super) fn source_role_icon_color_for_tests() -> ui::Rgba8 {
     SOURCE_ROLE_ICON_COLOR
+}
+
+#[cfg(test)]
+pub(super) fn source_protected_error_icon_color_for_tests() -> ui::Rgba8 {
+    SOURCE_PROTECTED_ERROR_ICON_COLOR
+}
+
+#[cfg(test)]
+pub(super) fn source_role_icon_color_for_source_for_tests(
+    source: &SourceRowViewModel,
+) -> ui::Rgba8 {
+    source_role_icon_color(source)
 }
 
 #[cfg(test)]
