@@ -101,6 +101,8 @@ catalog_url="$api_base/releases"
 full_changelog_url="$api_base/changelog"
 response_dir="$(mktemp -d)"
 trap 'rm -rf "$response_dir"' EXIT
+staged_files_tsv="$response_dir/staged-files.tsv"
+: > "$staged_files_tsv"
 
 shopt -s nullglob
 files=("${ARTIFACT_DIR}"/*.zip "${ARTIFACT_DIR}"/checksums-*.txt "${ARTIFACT_DIR}"/checksums-*.txt.sig)
@@ -121,8 +123,10 @@ for file in "${files[@]}"; do
     content_type="application/zip"
   fi
   sha256="$(sha256sum "$file" | awk '{ print $1 }')"
+  size_bytes="$(wc -c < "$file" | tr -d '[:space:]')"
   encoded_name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$file_name")"
   response_file="$response_dir/$file_name.json"
+  echo "Staging PortalSurfer release file: $file_name" >&2
   curl --fail-with-body --retry 3 --retry-delay 2 \
     --request PUT \
     --header "Authorization: Bearer $PORTALSURFER_RELEASE_UPLOAD_TOKEN" \
@@ -133,41 +137,81 @@ for file in "${files[@]}"; do
     --header "X-Wavecrate-Released-At: $RELEASED_AT" \
     --header "X-Wavecrate-Sha256: $sha256" \
     --data-binary "@$file" \
-    "$upload_base/$BUILD_ID/files/$encoded_name" > "$response_file"
-  python3 - "$response_file" "$BUILD_ID" "$BUILD_NUMBER" "$file_name" "$sha256" <<'PY'
+    "$upload_base/$BUILD_ID/staging/files/$encoded_name" > "$response_file"
+  python3 - "$response_file" "$BUILD_ID" "$file_name" "$sha256" "$size_bytes" <<'PY'
 import json
 import sys
 
-response_path, expected_build, expected_build_number, expected_name, expected_sha = sys.argv[1:]
+response_path, expected_build, expected_name, expected_sha, expected_size = sys.argv[1:]
 response = json.loads(open(response_path, encoding="utf-8").read())
-release = response.get("release") or {}
 file = response.get("file") or {}
-if release.get("build_id") != expected_build:
-    raise SystemExit(f"Uploaded release id mismatch: {release.get('build_id')} != {expected_build}")
-if release.get("build_number") != int(expected_build_number):
-    raise SystemExit(f"Uploaded release build number mismatch: {release.get('build_number')} != {expected_build_number}")
+if response.get("staged") is not True:
+    raise SystemExit("PortalSurfer did not report a staged upload")
+if response.get("build_id") != expected_build:
+    raise SystemExit(f"Staged release id mismatch: {response.get('build_id')} != {expected_build}")
 if file.get("name") != expected_name:
-    raise SystemExit(f"Uploaded file name mismatch: {file.get('name')} != {expected_name}")
+    raise SystemExit(f"Staged file name mismatch: {file.get('name')} != {expected_name}")
 if file.get("sha256") != expected_sha:
-    raise SystemExit(f"Uploaded file sha mismatch: {file.get('sha256')} != {expected_sha}")
-if not isinstance(file.get("size_bytes"), int) or file["size_bytes"] <= 0:
-    raise SystemExit("Uploaded file size was not recorded")
+    raise SystemExit(f"Staged file sha mismatch: {file.get('sha256')} != {expected_sha}")
+if file.get("size_bytes") != int(expected_size):
+    raise SystemExit(f"Staged file size mismatch: {file.get('size_bytes')} != {expected_size}")
 PY
+  printf "%s\t%s\t%s\n" "$file_name" "$sha256" "$size_bytes" >> "$staged_files_tsv"
   uploaded_names+=("$file_name")
 done
 
-changelog_response_file="$response_dir/changelog-upload.json"
+scripts/internal/release/assemble_portal_changelog.py \
+  --catalog-url "$catalog_url" \
+  --current-build-id "$BUILD_ID" \
+  --current-log "$RELEASE_LOG" \
+  --existing-changelog-url "$full_changelog_url" \
+  --generated-at "$RELEASED_AT" \
+  --output "$FULL_CHANGELOG_OUT"
+
+commit_request_file="$response_dir/release-commit.json"
+python3 - "$staged_files_tsv" "$RELEASE_LOG" "$FULL_CHANGELOG_OUT" "$RELEASED_AT" "$commit_request_file" <<'PY'
+import json
+import sys
+
+files_path, release_log_path, full_changelog_path, released_at, out_path = sys.argv[1:]
+files = []
+with open(files_path, encoding="utf-8") as handle:
+    for line in handle:
+        name, sha256, size_bytes = line.rstrip("\n").split("\t")
+        files.append({"name": name, "sha256": sha256, "size_bytes": int(size_bytes)})
+with open(release_log_path, encoding="utf-8") as handle:
+    release_log = handle.read()
+with open(full_changelog_path, encoding="utf-8") as handle:
+    full_changelog = handle.read()
+body = {
+    "files": files,
+    "changelog": {
+        "body": release_log,
+        "generated_at": released_at,
+    },
+    "full_changelog": {
+        "title": "Wavecrate changelog",
+        "body": full_changelog,
+        "generated_at": released_at,
+    },
+}
+with open(out_path, "w", encoding="utf-8") as handle:
+    json.dump(body, handle)
+PY
+
+commit_response_file="$response_dir/release-commit-response.json"
+echo "Committing PortalSurfer release: $BUILD_ID" >&2
 curl --fail-with-body --retry 3 --retry-delay 2 \
   --request PUT \
   --header "Authorization: Bearer $PORTALSURFER_RELEASE_UPLOAD_TOKEN" \
-  --header "Content-Type: text/markdown; charset=utf-8" \
+  --header "Content-Type: application/json" \
   --header "X-Wavecrate-Build-Number: ${BUILD_NUMBER}" \
   --header "X-Wavecrate-Release-Channel: $CHANNEL" \
   --header "X-Wavecrate-Release-Version: $RELEASE_VERSION" \
   --header "X-Wavecrate-Released-At: $RELEASED_AT" \
-  --data-binary "@$RELEASE_LOG" \
-  "$upload_base/$BUILD_ID/changelog" > "$changelog_response_file"
-python3 - "$changelog_response_file" "$BUILD_ID" "$BUILD_NUMBER" <<'PY'
+  --data-binary "@$commit_request_file" \
+  "$upload_base/$BUILD_ID/commit" > "$commit_response_file"
+python3 - "$commit_response_file" "$BUILD_ID" "$BUILD_NUMBER" <<'PY'
 import json
 import sys
 
@@ -175,14 +219,17 @@ response_path, expected_build, expected_build_number = sys.argv[1:]
 response = json.loads(open(response_path, encoding="utf-8").read())
 release = response.get("release") or {}
 changelog = response.get("changelog") or {}
+full_changelog = response.get("full_changelog") or {}
+if response.get("committed") is not True:
+    raise SystemExit("PortalSurfer did not report a committed release")
 if release.get("build_id") != expected_build:
-    raise SystemExit(f"Uploaded changelog release id mismatch: {release.get('build_id')} != {expected_build}")
+    raise SystemExit(f"Committed release id mismatch: {release.get('build_id')} != {expected_build}")
 if release.get("build_number") != int(expected_build_number):
-    raise SystemExit(f"Uploaded changelog build number mismatch: {release.get('build_number')} != {expected_build_number}")
-if changelog.get("format") != "markdown":
-    raise SystemExit("Uploaded changelog was not recorded as markdown")
-if not changelog.get("url"):
-    raise SystemExit("Uploaded changelog did not expose a public URL")
+    raise SystemExit(f"Committed release build number mismatch: {release.get('build_number')} != {expected_build_number}")
+if changelog.get("format") != "markdown" or not changelog.get("url"):
+    raise SystemExit("Committed release did not expose a markdown changelog URL")
+if full_changelog.get("format") != "markdown" or not full_changelog.get("url"):
+    raise SystemExit("Committed release did not expose the full changelog URL")
 PY
 
 catalog_file="$response_dir/releases.json"
@@ -215,34 +262,6 @@ expected_body = open(changelog_path, encoding="utf-8").read().strip()
 if body != expected_body:
     raise SystemExit("Fetched changelog body does not match generated release log")
 print(f"Uploaded Wavecrate release log to {expected_build}")
-PY
-
-scripts/internal/release/assemble_portal_changelog.py \
-  --catalog-url "$catalog_url" \
-  --current-build-id "$BUILD_ID" \
-  --current-log "$RELEASE_LOG" \
-  --existing-changelog-url "$full_changelog_url" \
-  --generated-at "$RELEASED_AT" \
-  --output "$FULL_CHANGELOG_OUT"
-
-full_changelog_response_file="$response_dir/full-changelog-upload.json"
-curl --fail-with-body --retry 3 --retry-delay 2 \
-  --request PUT \
-  --header "Authorization: Bearer $PORTALSURFER_RELEASE_UPLOAD_TOKEN" \
-  --header "Content-Type: text/markdown; charset=utf-8" \
-  --header "X-Wavecrate-Changelog-Title: Wavecrate changelog" \
-  --data-binary "@$FULL_CHANGELOG_OUT" \
-  "$upload_base/changelog" > "$full_changelog_response_file"
-python3 - "$full_changelog_response_file" <<'PY'
-import json
-import sys
-
-response = json.loads(open(sys.argv[1], encoding="utf-8").read())
-changelog = response.get("changelog") or {}
-if changelog.get("format") != "markdown":
-    raise SystemExit("Uploaded full changelog was not recorded as markdown")
-if not changelog.get("url"):
-    raise SystemExit("Uploaded full changelog did not expose a public URL")
 PY
 
 full_changelog_catalog_file="$response_dir/full-changelog-catalog.json"

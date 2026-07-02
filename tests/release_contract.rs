@@ -419,6 +419,26 @@ fn rc_and_stable_workflows_publish_to_portalsurfer_catalog() {
 #[test]
 fn portalsurfer_publish_helper_uses_shared_catalog_verifier() {
     assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("$upload_base/$BUILD_ID/staging/files/$encoded_name"),
+        "PortalSurfer publish helper must stage release files before public catalog commit"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("$upload_base/$BUILD_ID/commit"),
+        "PortalSurfer publish helper must commit staged release files, release log, and full changelog together"
+    );
+    assert!(
+        !PUBLISH_PORTALSURFER_SCRIPT.contains("$upload_base/$BUILD_ID/files/$encoded_name"),
+        "PortalSurfer publish helper must not directly mutate public release files"
+    );
+    assert!(
+        !PUBLISH_PORTALSURFER_SCRIPT.contains("$upload_base/$BUILD_ID/changelog"),
+        "PortalSurfer publish helper must not directly mutate the public per-release changelog"
+    );
+    assert!(
+        !PUBLISH_PORTALSURFER_SCRIPT.contains("$upload_base/changelog"),
+        "PortalSurfer publish helper must not directly mutate the public full changelog"
+    );
+    assert!(
         PUBLISH_PORTALSURFER_SCRIPT
             .contains("scripts/internal/release/verify_portalsurfer_upload_catalog.py"),
         "PortalSurfer publish helper must verify the catalog through the shared upload verifier"
@@ -671,6 +691,14 @@ fn shared_release_helpers_keep_policy_visible_and_strict() {
     assert!(
         PUBLISH_PORTALSURFER_SCRIPT.contains("X-Wavecrate-Release-Channel"),
         "PortalSurfer publish helper must send channel metadata"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("Staging PortalSurfer release file"),
+        "PortalSurfer publish helper must report staged upload progress"
+    );
+    assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("Committing PortalSurfer release"),
+        "PortalSurfer publish helper must report the public commit step"
     );
     assert!(
         PUBLISH_PORTALSURFER_SCRIPT.contains("assemble_portal_changelog.py"),
