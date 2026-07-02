@@ -169,6 +169,10 @@ impl NativeAppState {
         targets: Vec<MetadataTagTarget>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         let mut requests = Vec::new();
         let mut changed_files = Vec::new();
         for target in targets {
@@ -231,7 +235,7 @@ impl NativeAppState {
         }
         let touched_paths = changed_files.iter().map(PathBuf::from).collect::<Vec<_>>();
         self.mark_harvest_touched_for_paths(&touched_paths);
-        self.finish_metadata_tag_curation_change(&changed_files);
+        self.finish_metadata_tag_curation_change(&changed_files, previous_visible_ids);
         let status_tags = added_metadata_tag_status_tags(&requests, &tags);
         self.ui.status.sample = metadata_tag_added_status(&status_tags, changed_files.len());
         enqueue_metadata_tag_persist_requests(requests, context);
@@ -312,6 +316,10 @@ impl NativeAppState {
         targets: Vec<MetadataTagTarget>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
         let mut requests = Vec::new();
         let mut changed_files = Vec::new();
         for target in targets {
@@ -345,7 +353,7 @@ impl NativeAppState {
         }
         let touched_paths = changed_files.iter().map(PathBuf::from).collect::<Vec<_>>();
         self.mark_harvest_touched_for_paths(&touched_paths);
-        self.finish_metadata_tag_curation_change(&changed_files);
+        self.finish_metadata_tag_curation_change(&changed_files, previous_visible_ids);
         self.ui.status.sample = metadata_tag_removed_status(&tag, changed_files.len());
         if requests.len() == 1 {
             let request = requests.remove(0);
@@ -367,10 +375,14 @@ impl NativeAppState {
         }
     }
 
-    fn finish_metadata_tag_curation_change(&mut self, file_ids: &[String]) {
+    fn finish_metadata_tag_curation_change(
+        &mut self,
+        file_ids: &[String],
+        previous_visible_ids: Vec<String>,
+    ) {
         self.library.folder_browser.clear_curation_focus_override();
         self.mark_file_ids_curated(file_ids);
-        self.retain_visible_file_selection_after_metadata_tag_change();
+        self.retain_visible_file_selection_after_metadata_tag_change(previous_visible_ids);
     }
 
     fn mark_file_ids_curated(&mut self, file_ids: &[String]) {

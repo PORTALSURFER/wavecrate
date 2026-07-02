@@ -134,6 +134,10 @@ impl NativeAppState {
         if self.metadata.selected_tag.as_deref() == Some(tag.as_str()) {
             self.metadata.selected_tag = None;
         }
+        let previous_visible_ids = self
+            .library
+            .folder_browser
+            .selected_audio_file_ids_matching_tags(&self.metadata.tags_by_file);
 
         let mut removed_count = 0usize;
         let mut requests = Vec::new();
@@ -178,7 +182,7 @@ impl NativeAppState {
             }
         }
 
-        self.retain_visible_file_selection_after_metadata_tag_change();
+        self.retain_visible_file_selection_after_metadata_tag_change(previous_visible_ids);
         self.persist_user_configuration("metadata.tags.dictionary.delete", Instant::now());
         self.ui.status.sample = if removed_count == 0 {
             format!("Deleted tag {tag}")

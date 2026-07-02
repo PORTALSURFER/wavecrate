@@ -1,5 +1,5 @@
 use radiant::{prelude as ui, widgets::TextInputMessageKind};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use super::{
     DEFAULT_COLLECTIONS_PANEL_HEIGHT, FolderBrowserState,
@@ -163,10 +163,11 @@ impl FolderBrowserState {
         if self.filters.name_filter == value {
             return;
         }
+        let previous_visible_ids = self.selected_audio_file_ids();
         self.filters.name_filter = value;
         self.filters.name_enabled = !self.filters.name_filter.trim().is_empty();
         self.clear_listing_reveals();
-        self.retain_visible_file_selection_after_filter();
+        self.reconcile_visible_file_selection_after_filter(previous_visible_ids);
         self.reset_file_view();
     }
 
@@ -192,6 +193,7 @@ impl FolderBrowserState {
         family: FilterFamily,
         enabled: bool,
     ) {
+        let previous_visible_ids = self.selected_audio_file_ids();
         let changed = match family {
             FilterFamily::Name => set_bool(&mut self.filters.name_enabled, enabled),
             FilterFamily::Tags => set_bool(&mut self.filters.tags_enabled, enabled),
@@ -211,7 +213,7 @@ impl FolderBrowserState {
             return;
         }
         self.clear_listing_reveals();
-        self.retain_visible_file_selection_after_filter();
+        self.reconcile_visible_file_selection_after_filter(previous_visible_ids);
         self.reset_file_view();
     }
 
@@ -219,6 +221,7 @@ impl FolderBrowserState {
         if !RATING_FILTER_LEVELS.contains(&level) {
             return;
         }
+        let previous_visible_ids = self.selected_audio_file_ids();
         let changed = if enabled {
             self.filters.rating_filter.insert(level)
         } else {
@@ -229,7 +232,7 @@ impl FolderBrowserState {
         }
         self.filters.rating_enabled = !self.filters.rating_filter.is_empty();
         self.clear_listing_reveals();
-        self.retain_visible_file_selection_after_filter();
+        self.reconcile_visible_file_selection_after_filter(previous_visible_ids);
         self.reset_file_view();
     }
 
@@ -241,6 +244,7 @@ impl FolderBrowserState {
         if !PLAYBACK_TYPE_FILTERS.contains(&filter) {
             return;
         }
+        let previous_visible_ids = self.selected_audio_file_ids();
         let changed = if enabled {
             self.filters.playback_type_filter.insert(filter)
         } else {
@@ -249,6 +253,7 @@ impl FolderBrowserState {
         if changed {
             self.filters.playback_type_enabled = !self.filters.playback_type_filter.is_empty();
             self.clear_listing_reveals();
+            self.reconcile_visible_file_selection_after_filter(previous_visible_ids);
             self.reset_file_view();
         }
     }
@@ -262,10 +267,11 @@ impl FolderBrowserState {
         if self.filters.curation.enabled == next_enabled && self.filters.curation.scope == scope {
             return;
         }
+        let previous_visible_ids = self.selected_audio_file_ids();
         self.filters.curation.enabled = next_enabled;
         self.filters.curation.scope = scope;
         self.clear_listing_reveals();
-        self.retain_visible_file_selection_after_filter();
+        self.reconcile_visible_file_selection_after_filter(previous_visible_ids);
         self.reset_file_view();
     }
 
@@ -280,39 +286,39 @@ impl FolderBrowserState {
         if self.filters.harvest == Some(filter) && self.filters.harvest_enabled == enabled {
             return;
         }
+        let previous_visible_ids = self.selected_audio_file_ids();
         self.filters.harvest = Some(filter);
         self.filters.harvest_enabled = enabled;
         self.clear_listing_reveals();
-        self.retain_visible_file_selection_after_filter();
+        self.reconcile_visible_file_selection_after_filter(previous_visible_ids);
         self.reset_file_view();
     }
 
-    pub(in crate::native_app) fn refresh_after_harvest_state_change(&mut self) {
+    pub(in crate::native_app) fn refresh_after_harvest_state_change_matching_tags(
+        &mut self,
+        previous_visible_ids: Vec<String>,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) {
         self.clear_listing_reveals();
-        self.retain_visible_file_selection_after_filter();
+        self.reconcile_visible_file_selection_after_tag_filter(previous_visible_ids, tags_by_file);
         self.reset_file_view();
         self.bump_file_content_revision();
     }
 
-    pub(in crate::native_app) fn retain_visible_file_selection_after_tag_filter(
+    pub(in crate::native_app) fn reconcile_visible_file_selection_after_tag_filter(
         &mut self,
+        previous_visible_ids: Vec<String>,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) {
-        let visible_ids = self
-            .selected_audio_files_matching_tags(tags_by_file)
-            .into_iter()
-            .map(|file| file.id.clone())
-            .collect::<HashSet<_>>();
-        self.selection.retain_visible_files(&visible_ids);
+        let visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        self.selection
+            .reconcile_visible_files(&previous_visible_ids, &visible_ids);
     }
 
-    fn retain_visible_file_selection_after_filter(&mut self) {
-        let visible_ids = self
-            .selected_audio_files()
-            .into_iter()
-            .map(|file| file.id.clone())
-            .collect::<HashSet<_>>();
-        self.selection.retain_visible_files(&visible_ids);
+    fn reconcile_visible_file_selection_after_filter(&mut self, previous_visible_ids: Vec<String>) {
+        let visible_ids = self.selected_audio_file_ids();
+        self.selection
+            .reconcile_visible_files(&previous_visible_ids, &visible_ids);
     }
 
     pub(in crate::native_app) fn metadata_panel_height(&self) -> f32 {
