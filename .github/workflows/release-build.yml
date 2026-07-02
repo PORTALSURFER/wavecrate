@@ -18,6 +18,7 @@ jobs:
   resolve-main:
     name: Resolve main nightly target
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       target_sha: ${{ steps.target.outputs.target_sha }}
       build_number: ${{ steps.target.outputs.build_number }}
@@ -66,6 +67,7 @@ jobs:
   release-log:
     name: Generate nightly release log
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: resolve-main
     steps:
       - uses: actions/checkout@v4
@@ -177,6 +179,7 @@ jobs:
   test:
     name: Run nightly validation tests
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     needs: resolve-main
     steps:
       - uses: actions/checkout@v4
@@ -202,6 +205,7 @@ jobs:
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} nightly
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     needs: [resolve-main, test]
     strategy:
       fail-fast: false
@@ -273,6 +277,7 @@ jobs:
   publish-github:
     name: Promote GitHub nightly
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [resolve-main, test, release-log, build, publish-frontend]
     steps:
       - uses: actions/checkout@v4
@@ -386,10 +391,33 @@ jobs:
             --repo "${{ github.repository }}" \
             --source GitHub \
             --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
+      - name: Summarize GitHub nightly promotion
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SUMMARY_STATUS: ${{ job.status }}
+        run: |
+          scripts/internal/release/write_release_step_summary.sh \
+            --title "GitHub nightly promotion" \
+            --status "$SUMMARY_STATUS" \
+            --channel nightly \
+            --version "${{ needs.resolve-main.outputs.nightly_version }}" \
+            --target-version "${{ needs.resolve-main.outputs.target_version }}" \
+            --commit "${{ needs.resolve-main.outputs.target_sha }}" \
+            --build-id "${{ needs.resolve-main.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve-main.outputs.build_number }}" \
+            --github-tag nightly \
+            --github-release-url "https://github.com/${{ github.repository }}/releases/tag/nightly" \
+            --portal-catalog-url "https://portalsurfer.org/wavecrate/api/v1/releases" \
+            --portal-build-id "${{ needs.resolve-main.outputs.portal_build_id }}" \
+            --artifact-dir dist/release \
+            --checksum-file dist/release/checksums-nightly.txt \
+            --note "PortalSurfer job result: ${{ needs.publish-frontend.result }}"
 
   publish-frontend:
     name: Upload PortalSurfer nightly downloads
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: [resolve-main, test, release-log, build]
     steps:
       - uses: actions/checkout@v4
@@ -456,3 +484,25 @@ jobs:
             --build-number "${{ needs.resolve-main.outputs.build_number }}" \
             --source PortalSurfer \
             --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
+      - name: Summarize PortalSurfer nightly verification
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SUMMARY_STATUS: ${{ job.status }}
+          PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
+        run: |
+          upload_base="${PORTALSURFER_RELEASE_UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
+          upload_base="${upload_base%/}"
+          scripts/internal/release/write_release_step_summary.sh \
+            --title "PortalSurfer nightly verification" \
+            --status "$SUMMARY_STATUS" \
+            --channel nightly \
+            --version "${{ needs.resolve-main.outputs.nightly_version }}" \
+            --target-version "${{ needs.resolve-main.outputs.target_version }}" \
+            --commit "${{ needs.resolve-main.outputs.target_sha }}" \
+            --build-id "${{ needs.resolve-main.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve-main.outputs.build_number }}" \
+            --portal-catalog-url "${upload_base%/release-uploads}/releases" \
+            --portal-build-id "${{ needs.resolve-main.outputs.portal_build_id }}" \
+            --artifact-dir dist/release \
+            --checksum-file dist/release/checksums-nightly.txt

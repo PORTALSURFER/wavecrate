@@ -89,6 +89,22 @@ if [[ ! -s "$RELEASE_LOG" ]]; then
   exit 1
 fi
 
+PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS="${PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS:-10}"
+PORTALSURFER_RELEASE_MAX_TIME_SECONDS="${PORTALSURFER_RELEASE_MAX_TIME_SECONDS:-300}"
+for timeout_value in "$PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS" "$PORTALSURFER_RELEASE_MAX_TIME_SECONDS"; do
+  if [[ ! "$timeout_value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "PortalSurfer curl timeout values must be positive integer seconds." >&2
+    exit 1
+  fi
+done
+curl_args=(
+  --fail-with-body
+  --retry 3
+  --retry-delay 2
+  --connect-timeout "$PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS"
+  --max-time "$PORTALSURFER_RELEASE_MAX_TIME_SECONDS"
+)
+
 upload_base="${PORTALSURFER_RELEASE_UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
 upload_base="${upload_base%/}"
 if [[ "$upload_base" != */release-uploads ]]; then
@@ -100,9 +116,50 @@ api_base="${upload_base%/release-uploads}"
 catalog_url="$api_base/releases"
 full_changelog_url="$api_base/changelog"
 response_dir="$(mktemp -d)"
-trap 'rm -rf "$response_dir"' EXIT
 staged_files_tsv="$response_dir/staged-files.tsv"
 : > "$staged_files_tsv"
+summary_phase="validating release artifacts"
+summary_written=0
+
+write_portalsurfer_summary() {
+  local status_code="$1"
+  if [[ "$summary_written" == "1" ]]; then
+    return 0
+  fi
+  summary_written=1
+  local status_text="success"
+  if [[ "$status_code" != "0" ]]; then
+    status_text="failure during ${summary_phase}"
+  fi
+  local checksum_file=""
+  shopt -s nullglob
+  local checksum_candidates=("${ARTIFACT_DIR}"/checksums-*.txt)
+  shopt -u nullglob
+  if [[ ${#checksum_candidates[@]} -gt 0 ]]; then
+    checksum_file="${checksum_candidates[0]}"
+  fi
+  bash scripts/internal/release/write_release_step_summary.sh \
+    --title "PortalSurfer ${CHANNEL} publication" \
+    --status "$status_text" \
+    --channel "$CHANNEL" \
+    --version "$RELEASE_VERSION" \
+    --commit "${GITHUB_SHA:-}" \
+    --build-id "$BUILD_ID" \
+    --build-number "$BUILD_NUMBER" \
+    --portal-catalog-url "$catalog_url" \
+    --portal-build-id "$BUILD_ID" \
+    --artifact-dir "$ARTIFACT_DIR" \
+    --checksum-file "$checksum_file" \
+    --note "PortalSurfer phase: $summary_phase" || true
+}
+
+cleanup() {
+  local status_code="$?"
+  write_portalsurfer_summary "$status_code"
+  rm -rf "$response_dir"
+  exit "$status_code"
+}
+trap cleanup EXIT
 
 shopt -s nullglob
 files=("${ARTIFACT_DIR}"/*.zip "${ARTIFACT_DIR}"/checksums-*.txt "${ARTIFACT_DIR}"/checksums-*.txt.sig)
@@ -112,6 +169,7 @@ if [[ ${#files[@]} -eq 0 ]]; then
 fi
 
 uploaded_names=()
+summary_phase="staging release files"
 for file in "${files[@]}"; do
   file_name="$(basename "$file")"
   if [[ ! -s "$file" ]]; then
@@ -127,7 +185,7 @@ for file in "${files[@]}"; do
   encoded_name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$file_name")"
   response_file="$response_dir/$file_name.json"
   echo "Staging PortalSurfer release file: $file_name" >&2
-  curl --fail-with-body --retry 3 --retry-delay 2 \
+  curl "${curl_args[@]}" \
     --request PUT \
     --header "Authorization: Bearer $PORTALSURFER_RELEASE_UPLOAD_TOKEN" \
     --header "Content-Type: $content_type" \
@@ -160,6 +218,7 @@ PY
   uploaded_names+=("$file_name")
 done
 
+summary_phase="assembling full changelog"
 scripts/internal/release/assemble_portal_changelog.py \
   --catalog-url "$catalog_url" \
   --current-build-id "$BUILD_ID" \
@@ -201,7 +260,8 @@ PY
 
 commit_response_file="$response_dir/release-commit-response.json"
 echo "Committing PortalSurfer release: $BUILD_ID" >&2
-curl --fail-with-body --retry 3 --retry-delay 2 \
+summary_phase="committing staged release"
+curl "${curl_args[@]}" \
   --request PUT \
   --header "Authorization: Bearer $PORTALSURFER_RELEASE_UPLOAD_TOKEN" \
   --header "Content-Type: application/json" \
@@ -233,7 +293,8 @@ if full_changelog.get("format") != "markdown" or not full_changelog.get("url"):
 PY
 
 catalog_file="$response_dir/releases.json"
-curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
+summary_phase="verifying public catalog"
+curl "${curl_args[@]}" "$catalog_url" > "$catalog_file"
 catalog_args=(
   --catalog-file "$catalog_file"
   --build-id "$BUILD_ID"
@@ -247,7 +308,8 @@ done
 python3 scripts/internal/release/verify_portalsurfer_upload_catalog.py "${catalog_args[@]}"
 
 changelog_catalog_file="$response_dir/changelog-catalog.json"
-curl --fail-with-body --retry 3 --retry-delay 2 \
+summary_phase="verifying per-release changelog"
+curl "${curl_args[@]}" \
   "$catalog_url/$BUILD_ID/changelog" > "$changelog_catalog_file"
 python3 - "$changelog_catalog_file" "$BUILD_ID" "$RELEASE_LOG" <<'PY'
 import json
@@ -265,7 +327,8 @@ print(f"Uploaded Wavecrate release log to {expected_build}")
 PY
 
 full_changelog_catalog_file="$response_dir/full-changelog-catalog.json"
-curl --fail-with-body --retry 3 --retry-delay 2 \
+summary_phase="verifying full changelog"
+curl "${curl_args[@]}" \
   "$full_changelog_url" > "$full_changelog_catalog_file"
 python3 - "$full_changelog_catalog_file" "$FULL_CHANGELOG_OUT" <<'PY'
 import json
@@ -279,3 +342,4 @@ if body != expected_body:
     raise SystemExit("Fetched full changelog body does not match generated changelog")
 print("Uploaded Wavecrate full changelog")
 PY
+summary_phase="complete"

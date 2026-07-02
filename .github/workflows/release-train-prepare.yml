@@ -29,6 +29,7 @@ jobs:
   prepare:
     name: Prepare release train
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,3 +66,17 @@ jobs:
             args+=(--dry-run)
           fi
           scripts/internal/release/prepare_release_train.py "${args[@]}"
+      - name: Summarize release train prep
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SUMMARY_STATUS: ${{ job.status }}
+        run: |
+          scripts/internal/release/write_release_step_summary.sh \
+            --title "Release train preparation" \
+            --status "$SUMMARY_STATUS" \
+            --version "${{ inputs.version }}" \
+            --target-version "${{ inputs.version }}" \
+            --commit "$(git rev-parse HEAD)" \
+            --note "Source ref: ${{ inputs.source_ref }}" \
+            --note "Push branch: ${{ inputs.push_branch }}"

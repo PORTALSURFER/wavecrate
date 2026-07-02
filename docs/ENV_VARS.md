@@ -116,6 +116,9 @@ under `scripts/internal/release/`:
   changelog, and full changelog.
 - `prune_github_release_assets.sh` removes stale assets from a rolling GitHub
   release during promotion.
+- `write_release_step_summary.sh` writes secret-safe GitHub Actions summaries
+  with public release metadata, artifact filenames, file hashes, checksum file
+  names, PortalSurfer catalog/build ids, and verification status.
 
 RC runs require `version`, `rc_number`, and `branch` inputs. The branch must be
 `release/X.Y` for the requested `X.Y.Z` version, and the package manifest must
@@ -172,6 +175,27 @@ This staged commit flow requires PortalSurfer server support for
 `/wavecrate/api/v1/release-uploads/<build-id>/staging/files/<filename>` and
 `/wavecrate/api/v1/release-uploads/<build-id>/commit`; older servers fail closed
 instead of falling back to direct public mutation.
+
+Release jobs use explicit GitHub Actions timeout budgets so stalled tests,
+packaging, upload, verification, or release-train preparation fail with bounded
+operator feedback instead of consuming the platform default timeout. Build jobs
+are intentionally the most generous because macOS signing and notarization can
+be slow; publish jobs are shorter because they should only assemble, upload,
+commit, and verify already-built artifacts. Each publish path appends a
+`GITHUB_STEP_SUMMARY` section with the resolved commit, version, build id,
+GitHub release URL or tag, PortalSurfer catalog URL/build id, artifact names,
+checksums, and final verification status. The summary helper only receives
+public release metadata and local artifact paths; upload tokens, checksum
+signing keys, Apple credentials, and private key material must never be passed
+to it.
+
+PortalSurfer upload and catalog fetches are bounded with curl connection and
+total transfer timeouts. By default,
+`PORTALSURFER_RELEASE_CONNECT_TIMEOUT_SECONDS=10` and
+`PORTALSURFER_RELEASE_MAX_TIME_SECONDS=300` apply to each staged file upload,
+commit request, and verification fetch. Override those only for an explicit
+operator recovery run where large artifacts or a known network incident need a
+larger transfer window.
 
 To rerun the GitHub verifier for a published stable release, use the resolved
 release metadata from the workflow run:
