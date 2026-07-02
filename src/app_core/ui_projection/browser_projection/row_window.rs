@@ -7,8 +7,8 @@ use crate::app_core::actions::NativeBrowserRowProcessingState as BrowserRowProce
 use crate::app_core::actions::{
     NativeBrowserRowModel as BrowserRowModel, NativeRetainedVec as RetainedVec,
 };
+use crate::app_core::browser_projection_cache::AutoRenameBatchRowState;
 use crate::app_core::controller::AppController;
-use crate::app_core::controller::AutoRenameBatchRowState;
 use crate::app_core::state::{PlaybackAgeBucket, SampleBrowserTab};
 use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 use std::collections::HashMap;

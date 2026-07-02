@@ -4,6 +4,7 @@ use super::super::{
     BrowserRowsStateProjectionCacheKey, BrowserTagSidebarProjectionCacheKey,
 };
 use super::shared::hash_string_for_projection_key;
+use crate::app_core::browser_projection_cache::AutoRenameBatchRowState;
 use crate::app_core::controller::AppController;
 use std::hash::{Hash, Hasher};
 
@@ -94,11 +95,11 @@ fn browser_auto_rename_rows_hash(controller: &AppController) -> u64 {
     for row in snapshot.rows {
         row.current_path.hash(&mut hasher);
         match row.state {
-            crate::app_core::controller::AutoRenameBatchRowState::Queued => 1_u8,
-            crate::app_core::controller::AutoRenameBatchRowState::Active => 2,
-            crate::app_core::controller::AutoRenameBatchRowState::Completed => 3,
-            crate::app_core::controller::AutoRenameBatchRowState::Skipped => 4,
-            crate::app_core::controller::AutoRenameBatchRowState::Failed => 5,
+            AutoRenameBatchRowState::Queued => 1_u8,
+            AutoRenameBatchRowState::Active => 2,
+            AutoRenameBatchRowState::Completed => 3,
+            AutoRenameBatchRowState::Skipped => 4,
+            AutoRenameBatchRowState::Failed => 5,
         }
         .hash(&mut hasher);
     }

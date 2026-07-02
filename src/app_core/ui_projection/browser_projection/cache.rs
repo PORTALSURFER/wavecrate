@@ -1,9 +1,10 @@
 //! Retained browser-row and selected-path projection cache helpers.
 
 use super::super::{MAX_RETAINED_BROWSER_ROW_PROJECTION_CACHE, trace_browser_row_cache_lookup};
-use crate::app_core::controller::{
-    AppController, ProjectedBrowserRowCacheEntry, ProjectedSelectedPathsLookup,
+use crate::app_core::browser_projection_cache::{
+    ProjectedBrowserRowCacheEntry, ProjectedSelectedPathsLookup,
 };
+use crate::app_core::controller::AppController;
 use crate::app_core::state::PlaybackAgeBucket;
 use crate::app_core::view_model;
 use std::hash::{Hash, Hasher};
