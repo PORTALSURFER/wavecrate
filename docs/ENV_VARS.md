@@ -109,9 +109,11 @@ under `scripts/internal/release/`:
   assets after publication, verifies checksum signatures and zip hashes, and
   inspects each `update-manifest.json` for the expected channel, version,
   commit, build date, target, platform, and architecture.
-- `publish_portalsurfer_release.sh` uploads release files and the generated log
-  to PortalSurfer, verifies the public catalog and per-release changelog, then
-  updates and verifies the full Wavecrate changelog.
+- `publish_portalsurfer_release.sh` stages release files privately in
+  PortalSurfer, assembles the full Wavecrate changelog, commits the staged
+  files, generated release log, catalog entry, and full changelog in one
+  PortalSurfer request, then verifies the public catalog, per-release
+  changelog, and full changelog.
 - `prune_github_release_assets.sh` removes stale assets from a rolling GitHub
   release during promotion.
 
@@ -130,37 +132,46 @@ checksum signature, downloadable assets whose hashes match the checksum file,
 and a release-bound `Wavecrate X.Y.Z-rc.N` log body. Stable releases are
 published as normal GitHub releases tagged `vX.Y.Z` and as PortalSurfer catalog
 entries with build ids like `wavecrate-X.Y.Z`. RC and stable workflows verify the
-published GitHub release assets, then PortalSurfer publication uploads the
-generated release zips, checksum file, checksum signature, and release log,
-verifies the catalog entry, per-release changelog, and full Wavecrate changelog
-round trips, and finally downloads the public PortalSurfer assets back to verify
-their checksums, signature, and embedded manifests.
+published GitHub release assets, then PortalSurfer publication stages the
+generated release zips, checksum file, and checksum signature, commits those
+files together with the release log and full Wavecrate changelog, verifies the
+catalog entry, per-release changelog, and full changelog round trips, and
+finally downloads the public PortalSurfer assets back to verify their checksums,
+signature, and embedded manifests.
 
-The nightly workflow uploads the generated zips, checksum files, and Markdown
-release log to the PortalSurfer Wavecrate release-upload API before moving the
-rolling GitHub `nightly` identity. Each PortalSurfer upload uses a path-safe
+The nightly workflow stages the generated zips and checksum files through the
+PortalSurfer Wavecrate release-upload API, then commits the complete release
+files, Markdown release log, catalog entry, and full Wavecrate changelog before
+moving the rolling GitHub `nightly` identity. Each PortalSurfer upload uses a path-safe
 `wavecrate-nightly-b<build>-<short-sha>` build id so the website can show a
 distinct nightly entry instead of stacking every nightly under one changelog
 group, while the release log and package manifest keep the full SemVer nightly
-version. After the per-release log is visible in the public catalog, the
-workflow verifies that the fetched log body matches the generated immutable
-release log, then prepends that release-bound log to the existing site-wide
-changelog before uploading the maintained full changelog.
+version. The full changelog is assembled before commit by prepending the
+generated release-bound log to the existing site-wide changelog. After commit,
+the workflow verifies that the public per-release log and full changelog bodies
+match the generated files.
 Only after PortalSurfer publication has been verified does the workflow refresh
 the rolling GitHub `nightly` release assets, publish the immutable nightly
 version tag named like `19.1.0-nightly.20260701+abc1234`, move the rolling
 `nightly` tag, and update the rolling release metadata. Scheduled and manual
 nightly runs do not cancel an in-flight run because tag movement is the final
-public identity transition. If a run fails after PortalSurfer upload begins but
-before GitHub promotion, rerun the workflow for the same `main` commit; the
-same immutable PortalSurfer build id is overwritten and reverified before the
-rolling GitHub identity moves.
+public identity transition. If a run fails before the PortalSurfer commit step,
+only private staged files may remain and public readers keep seeing the previous
+catalog/changelog state. If a run fails after the commit step but before GitHub
+promotion, rerun the workflow for the same `main` commit; the same immutable
+PortalSurfer build id is recommitted idempotently when already-published files
+match by name, size, and SHA-256, then reverified before the rolling GitHub
+identity moves.
 The nightly workflow verifies both the PortalSurfer catalog downloads and the
 rolling GitHub release assets after their respective publication points.
 The maintenance step refuses to preserve a full changelog whose historical
 sections are not already release-bound markdown logs.
 GitHub Actions does not need SSH access or write access to the PortalSurfer
 frontend repository.
+This staged commit flow requires PortalSurfer server support for
+`/wavecrate/api/v1/release-uploads/<build-id>/staging/files/<filename>` and
+`/wavecrate/api/v1/release-uploads/<build-id>/commit`; older servers fail closed
+instead of falling back to direct public mutation.
 
 To rerun the GitHub verifier for a published stable release, use the resolved
 release metadata from the workflow run:
