@@ -252,7 +252,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           ref: ${{ needs.resolve.outputs.target_sha }}
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
       - uses: actions/download-artifact@v4
         with:
           path: dist/artifacts
@@ -264,25 +269,29 @@ jobs:
           VERSION: ${{ needs.resolve.outputs.target_version }}
           TARGET_SHA: ${{ needs.resolve.outputs.target_sha }}
           RC_TAG: ${{ needs.resolve.outputs.rc_tag }}
+          TARGET_BRANCH: ${{ inputs.branch }}
+          BUILD_DATE: ${{ needs.resolve.outputs.build_date }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.release_tag }}
           RELEASE_NOTES: ${{ inputs.release_notes }}
         run: |
           set -euo pipefail
           mkdir -p dist/release
           cp dist/artifacts/*.zip dist/release/
-          cat dist/artifacts/checksums-entry-*.txt > "dist/release/checksums-${VERSION}.txt"
-          {
-            echo "# Wavecrate ${VERSION}"
-            echo
-            echo "- Channel: Stable"
-            echo "- Commit: ${TARGET_SHA}"
-            echo "- Promoted from: ${RC_TAG}"
-            echo
-            if [[ -n "$RELEASE_NOTES" ]]; then
-              printf '%s\n' "$RELEASE_NOTES"
-            else
-              echo "Stable release promoted from ${RC_TAG}."
-            fi
-          } > dist/release/release-log.md
+          checksum_name="checksums-${VERSION}.txt"
+          checksum_sig_name="${checksum_name}.sig"
+          cat dist/artifacts/checksums-entry-*.txt > "dist/release/${checksum_name}"
+          scripts/internal/release/generate_release_log.sh \
+            --channel stable \
+            --version "$VERSION" \
+            --target-sha "$TARGET_SHA" \
+            --target-branch "$TARGET_BRANCH" \
+            --build-date "$BUILD_DATE" \
+            --artifact-dir dist/release \
+            --checksum-name "$checksum_name" \
+            --checksum-sig-name "$checksum_sig_name" \
+            --promoted-rc-tag "$RC_TAG" \
+            --release-tag "$RELEASE_TAG" \
+            --out dist/release/release-log.md
       - name: Sign release checksums
         env:
           CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
