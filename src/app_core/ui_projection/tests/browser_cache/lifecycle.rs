@@ -104,7 +104,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
     refresh_projected_selected_paths_lookup(&mut controller);
     assert!(matches!(
         controller.projected_selected_paths_lookup,
-        Some(crate::app_core::controller::ProjectedSelectedPathsLookup::Single(0))
+        Some(crate::app_core::browser_projection_cache::ProjectedSelectedPathsLookup::Single(0))
     ));
     assert!(selected_index_is_selected(&controller, 0));
     assert!(!selected_index_is_selected(&controller, 1));
@@ -114,7 +114,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
     refresh_projected_selected_paths_lookup(&mut controller);
     assert!(matches!(
         controller.projected_selected_paths_lookup,
-        Some(crate::app_core::controller::ProjectedSelectedPathsLookup::Single(1))
+        Some(crate::app_core::browser_projection_cache::ProjectedSelectedPathsLookup::Single(1))
     ));
     assert!(!selected_index_is_selected(&controller, 0));
     assert!(selected_index_is_selected(&controller, 1));

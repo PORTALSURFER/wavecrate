@@ -25,9 +25,11 @@ use crate::app_core::ui::MAX_RENDERED_BROWSER_ROWS;
 use std::sync::atomic::AtomicU64;
 
 #[cfg(test)]
-use super::controller::{
-    AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
+use super::browser_projection_cache::{
+    ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
 };
+#[cfg(test)]
+use super::controller::AppController;
 #[cfg(test)]
 use crate::app_core::actions::{
     NativeBrowserTagState as BrowserTagState, NativeConfirmPromptKind as ConfirmPromptKind,

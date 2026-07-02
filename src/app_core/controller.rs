@@ -28,20 +28,12 @@ pub(crate) use frame_preparation::UiFramePreparationPlan;
 pub use startup::build_ui_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = CurrentAppController;
-/// Retained browser preload-window cache type used by ui-projection helpers.
-pub(crate) type ProjectedBrowserPreloadWindow = current_controller::ProjectedBrowserPreloadWindow;
-/// Retained browser-row cache entry used by ui-projection helpers.
-pub(crate) type ProjectedBrowserRowCacheEntry = current_controller::ProjectedBrowserRowCacheEntry;
 /// Retained map-point cache key used by ui-projection helpers.
 pub(crate) type ProjectedMapPointsCacheKey = current_controller::ProjectedMapPointsCacheKey;
 /// Retained normalized map-point cache entry used by ui-projection helpers.
 pub(crate) type ProjectedMapPointCacheEntry = current_controller::ProjectedMapPointCacheEntry;
-/// Retained selected-path lookup cache entry used by ui-projection helpers.
-pub(crate) type ProjectedSelectedPathsLookup = current_controller::ProjectedSelectedPathsLookup;
 /// Map-point query payload alias used by ui-projection map projection.
 pub(crate) type UmapPointQuery<'a> = current_controller::UmapPointQuery<'a>;
-/// Active browser auto-rename row state used by ui-projection.
-pub(crate) type AutoRenameBatchRowState = current_controller::AutoRenameBatchRowState;
 /// Retained controller dirty graph node identifiers used by frame preparation and bridge adapters.
 pub(crate) type DerivedNodeId = current_controller::DerivedNodeId;
 /// Retained controller dirty graph reason identifiers used by bridge adapters.

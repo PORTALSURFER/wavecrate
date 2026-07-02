@@ -4,6 +4,9 @@
 
 mod app_api;
 
+/// Retained browser projection cache contracts owned by app-core.
+pub(crate) mod browser_projection_cache;
+
 /// Controller aliases and helpers used by migration-facing runtimes.
 pub mod controller;
 

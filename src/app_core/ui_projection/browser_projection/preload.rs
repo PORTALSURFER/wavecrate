@@ -1,4 +1,5 @@
-use crate::app_core::controller::{AppController, ProjectedBrowserPreloadWindow};
+use crate::app_core::browser_projection_cache::ProjectedBrowserPreloadWindow;
+use crate::app_core::controller::AppController;
 use crate::sample_sources::SourceId;
 
 /// Preload BPM metadata for the current visible browser window in one batch query.

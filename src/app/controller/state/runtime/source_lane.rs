@@ -1,5 +1,6 @@
 use crate::app::controller::jobs::{SampleAutoRenameProgress, SourceHydrationKind};
 use crate::app::state::FolderPaneId;
+pub(crate) use crate::app_core::browser_projection_cache::AutoRenameBatchRowState;
 use crate::sample_sources::Rating;
 use crate::sample_sources::SourceId;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -68,16 +69,6 @@ pub(crate) struct SourceMutationRuntime {
     queued_browser_auto_rename_intent: Option<PendingBrowserAutoRenameIntent>,
     /// Active source-scoped browser auto-rename batch row state.
     active_auto_rename_batch: Option<ActiveAutoRenameBatchState>,
-}
-
-/// UI row state for one requested path in an active auto-rename batch.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AutoRenameBatchRowState {
-    Queued,
-    Active,
-    Completed,
-    Skipped,
-    Failed,
 }
 
 /// Source-scoped snapshot exposed to controller/UI projection code.
