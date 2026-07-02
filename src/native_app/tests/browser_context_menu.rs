@@ -3,7 +3,7 @@ use crate::native_app::sample_library::context_menu_target::{
     BrowserContextPointerAnchor, BrowserContextPointerTarget,
 };
 use crate::native_app::test_support::state::GuiMessage;
-use radiant::runtime::RuntimeUpdateSnapshot;
+use radiant::runtime::{PaintTextAlign, RuntimeUpdateSnapshot};
 
 #[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
@@ -35,6 +35,90 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
     assert!(
         action_text_rect.min.x >= 80.0 && action_text_rect.min.x < 100.0,
         "{action_text_rect:?}"
+    );
+}
+
+#[test]
+fn folder_context_menu_paints_registered_shortcut_hints() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("Documents"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Documents"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    for (label, hint) in [
+        ("New Folder", "N"),
+        ("Rename Folder", "F2 / Cmd-R"),
+        ("Delete Folder", "Delete / Backspace"),
+    ] {
+        let label_run = frame
+            .paint_plan
+            .first_text_run(label)
+            .unwrap_or_else(|| panic!("{label} should paint"));
+        let hint_run = frame
+            .paint_plan
+            .first_text_run(hint)
+            .unwrap_or_else(|| panic!("{hint} should paint"));
+
+        assert_eq!(label_run.align, PaintTextAlign::Left);
+        assert_eq!(hint_run.align, PaintTextAlign::Right);
+        assert!(
+            label_run.rect.max.x < hint_run.rect.min.x,
+            "{label} and {hint} should not overlap: label={:?}, hint={:?}",
+            label_run.rect,
+            hint_run.rect
+        );
+    }
+}
+
+#[test]
+fn sample_context_menu_paints_move_to_trash_shortcut_hint() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("kick.wav"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("kick.wav"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let label = frame
+        .paint_plan
+        .first_text_run("Move to Trash")
+        .expect("trash label should paint");
+    let hint = frame
+        .paint_plan
+        .first_text_run("Delete / Backspace")
+        .expect("trash shortcut hint should paint");
+
+    assert_eq!(label.align, PaintTextAlign::Left);
+    assert_eq!(hint.align, PaintTextAlign::Right);
+    assert!(
+        label.rect.max.x < hint.rect.min.x,
+        "trash label and shortcut should not overlap: label={:?}, hint={:?}",
+        label.rect,
+        hint.rect
     );
 }
 
@@ -272,6 +356,57 @@ fn playmark_context_menu_paints_selection_actions() {
             "{label} should render in the playmark context menu"
         );
     }
+}
+
+#[test]
+fn playmark_context_menu_paints_shortcut_hints_in_trailing_column() {
+    let menu = crate::native_app::test_support::context_menu::WaveformContextMenu {
+        anchor: Point::new(240.0, 180.0),
+        title: String::from("Playmark Selection"),
+        extract_to_harvest_destination: false,
+    };
+    let frame = crate::native_app::test_support::context_menu::waveform_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    let play_label = frame
+        .paint_plan
+        .first_text_run("Play Selection")
+        .expect("play label should paint");
+    let extract_label = frame
+        .paint_plan
+        .first_text_run("Extract Selection")
+        .expect("extract label should paint");
+    let space_hint = frame
+        .paint_plan
+        .first_text_run("Space")
+        .expect("space shortcut hint should paint");
+    let extract_hint = frame
+        .paint_plan
+        .first_text_run("E")
+        .expect("extract shortcut hint should paint");
+
+    assert_eq!(play_label.align, PaintTextAlign::Left);
+    assert_eq!(extract_label.align, PaintTextAlign::Left);
+    assert_eq!(space_hint.align, PaintTextAlign::Right);
+    assert_eq!(extract_hint.align, PaintTextAlign::Right);
+    assert!(
+        (play_label.rect.min.x - extract_label.rect.min.x).abs() < 0.01,
+        "menu labels should share a left column: play={:?}, extract={:?}",
+        play_label.rect,
+        extract_label.rect
+    );
+    assert!(
+        (space_hint.rect.max.x - extract_hint.rect.max.x).abs() < 0.01,
+        "shortcut hints should share a right column: space={:?}, extract={:?}",
+        space_hint.rect,
+        extract_hint.rect
+    );
+    assert!(
+        play_label.rect.max.x < space_hint.rect.min.x,
+        "label and shortcut hint should be separate columns: label={:?}, hint={:?}",
+        play_label.rect,
+        space_hint.rect
+    );
 }
 
 #[test]

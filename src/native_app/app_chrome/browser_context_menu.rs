@@ -8,6 +8,10 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use wavecrate::sample_sources::SourceRole;
 
+const NEW_FOLDER_HOTKEY_HINT: &str = "N";
+const RENAME_HOTKEY_HINT: &str = "F2 / Cmd-R";
+const DELETE_HOTKEY_HINT: &str = "Delete / Backspace";
+
 pub(in crate::native_app) fn overlay(
     menu: &BrowserContextMenu,
     harvest_active: bool,
@@ -29,6 +33,7 @@ fn context_menu_commands(
                 "Delete Tag",
                 GuiMessage::Metadata(MetadataMessage::DeleteContextMetadataTag),
             )
+            .hotkey_hint(DELETE_HOTKEY_HINT)
             .danger(),
         ];
     }
@@ -53,24 +58,24 @@ fn context_menu_commands(
         menu.kind,
         BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder
     ) {
-        actions.push(ui::MenuCommand::new(
-            "New Folder",
-            GuiMessage::CreateFolderAtContextTarget,
-        ));
+        actions.push(
+            ui::MenuCommand::new("New Folder", GuiMessage::CreateFolderAtContextTarget)
+                .hotkey_hint(NEW_FOLDER_HOTKEY_HINT),
+        );
     }
     if menu.kind == BrowserContextTargetKind::Folder {
-        actions.push(ui::MenuCommand::new(
-            "Rename Folder",
-            GuiMessage::RenameContextFolder,
-        ));
+        actions.push(
+            ui::MenuCommand::new("Rename Folder", GuiMessage::RenameContextFolder)
+                .hotkey_hint(RENAME_HOTKEY_HINT),
+        );
         actions.push(ui::MenuCommand::new(
             folder_lock_command_label(menu),
             GuiMessage::ToggleContextFolderLock,
         ));
-        actions.push(ui::MenuCommand::new(
-            "Delete Folder",
-            GuiMessage::RequestDeleteContextFolder,
-        ));
+        actions.push(
+            ui::MenuCommand::new("Delete Folder", GuiMessage::RequestDeleteContextFolder)
+                .hotkey_hint(DELETE_HOTKEY_HINT),
+        );
     }
     if menu.kind == BrowserContextTargetKind::Sample {
         if menu.sample_keep_locked {
@@ -114,7 +119,9 @@ fn context_menu_commands(
             ));
         }
         actions.push(
-            ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash).danger(),
+            ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash)
+                .hotkey_hint(DELETE_HOTKEY_HINT)
+                .danger(),
         );
     }
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
