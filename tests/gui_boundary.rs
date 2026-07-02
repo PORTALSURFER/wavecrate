@@ -103,6 +103,26 @@ fn agent_instructions_call_out_large_gui_import_lists() {
 }
 
 #[test]
+fn sample_identity_fingerprints_require_wavecrate_debug_mode() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!(
+        "{manifest_dir}/src/native_app/sample_identity_diagnostics.rs"
+    ))
+    .expect("sample identity diagnostics should be readable");
+    assert!(
+        source.contains("fn sample_identity_info_enabled() -> bool"),
+        "sample identity diagnostics should keep one central enablement gate"
+    );
+    assert!(
+        source.contains("wavecrate::logging::debug_logging_enabled()")
+            && source.contains(
+                "tracing::enabled!(target: \"wavecrate::debug::sample_identity\", tracing::Level::INFO)",
+            ),
+        "sample identity diagnostics compute file/waveform fingerprints and must require Wavecrate-owned debug mode, not plain info logging"
+    );
+}
+
+#[test]
 fn wavecrate_root_facades_stay_within_owned_size_budgets() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
