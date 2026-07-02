@@ -327,6 +327,21 @@ jobs:
           prerelease: true
           make_latest: false
           files: dist/release/*
+      - name: Verify published GitHub nightly release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          scripts/internal/release/verify_published_release.py \
+            --channel nightly \
+            --version "${{ needs.resolve-main.outputs.nightly_version }}" \
+            --target-version "${{ needs.resolve-main.outputs.target_version }}" \
+            --commit "${{ needs.resolve-main.outputs.target_sha }}" \
+            --build-date "${{ needs.resolve-main.outputs.build_date }}" \
+            --tag nightly \
+            --repo "${{ github.repository }}" \
+            --source GitHub \
+            --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
 
   publish-frontend:
     name: Upload PortalSurfer nightly downloads
@@ -354,197 +369,46 @@ jobs:
         with:
           name: release-log
           path: dist/release
-      - name: Upload Wavecrate downloads
+      - name: Assemble PortalSurfer nightly release files
+        run: scripts/internal/release/assemble_release_files.sh --checksum-name checksums-nightly.txt
+      - name: Sign PortalSurfer nightly checksums
+        env:
+          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
+        run: |
+          scripts/internal/release/sign_release_checksums.sh \
+            --checksum-file dist/release/checksums-nightly.txt \
+            --signature-file dist/release/checksums-nightly.txt.sig
+      - name: Publish PortalSurfer nightly release
         shell: bash
         env:
-          UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
-          UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
-          TARGET_SHA: ${{ needs.resolve-main.outputs.target_sha }}
-          BUILD_NUMBER: ${{ needs.resolve-main.outputs.build_number }}
-          RELEASE_VERSION: ${{ needs.resolve-main.outputs.nightly_version }}
-          PORTAL_BUILD_ID: ${{ needs.resolve-main.outputs.portal_build_id }}
-          RELEASED_AT: ${{ needs.resolve-main.outputs.released_at }}
+          PORTALSURFER_RELEASE_UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
+          PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
         run: |
-          set -euo pipefail
-          shopt -s nullglob
-          files=(dist/artifacts/*.zip)
-          if [[ ${#files[@]} -eq 0 ]]; then
-            echo "No release zip files found in downloaded artifacts." >&2
-            exit 1
-          fi
-
-          version="$RELEASE_VERSION"
-          build_id="$PORTAL_BUILD_ID"
-          released_at="${RELEASED_AT}"
-
-          upload_base="${UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
+          scripts/internal/release/publish_portalsurfer_release.sh \
+            --channel nightly \
+            --build-id "${{ needs.resolve-main.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve-main.outputs.build_number }}" \
+            --release-version "${{ needs.resolve-main.outputs.nightly_version }}" \
+            --released-at "${{ needs.resolve-main.outputs.released_at }}" \
+            --artifact-dir dist/release \
+            --release-log dist/release/release-log.md \
+            --full-changelog-out dist/release/changelog.md
+      - name: Verify published PortalSurfer nightly release artifacts
+        shell: bash
+        env:
+          PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
+        run: |
+          upload_base="${PORTALSURFER_RELEASE_UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"
           upload_base="${upload_base%/}"
-          if [[ "$upload_base" != */release-uploads ]]; then
-            echo "PORTALSURFER_RELEASE_UPLOAD_URL must end with /release-uploads." >&2
-            exit 1
-          fi
-          api_base="${upload_base%/release-uploads}"
-          catalog_url="$api_base/releases"
-          full_changelog_url="$api_base/changelog"
-          response_dir="$(mktemp -d)"
-          changelog_file="dist/release/release-log.md"
-          full_changelog_file="dist/release/changelog.md"
-          uploaded_names=()
-
-          for file in "${files[@]}"; do
-            file_name="$(basename "$file")"
-            if [[ ! -s "$file" ]]; then
-              echo "Release file is empty: $file" >&2
-              exit 1
-            fi
-            sha256="$(sha256sum "$file" | awk '{ print $1 }')"
-            encoded_name="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$file_name")"
-            response_file="$response_dir/$file_name.json"
-            curl --fail-with-body --retry 3 --retry-delay 2 \
-              --request PUT \
-              --header "Authorization: Bearer $UPLOAD_TOKEN" \
-              --header "Content-Type: application/zip" \
-              --header "X-Wavecrate-Build-Number: ${BUILD_NUMBER}" \
-              --header "X-Wavecrate-Release-Version: $version" \
-              --header "X-Wavecrate-Released-At: $released_at" \
-              --header "X-Wavecrate-Sha256: $sha256" \
-              --data-binary "@$file" \
-              "$upload_base/$build_id/files/$encoded_name" > "$response_file"
-            python3 - "$response_file" "$build_id" "$BUILD_NUMBER" "$file_name" "$sha256" <<'PY'
-          import json
-          import sys
-
-          response_path, expected_build, expected_build_number, expected_name, expected_sha = sys.argv[1:]
-          response = json.loads(open(response_path, encoding="utf-8").read())
-          release = response.get("release") or {}
-          file = response.get("file") or {}
-          if release.get("build_id") != expected_build:
-              raise SystemExit(f"Uploaded release id mismatch: {release.get('build_id')} != {expected_build}")
-          if release.get("build_number") != int(expected_build_number):
-              raise SystemExit(f"Uploaded release build number mismatch: {release.get('build_number')} != {expected_build_number}")
-          if file.get("name") != expected_name:
-              raise SystemExit(f"Uploaded file name mismatch: {file.get('name')} != {expected_name}")
-          if file.get("sha256") != expected_sha:
-              raise SystemExit(f"Uploaded file sha mismatch: {file.get('sha256')} != {expected_sha}")
-          if not isinstance(file.get("size_bytes"), int) or file["size_bytes"] <= 0:
-              raise SystemExit("Uploaded file size was not recorded")
-          PY
-            uploaded_names+=("$file_name")
-          done
-
-          changelog_response_file="$response_dir/changelog-upload.json"
-          curl --fail-with-body --retry 3 --retry-delay 2 \
-            --request PUT \
-            --header "Authorization: Bearer $UPLOAD_TOKEN" \
-            --header "Content-Type: text/markdown; charset=utf-8" \
-            --header "X-Wavecrate-Build-Number: ${BUILD_NUMBER}" \
-            --header "X-Wavecrate-Release-Version: $version" \
-            --header "X-Wavecrate-Released-At: $released_at" \
-            --data-binary "@$changelog_file" \
-            "$upload_base/$build_id/changelog" > "$changelog_response_file"
-          python3 - "$changelog_response_file" "$build_id" "$BUILD_NUMBER" <<'PY'
-          import json
-          import sys
-
-          response_path, expected_build, expected_build_number = sys.argv[1:]
-          response = json.loads(open(response_path, encoding="utf-8").read())
-          release = response.get("release") or {}
-          changelog = response.get("changelog") or {}
-          if release.get("build_id") != expected_build:
-              raise SystemExit(f"Uploaded changelog release id mismatch: {release.get('build_id')} != {expected_build}")
-          if release.get("build_number") != int(expected_build_number):
-              raise SystemExit(f"Uploaded changelog build number mismatch: {release.get('build_number')} != {expected_build_number}")
-          if changelog.get("format") != "markdown":
-              raise SystemExit("Uploaded changelog was not recorded as markdown")
-          if not changelog.get("url"):
-              raise SystemExit("Uploaded changelog did not expose a public URL")
-          PY
-
-          catalog_file="$response_dir/releases.json"
-          curl --fail-with-body --retry 3 --retry-delay 2 "$catalog_url" > "$catalog_file"
-          python3 - "$catalog_file" "$build_id" "$BUILD_NUMBER" "${uploaded_names[@]}" <<'PY'
-          import json
-          import sys
-
-          catalog_path = sys.argv[1]
-          expected_build = sys.argv[2]
-          expected_build_number = int(sys.argv[3])
-          expected_files = set(sys.argv[4:])
-          catalog = json.loads(open(catalog_path, encoding="utf-8").read())
-          releases = catalog.get("releases") or []
-          release = next((item for item in releases if item.get("build_id") == expected_build), None)
-          if release is None:
-              raise SystemExit(f"Release catalog does not list {expected_build}")
-          if release.get("build_number") != expected_build_number:
-              raise SystemExit(f"Release catalog build number mismatch: {release.get('build_number')} != {expected_build_number}")
-          catalog_files = {item.get("name") for item in release.get("files") or []}
-          missing = sorted(expected_files - catalog_files)
-          if missing:
-              raise SystemExit(f"Release catalog is missing files: {', '.join(missing)}")
-          changelog = release.get("changelog") or {}
-          if changelog.get("format") != "markdown" or not changelog.get("url"):
-              raise SystemExit("Release catalog is missing the markdown changelog link")
-          print(f"Uploaded {len(expected_files)} Wavecrate release file(s) to {expected_build}")
-          PY
-
-          changelog_catalog_file="$response_dir/changelog-catalog.json"
-          curl --fail-with-body --retry 3 --retry-delay 2 \
-            "$catalog_url/$build_id/changelog" > "$changelog_catalog_file"
-          python3 - "$changelog_catalog_file" "$build_id" "$changelog_file" <<'PY'
-          import json
-          import sys
-
-          catalog_path, expected_build, changelog_path = sys.argv[1:]
-          response = json.loads(open(catalog_path, encoding="utf-8").read())
-          if response.get("build_id") != expected_build:
-              raise SystemExit(f"Fetched changelog id mismatch: {response.get('build_id')} != {expected_build}")
-          body = (response.get("changelog") or {}).get("body", "").strip()
-          expected_body = open(changelog_path, encoding="utf-8").read().strip()
-          if body != expected_body:
-              raise SystemExit("Fetched changelog body does not match generated release log")
-          print(f"Uploaded Wavecrate release log to {expected_build}")
-          PY
-
-          scripts/internal/release/assemble_portal_changelog.py \
-            --catalog-url "$catalog_url" \
-            --current-build-id "$build_id" \
-            --current-log "$changelog_file" \
-            --existing-changelog-url "$full_changelog_url" \
-            --generated-at "$released_at" \
-            --output "$full_changelog_file"
-
-          full_changelog_response_file="$response_dir/full-changelog-upload.json"
-          curl --fail-with-body --retry 3 --retry-delay 2 \
-            --request PUT \
-            --header "Authorization: Bearer $UPLOAD_TOKEN" \
-            --header "Content-Type: text/markdown; charset=utf-8" \
-            --header "X-Wavecrate-Changelog-Title: Wavecrate changelog" \
-            --data-binary "@$full_changelog_file" \
-            "$upload_base/changelog" > "$full_changelog_response_file"
-          python3 - "$full_changelog_response_file" <<'PY'
-          import json
-          import sys
-
-          response = json.loads(open(sys.argv[1], encoding="utf-8").read())
-          changelog = response.get("changelog") or {}
-          if changelog.get("format") != "markdown":
-              raise SystemExit("Uploaded full changelog was not recorded as markdown")
-          if not changelog.get("url"):
-              raise SystemExit("Uploaded full changelog did not expose a public URL")
-          PY
-
-          full_changelog_catalog_file="$response_dir/full-changelog-catalog.json"
-          curl --fail-with-body --retry 3 --retry-delay 2 \
-            "$full_changelog_url" > "$full_changelog_catalog_file"
-          python3 - "$full_changelog_catalog_file" "$full_changelog_file" <<'PY'
-          import json
-          import sys
-
-          catalog_path, changelog_path = sys.argv[1:]
-          response = json.loads(open(catalog_path, encoding="utf-8").read())
-          body = (response.get("changelog") or {}).get("body", "").strip()
-          expected_body = open(changelog_path, encoding="utf-8").read().strip()
-          if body != expected_body:
-              raise SystemExit("Fetched full changelog body does not match generated changelog")
-          print("Uploaded Wavecrate full changelog")
-          PY
+          scripts/internal/release/verify_published_release.py \
+            --surface portalsurfer \
+            --channel nightly \
+            --version "${{ needs.resolve-main.outputs.nightly_version }}" \
+            --target-version "${{ needs.resolve-main.outputs.target_version }}" \
+            --commit "${{ needs.resolve-main.outputs.target_sha }}" \
+            --build-date "${{ needs.resolve-main.outputs.build_date }}" \
+            --portal-catalog-url "${upload_base%/release-uploads}/releases" \
+            --portal-build-id "${{ needs.resolve-main.outputs.portal_build_id }}" \
+            --build-number "${{ needs.resolve-main.outputs.build_number }}" \
+            --source PortalSurfer \
+            --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=

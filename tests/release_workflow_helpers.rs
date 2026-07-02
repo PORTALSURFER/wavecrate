@@ -1,12 +1,14 @@
 //! Focused checks for shared release workflow helper scripts.
 
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
+use zip::write::SimpleFileOptions;
 
 #[test]
 fn toolchain_helper_emits_github_output_channel() {
@@ -353,6 +355,121 @@ fn promoted_rc_validator_rejects_checksum_mismatches() {
     );
 }
 
+#[test]
+fn published_release_verifier_accepts_portalsurfer_catalog_fixture() {
+    let temp = tempfile::tempdir().expect("create published release fixture");
+    let key = temp.path().join("ed25519.pem");
+    if !generate_ed25519_key(&key) {
+        eprintln!(
+            "local openssl does not support Ed25519 key generation; skipping verifier roundtrip"
+        );
+        return;
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let (release_json, asset_dir) = write_published_release_fixture(&temp, &key, None);
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/verify_published_release.py",
+            ))
+            .arg("--surface")
+            .arg("portalsurfer")
+            .arg("--channel")
+            .arg("stable")
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--target-version")
+            .arg("19.1.0")
+            .arg("--commit")
+            .arg("abcdef1")
+            .arg("--build-date")
+            .arg("2026-07-02")
+            .arg("--portal-build-id")
+            .arg("wavecrate-19.1.0")
+            .arg("--build-number")
+            .arg("6200")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir)
+            .arg("--checksum-public-key")
+            .arg(expected_pubkey.trim()),
+    );
+}
+
+#[test]
+fn published_release_verifier_rejects_manifest_mismatches() {
+    let temp = tempfile::tempdir().expect("create published release fixture");
+    let key = temp.path().join("ed25519.pem");
+    if !generate_ed25519_key(&key) {
+        eprintln!(
+            "local openssl does not support Ed25519 key generation; skipping verifier roundtrip"
+        );
+        return;
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let (release_json, asset_dir) =
+        write_published_release_fixture(&temp, &key, Some(("commit", "deadbee")));
+
+    let output = run_failure(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/verify_published_release.py",
+            ))
+            .arg("--surface")
+            .arg("portalsurfer")
+            .arg("--channel")
+            .arg("stable")
+            .arg("--version")
+            .arg("19.1.0")
+            .arg("--target-version")
+            .arg("19.1.0")
+            .arg("--commit")
+            .arg("abcdef1")
+            .arg("--build-date")
+            .arg("2026-07-02")
+            .arg("--portal-build-id")
+            .arg("wavecrate-19.1.0")
+            .arg("--build-number")
+            .arg("6200")
+            .arg("--release-json")
+            .arg(&release_json)
+            .arg("--asset-dir")
+            .arg(&asset_dir)
+            .arg("--checksum-public-key")
+            .arg(expected_pubkey.trim()),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("manifest commit"),
+        "manifest mismatch should report the wrong manifest field\nstderr:\n{stderr}"
+    );
+}
+
+fn generate_ed25519_key(path: &Path) -> bool {
+    let keygen = Command::new("openssl")
+        .arg("genpkey")
+        .arg("-algorithm")
+        .arg("Ed25519")
+        .arg("-out")
+        .arg(path)
+        .output()
+        .expect("run openssl key generation");
+    if keygen.status.success() {
+        return true;
+    }
+    let stderr = String::from_utf8_lossy(&keygen.stderr);
+    if stderr.contains("Algorithm Ed25519 not found") {
+        return false;
+    }
+    panic!(
+        "openssl key generation failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&keygen.stdout),
+        stderr
+    );
+}
+
 fn expected_public_key(key: &Path, temp: &TempDir) -> String {
     let pub_der = temp.path().join("public.der");
     run_success(
@@ -434,6 +551,148 @@ fn write_promoted_rc_fixture(
     )
     .expect("write release json");
     (release_json, asset_dir)
+}
+
+fn write_published_release_fixture(
+    temp: &TempDir,
+    key: &Path,
+    manifest_override: Option<(&str, &str)>,
+) -> (std::path::PathBuf, std::path::PathBuf) {
+    let asset_dir = temp.path().join("published-assets");
+    fs::create_dir_all(&asset_dir).expect("create asset dir");
+    let zip_assets = [
+        (
+            "wavecrate-19.1.0-macos-aarch64.zip",
+            "aarch64-apple-darwin",
+            "macos",
+            "aarch64",
+        ),
+        (
+            "wavecrate-19.1.0-macos-x86_64.zip",
+            "x86_64-apple-darwin",
+            "macos",
+            "x86_64",
+        ),
+        (
+            "wavecrate-19.1.0-windows-x86_64.zip",
+            "x86_64-pc-windows-msvc",
+            "windows",
+            "x86_64",
+        ),
+    ];
+    let checksum_asset = "checksums-19.1.0.txt";
+    let signature_asset = "checksums-19.1.0.txt.sig";
+
+    let mut checksum_lines = Vec::new();
+    let mut files = Vec::new();
+    for (zip_name, target, platform, arch) in zip_assets {
+        write_release_zip(
+            &asset_dir.join(zip_name),
+            target,
+            platform,
+            arch,
+            manifest_override,
+        );
+        let hash = sha256_file(&asset_dir.join(zip_name));
+        checksum_lines.push(format!("{hash}  {zip_name}\n"));
+        files.push(json!({
+            "name": zip_name,
+            "url": format!("/wavecrate/api/v1/releases/wavecrate-19.1.0/files/{zip_name}/download"),
+            "sha256": hash,
+            "size_bytes": fs::metadata(asset_dir.join(zip_name)).expect("zip metadata").len()
+        }));
+    }
+
+    fs::write(asset_dir.join(checksum_asset), checksum_lines.concat()).expect("write checksum");
+    let key_pem = fs::read_to_string(key).expect("read generated key");
+    run_success(
+        Command::new("bash")
+            .arg(repo_path(
+                "scripts/internal/release/sign_release_checksums.sh",
+            ))
+            .arg("--checksum-file")
+            .arg(asset_dir.join(checksum_asset))
+            .arg("--signature-file")
+            .arg(asset_dir.join(signature_asset))
+            .env("CHECKSUMS_SIGNING_KEY", key_pem),
+    );
+    for file_name in [checksum_asset, signature_asset] {
+        files.push(json!({
+            "name": file_name,
+            "url": format!("/wavecrate/api/v1/releases/wavecrate-19.1.0/files/{file_name}/download"),
+            "sha256": sha256_file(&asset_dir.join(file_name)),
+            "size_bytes": fs::metadata(asset_dir.join(file_name)).expect("asset metadata").len()
+        }));
+    }
+
+    let catalog = json!({
+        "app": "wavecrate",
+        "releases": [{
+            "build_id": "wavecrate-19.1.0",
+            "build_number": 6200,
+            "version": "19.1.0",
+            "released_at": "2026-07-02T09:00:00Z",
+            "changelog": {
+                "title": "Wavecrate 19.1.0",
+                "format": "markdown",
+                "body": "# Wavecrate 19.1.0\n\n## Release Metadata\n",
+                "url": "/wavecrate/api/v1/releases/wavecrate-19.1.0/changelog"
+            },
+            "files": files
+        }]
+    });
+    let release_json = temp.path().join("published-catalog.json");
+    fs::write(
+        &release_json,
+        serde_json::to_string_pretty(&catalog).expect("serialize catalog json"),
+    )
+    .expect("write release json");
+    (release_json, asset_dir)
+}
+
+fn write_release_zip(
+    path: &Path,
+    target: &str,
+    platform: &str,
+    arch: &str,
+    manifest_override: Option<(&str, &str)>,
+) {
+    let file = fs::File::create(path).expect("create zip file");
+    let mut zip = zip::ZipWriter::new(file);
+    zip.start_file(
+        "wavecrate/update-manifest.json",
+        SimpleFileOptions::default(),
+    )
+    .expect("start manifest file");
+    let mut manifest = json!({
+        "app": "wavecrate",
+        "channel": "stable",
+        "target": target,
+        "platform": platform,
+        "arch": arch,
+        "version": "19.1.0",
+        "target_version": "19.1.0",
+        "commit": "abcdef1",
+        "build_date": "2026-07-02",
+        "files": ["wavecrate", "update-manifest.json"]
+    });
+    if let Some((key, value)) = manifest_override {
+        manifest[key] = json!(value);
+    }
+    zip.write_all(
+        serde_json::to_string(&manifest)
+            .expect("serialize manifest")
+            .as_bytes(),
+    )
+    .expect("write manifest");
+    zip.finish().expect("finish zip");
+}
+
+fn sha256_file(path: &Path) -> String {
+    format!(
+        "{:x}",
+        Sha256::digest(fs::read(path).expect("read file for sha256"))
+    )
 }
 
 fn repo_root() -> &'static Path {

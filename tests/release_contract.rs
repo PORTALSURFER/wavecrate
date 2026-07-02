@@ -27,6 +27,8 @@ const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
     include_str!("../scripts/internal/release/sign_release_checksums.sh");
 const VALIDATE_PROMOTED_RC_SCRIPT: &str =
     include_str!("../scripts/internal/release/validate_promoted_rc_release.py");
+const VERIFY_PUBLISHED_RELEASE_SCRIPT: &str =
+    include_str!("../scripts/internal/release/verify_published_release.py");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 
 #[test]
@@ -352,6 +354,56 @@ fn rc_and_stable_workflows_publish_to_portalsurfer_catalog() {
     assert!(
         STABLE_WORKFLOW.contains("portal_build_id=\"wavecrate-${VERSION}\""),
         "stable PortalSurfer build ids must include the stable version"
+    );
+}
+
+#[test]
+fn release_workflows_verify_published_artifacts_after_publication() {
+    for (name, workflow, channel) in [
+        ("nightly workflow", NIGHTLY_WORKFLOW, "nightly"),
+        ("RC workflow", RC_WORKFLOW, "rc"),
+        ("stable workflow", STABLE_WORKFLOW, "stable"),
+    ] {
+        assert!(
+            workflow.contains("scripts/internal/release/verify_published_release.py \\"),
+            "{name} must invoke the shared post-publish verifier"
+        );
+        assert!(
+            workflow.contains(&format!("--channel {channel} \\")),
+            "{name} must verify the published assets with the matching release channel"
+        );
+        assert!(
+            workflow.contains("--checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4="),
+            "{name} must verify checksum signatures with the pinned public key"
+        );
+        assert!(
+            workflow.contains("--surface portalsurfer"),
+            "{name} must verify PortalSurfer downloads after PortalSurfer publication"
+        );
+    }
+    assert!(
+        NIGHTLY_WORKFLOW.contains("Verify published GitHub nightly release"),
+        "nightly workflow must verify the rolling GitHub nightly release"
+    );
+    assert!(
+        RC_WORKFLOW.contains("Verify published GitHub RC release"),
+        "RC workflow must verify the GitHub RC release"
+    );
+    assert!(
+        STABLE_WORKFLOW.contains("Verify published GitHub stable release"),
+        "stable workflow must verify the GitHub stable release"
+    );
+    assert!(
+        VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("update-manifest.json"),
+        "post-publish verifier must inspect package manifests"
+    );
+    assert!(
+        VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("PortalSurfer catalog sha256 mismatch"),
+        "post-publish verifier must compare public catalog hashes to downloaded bytes"
+    );
+    assert!(
+        VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("pkeyutl"),
+        "post-publish verifier must verify checksum signatures"
     );
 }
 
