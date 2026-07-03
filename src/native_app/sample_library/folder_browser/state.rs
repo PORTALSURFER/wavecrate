@@ -325,7 +325,8 @@ impl FolderBrowserState {
             | FolderBrowserMessage::BeginRenameSelected
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)
-            | FolderBrowserMessage::DropOnCollection(_) => {}
+            | FolderBrowserMessage::DropOnCollection(_)
+            | FolderBrowserMessage::DropOnSource(_) => {}
             FolderBrowserMessage::DropOnFolder(_) => {}
             FolderBrowserMessage::ToggleFolderSubtreeListing => {
                 self.toggle_folder_subtree_listing();
@@ -361,13 +362,21 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.clear_drop_target_folder(position);
+                self.clear_drop_target_source(position);
             }
             FolderBrowserMessage::ClearDropTargetUnless(id, position) => {
                 self.clear_drop_target_folder_unless(&id, position);
             }
+            FolderBrowserMessage::ClearSourceDropTargetUnless(id, position) => {
+                self.clear_drop_target_source_unless(&id, position);
+            }
             FolderBrowserMessage::HoverDropTarget(id, position) => {
                 self.update_drag_pointer(position);
                 self.hover_drop_target_folder(&id);
+            }
+            FolderBrowserMessage::HoverSourceDropTarget(id, position) => {
+                self.update_drag_pointer(position);
+                self.hover_drop_target_source(&id);
             }
             FolderBrowserMessage::ActivateFolder(id, modifiers) => {
                 self.cancel_rename();

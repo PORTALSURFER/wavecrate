@@ -78,18 +78,23 @@ impl FolderHoverAutoExpand {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FolderBrowserDropTarget {
     Folder(String),
+    Source(String),
     Collection(SampleCollection),
 }
 
 impl FolderBrowserState {
-    pub(in crate::native_app) fn begin_file_drag(&mut self, file_id: String, position: Point) {
+    pub(in crate::native_app) fn begin_file_drag(
+        &mut self,
+        file_id: String,
+        position: Point,
+    ) -> bool {
         if self.rename_active()
             || !self
                 .selected_audio_files()
                 .iter()
                 .any(|file| file.id == file_id)
         {
-            return;
+            return false;
         }
         let file_ids = if self.selection.selected_file_ids_explicit
             && !self.selection.selected_file_ids.is_empty()
@@ -113,6 +118,7 @@ impl FolderBrowserState {
         });
         self.drag_drop.drag_pointer = Some(position);
         self.clear_drop_targets_for_new_drag();
+        true
     }
 
     pub(in crate::native_app) fn begin_extracted_file_drag(

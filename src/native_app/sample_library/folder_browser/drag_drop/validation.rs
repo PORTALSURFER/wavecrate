@@ -39,7 +39,8 @@ impl FolderBrowserState {
                 moving
             }
             Some(FolderBrowserDrag::Files { file_ids, .. }) => {
-                !self.folder_path_is_locked(target_path)
+                !self.path_is_in_protected_source(target_path)
+                    && !self.folder_path_is_locked(target_path)
                     && file_ids.iter().any(|id| {
                         let path = Path::new(id);
                         self.source_contains_audio_file(id)
@@ -48,9 +49,34 @@ impl FolderBrowserState {
                     })
             }
             Some(FolderBrowserDrag::ExtractedFile { path }) => {
-                path.parent() != Some(target_path) && !self.folder_path_is_locked(target_path)
+                path.parent() != Some(target_path)
+                    && !self.path_is_in_protected_source(target_path)
+                    && !self.folder_path_is_locked(target_path)
             }
             None => false,
+        }
+    }
+
+    pub(in crate::native_app) fn can_drop_drag_on_source(&self, target_source_id: &str) -> bool {
+        let Some(target_source) = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == target_source_id)
+        else {
+            return false;
+        };
+        if target_source.is_protected() || target_source.is_missing() {
+            return false;
+        }
+        let target_path = target_source.root.as_path();
+        match &self.drag_drop.drag {
+            Some(FolderBrowserDrag::Files { file_ids, .. }) => file_ids.iter().any(|id| {
+                let path = Path::new(id);
+                path.parent() != Some(target_path) && self.source_root_for_cut_file(id).is_some()
+            }),
+            Some(FolderBrowserDrag::ExtractedFile { path }) => path.parent() != Some(target_path),
+            _ => false,
         }
     }
 
