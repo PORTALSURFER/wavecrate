@@ -269,6 +269,28 @@ fn active_sample_load_validation_ticket(state: &NativeAppState) -> Option<ui::Ta
     state.background.sample_load_validation_task.active()
 }
 
+fn active_sample_autoplay_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
+    state.background.sample_autoplay_task.active()
+}
+
+fn start_deferred_sample_autoplay_for_tests(
+    state: &mut NativeAppState,
+    path: String,
+    file_name: String,
+    context: &mut ui::UiUpdateContext<crate::native_app::test_support::state::GuiMessage>,
+) {
+    let ticket = active_sample_autoplay_ticket(state).expect("sample autoplay queued");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleAutoplay {
+            ticket,
+            path,
+            file_name,
+            started_at: std::time::Instant::now(),
+        },
+        context,
+    );
+}
+
 fn persisted_cache_warm_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     let key = state.waveform.cache.warm_key.as_ref()?;
     state.waveform.cache.warm_tasks.active(key)

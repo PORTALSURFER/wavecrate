@@ -69,52 +69,7 @@ impl NativeAppState {
             );
             return;
         }
-        self.start_completed_sample_playback(&file_name, started_at, context);
-        self.schedule_next_starmap_audition_hit(context);
-    }
-
-    fn start_completed_sample_playback(
-        &mut self,
-        file_name: &str,
-        started_at: Instant,
-        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
-    ) {
-        let playback_started_at = Instant::now();
-        match self.start_playback_current_span(0.0, 1.0) {
-            Ok(()) => {
-                self.record_selected_sample_last_played(context);
-                log_slow_sample_load_phase(
-                    "browser.sample_load.finish.start_playback",
-                    file_name,
-                    playback_started_at,
-                );
-                self.ui.status.sample = format!("Playing {file_name}");
-                emit_gui_action(
-                    "browser.sample_load.finish",
-                    Some("browser"),
-                    Some(file_name),
-                    "playing",
-                    started_at,
-                    None,
-                );
-            }
-            Err(err) => {
-                log_slow_sample_load_phase(
-                    "browser.sample_load.finish.start_playback",
-                    file_name,
-                    playback_started_at,
-                );
-                self.ui.status.sample = format!("Loaded {file_name} | playback unavailable: {err}");
-                emit_gui_action(
-                    "browser.sample_load.finish",
-                    Some("browser"),
-                    Some(file_name),
-                    "loaded_playback_error",
-                    started_at,
-                    Some(&err),
-                );
-            }
-        }
+        self.schedule_current_sample_autoplay(&path, &file_name, started_at, context);
     }
 
     fn continue_early_sample_playback(

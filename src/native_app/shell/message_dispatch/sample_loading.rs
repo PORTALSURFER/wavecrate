@@ -42,6 +42,12 @@ impl NativeAppState {
                 self.finish_sample_playback_ready(result, context)
             }
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result, context),
+            GuiMessage::DeferredSampleAutoplay {
+                ticket,
+                path,
+                file_name,
+                started_at,
+            } => self.start_deferred_sample_autoplay(ticket, path, file_name, started_at, context),
             GuiMessage::WaveformCacheIndicatorRefreshFinished(result) => {
                 self.finish_waveform_cache_indicator_refresh(result)
             }

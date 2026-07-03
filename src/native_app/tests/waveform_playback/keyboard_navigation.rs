@@ -345,10 +345,27 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         "cached keyboard navigation should update the visible status, got {}",
         state.ui.status.sample
     );
+    assert!(
+        active_sample_autoplay_ticket(&state).is_some(),
+        "memory-cached keyboard navigation should queue autoplay instead of starting it inline"
+    );
+    assert_eq!(
+        last_played_label_for(&state, &second),
+        Some(String::from("Never")),
+        "queued autoplay should not mark intermediate selections as played before the handoff"
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    start_deferred_sample_autoplay_for_tests(
+        &mut state,
+        second.clone(),
+        String::from("b.wav"),
+        &mut context,
+    );
     assert_eq!(
         last_played_label_for(&state, &second),
         Some(String::from("Today")),
-        "memory-cached autoplay navigation should update last played history"
+        "deferred autoplay should update last played history when it starts"
     );
 }
 
