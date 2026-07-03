@@ -6,11 +6,15 @@ use std::{
 use super::{
     format::CachedWaveformFile,
     identity::{
-        CacheIdentity, cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
-        playback_sidecar_valid, source_warm_marker_path,
+        CacheIdentity, cache_path_for_identity, playback_descriptor_path,
+        playback_ready_marker_path, playback_sidecar_path, playback_sidecar_valid,
+        source_warm_marker_path,
     },
     read::read_cached_waveform_file,
-    write::{mark_source_warm_ready_for_cache_path, update_playback_ready_marker},
+    write::{
+        mark_source_warm_ready_for_cache_path, update_playback_ready_marker,
+        write_playback_descriptor_sidecar,
+    },
 };
 
 pub(in crate::native_app) fn remap_persisted_waveform_cache_after_move(
@@ -96,8 +100,10 @@ fn remap_file(old_path: &Path, new_path: &Path) -> Result<bool, String> {
 
     mark_source_warm_ready_for_cache_path(&new_cache_path);
     if playback_sidecar_moved {
+        let _ = write_playback_descriptor_sidecar(&new_cache_path, &moved_cache);
         let _ = update_playback_ready_marker(&new_cache_path, true);
     } else {
+        let _ = remove_file_if_exists(&playback_descriptor_path(&new_cache_path));
         let _ = update_playback_ready_marker(&new_cache_path, false);
     }
     cleanup_old_cache_artifacts(&old_cache_path);
@@ -146,6 +152,7 @@ fn move_cache_artifact(source: &Path, destination: &Path) -> io::Result<()> {
 
 fn cleanup_old_cache_artifacts(old_cache_path: &Path) {
     let _ = remove_file_if_exists(old_cache_path);
+    let _ = remove_file_if_exists(&playback_descriptor_path(old_cache_path));
     let _ = remove_file_if_exists(&playback_sidecar_path(old_cache_path));
     let _ = remove_file_if_exists(&playback_ready_marker_path(old_cache_path));
     let _ = remove_file_if_exists(&source_warm_marker_path(old_cache_path));

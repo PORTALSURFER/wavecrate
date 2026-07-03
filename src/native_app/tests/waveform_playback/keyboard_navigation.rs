@@ -53,8 +53,12 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         "navigation feedback must update before sample-load business work completes"
     );
     assert!(
-        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state)).is_some(),
-        "first key repeat should queue sample-load validation work immediately"
+        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state)).is_none(),
+        "keyboard navigation should not wait for path validation before loading"
+    );
+    assert!(
+        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_some(),
+        "first key repeat should queue sample-load work immediately"
     );
     assert!(
         lock_navigation_harness_state(&state)
@@ -74,8 +78,8 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .business
             .recent
             .iter()
-            .any(|event| event.name == "gui-sample-load-validate"),
-        "keyboard navigation should use Radiant BusinessRuntime for sample validation work"
+            .any(|event| event.name == "gui-sample-load"),
+        "keyboard navigation should use Radiant BusinessRuntime for sample loading work"
     );
 
     runtime.dispatch_message(
@@ -103,9 +107,13 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         "rapid navigation should keep audition loading immediate instead of deferred"
     );
 
+    assert!(
+        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state)).is_none(),
+        "repeat keyboard navigation should still avoid validation handoff work"
+    );
     let stale_sample_load_ticket =
-        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state))
-            .expect("latest navigation queues sample-load validation work immediately");
+        active_sample_load_ticket(&lock_navigation_harness_state(&state))
+            .expect("latest navigation queues sample-load work immediately");
     let diagnostics_after_queue = runtime.runtime_diagnostics();
     assert_eq!(
         diagnostics_after_queue.ui.slow_update_handlers, 0,
@@ -116,8 +124,8 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .business
             .recent
             .iter()
-            .any(|event| event.name == "gui-sample-load-validate"),
-        "repeat navigation should use Radiant BusinessRuntime for sample validation work"
+            .any(|event| event.name == "gui-sample-load"),
+        "repeat navigation should use Radiant BusinessRuntime for sample loading work"
     );
 
     runtime.dispatch_message(
@@ -135,6 +143,11 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .map(str::to_owned),
         Some(second.clone()),
         "new navigation should update immediately while the previous worker is pending"
+    );
+    assert!(
+        active_sample_load_ticket_for_path(&lock_navigation_harness_state(&state), &third)
+            .is_none(),
+        "new navigation should cancel the previous selected-file sample-load worker"
     );
 
     runtime.dispatch_message(
@@ -206,7 +219,6 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
     let mut context = ui::UiUpdateContext::default();
 
     assert_eq!(
@@ -244,12 +256,15 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
     let mut context = ui::UiUpdateContext::default();
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(third.as_str())
+    );
+    assert!(
+        active_sample_load_ticket_for_path(&state, &second).is_none(),
+        "repeat keyboard navigation should cancel the previous selected-file sample load"
     );
     assert!(
         state
@@ -321,7 +336,6 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
@@ -348,7 +362,68 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
     assert_eq!(
         last_played_label_for(&state, &second),
         Some(String::from("Today")),
-        "memory-cached autoplay navigation should update last played history"
+        "memory-cached keyboard navigation should start autoplay immediately"
+    );
+}
+
+#[test]
+fn rapid_memory_cached_navigation_starts_latest_cached_sample_immediately() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("a.wav");
+    let second_path = source_root.path().join("b.wav");
+    let third_path = source_root.path().join("c.wav");
+    write_test_wav_i16(&first_path, &[0, 256, -256, 512]);
+    write_test_wav_i16(&second_path, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&third_path, &[0, 512, -512, 256]);
+    let first = first_path.display().to_string();
+    let second = second_path.display().to_string();
+    let third = third_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.select_file(first);
+    for path in [&second_path, &third_path] {
+        let loaded = crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("sample loads");
+        state.remember_waveform(&loaded);
+    }
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    assert_eq!(state.waveform.current.path(), second_path);
+    assert_eq!(
+        last_played_label_for(&state, &second),
+        Some(String::from("Today")),
+        "cached navigation should start the selected sample immediately"
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    assert_eq!(state.waveform.current.path(), third_path);
+
+    assert_eq!(
+        last_played_label_for(&state, &third),
+        Some(String::from("Today")),
+        "latest cached navigation should also start without an extra autoplay message"
     );
 }
 
@@ -378,7 +453,6 @@ fn keyboard_navigation_starts_foreground_load_without_debounce() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),

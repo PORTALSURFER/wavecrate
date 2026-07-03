@@ -160,6 +160,73 @@ fn metadata_delta_refresh_updates_only_targeted_rows() {
 }
 
 #[test]
+fn metadata_delta_refresh_reuses_same_source_db_connection_after_db_write() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).expect("create source root");
+
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
+        .expect("insert kick");
+    db.upsert_file(Path::new("drums/snare.wav"), 1, 2)
+        .expect("insert snare");
+
+    let base_job = SearchJob {
+        source_id: SourceId::new(),
+        source_root: root.clone(),
+        ..make_search_job("")
+    };
+    let source_id = base_job.source_id.as_str().to_string();
+    let queue = SearchJobQueue::new();
+    queue.send(SearchJob {
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("")
+    });
+    let generation = queue
+        .take_blocking()
+        .expect("expected queued search job generation")
+        .generation;
+    let mut cache = SearchWorkerCache::default();
+    crate::sample_sources::db::test_reset_source_db_open_total_count(&root);
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &base_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &base_job, &queue, generation
+    ));
+    assert_eq!(
+        crate::sample_sources::db::test_source_db_open_total_count(&root),
+        1
+    );
+
+    db.set_last_played_at(Path::new("drums/snare.wav"), 77)
+        .expect("update snare playback age");
+    let delta_job = SearchJob {
+        metadata_delta_paths: vec![PathBuf::from("drums/snare.wav")],
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("")
+    };
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &delta_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &delta_job, &queue, generation
+    ));
+
+    let refreshed = cache.entries.as_ref().expect("entries refreshed");
+    assert_eq!(refreshed[1].last_played_at, Some(77));
+    assert_eq!(
+        crate::sample_sources::db::test_source_db_open_total_count(&root),
+        1,
+        "same-source metadata deltas should not reopen the source DB after hot playback writes"
+    );
+}
+
+#[test]
 /// A coalesced metadata-delta refresh can cross revisions when it carries every changed path.
 fn metadata_delta_revision_gap_refreshes_all_provided_paths() {
     let temp = tempdir().expect("tempdir");

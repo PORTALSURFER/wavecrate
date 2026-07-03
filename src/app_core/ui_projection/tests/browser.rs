@@ -177,6 +177,29 @@ fn browser_projection_sidebar_uses_selected_visible_target_snapshot_fallback() {
     assert!(projected.tag_sidebar.primary_action_enabled);
 }
 
+/// Retained browser-frame refreshes must not rebuild tag-sidebar metadata on each focus move.
+#[test]
+fn browser_frame_projection_without_sidebar_skips_target_metadata() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.set_wav_entries_for_tests(vec![
+        browser_projection_test_entry("first.wav"),
+        browser_projection_test_entry("second.wav"),
+    ]);
+    controller.ui.browser.viewport.visible = projection_fixtures::visible_rows_all(2);
+    controller.ui.browser.selection.selected_visible = Some(1);
+    controller.ui.browser.selection.last_focused_path =
+        Some(std::path::PathBuf::from("second.wav"));
+    controller.ui.browser.selection.selected_paths.clear();
+
+    let projected = project_browser_panel_frame_model_without_sidebar(&mut controller);
+
+    assert_eq!(projected.selected_visible_row, Some(1));
+    assert_eq!(projected.focused_sample_label.as_deref(), Some("second"));
+    assert_eq!(projected.tag_sidebar.selected_count, 0);
+    assert!(projected.tag_sidebar.header_label.is_empty());
+}
+
 #[test]
 fn browser_projection_sidebar_projects_common_normal_tags_from_db_usage() {
     let (mut controller, source) = browser_projection_controller_with_source(vec![

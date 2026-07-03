@@ -73,6 +73,8 @@ use app_model::{
     materialize_project_app_model_core, materialize_project_app_model_overlay_and_chrome,
 };
 #[cfg(test)]
+pub(crate) use browser_projection::project_browser_panel_frame_model;
+#[cfg(test)]
 use browser_projection::{
     browser_bpm_preload_ranges, browser_column_index, browser_render_window,
     browser_row_identity_hash, project_cached_browser_row, refresh_projected_browser_row_cache,
@@ -80,8 +82,9 @@ use browser_projection::{
 };
 pub(crate) use browser_projection::{
     patch_browser_rows_state, project_browser_chrome_model, project_browser_focused_sample_label,
-    project_browser_model, project_browser_panel_frame_model, project_browser_rows_model_into,
-    project_browser_rows_projection_inputs, project_browser_tag_sidebar_model,
+    project_browser_model, project_browser_panel_frame_model_without_sidebar,
+    project_browser_rows_model_into, project_browser_rows_projection_inputs,
+    project_browser_tag_sidebar_model,
 };
 pub(crate) use confirm_prompt_projection::project_confirm_prompt_model;
 pub(crate) use map_projection::project_map_model;

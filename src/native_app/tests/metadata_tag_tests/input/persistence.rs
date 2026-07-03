@@ -76,6 +76,67 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
 }
 
 #[test]
+fn source_prep_loads_persisted_metadata_tags_in_background() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("background-tag.wav");
+    fs::write(&sample_path, []).expect("sample file");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("metadata-tags-background-load-test"),
+        source_root.path().to_path_buf(),
+    );
+    let source_id = source.id.as_str().to_string();
+    crate::native_app::metadata::persist_metadata_tag_additions_for_tests(
+        sample_path.clone(),
+        source_root.path().to_path_buf(),
+        PathBuf::from("background-tag.wav"),
+        vec![String::from("warm-tone")],
+    )
+    .expect("persist tags");
+
+    let selected_file = sample_path.display().to_string();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[source]);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.queue_selected_source_prep(
+        crate::native_app::sample_library::source_prep::SourcePrepTrigger::SourceSelected,
+        &mut context,
+    );
+
+    assert!(
+        state.metadata.tags_by_file.get(&selected_file).is_none(),
+        "source prep should not synchronously read persisted tags on the UI thread"
+    );
+    assert!(
+        state
+            .metadata
+            .persisted_tag_sources_pending
+            .contains(&source_id),
+        "source prep should queue a background metadata refresh"
+    );
+
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(
+        !state
+            .metadata
+            .persisted_tag_sources_pending
+            .contains(&source_id)
+    );
+    assert!(
+        state
+            .metadata
+            .persisted_tag_sources_loaded
+            .contains(&source_id)
+    );
+    assert_eq!(
+        state.metadata.tags_by_file.get(&selected_file),
+        Some(&vec![String::from("warm-tone")])
+    );
+}
+
+#[test]
 fn metadata_tag_persistence_replaces_conflicting_playback_type_tags() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("playback-type.wav");

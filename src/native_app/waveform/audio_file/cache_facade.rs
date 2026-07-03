@@ -4,6 +4,7 @@ pub(in crate::native_app) use super::waveform_cache::{
     cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
     flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
     invalidate_persisted_waveform_cache_paths, load_cached_waveform_file_for_playback,
+    load_cached_waveform_playback_descriptor_sidecar,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 

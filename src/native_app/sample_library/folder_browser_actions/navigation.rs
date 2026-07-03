@@ -409,10 +409,7 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
-        let previous_file_index = self
-            .library
-            .folder_browser
-            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file);
+        let previous_file_index = self.fast_or_full_selected_audio_file_index();
         let previous_folder = self
             .library
             .folder_browser
@@ -502,11 +499,7 @@ impl NativeAppState {
             return;
         };
 
-        if let Some(index) = self
-            .library
-            .folder_browser
-            .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
-        {
+        if let Some(index) = self.fast_or_full_selected_audio_file_index() {
             let reveal_direction =
                 file_navigation_reveal_direction(previous_file_index, index, delta);
             context.scroll_fixed_row_into_view(
@@ -532,6 +525,17 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.load_navigation_sample(path, context);
+    }
+
+    fn fast_or_full_selected_audio_file_index(&self) -> Option<usize> {
+        self.library
+            .folder_browser
+            .selected_audio_file_index_fast_matching_tags(&self.metadata.tags_by_file)
+            .unwrap_or_else(|| {
+                self.library
+                    .folder_browser
+                    .selected_audio_file_index_matching_tags(&self.metadata.tags_by_file)
+            })
     }
 
     fn focus_selected_starmap_node_after_browser_navigation(&mut self) {

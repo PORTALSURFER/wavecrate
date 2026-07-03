@@ -71,6 +71,9 @@ impl SampleLoadWorker {
             SampleLoadStrategy::CacheThenDecode => {
                 self.load_cached_sample_or_decode(context, events, progress_reporter)
             }
+            SampleLoadStrategy::DisplayAfterInstantAudition => {
+                self.load_instant_audition_display(context, progress_reporter)
+            }
             SampleLoadStrategy::Decode => {
                 self.load_decoded_sample(context, events, progress_reporter)
             }
@@ -87,6 +90,9 @@ impl SampleLoadWorker {
         if let Ok(waveform) =
             WaveformState::load_persisted_playback_cache(PathBuf::from(self.request.path()))
         {
+            if context.check_cancelled().is_err() {
+                return Err(String::from("cancelled"));
+            }
             log_sample_load_timing(
                 "browser.sample_load.worker.persisted_playback_cache",
                 self.request.path(),
@@ -106,6 +112,39 @@ impl SampleLoadWorker {
         }
 
         self.load_decoded_sample(context, events, progress_reporter)
+    }
+
+    fn load_instant_audition_display(
+        &self,
+        context: &radiant::runtime::BusinessWorkContext,
+        progress_reporter: &RefCell<ui::ThrottledProgressReporter<impl FnMut(f32)>>,
+    ) -> Result<WaveformState, String> {
+        let phase_started_at = Instant::now();
+        let progress = |progress| {
+            let _ = context.yield_if_elapsed(Duration::from_millis(8));
+            progress_reporter.borrow_mut().report(progress);
+        };
+        let cancelled = || context.is_cancelled();
+        let result = WaveformState::load_path_for_instant_audition_display(
+            PathBuf::from(self.request.path()),
+            progress,
+            cancelled,
+        );
+        log_sample_load_timing(
+            "browser.sample_load.worker.instant_audition_display",
+            self.request.path(),
+            phase_started_at.elapsed(),
+            true,
+        );
+        log_loaded_sample_metadata(self.request.path(), &result, "instant_audition_display");
+        log_sample_identity_waveform_result(
+            "browser.sample_load.worker.instant_audition_display_identity",
+            "load_instant_audition_display",
+            std::path::Path::new(self.request.path()),
+            &result,
+            Some("instant_audition_display"),
+        );
+        result
     }
 
     fn load_decoded_sample(

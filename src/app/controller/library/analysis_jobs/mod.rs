@@ -24,7 +24,7 @@ pub(crate) use enqueue::update_missing_durations_for_source;
 pub(crate) use enqueue::{enqueue_jobs_for_embedding_backfill, enqueue_jobs_for_embedding_samples};
 pub(crate) use failures::failed_samples_for_source;
 pub(crate) use pool::AnalysisWorkerPool;
-pub(crate) use types::{AnalysisJobMessage, AnalysisProgress, RunningJobInfo};
+pub(crate) use types::{AnalysisJobMessage, AnalysisProgress};
 
 pub(crate) fn current_progress_for_source(
     source: &crate::sample_sources::SampleSource,

@@ -104,7 +104,8 @@ fn materialize_browser_frame_segment(context: &mut SegmentMaterializeContext<'_>
         &context.derived.browser_frame_key,
     );
     if changed {
-        let frame = ui_projection::project_browser_panel_frame_model(context.controller);
+        let frame =
+            ui_projection::project_browser_panel_frame_model_without_sidebar(context.controller);
         apply_browser_frame(context.model, frame);
         context.model.browser_chrome = ui_projection::project_browser_chrome_model(
             &context.controller.ui,

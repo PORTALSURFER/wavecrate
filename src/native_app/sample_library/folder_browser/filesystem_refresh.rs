@@ -5,7 +5,8 @@ use std::{
 use wavecrate::sample_sources::Rating;
 
 use super::{
-    FolderBrowserState, FolderEntry, FolderVerifyOutcome, FolderVerifyResult,
+    FileColumnKind, FolderBrowserState, FolderEntry, FolderVerifyOutcome, FolderVerifyResult,
+    file_columns::sort_kind_for_details_sort,
     file_refresh::RefreshedFileEntry,
     path_helpers::path_id,
     scanning::{file_entry_for_source_path, load_folder_at_path, upsert_file, upsert_folder},
@@ -465,15 +466,21 @@ impl FolderBrowserState {
             return false;
         };
         let file_id = path_id(path);
-        let changed = self.source.sources[source_index]
-            .root_folder
-            .as_mut()
-            .is_some_and(|root| root.set_file_last_played_at(&file_id, last_played_at));
+        let changed = self
+            .source
+            .sources
+            .get_mut(source_index)
+            .and_then(|source| source.root_folder.as_mut())
+            .is_some_and(|root| {
+                set_file_last_played_at_by_parent(root, path, &file_id, last_played_at)
+            });
         if !changed {
             return false;
         }
-        self.update_visible_tree_file_last_played_at(&file_id, source_index, last_played_at);
-        self.bump_file_content_revision();
+        self.update_visible_tree_file_last_played_at(path, &file_id, source_index, last_played_at);
+        if self.last_played_update_changes_projection_order() {
+            self.bump_file_content_revision();
+        }
         true
     }
 
@@ -565,6 +572,7 @@ impl FolderBrowserState {
 
     fn update_visible_tree_file_last_played_at(
         &mut self,
+        path: &Path,
         file_id: &str,
         source_index: usize,
         last_played_at: i64,
@@ -573,10 +581,14 @@ impl FolderBrowserState {
             return;
         }
         for root in &mut self.tree.folders {
-            if root.set_file_last_played_at(file_id, last_played_at) {
+            if set_file_last_played_at_by_parent(root, path, file_id, last_played_at) {
                 break;
             }
         }
+    }
+
+    fn last_played_update_changes_projection_order(&self) -> bool {
+        sort_kind_for_details_sort(&self.sample_list.file_sort) == FileColumnKind::Modified
     }
 
     fn update_visible_tree_file_last_curated_at(
@@ -594,6 +606,21 @@ impl FolderBrowserState {
             }
         }
     }
+}
+
+fn set_file_last_played_at_by_parent(
+    root: &mut FolderEntry,
+    path: &Path,
+    file_id: &str,
+    last_played_at: i64,
+) -> bool {
+    let Some(parent) = path.parent() else {
+        return root.set_file_last_played_at(file_id, last_played_at);
+    };
+    if let Some(folder) = root.find_path_mut(parent) {
+        return folder.set_direct_file_last_played_at(file_id, last_played_at);
+    }
+    root.set_file_last_played_at(file_id, last_played_at)
 }
 
 fn upsert_refreshed_file_entries(

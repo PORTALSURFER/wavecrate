@@ -100,6 +100,35 @@ fn progress_message_updates_snapshot_and_detail() {
 }
 
 #[test]
+fn selected_global_progress_update_does_not_open_source_db_on_ui_path() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+    crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+
+    handle_analysis_message(
+        &mut controller,
+        AnalysisJobMessage::Progress {
+            source_id: None,
+            progress: sample_progress(),
+        },
+    );
+
+    assert_eq!(
+        crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+        0
+    );
+    let snapshot = controller
+        .ui
+        .progress
+        .analysis
+        .as_ref()
+        .expect("analysis snapshot");
+    assert_eq!(snapshot.pending, 2);
+    assert_eq!(snapshot.running, 1);
+}
+
+#[test]
 fn analysis_progress_preempts_lower_priority_footer_tasks() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());

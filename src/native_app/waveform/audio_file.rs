@@ -24,6 +24,7 @@ pub(in crate::native_app) use cache_facade::{
     cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
     flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
     invalidate_persisted_waveform_cache_paths, load_cached_waveform_file_for_playback,
+    load_cached_waveform_playback_descriptor_sidecar,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 #[cfg(test)]
@@ -55,13 +56,16 @@ pub(super) use extraction::{
 pub(super) use loader::load_waveform_file;
 #[cfg(test)]
 pub(super) use loader::load_waveform_file_with_progress_cancel_and_playback_ready;
-pub(in crate::native_app) use loader::should_use_file_backed_wav_decode;
+pub(in crate::native_app) use loader::{
+    file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode,
+};
 pub(super) use loader::{
     is_wav_path, load_waveform_file_for_foreground_audition,
+    load_waveform_file_for_instant_audition_display,
     load_waveform_file_for_looped_foreground_audition, load_waveform_file_with_progress_and_cancel,
 };
 pub(in crate::native_app) use model::{
-    PersistedPlaybackCacheFile, WaveformFile, WaveformPlaybackReady,
+    PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformFile, WaveformPlaybackReady,
 };
 pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
 #[cfg(test)]

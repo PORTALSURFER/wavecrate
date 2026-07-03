@@ -15,6 +15,35 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
 }
 
 #[test]
+fn early_runtime_playback_handoff_keeps_transient_overlay_active() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.early_sample_playback_path = Some(String::from("kick.wav"));
+    state.audio.playback_progress.active = true;
+    state.audio.playback_progress.progress = Some(0.25);
+
+    assert!(
+        state.should_paint_waveform_transient_overlay(),
+        "descriptor/file-backed runtime playback should keep paint-only playback frames active before waveform replacement catches up"
+    );
+}
+
+#[test]
+fn early_runtime_playback_handoff_still_uses_paint_only_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.audio.early_sample_playback_path = Some(String::from("kick.wav"));
+    state.audio.playback_progress.active = true;
+    state.audio.playback_progress.progress = Some(0.25);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "stable runtime playback handoff frames should not force full surface reprojection"
+    );
+}
+
+#[test]
 fn playback_restart_repaints_surface_to_clear_stale_playhead_visuals() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.62);

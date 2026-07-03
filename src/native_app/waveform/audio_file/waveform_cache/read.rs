@@ -8,11 +8,15 @@ use serde::de::DeserializeOwned;
 
 use super::{
     diagnostics::log_slow_cache_phase,
-    format::{CACHE_FORMAT_VERSION, CachedWaveformFile},
-    identity::{CacheIdentity, cache_path_for_identity, playback_ready_marker_path},
+    format::{CACHE_FORMAT_VERSION, CachedPlaybackDescriptor, CachedWaveformFile},
+    identity::{
+        CacheIdentity, cache_path_for_identity, playback_descriptor_path,
+        playback_ready_marker_path,
+    },
 };
 #[cfg(test)]
 use super::{identity::source_warm_marker_path, write::mark_source_warm_ready_for_cache_path};
+use crate::native_app::waveform::audio_file::PersistedPlaybackDescriptor;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum CacheReadStatus {
@@ -141,13 +145,35 @@ fn cached_waveform_file_v3_playback_ready_exists(path: &Path, identity: &CacheId
     };
     if cache_path.is_file()
         && playback_ready_marker_path(&cache_path).is_file()
-        && read_cached_waveform_file(path, identity)
-            .and_then(|cached| cached.playback_cache_file(&cache_path))
-            .is_some()
+        && (read_cached_playback_descriptor(path, identity).is_some()
+            || read_cached_waveform_file(path, identity)
+                .and_then(|cached| cached.playback_cache_file(&cache_path))
+                .is_some())
     {
         return true;
     }
     false
+}
+
+pub(super) fn read_cached_playback_descriptor(
+    path: &Path,
+    identity: &CacheIdentity,
+) -> Option<PersistedPlaybackDescriptor> {
+    let cache_path = cache_path_for_identity(path, identity).ok()?;
+    if !cache_path.is_file() || !playback_ready_marker_path(&cache_path).is_file() {
+        return None;
+    }
+    let descriptor_path = playback_descriptor_path(&cache_path);
+    read_cache_file(
+        path,
+        descriptor_path,
+        "browser.sample_cache.playback_descriptor_read",
+        "browser.sample_cache.playback_descriptor_deserialize",
+    )
+    .into_hit()
+    .and_then(|cached: CachedPlaybackDescriptor| {
+        cached.into_playback_descriptor(path.to_path_buf(), *identity, &cache_path)
+    })
 }
 
 #[cfg(test)]

@@ -47,6 +47,10 @@ pub(super) fn playback_ready_marker_path(cache_path: &Path) -> PathBuf {
     cache_path.with_extension("ready")
 }
 
+pub(super) fn playback_descriptor_path(cache_path: &Path) -> PathBuf {
+    cache_path.with_extension("playback")
+}
+
 pub(super) fn source_warm_marker_path(cache_path: &Path) -> PathBuf {
     cache_path.with_extension("source-ready")
 }

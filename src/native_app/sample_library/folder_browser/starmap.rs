@@ -65,18 +65,6 @@ pub(super) struct StarmapLayoutCache {
     listed_count: usize,
     pending_load_signature: Option<u64>,
     loaded_signature: Option<u64>,
-    auto_prep_requested_signature: Option<u64>,
-}
-
-impl StarmapLayoutCache {
-    fn needs_similarity_prep(&self) -> bool {
-        self.signature.is_some()
-            && self.listed_count > 0
-            && self.loaded_signature == self.signature
-            && self.pending_load_signature != self.signature
-            && self.points_by_file.len() < self.listed_count
-            && self.auto_prep_requested_signature != self.signature
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -117,47 +105,11 @@ impl FolderBrowserState {
             points_by_file: HashMap::new(),
             pending_load_signature: None,
             loaded_signature: None,
-            auto_prep_requested_signature: None,
         };
     }
 
     pub(in crate::native_app) fn invalidate_starmap_layout(&mut self) {
         self.sample_list.starmap_layout = StarmapLayoutCache::default();
-    }
-
-    pub(in crate::native_app) fn starmap_sources_needing_similarity_prep(
-        &mut self,
-        tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Vec<String> {
-        self.prepare_starmap_layout(tags_by_file);
-        let cache = &self.sample_list.starmap_layout;
-        let Some(signature) = cache.signature else {
-            return Vec::new();
-        };
-        if !cache.needs_similarity_prep() {
-            return Vec::new();
-        }
-        let layout_file_ids = cache.points_by_file.keys().cloned().collect::<HashSet<_>>();
-        self.sample_list
-            .starmap_layout
-            .auto_prep_requested_signature = Some(signature);
-
-        let snapshot = self.browser_listing_snapshot(tags_by_file);
-        let mut source_ids = Vec::new();
-        let mut seen = HashSet::new();
-        for file in snapshot.rows() {
-            if layout_file_ids.contains(&file.id) {
-                continue;
-            }
-            let Some((source, _)) = self.sample_source_for_file_path(Path::new(&file.id)) else {
-                continue;
-            };
-            let source_id = source.id.as_str().to_string();
-            if seen.insert(source_id.clone()) {
-                source_ids.push(source_id);
-            }
-        }
-        source_ids
     }
 
     pub(in crate::native_app) fn take_starmap_layout_load_request(
@@ -173,7 +125,6 @@ impl FolderBrowserState {
                 points_by_file: HashMap::new(),
                 pending_load_signature: None,
                 loaded_signature: None,
-                auto_prep_requested_signature: None,
             };
         }
         let cache = &mut self.sample_list.starmap_layout;
@@ -1047,61 +998,6 @@ mod tests {
 
         assert!(!status.incomplete());
         assert_eq!(status.label(true), None);
-    }
-
-    #[test]
-    fn incomplete_starmap_layout_requests_similarity_prep_once_per_signature() {
-        let mut cache = StarmapLayoutCache {
-            signature: Some(42),
-            listed_count: 2,
-            points_by_file: HashMap::from([(
-                String::from("a.wav"),
-                StarmapLayoutPoint {
-                    x: 0.2,
-                    y: 0.3,
-                    cluster_id: None,
-                },
-            )]),
-            pending_load_signature: None,
-            loaded_signature: Some(42),
-            auto_prep_requested_signature: None,
-        };
-
-        assert!(cache.needs_similarity_prep());
-
-        cache.auto_prep_requested_signature = Some(42);
-
-        assert!(!cache.needs_similarity_prep());
-    }
-
-    #[test]
-    fn complete_or_empty_starmap_layout_does_not_request_similarity_prep() {
-        let complete = StarmapLayoutCache {
-            signature: Some(7),
-            listed_count: 1,
-            points_by_file: HashMap::from([(
-                String::from("a.wav"),
-                StarmapLayoutPoint {
-                    x: 0.2,
-                    y: 0.3,
-                    cluster_id: None,
-                },
-            )]),
-            pending_load_signature: None,
-            loaded_signature: Some(7),
-            auto_prep_requested_signature: None,
-        };
-        let empty_listing = StarmapLayoutCache {
-            signature: Some(8),
-            listed_count: 0,
-            points_by_file: HashMap::new(),
-            pending_load_signature: None,
-            loaded_signature: Some(8),
-            auto_prep_requested_signature: None,
-        };
-
-        assert!(!complete.needs_similarity_prep());
-        assert!(!empty_listing.needs_similarity_prep());
     }
 
     #[test]

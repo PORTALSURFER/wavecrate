@@ -69,7 +69,6 @@ impl FolderBrowserState {
         self.selection.set_focus_file_set(file_id);
         self.reset_file_view();
         self.tree.folders = vec![root_folder];
-        self.prewarm_selected_source_audio_projection_cache();
         if source_changed {
             self.tree.expanded_folders.clear();
         }
@@ -138,7 +137,11 @@ impl FolderBrowserState {
             if !path.starts_with(&source.root) {
                 return None;
             }
-            let root_folder = source.root_folder.as_ref()?;
+            let root_folder = if source.id == self.source.selected_source {
+                self.selected_source_root_folder()?
+            } else {
+                source.root_folder.as_ref()?
+            };
             let parent_folder = root_folder.find(&path_id(parent))?;
             parent_folder
                 .files

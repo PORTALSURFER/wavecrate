@@ -260,6 +260,52 @@ fn collection_keyboard_navigation_reuses_cached_id_projection() {
 }
 
 #[test]
+fn folder_keyboard_navigation_uses_fast_index_when_tags_are_metadata_only() {
+    let root = temp_source_root("wavecrate-gui-folder-keyboard-fast-index");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("a_hat.wav");
+    let kick = drums.join("b_kick.wav");
+    let snare = drums.join("c_snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+    let tags_by_file = std::collections::HashMap::from([(
+        path_id(&kick),
+        vec![String::from("drum"), String::from("transient")],
+    )]);
+
+    assert_eq!(
+        browser.selected_audio_file_index_fast_matching_tags(&tags_by_file),
+        Some(Some(0)),
+        "metadata tags alone should not force keyboard navigation through a filtered snapshot"
+    );
+    let before_navigation = browser.selected_audio_projection_cache_len_for_tests();
+    assert_eq!(
+        browser.navigate_vertical_matching_tags(1, false, false, &tags_by_file),
+        Some(path_id(&kick))
+    );
+    assert_eq!(
+        browser.selected_audio_file_index_fast_matching_tags(&tags_by_file),
+        Some(Some(1))
+    );
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        before_navigation,
+        "plain folder navigation should reuse the existing audio-index projection"
+    );
+    assert_eq!(
+        browser.navigate_vertical_matching_tags(1, false, false, &tags_by_file),
+        Some(path_id(&snare))
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn toggle_focused_sample_selection_unmarks_without_advancing() {
     let root = temp_source_root("wavecrate-gui-toggle-unmark-stationary");
     let drums = root.join("drums");

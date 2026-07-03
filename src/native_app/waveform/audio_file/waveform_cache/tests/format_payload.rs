@@ -39,6 +39,38 @@ fn waveform_cache_round_trips_summary_payload() {
 }
 
 #[test]
+fn playback_descriptor_sidecar_serves_audition_without_summary_cache_deserialize() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("descriptor.wav");
+    fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+    let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+    let mut file = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::clone(&audio_bytes),
+        48_000,
+        1,
+        vec![0.0, 0.5, -0.5, 0.25],
+    );
+    file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
+
+    store_cached_waveform_file(&file);
+    let identity = CacheIdentity::for_path(&path).expect("cache identity");
+    let cache_path = cache_path_for_identity(&path, &identity).expect("cache path");
+    assert!(playback_descriptor_path(&cache_path).is_file());
+
+    fs::write(&cache_path, b"summary cache should not be read").expect("corrupt summary cache");
+    let descriptor = load_cached_waveform_playback_descriptor_sidecar(path.clone())
+        .expect("descriptor sidecar should not need the summary cache");
+
+    assert_eq!(descriptor.path, path);
+    assert_eq!(descriptor.sample_rate, 48_000);
+    assert_eq!(descriptor.channels, 1);
+    assert_eq!(descriptor.frames, 4);
+    assert!(cached_waveform_file_playback_ready_exists(&descriptor.path));
+}
+
+#[test]
 fn waveform_cache_writes_raw_little_endian_sidecar() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");

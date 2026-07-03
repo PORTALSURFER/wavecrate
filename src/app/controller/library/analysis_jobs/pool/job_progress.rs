@@ -18,9 +18,10 @@ pub(crate) use poller::spawn_progress_poller;
 
 #[cfg(test)]
 mod tests {
+    use super::SOURCE_REFRESH_INTERVAL;
     use super::aggregate::{current_progress_all, seed_missing_progress};
     use super::cleanup::{cleanup_stale_jobs, now_epoch_seconds};
-    use super::source_discovery::ProgressSourceDb;
+    use super::source_discovery::{ProgressSourceDb, refresh_sources};
     use crate::app::controller::jobs::{JobMessage, JobMessageSender};
     use crate::app::controller::library::analysis_jobs::db;
     use crate::app::controller::library::analysis_jobs::types::{
@@ -28,7 +29,7 @@ mod tests {
     };
     use radiant::gui::repaint::SharedRepaintSignal;
     use std::sync::{Arc, RwLock};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use tempfile::TempDir;
 
     use super::super::progress_cache::ProgressCache;
@@ -189,6 +190,35 @@ mod tests {
             .unwrap()
             .total_for_sources(std::iter::once(&source_id));
         assert_eq!(progress.pending, 1);
+    }
+
+    #[test]
+    fn refresh_sources_reuses_unchanged_source_connections() {
+        let config_dir = TempDir::new().unwrap();
+        let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
+        let source_dir = TempDir::new().unwrap();
+        let source = crate::sample_sources::SampleSource::new(source_dir.path().to_path_buf());
+        crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+        crate::sample_sources::library::save(&crate::sample_sources::library::LibraryState {
+            sources: vec![source.clone()],
+        })
+        .unwrap();
+        let mut sources = Vec::<ProgressSourceDb>::new();
+        let mut last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+
+        assert!(refresh_sources(&mut sources, &mut last_refresh, None));
+        assert_eq!(sources.len(), 1);
+        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+        last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+
+        assert!(!refresh_sources(&mut sources, &mut last_refresh, None));
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(
+            crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+            0,
+            "periodic progress refresh must reuse the existing UI-read connection"
+        );
     }
 
     #[test]

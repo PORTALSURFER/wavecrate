@@ -17,7 +17,8 @@ use crate::native_app::{
     audio::sample_load_actions::cache::ACTIVE_FOLDER_CACHE_WARM_HYDRATE_MAX_FILES,
     waveform::{
         cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
-        load_cached_waveform_file_for_playback, mark_cached_waveform_file_source_warm_attempted,
+        load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor_sidecar,
+        mark_cached_waveform_file_source_warm_attempted,
     },
 };
 
@@ -272,21 +273,26 @@ pub(super) fn probe_persisted_waveform_cache_indicators(
     paths: Vec<PathBuf>,
     is_cancelled: impl Fn() -> bool,
 ) -> WaveformCacheIndicatorRefreshResult {
-    let mut playback_ready_paths = HashSet::new();
+    let mut instant_audition_paths = HashSet::new();
+    let mut playback_descriptors = Vec::new();
     let mut warm_candidate_paths = HashSet::new();
     for path in &paths {
         if is_cancelled() {
             break;
         }
-        if cached_waveform_file_audition_ready_exists(path) {
-            playback_ready_paths.insert(path.clone());
+        if let Some(descriptor) = load_cached_waveform_playback_descriptor_sidecar(path.clone()) {
+            instant_audition_paths.insert(path.clone());
+            playback_descriptors.push(descriptor);
+        } else if cached_waveform_file_audition_ready_exists(path) {
+            instant_audition_paths.insert(path.clone());
         } else if cached_waveform_file_exists(path) {
             warm_candidate_paths.insert(path.clone());
         }
     }
     WaveformCacheIndicatorRefreshResult {
         probed_paths: paths,
-        playback_ready_paths,
+        instant_audition_paths,
+        playback_descriptors,
         warm_candidate_paths,
     }
 }

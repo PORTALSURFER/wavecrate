@@ -25,6 +25,10 @@ impl NativeAppState {
             .cache
             .instant_audition_sample_paths
             .remove(&path.display().to_string());
+        self.waveform
+            .cache
+            .instant_audition_descriptors
+            .remove(path);
     }
 
     pub(in crate::native_app) fn evict_waveform_cache_paths(&mut self, paths: &[PathBuf]) {
@@ -47,6 +51,10 @@ impl NativeAppState {
                 .cache
                 .instant_audition_sample_paths
                 .remove(&path.display().to_string());
+            self.waveform
+                .cache
+                .instant_audition_descriptors
+                .remove(path);
         }
         self.waveform
             .cache
@@ -75,6 +83,10 @@ impl NativeAppState {
                     .cache
                     .instant_audition_sample_paths
                     .remove(&path.display().to_string());
+                self.waveform
+                    .cache
+                    .instant_audition_descriptors
+                    .remove(&path);
             }
         }
     }

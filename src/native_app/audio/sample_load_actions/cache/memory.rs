@@ -146,6 +146,10 @@ impl NativeAppState {
                     .unwrap_or_else(|| id.clone())
             })
             .collect();
+        self.waveform
+            .cache
+            .instant_audition_descriptors
+            .retain(|path, _| remapped_cache_path(path, old_path, new_path).is_none());
     }
 
     fn insert_waveform_cache_entry(&mut self, path: PathBuf, entry: WaveformCacheEntry) {
@@ -181,6 +185,10 @@ impl NativeAppState {
                 .cache
                 .instant_audition_sample_paths
                 .remove(&file_id);
+            self.waveform
+                .cache
+                .instant_audition_descriptors
+                .remove(&path);
         }
         self.touch_cached_waveform_path(path);
         self.enforce_waveform_cache_limit();

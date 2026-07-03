@@ -14,9 +14,10 @@ fn selected_folder_audio_projection_refreshes_after_file_update() {
 
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
-    assert!(
-        browser.selected_audio_projection_cache_len_for_tests() > 0,
-        "initial source load should prewarm projection cache entries"
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        0,
+        "source load should leave projection cache cold until the selected folder is queried"
     );
     assert_eq!(
         browser
@@ -135,8 +136,9 @@ fn targeted_filesystem_refresh_prunes_deleted_cached_file() {
     browser.activate_folder(path_id(&drums));
     fs::remove_file(&stale_sample).expect("remove stale sample");
 
+    let source_id = browser.selected_source_id().to_string();
     assert!(browser.refresh_filesystem_paths(
-        "assets",
+        &source_id,
         &[std::path::PathBuf::from("drums").join("stale.wav")]
     ));
 
@@ -337,7 +339,7 @@ fn folder_tree_refresh_prunes_deleted_folders_and_preserves_files() {
     fs::remove_dir_all(&stale).expect("remove stale folder");
 
     let result = refresh_folder_tree_only(FolderTreeRefreshRequest {
-        source_id: String::from("assets"),
+        source_id: browser.selected_source_id().to_string(),
         label: String::from("Assets"),
         root: root.clone(),
         database_root: root.clone(),
@@ -368,7 +370,7 @@ fn folder_tree_refresh_adds_new_empty_folder() {
     fs::create_dir_all(&added).expect("create added folder");
 
     let result = refresh_folder_tree_only(FolderTreeRefreshRequest {
-        source_id: String::from("assets"),
+        source_id: browser.selected_source_id().to_string(),
         label: String::from("Assets"),
         root: root.clone(),
         database_root: root.clone(),
@@ -396,7 +398,7 @@ fn folder_tree_refresh_reconciles_deleted_selected_folder() {
     fs::remove_dir_all(&stale).expect("remove stale folder");
 
     let result = refresh_folder_tree_only(FolderTreeRefreshRequest {
-        source_id: String::from("assets"),
+        source_id: browser.selected_source_id().to_string(),
         label: String::from("Assets"),
         root: root.clone(),
         database_root: root.clone(),

@@ -224,7 +224,8 @@ pub(in crate::native_app) fn log_sample_identity_path_event(
 }
 
 fn sample_identity_info_enabled() -> bool {
-    tracing::enabled!(target: "wavecrate::debug::sample_identity", tracing::Level::INFO)
+    wavecrate::logging::debug_logging_enabled()
+        && tracing::enabled!(target: "wavecrate::debug::sample_identity", tracing::Level::INFO)
 }
 
 fn sorted_path_strings<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Vec<String> {

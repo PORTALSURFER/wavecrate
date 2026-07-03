@@ -26,7 +26,7 @@ pub(in crate::native_app) struct SampleLoadPathValidation {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app::audio::sample_load_actions) enum SampleLoadPathValidationIntent {
     Foreground { autoplay: bool },
-    Navigation,
+    Selection { autoplay: bool },
 }
 
 impl SampleLoadPathValidationRequest {
@@ -76,7 +76,7 @@ impl NativeAppState {
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,
-            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            SampleLoadPathValidationIntent::Selection { autoplay: true },
             started_at,
             context,
         );
@@ -114,7 +114,7 @@ impl NativeAppState {
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,
-            SampleLoadPathValidationIntent::Foreground { autoplay: true },
+            SampleLoadPathValidationIntent::Selection { autoplay: true },
             started_at,
             context,
         );
@@ -164,12 +164,8 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        self.queue_sample_load_path_validation(
-            path,
-            SampleLoadPathValidationIntent::Navigation,
-            started_at,
-            context,
-        );
+        self.background.sample_load_validation_task.cancel();
+        self.load_navigation_sample_validated(path, context, started_at);
     }
 
     fn load_sample_with_autoplay_validated(
@@ -184,7 +180,30 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
-        self.start_foreground_sample_load(path.as_str(), autoplay, context, started_at);
+        let instant_audition_started = autoplay
+            && (self.start_persisted_cache_instant_audition(path.as_str(), context, started_at)
+                || self.start_file_backed_wav_instant_audition(path.as_str(), context, started_at));
+        self.start_foreground_sample_load_with_priority(
+            path.as_str(),
+            autoplay,
+            context,
+            started_at,
+            if instant_audition_started {
+                ui::TaskPriority::Background
+            } else {
+                ui::TaskPriority::Interactive
+            },
+            if instant_audition_started {
+                "waveform_load_after_instant_audition"
+            } else {
+                "foreground_load_queued"
+            },
+            if instant_audition_started {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::DisplayAfterInstantAudition
+            } else {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::CacheThenDecode
+            },
+        );
     }
 
     pub(in crate::native_app) fn load_navigation_sample_validated(
@@ -211,7 +230,30 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        self.start_foreground_sample_load(path.as_str(), true, context, started_at);
+        let instant_audition_started =
+            self.start_persisted_cache_instant_audition(path.as_str(), context, started_at)
+                || self.start_file_backed_wav_instant_audition(path.as_str(), context, started_at);
+        self.start_foreground_sample_load_with_priority(
+            path.as_str(),
+            true,
+            context,
+            started_at,
+            if instant_audition_started {
+                ui::TaskPriority::Background
+            } else {
+                ui::TaskPriority::Interactive
+            },
+            if instant_audition_started {
+                "waveform_load_after_instant_audition"
+            } else {
+                "foreground_load_queued"
+            },
+            if instant_audition_started {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::DisplayAfterInstantAudition
+            } else {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::CacheThenDecode
+            },
+        );
     }
 
     fn queue_sample_load_path_validation(
@@ -223,7 +265,7 @@ impl NativeAppState {
     ) {
         let trigger = match &intent {
             SampleLoadPathValidationIntent::Foreground { .. } => "foreground",
-            SampleLoadPathValidationIntent::Navigation => "navigation",
+            SampleLoadPathValidationIntent::Selection { .. } => "selection",
         };
         self.log_sample_identity_checkpoint(
             "browser.sample_load.validation_queued",
@@ -236,7 +278,7 @@ impl NativeAppState {
         let request = SampleLoadPathValidationRequest::new(path, intent);
         context
             .business()
-            .blocking_io(SAMPLE_LOAD_VALIDATION_TASK_NAME)
+            .interactive(SAMPLE_LOAD_VALIDATION_TASK_NAME)
             .latest(&mut self.background.sample_load_validation_task)
             .run(
                 move |_| validation_worker::validate_sample_load_path(request),
@@ -275,6 +317,18 @@ impl NativeAppState {
         {
             return;
         }
+        if !self.validated_sample_load_is_current_browser_selection(&validation) {
+            self.audio.pending_sample_playback = None;
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(validation.path.as_str())),
+                "validation_stale_selection",
+                started_at,
+                None,
+            );
+            return;
+        }
         match validation.intent {
             SampleLoadPathValidationIntent::Foreground { autoplay } => self
                 .load_sample_with_autoplay_validated(
@@ -283,9 +337,27 @@ impl NativeAppState {
                     autoplay,
                     started_at,
                 ),
-            SampleLoadPathValidationIntent::Navigation => {
-                self.load_navigation_sample_validated(validation.path, context, started_at);
-            }
+            SampleLoadPathValidationIntent::Selection { autoplay } => self
+                .load_sample_with_autoplay_validated(
+                    validation.path,
+                    context,
+                    autoplay,
+                    started_at,
+                ),
+        }
+    }
+
+    fn validated_sample_load_is_current_browser_selection(
+        &self,
+        validation: &SampleLoadPathValidation,
+    ) -> bool {
+        match validation.intent {
+            SampleLoadPathValidationIntent::Selection { .. } => self
+                .library
+                .folder_browser
+                .selected_file_id()
+                .is_some_and(|selected| selected == validation.path),
+            SampleLoadPathValidationIntent::Foreground { .. } => true,
         }
     }
 

@@ -142,6 +142,7 @@ fn sample_load_marks_new_harvest_file_seen() {
         ),
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     let harvest_record = wavecrate::sample_sources::library::harvest_file(&harvest_key)
         .expect("load harvest file")
@@ -283,6 +284,42 @@ fn foreground_sample_load_reuses_persisted_playback_cache() {
 }
 
 #[test]
+fn instant_audition_display_load_reuses_summary_without_decoded_playback() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("display-after-audition.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+
+    let cached =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("cache seed loads");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    let file = cached.file();
+    crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
+    wait_for_playback_ready_cache(&sample_path.display().to_string());
+
+    let displayed =
+        crate::native_app::test_support::state::WaveformState::load_path_for_instant_audition_display(
+            sample_path.clone(),
+            |_| {},
+            || false,
+        )
+        .expect("display waveform loads");
+
+    assert_eq!(displayed.path(), sample_path);
+    assert!(
+        displayed.audio_bytes().is_empty(),
+        "post-audition display load should reuse persisted summary metadata"
+    );
+    assert!(
+        displayed.playback_samples().is_none(),
+        "post-audition display load should not rebuild decoded playback samples"
+    );
+}
+
+#[test]
 fn large_foreground_sample_load_reuses_file_backed_summary_cache() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
@@ -332,6 +369,174 @@ fn large_foreground_sample_load_reuses_file_backed_summary_cache() {
         reloaded.playback_source_file().as_deref(),
         Some(sample_path.as_path())
     );
+}
+
+#[test]
+fn large_wav_instant_audition_descriptor_reads_source_header() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-header.wav");
+    write_sparse_test_wav_i16(&sample_path, 2, 700);
+
+    let descriptor = crate::native_app::waveform::file_backed_wav_playback_descriptor(&sample_path)
+        .expect("large WAV descriptor");
+
+    assert_eq!(descriptor.path, sample_path);
+    assert_eq!(descriptor.sample_rate, 48_000);
+    assert_eq!(descriptor.channels, 2);
+    assert_eq!(descriptor.frames, 700);
+    assert!((descriptor.duration - (700.0 / 48_000.0)).abs() < f32::EPSILON);
+}
+
+#[test]
+fn large_foreground_sample_load_prefers_file_backed_summary_over_legacy_playback_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root
+        .path()
+        .join("large-with-legacy-playback-cache.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+
+    let decoded = crate::native_app::test_support::state::WaveformState::load_path_for_looped_foreground_audition(
+        sample_path.clone(),
+        |_| {},
+        || false,
+        |_| {},
+    )
+    .expect("decoded foreground load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    assert!(decoded.playback_samples().is_some());
+    assert!(
+        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "test setup should seed an old playback-ready cache"
+    );
+
+    let reloaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("foreground audition reload");
+
+    assert_eq!(reloaded.path(), sample_path);
+    assert!(
+        reloaded.audio_bytes().is_empty(),
+        "large non-looped foreground navigation should stay file-backed instead of deserializing the legacy playback cache"
+    );
+    assert!(reloaded.playback_samples().is_none());
+}
+
+#[test]
+fn large_navigation_sample_starts_source_file_audition_before_background_waveform_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-navigation.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let playback_runtime_installed = install_playback_runtime_for_tests(&mut state);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_navigation_sample_validated(
+        sample_path_string.clone(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+    let command = context.into_command();
+
+    if playback_runtime_installed {
+        assert_eq!(
+            command.business_task_priority("gui-sample-load"),
+            Some(ui::TaskPriority::Background),
+            "waveform loading should move behind immediate source-file playback"
+        );
+        assert_eq!(
+            state.audio.early_sample_playback_path.as_deref(),
+            Some(sample_path_string.as_str())
+        );
+        assert!(
+            state.audio.pending_runtime_start.is_some(),
+            "source-file playback should be submitted before waveform completion"
+        );
+    } else {
+        assert_eq!(
+            command.business_task_priority("gui-sample-load"),
+            Some(ui::TaskPriority::Interactive),
+            "without an installed runtime, the selected sample still needs foreground loading"
+        );
+    }
+}
+
+#[test]
+fn large_navigation_sample_skips_sidecar_lookup_when_source_file_can_play() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-navigation-legacy.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let decoded = crate::native_app::test_support::state::WaveformState::load_path_for_looped_foreground_audition(
+        sample_path.clone(),
+        |_| {},
+        || false,
+        |_| {},
+    )
+    .expect("decoded foreground load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    assert!(decoded.playback_samples().is_some());
+    assert!(
+        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "test setup should seed a legacy playback sidecar"
+    );
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let playback_runtime_installed = install_playback_runtime_for_tests(&mut state);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_navigation_sample_validated(
+        sample_path_string.clone(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+    let command = context.into_command();
+
+    assert!(
+        !state
+            .waveform
+            .cache
+            .instant_audition_descriptors
+            .contains_key(&sample_path),
+        "large source-file playback should not synchronously read and retain a sidecar descriptor"
+    );
+    if playback_runtime_installed {
+        assert_eq!(
+            command.business_task_priority("gui-sample-load"),
+            Some(ui::TaskPriority::Background),
+            "visual waveform loading should move behind source-file playback even when a sidecar exists"
+        );
+        assert_eq!(
+            state.audio.early_sample_playback_path.as_deref(),
+            Some(sample_path_string.as_str())
+        );
+    } else {
+        assert_eq!(
+            command.business_task_priority("gui-sample-load"),
+            Some(ui::TaskPriority::Interactive)
+        );
+    }
 }
 
 #[test]

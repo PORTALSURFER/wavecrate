@@ -1,16 +1,14 @@
 use self::router::{
     AnalysisProgressRouteAction, AnalysisProgressRouteContext, AnalysisProgressRouter,
 };
-use super::super::analysis_jobs::{self, RunningJobInfo};
+use super::super::analysis_jobs;
 use super::*;
-use crate::app::state::{ProgressTaskKind, RunningJobSnapshot};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use crate::app::state::ProgressTaskKind;
+use std::time::{Duration, Instant};
 
 mod router;
 
 const SCOPED_ANALYSIS_PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
-const RUNNING_JOB_SNAPSHOT_REFRESH_INTERVAL: Duration = Duration::from_millis(500);
-
 /// Apply background analysis worker events to progress UI and follow-up queues.
 pub(crate) fn handle_analysis_message(controller: &mut AppController, message: AnalysisJobMessage) {
     let message = resolve_analysis_progress_message(controller, message);
@@ -60,10 +58,6 @@ fn resolve_scoped_analysis_progress(
         return progress;
     }
     if let Some(scoped) = cached_scoped_analysis_progress(controller, &source.id) {
-        return scoped;
-    }
-    if let Ok(scoped) = analysis_jobs::current_progress_for_source(&source) {
-        store_scoped_analysis_progress(controller, source.id.clone(), scoped);
         return scoped;
     }
     progress
@@ -233,17 +227,11 @@ fn current_source_running_job_snapshots(
     }
     if cache
         .running_jobs_refreshed_at
-        .is_some_and(|updated| updated.elapsed() < RUNNING_JOB_SNAPSHOT_REFRESH_INTERVAL)
+        .is_none_or(|updated| updated.elapsed() >= SCOPED_ANALYSIS_PROGRESS_REFRESH_INTERVAL)
     {
-        return cache.running_jobs.clone();
+        cache.running_jobs_refreshed_at = Some(Instant::now());
     }
-    let running_jobs = analysis_jobs::current_running_jobs_for_source(&source, 3)
-        .ok()
-        .map(build_running_job_snapshots)
-        .unwrap_or_default();
-    cache.running_jobs = running_jobs.clone();
-    cache.running_jobs_refreshed_at = Some(Instant::now());
-    running_jobs
+    cache.running_jobs.clone()
 }
 
 fn cache_for_selected_source<'a>(
@@ -258,28 +246,6 @@ fn cache_for_selected_source<'a>(
         };
     }
     cache
-}
-
-fn build_running_job_snapshots(jobs: Vec<RunningJobInfo>) -> Vec<RunningJobSnapshot> {
-    let now_epoch = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .ok()
-        .map(|duration| duration.as_secs() as i64);
-    let stale_after = analysis_jobs::stale_running_job_seconds();
-    jobs.into_iter()
-        .map(|job| {
-            let label = analysis_jobs::parse_sample_id(job.sample_id.as_str())
-                .ok()
-                .map(|(_, path): (String, PathBuf)| path.to_string_lossy().to_string())
-                .unwrap_or(job.sample_id);
-            RunningJobSnapshot::from_heartbeat(
-                label,
-                job.last_heartbeat_at,
-                Some(stale_after),
-                now_epoch,
-            )
-        })
-        .collect()
 }
 
 fn queue_selected_source_analysis_progress(

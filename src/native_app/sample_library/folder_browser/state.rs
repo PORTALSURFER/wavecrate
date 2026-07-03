@@ -50,7 +50,7 @@ impl FolderBrowserState {
         );
         sources[source_index].root_folder = Some(snapshot.folder.clone());
         sources[source_index].missing_collection_snapshot = snapshot.missing_collection_snapshot;
-        Self::new(sources, source_index, snapshot.folder)
+        Self::new(sources, source_index, snapshot.folder, true)
     }
 
     pub(in crate::native_app) fn from_sources_deferred(
@@ -58,18 +58,24 @@ impl FolderBrowserState {
         selected_source: String,
     ) -> Self {
         let source_index = selected_source_index(&sources, &selected_source);
+        let selected_tree_loaded = sources[source_index].root_folder.is_some();
         let root_folder = sources[source_index]
             .root_folder
             .clone()
             .unwrap_or_else(|| placeholder_folder(&sources[source_index].root));
-        Self::new(sources, source_index, root_folder)
+        Self::new(sources, source_index, root_folder, selected_tree_loaded)
     }
 
-    fn new(sources: Vec<SourceEntry>, source_index: usize, root_folder: FolderEntry) -> Self {
+    fn new(
+        sources: Vec<SourceEntry>,
+        source_index: usize,
+        root_folder: FolderEntry,
+        selected_tree_loaded: bool,
+    ) -> Self {
         let root_id = root_folder.id.clone();
         let selected_source = sources[source_index].id.clone();
         let mut state = Self {
-            source: BrowserSourceState::new(sources, selected_source),
+            source: BrowserSourceState::new(sources, selected_source, selected_tree_loaded),
             selection: BrowserSelectionState::new(root_id.clone()),
             filters: BrowserFilterState::default(),
             tree: FolderTreeState::new(root_folder, root_id),
@@ -80,14 +86,13 @@ impl FolderBrowserState {
             sample_list: SampleListState::new(),
         };
         state.refresh_missing_collection_state();
-        state.prewarm_selected_source_audio_projection_cache();
         state
     }
 
     pub(in crate::native_app::sample_library::folder_browser) fn empty() -> Self {
         let root_id = String::new();
         Self {
-            source: BrowserSourceState::new(Vec::new(), String::new()),
+            source: BrowserSourceState::new(Vec::new(), String::new(), false),
             selection: BrowserSelectionState::new(root_id.clone()),
             filters: BrowserFilterState::default(),
             tree: FolderTreeState::new(

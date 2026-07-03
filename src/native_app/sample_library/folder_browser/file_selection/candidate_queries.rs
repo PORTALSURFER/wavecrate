@@ -73,11 +73,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn first_audio_file_path(&self) -> Option<PathBuf> {
-        self.source
-            .sources
-            .iter()
-            .find(|source| source.id == self.source.selected_source)
-            .and_then(|source| source.root_folder.as_ref())
+        self.selected_source_root_folder()
             .and_then(first_audio_file_in_folder)
             .map(PathBuf::from)
     }

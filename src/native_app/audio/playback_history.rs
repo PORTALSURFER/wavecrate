@@ -12,6 +12,7 @@ mod worker;
 use worker::persist_last_played;
 
 const LAST_PLAYED_PERSIST_DEBOUNCE: Duration = Duration::from_millis(350);
+const LAST_PLAYED_PERSIST_ACTIVE_RETRY: Duration = Duration::from_millis(500);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct LastPlayedPersistResult {
@@ -62,11 +63,18 @@ impl NativeAppState {
             relative_path,
             played_at,
         };
-        context.after_latest(
-            &mut self.audio.last_played_persist_task,
-            LAST_PLAYED_PERSIST_DEBOUNCE,
-            |ticket| GuiMessage::LastPlayedPersistReady { ticket, request },
-        );
+        self.schedule_last_played_persist(request, LAST_PLAYED_PERSIST_DEBOUNCE, context);
+    }
+
+    fn schedule_last_played_persist(
+        &mut self,
+        request: LastPlayedPersistRequest,
+        delay: Duration,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        context.after_latest(&mut self.audio.last_played_persist_task, delay, |ticket| {
+            GuiMessage::LastPlayedPersistReady { ticket, request }
+        });
     }
 
     pub(in crate::native_app) fn start_last_played_persist(
@@ -76,6 +84,18 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if !self.audio.last_played_persist_task.finish(ticket) {
+            return;
+        }
+        if let Some(reason) = self.last_played_persist_wait_reason() {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_load",
+                event = "playback.last_played.persist_deferred",
+                reason,
+                source = request.file_id.as_str(),
+                retry_delay_ms = LAST_PLAYED_PERSIST_ACTIVE_RETRY.as_secs_f64() * 1000.0,
+                "Deferred last-played persistence while playback/navigation is active"
+            );
+            self.schedule_last_played_persist(request, LAST_PLAYED_PERSIST_ACTIVE_RETRY, context);
             return;
         }
         context
@@ -113,6 +133,28 @@ impl NativeAppState {
                 Some(&error),
             );
         }
+    }
+
+    fn last_played_persist_wait_reason(&self) -> Option<&'static str> {
+        if self.waveform_sample_load_active() {
+            return Some("sample_load");
+        }
+        if self.audio.pending_playback_start.is_some() {
+            return Some("pending_playback");
+        }
+        if self.audio.early_sample_playback_path.is_some() {
+            return Some("early_playback");
+        }
+        if self.audio.pending_runtime_start.is_some() {
+            return Some("pending_runtime_start");
+        }
+        if self.waveform.current.is_playing() {
+            return Some("playback");
+        }
+        if self.audio.playback_progress.active {
+            return Some("playback_progress");
+        }
+        None
     }
 }
 

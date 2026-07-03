@@ -32,14 +32,9 @@ impl NativeAppState {
                 "folder_browser.select_source",
                 Some("folder_browser"),
                 Some(&requested_id),
-                "loaded",
+                "loaded_cached",
                 started_at,
                 None,
-            );
-            self.queue_selected_source_folder_tree_refresh(
-                context,
-                "folder_browser.select_source.folder_tree_refresh",
-                "gui-source-switch-folder-tree-refresh",
             );
         } else if self.library.folder_browser.source_is_missing(&requested_id) {
             self.ui.status.sample =

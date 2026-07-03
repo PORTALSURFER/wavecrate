@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct MetadataTagCommit {
@@ -11,6 +11,13 @@ pub(in crate::native_app) struct MetadataTagPersistResult {
     pub(in crate::native_app) tags: Vec<String>,
     pub(in crate::native_app) assigned: bool,
     pub(in crate::native_app) result: Result<(), String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct MetadataTagLoadResult {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) source_root: PathBuf,
+    pub(in crate::native_app) result: Result<HashMap<String, Vec<String>>, String>,
 }
 
 #[derive(Clone, Debug)]

@@ -13,8 +13,13 @@ use crate::native_app::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
+    waveform::{WaveformPlaybackReady, load_cached_waveform_playback_descriptor_sidecar},
+    waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
-use wavecrate::audio::{PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource};
+use wavecrate::audio::{
+    PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeRequest,
+    PlaybackRuntimeSource,
+};
 
 struct CachedPlaybackOutcomes {
     playing: &'static str,
@@ -22,16 +27,10 @@ struct CachedPlaybackOutcomes {
     error: &'static str,
 }
 
-const MEMORY_CACHE_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes {
-    playing: "memory_cache_playing",
-    pending: "memory_cache_pending",
-    error: "memory_cache_playback_error",
-};
-
-const LOADED_NAVIGATION_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes {
-    playing: "loaded_playback_started",
-    pending: "loaded_playback_pending",
-    error: "loaded_playback_error",
+const SAMPLE_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes {
+    playing: "autoplay_started",
+    pending: "autoplay_pending",
+    error: "autoplay_error",
 };
 
 impl NativeAppState {
@@ -126,16 +125,7 @@ impl NativeAppState {
             );
             return true;
         }
-        let audio_open_started_at = Instant::now();
-        self.maybe_open_audio_player(context);
-        log_sample_load_timing(
-            "browser.sample_load.memory_cache.audio_open",
-            &file_name,
-            audio_open_started_at.elapsed(),
-            false,
-        );
-        self.start_cached_sample_playback(&file_name, MEMORY_CACHE_OUTCOMES, started_at, context);
-        self.schedule_next_starmap_audition_hit(context);
+        self.start_current_sample_autoplay(path, &file_name, started_at, context);
         log_sample_load_timing(
             "browser.sample_load.memory_cache.total",
             &file_name,
@@ -145,12 +135,15 @@ impl NativeAppState {
         true
     }
 
-    pub(super) fn start_foreground_sample_load(
+    pub(super) fn start_foreground_sample_load_with_priority(
         &mut self,
         path: &str,
         autoplay: bool,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
+        priority: ui::TaskPriority,
+        outcome: &'static str,
+        strategy: SampleLoadStrategy,
     ) {
         if self.sample_load_blocked_by_normalization(path) {
             self.ui.status.sample = format!(
@@ -167,13 +160,13 @@ impl NativeAppState {
             );
             return;
         }
-        self.prepare_uncached_sample_load(path, "foreground_load_queued", started_at);
+        self.prepare_uncached_sample_load(path, outcome, started_at);
         self.start_sample_load_with_priority(
             path.to_owned(),
             autoplay,
             context,
-            ui::TaskPriority::Interactive,
-            SampleLoadStrategy::CacheThenDecode,
+            priority,
+            strategy,
         );
     }
 
@@ -194,16 +187,339 @@ impl NativeAppState {
             return false;
         }
 
-        self.maybe_open_audio_player(context);
         let file_name = self.waveform.current.file_name();
+        self.start_current_sample_autoplay(path, &file_name, started_at, context);
+        true
+    }
+
+    pub(super) fn start_persisted_cache_instant_audition(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        let lookup_started_at = Instant::now();
+        let descriptor = if let Some(descriptor) = self
+            .waveform
+            .cache
+            .instant_audition_descriptors
+            .get(Path::new(path))
+            .cloned()
+        {
+            descriptor
+        } else if !self.loop_playback_for_path_after_policy(path)
+            && should_use_file_backed_wav_decode(Path::new(path))
+        {
+            return false;
+        } else if let Some(descriptor) =
+            load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path))
+        {
+            self.waveform
+                .cache
+                .mark_sample_playback_descriptor_ready(descriptor.clone());
+            descriptor
+        } else {
+            return false;
+        };
+        log_sample_load_timing(
+            "browser.sample_load.persisted_descriptor.lookup",
+            path,
+            lookup_started_at.elapsed(),
+            false,
+        );
+        self.prepare_playback_mode_for_path(path);
+        self.maybe_open_audio_player(context);
+        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(path)),
+                "persisted_descriptor_audio_pending",
+                started_at,
+                None,
+            );
+            return false;
+        };
+        let playback_started_at = Instant::now();
+        let duration = descriptor.duration_seconds();
+        let source = PlaybackRuntimeSource::InterleavedF32File {
+            path: descriptor.cache_file.path,
+            sample_count: descriptor.cache_file.sample_count,
+            duration,
+            sample_rate: descriptor.sample_rate,
+            channels: descriptor.channels,
+        };
+        let request = PlaybackRuntimeRequest {
+            source,
+            mode: if self.audio.loop_playback {
+                PlaybackRuntimeMode::Looped {
+                    start: 0.0,
+                    end: 1.0,
+                    offset: 0.0,
+                }
+            } else {
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.0,
+                    end: 1.0,
+                }
+            },
+            volume: self.audio.volume,
+            playback_gain: 1.0,
+            playback_gain_normalization: self
+                .audio
+                .normalized_audition_enabled
+                .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            edit_fade: None,
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
+        };
+        let request_id = match runtime.try_play(request) {
+            Ok(request_id) => request_id,
+            Err(err) => {
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&sample_path_label(path)),
+                    "persisted_descriptor_playback_error",
+                    started_at,
+                    Some(&format!("submit playback request: {err:?}")),
+                );
+                return false;
+            }
+        };
+        self.audio.early_sample_playback_path = Some(path.to_owned());
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
+            id: request_id,
+            path: path.to_owned(),
+            span: (0.0, 1.0),
+            show_start_marker: true,
+        });
+        self.ui.status.sample = format!("Playing {}", sample_path_label(path));
+        self.record_sample_last_played(path.to_owned(), context);
+        log_sample_load_timing(
+            "browser.sample_load.persisted_descriptor.playback_submit",
+            path,
+            playback_started_at.elapsed(),
+            false,
+        );
+        emit_gui_action(
+            "browser.select_sample",
+            Some("browser"),
+            Some(&sample_path_label(path)),
+            "persisted_descriptor_playback_started",
+            started_at,
+            None,
+        );
+        true
+    }
+
+    pub(super) fn start_file_backed_wav_instant_audition(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        if self.loop_playback_for_path_after_policy(path) {
+            return false;
+        }
+        let lookup_started_at = Instant::now();
+        let Some(descriptor) = file_backed_wav_playback_descriptor(Path::new(path)) else {
+            return false;
+        };
+        log_sample_load_timing(
+            "browser.sample_load.file_backed_wav.lookup",
+            path,
+            lookup_started_at.elapsed(),
+            false,
+        );
+        self.prepare_playback_mode_for_path(path);
+        self.maybe_open_audio_player(context);
+        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(path)),
+                "file_backed_wav_audio_pending",
+                started_at,
+                None,
+            );
+            return false;
+        };
+        let playback_started_at = Instant::now();
+        let source = PlaybackRuntimeSource::AudioFile {
+            path: descriptor.path,
+            duration: descriptor.duration,
+            sample_rate: descriptor.sample_rate,
+            channels: descriptor.channels,
+        };
+        let request = PlaybackRuntimeRequest {
+            source,
+            mode: PlaybackRuntimeMode::OneShot {
+                start: 0.0,
+                end: 1.0,
+            },
+            volume: self.audio.volume,
+            playback_gain: 1.0,
+            playback_gain_normalization: self
+                .audio
+                .normalized_audition_enabled
+                .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            edit_fade: None,
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
+        };
+        let request_id = match runtime.try_play(request) {
+            Ok(request_id) => request_id,
+            Err(err) => {
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&sample_path_label(path)),
+                    "file_backed_wav_playback_error",
+                    started_at,
+                    Some(&format!("submit playback request: {err:?}")),
+                );
+                return false;
+            }
+        };
+        self.audio.early_sample_playback_path = Some(path.to_owned());
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
+            id: request_id,
+            path: path.to_owned(),
+            span: (0.0, 1.0),
+            show_start_marker: true,
+        });
+        self.ui.status.sample = format!("Playing {}", sample_path_label(path));
+        self.record_sample_last_played(path.to_owned(), context);
+        log_sample_load_timing(
+            "browser.sample_load.file_backed_wav.playback_submit",
+            path,
+            playback_started_at.elapsed(),
+            false,
+        );
+        emit_gui_action(
+            "browser.select_sample",
+            Some("browser"),
+            Some(&sample_path_label(path)),
+            "file_backed_wav_playback_started",
+            started_at,
+            None,
+        );
+        true
+    }
+
+    pub(super) fn start_playback_ready_instant_audition(
+        &mut self,
+        ready: WaveformPlaybackReady,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        let path = ready.path.display().to_string();
+        let label = sample_path_label(path.as_str());
+        self.prepare_playback_mode_for_path(path.as_str());
+        self.maybe_open_audio_player(context);
+        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+            return false;
+        };
+        let playback_started_at = Instant::now();
+        let duration = ready.frames as f32 / ready.sample_rate.max(1) as f32;
+        let source = PlaybackRuntimeSource::DecodedSamples {
+            audio_bytes: ready.audio_bytes,
+            samples: ready.playback_samples,
+            duration,
+            sample_rate: ready.sample_rate,
+            channels: ready.channels,
+        };
+        let request = PlaybackRuntimeRequest {
+            source,
+            mode: if self.audio.loop_playback {
+                PlaybackRuntimeMode::Looped {
+                    start: 0.0,
+                    end: 1.0,
+                    offset: 0.0,
+                }
+            } else {
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.0,
+                    end: 1.0,
+                }
+            },
+            volume: self.audio.volume,
+            playback_gain: 1.0,
+            playback_gain_normalization: self
+                .audio
+                .normalized_audition_enabled
+                .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            edit_fade: None,
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
+        };
+        let request_id = match runtime.try_play(request) {
+            Ok(request_id) => request_id,
+            Err(err) => {
+                emit_gui_action(
+                    "browser.sample_load.playback_ready",
+                    Some("browser"),
+                    Some(&label),
+                    "instant_playback_error",
+                    started_at,
+                    Some(&format!("submit playback request: {err:?}")),
+                );
+                return false;
+            }
+        };
+        self.audio.early_sample_playback_path = Some(path.clone());
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
+            id: request_id,
+            path,
+            span: (0.0, 1.0),
+            show_start_marker: true,
+        });
+        self.ui.status.sample = format!("Playing {label}");
+        log_sample_load_timing(
+            "browser.sample_load.playback_ready.playback_submit",
+            &label,
+            playback_started_at.elapsed(),
+            false,
+        );
+        true
+    }
+
+    pub(in crate::native_app::audio) fn start_current_sample_autoplay(
+        &mut self,
+        path: &str,
+        file_name: &str,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !self.waveform.current.has_loaded_sample()
+            || self.waveform.current.path() != Path::new(path)
+        {
+            emit_gui_action(
+                "browser.sample_load.autoplay",
+                Some("browser"),
+                Some(file_name),
+                "stale",
+                started_at,
+                None,
+            );
+            return;
+        }
+        let audio_open_started_at = Instant::now();
+        self.maybe_open_audio_player(context);
+        log_sample_load_timing(
+            "browser.sample_load.autoplay.audio_open",
+            file_name,
+            audio_open_started_at.elapsed(),
+            false,
+        );
         self.start_cached_sample_playback(
             &file_name,
-            LOADED_NAVIGATION_OUTCOMES,
+            SAMPLE_AUTOPLAY_OUTCOMES,
             started_at,
             context,
         );
         self.schedule_next_starmap_audition_hit(context);
-        true
     }
 
     fn start_cached_sample_playback(

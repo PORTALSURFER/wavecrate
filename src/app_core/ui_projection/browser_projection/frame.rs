@@ -1,6 +1,5 @@
 use super::filters::{browser_playback_age_filter_flags, browser_rating_filter_flags};
 use super::rows::project_browser_rows_projection_inputs;
-use super::tag_sidebar::project_browser_tag_sidebar_model;
 use crate::app_core::actions::{
     NativeBrowserPanelModel as BrowserPanelModel, NativeRetainedVec as RetainedVec,
 };
@@ -13,6 +12,20 @@ use crate::app_core::view_model;
 /// Callers can combine this with row-window projection helpers to refresh
 /// metadata and row payloads independently when only one segment is dirty.
 pub(crate) fn project_browser_panel_frame_model(
+    controller: &mut AppController,
+) -> BrowserPanelModel {
+    let mut panel = project_browser_panel_frame_model_without_sidebar(controller);
+    panel.tag_sidebar = super::tag_sidebar::project_browser_tag_sidebar_model(controller);
+    panel
+}
+
+/// Project browser panel frame metadata without tag-sidebar metadata.
+///
+/// Retained browser-frame refreshes use this lighter path during high-frequency
+/// navigation. The tag sidebar has an independent projection segment keyed by
+/// its actual targets, so rebuilding it here would duplicate work on every
+/// focus move without affecting the copied frame fields.
+pub(crate) fn project_browser_panel_frame_model_without_sidebar(
     controller: &mut AppController,
 ) -> BrowserPanelModel {
     let row_inputs = project_browser_rows_projection_inputs(controller);
@@ -45,7 +58,6 @@ pub(crate) fn project_browser_panel_frame_model(
     let active_tab_label =
         Some(super::browser_tab_label(controller.ui.browser.active_tab).to_owned());
     let focused_sample_label = project_browser_focused_sample_label(controller);
-    let tag_sidebar = project_browser_tag_sidebar_model(controller);
     BrowserPanelModel {
         visible_count: row_inputs.visible_count,
         selected_visible_row: row_inputs.selected_visible_row,
@@ -69,7 +81,7 @@ pub(crate) fn project_browser_panel_frame_model(
         sort_label,
         active_tab_label,
         focused_sample_label,
-        tag_sidebar,
+        tag_sidebar: Default::default(),
         anchor_visible_row: row_inputs.anchor_visible_row,
         rows: RetainedVec::new(),
     }

@@ -297,7 +297,14 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn should_paint_waveform_transient_overlay(&self) -> bool {
         !self.chrome_overlay_suppresses_waveform_transient_overlay()
-            && (self.waveform.current.is_playing() || self.waveform.load.label.is_some())
+            && (self.playback_visual_activity_active() || self.waveform.load.label.is_some())
+    }
+
+    pub(in crate::native_app) fn playback_visual_activity_active(&self) -> bool {
+        self.waveform.current.is_playing()
+            || self.audio.early_sample_playback_path.is_some()
+            || self.audio.pending_runtime_start.is_some()
+            || self.audio.playback_progress.active
     }
 
     fn chrome_overlay_suppresses_waveform_transient_overlay(&self) -> bool {
@@ -436,7 +443,7 @@ impl NativeAppState {
 impl FrameRepaintScopeSnapshot {
     fn from_state(state: &NativeAppState) -> Self {
         Self {
-            playing: state.waveform.current.is_playing(),
+            playing: state.playback_visual_activity_active(),
             playback_visual_generation: state.waveform.current.playback_visual_generation(),
             play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
             copy_flash_frames: state

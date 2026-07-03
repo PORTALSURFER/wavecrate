@@ -111,10 +111,13 @@ impl FolderBrowserState {
             self.select_cached_or_placeholder_source(index);
             return None;
         }
-        if self.source.selected_source == id && self.source.sources[index].root_folder.is_some() {
+        if self.source.selected_source == id && self.selected_source_loaded() {
             return None;
         }
-        if let Some(root_folder) = self.source.sources[index].root_folder.clone() {
+        if self.source.selected_source != id {
+            self.park_selected_source_tree();
+        }
+        if let Some(root_folder) = self.source.sources[index].root_folder.take() {
             self.select_loaded_source(id, root_folder);
             return None;
         }
@@ -181,6 +184,7 @@ impl FolderBrowserState {
             .iter()
             .find(|source| source.id == self.source.selected_source)
             .is_some_and(|source| source.root_folder.is_some())
+            || (self.source.selected_tree_loaded && self.tree.folders.first().is_some())
     }
 
     pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
@@ -197,8 +201,7 @@ impl FolderBrowserState {
         }
         let source_id = self.source.sources[source_index].id.clone();
         let should_select = self.source.selected_source == source_id;
-        let refreshing_selected_loaded_source =
-            should_select && self.source.sources[source_index].root_folder.is_some();
+        let refreshing_selected_loaded_source = should_select && self.selected_source_loaded();
         self.source.sources[source_index].loading_task = None;
         if !result.source_root_available {
             self.source.sources[source_index].mark_missing();
@@ -208,15 +211,16 @@ impl FolderBrowserState {
         self.source.sources[source_index].mark_available();
         self.source.sources[source_index].missing_collection_snapshot =
             result.missing_collection_snapshot.clone();
-        self.source.sources[source_index].root_folder = Some(result.folder.clone());
         if should_select {
+            self.source.sources[source_index].root_folder = None;
             if refreshing_selected_loaded_source {
-                self.refresh_selected_source_tree(source_id, result.folder);
+                self.refresh_selected_source_tree(source_id, result.folder, true);
             } else {
                 self.select_loaded_source(source_id, result.folder);
                 self.refresh_missing_collection_state();
             }
         } else {
+            self.source.sources[source_index].root_folder = Some(result.folder);
             self.bump_file_content_revision();
             self.refresh_missing_collection_state();
         }
@@ -244,7 +248,9 @@ impl FolderBrowserState {
             return true;
         }
         self.source.sources[source_index].mark_available();
-        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+        self.source.sources[source_index].root_folder = None;
+        self.source.selected_tree_loaded = true;
+        let Some(root_folder) = self.tree.folders.first_mut() else {
             return false;
         };
         if root_folder.id != result.folder.id {
@@ -253,11 +259,9 @@ impl FolderBrowserState {
         if !root_folder.replace_folder_structure(result.folder) {
             return false;
         }
-        self.tree.folders = vec![root_folder.clone()];
         self.retain_tree_state_after_selected_source_refresh();
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
-        self.prewarm_selected_source_audio_projection_cache();
         true
     }
 
@@ -289,6 +293,20 @@ impl FolderBrowserState {
             return false;
         }
 
+        if self.source.selected_source == batch.source_id {
+            let Some(root_folder) = self.tree.folders.first_mut() else {
+                return false;
+            };
+            let mut changed = false;
+            for event in &batch.events {
+                changed |= merge_scan_discovery(root_folder, event);
+            }
+            if changed {
+                self.bump_file_content_revision();
+            }
+            return changed;
+        }
+
         let root_folder = source
             .root_folder
             .get_or_insert_with(|| placeholder_folder(&source.root));
@@ -306,34 +324,45 @@ impl FolderBrowserState {
 
 impl FolderBrowserState {
     fn select_cached_or_placeholder_source(&mut self, source_index: usize) {
-        let source = self.source.sources[source_index].clone();
-        if let Some(root_folder) = source.root_folder {
-            self.select_loaded_source(source.id, root_folder);
+        let source_id = self.source.sources[source_index].id.clone();
+        let source_root = self.source.sources[source_index].root.clone();
+        if self.source.selected_source != source_id {
+            self.park_selected_source_tree();
+        }
+        if let Some(root_folder) = self.source.sources[source_index].root_folder.take() {
+            self.select_loaded_source(source_id, root_folder);
         } else {
-            self.select_pending_source(source.id, placeholder_folder(&source.root));
+            self.select_pending_source(source_id, placeholder_folder(&source_root));
         }
     }
 
     fn refresh_selected_source_from_cache_or_placeholder(&mut self, source_index: usize) {
-        let source = &self.source.sources[source_index];
-        if self.source.selected_source != source.id {
+        let source_id = self.source.sources[source_index].id.clone();
+        if self.source.selected_source != source_id {
             return;
         }
-        let root_folder = source
+        let source_root = self.source.sources[source_index].root.clone();
+        let loaded = self.source.sources[source_index].root_folder.is_some();
+        let root_folder = self.source.sources[source_index]
             .root_folder
-            .clone()
-            .unwrap_or_else(|| placeholder_folder(&source.root));
-        self.refresh_selected_source_tree(source.id.clone(), root_folder);
+            .take()
+            .unwrap_or_else(|| placeholder_folder(&source_root));
+        self.refresh_selected_source_tree(source_id, root_folder, loaded);
     }
 
-    fn refresh_selected_source_tree(&mut self, source_id: String, root_folder: FolderEntry) {
+    fn refresh_selected_source_tree(
+        &mut self,
+        source_id: String,
+        root_folder: FolderEntry,
+        loaded: bool,
+    ) {
         self.source.selected_source = source_id;
+        self.source.selected_tree_loaded = loaded;
         self.tree.folders = vec![root_folder];
         self.retain_tree_state_after_selected_source_refresh();
         self.reset_tree_view();
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
-        self.prewarm_selected_source_audio_projection_cache();
     }
 
     fn retain_tree_state_after_selected_source_refresh(&mut self) {

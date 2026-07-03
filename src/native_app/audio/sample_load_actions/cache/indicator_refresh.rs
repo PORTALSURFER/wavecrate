@@ -79,17 +79,31 @@ impl NativeAppState {
         &mut self,
         result: WaveformCacheIndicatorRefreshResult,
     ) {
+        for descriptor in result.playback_descriptors {
+            self.waveform
+                .cache
+                .mark_sample_playback_descriptor_ready(descriptor);
+        }
         for path in result.probed_paths {
             let file_id = path.display().to_string();
             if self.waveform.cache.entries.contains_key(&path)
-                || result.playback_ready_paths.contains(&path)
+                || result.instant_audition_paths.contains(&path)
             {
-                self.waveform.cache.cached_sample_paths.insert(file_id);
+                self.waveform
+                    .cache
+                    .cached_sample_paths
+                    .insert(file_id.clone());
+                if result.instant_audition_paths.contains(&path) {
+                    self.waveform
+                        .cache
+                        .instant_audition_sample_paths
+                        .insert(file_id);
+                }
             } else if result.warm_candidate_paths.contains(&path) {
-                self.waveform.cache.cached_sample_paths.remove(&file_id);
+                self.waveform.cache.clear_sample_instant_audition(&path);
                 self.queue_waveform_cache_warm(path);
             } else {
-                self.waveform.cache.cached_sample_paths.remove(&file_id);
+                self.waveform.cache.clear_sample_instant_audition(&path);
             }
         }
     }

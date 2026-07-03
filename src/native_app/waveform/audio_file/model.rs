@@ -25,6 +25,15 @@ pub(in crate::native_app) struct PersistedPlaybackCacheFile {
     pub(in crate::native_app) sample_count: u64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct PersistedPlaybackDescriptor {
+    pub(in crate::native_app) path: PathBuf,
+    pub(in crate::native_app) cache_file: PersistedPlaybackCacheFile,
+    pub(in crate::native_app) sample_rate: u32,
+    pub(in crate::native_app) channels: usize,
+    pub(in crate::native_app) frames: usize,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct WaveformPlaybackReady {
     pub(in crate::native_app) path: PathBuf,
@@ -38,6 +47,28 @@ pub(in crate::native_app) struct WaveformPlaybackReady {
 impl PersistedPlaybackCacheFile {
     pub(in crate::native_app) fn new(path: PathBuf, sample_count: u64) -> Option<Self> {
         (sample_count > 0).then_some(Self { path, sample_count })
+    }
+}
+
+impl PersistedPlaybackDescriptor {
+    pub(in crate::native_app) fn new(
+        path: PathBuf,
+        cache_file: PersistedPlaybackCacheFile,
+        sample_rate: u32,
+        channels: usize,
+        frames: usize,
+    ) -> Option<Self> {
+        (sample_rate != 0 && channels != 0 && frames != 0).then_some(Self {
+            path,
+            cache_file,
+            sample_rate,
+            channels,
+            frames,
+        })
+    }
+
+    pub(in crate::native_app) fn duration_seconds(&self) -> f32 {
+        self.frames as f32 / self.sample_rate as f32
     }
 }
 

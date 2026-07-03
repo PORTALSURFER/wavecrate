@@ -106,11 +106,15 @@ impl NativeAppState {
         outcome: &'static str,
         started_at: Instant,
     ) {
+        let early_playback_matches_load =
+            self.audio.early_sample_playback_path.as_deref() == Some(path);
         let keep_audible_waveform_visible = self.waveform.current.is_playing()
             || self.audio.current_playback_span.is_some()
             || self.audio.pending_runtime_start.is_some()
             || self.audio.early_sample_playback_path.is_some();
-        self.stop_current_sample_playback_for_load();
+        if !early_playback_matches_load {
+            self.stop_current_sample_playback_for_load();
+        }
         if !keep_audible_waveform_visible {
             self.replace_waveform_deferred(crate::native_app::app::WaveformState::empty());
         }
@@ -185,9 +189,11 @@ impl NativeAppState {
             Some(std::path::Path::new(&path)),
             Some(match strategy {
                 SampleLoadStrategy::CacheThenDecode => "cache_then_decode",
+                SampleLoadStrategy::DisplayAfterInstantAudition => "display_after_instant_audition",
                 SampleLoadStrategy::Decode => "decode",
             }),
         );
+        self.cancel_active_sample_load_worker();
         let request =
             SampleLoadRequest::new(path, autoplay, priority, strategy, require_decoded_playback);
         let key = sample_resource_key(request.path());
