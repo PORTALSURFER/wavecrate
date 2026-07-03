@@ -9,16 +9,15 @@ pub(in super::super::super) fn ensure_search_cache_ready_for_job(
     job: &SearchJob,
     source_id: &str,
 ) -> bool {
-    let db_path = crate::sample_sources::database_path_for(&job.source_root);
-    let db_stamp = DbFileStamp::from_path(&db_path);
     let must_reopen = cache.db.is_none()
         || cache.source_id.as_deref() != Some(source_id)
-        || cache.source_root.as_ref() != Some(&job.source_root)
-        || cache.db_stamp.as_ref() != db_stamp.as_ref();
+        || cache.source_root.as_ref() != Some(&job.source_root);
     if !must_reopen {
         return true;
     }
 
+    let db_path = crate::sample_sources::database_path_for(&job.source_root);
+    let db_stamp = DbFileStamp::from_path(&db_path);
     let source_changed = cache.source_id.as_deref() != Some(source_id)
         || cache.source_root.as_ref() != Some(&job.source_root);
     match crate::sample_sources::SourceDatabase::open_with_role(
