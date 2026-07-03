@@ -8,7 +8,7 @@ use super::{
     store_queue::store_cached_waveform_file_in_background,
     write::mark_cached_waveform_file_playback_ready,
 };
-use crate::native_app::waveform::audio_file::WaveformFile;
+use crate::native_app::waveform::audio_file::{PersistedPlaybackDescriptor, WaveformFile};
 
 pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     path: PathBuf,
@@ -52,6 +52,30 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     }
     log_slow_cache_phase("browser.sample_cache.load_for_playback", &path, started_at);
     file.playback_samples.is_some().then_some(file)
+}
+
+pub(in crate::native_app) fn load_cached_waveform_playback_descriptor(
+    path: PathBuf,
+) -> Option<PersistedPlaybackDescriptor> {
+    let started_at = Instant::now();
+    let identity = CacheIdentity::for_path(&path).ok()?;
+    let Some(cached) = read_cached_waveform_file(&path, &identity) else {
+        return None;
+    };
+    if cached.playback_cache.is_none() {
+        return None;
+    }
+    let Some(descriptor) = cached.into_playback_descriptor(path.clone(), identity) else {
+        log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
+        return None;
+    };
+    mark_cached_waveform_file_playback_ready(&path);
+    log_slow_cache_phase(
+        "browser.sample_cache.load_playback_descriptor",
+        &path,
+        started_at,
+    );
+    Some(descriptor)
 }
 
 pub(in crate::native_app) fn load_cached_waveform_file_summary(

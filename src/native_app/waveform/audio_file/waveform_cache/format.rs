@@ -9,7 +9,8 @@ use super::identity::{
     CacheIdentity, cache_path_for_identity, playback_sidecar_path, playback_sidecar_valid,
 };
 use crate::native_app::waveform::audio_file::{
-    PersistedPlaybackCacheFile, WaveformFile, content_revision_for_audio_bytes,
+    PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformFile,
+    content_revision_for_audio_bytes,
 };
 
 pub(super) const CACHE_FORMAT_VERSION: u32 = 3;
@@ -143,6 +144,25 @@ impl CachedWaveformFile {
             frames: self.frames,
             gpu_signal_summary: Arc::new(self.summary.into_summary()?),
         })
+    }
+
+    pub(super) fn into_playback_descriptor(
+        self,
+        path: PathBuf,
+        identity: CacheIdentity,
+    ) -> Option<PersistedPlaybackDescriptor> {
+        if !self.matches_identity(&path, &identity) || self.playback_cache.is_none() {
+            return None;
+        }
+        let cache_path = cache_path_for_identity(&path, &identity).ok()?;
+        let cache_file = self.playback_cache_file(&cache_path)?;
+        PersistedPlaybackDescriptor::new(
+            path,
+            cache_file,
+            self.sample_rate,
+            self.channels,
+            self.frames,
+        )
     }
 
     fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {

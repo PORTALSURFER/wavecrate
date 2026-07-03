@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
-use crate::native_app::waveform::WaveformFile;
+use crate::native_app::waveform::{PersistedPlaybackDescriptor, WaveformFile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum ActiveFolderCacheWarmStage {
@@ -93,7 +93,8 @@ pub(in crate::native_app) struct ActiveFolderCacheWarmResult {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) struct WaveformCacheIndicatorRefreshResult {
     pub(in crate::native_app) probed_paths: Vec<PathBuf>,
-    pub(in crate::native_app) playback_ready_paths: HashSet<PathBuf>,
+    pub(in crate::native_app) instant_audition_paths: HashSet<PathBuf>,
+    pub(in crate::native_app) playback_descriptors: Vec<PersistedPlaybackDescriptor>,
     pub(in crate::native_app) warm_candidate_paths: HashSet<PathBuf>,
 }
 

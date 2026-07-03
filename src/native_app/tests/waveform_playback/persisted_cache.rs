@@ -160,6 +160,7 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
             wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
         ]);
+    let playback_runtime_installed = install_playback_runtime_for_tests(&mut state);
     state.refresh_persisted_waveform_cache_indicators();
 
     assert!(
@@ -176,6 +177,14 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
             .instant_audition_sample_paths
             .contains(&sample_path_string),
         "playback-ready persisted cache rows should also feed instant-audition navigation"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .instant_audition_descriptors
+            .contains_key(&sample_path),
+        "playback-ready persisted cache probes should retain a lightweight playback descriptor"
     );
     assert!(
         !state.waveform.cache.entries.contains_key(&sample_path),
@@ -206,6 +215,17 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
         "selection of a playback-ready cached file should not wait for debounce"
     );
     assert!(active_sample_load_ticket(&state).is_some());
+    if playback_runtime_installed {
+        assert_eq!(
+            state.audio.early_sample_playback_path.as_deref(),
+            Some(sample_path_string.as_str()),
+            "selection should submit descriptor playback before waveform completion"
+        );
+        assert!(
+            state.audio.pending_runtime_start.is_some(),
+            "descriptor playback should be handed to the runtime immediately"
+        );
+    }
     assert_ne!(state.waveform.current.path(), sample_path);
 
     let ticket = active_sample_load_ticket(&state).expect("foreground load queued");
