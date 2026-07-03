@@ -332,11 +332,12 @@ impl NativeAppState {
         source_duration_seconds: f64,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> Option<String> {
-        if self
+        let started_at = Instant::now();
+        let protected_origin = self
             .library
             .folder_browser
-            .path_is_in_protected_source(source_path)
-        {
+            .path_is_in_protected_source(source_path);
+        if protected_origin {
             self.library
                 .folder_browser
                 .refresh_file_path_across_sources(copied_path);
@@ -353,6 +354,25 @@ impl NativeAppState {
             source_duration_seconds,
             HarvestDerivationOperation::Export,
         );
+        let elapsed = started_at.elapsed();
+        tracing::debug!(
+            target: "wavecrate::waveform_copy",
+            source = %source_path.display(),
+            copied = %copied_path.display(),
+            protected_origin,
+            elapsed_ms = elapsed.as_millis(),
+            "scheduled waveform selection copy bookkeeping"
+        );
+        if elapsed >= std::time::Duration::from_millis(16) {
+            tracing::warn!(
+                target: "wavecrate::waveform_copy",
+                source = %source_path.display(),
+                copied = %copied_path.display(),
+                protected_origin,
+                elapsed_ms = elapsed.as_millis(),
+                "slow waveform selection copy bookkeeping"
+            );
+        }
         metadata_error
     }
 

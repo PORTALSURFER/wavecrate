@@ -63,6 +63,9 @@ impl NativeAppState {
             MetadataMessage::DeleteSelectedMetadataTag => {
                 self.remove_selected_metadata_tag(context);
             }
+            MetadataMessage::MetadataRatingPersisted(result) => {
+                self.finish_metadata_rating_persist(result);
+            }
             MetadataMessage::MetadataTagsPersisted(result) => {
                 self.finish_metadata_tag_persist(result);
             }

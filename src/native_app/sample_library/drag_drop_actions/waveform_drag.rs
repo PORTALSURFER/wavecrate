@@ -11,6 +11,8 @@ use crate::native_app::app::{
 };
 use crate::native_app::waveform::{WaveformSelectionKind, execute_waveform_extraction};
 
+const WAVEFORM_SELECTION_DRAG_TASK_NAME: &str = "gui-waveform-selection-drag-extract";
+
 impl NativeAppState {
     pub(in crate::native_app) fn drag_loaded_waveform_sample(
         &mut self,
@@ -210,16 +212,20 @@ impl NativeAppState {
                 self.ui.status.sample = String::from("Extracting dragged range");
                 let playback_type =
                     ExtractedFilePlaybackType::from_loop_active(self.audio.loop_playback);
-                let completion = execute_waveform_extraction(request);
-                self.finish_play_selection_extraction(
-                    completion,
-                    Some(position),
-                    playback_type,
-                    HarvestDerivationOperation::Extract,
-                    false,
-                    started_at,
-                    context,
-                );
+                context
+                    .business()
+                    .interactive(WAVEFORM_SELECTION_DRAG_TASK_NAME)
+                    .run(
+                        move |_| execute_waveform_extraction(request),
+                        move |completion| GuiMessage::PlaySelectionExtractionFinished {
+                            completion,
+                            drag_position: Some(position),
+                            playback_type,
+                            harvest_operation: HarvestDerivationOperation::Extract,
+                            focus_derivative: false,
+                            started_at,
+                        },
+                    );
                 true
             }
             Err(error) => {

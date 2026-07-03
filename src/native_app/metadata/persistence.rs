@@ -1,12 +1,15 @@
 use super::playback_type_tags::sanitize_playback_type_tags;
-use super::types::{MetadataTagPersistRequest, MetadataTagPersistResult};
+use super::types::{
+    MetadataRatingPersistRequest, MetadataRatingPersistResult, MetadataTagPersistRequest,
+    MetadataTagPersistResult,
+};
 use crate::native_app::audio::playback::tagged_playback_mode_for_tag;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     time::SystemTime,
 };
-use wavecrate::sample_sources::{Rating, SourceDatabase, SourceDbError, db::SourceWriteBatch};
+use wavecrate::sample_sources::{SourceDatabase, SourceDbError, db::SourceWriteBatch};
 
 pub(super) fn persist_metadata_tag_assignment(
     request: MetadataTagPersistRequest,
@@ -46,6 +49,16 @@ pub(super) fn persist_metadata_tag_deletions(
     MetadataTagPersistResult {
         tags,
         assigned: false,
+        result,
+    }
+}
+
+pub(super) fn persist_metadata_rating_assignment(
+    request: MetadataRatingPersistRequest,
+) -> MetadataRatingPersistResult {
+    let result = persist_file_rating_assignment_inner(&request);
+    MetadataRatingPersistResult {
+        absolute_path: request.absolute_path,
         result,
     }
 }
@@ -92,29 +105,24 @@ fn persist_metadata_tag_assignment_inner(
     batch.commit().map_err(|err| err.to_string())
 }
 
-pub(super) fn persist_file_rating_assignment(
-    absolute_path: &Path,
-    source_root: &Path,
-    source_database_root: &Path,
-    relative_path: &Path,
-    rating: Rating,
-    locked: bool,
+fn persist_file_rating_assignment_inner(
+    request: &MetadataRatingPersistRequest,
 ) -> Result<(), String> {
-    let (file_size, modified_ns) = file_metadata(absolute_path)?;
+    let (file_size, modified_ns) = file_metadata(&request.absolute_path)?;
     let db = SourceDatabase::open_for_user_metadata_write_with_database_root(
-        source_root,
-        source_database_root,
+        &request.source_root,
+        &request.source_database_root,
     )
     .map_err(|err| err.to_string())?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     batch
-        .upsert_file(relative_path, file_size, modified_ns)
+        .upsert_file(&request.relative_path, file_size, modified_ns)
         .map_err(|err| err.to_string())?;
     batch
-        .set_tag(relative_path, rating)
+        .set_tag(&request.relative_path, request.rating)
         .map_err(|err| err.to_string())?;
     batch
-        .set_locked(relative_path, locked)
+        .set_locked(&request.relative_path, request.locked)
         .map_err(|err| err.to_string())?;
     batch.commit().map_err(|err| err.to_string())
 }
