@@ -1,7 +1,7 @@
 use super::*;
 
 impl DragDropController<'_> {
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(crate) fn sample_absolute_path(
         &self,
         source_id: &SourceId,

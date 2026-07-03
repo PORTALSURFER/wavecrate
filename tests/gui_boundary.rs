@@ -320,6 +320,81 @@ fn waveform_clipboard_staging_worker_does_not_touch_platform_clipboard() {
 }
 
 #[test]
+fn external_drag_adapter_has_macos_appkit_file_url_session() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let module_path = manifest_dir.join("src/external_drag/mod.rs");
+    let macos_path = manifest_dir.join("src/external_drag/platform_macos.rs");
+    let module = fs::read_to_string(&module_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", module_path.display()));
+    let macos = fs::read_to_string(&macos_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", macos_path.display()));
+
+    assert!(
+        module.contains("#[cfg(target_os = \"macos\")]")
+            && module.contains("#[path = \"platform_macos.rs\"]")
+            && module.contains("platform::start_file_drag(paths)"),
+        "external drag module should route macOS file drags to the AppKit platform adapter"
+    );
+    for required_contract in [
+        "beginDraggingSessionWithItems:event:source:",
+        "fileURLWithPath:",
+        "initWithPasteboardWriter:",
+        "NSApplication has no key or main window",
+        "NSWindow contentView returned nil",
+        "External drag-out is only supported on Windows and macOS",
+    ] {
+        assert!(
+            module.contains(required_contract) || macos.contains(required_contract),
+            "macOS external drag support should keep contract `{required_contract}`"
+        );
+    }
+}
+
+#[test]
+fn legacy_selection_export_completion_launches_external_drag_on_macos() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let completion_path =
+        manifest_dir.join("src/app/controller/library/selection_export/completion.rs");
+    let action_path =
+        manifest_dir.join("src/app/controller/ui/drag_drop_controller/actions/external_drag.rs");
+    let effects_path = manifest_dir
+        .join("src/app/controller/ui/drag_drop_controller/drag_effects/external_drag.rs");
+    let bridge_path = manifest_dir.join("src/app_core/ui_bridge/native_bridge.rs");
+    let completion = fs::read_to_string(&completion_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", completion_path.display()));
+    let actions = fs::read_to_string(&action_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", action_path.display()));
+    let effects = fs::read_to_string(&effects_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", effects_path.display()));
+    let bridge = fs::read_to_string(&bridge_path)
+        .unwrap_or_else(|err| panic!("{} should be readable: {err}", bridge_path.display()));
+
+    let platform_cfg = "#[cfg(any(target_os = \"windows\", target_os = \"macos\"))]";
+    assert!(
+        completion.contains(platform_cfg)
+            && completion.contains("finish_external_selection_drag_export")
+            && !completion.contains(
+                "#[cfg(not(target_os = \"windows\"))]\n    fn finish_external_selection_drag_export(&mut self, _success"
+            ),
+        "selection export completion must launch external drags on macOS instead of no-oping"
+    );
+    assert!(
+        actions.contains(platform_cfg)
+            && actions.contains("pub(crate) fn maybe_launch_external_drag"),
+        "external drag launch polling should be compiled for both Windows and macOS"
+    );
+    assert!(
+        effects.contains("#[cfg(target_os = \"macos\")]")
+            && effects.contains("crate::external_drag::start_file_drag((), paths)"),
+        "drag controller should call the macOS external drag adapter"
+    );
+    assert!(
+        bridge.contains(platform_cfg) && bridge.contains("maybe_launch_external_drag"),
+        "native bridge should forward external drag polling on macOS"
+    );
+}
+
+#[test]
 fn native_app_playback_paths_do_not_start_audio_directly() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let native_app_root = manifest_dir.join("src/native_app");

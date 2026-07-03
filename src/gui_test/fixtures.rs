@@ -171,7 +171,7 @@ impl NativeAppBridge for GuiFixtureBridge {
         self.bridge.set_external_drag_hwnd(hwnd);
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
         self.bridge
             .maybe_launch_external_drag(pointer_outside, pointer_left)
