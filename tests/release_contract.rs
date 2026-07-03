@@ -18,6 +18,8 @@ const BUILD_RELEASE_ARTIFACT_SCRIPT: &str =
     include_str!("../scripts/internal/release/build_release_artifact.sh");
 const CHECKOUT_RADIANT_SCRIPT: &str =
     include_str!("../scripts/internal/release/checkout_radiant_submodule.sh");
+const SETUP_UBUNTU_RELEASE_DEPS_SCRIPT: &str =
+    include_str!("../scripts/internal/release/setup_ubuntu_release_deps.sh");
 const RELEASE_ZIP_SCRIPT: &str = include_str!("../scripts/internal/release/build_release_zip.sh");
 const RELEASE_LOG_SCRIPT: &str =
     include_str!("../scripts/internal/release/generate_release_log.sh");
@@ -124,6 +126,34 @@ fn nightly_workflow_runs_validation_before_build_and_publish() {
             && test_position < publish_frontend_position
             && test_position < publish_github_position,
         "nightly validation job should be declared before build and publish jobs"
+    );
+}
+
+#[test]
+fn release_validation_installs_ubuntu_audio_deps_before_cargo_tests() {
+    for (name, workflow) in [
+        ("nightly workflow", NIGHTLY_WORKFLOW),
+        ("RC workflow", RC_WORKFLOW),
+        ("stable workflow", STABLE_WORKFLOW),
+    ] {
+        let test_job = workflow_job_block(workflow, "test");
+        let deps_position = test_job
+            .find("scripts/internal/release/setup_ubuntu_release_deps.sh")
+            .unwrap_or_else(|| panic!("{name} test job must install Ubuntu release dependencies"));
+        let cargo_test_position = test_job
+            .find("cargo test --workspace --locked")
+            .unwrap_or_else(|| panic!("{name} test job must run the release workspace test lane"));
+        assert!(
+            deps_position < cargo_test_position,
+            "{name} must install Ubuntu release dependencies before Cargo builds workspace tests"
+        );
+    }
+
+    assert!(
+        SETUP_UBUNTU_RELEASE_DEPS_SCRIPT.contains("pkg-config")
+            && SETUP_UBUNTU_RELEASE_DEPS_SCRIPT.contains("libasound2-dev")
+            && SETUP_UBUNTU_RELEASE_DEPS_SCRIPT.contains("pkg-config --exists alsa"),
+        "Ubuntu release dependency helper must install and verify ALSA build dependencies"
     );
 }
 
@@ -793,6 +823,10 @@ fn release_workflows_use_shared_setup_build_and_signing_helpers() {
         assert!(
             workflow.contains("scripts/internal/release/emit_rust_toolchain_channel.py"),
             "{name} must use the shared Rust toolchain channel helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/setup_ubuntu_release_deps.sh"),
+            "{name} must use the shared Ubuntu release dependency helper"
         );
         assert!(
             workflow.contains("scripts/internal/release/setup_windows_asio_sdk.ps1"),
