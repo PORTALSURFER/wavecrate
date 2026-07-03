@@ -6,8 +6,8 @@ use std::{
 };
 
 use super::identity::{
-    CacheIdentity, cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
-    source_warm_marker_path,
+    CacheIdentity, cache_path_for_identity, playback_descriptor_path, playback_ready_marker_path,
+    playback_sidecar_path, source_warm_marker_path,
 };
 
 static CACHE_PATH_GENERATIONS: LazyLock<Mutex<HashMap<PathBuf, u64>>> =
@@ -74,6 +74,7 @@ fn cleanup_current_identity_artifacts(path: &Path) {
 
 pub(super) fn cleanup_cache_artifacts(cache_path: &Path) {
     remove_file_if_exists(cache_path);
+    remove_file_if_exists(&playback_descriptor_path(cache_path));
     remove_file_if_exists(&playback_sidecar_path(cache_path));
     remove_file_if_exists(&playback_ready_marker_path(cache_path));
     remove_file_if_exists(&source_warm_marker_path(cache_path));

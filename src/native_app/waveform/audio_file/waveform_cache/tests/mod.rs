@@ -1,7 +1,7 @@
 use super::{
     identity::{
-        cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
-        source_warm_marker_path,
+        CacheIdentity, cache_path_for_identity, playback_descriptor_path,
+        playback_ready_marker_path, playback_sidecar_path, source_warm_marker_path,
     },
     prune::prune_waveform_cache_dir,
     read::{CacheReadStatus, read_cached_waveform_file_outcome},

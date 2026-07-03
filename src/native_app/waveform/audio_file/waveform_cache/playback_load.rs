@@ -4,9 +4,9 @@ use super::{
     diagnostics::{log_slow_cache_phase, log_stale_cache_entry},
     format::CACHE_FORMAT_VERSION,
     identity::CacheIdentity,
-    read::read_cached_waveform_file,
+    read::{read_cached_playback_descriptor, read_cached_waveform_file},
     store_queue::store_cached_waveform_file_in_background,
-    write::mark_cached_waveform_file_playback_ready,
+    write::{mark_cached_waveform_file_playback_ready, write_playback_descriptor_sidecar},
 };
 use crate::native_app::waveform::audio_file::{PersistedPlaybackDescriptor, WaveformFile};
 
@@ -59,16 +59,35 @@ pub(in crate::native_app) fn load_cached_waveform_playback_descriptor(
 ) -> Option<PersistedPlaybackDescriptor> {
     let started_at = Instant::now();
     let identity = CacheIdentity::for_path(&path).ok()?;
+    if let Some(descriptor) = read_cached_playback_descriptor(&path, &identity) {
+        log_playback_descriptor_source(&path, "sidecar");
+        log_slow_cache_phase(
+            "browser.sample_cache.load_playback_descriptor",
+            &path,
+            started_at,
+        );
+        return Some(descriptor);
+    }
     let Some(cached) = read_cached_waveform_file(&path, &identity) else {
         return None;
     };
     if cached.playback_cache.is_none() {
         return None;
     }
+    let cache_path = super::identity::cache_path_for_identity(&path, &identity).ok()?;
+    let migrated_descriptor = write_playback_descriptor_sidecar(&cache_path, &cached);
     let Some(descriptor) = cached.into_playback_descriptor(path.clone(), identity) else {
         log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
         return None;
     };
+    log_playback_descriptor_source(
+        &path,
+        if migrated_descriptor {
+            "legacy_cache_migrated"
+        } else {
+            "legacy_cache"
+        },
+    );
     mark_cached_waveform_file_playback_ready(&path);
     log_slow_cache_phase(
         "browser.sample_cache.load_playback_descriptor",
@@ -76,6 +95,16 @@ pub(in crate::native_app) fn load_cached_waveform_playback_descriptor(
         started_at,
     );
     Some(descriptor)
+}
+
+fn log_playback_descriptor_source(path: &std::path::Path, descriptor_source: &'static str) {
+    tracing::info!(
+        target: "wavecrate::debug::sample_cache",
+        event = "browser.sample_cache.playback_descriptor",
+        descriptor_source,
+        path = %path.display(),
+        "Playback descriptor available"
+    );
 }
 
 pub(in crate::native_app) fn load_cached_waveform_file_summary(

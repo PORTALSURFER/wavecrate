@@ -4,7 +4,9 @@ use std::{
     time::SystemTime,
 };
 
-use super::identity::{playback_ready_marker_path, playback_sidecar_path};
+use super::identity::{
+    playback_descriptor_path, playback_ready_marker_path, playback_sidecar_path,
+};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct PruneWaveformCacheOutcome {
@@ -84,7 +86,15 @@ pub(super) fn prune_waveform_cache_dir(
             .metadata()
             .map(|metadata| metadata.len())
             .unwrap_or(0);
-        let len = metadata.len().saturating_add(sidecar_len);
+        let descriptor_path = playback_descriptor_path(&path);
+        let descriptor_len = descriptor_path
+            .metadata()
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
+        let len = metadata
+            .len()
+            .saturating_add(sidecar_len)
+            .saturating_add(descriptor_len);
         total_bytes = total_bytes.saturating_add(len);
         cache_entries.push(CacheFileForPrune {
             path,
@@ -109,6 +119,9 @@ pub(super) fn prune_waveform_cache_dir(
         }
         if fs::remove_file(&entry.path).is_ok() {
             if remove_if_exists(playback_ready_marker_path(&entry.path)).is_err() {
+                outcome.companion_remove_failed += 1;
+            }
+            if remove_if_exists(playback_descriptor_path(&entry.path)).is_err() {
                 outcome.companion_remove_failed += 1;
             }
             if remove_if_exists(playback_sidecar_path(&entry.path)).is_err() {

@@ -36,6 +36,18 @@ pub(super) struct CachedPlaybackCacheFile {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub(super) struct CachedPlaybackDescriptor {
+    version: u32,
+    path: PathBuf,
+    file_len: u64,
+    modified_ns: u128,
+    sample_rate: u32,
+    channels: usize,
+    frames: usize,
+    playback_cache: CachedPlaybackCacheFile,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct CachedGpuSignalSummary {
     frames: usize,
     band_count: usize,
@@ -207,6 +219,56 @@ impl CachedWaveformFile {
 
     pub(super) fn clear_playback_cache(&mut self) {
         self.playback_cache = None;
+    }
+}
+
+impl CachedPlaybackDescriptor {
+    pub(super) fn from_cached_waveform_file(cached: &CachedWaveformFile) -> Option<Self> {
+        Some(Self {
+            version: cached.version,
+            path: cached.path.clone(),
+            file_len: cached.file_len,
+            modified_ns: cached.modified_ns,
+            sample_rate: cached.sample_rate,
+            channels: cached.channels,
+            frames: cached.frames,
+            playback_cache: cached.playback_cache.clone()?,
+        })
+    }
+
+    pub(super) fn into_playback_descriptor(
+        self,
+        path: PathBuf,
+        identity: CacheIdentity,
+        cache_path: &Path,
+    ) -> Option<PersistedPlaybackDescriptor> {
+        if self.version != CACHE_FORMAT_VERSION
+            || self.path != path
+            || self.file_len != identity.file_len
+            || self.modified_ns != identity.modified_ns
+            || self.sample_rate == 0
+            || self.channels == 0
+            || self.frames == 0
+        {
+            return None;
+        }
+        let sidecar_path = playback_sidecar_path(cache_path);
+        if !playback_sidecar_valid(&sidecar_path, self.playback_cache.sample_count)
+            || self.playback_cache.byte_len
+                != self
+                    .playback_cache
+                    .sample_count
+                    .saturating_mul(std::mem::size_of::<f32>() as u64)
+        {
+            return None;
+        }
+        PersistedPlaybackDescriptor::new(
+            path,
+            PersistedPlaybackCacheFile::new(sidecar_path, self.playback_cache.sample_count)?,
+            self.sample_rate,
+            self.channels,
+            self.frames,
+        )
     }
 }
 

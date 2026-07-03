@@ -8,10 +8,11 @@ use std::{
 
 use super::{
     MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES, MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
-    format::{CachedPlaybackCacheFile, CachedWaveformFile},
+    format::{CachedPlaybackCacheFile, CachedPlaybackDescriptor, CachedWaveformFile},
     identity::{
-        CacheIdentity, cache_path_for_identity, playback_ready_marker_path, playback_sidecar_path,
-        playback_sidecar_valid, source_warm_marker_path,
+        CacheIdentity, cache_path_for_identity, playback_descriptor_path,
+        playback_ready_marker_path, playback_sidecar_path, playback_sidecar_valid,
+        source_warm_marker_path,
     },
     invalidation::{
         cleanup_cache_artifacts, commit_if_store_job_current, store_job_matches_current_file,
@@ -46,6 +47,11 @@ pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> Sto
     let cached =
         CachedWaveformFile::from_waveform_file(&job.file, &job.identity, sidecar.cache_file);
     let playback_ready = cached.playback_cache.is_some();
+    if playback_ready {
+        let _ = write_playback_descriptor_sidecar(&job.cache_path, &cached);
+    } else {
+        let _ = cleanup_file(&playback_descriptor_path(&job.cache_path));
+    }
     let Ok(bytes) = bincode::serialize(&cached) else {
         return StoreWriteOutcome::SerializeFailed(report);
     };
@@ -97,6 +103,29 @@ pub(in crate::native_app) fn mark_cached_waveform_file_source_warm_attempted(pat
 
 pub(super) fn mark_source_warm_ready_for_cache_path(cache_path: &Path) {
     let _ = fs::write(source_warm_marker_path(cache_path), []);
+}
+
+pub(super) fn write_playback_descriptor_sidecar(
+    cache_path: &Path,
+    cached: &CachedWaveformFile,
+) -> bool {
+    let Some(descriptor) = CachedPlaybackDescriptor::from_cached_waveform_file(cached) else {
+        let _ = cleanup_file(&playback_descriptor_path(cache_path));
+        return false;
+    };
+    let Ok(bytes) = bincode::serialize(&descriptor) else {
+        return false;
+    };
+    let descriptor_path = playback_descriptor_path(cache_path);
+    let temp_path = descriptor_path.with_extension("playback.tmp");
+    if fs::write(&temp_path, bytes).is_err() {
+        return false;
+    }
+    if fs::rename(&temp_path, descriptor_path).is_err() {
+        let _ = cleanup_file(&temp_path);
+        return false;
+    }
+    true
 }
 
 struct PlaybackSidecarStore {
