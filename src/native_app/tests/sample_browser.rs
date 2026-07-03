@@ -161,10 +161,26 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
         .library
         .folder_browser
         .select_file(sample_path_string.clone());
+    let projection_cache_before = state
+        .library
+        .folder_browser
+        .selected_audio_projection_cache_len_for_tests();
+    assert!(
+        projection_cache_before > 0,
+        "source load should prewarm selected audio projections"
+    );
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.record_sample_last_played(sample_path_string.clone(), &mut context);
 
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_projection_cache_len_for_tests(),
+        projection_cache_before,
+        "last-played metadata should not invalidate navigation projections unless it changes ordering"
+    );
     assert_eq!(
         state
             .library
@@ -186,6 +202,51 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
         db.last_played_at_for_path(std::path::Path::new("played.wav"))
             .expect("read last played")
             .is_some()
+    );
+}
+
+#[test]
+fn last_played_sort_invalidates_projection_when_history_changes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("first.wav");
+    let second_path = source_root.path().join("second.wav");
+    fs::write(&first_path, []).expect("write first sample");
+    fs::write(&second_path, []).expect("write second sample");
+    let first_path_string = first_path.display().to_string();
+
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state
+        .library
+        .folder_browser
+        .sort_file_column(String::from("modified"));
+    let _ = state.library.folder_browser.selected_audio_files();
+    assert!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_projection_cache_len_for_tests()
+            > 0,
+        "history-sorted projection should be cached before playback"
+    );
+
+    state.record_sample_last_played(
+        first_path_string,
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_projection_cache_len_for_tests(),
+        0,
+        "history-sorted projection must invalidate when last-played metadata changes ordering"
     );
 }
 

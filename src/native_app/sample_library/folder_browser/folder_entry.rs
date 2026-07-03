@@ -228,15 +228,26 @@ impl FolderEntry {
     }
 
     pub(super) fn set_file_last_played_at(&mut self, file_id: &str, last_played_at: i64) -> bool {
+        if self.set_direct_file_last_played_at(file_id, last_played_at) {
+            return true;
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.set_file_last_played_at(file_id, last_played_at))
+    }
+
+    pub(super) fn set_direct_file_last_played_at(
+        &mut self,
+        file_id: &str,
+        last_played_at: i64,
+    ) -> bool {
         for file in &mut self.files {
             if file.id == file_id {
                 file.set_last_played_at(Some(last_played_at));
                 return true;
             }
         }
-        self.children
-            .iter_mut()
-            .any(|child| child.set_file_last_played_at(file_id, last_played_at))
+        false
     }
 
     pub(super) fn set_file_last_curated_at(&mut self, file_id: &str, last_curated_at: i64) -> bool {
