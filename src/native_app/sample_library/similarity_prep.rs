@@ -98,13 +98,10 @@ impl NativeAppState {
         else {
             return;
         };
-        context
-            .business()
-            .background("gui-starmap-layout-load")
-            .run(
-                move |_| load_starmap_layout(request),
-                GuiMessage::StarmapLayoutLoaded,
-            );
+        context.business().idle("gui-starmap-layout-load").run(
+            move |_| load_starmap_layout(request),
+            GuiMessage::StarmapLayoutLoaded,
+        );
     }
 
     pub(in crate::native_app) fn finish_starmap_layout_load(
@@ -114,22 +111,6 @@ impl NativeAppState {
         self.library
             .folder_browser
             .apply_starmap_layout_load_result(result);
-    }
-
-    pub(in crate::native_app) fn maybe_prepare_starmap_similarity_layout(
-        &mut self,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
-        if self.ui.chrome.sample_browser_display != SampleBrowserDisplayMode::Map {
-            return;
-        }
-        let source_ids = self
-            .library
-            .folder_browser
-            .starmap_sources_needing_similarity_prep(&self.metadata.tags_by_file);
-        for source_id in source_ids {
-            self.prepare_similarity_for_source_automatically(&source_id, context);
-        }
     }
 
     pub(in crate::native_app) fn refresh_selected_similarity_prep_status(
@@ -148,14 +129,6 @@ impl NativeAppState {
                 move |_| resolve_status_result(source),
                 GuiMessage::SimilarityPrepStatusResolved,
             );
-    }
-
-    pub(in crate::native_app) fn prepare_similarity_for_source_automatically(
-        &mut self,
-        source_id: &str,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
-        self.prepare_similarity_for_source(source_id, SimilarityPrepTrigger::Automatic, context);
     }
 
     pub(in crate::native_app) fn prepare_similarity_for_source(

@@ -569,7 +569,7 @@ fn sample_browser_similarity_ignores_stale_score_results() {
 }
 
 #[test]
-fn source_prep_trigger_drains_similarity_jobs_after_queueing_them() {
+fn automatic_source_prep_does_not_start_similarity_jobs() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
     let drums = source_root.path().join("drums");
@@ -632,23 +632,23 @@ fn source_prep_trigger_drains_similarity_jobs_after_queueing_them() {
     );
     assert_eq!(
         source_jobs_by_status(source_root.path(), "wav_metadata_v1", "done"),
-        2
+        0
     );
     assert_eq!(
         source_jobs_by_status(source_root.path(), "embedding_backfill_v1", "done"),
-        1
+        0
     );
-    assert_eq!(source_artifact_rows(source_root.path(), "features"), 2);
-    assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 2);
+    assert_eq!(source_artifact_rows(source_root.path(), "features"), 0);
+    assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 0);
     assert_eq!(
         source_artifact_rows(source_root.path(), "similarity_aspect_descriptors"),
-        2
+        0
     );
     assert!(!state.library.similarity_prep.running);
 }
 
 #[test]
-fn source_prep_retains_similarity_trigger_while_another_source_is_running() {
+fn user_source_prep_retains_similarity_trigger_while_another_source_is_running() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let first_root = tempfile::tempdir().expect("first root");
     let second_root = tempfile::tempdir().expect("second root");
@@ -671,12 +671,12 @@ fn source_prep_retains_similarity_trigger_while_another_source_is_running() {
 
     state.queue_source_prep(
         String::from("first-source"),
-        crate::native_app::sample_library::source_prep::SourcePrepTrigger::SourceSelected,
+        crate::native_app::sample_library::source_prep::SourcePrepTrigger::UserRequested,
         &mut context,
     );
     state.queue_source_prep(
         String::from("second-source"),
-        crate::native_app::sample_library::source_prep::SourcePrepTrigger::FilesystemChanged,
+        crate::native_app::sample_library::source_prep::SourcePrepTrigger::UserRequested,
         &mut context,
     );
 

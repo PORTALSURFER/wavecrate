@@ -57,8 +57,6 @@ impl NativeAppState {
                 SimilarityPrepTrigger::UserRequested,
                 context,
             );
-        } else {
-            self.prepare_similarity_for_source_automatically(&source_id, context);
         }
         if selected_source {
             self.schedule_persisted_waveform_cache_indicator_refresh(context);
