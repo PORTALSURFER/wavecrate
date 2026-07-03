@@ -12,8 +12,11 @@ mod tests;
 pub(in crate::native_app) mod waveform;
 
 use radiant::prelude as ui;
+use std::time::{Duration, Instant};
 
-use crate::native_app::app::{GuiMessage, NativeAppState, WaveformInteraction};
+use crate::native_app::app::{GuiMessage, NativeAppState, WaveformInteraction, sample_path_label};
+
+const SLOW_UI_MESSAGE_THRESHOLD: Duration = Duration::from_millis(4);
 
 impl NativeAppState {
     pub(in crate::native_app) fn handle_message(
@@ -25,6 +28,17 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn apply_message(
+        &mut self,
+        message: GuiMessage,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let message_label = gui_message_profile_label(&message);
+        self.apply_message_inner(message, context);
+        self.log_slow_ui_message(message_label, started_at);
+    }
+
+    fn apply_message_inner(
         &mut self,
         message: GuiMessage,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -218,6 +232,85 @@ impl NativeAppState {
             GuiMessage::Frame => self.apply_frame_message(context),
         }
     }
+
+    fn log_slow_ui_message(&self, message_label: &'static str, started_at: Instant) {
+        let elapsed = started_at.elapsed();
+        if elapsed < SLOW_UI_MESSAGE_THRESHOLD {
+            return;
+        }
+        let selected = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(sample_path_label)
+            .unwrap_or_default();
+        tracing::warn!(
+            target: "wavecrate::debug::ui_frame",
+            event = "ui.message.slow",
+            message = message_label,
+            elapsed_ms = duration_ms(elapsed),
+            sample_loading = self.active_sample_load_task().is_some(),
+            waveform_loading = self.waveform_sample_load_active(),
+            playing = self.waveform.current.is_playing(),
+            pending_playback = self.audio.pending_playback_start.is_some(),
+            selected = selected.as_str(),
+            "Slow UI message dispatch"
+        );
+    }
+}
+
+fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
+    match message {
+        GuiMessage::Frame => "Frame",
+        GuiMessage::NavigateBrowser { .. } => "NavigateBrowser",
+        GuiMessage::SelectSampleWithModifiers { .. } => "SelectSampleWithModifiers",
+        GuiMessage::DeferredSampleLoad { .. } => "DeferredSampleLoad",
+        GuiMessage::SampleLoadPathValidated { .. } => "SampleLoadPathValidated",
+        GuiMessage::SampleLoadProgress(_, _, _) => "SampleLoadProgress",
+        GuiMessage::SamplePlaybackReady(_) => "SamplePlaybackReady",
+        GuiMessage::SampleLoadFinished(_) => "SampleLoadFinished",
+        GuiMessage::AudioPlayerOpenFinished(_) => "AudioPlayerOpenFinished",
+        GuiMessage::LastPlayedPersistReady { .. } => "LastPlayedPersistReady",
+        GuiMessage::LastPlayedPersisted(_) => "LastPlayedPersisted",
+        GuiMessage::HarvestSeenPersisted(_) => "HarvestSeenPersisted",
+        GuiMessage::WaveformCacheIndicatorRefreshFinished(_) => {
+            "WaveformCacheIndicatorRefreshFinished"
+        }
+        GuiMessage::WaveformCacheWarmFinished(_) => "WaveformCacheWarmFinished",
+        GuiMessage::ActiveFolderCacheWarmPlanProgress(_) => "ActiveFolderCacheWarmPlanProgress",
+        GuiMessage::ActiveFolderCacheWarmPlanned(_) => "ActiveFolderCacheWarmPlanned",
+        GuiMessage::ActiveFolderCacheWarmReady(_) => "ActiveFolderCacheWarmReady",
+        GuiMessage::ActiveFolderCacheWarmProgress(_) => "ActiveFolderCacheWarmProgress",
+        GuiMessage::ActiveFolderCacheWarmFinished(_) => "ActiveFolderCacheWarmFinished",
+        GuiMessage::SampleBrowserWindowChanged(_) => "SampleBrowserWindowChanged",
+        GuiMessage::FolderBrowser(_) => "FolderBrowser",
+        GuiMessage::FolderScanProgress(_) => "FolderScanProgress",
+        GuiMessage::FolderScanDiscoveryBatch(_) => "FolderScanDiscoveryBatch",
+        GuiMessage::FolderScanFinished(_) => "FolderScanFinished",
+        GuiMessage::FolderTreeRefreshFinished(_) => "FolderTreeRefreshFinished",
+        GuiMessage::SelectedFolderVerifyFinished(_) => "SelectedFolderVerifyFinished",
+        GuiMessage::SourceFilesystemChanged { .. } => "SourceFilesystemChanged",
+        GuiMessage::SourceFilesystemSyncFinished(_) => "SourceFilesystemSyncFinished",
+        GuiMessage::NormalizationProgress(_) => "NormalizationProgress",
+        GuiMessage::NormalizationFinished(_) => "NormalizationFinished",
+        GuiMessage::Waveform(_) => "Waveform",
+        GuiMessage::PlaySelectedSample => "PlaySelectedSample",
+        GuiMessage::PlayFromCurrentPlayStart => "PlayFromCurrentPlayStart",
+        GuiMessage::PlayRandomSampleRange => "PlayRandomSampleRange",
+        GuiMessage::PlayRandomListedSampleRange => "PlayRandomListedSampleRange",
+        GuiMessage::StopPlayback => "StopPlayback",
+        GuiMessage::ToggleLoopPlayback => "ToggleLoopPlayback",
+        GuiMessage::ToggleMetronome => "ToggleMetronome",
+        GuiMessage::PlayPreviousPlaybackHistory => "PlayPreviousPlaybackHistory",
+        GuiMessage::PlayNextPlaybackHistory => "PlayNextPlaybackHistory",
+        GuiMessage::Settings(_) => "Settings",
+        GuiMessage::Metadata(_) => "Metadata",
+        _ => "Other",
+    }
+}
+
+fn duration_ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
 }
 
 fn closes_waveform_context_menu(message: &GuiMessage) -> bool {
