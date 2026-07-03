@@ -336,6 +336,108 @@ fn large_foreground_sample_load_reuses_file_backed_summary_cache() {
 }
 
 #[test]
+fn large_wav_instant_audition_descriptor_reads_source_header() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-header.wav");
+    write_sparse_test_wav_i16(&sample_path, 2, 700);
+
+    let descriptor = crate::native_app::waveform::file_backed_wav_playback_descriptor(&sample_path)
+        .expect("large WAV descriptor");
+
+    assert_eq!(descriptor.path, sample_path);
+    assert_eq!(descriptor.sample_rate, 48_000);
+    assert_eq!(descriptor.channels, 2);
+    assert!((descriptor.duration - (700.0 / 48_000.0)).abs() < f32::EPSILON);
+}
+
+#[test]
+fn large_foreground_sample_load_prefers_file_backed_summary_over_legacy_playback_cache() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root
+        .path()
+        .join("large-with-legacy-playback-cache.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+
+    let decoded = crate::native_app::test_support::state::WaveformState::load_path_for_looped_foreground_audition(
+        sample_path.clone(),
+        |_| {},
+        || false,
+        |_| {},
+    )
+    .expect("decoded foreground load");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    assert!(decoded.playback_samples().is_some());
+    assert!(
+        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "test setup should seed an old playback-ready cache"
+    );
+
+    let reloaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("foreground audition reload");
+
+    assert_eq!(reloaded.path(), sample_path);
+    assert!(
+        reloaded.audio_bytes().is_empty(),
+        "large non-looped foreground navigation should stay file-backed instead of deserializing the legacy playback cache"
+    );
+    assert!(reloaded.playback_samples().is_none());
+}
+
+#[test]
+fn large_navigation_sample_starts_source_file_audition_before_background_waveform_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("large-navigation.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let playback_runtime_installed = install_playback_runtime_for_tests(&mut state);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_navigation_sample_validated(
+        sample_path_string.clone(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+    let command = context.into_command();
+
+    if playback_runtime_installed {
+        assert_eq!(
+            command.business_task_priority("gui-sample-load"),
+            Some(ui::TaskPriority::Background),
+            "waveform loading should move behind immediate source-file playback"
+        );
+        assert_eq!(
+            state.audio.early_sample_playback_path.as_deref(),
+            Some(sample_path_string.as_str())
+        );
+        assert!(
+            state.audio.pending_runtime_start.is_some(),
+            "source-file playback should be submitted before waveform completion"
+        );
+    } else {
+        assert_eq!(
+            command.business_task_priority("gui-sample-load"),
+            Some(ui::TaskPriority::Interactive),
+            "without an installed runtime, the selected sample still needs foreground loading"
+        );
+    }
+}
+
+#[test]
 fn looped_foreground_sample_load_bypasses_file_backed_summary_cache() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

@@ -181,7 +181,8 @@ impl NativeAppState {
             return;
         }
         let instant_audition_started = autoplay
-            && self.start_persisted_cache_instant_audition(path.as_str(), context, started_at);
+            && (self.start_persisted_cache_instant_audition(path.as_str(), context, started_at)
+                || self.start_file_backed_wav_instant_audition(path.as_str(), context, started_at));
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             autoplay,
@@ -225,7 +226,8 @@ impl NativeAppState {
             return;
         }
         let instant_audition_started =
-            self.start_persisted_cache_instant_audition(path.as_str(), context, started_at);
+            self.start_persisted_cache_instant_audition(path.as_str(), context, started_at)
+                || self.start_file_backed_wav_instant_audition(path.as_str(), context, started_at);
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             true,

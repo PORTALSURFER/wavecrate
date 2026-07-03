@@ -21,6 +21,14 @@ pub(in crate::native_app) const FILE_BACKED_WAV_DECODE_MIN_BYTES: u64 = 1024;
 #[cfg(not(test))]
 pub(in crate::native_app) const FILE_BACKED_WAV_DECODE_MIN_BYTES: u64 = 16 * 1024 * 1024;
 
+#[derive(Clone, Debug)]
+pub(in crate::native_app) struct FileBackedWavPlaybackDescriptor {
+    pub path: PathBuf,
+    pub duration: f32,
+    pub sample_rate: u32,
+    pub channels: usize,
+}
+
 #[cfg(test)]
 pub(in crate::native_app::waveform) fn load_waveform_file(
     path: PathBuf,
@@ -114,26 +122,12 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
         return Err(String::from("cancelled"));
     }
     progress(0.0);
-    if read_cache {
-        let cache_started_at = Instant::now();
-        if let Some(file) = waveform_cache::load_cached_waveform_file_for_playback(path.clone()) {
-            log_audio_load_timing(
-                "browser.audio_file.load.playback_cache",
-                &path,
-                cache_started_at.elapsed(),
-            );
-            progress(0.99);
-            return Ok(file);
-        }
-    }
-    if cancelled() {
-        return Err(String::from("cancelled"));
-    }
     let allow_file_backed_wav_summary =
         matches!(file_backed_wav_policy, FileBackedWavPolicy::AllowSummary);
+    let prefer_file_backed_wav_summary =
+        allow_file_backed_wav_summary && should_use_file_backed_wav_decode(&path);
     if read_cache
-        && allow_file_backed_wav_summary
-        && should_use_file_backed_wav_decode(&path)
+        && prefer_file_backed_wav_summary
         && let Some(file) = waveform_cache::load_cached_waveform_file_summary(path.clone())
     {
         progress(0.99);
@@ -142,7 +136,7 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    if allow_file_backed_wav_summary && should_use_file_backed_wav_decode(&path) {
+    if prefer_file_backed_wav_summary {
         let stream_started_at = Instant::now();
         let file =
             load_wav_waveform_summary_from_path_with_progress(path.clone(), &progress, &cancelled)?;
@@ -155,6 +149,21 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
             waveform_cache::store_cached_waveform_file_in_background(&file);
         }
         return Ok(file);
+    }
+    if cancelled() {
+        return Err(String::from("cancelled"));
+    }
+    if read_cache {
+        let cache_started_at = Instant::now();
+        if let Some(file) = waveform_cache::load_cached_waveform_file_for_playback(path.clone()) {
+            log_audio_load_timing(
+                "browser.audio_file.load.playback_cache",
+                &path,
+                cache_started_at.elapsed(),
+            );
+            progress(0.99);
+            return Ok(file);
+        }
     }
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -255,6 +264,28 @@ pub(in crate::native_app) fn should_use_file_backed_wav_decode(path: &Path) -> b
         && path
             .metadata()
             .is_ok_and(|metadata| metadata.len() > FILE_BACKED_WAV_DECODE_MIN_BYTES)
+}
+
+pub(in crate::native_app) fn file_backed_wav_playback_descriptor(
+    path: &Path,
+) -> Option<FileBackedWavPlaybackDescriptor> {
+    if !should_use_file_backed_wav_decode(path) {
+        return None;
+    }
+    let reader = hound::WavReader::open(path).ok()?;
+    let spec = reader.spec();
+    let sample_rate = spec.sample_rate.max(1);
+    let channels = usize::from(spec.channels).max(1);
+    let frames = reader.duration() as usize;
+    if frames == 0 {
+        return None;
+    }
+    Some(FileBackedWavPlaybackDescriptor {
+        path: path.to_path_buf(),
+        duration: frames as f32 / sample_rate as f32,
+        sample_rate,
+        channels,
+    })
 }
 
 fn load_with_fallback_decoder(

@@ -56,7 +56,9 @@ pub(super) use extraction::{
 pub(super) use loader::load_waveform_file;
 #[cfg(test)]
 pub(super) use loader::load_waveform_file_with_progress_cancel_and_playback_ready;
-pub(in crate::native_app) use loader::should_use_file_backed_wav_decode;
+pub(in crate::native_app) use loader::{
+    file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode,
+};
 pub(super) use loader::{
     is_wav_path, load_waveform_file_for_foreground_audition,
     load_waveform_file_for_looped_foreground_audition, load_waveform_file_with_progress_and_cancel,
