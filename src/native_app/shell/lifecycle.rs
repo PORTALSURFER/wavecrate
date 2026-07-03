@@ -185,7 +185,7 @@ impl NativeAppState {
         let normalizing = self.background.normalization_progress.is_some();
         let moving_files = self.background.file_move_progress.is_some();
         let waveform_loading = self.waveform_sample_load_active();
-        let playing = self.waveform.current.is_playing();
+        let playing = self.playback_visual_activity_active();
         let pending_playback = self.audio.pending_playback_start.is_some();
         let interaction_active = sample_loading
             || audio_opening
