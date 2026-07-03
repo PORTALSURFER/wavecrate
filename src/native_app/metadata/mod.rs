@@ -16,7 +16,8 @@ pub(in crate::native_app) use style::{
 pub(super) use types::MetadataTagCommit;
 pub(super) use types::{
     MetadataTagCategoryGroup, MetadataTagCompletionOption, MetadataTagDisplayCategory,
-    MetadataTagInputMode, MetadataTagPersistResult, MetadataTagSelectionState,
+    MetadataTagInputMode, MetadataTagLoadResult, MetadataTagPersistResult,
+    MetadataTagSelectionState,
 };
 pub(super) use vocabulary::{
     commit_metadata_tag_text, inferred_metadata_tag_category_id_for_name,
@@ -37,6 +38,8 @@ mod style;
 mod types;
 mod vocabulary;
 
+use persistence::load_persisted_metadata_tag_map_for_source;
+#[cfg(test)]
 use persistence::load_persisted_metadata_tags_for_source;
 #[cfg(test)]
 pub(super) use persistence::{
@@ -89,6 +92,7 @@ impl NativeAppState {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn refresh_persisted_metadata_tags_for_source(&mut self, source_id: &str) {
         let Some((root, database_root)) = self.library.folder_browser.source_roots(source_id)
         else {
@@ -99,12 +103,99 @@ impl NativeAppState {
             &database_root,
             &mut self.metadata.tags_by_file,
         ) {
-            Ok(()) => self
-                .library
-                .folder_browser
-                .invalidate_visible_sample_projection_cache(),
+            Ok(()) => {
+                self.metadata
+                    .persisted_tag_sources_loaded
+                    .insert(source_id.to_owned());
+                self.library
+                    .folder_browser
+                    .invalidate_visible_sample_projection_cache();
+            }
             Err(error) => {
                 self.ui.status.sample = format!("Tags not loaded: {error}");
+            }
+        }
+    }
+
+    pub(super) fn schedule_persisted_metadata_tags_refresh_for_source(
+        &mut self,
+        source_id: &str,
+        force: bool,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !force
+            && self
+                .metadata
+                .persisted_tag_sources_loaded
+                .contains(source_id)
+        {
+            return;
+        }
+        if self
+            .metadata
+            .persisted_tag_sources_pending
+            .contains(source_id)
+        {
+            return;
+        }
+        let Some((root, database_root)) = self.library.folder_browser.source_roots(source_id)
+        else {
+            return;
+        };
+        let source_id = source_id.to_owned();
+        self.metadata
+            .persisted_tag_sources_pending
+            .insert(source_id.clone());
+        context
+            .business()
+            .background("gui-metadata-tag-refresh")
+            .run(
+                {
+                    let source_root = root.clone();
+                    move |_| MetadataTagLoadResult {
+                        source_id,
+                        source_root,
+                        result: load_persisted_metadata_tag_map_for_source(&root, &database_root),
+                    }
+                },
+                |result| GuiMessage::Metadata(MetadataMessage::MetadataTagsLoaded(result)),
+            );
+    }
+
+    pub(super) fn finish_persisted_metadata_tags_load(&mut self, result: MetadataTagLoadResult) {
+        self.metadata
+            .persisted_tag_sources_pending
+            .remove(&result.source_id);
+        match result.result {
+            Ok(tags_by_file) => {
+                self.metadata
+                    .tags_by_file
+                    .retain(|file_id, _| !Path::new(file_id).starts_with(&result.source_root));
+                let tag_count = tags_by_file.len();
+                self.metadata.tags_by_file.extend(tags_by_file);
+                self.metadata
+                    .persisted_tag_sources_loaded
+                    .insert(result.source_id.clone());
+                self.library
+                    .folder_browser
+                    .invalidate_visible_sample_projection_cache();
+                tracing::info!(
+                    target: "wavecrate::debug::metadata",
+                    event = "metadata.tags.load.applied",
+                    source_id = result.source_id.as_str(),
+                    tag_count,
+                    "applied persisted metadata tags"
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = format!("Tags not loaded: {error}");
+                tracing::warn!(
+                    target: "wavecrate::debug::metadata",
+                    event = "metadata.tags.load.failed",
+                    source_id = result.source_id.as_str(),
+                    error = error.as_str(),
+                    "failed to load persisted metadata tags"
+                );
             }
         }
     }

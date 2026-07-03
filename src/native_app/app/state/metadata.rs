@@ -18,6 +18,8 @@ pub(in crate::native_app) struct MetadataAppState {
     pub(in crate::native_app) tag_drop_hover: Option<String>,
     pub(in crate::native_app) selected_tag: Option<String>,
     pub(in crate::native_app) collapsed_tag_categories: HashSet<String>,
+    pub(in crate::native_app) persisted_tag_sources_loaded: HashSet<String>,
+    pub(in crate::native_app) persisted_tag_sources_pending: HashSet<String>,
     pub(in crate::native_app) tags_by_file: HashMap<String, Vec<String>>,
     pub(in crate::native_app) sample_name_view_mode: SampleNameViewMode,
 }
@@ -36,6 +38,8 @@ impl MetadataAppState {
             tag_drop_hover: None,
             selected_tag: None,
             collapsed_tag_categories: Default::default(),
+            persisted_tag_sources_loaded: Default::default(),
+            persisted_tag_sources_pending: Default::default(),
             tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         }

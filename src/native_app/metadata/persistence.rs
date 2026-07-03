@@ -172,19 +172,32 @@ pub(in crate::native_app) fn persist_metadata_tag_removals_for_tests(
     })
 }
 
+#[cfg(test)]
 pub(super) fn load_persisted_metadata_tags_for_source(
     source_root: &Path,
     source_database_root: &Path,
     tags_by_file: &mut HashMap<String, Vec<String>>,
 ) -> Result<(), String> {
+    tags_by_file.extend(load_persisted_metadata_tag_map_for_source(
+        source_root,
+        source_database_root,
+    )?);
+    Ok(())
+}
+
+pub(super) fn load_persisted_metadata_tag_map_for_source(
+    source_root: &Path,
+    source_database_root: &Path,
+) -> Result<HashMap<String, Vec<String>>, String> {
     let db = match SourceDatabase::open_read_only_with_database_root(
         source_root,
         source_database_root,
     ) {
         Ok(db) => db,
-        Err(SourceDbError::ReadOnlyDatabaseMissing(_)) => return Ok(()),
+        Err(SourceDbError::ReadOnlyDatabaseMissing(_)) => return Ok(HashMap::new()),
         Err(err) => return Err(err.to_string()),
     };
+    let mut tags_by_file = HashMap::new();
     let mut repairs = Vec::new();
     for entry in db.list_files().map_err(|err| err.to_string())? {
         let mut normal_tags = entry.normal_tags;
@@ -208,7 +221,7 @@ pub(super) fn load_persisted_metadata_tags_for_source(
             source_root.display()
         );
     }
-    Ok(())
+    Ok(tags_by_file)
 }
 
 struct PersistedMetadataTagRepair {

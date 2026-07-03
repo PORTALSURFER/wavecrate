@@ -30,6 +30,13 @@ impl SourcePrepTrigger {
     fn schedules_source_cache_warm(self) -> bool {
         matches!(self, Self::UserRequested)
     }
+
+    fn force_metadata_refresh(self) -> bool {
+        matches!(
+            self,
+            Self::UserRequested | Self::SourceScanFinished | Self::FilesystemChanged
+        )
+    }
 }
 
 impl NativeAppState {
@@ -50,7 +57,11 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
-        self.refresh_persisted_metadata_tags_for_source(&source_id);
+        self.schedule_persisted_metadata_tags_refresh_for_source(
+            &source_id,
+            trigger.force_metadata_refresh(),
+            context,
+        );
         if trigger == SourcePrepTrigger::UserRequested {
             self.prepare_similarity_for_source(
                 &source_id,

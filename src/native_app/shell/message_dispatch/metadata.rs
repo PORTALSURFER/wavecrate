@@ -66,6 +66,9 @@ impl NativeAppState {
             MetadataMessage::MetadataTagsPersisted(result) => {
                 self.finish_metadata_tag_persist(result);
             }
+            MetadataMessage::MetadataTagsLoaded(result) => {
+                self.finish_persisted_metadata_tags_load(result);
+            }
             MetadataMessage::ToggleSampleNameViewMode => {
                 self.metadata.sample_name_view_mode = self.metadata.sample_name_view_mode.toggled();
             }

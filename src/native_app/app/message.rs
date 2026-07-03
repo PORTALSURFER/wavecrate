@@ -21,7 +21,7 @@ use crate::native_app::app::{
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
 };
-use crate::native_app::metadata::MetadataTagPersistResult;
+use crate::native_app::metadata::{MetadataTagLoadResult, MetadataTagPersistResult};
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextPointerAnchor, BrowserContextTargetKind,
 };
@@ -415,6 +415,7 @@ pub(in crate::native_app) enum MetadataMessage {
     DeleteContextMetadataTag,
     DeleteSelectedMetadataTag,
     MetadataTagsPersisted(MetadataTagPersistResult),
+    MetadataTagsLoaded(MetadataTagLoadResult),
     ToggleSampleNameViewMode,
 }
 
