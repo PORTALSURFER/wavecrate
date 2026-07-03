@@ -11,6 +11,7 @@ use super::{
     audio_file::{
         empty_waveform_file, load_cached_waveform_file_for_playback,
         load_waveform_file_for_foreground_audition,
+        load_waveform_file_for_instant_audition_display,
         load_waveform_file_for_looped_foreground_audition,
         load_waveform_file_with_progress_and_cancel,
     },
@@ -81,6 +82,17 @@ impl WaveformState {
             progress,
             cancelled,
             playback_ready,
+        )?);
+        Ok(Self::from_file(file))
+    }
+
+    pub(in crate::native_app) fn load_path_for_instant_audition_display(
+        path: PathBuf,
+        progress: impl Fn(f32),
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self, String> {
+        let file = Arc::new(load_waveform_file_for_instant_audition_display(
+            path, progress, cancelled,
         )?);
         Ok(Self::from_file(file))
     }

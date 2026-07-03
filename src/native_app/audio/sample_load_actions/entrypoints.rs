@@ -198,6 +198,11 @@ impl NativeAppState {
             } else {
                 "foreground_load_queued"
             },
+            if instant_audition_started {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::DisplayAfterInstantAudition
+            } else {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::CacheThenDecode
+            },
         );
     }
 
@@ -242,6 +247,11 @@ impl NativeAppState {
                 "waveform_load_after_instant_audition"
             } else {
                 "foreground_load_queued"
+            },
+            if instant_audition_started {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::DisplayAfterInstantAudition
+            } else {
+                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::CacheThenDecode
             },
         );
     }

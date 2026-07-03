@@ -284,6 +284,42 @@ fn foreground_sample_load_reuses_persisted_playback_cache() {
 }
 
 #[test]
+fn instant_audition_display_load_reuses_summary_without_decoded_playback() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("display-after-audition.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+
+    let cached =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("cache seed loads");
+    crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
+    let file = cached.file();
+    crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
+    wait_for_playback_ready_cache(&sample_path.display().to_string());
+
+    let displayed =
+        crate::native_app::test_support::state::WaveformState::load_path_for_instant_audition_display(
+            sample_path.clone(),
+            |_| {},
+            || false,
+        )
+        .expect("display waveform loads");
+
+    assert_eq!(displayed.path(), sample_path);
+    assert!(
+        displayed.audio_bytes().is_empty(),
+        "post-audition display load should reuse persisted summary metadata"
+    );
+    assert!(
+        displayed.playback_samples().is_none(),
+        "post-audition display load should not rebuild decoded playback samples"
+    );
+}
+
+#[test]
 fn large_foreground_sample_load_reuses_file_backed_summary_cache() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =

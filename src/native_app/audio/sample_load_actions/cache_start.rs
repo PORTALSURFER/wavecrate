@@ -143,6 +143,7 @@ impl NativeAppState {
         started_at: Instant,
         priority: ui::TaskPriority,
         outcome: &'static str,
+        strategy: SampleLoadStrategy,
     ) {
         if self.sample_load_blocked_by_normalization(path) {
             self.ui.status.sample = format!(
@@ -165,7 +166,7 @@ impl NativeAppState {
             autoplay,
             context,
             priority,
-            SampleLoadStrategy::CacheThenDecode,
+            strategy,
         );
     }
 

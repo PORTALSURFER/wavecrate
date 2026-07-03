@@ -65,6 +65,7 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_a
         playback_ready,
         true,
         true,
+        PlaybackReadyCachePolicy::Allow,
         FileBackedWavPolicy::AllowSummary,
     )
 }
@@ -82,6 +83,24 @@ pub(in crate::native_app::waveform) fn load_waveform_file_for_foreground_auditio
         playback_ready,
         true,
         true,
+        PlaybackReadyCachePolicy::Allow,
+        FileBackedWavPolicy::AllowSummary,
+    )
+}
+
+pub(in crate::native_app::waveform) fn load_waveform_file_for_instant_audition_display(
+    path: PathBuf,
+    progress: impl Fn(f32),
+    cancelled: impl Fn() -> bool,
+) -> Result<WaveformFile, String> {
+    load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
+        path,
+        progress,
+        cancelled,
+        |_| {},
+        true,
+        true,
+        PlaybackReadyCachePolicy::Skip,
         FileBackedWavPolicy::AllowSummary,
     )
 }
@@ -99,8 +118,15 @@ pub(in crate::native_app::waveform) fn load_waveform_file_for_looped_foreground_
         playback_ready,
         true,
         true,
+        PlaybackReadyCachePolicy::Allow,
         FileBackedWavPolicy::RequireDecodedPlayback,
     )
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PlaybackReadyCachePolicy {
+    Allow,
+    Skip,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -116,6 +142,7 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     playback_ready: impl Fn(WaveformPlaybackReady),
     read_cache: bool,
     persist_cache: bool,
+    playback_ready_cache_policy: PlaybackReadyCachePolicy,
     file_backed_wav_policy: FileBackedWavPolicy,
 ) -> Result<WaveformFile, String> {
     if cancelled() {
@@ -126,8 +153,10 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
         matches!(file_backed_wav_policy, FileBackedWavPolicy::AllowSummary);
     let prefer_file_backed_wav_summary =
         allow_file_backed_wav_summary && should_use_file_backed_wav_decode(&path);
+    let skip_playback_ready_cache =
+        matches!(playback_ready_cache_policy, PlaybackReadyCachePolicy::Skip);
     if read_cache
-        && prefer_file_backed_wav_summary
+        && (prefer_file_backed_wav_summary || skip_playback_ready_cache)
         && let Some(file) = waveform_cache::load_cached_waveform_file_summary(path.clone())
     {
         progress(0.99);
@@ -153,7 +182,7 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    if read_cache {
+    if read_cache && matches!(playback_ready_cache_policy, PlaybackReadyCachePolicy::Allow) {
         let cache_started_at = Instant::now();
         if let Some(file) = waveform_cache::load_cached_waveform_file_for_playback(path.clone()) {
             log_audio_load_timing(

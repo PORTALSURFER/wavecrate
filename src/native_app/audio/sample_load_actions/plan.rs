@@ -189,6 +189,7 @@ impl NativeAppState {
             Some(std::path::Path::new(&path)),
             Some(match strategy {
                 SampleLoadStrategy::CacheThenDecode => "cache_then_decode",
+                SampleLoadStrategy::DisplayAfterInstantAudition => "display_after_instant_audition",
                 SampleLoadStrategy::Decode => "decode",
             }),
         );

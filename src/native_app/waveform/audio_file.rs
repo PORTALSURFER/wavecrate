@@ -61,6 +61,7 @@ pub(in crate::native_app) use loader::{
 };
 pub(super) use loader::{
     is_wav_path, load_waveform_file_for_foreground_audition,
+    load_waveform_file_for_instant_audition_display,
     load_waveform_file_for_looped_foreground_audition, load_waveform_file_with_progress_and_cancel,
 };
 pub(in crate::native_app) use model::{
