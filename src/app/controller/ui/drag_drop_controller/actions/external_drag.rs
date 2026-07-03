@@ -1,14 +1,14 @@
 use super::*;
-#[cfg(any(target_os = "windows", test))]
+#[cfg(any(target_os = "windows", target_os = "macos", test))]
 use std::time::{Duration, Instant};
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use tracing::{debug, info, warn};
 
 impl DragDropController<'_> {
-    #[cfg(any(target_os = "windows", test))]
+    #[cfg(any(target_os = "windows", target_os = "macos", test))]
     pub(crate) const EXTERNAL_DRAG_ARM_WINDOW: Duration = Duration::from_millis(250);
 
-    #[cfg(any(target_os = "windows", test))]
+    #[cfg(any(target_os = "windows", target_os = "macos", test))]
     pub(crate) fn should_launch_external_drag(
         &mut self,
         pointer_outside: bool,
@@ -37,7 +37,7 @@ impl DragDropController<'_> {
         }
         let Some(armed_at) = self.ui.drag.external_arm_at else {
             self.ui.drag.external_arm_at = Some(now);
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             debug!(
                 pointer_outside,
                 pointer_left,
@@ -48,7 +48,7 @@ impl DragDropController<'_> {
             return false;
         };
         let ready = now.duration_since(armed_at) >= Self::EXTERNAL_DRAG_ARM_WINDOW;
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         if ready {
             info!(
                 pointer_outside,
@@ -61,7 +61,7 @@ impl DragDropController<'_> {
         ready
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub(crate) fn maybe_launch_external_drag(
         &mut self,
         pointer_outside: bool,
@@ -163,7 +163,7 @@ impl DragDropController<'_> {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn drag_payload_kind(payload: &DragPayload) -> &'static str {
     match payload {
         DragPayload::Sample { .. } => "sample",

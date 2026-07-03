@@ -1,8 +1,8 @@
 //! Platform helpers for starting external drag-and-drop operations.
 //!
-//! Currently implemented for Windows by emitting a `CF_HDROP` drag with one or
-//! more absolute file paths. Other platforms return an unsupported error to
-//! keep behaviour predictable.
+//! Implemented for Windows by emitting a `CF_HDROP` drag and for macOS by
+//! starting an AppKit file-URL dragging session. Other platforms return an
+//! unsupported error to keep behaviour predictable.
 
 use std::path::PathBuf;
 
@@ -20,23 +20,39 @@ pub fn start_file_drag(
     platform::start_file_drag(hwnd, paths)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
 /// Start dragging the given file paths to an external target.
 ///
-/// Returns an error because non-Windows platforms are not supported here.
-pub fn start_file_drag(_hwnd: (), _paths: &[PathBuf]) -> Result<(), String> {
-    Err("External drag-out is only supported on Windows in this build".into())
+/// The active AppKit key/main window and content view are used as the native
+/// drag anchor.
+pub fn start_file_drag(_anchor: (), paths: &[PathBuf]) -> Result<(), String> {
+    if paths.is_empty() {
+        return Err("No files to drag".into());
+    }
+    platform::start_file_drag(paths)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+/// Start dragging the given file paths to an external target.
+///
+/// Returns an error because this platform is not supported here.
+pub fn start_file_drag(_anchor: (), _paths: &[PathBuf]) -> Result<(), String> {
+    Err("External drag-out is only supported on Windows and macOS in this build".into())
 }
 
 #[cfg(target_os = "windows")]
 mod payload;
+
 #[cfg(target_os = "windows")]
+mod platform;
+#[cfg(target_os = "macos")]
+#[path = "platform_macos.rs"]
 mod platform;
 #[cfg(all(test, target_os = "windows"))]
 mod tests;
 
-#[cfg(target_os = "windows")]
-/// Normalize one drag path to an absolute non-verbatim Windows filesystem path.
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+/// Normalize one drag path to an absolute filesystem path.
 fn normalize_path(path: &std::path::Path) -> PathBuf {
     let absolute = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let verbatim_prefix = "\\\\?\\";

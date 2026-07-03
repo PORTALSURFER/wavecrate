@@ -115,6 +115,22 @@ fn assert_sample_not_keep_rated(
     }
 }
 
+fn run_command_collecting_followups(
+    state: &mut crate::native_app::test_support::state::NativeAppState,
+    command: Command<GuiMessage>,
+) -> Vec<Command<GuiMessage>> {
+    let mut followups = Vec::new();
+    command.run_inline_for_tests(|message| {
+        let mut context = ui::UiUpdateContext::default();
+        state.apply_message(message, &mut context);
+        let command = context.into_command();
+        if !command.is_empty() {
+            followups.push(command);
+        }
+    });
+    followups
+}
+
 fn assert_short_edge_faded_drag_extraction(path: &std::path::Path) {
     let samples = read_test_wav_i16(path);
     assert_eq!(samples.len(), 4);
@@ -296,13 +312,19 @@ fn waveform_selection_drag_start_prepares_extraction_for_external_handoff() {
         &mut context,
     ));
     assert!(
+        !extraction.is_file(),
+        "drag start should queue extraction instead of writing on the UI thread"
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    assert!(
         extraction.is_file(),
-        "starting a waveform drag must write the extraction before native drag-out"
+        "running the extraction completion must create the file before native drag-out"
     );
 
+    let mut end_context = ui::UiUpdateContext::default();
     assert!(state.drag_waveform_play_selection(
         DragHandleMessage::ended(Point::new(26.0, 12.0)),
-        &mut context,
+        &mut end_context,
     ));
 
     assert!(
@@ -329,6 +351,10 @@ fn accepted_waveform_selection_external_drag_does_not_add_whole_file_keep_rating
         DragHandleMessage::started(Point::new(20.0, 12.0)),
         &mut drag_context,
     ));
+    let followups = run_command_collecting_followups(&mut state, drag_context.into_command());
+    for command in followups {
+        run_command_for_tests(&mut state, command);
+    }
     assert_sample_rating(&state, &extraction, Rating::KEEP_1, false);
 
     let mut completion_context = ui::UiUpdateContext::default();

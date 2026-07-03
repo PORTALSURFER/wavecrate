@@ -7,7 +7,7 @@ use crate::sample_sources::{
 };
 use crate::selection::SelectionRange;
 use std::path::{Path, PathBuf};
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use tracing::{info, warn};
 
 impl AppController {
@@ -150,7 +150,7 @@ impl AppController {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn finish_external_selection_drag_export(&mut self, success: SelectionClipExportSuccess) {
         let Some(request_id) = self.ui.drag.pending_external_selection_request_id else {
             warn!(
@@ -197,8 +197,18 @@ impl AppController {
         }
     }
 
-    #[cfg(not(target_os = "windows"))]
-    fn finish_external_selection_drag_export(&mut self, _success: SelectionClipExportSuccess) {}
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    fn finish_external_selection_drag_export(&mut self, success: SelectionClipExportSuccess) {
+        self.ui.drag.pending_external_selection_request_id = None;
+        self.drag_drop().reset_drag();
+        self.set_status(
+            format!(
+                "External drag-out is not supported on this platform for {}",
+                success.entry.relative_path.display()
+            ),
+            StatusTone::Error,
+        );
+    }
 
     fn record_selection_clip_export_harvest_derivation(
         &self,

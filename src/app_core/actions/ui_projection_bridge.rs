@@ -66,7 +66,7 @@ pub trait NativeAppBridge {
     fn set_external_drag_hwnd(&mut self, _hwnd: isize) {}
 
     /// Ask the host to launch an external drag for the current active drag payload.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn maybe_launch_external_drag(&mut self, _pointer_outside: bool, _pointer_left: bool) -> bool {
         false
     }
