@@ -222,6 +222,9 @@ summary_phase="assembling full changelog"
 scripts/internal/release/assemble_portal_changelog.py \
   --catalog-url "$catalog_url" \
   --current-build-id "$BUILD_ID" \
+  --current-build-number "$BUILD_NUMBER" \
+  --current-version "$RELEASE_VERSION" \
+  --current-released-at "$RELEASED_AT" \
   --current-log "$RELEASE_LOG" \
   --existing-changelog-url "$full_changelog_url" \
   --generated-at "$RELEASED_AT" \

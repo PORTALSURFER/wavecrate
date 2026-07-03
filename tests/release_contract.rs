@@ -654,6 +654,12 @@ fn portalsurfer_publish_helper_uses_shared_catalog_verifier() {
         "PortalSurfer publish helper must verify the catalog through the shared upload verifier"
     );
     assert!(
+        PUBLISH_PORTALSURFER_SCRIPT.contains("--current-build-number \"$BUILD_NUMBER\"")
+            && PUBLISH_PORTALSURFER_SCRIPT.contains("--current-version \"$RELEASE_VERSION\"")
+            && PUBLISH_PORTALSURFER_SCRIPT.contains("--current-released-at \"$RELEASED_AT\""),
+        "PortalSurfer publish helper must assemble the full changelog from staged current release metadata before commit"
+    );
+    assert!(
         VERIFY_PORTALSURFER_UPLOAD_CATALOG_SCRIPT.contains("parse_released_at"),
         "PortalSurfer upload catalog verifier must normalize release timestamp precision"
     );

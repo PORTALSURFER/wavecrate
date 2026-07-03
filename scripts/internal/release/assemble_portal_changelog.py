@@ -30,6 +30,9 @@ def parse_args() -> argparse.Namespace:
     catalog.add_argument("--catalog-file", help="Path to a release catalog JSON file.")
     catalog.add_argument("--catalog-url", help="Public release catalog URL.")
     parser.add_argument("--current-build-id", required=True)
+    parser.add_argument("--current-build-number", type=int, required=True)
+    parser.add_argument("--current-version", required=True)
+    parser.add_argument("--current-released-at", required=True)
     parser.add_argument("--current-log", required=True, help="Markdown log for the current release.")
     parser.add_argument(
         "--existing-changelog-url",
@@ -139,6 +142,19 @@ def release_sort_key(release: dict[str, Any]) -> tuple[str, int]:
     )
 
 
+def current_release_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "build_id": args.current_build_id,
+        "build_number": args.current_build_number,
+        "version": args.current_version,
+        "released_at": args.current_released_at,
+        "changelog": {
+            "title": f"Wavecrate {release_version(args.current_build_id)}",
+            "format": "markdown",
+        },
+    }
+
+
 def load_release_body(
     release: dict[str, Any],
     *,
@@ -213,6 +229,13 @@ def main() -> int:
     if not isinstance(releases, list):
         raise SystemExit("Release catalog does not contain a releases array.")
 
+    current_release = current_release_from_args(args)
+    releases = [
+        release
+        for release in releases
+        if release.get("build_id") != args.current_build_id
+    ]
+    releases.append(current_release)
     sorted_releases = sorted(releases, key=release_sort_key, reverse=True)
     current_release = next(
         (release for release in sorted_releases if release.get("build_id") == args.current_build_id),

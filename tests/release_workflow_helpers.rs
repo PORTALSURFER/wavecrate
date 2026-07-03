@@ -146,6 +146,68 @@ fn release_summary_helper_writes_public_metadata_without_secret_values() {
 }
 
 #[test]
+fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog() {
+    let temp = tempfile::tempdir().expect("create changelog fixture");
+    let catalog = temp.path().join("catalog.json");
+    let release_log = temp.path().join("release-log.md");
+    let output = temp.path().join("changelog.md");
+    fs::write(
+        &catalog,
+        serde_json::to_string_pretty(&json!({
+            "releases": [
+                {
+                    "build_id": "wavecrate-nightly-b6306-deadbee",
+                    "build_number": 6306,
+                    "version": "19.1.0-nightly.6306+deadbee",
+                    "released_at": "2026-07-03T19:00:00Z",
+                    "changelog": {
+                        "title": "Wavecrate nightly-b6306-deadbee",
+                        "format": "markdown",
+                        "body": "## [nightly-b6306-deadbee]\n\n- Prior nightly\n"
+                    }
+                }
+            ]
+        }))
+        .expect("serialize catalog"),
+    )
+    .expect("write catalog");
+    fs::write(
+        &release_log,
+        "## [nightly-b6307-8f1a7aa2]\n\n- Current staged nightly\n",
+    )
+    .expect("write current log");
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/assemble_portal_changelog.py",
+            ))
+            .arg("--catalog-file")
+            .arg(&catalog)
+            .arg("--current-build-id")
+            .arg("wavecrate-nightly-b6307-8f1a7aa2")
+            .arg("--current-build-number")
+            .arg("6307")
+            .arg("--current-version")
+            .arg("19.1.0-nightly.6307+8f1a7aa2")
+            .arg("--current-released-at")
+            .arg("2026-07-03T20:00:00Z")
+            .arg("--current-log")
+            .arg(&release_log)
+            .arg("--generated-at")
+            .arg("2026-07-03T20:00:00Z")
+            .arg("--output")
+            .arg(&output),
+    );
+
+    let changelog = fs::read_to_string(output).expect("read generated changelog");
+    assert!(changelog.contains("Latest release: wavecrate-nightly-b6307-8f1a7aa2"));
+    assert!(changelog.contains("Latest build: 6307"));
+    assert!(changelog.contains("Current staged nightly"));
+    assert!(changelog.contains("Prior nightly"));
+}
+
+#[test]
 fn checksum_signing_helper_writes_signature_and_verifies_expected_pubkey() {
     let temp = tempfile::tempdir().expect("create signing fixture");
     let key = temp.path().join("ed25519.pem");
