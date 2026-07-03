@@ -13,7 +13,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_sample_playback_ready(
         &mut self,
         ready: SampleLoadTaskCompletion<SamplePlaybackReady>,
-        _context: &mut ui::UiUpdateContext<crate::native_app::app::GuiMessage>,
+        context: &mut ui::UiUpdateContext<crate::native_app::app::GuiMessage>,
     ) {
         let started_at = Instant::now();
         let ticket = ready.ticket;
@@ -56,8 +56,12 @@ impl NativeAppState {
             true,
         );
         let outcome = if ready.autoplay {
-            self.ui.status.sample = format!("Preparing {label}");
-            "playback_ready_waiting_for_waveform"
+            if self.start_playback_ready_instant_audition(ready.audio, context, started_at) {
+                "playback_ready_playing"
+            } else {
+                self.ui.status.sample = format!("Preparing {label}");
+                "playback_ready_waiting_for_waveform"
+            }
         } else {
             "ready"
         };

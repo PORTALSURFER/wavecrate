@@ -13,6 +13,7 @@ use crate::native_app::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
+    waveform::WaveformPlaybackReady,
 };
 use wavecrate::audio::{
     PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeRequest,
@@ -291,6 +292,83 @@ impl NativeAppState {
             "persisted_descriptor_playback_started",
             started_at,
             None,
+        );
+        true
+    }
+
+    pub(super) fn start_playback_ready_instant_audition(
+        &mut self,
+        ready: WaveformPlaybackReady,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> bool {
+        let path = ready.path.display().to_string();
+        let label = sample_path_label(path.as_str());
+        self.prepare_playback_mode_for_path(path.as_str());
+        self.maybe_open_audio_player(context);
+        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+            return false;
+        };
+        let playback_started_at = Instant::now();
+        let duration = ready.frames as f32 / ready.sample_rate.max(1) as f32;
+        let source = PlaybackRuntimeSource::DecodedSamples {
+            audio_bytes: ready.audio_bytes,
+            samples: ready.playback_samples,
+            duration,
+            sample_rate: ready.sample_rate,
+            channels: ready.channels,
+        };
+        let request = PlaybackRuntimeRequest {
+            source,
+            mode: if self.audio.loop_playback {
+                PlaybackRuntimeMode::Looped {
+                    start: 0.0,
+                    end: 1.0,
+                    offset: 0.0,
+                }
+            } else {
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.0,
+                    end: 1.0,
+                }
+            },
+            volume: self.audio.volume,
+            playback_gain: 1.0,
+            playback_gain_normalization: self
+                .audio
+                .normalized_audition_enabled
+                .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            edit_fade: None,
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
+        };
+        let request_id = match runtime.try_play(request) {
+            Ok(request_id) => request_id,
+            Err(err) => {
+                emit_gui_action(
+                    "browser.sample_load.playback_ready",
+                    Some("browser"),
+                    Some(&label),
+                    "instant_playback_error",
+                    started_at,
+                    Some(&format!("submit playback request: {err:?}")),
+                );
+                return false;
+            }
+        };
+        self.audio.early_sample_playback_path = Some(path.clone());
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
+            id: request_id,
+            path,
+            span: (0.0, 1.0),
+            show_start_marker: true,
+        });
+        self.ui.status.sample = format!("Playing {label}");
+        log_sample_load_timing(
+            "browser.sample_load.playback_ready.playback_submit",
+            &label,
+            playback_started_at.elapsed(),
+            false,
         );
         true
     }
