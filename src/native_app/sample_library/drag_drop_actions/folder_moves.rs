@@ -36,7 +36,44 @@ impl NativeAppState {
                 self.queue_folder_move_request(request, started_at, context);
             }
             Err(error) => {
-                self.ui.status.sample = error.clone();
+                self.flash_protected_source_block_if_error(&error, Path::new(&folder_id));
+                self.ui.status.sample =
+                    self.protected_source_status_or_error(&error, Path::new(&folder_id));
+                self.library.folder_browser.clear_drag();
+                emit_gui_action(
+                    "browser.drag_drop.move",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn drop_browser_drag_on_source(
+        &mut self,
+        source_id: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        context.end_drag_session();
+        self.clear_pending_internal_file_drag_paths();
+        match self.library.folder_browser.drop_drag_on_source(&source_id) {
+            Ok(FolderMoveDropInput::Status(result)) => {
+                self.finish_folder_move_result(started_at, None, Ok(result), context);
+            }
+            Ok(FolderMoveDropInput::Request(request)) => {
+                self.queue_folder_move_request(request, started_at, context);
+            }
+            Err(error) => {
+                if let Some(path) = self.library.folder_browser.source_root_path(&source_id) {
+                    self.flash_protected_source_block_if_error(&error, &path);
+                    self.ui.status.sample = self.protected_source_status_or_error(&error, &path);
+                } else {
+                    self.ui.status.sample = error.clone();
+                }
                 self.library.folder_browser.clear_drag();
                 emit_gui_action(
                     "browser.drag_drop.move",

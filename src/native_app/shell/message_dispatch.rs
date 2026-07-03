@@ -323,6 +323,11 @@ fn folder_browser_profile_label(message: &FolderBrowserMessage) -> &'static str 
         FolderBrowserMessage::ClearDropTargetUnless(_, _) => "FolderBrowser::ClearDropTargetUnless",
         FolderBrowserMessage::ClearDropTarget(_) => "FolderBrowser::ClearDropTarget",
         FolderBrowserMessage::DropOnFolder(_) => "FolderBrowser::DropOnFolder",
+        FolderBrowserMessage::HoverSourceDropTarget(_, _) => "FolderBrowser::HoverSourceDropTarget",
+        FolderBrowserMessage::ClearSourceDropTargetUnless(_, _) => {
+            "FolderBrowser::ClearSourceDropTargetUnless"
+        }
+        FolderBrowserMessage::DropOnSource(_) => "FolderBrowser::DropOnSource",
         FolderBrowserMessage::ToggleFolderSubtreeListing => {
             "FolderBrowser::ToggleFolderSubtreeListing"
         }

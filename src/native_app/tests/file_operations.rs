@@ -522,6 +522,7 @@ fn waveform_selection_drag_extracts_into_dropped_folder() {
         DragHandleMessage::started(Point::new(20.0, 12.0)),
         &mut drag_context,
     ));
+    run_command_for_tests(&mut state, drag_context.into_command());
     assert!(default_extraction.exists());
     assert!(!dropped_extraction.exists());
 

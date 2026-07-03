@@ -8,7 +8,7 @@ use super::{
     FolderMoveRequest, FolderMoveSuccess, delete_workflow::fallback_after_deleted_focus,
     drag_drop_sourced_files::sourced_moved_files_from_items, file_move_conflicts::file_move_status,
     file_move_execution::execute_folder_move_transaction, path_helpers::path_id,
-    selection_state::BrowserSelectionSnapshot,
+    placeholder_folder, selection_state::BrowserSelectionSnapshot,
 };
 
 impl FolderBrowserState {
@@ -173,6 +173,50 @@ impl FolderBrowserState {
         ))
     }
 
+    pub(super) fn prepare_move_files_to_source(
+        &mut self,
+        file_ids: &[String],
+        target_source_id: &str,
+        remove_from_collection: Option<wavecrate::sample_sources::SampleCollection>,
+    ) -> Result<FolderMoveDropInput, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before moving files"));
+        }
+        let (target_source_root, target_source_database_root, target_path, target_protected) =
+            self.move_target_source_root(target_source_id, "File move failed")?;
+        if target_protected {
+            return Err(String::from(
+                crate::native_app::protected_source_feedback::PROTECTED_SOURCE_BLOCKED_STATUS,
+            ));
+        }
+        let file_moves = self
+            .source_file_moves_for_cut_paste(file_ids, &target_path)
+            .collect::<Vec<_>>();
+        if let Some(error) = file_moves
+            .iter()
+            .filter(|item| !item.copy_only)
+            .find_map(|item| self.file_change_lock_error(Path::new(&item.file_id), "File move"))
+        {
+            return Err(error);
+        }
+        if file_moves.is_empty() {
+            return Ok(FolderMoveDropInput::Status(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("File move unchanged")),
+            }));
+        }
+        Ok(FolderMoveDropInput::Request(
+            FolderMoveRequest::SourcedFiles {
+                target_source_root,
+                target_source_database_root,
+                file_moves,
+                target_folder: target_path,
+                target_protected,
+                remove_from_collection,
+            },
+        ))
+    }
+
     fn source_file_ids_for_move<'a>(
         &'a self,
         file_ids: &'a [String],
@@ -206,7 +250,10 @@ impl FolderBrowserState {
         })
     }
 
-    fn source_root_for_cut_file(&self, file_id: &str) -> Option<(PathBuf, PathBuf, bool)> {
+    pub(super) fn source_root_for_cut_file(
+        &self,
+        file_id: &str,
+    ) -> Option<(PathBuf, PathBuf, bool)> {
         let path = Path::new(file_id);
         self.source
             .sources
@@ -226,6 +273,13 @@ impl FolderBrowserState {
                     source.is_protected(),
                 )
             })
+    }
+
+    pub(super) fn file_drag_requires_sourced_move(&self, file_ids: &[String]) -> bool {
+        file_ids.iter().any(|file_id| {
+            self.source_root_for_cut_file(file_id)
+                .is_some_and(|(_, _, copy_only)| copy_only)
+        })
     }
 
     pub(super) fn restore_selection_after_file_drop(
@@ -298,6 +352,59 @@ impl FolderBrowserState {
                 path: path.to_path_buf(),
                 target_folder: target_path,
             },
+        ))
+    }
+
+    pub(super) fn prepare_move_extracted_file_to_source(
+        &mut self,
+        path: &Path,
+        target_source_id: &str,
+    ) -> Result<FolderMoveDropInput, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before moving files"));
+        }
+        let (source_root, source_database_root, target_path, target_protected) =
+            self.move_target_source_root(target_source_id, "Sample move failed")?;
+        if target_protected {
+            return Err(String::from(
+                crate::native_app::protected_source_feedback::PROTECTED_SOURCE_BLOCKED_STATUS,
+            ));
+        }
+        if path.parent() == Some(target_path.as_path()) {
+            return Ok(FolderMoveDropInput::Status(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("Sample kept in current folder")),
+            }));
+        }
+        Ok(FolderMoveDropInput::Request(
+            FolderMoveRequest::ExtractedFile {
+                source_root,
+                source_database_root,
+                path: path.to_path_buf(),
+                target_folder: target_path,
+            },
+        ))
+    }
+
+    fn move_target_source_root(
+        &mut self,
+        target_source_id: &str,
+        error_prefix: &'static str,
+    ) -> Result<(PathBuf, PathBuf, PathBuf, bool), String> {
+        let source = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == target_source_id)
+            .ok_or_else(|| format!("{error_prefix}: target source is unavailable"))?;
+        if source.root_folder.is_none() {
+            source.root_folder = Some(placeholder_folder(&source.root));
+        }
+        Ok((
+            source.root.clone(),
+            source.database_root.clone(),
+            source.root.clone(),
+            source.is_protected(),
         ))
     }
 

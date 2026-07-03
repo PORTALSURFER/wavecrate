@@ -32,6 +32,10 @@ impl NativeAppState {
                     self.library.folder_browser.hovered_drop_target_folder_id()
                 {
                     self.drop_browser_drag_on_folder(target_folder_id, context);
+                } else if let Some(target_source_id) =
+                    self.library.folder_browser.hovered_drop_target_source_id()
+                {
+                    self.drop_browser_drag_on_source(target_source_id, context);
                 } else {
                     self.library.folder_browser.clear_drag();
                     context.end_drag_session();
@@ -68,26 +72,15 @@ impl NativeAppState {
             return false;
         }
         let path = self.waveform.current.path();
-        if let Some(error) = self
+        let started_file_drag = self
             .library
             .folder_browser
-            .file_change_lock_error(path.as_path(), "Sample move")
-        {
-            self.flash_protected_source_block_if_error(&error, path.as_path());
-            self.ui.status.sample = self.protected_source_status_or_error(&error, path.as_path());
-            emit_gui_action(
-                "waveform.loaded_sample_drag.start",
-                Some("waveform"),
-                None,
-                "blocked",
-                started_at,
-                Some(&error),
-            );
-            return false;
+            .begin_file_drag(path.display().to_string(), drag.position());
+        if !started_file_drag {
+            self.library
+                .folder_browser
+                .begin_extracted_file_drag(path.clone(), drag.position());
         }
-        self.library
-            .folder_browser
-            .begin_extracted_file_drag(path.clone(), drag.position());
         self.arm_browser_drag(context);
         self.ui.status.sample = format!("Dragging {}", sample_path_label(path.as_path()));
         emit_gui_action(
@@ -119,6 +112,10 @@ impl NativeAppState {
                     self.library.folder_browser.hovered_drop_target_folder_id()
                 {
                     self.drop_browser_drag_on_folder(target_folder_id, context);
+                } else if let Some(target_source_id) =
+                    self.library.folder_browser.hovered_drop_target_source_id()
+                {
+                    self.drop_browser_drag_on_source(target_source_id, context);
                 } else {
                     self.library.folder_browser.clear_drag();
                     context.end_drag_session();

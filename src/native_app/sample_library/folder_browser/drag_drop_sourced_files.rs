@@ -6,6 +6,7 @@ use std::{
 use super::{
     FileMoveItem, FolderBrowserState,
     path_helpers::path_id,
+    placeholder_folder,
     scanning::{file_entry_for_source_path, upsert_file},
 };
 
@@ -39,6 +40,7 @@ impl FolderBrowserState {
         let target_source_database_root = self.source.sources[target_source_index]
             .database_root
             .clone();
+        self.materialize_sourced_move_target_tree(target_source_index);
         let target_parent_id = path_id(target_parent);
         let old_ids = moves
             .iter()
@@ -134,6 +136,23 @@ impl FolderBrowserState {
             self.refresh_missing_collection_state();
         }
         Ok(())
+    }
+
+    fn materialize_sourced_move_target_tree(&mut self, target_source_index: usize) {
+        if self.source.sources[target_source_index]
+            .root_folder
+            .is_some()
+        {
+            return;
+        }
+        let selected_target =
+            self.source.selected_source == self.source.sources[target_source_index].id;
+        if selected_target && let Some(root_folder) = self.tree.folders.first().cloned() {
+            self.source.sources[target_source_index].root_folder = Some(root_folder);
+            return;
+        }
+        let root = self.source.sources[target_source_index].root.clone();
+        self.source.sources[target_source_index].root_folder = Some(placeholder_folder(&root));
     }
 
     fn previous_files_for_moves(

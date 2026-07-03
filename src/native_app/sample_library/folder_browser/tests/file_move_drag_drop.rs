@@ -1008,6 +1008,95 @@ fn cut_paste_from_protected_source_copies_to_writable_target_and_keeps_source_me
 }
 
 #[test]
+fn file_drag_from_protected_source_copies_to_writable_source_root() {
+    let source_root = temp_source_root("wavecrate-gui-protected-drag-source");
+    let target_root = temp_source_root("wavecrate-gui-protected-drag-target");
+    let drums = source_root.join("drums");
+    fs::create_dir_all(&drums).expect("create protected source folder");
+    fs::create_dir_all(&target_root).expect("create target source root");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, b"kick").expect("write kick");
+
+    let protected_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("protected-drag-source"),
+        source_root.clone(),
+    )
+    .protected();
+    let target_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("target-drag-source"),
+        target_root.clone(),
+    );
+    let mut browser =
+        FolderBrowserState::from_sample_sources(&[protected_source.clone(), target_source.clone()]);
+    browser.activate_folder(path_id(&drums));
+
+    assert!(browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0)));
+    assert!(
+        browser.can_drop_drag_on_source(target_source.id.as_str()),
+        "writable source root should accept protected-origin file drags"
+    );
+    let result = submit_source_drop(&mut browser, target_source.id.as_str())
+        .expect("protected file drag should copy into writable source root");
+
+    let copied = target_root.join("kick.wav");
+    assert_eq!(result.moved_paths, vec![(kick.clone(), copied.clone())]);
+    assert!(kick.is_file(), "protected source original should remain");
+    assert!(
+        copied.is_file(),
+        "drop onto source should land at source root"
+    );
+    let _ = fs::remove_dir_all(source_root);
+    let _ = fs::remove_dir_all(target_root);
+}
+
+#[test]
+fn file_drag_into_protected_source_root_is_blocked() {
+    let source_root = temp_source_root("wavecrate-gui-drag-source");
+    let protected_root = temp_source_root("wavecrate-gui-drag-protected-target");
+    let drums = source_root.join("drums");
+    fs::create_dir_all(&drums).expect("create source folder");
+    fs::create_dir_all(&protected_root).expect("create protected root");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, b"kick").expect("write kick");
+
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("normal-drag-source"),
+        source_root.clone(),
+    );
+    let protected = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("protected-drag-target"),
+        protected_root.clone(),
+    )
+    .protected();
+    let mut browser = FolderBrowserState::from_sample_sources(&[source.clone(), protected.clone()]);
+    browser.activate_folder(path_id(&drums));
+
+    assert!(browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0)));
+    assert!(
+        !browser.can_drop_drag_on_source(protected.id.as_str()),
+        "protected source roots must not become valid drop candidates"
+    );
+    let error = browser
+        .drop_drag_on_source(protected.id.as_str())
+        .expect_err("drop into protected source root should be blocked");
+
+    assert_eq!(
+        error,
+        crate::native_app::protected_source_feedback::PROTECTED_SOURCE_BLOCKED_STATUS
+    );
+    assert!(
+        kick.is_file(),
+        "source file should remain after blocked drop"
+    );
+    assert!(
+        !protected_root.join("kick.wav").exists(),
+        "blocked drop should not write into protected source"
+    );
+    let _ = fs::remove_dir_all(source_root);
+    let _ = fs::remove_dir_all(protected_root);
+}
+
+#[test]
 fn cut_paste_into_protected_source_adds_new_files_but_blocks_overwrite() {
     let source_root = temp_source_root("wavecrate-gui-protected-target-source");
     let protected_root = temp_source_root("wavecrate-gui-protected-target");
@@ -1453,6 +1542,22 @@ fn submit_cut_paste(
     target_folder_id: &str,
 ) -> Result<FolderDropResult, String> {
     match browser.prepare_paste_cut_files_to_folder(file_ids, target_folder_id)? {
+        FolderMoveDropInput::Status(result) => Ok(result),
+        FolderMoveDropInput::Request(request) => {
+            let completion = execute_folder_move_request(request);
+            let tags_by_file = HashMap::new();
+            completion.result.and_then(|success| {
+                browser.apply_folder_move_completion(&completion.request, success, &tags_by_file)
+            })
+        }
+    }
+}
+
+fn submit_source_drop(
+    browser: &mut FolderBrowserState,
+    target_source_id: &str,
+) -> Result<FolderDropResult, String> {
+    match browser.drop_drag_on_source(target_source_id)? {
         FolderMoveDropInput::Status(result) => Ok(result),
         FolderMoveDropInput::Request(request) => {
             let completion = execute_folder_move_request(request);

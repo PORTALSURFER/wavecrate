@@ -12,7 +12,9 @@ use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row
     sidebar_row_hover_fill_for_tests, sidebar_row_palette_for_tests,
     sidebar_row_selected_fill_for_tests,
 };
-use crate::native_app::app_chrome::view_models::library_sidebar::SourceSelectorViewModel;
+use crate::native_app::app_chrome::view_models::library_sidebar::{
+    SourceRowViewModel, SourceSelectorViewModel,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::{FolderBrowserState, model::SourceEntry};
 use radiant::prelude as ui;
@@ -133,6 +135,33 @@ fn source_row_routes_secondary_activation_to_context_menu() {
         ),
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::OpenSourceContextMenu(source.id.clone(), position)
+        ))
+    );
+}
+
+#[test]
+fn source_row_routes_drop_to_source_root() {
+    let source = SourceRowViewModel {
+        id: String::from("drop-source"),
+        label: String::from("Drop Source"),
+        role: SourceRole::Normal,
+        selected: false,
+        scanning: false,
+        missing: false,
+        protected_source_error_flash: false,
+        drag_active: true,
+        drop_candidate: true,
+        drop_target: false,
+        drop_target_active: false,
+    };
+
+    assert_eq!(
+        source_row(&source).view_dispatch_widget_output(
+            retained_source_row_input_id(source.id.as_str()),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Drop),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::DropOnSource(source.id.clone())
         ))
     );
 }

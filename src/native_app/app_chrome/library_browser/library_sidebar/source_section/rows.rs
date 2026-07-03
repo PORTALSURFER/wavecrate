@@ -44,6 +44,12 @@ fn source_add_icon() -> ui::SvgIcon {
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source);
     let row = sidebar_row_underlay(visual)
+        .tracked_drop_candidate(
+            source.drag_active,
+            source.drop_target,
+            source.drop_candidate,
+            source.drop_target_active,
+        )
         .stable_row_identity(
             RETAINED_SOURCE_ROW_INPUT_SCOPE,
             retained_source_row_key(source.id.as_str()),
@@ -70,6 +76,22 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
                 },
                 |source_id, position| {
                     GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                        source_id, position,
+                    ))
+                },
+            )
+            .tracked_drop_candidate_key(
+                source.id.clone(),
+                |source_id| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnSource(source_id))
+                },
+                |source_id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverSourceDropTarget(
+                        source_id, position,
+                    ))
+                },
+                |source_id, position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ClearSourceDropTargetUnless(
                         source_id, position,
                     ))
                 },

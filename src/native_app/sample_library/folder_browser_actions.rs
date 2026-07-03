@@ -61,6 +61,9 @@ impl NativeAppState {
             FolderBrowserMessage::DropOnFolder(folder_id) => {
                 self.drop_on_folder_browser_folder(folder_id, context);
             }
+            FolderBrowserMessage::DropOnSource(source_id) => {
+                self.drop_on_folder_browser_source(source_id, context);
+            }
             FolderBrowserMessage::DropOnCollection(collection) => {
                 self.drop_on_folder_browser_collection(collection, context);
             }
