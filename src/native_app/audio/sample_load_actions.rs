@@ -31,8 +31,8 @@ pub(in crate::native_app) fn foreground_sample_load_priority() -> ui::TaskPriori
     ui::TaskPriority::Interactive
 }
 
-pub(in crate::native_app) fn sample_resource_key(path: &str) -> ui::ResourceKey {
-    ui::ResourceKey::scoped("sample", path)
+pub(in crate::native_app) fn sample_resource_key(_path: &str) -> ui::ResourceKey {
+    ui::ResourceKey::scoped("sample", "foreground")
 }
 
 pub(in crate::native_app) fn waveform_cache_warm_resource_key() -> ui::ResourceKey {
@@ -43,4 +43,17 @@ pub(in crate::native_app) fn active_folder_cache_warm_resource_key(
     folder_id: &str,
 ) -> ui::ResourceKey {
     ui::ResourceKey::scoped("active_folder_cache_warm", folder_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn foreground_sample_loads_share_one_replacing_resource() {
+        assert_eq!(
+            sample_resource_key("first.wav"),
+            sample_resource_key("second.wav")
+        );
+    }
 }

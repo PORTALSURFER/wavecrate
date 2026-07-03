@@ -142,6 +142,7 @@ fn sample_load_marks_new_harvest_file_seen() {
         ),
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     let harvest_record = wavecrate::sample_sources::library::harvest_file(&harvest_key)
         .expect("load harvest file")
