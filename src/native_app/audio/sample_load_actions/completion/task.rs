@@ -56,13 +56,14 @@ impl NativeAppState {
         let started_at = Instant::now();
         let ticket = load.ticket;
         let key = load.key.clone();
-        let completion = SampleLoadCompletion::from_task(
-            load,
-            self.background.sample_load_tasks.finish_key(&key, ticket),
-        );
+        let task_was_current = self.background.sample_load_tasks.finish_key(&key, ticket);
+        let replacement_is_active = self.background.sample_load_tasks.active(&key).is_some();
+        let completion = SampleLoadCompletion::from_task(load, task_was_current);
         match completion {
             SampleLoadCompletion::Stale { label } => {
-                self.audio.pending_sample_playback = None;
+                if !replacement_is_active {
+                    self.audio.pending_sample_playback = None;
+                }
                 self.log_sample_identity_checkpoint(
                     "browser.sample_load.finish_stale",
                     "finish_sample_load",

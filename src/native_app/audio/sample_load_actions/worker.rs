@@ -87,6 +87,9 @@ impl SampleLoadWorker {
         if let Ok(waveform) =
             WaveformState::load_persisted_playback_cache(PathBuf::from(self.request.path()))
         {
+            if context.check_cancelled().is_err() {
+                return Err(String::from("cancelled"));
+            }
             log_sample_load_timing(
                 "browser.sample_load.worker.persisted_playback_cache",
                 self.request.path(),

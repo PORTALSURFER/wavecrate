@@ -89,17 +89,33 @@ impl NativeAppState {
 
     pub(super) fn cancel_inflight_sample_load(&mut self) {
         self.background.deferred_sample_load_task.cancel();
-        if let Some(token) = self.background.sample_load_cancel.take() {
-            token.cancel();
-        }
-        if let Some(key) = self.background.active_sample_load_key.take() {
-            self.background.sample_load_tasks.cancel(&key);
-        }
+        self.cancel_active_sample_load_worker();
         self.waveform.load.selection.cancel();
         if self.audio.early_sample_playback_path.is_some() {
             self.stop_audio_output_playback();
             self.audio.current_playback_span = None;
         }
         self.audio.early_sample_playback_path = None;
+    }
+
+    pub(super) fn cancel_active_sample_load_worker(&mut self) {
+        let mut cancelled_worker = false;
+        let mut cancelled_resource = false;
+        if let Some(token) = self.background.sample_load_cancel.take() {
+            token.cancel();
+            cancelled_worker = true;
+        }
+        if let Some(key) = self.background.active_sample_load_key.take() {
+            cancelled_resource = self.background.sample_load_tasks.cancel(&key);
+        }
+        if cancelled_worker || cancelled_resource {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_load",
+                event = "browser.sample_load.worker.cancel_previous",
+                cancelled_worker,
+                cancelled_resource,
+                "Cancelled replaced foreground sample-load work"
+            );
+        }
     }
 }

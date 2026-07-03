@@ -144,6 +144,11 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         Some(second.clone()),
         "new navigation should update immediately while the previous worker is pending"
     );
+    assert!(
+        active_sample_load_ticket_for_path(&lock_navigation_harness_state(&state), &third)
+            .is_none(),
+        "new navigation should cancel the previous selected-file sample-load worker"
+    );
 
     runtime.dispatch_message(
         crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
@@ -256,6 +261,10 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(third.as_str())
+    );
+    assert!(
+        active_sample_load_ticket_for_path(&state, &second).is_none(),
+        "repeat keyboard navigation should cancel the previous selected-file sample load"
     );
     assert!(
         state

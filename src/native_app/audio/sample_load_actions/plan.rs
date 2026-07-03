@@ -192,6 +192,7 @@ impl NativeAppState {
                 SampleLoadStrategy::Decode => "decode",
             }),
         );
+        self.cancel_active_sample_load_worker();
         let request =
             SampleLoadRequest::new(path, autoplay, priority, strategy, require_decoded_playback);
         let key = sample_resource_key(request.path());

@@ -265,6 +265,16 @@ fn active_sample_load_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     state.active_sample_load_task()
 }
 
+fn active_sample_load_ticket_for_path(
+    state: &NativeAppState,
+    path: &str,
+) -> Option<ui::TaskTicket> {
+    if state.library.folder_browser.selected_file_id() != Some(path) {
+        return None;
+    }
+    state.active_sample_load_task()
+}
+
 fn active_sample_load_validation_ticket(state: &NativeAppState) -> Option<ui::TaskTicket> {
     state.background.sample_load_validation_task.active()
 }
