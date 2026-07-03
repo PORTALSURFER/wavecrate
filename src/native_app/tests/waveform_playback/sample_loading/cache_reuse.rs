@@ -383,6 +383,7 @@ fn large_wav_instant_audition_descriptor_reads_source_header() {
     assert_eq!(descriptor.path, sample_path);
     assert_eq!(descriptor.sample_rate, 48_000);
     assert_eq!(descriptor.channels, 2);
+    assert_eq!(descriptor.frames, 700);
     assert!((descriptor.duration - (700.0 / 48_000.0)).abs() < f32::EPSILON);
 }
 

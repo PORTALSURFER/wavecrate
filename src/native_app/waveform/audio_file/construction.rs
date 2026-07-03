@@ -1,4 +1,6 @@
-use radiant::runtime::GpuSignalGainPreview;
+use radiant::runtime::{
+    GpuSignalGainPreview, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
+};
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -6,6 +8,7 @@ use std::{
     sync::Arc,
 };
 
+use crate::native_app::waveform::BAND_COUNT;
 use crate::native_app::waveform::audio_file::{
     WaveformFile, signal_summary::gpu_signal_summary_with_progress_and_cancel,
     visual_bands::split_frequency_bands_with_progress_and_cancel,
@@ -146,6 +149,42 @@ pub(in crate::native_app::waveform) fn waveform_file_from_mono_samples_with_prog
     })
 }
 
+pub(in crate::native_app::waveform) fn waveform_file_from_file_backed_wav_metadata(
+    path: PathBuf,
+    sample_rate: u32,
+    channels: usize,
+    frames: usize,
+) -> Result<WaveformFile, String> {
+    if sample_rate == 0 || channels == 0 || frames == 0 {
+        return Err(String::from("WAV metadata is incomplete"));
+    }
+    let band_count = BAND_COUNT.max(1);
+    let gpu_signal_summary = GpuSignalSummary {
+        frames,
+        band_count,
+        levels: vec![GpuSignalSummaryLevel {
+            bucket_frames: frames.max(1),
+            buckets: vec![GpuSignalSummaryBucket::default(); band_count].into(),
+        }],
+    };
+    Ok(WaveformFile {
+        path: path.clone(),
+        content_revision: content_revision_for_file_backed_metadata(
+            &path,
+            sample_rate,
+            channels,
+            frames,
+        ),
+        audio_bytes: Arc::from([]),
+        playback_samples: None,
+        playback_cache_file: None,
+        sample_rate,
+        channels,
+        frames,
+        gpu_signal_summary: Arc::new(gpu_signal_summary),
+    })
+}
+
 pub(in crate::native_app::waveform) fn gain_preview_for_selection(
     selection: Option<wavecrate::selection::SelectionRange>,
 ) -> Option<GpuSignalGainPreview> {
@@ -187,5 +226,19 @@ fn gain_preview(
 pub(in crate::native_app::waveform) fn content_revision_for_audio_bytes(bytes: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     bytes.hash(&mut hasher);
+    hasher.finish().max(1)
+}
+
+fn content_revision_for_file_backed_metadata(
+    path: &std::path::Path,
+    sample_rate: u32,
+    channels: usize,
+    frames: usize,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    sample_rate.hash(&mut hasher);
+    channels.hash(&mut hasher);
+    frames.hash(&mut hasher);
     hasher.finish().max(1)
 }

@@ -52,8 +52,10 @@ pub(crate) fn log_loaded_sample_metadata(
         channels = waveform.channels(),
         frames = waveform.frames(),
         file_size_bytes = waveform.audio_bytes().len(),
+        file_backed_playback = waveform.playback_source_file().is_some(),
         playback_ready = waveform.playback_samples().is_some()
-            || waveform.playback_cache_file().is_some(),
+            || waveform.playback_cache_file().is_some()
+            || waveform.playback_source_file().is_some(),
         "Loaded sample metadata"
     );
 }
