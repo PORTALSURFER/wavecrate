@@ -199,6 +199,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Install Ubuntu audio build dependencies
+        shell: bash
+        run: scripts/internal/release/setup_ubuntu_release_deps.sh
       - name: Run tests
         run: cargo test --workspace --locked
 

@@ -69,6 +69,11 @@ The nextest policy is:
   scheduled release lane stays deterministic in GitHub Actions; quarantined,
   GUI/manual, and performance checks remain explicit local or issue-specific
   release-risk evidence.
+- The nightly, RC, and stable Ubuntu release-validation jobs install
+  `pkg-config` and `libasound2-dev` before Cargo builds the workspace.
+  Wavecrate still publishes only the Windows/macOS release targets declared in
+  `release_contract.toml`, but the Linux-hosted validation lane keeps
+  ALSA-backed compilation explicit ahead of planned Linux release support.
 
 The non-blocking app architecture is enforced by
 `scripts/check.* non-blocking-architecture`, and that check is required by
