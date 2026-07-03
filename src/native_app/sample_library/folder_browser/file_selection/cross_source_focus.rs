@@ -69,7 +69,6 @@ impl FolderBrowserState {
         self.selection.set_focus_file_set(file_id);
         self.reset_file_view();
         self.tree.folders = vec![root_folder];
-        self.prewarm_selected_source_audio_projection_cache();
         if source_changed {
             self.tree.expanded_folders.clear();
         }

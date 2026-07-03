@@ -63,7 +63,6 @@ impl FolderBrowserState {
         self.tree.expanded_folders.insert(root_id);
         self.tree.folders = vec![root_folder];
         self.bump_file_content_revision();
-        self.prewarm_selected_source_audio_projection_cache();
     }
 
     fn select_first_available_source(&mut self) {

@@ -165,9 +165,9 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
         .library
         .folder_browser
         .selected_audio_projection_cache_len_for_tests();
-    assert!(
-        projection_cache_before > 0,
-        "source load should prewarm selected audio projections"
+    assert_eq!(
+        projection_cache_before, 1,
+        "selecting the visible file should lazily warm only the selected projection"
     );
     let mut context = radiant::prelude::UiUpdateContext::default();
 

@@ -4,6 +4,7 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 use super::{
@@ -15,6 +16,7 @@ use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
 
 const COPY_FLASH_FRAMES: u8 = 12;
 const PROTECTED_SOURCE_ERROR_FLASH_FRAMES: u8 = 24;
+const SLOW_SAMPLE_PROJECTION_CACHE_FILL: Duration = Duration::from_millis(4);
 
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct VisibleSampleQuery<'a> {
@@ -263,7 +265,10 @@ impl VisibleSampleProjectionCache {
     ) -> Ref<'_, Vec<usize>> {
         let key = request.key();
         if !self.entries.borrow().contains_key(&key) {
-            self.entries.borrow_mut().insert(key.clone(), build());
+            let started_at = Instant::now();
+            let value = build();
+            log_projection_cache_fill("indices", &key, value.len(), started_at);
+            self.entries.borrow_mut().insert(key.clone(), value);
         }
         Ref::map(self.entries.borrow(), |entries| {
             entries
@@ -279,7 +284,10 @@ impl VisibleSampleProjectionCache {
     ) -> Ref<'_, Vec<String>> {
         let key = request.key();
         if !self.id_entries.borrow().contains_key(&key) {
-            self.id_entries.borrow_mut().insert(key.clone(), build());
+            let started_at = Instant::now();
+            let value = build();
+            log_projection_cache_fill("ids", &key, value.len(), started_at);
+            self.id_entries.borrow_mut().insert(key.clone(), value);
         }
         Ref::map(self.id_entries.borrow(), |entries| {
             entries
@@ -306,6 +314,36 @@ impl VisibleSampleProjectionCache {
     pub(super) fn len(&self) -> usize {
         self.entries.borrow().len() + self.id_entries.borrow().len()
     }
+}
+
+fn log_projection_cache_fill(
+    kind: &'static str,
+    key: &VisibleSampleProjectionKey,
+    rows: usize,
+    started_at: Instant,
+) {
+    let elapsed = started_at.elapsed();
+    if elapsed < SLOW_SAMPLE_PROJECTION_CACHE_FILL {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::sample_load",
+        event = "browser.sample_projection.cache_fill",
+        kind,
+        elapsed_ms = elapsed.as_secs_f64() * 1_000.0,
+        rows,
+        folder_id = key.folder_id.as_str(),
+        name_filter_active = !key.name_filter.is_empty(),
+        rating_filter_active = !key.rating_filter.is_empty(),
+        curation_filter_active = !key.curation_filter.is_empty(),
+        listing_reveal_active = key.listing_reveal_id.is_some(),
+        sort_column = key.sort_column_id.as_str(),
+        sort_descending = key.sort_descending,
+        similarity_active = key.similarity_anchor_id.is_some(),
+        playback_type_tag_sort = key.playback_type_tag_sort,
+        content_revision = key.content_revision,
+        "Visible sample projection cache fill was slow"
+    );
 }
 
 pub(super) struct VisibleSampleProjectionRequest<'a> {

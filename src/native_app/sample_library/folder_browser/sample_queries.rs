@@ -15,7 +15,6 @@ use super::{
 };
 
 mod adjacent;
-mod cache_warming;
 mod collection;
 mod filters;
 mod ordering;
@@ -695,10 +694,6 @@ impl FolderBrowserState {
         sort_tags.is_some()
             && sort_kind_for_details_sort(&self.sample_list.file_sort)
                 == FileColumnKind::PlaybackType
-    }
-
-    pub(super) fn prewarm_selected_source_audio_projection_cache(&self) {
-        cache_warming::prewarm_selected_source_audio_projection_cache(self);
     }
 
     #[cfg(test)]

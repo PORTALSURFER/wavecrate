@@ -15,6 +15,7 @@ use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, WaveformInteraction, sample_path_label};
+use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
 const SLOW_UI_MESSAGE_THRESHOLD: Duration = Duration::from_millis(4);
 
@@ -283,7 +284,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::ActiveFolderCacheWarmProgress(_) => "ActiveFolderCacheWarmProgress",
         GuiMessage::ActiveFolderCacheWarmFinished(_) => "ActiveFolderCacheWarmFinished",
         GuiMessage::SampleBrowserWindowChanged(_) => "SampleBrowserWindowChanged",
-        GuiMessage::FolderBrowser(_) => "FolderBrowser",
+        GuiMessage::FolderBrowser(message) => folder_browser_profile_label(message),
         GuiMessage::FolderScanProgress(_) => "FolderScanProgress",
         GuiMessage::FolderScanDiscoveryBatch(_) => "FolderScanDiscoveryBatch",
         GuiMessage::FolderScanFinished(_) => "FolderScanFinished",
@@ -306,6 +307,61 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::Settings(_) => "Settings",
         GuiMessage::Metadata(_) => "Metadata",
         _ => "Other",
+    }
+}
+
+fn folder_browser_profile_label(message: &FolderBrowserMessage) -> &'static str {
+    match message {
+        FolderBrowserMessage::AddSource => "FolderBrowser::AddSource",
+        FolderBrowserMessage::SelectSource(_) => "FolderBrowser::SelectSource",
+        FolderBrowserMessage::OpenSourceContextMenu(_, _) => "FolderBrowser::OpenSourceContextMenu",
+        FolderBrowserMessage::ActivateFolder(_, _) => "FolderBrowser::ActivateFolder",
+        FolderBrowserMessage::ToggleFolderExpansion(_) => "FolderBrowser::ToggleFolderExpansion",
+        FolderBrowserMessage::OpenFolderContextMenu(_, _) => "FolderBrowser::OpenFolderContextMenu",
+        FolderBrowserMessage::DragFolder(_, _) => "FolderBrowser::DragFolder",
+        FolderBrowserMessage::HoverDropTarget(_, _) => "FolderBrowser::HoverDropTarget",
+        FolderBrowserMessage::ClearDropTargetUnless(_, _) => "FolderBrowser::ClearDropTargetUnless",
+        FolderBrowserMessage::ClearDropTarget(_) => "FolderBrowser::ClearDropTarget",
+        FolderBrowserMessage::DropOnFolder(_) => "FolderBrowser::DropOnFolder",
+        FolderBrowserMessage::ToggleFolderSubtreeListing => {
+            "FolderBrowser::ToggleFolderSubtreeListing"
+        }
+        FolderBrowserMessage::ToggleEmptyFolderVisibility => {
+            "FolderBrowser::ToggleEmptyFolderVisibility"
+        }
+        FolderBrowserMessage::ResizeCollectionsPanel(_) => "FolderBrowser::ResizeCollectionsPanel",
+        FolderBrowserMessage::ResizeFilterPanel(_) => "FolderBrowser::ResizeFilterPanel",
+        FolderBrowserMessage::ResizeMetadataPanel(_) => "FolderBrowser::ResizeMetadataPanel",
+        FolderBrowserMessage::ActivateCollection(_) => "FolderBrowser::ActivateCollection",
+        FolderBrowserMessage::OpenCollectionContextMenu(_, _) => {
+            "FolderBrowser::OpenCollectionContextMenu"
+        }
+        FolderBrowserMessage::RenameCollection(_) => "FolderBrowser::RenameCollection",
+        FolderBrowserMessage::HoverCollectionDropTarget(_, _) => {
+            "FolderBrowser::HoverCollectionDropTarget"
+        }
+        FolderBrowserMessage::DropOnCollection(_) => "FolderBrowser::DropOnCollection",
+        FolderBrowserMessage::BeginRenameSelected => "FolderBrowser::BeginRenameSelected",
+        FolderBrowserMessage::CancelRename => "FolderBrowser::CancelRename",
+        FolderBrowserMessage::BeginCreateSubfolder => "FolderBrowser::BeginCreateSubfolder",
+        FolderBrowserMessage::RenameInput(_) => "FolderBrowser::RenameInput",
+        FolderBrowserMessage::NameFilterInput(_) => "FolderBrowser::NameFilterInput",
+        FolderBrowserMessage::TagFilterInput(_) => "FolderBrowser::TagFilterInput",
+        FolderBrowserMessage::SetFilterFamilyEnabled(_, _) => {
+            "FolderBrowser::SetFilterFamilyEnabled"
+        }
+        FolderBrowserMessage::TogglePlaybackTypeFilter(_, _) => {
+            "FolderBrowser::TogglePlaybackTypeFilter"
+        }
+        FolderBrowserMessage::ToggleRatingFilter(_, _) => "FolderBrowser::ToggleRatingFilter",
+        FolderBrowserMessage::SetCurationScope(_, _) => "FolderBrowser::SetCurationScope",
+        FolderBrowserMessage::SetHarvestFilter(_, _) => "FolderBrowser::SetHarvestFilter",
+        FolderBrowserMessage::SortFileColumn(_) => "FolderBrowser::SortFileColumn",
+        FolderBrowserMessage::ResizeFileColumn(_, _) => "FolderBrowser::ResizeFileColumn",
+        FolderBrowserMessage::DragFileColumn(_, _) => "FolderBrowser::DragFileColumn",
+        FolderBrowserMessage::CancelFileColumnDrag => "FolderBrowser::CancelFileColumnDrag",
+        FolderBrowserMessage::ExitCollectionFocus => "FolderBrowser::ExitCollectionFocus",
+        FolderBrowserMessage::ToggleSimilarityAnchor(_) => "FolderBrowser::ToggleSimilarityAnchor",
     }
 }
 

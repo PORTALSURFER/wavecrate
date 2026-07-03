@@ -257,7 +257,6 @@ impl FolderBrowserState {
         self.retain_tree_state_after_selected_source_refresh();
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
-        self.prewarm_selected_source_audio_projection_cache();
         true
     }
 
@@ -333,7 +332,6 @@ impl FolderBrowserState {
         self.reset_tree_view();
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
-        self.prewarm_selected_source_audio_projection_cache();
     }
 
     fn retain_tree_state_after_selected_source_refresh(&mut self) {

@@ -265,7 +265,7 @@ fn folder_tree_refresh_prunes_deleted_multi_selected_folders() {
     let _ = fs::remove_dir_all(root);
 }
 #[test]
-fn folder_audio_projection_cache_is_prewarmed_for_loaded_source_tree() {
+fn folder_audio_projection_cache_is_lazy_for_loaded_source_tree() {
     let root = temp_source_root("wavecrate-gui-folder-audio-projection-cache");
     let kicks = root.join("kicks");
     let snares = root.join("snares");
@@ -276,9 +276,10 @@ fn folder_audio_projection_cache_is_prewarmed_for_loaded_source_tree() {
 
     let browser = FolderBrowserState::from_root(root.clone());
 
-    assert!(
-        browser.selected_audio_projection_cache_len_for_tests() >= 3,
-        "source load should prewarm root and child folder audio projections"
+    assert_eq!(
+        browser.selected_audio_projection_cache_len_for_tests(),
+        0,
+        "source load should not recursively prewarm folder audio projections on the UI thread"
     );
     let _ = fs::remove_dir_all(root);
 }

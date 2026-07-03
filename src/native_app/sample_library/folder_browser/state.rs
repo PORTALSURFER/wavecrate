@@ -80,7 +80,6 @@ impl FolderBrowserState {
             sample_list: SampleListState::new(),
         };
         state.refresh_missing_collection_state();
-        state.prewarm_selected_source_audio_projection_cache();
         state
     }
 
