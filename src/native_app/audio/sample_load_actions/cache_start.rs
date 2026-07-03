@@ -28,7 +28,7 @@ const DEFERRED_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcome
     error: "deferred_autoplay_error",
 };
 
-const SAMPLE_AUTOPLAY_START_DELAY: Duration = Duration::from_millis(24);
+const SAMPLE_AUTOPLAY_START_DELAY: Duration = Duration::from_millis(96);
 
 impl NativeAppState {
     pub(super) fn start_memory_cached_sample(

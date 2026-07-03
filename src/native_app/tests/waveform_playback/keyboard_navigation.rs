@@ -370,6 +370,86 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
 }
 
 #[test]
+fn rapid_memory_cached_navigation_coalesces_autoplay_start() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("a.wav");
+    let second_path = source_root.path().join("b.wav");
+    let third_path = source_root.path().join("c.wav");
+    write_test_wav_i16(&first_path, &[0, 256, -256, 512]);
+    write_test_wav_i16(&second_path, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&third_path, &[0, 512, -512, 256]);
+    let first = first_path.display().to_string();
+    let second = second_path.display().to_string();
+    let third = third_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.select_file(first);
+    for path in [&second_path, &third_path] {
+        let loaded = crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("sample loads");
+        state.remember_waveform(&loaded);
+    }
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    let stale_ticket =
+        active_sample_autoplay_ticket(&state).expect("second sample autoplay queued");
+    assert_eq!(state.waveform.current.path(), second_path);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    assert_eq!(state.waveform.current.path(), third_path);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::DeferredSampleAutoplay {
+            ticket: stale_ticket,
+            path: second.clone(),
+            file_name: String::from("b.wav"),
+            started_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        last_played_label_for(&state, &second),
+        Some(String::from("Never")),
+        "stale cached-navigation autoplay must not mark the previous row as played"
+    );
+    start_deferred_sample_autoplay_for_tests(
+        &mut state,
+        third.clone(),
+        String::from("c.wav"),
+        &mut context,
+    );
+    assert_eq!(
+        last_played_label_for(&state, &third),
+        Some(String::from("Today")),
+        "latest queued autoplay should still start after navigation settles"
+    );
+}
+
+#[test]
 fn keyboard_navigation_starts_foreground_load_without_debounce() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("a.wav");
