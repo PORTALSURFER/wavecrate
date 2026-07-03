@@ -17,7 +17,7 @@ use crate::native_app::{
     audio::sample_load_actions::cache::ACTIVE_FOLDER_CACHE_WARM_HYDRATE_MAX_FILES,
     waveform::{
         cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
-        load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor,
+        load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor_sidecar,
         mark_cached_waveform_file_source_warm_attempted,
     },
 };
@@ -280,7 +280,7 @@ pub(super) fn probe_persisted_waveform_cache_indicators(
         if is_cancelled() {
             break;
         }
-        if let Some(descriptor) = load_cached_waveform_playback_descriptor(path.clone()) {
+        if let Some(descriptor) = load_cached_waveform_playback_descriptor_sidecar(path.clone()) {
             instant_audition_paths.insert(path.clone());
             playback_descriptors.push(descriptor);
         } else if cached_waveform_file_audition_ready_exists(path) {

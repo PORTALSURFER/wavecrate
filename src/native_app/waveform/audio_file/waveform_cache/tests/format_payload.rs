@@ -60,7 +60,7 @@ fn playback_descriptor_sidecar_serves_audition_without_summary_cache_deserialize
     assert!(playback_descriptor_path(&cache_path).is_file());
 
     fs::write(&cache_path, b"summary cache should not be read").expect("corrupt summary cache");
-    let descriptor = load_cached_waveform_playback_descriptor(path.clone())
+    let descriptor = load_cached_waveform_playback_descriptor_sidecar(path.clone())
         .expect("descriptor sidecar should not need the summary cache");
 
     assert_eq!(descriptor.path, path);

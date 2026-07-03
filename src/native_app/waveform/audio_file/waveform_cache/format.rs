@@ -158,25 +158,6 @@ impl CachedWaveformFile {
         })
     }
 
-    pub(super) fn into_playback_descriptor(
-        self,
-        path: PathBuf,
-        identity: CacheIdentity,
-    ) -> Option<PersistedPlaybackDescriptor> {
-        if !self.matches_identity(&path, &identity) || self.playback_cache.is_none() {
-            return None;
-        }
-        let cache_path = cache_path_for_identity(&path, &identity).ok()?;
-        let cache_file = self.playback_cache_file(&cache_path)?;
-        PersistedPlaybackDescriptor::new(
-            path,
-            cache_file,
-            self.sample_rate,
-            self.channels,
-            self.frames,
-        )
-    }
-
     fn matches_identity(&self, path: &Path, identity: &CacheIdentity) -> bool {
         self.version == CACHE_FORMAT_VERSION
             && self.path == path
