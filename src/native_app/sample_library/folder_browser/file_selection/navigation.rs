@@ -146,7 +146,7 @@ impl FolderBrowserState {
         extend: bool,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<String> {
-        if let Some(result) = self.navigate_selected_file_fast(delta, extend) {
+        if let Some(result) = self.navigate_selected_file_fast(delta, extend, tags_by_file) {
             return result;
         }
         let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
@@ -189,20 +189,46 @@ impl FolderBrowserState {
         Some(target)
     }
 
-    fn navigate_selected_file_fast(&mut self, delta: i32, extend: bool) -> Option<Option<String>> {
-        if extend
-            || tag_filter_has_requirements(&self.filters.tag_filter)
-            || !self.filters.playback_type_filter.is_empty()
-            || self.filters.curation.enabled
-            || sort_kind_for_details_sort(&self.sample_list.file_sort)
-                == FileColumnKind::PlaybackType
-        {
+    pub(in crate::native_app) fn selected_audio_file_index_fast_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<Option<usize>> {
+        if !self.fast_untagged_navigation_available(tags_by_file) {
+            return None;
+        }
+
+        let selected = self.selection.selected_file_id()?;
+        Some(self.selected_audio_file_index_without_tag_filter(selected))
+    }
+
+    fn navigate_selected_file_fast(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<Option<String>> {
+        if !self.fast_untagged_navigation_available(tags_by_file) || extend {
             return None;
         }
 
         let selected = self.selection.selected_file_id()?.to_owned();
         let target = self.neighboring_selected_audio_file_id_without_tag_filter(&selected, delta);
         Some(target.and_then(|target| self.selection.navigate_file_to_adjacent_visible_id(target)))
+    }
+
+    fn fast_untagged_navigation_available(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        self.active_listing_reveal_id(Some(tags_by_file)).is_none()
+            && self.active_harvest_filter().is_none()
+            && !tag_filter_has_requirements(&self.filters.tag_filter)
+            && !self.folder_subtree_listing_enabled()
+            && !self.filters.playback_type_enabled
+            && self.filters.playback_type_filter.is_empty()
+            && !self.filters.curation.enabled
+            && sort_kind_for_details_sort(&self.sample_list.file_sort)
+                != FileColumnKind::PlaybackType
     }
 }
 

@@ -53,8 +53,12 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         "navigation feedback must update before sample-load business work completes"
     );
     assert!(
-        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state)).is_some(),
-        "first key repeat should queue sample-load validation work immediately"
+        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state)).is_none(),
+        "keyboard navigation should not wait for path validation before loading"
+    );
+    assert!(
+        active_sample_load_ticket(&lock_navigation_harness_state(&state)).is_some(),
+        "first key repeat should queue sample-load work immediately"
     );
     assert!(
         lock_navigation_harness_state(&state)
@@ -74,8 +78,8 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .business
             .recent
             .iter()
-            .any(|event| event.name == "gui-sample-load-validate"),
-        "keyboard navigation should use Radiant BusinessRuntime for sample validation work"
+            .any(|event| event.name == "gui-sample-load"),
+        "keyboard navigation should use Radiant BusinessRuntime for sample loading work"
     );
 
     runtime.dispatch_message(
@@ -103,9 +107,13 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
         "rapid navigation should keep audition loading immediate instead of deferred"
     );
 
+    assert!(
+        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state)).is_none(),
+        "repeat keyboard navigation should still avoid validation handoff work"
+    );
     let stale_sample_load_ticket =
-        active_sample_load_validation_ticket(&lock_navigation_harness_state(&state))
-            .expect("latest navigation queues sample-load validation work immediately");
+        active_sample_load_ticket(&lock_navigation_harness_state(&state))
+            .expect("latest navigation queues sample-load work immediately");
     let diagnostics_after_queue = runtime.runtime_diagnostics();
     assert_eq!(
         diagnostics_after_queue.ui.slow_update_handlers, 0,
@@ -116,8 +124,8 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
             .business
             .recent
             .iter()
-            .any(|event| event.name == "gui-sample-load-validate"),
-        "repeat navigation should use Radiant BusinessRuntime for sample validation work"
+            .any(|event| event.name == "gui-sample-load"),
+        "repeat navigation should use Radiant BusinessRuntime for sample loading work"
     );
 
     runtime.dispatch_message(
@@ -206,7 +214,6 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
     let mut context = ui::UiUpdateContext::default();
 
     assert_eq!(
@@ -244,7 +251,6 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
     let mut context = ui::UiUpdateContext::default();
 
     assert_eq!(
@@ -321,7 +327,6 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
@@ -475,7 +480,6 @@ fn keyboard_navigation_starts_foreground_load_without_debounce() {
         },
         &mut context,
     );
-    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),

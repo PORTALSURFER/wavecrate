@@ -27,7 +27,6 @@ pub(in crate::native_app) struct SampleLoadPathValidation {
 pub(in crate::native_app::audio::sample_load_actions) enum SampleLoadPathValidationIntent {
     Foreground { autoplay: bool },
     Selection { autoplay: bool },
-    Navigation,
 }
 
 impl SampleLoadPathValidationRequest {
@@ -165,12 +164,8 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        self.queue_sample_load_path_validation(
-            path,
-            SampleLoadPathValidationIntent::Navigation,
-            started_at,
-            context,
-        );
+        self.background.sample_load_validation_task.cancel();
+        self.load_navigation_sample_validated(path, context, started_at);
     }
 
     fn load_sample_with_autoplay_validated(
@@ -225,7 +220,6 @@ impl NativeAppState {
         let trigger = match &intent {
             SampleLoadPathValidationIntent::Foreground { .. } => "foreground",
             SampleLoadPathValidationIntent::Selection { .. } => "selection",
-            SampleLoadPathValidationIntent::Navigation => "navigation",
         };
         self.log_sample_identity_checkpoint(
             "browser.sample_load.validation_queued",
@@ -238,7 +232,7 @@ impl NativeAppState {
         let request = SampleLoadPathValidationRequest::new(path, intent);
         context
             .business()
-            .blocking_io(SAMPLE_LOAD_VALIDATION_TASK_NAME)
+            .interactive(SAMPLE_LOAD_VALIDATION_TASK_NAME)
             .latest(&mut self.background.sample_load_validation_task)
             .run(
                 move |_| validation_worker::validate_sample_load_path(request),
@@ -304,9 +298,6 @@ impl NativeAppState {
                     autoplay,
                     started_at,
                 ),
-            SampleLoadPathValidationIntent::Navigation => {
-                self.load_navigation_sample_validated(validation.path, context, started_at);
-            }
         }
     }
 
@@ -315,8 +306,7 @@ impl NativeAppState {
         validation: &SampleLoadPathValidation,
     ) -> bool {
         match validation.intent {
-            SampleLoadPathValidationIntent::Selection { .. }
-            | SampleLoadPathValidationIntent::Navigation => self
+            SampleLoadPathValidationIntent::Selection { .. } => self
                 .library
                 .folder_browser
                 .selected_file_id()
