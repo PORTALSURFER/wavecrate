@@ -310,6 +310,37 @@ fn build_release_artifact_helper_names_zip_and_checksum_entry() {
             .join("wavecrate-nightly-windows-x86_64.zip")
             .is_file()
     );
+    let zip_path = temp.path().join("wavecrate-nightly-windows-x86_64.zip");
+    let zip_file = fs::File::open(&zip_path).expect("open release zip");
+    let mut archive = zip::ZipArchive::new(zip_file).expect("read release zip");
+    let mut archive_names = Vec::new();
+    for index in 0..archive.len() {
+        archive_names.push(
+            archive
+                .by_index(index)
+                .expect("read release zip entry")
+                .name()
+                .to_owned(),
+        );
+    }
+    assert!(
+        archive_names
+            .iter()
+            .any(|name| name == "wavecrate/update-manifest.json"),
+        "release zip must keep update manifest under the wavecrate root: {archive_names:?}"
+    );
+    assert!(
+        archive_names
+            .iter()
+            .any(|name| name == "wavecrate/wavecrate.exe"),
+        "release zip must keep the executable under the wavecrate root: {archive_names:?}"
+    );
+    assert!(
+        !archive_names
+            .iter()
+            .any(|name| name == "update-manifest.json" || name == "wavecrate.exe"),
+        "release zip must not flatten archive entries at the root: {archive_names:?}"
+    );
     assert!(
         temp.path()
             .join("checksums-entry-windows-x86_64.txt")

@@ -283,7 +283,7 @@ create_zip() {
       POWERSHELL_WORK_DIR=$(powershell.exe -NoProfile -Command "[System.IO.Path]::GetFullPath('$WORK_DIR')")
     fi
     POWERSHELL_ZIP_PATH="$POWERSHELL_OUT_DIR\\${ZIP_NAME}"
-    powershell.exe -NoProfile -Command "Compress-Archive -Path \"$POWERSHELL_WORK_DIR\\$APP_NAME\\*\" -DestinationPath \"$POWERSHELL_ZIP_PATH\" -Force"
+    powershell.exe -NoProfile -Command "Compress-Archive -LiteralPath \"$POWERSHELL_WORK_DIR\\$APP_NAME\" -DestinationPath \"$POWERSHELL_ZIP_PATH\" -Force"
   else
     echo "No zip tool found (zip, ditto, or powershell Compress-Archive required)." >&2
     exit 1
