@@ -166,7 +166,7 @@ fn native_similarity_prepare_retries_unsupported_files_after_content_changes() {
 }
 
 #[test]
-fn automatic_native_similarity_finish_drains_jobs_even_when_artifacts_exist() {
+fn automatic_native_similarity_finish_leaves_pending_jobs_for_background_processing() {
     let config_base = tempfile::tempdir().expect("config base");
     let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let (dir, source) = source_with_valid_wav("covered-a.wav");
@@ -187,17 +187,20 @@ fn automatic_native_similarity_finish_drains_jobs_even_when_artifacts_exist() {
     )
     .expect("finish automatic prep");
 
-    assert!(finished.jobs_processed >= 1);
-    assert_eq!(count_jobs_by_status(&source, "pending"), 0);
+    assert_eq!(finished.jobs_processed, 0);
+    assert!(
+        count_jobs_by_status(&source, "pending") >= 4,
+        "automatic prep should leave queued work pending"
+    );
     assert_eq!(
-        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "done"),
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "pending"),
         4
     );
-    assert_eq!(finished.status, NativeSimilarityPrepStatus::UpToDate);
+    assert_ne!(finished.status, NativeSimilarityPrepStatus::UpToDate);
 }
 
 #[test]
-fn automatic_native_similarity_finish_drains_pending_jobs_when_other_jobs_failed() {
+fn automatic_native_similarity_finish_does_not_drain_pending_jobs_when_other_jobs_failed() {
     let config_base = tempfile::tempdir().expect("config base");
     let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let (dir, source) = source_with_valid_wav("valid-a.wav");
@@ -208,6 +211,9 @@ fn automatic_native_similarity_finish_drains_pending_jobs_when_other_jobs_failed
     seed_failed_analysis_job(&source, "failed.wav");
 
     let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
+    let pending_before_finish = count_jobs_by_status(&source, "pending");
+    let pending_analysis_before_finish =
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "pending");
     let finished = super::super::finish_similarity_prep(
         summary,
         &source,
@@ -215,22 +221,25 @@ fn automatic_native_similarity_finish_drains_pending_jobs_when_other_jobs_failed
     )
     .expect("finish automatic prep");
 
-    assert!(finished.jobs_processed >= 1);
-    assert_eq!(count_jobs_by_status(&source, "pending"), 0);
+    assert_eq!(finished.jobs_processed, 0);
+    assert_eq!(
+        count_jobs_by_status(&source, "pending"),
+        pending_before_finish
+    );
     assert_eq!(count_jobs_by_status(&source, "failed"), 1);
     assert_eq!(
-        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "done"),
-        4
+        count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "pending"),
+        pending_analysis_before_finish
     );
-    assert!(count_similarity_embeddings(&source, "valid-a.wav") >= 1);
-    assert!(count_similarity_embeddings(&source, "valid-b.wav") >= 1);
-    assert!(count_similarity_embeddings(&source, "valid-c.wav") >= 1);
-    assert!(count_similarity_embeddings(&source, "valid-d.wav") >= 1);
-    assert!(count_similarity_aspects(&source, "valid-a.wav") >= 1);
-    assert!(count_similarity_aspects(&source, "valid-b.wav") >= 1);
-    assert!(count_similarity_aspects(&source, "valid-c.wav") >= 1);
-    assert!(count_similarity_aspects(&source, "valid-d.wav") >= 1);
-    assert_eq!(finished.status, NativeSimilarityPrepStatus::UpToDate);
+    assert_eq!(count_similarity_embeddings(&source, "valid-a.wav"), 0);
+    assert_eq!(count_similarity_embeddings(&source, "valid-b.wav"), 0);
+    assert_eq!(count_similarity_embeddings(&source, "valid-c.wav"), 0);
+    assert_eq!(count_similarity_embeddings(&source, "valid-d.wav"), 0);
+    assert_eq!(count_similarity_aspects(&source, "valid-a.wav"), 0);
+    assert_eq!(count_similarity_aspects(&source, "valid-b.wav"), 0);
+    assert_eq!(count_similarity_aspects(&source, "valid-c.wav"), 0);
+    assert_eq!(count_similarity_aspects(&source, "valid-d.wav"), 0);
+    assert_ne!(finished.status, NativeSimilarityPrepStatus::UpToDate);
 }
 
 #[test]

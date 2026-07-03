@@ -115,12 +115,6 @@ pub(in crate::native_app) enum GuiMessage {
     SampleLoadProgress(ui::ResourceKey, ui::TaskTicket, f32),
     SamplePlaybackReady(ui::KeyedTaskCompletion<ui::ResourceKey, SamplePlaybackReady>),
     SampleLoadFinished(ui::KeyedTaskCompletion<ui::ResourceKey, SampleLoadResult>),
-    DeferredSampleAutoplay {
-        ticket: ui::TaskTicket,
-        path: String,
-        file_name: String,
-        started_at: Instant,
-    },
     WaveformCacheIndicatorRefreshFinished(ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>),
     WaveformCacheWarmFinished(ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>),
     ActiveFolderCacheWarmPlanProgress(ui::TaskCompletion<ActiveFolderCacheWarmPlanProgress>),

@@ -12,7 +12,7 @@ use crate::native_app::app::{
 mod worker;
 use worker::{
     drain_similarity_prep_jobs, enqueue_similarity_prep_inner, finalize_similarity_prep_if_ready,
-    resolve_similarity_prep_status, source_has_active_similarity_prep_jobs,
+    resolve_similarity_prep_status,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -466,20 +466,13 @@ fn finish_similarity_prep(
 }
 
 fn should_drain_similarity_prep_jobs(
-    summary: &SimilarityPrepEnqueueSummary,
-    source: &SampleSource,
+    _summary: &SimilarityPrepEnqueueSummary,
+    _source: &SampleSource,
     trigger: SimilarityPrepTrigger,
 ) -> Result<bool, String> {
     match trigger {
         SimilarityPrepTrigger::UserRequested => Ok(true),
-        SimilarityPrepTrigger::Automatic => match summary.status {
-            NativeSimilarityPrepStatus::UpToDate => Ok(false),
-            NativeSimilarityPrepStatus::Blocked { .. } => {
-                source_has_active_similarity_prep_jobs(source)
-            }
-            NativeSimilarityPrepStatus::Outdated
-            | NativeSimilarityPrepStatus::MissingArtifacts { .. } => Ok(true),
-        },
+        SimilarityPrepTrigger::Automatic => Ok(false),
     }
 }
 

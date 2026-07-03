@@ -95,7 +95,6 @@ impl NativeAppState {
         if let Some(key) = self.background.active_sample_load_key.take() {
             self.background.sample_load_tasks.cancel(&key);
         }
-        self.background.sample_autoplay_task.cancel();
         self.waveform.load.selection.cancel();
         if self.audio.early_sample_playback_path.is_some() {
             self.stop_audio_output_playback();

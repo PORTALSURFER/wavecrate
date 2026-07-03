@@ -1,7 +1,7 @@
 use radiant::prelude as ui;
 use std::{
     path::{Path, PathBuf},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crate::native_app::{
@@ -22,13 +22,11 @@ struct CachedPlaybackOutcomes {
     error: &'static str,
 }
 
-const DEFERRED_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes {
-    playing: "deferred_autoplay_started",
-    pending: "deferred_autoplay_pending",
-    error: "deferred_autoplay_error",
+const SAMPLE_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes {
+    playing: "autoplay_started",
+    pending: "autoplay_pending",
+    error: "autoplay_error",
 };
-
-const SAMPLE_AUTOPLAY_START_DELAY: Duration = Duration::ZERO;
 
 impl NativeAppState {
     pub(super) fn start_memory_cached_sample(
@@ -122,7 +120,7 @@ impl NativeAppState {
             );
             return true;
         }
-        self.schedule_current_sample_autoplay(path, &file_name, started_at, context);
+        self.start_current_sample_autoplay(path, &file_name, started_at, context);
         log_sample_load_timing(
             "browser.sample_load.memory_cache.total",
             &file_name,
@@ -182,50 +180,24 @@ impl NativeAppState {
         }
 
         let file_name = self.waveform.current.file_name();
-        self.schedule_current_sample_autoplay(path, &file_name, started_at, context);
+        self.start_current_sample_autoplay(path, &file_name, started_at, context);
         true
     }
 
-    pub(in crate::native_app::audio) fn schedule_current_sample_autoplay(
+    pub(in crate::native_app::audio) fn start_current_sample_autoplay(
         &mut self,
         path: &str,
         file_name: &str,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.ui.status.sample = format!("Preparing {file_name}");
-        let path = path.to_owned();
-        let file_name = file_name.to_owned();
-        context.after_latest(
-            &mut self.background.sample_autoplay_task,
-            SAMPLE_AUTOPLAY_START_DELAY,
-            |ticket| GuiMessage::DeferredSampleAutoplay {
-                ticket,
-                path,
-                file_name,
-                started_at,
-            },
-        );
-    }
-
-    pub(in crate::native_app) fn start_deferred_sample_autoplay(
-        &mut self,
-        ticket: ui::TaskTicket,
-        path: String,
-        file_name: String,
-        started_at: Instant,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
-        if !self.background.sample_autoplay_task.finish(ticket) {
-            return;
-        }
         if !self.waveform.current.has_loaded_sample()
-            || self.waveform.current.path() != Path::new(&path)
+            || self.waveform.current.path() != Path::new(path)
         {
             emit_gui_action(
-                "browser.sample_load.deferred_autoplay",
+                "browser.sample_load.autoplay",
                 Some("browser"),
-                Some(&file_name),
+                Some(file_name),
                 "stale",
                 started_at,
                 None,
@@ -235,14 +207,14 @@ impl NativeAppState {
         let audio_open_started_at = Instant::now();
         self.maybe_open_audio_player(context);
         log_sample_load_timing(
-            "browser.sample_load.deferred_autoplay.audio_open",
-            &file_name,
+            "browser.sample_load.autoplay.audio_open",
+            file_name,
             audio_open_started_at.elapsed(),
             false,
         );
         self.start_cached_sample_playback(
             &file_name,
-            DEFERRED_AUTOPLAY_OUTCOMES,
+            SAMPLE_AUTOPLAY_OUTCOMES,
             started_at,
             context,
         );

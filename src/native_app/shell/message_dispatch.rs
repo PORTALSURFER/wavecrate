@@ -63,7 +63,6 @@ impl NativeAppState {
             | GuiMessage::SampleLoadProgress(_, _, _)
             | GuiMessage::SamplePlaybackReady(_)
             | GuiMessage::SampleLoadFinished(_)
-            | GuiMessage::DeferredSampleAutoplay { .. }
             | GuiMessage::WaveformCacheIndicatorRefreshFinished(_)
             | GuiMessage::WaveformCacheWarmFinished(_)
             | GuiMessage::ActiveFolderCacheWarmPlanProgress(_)

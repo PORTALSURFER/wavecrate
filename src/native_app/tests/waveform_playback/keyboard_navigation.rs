@@ -350,32 +350,15 @@ fn keyboard_navigation_uses_memory_waveform_cache_without_worker() {
         "cached keyboard navigation should update the visible status, got {}",
         state.ui.status.sample
     );
-    assert!(
-        active_sample_autoplay_ticket(&state).is_some(),
-        "memory-cached keyboard navigation should queue autoplay instead of starting it inline"
-    );
-    assert_eq!(
-        last_played_label_for(&state, &second),
-        Some(String::from("Never")),
-        "queued autoplay should not mark intermediate selections as played before the handoff"
-    );
-
-    let mut context = ui::UiUpdateContext::default();
-    start_deferred_sample_autoplay_for_tests(
-        &mut state,
-        second.clone(),
-        String::from("b.wav"),
-        &mut context,
-    );
     assert_eq!(
         last_played_label_for(&state, &second),
         Some(String::from("Today")),
-        "deferred autoplay should update last played history when it starts"
+        "memory-cached keyboard navigation should start autoplay immediately"
     );
 }
 
 #[test]
-fn rapid_memory_cached_navigation_coalesces_autoplay_start() {
+fn rapid_memory_cached_navigation_starts_latest_cached_sample_immediately() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("a.wav");
     let second_path = source_root.path().join("b.wav");
@@ -409,9 +392,12 @@ fn rapid_memory_cached_navigation_coalesces_autoplay_start() {
         &mut context,
     );
     run_command_for_tests(&mut state, context.into_command());
-    let stale_ticket =
-        active_sample_autoplay_ticket(&state).expect("second sample autoplay queued");
     assert_eq!(state.waveform.current.path(), second_path);
+    assert_eq!(
+        last_played_label_for(&state, &second),
+        Some(String::from("Today")),
+        "cached navigation should start the selected sample immediately"
+    );
 
     let mut context = ui::UiUpdateContext::default();
     state.apply_message(
@@ -425,32 +411,10 @@ fn rapid_memory_cached_navigation_coalesces_autoplay_start() {
     run_command_for_tests(&mut state, context.into_command());
     assert_eq!(state.waveform.current.path(), third_path);
 
-    let mut context = ui::UiUpdateContext::default();
-    state.apply_message(
-        crate::native_app::test_support::state::GuiMessage::DeferredSampleAutoplay {
-            ticket: stale_ticket,
-            path: second.clone(),
-            file_name: String::from("b.wav"),
-            started_at: std::time::Instant::now(),
-        },
-        &mut context,
-    );
-
-    assert_eq!(
-        last_played_label_for(&state, &second),
-        Some(String::from("Never")),
-        "stale cached-navigation autoplay must not mark the previous row as played"
-    );
-    start_deferred_sample_autoplay_for_tests(
-        &mut state,
-        third.clone(),
-        String::from("c.wav"),
-        &mut context,
-    );
     assert_eq!(
         last_played_label_for(&state, &third),
         Some(String::from("Today")),
-        "latest queued autoplay should still start after navigation settles"
+        "latest cached navigation should also start without an extra autoplay message"
     );
 }
 

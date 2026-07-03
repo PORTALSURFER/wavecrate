@@ -69,7 +69,7 @@ impl NativeAppState {
             );
             return;
         }
-        self.schedule_current_sample_autoplay(&path, &file_name, started_at, context);
+        self.start_current_sample_autoplay(&path, &file_name, started_at, context);
     }
 
     fn continue_early_sample_playback(
