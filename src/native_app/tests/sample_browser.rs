@@ -1011,6 +1011,62 @@ fn rapid_last_played_records_only_latest_delayed_persist() {
     ));
 }
 
+#[test]
+fn active_playback_defers_last_played_disk_persist_until_idle() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("sample.wav");
+    fs::write(&sample_path, [1_u8, 2, 3, 4]).expect("write sample");
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    state.record_sample_last_played(sample_path_string.clone(), &mut context);
+    state.waveform.current.start_playback(0.25);
+
+    let delayed = run_first_after(context.into_command()).expect("last played delayed command");
+    let mut active_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed, &mut active_context);
+
+    let (retry_messages, perform_count) =
+        collect_after_commands_and_perform_count(active_context.into_command());
+    assert_eq!(
+        perform_count, 0,
+        "active playback should defer last-played persistence before DB work starts"
+    );
+    assert_eq!(
+        retry_messages.len(),
+        1,
+        "active playback should reschedule last-played persistence"
+    );
+
+    state.waveform.current.stop_playback();
+    let retry = retry_messages
+        .into_iter()
+        .next()
+        .expect("retry last played persist");
+    let mut idle_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(retry, &mut idle_context);
+    let message = run_first_perform(idle_context.into_command())
+        .expect("idle last played should persist to disk");
+
+    assert!(matches!(
+        message,
+        crate::native_app::test_support::state::GuiMessage::LastPlayedPersisted(result)
+            if result.file_id == sample_path_string
+    ));
+}
+
 fn run_first_after(
     command: Command<crate::native_app::test_support::state::GuiMessage>,
 ) -> Option<crate::native_app::test_support::state::GuiMessage> {
@@ -1024,6 +1080,27 @@ fn run_after_commands(
         Command::After { message, .. } => vec![message],
         Command::Batch(commands) => commands.into_iter().flat_map(run_after_commands).collect(),
         _ => Vec::new(),
+    }
+}
+
+fn collect_after_commands_and_perform_count(
+    command: Command<crate::native_app::test_support::state::GuiMessage>,
+) -> (
+    Vec<crate::native_app::test_support::state::GuiMessage>,
+    usize,
+) {
+    match command {
+        Command::After { message, .. } => (vec![message], 0),
+        Command::Perform { .. } => (Vec::new(), 1),
+        Command::Batch(commands) => commands
+            .into_iter()
+            .map(collect_after_commands_and_perform_count)
+            .fold((Vec::new(), 0), |mut collected, (messages, count)| {
+                collected.0.extend(messages);
+                collected.1 += count;
+                collected
+            }),
+        _ => (Vec::new(), 0),
     }
 }
 
