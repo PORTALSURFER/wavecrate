@@ -252,7 +252,7 @@ pub fn new_ui_bridge(
 /// GUI test fixtures use this to bypass persisted startup config while still
 /// exercising the same bridge, projection cache, and action-reduction logic as
 /// the real runtime.
-pub(crate) fn new_ui_bridge_with_controller(controller: AppController) -> WavecrateUiBridge {
+pub fn new_ui_bridge_with_controller(controller: AppController) -> WavecrateUiBridge {
     WavecrateUiBridge::from_fixture_controller(controller)
 }
 

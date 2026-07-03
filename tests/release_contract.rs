@@ -27,6 +27,8 @@ const PUBLISH_PORTALSURFER_SCRIPT: &str =
     include_str!("../scripts/internal/release/publish_portalsurfer_release.sh");
 const SIGN_RELEASE_CHECKSUMS_SCRIPT: &str =
     include_str!("../scripts/internal/release/sign_release_checksums.sh");
+const RUN_RELEASE_VALIDATION_SCRIPT: &str =
+    include_str!("../scripts/internal/release/run_release_validation.sh");
 const WRITE_RELEASE_SUMMARY_SCRIPT: &str =
     include_str!("../scripts/internal/release/write_release_step_summary.sh");
 const VALIDATE_PROMOTED_RC_SCRIPT: &str =
@@ -91,8 +93,8 @@ fn nightly_workflow_runs_validation_before_build_and_publish() {
         "nightly validation must use the pinned Rust toolchain"
     );
     assert!(
-        NIGHTLY_WORKFLOW.contains("run: cargo test --workspace --locked"),
-        "nightly validation must run the release workspace test lane"
+        NIGHTLY_WORKFLOW.contains("scripts/internal/release/run_release_validation.sh"),
+        "nightly validation must run the shared release validation lane"
     );
     assert!(
         NIGHTLY_WORKFLOW.contains("needs: [resolve-main, test]"),
@@ -140,12 +142,12 @@ fn release_validation_installs_ubuntu_audio_deps_before_cargo_tests() {
         let deps_position = test_job
             .find("scripts/internal/release/setup_ubuntu_release_deps.sh")
             .unwrap_or_else(|| panic!("{name} test job must install Ubuntu release dependencies"));
-        let cargo_test_position = test_job
-            .find("cargo test --workspace --locked")
-            .unwrap_or_else(|| panic!("{name} test job must run the release workspace test lane"));
+        let validation_position = test_job
+            .find("scripts/internal/release/run_release_validation.sh")
+            .unwrap_or_else(|| panic!("{name} test job must run shared release validation"));
         assert!(
-            deps_position < cargo_test_position,
-            "{name} must install Ubuntu release dependencies before Cargo builds workspace tests"
+            deps_position < validation_position,
+            "{name} must install Ubuntu release dependencies before Cargo builds release validation"
         );
     }
 
@@ -154,6 +156,21 @@ fn release_validation_installs_ubuntu_audio_deps_before_cargo_tests() {
             && SETUP_UBUNTU_RELEASE_DEPS_SCRIPT.contains("libasound2-dev")
             && SETUP_UBUNTU_RELEASE_DEPS_SCRIPT.contains("pkg-config --exists alsa"),
         "Ubuntu release dependency helper must install and verify ALSA build dependencies"
+    );
+}
+
+#[test]
+fn release_validation_lane_builds_workspace_and_runs_focused_checks() {
+    assert!(
+        RUN_RELEASE_VALIDATION_SCRIPT
+            .contains("cargo test --workspace --locked --exclude radiant --no-run"),
+        "release validation must compile Wavecrate-owned workspace test targets without running the broad native/UI lane"
+    );
+    assert!(
+        RUN_RELEASE_VALIDATION_SCRIPT.contains("cargo test --test release_contract")
+            && RUN_RELEASE_VALIDATION_SCRIPT.contains("cargo test --test release_workflow_helpers")
+            && RUN_RELEASE_VALIDATION_SCRIPT.contains("cargo test -p wavecrate-scan --lib"),
+        "release validation must run focused release and scanner tests"
     );
 }
 
@@ -827,6 +844,10 @@ fn release_workflows_use_shared_setup_build_and_signing_helpers() {
         assert!(
             workflow.contains("scripts/internal/release/setup_ubuntu_release_deps.sh"),
             "{name} must use the shared Ubuntu release dependency helper"
+        );
+        assert!(
+            workflow.contains("scripts/internal/release/run_release_validation.sh"),
+            "{name} must use the shared release validation helper"
         );
         assert!(
             workflow.contains("scripts/internal/release/setup_windows_asio_sdk.ps1"),

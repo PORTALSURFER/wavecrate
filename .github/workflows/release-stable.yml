@@ -132,8 +132,9 @@ jobs:
       - name: Install Ubuntu audio build dependencies
         shell: bash
         run: scripts/internal/release/setup_ubuntu_release_deps.sh
-      - name: Run tests
-        run: cargo test --workspace --locked
+      - name: Run release validation
+        shell: bash
+        run: scripts/internal/release/run_release_validation.sh
 
   build:
     name: Build ${{ matrix.platform }} ${{ matrix.arch }} stable

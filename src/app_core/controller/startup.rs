@@ -9,7 +9,7 @@ use super::AppController;
 ///
 /// This centralizes controller creation and config loading so UI hosts need not
 /// depend directly on app-controller initialization details.
-pub(crate) fn build_ui_app_controller(
+pub fn build_ui_app_controller(
     renderer: WaveformRenderer,
     player: Option<Rc<RefCell<AudioPlayer>>>,
 ) -> Result<AppController, String> {
