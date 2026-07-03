@@ -173,7 +173,7 @@ fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog(
     .expect("write catalog");
     fs::write(
         &release_log,
-        "## [nightly-b6307-8f1a7aa2]\n\n- Current staged nightly\n",
+        "# Wavecrate 19.1.0-nightly.6307+8f1a7aa2\n\n- Current staged nightly\n",
     )
     .expect("write current log");
 

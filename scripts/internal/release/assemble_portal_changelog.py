@@ -100,6 +100,9 @@ def release_header_versions(release: dict[str, Any]) -> list[str]:
     if not isinstance(build_id, str) or not build_id:
         return []
     versions = {release_version(build_id)}
+    version = release.get("version")
+    if isinstance(version, str) and version.strip():
+        versions.add(version.strip())
     changelog = release.get("changelog") or {}
     title = changelog.get("title")
     if isinstance(title, str) and title.startswith("Wavecrate "):
