@@ -30,3 +30,10 @@ stable_checksums_sig = "checksums-{version}.txt.sig"
 root_dir = "{APP_NAME}"
 files = ["{APP_NAME}", "{APP_NAME}.exe"]
 optional_dirs = []
+
+[archive_layout.platform_files]
+windows = ["{APP_NAME}.exe"]
+macos = [
+  "Wavecrate.app/Contents/Info.plist",
+  "Wavecrate.app/Contents/MacOS/{APP_NAME}"
+]

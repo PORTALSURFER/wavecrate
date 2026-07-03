@@ -519,6 +519,66 @@ fn published_release_verifier_rejects_manifest_mismatches() {
 }
 
 #[test]
+fn published_release_verifier_rejects_flattened_archives() {
+    let temp = tempfile::tempdir().expect("create published release fixture");
+    let key = temp.path().join("ed25519.pem");
+    if !generate_ed25519_key(&key) {
+        eprintln!(
+            "local openssl does not support Ed25519 key generation; skipping verifier roundtrip"
+        );
+        return;
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let (release_json, asset_dir) = write_published_release_fixture_with_zip_mutation(
+        &temp,
+        &key,
+        None,
+        Some(PublishedZipMutation::FlattenWindows),
+    );
+
+    let mut command =
+        published_release_verifier_command(&release_json, &asset_dir, expected_pubkey.trim());
+    let output = run_failure(&mut command);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "wavecrate-19.1.0-windows-x86_64.zip manifest must be at wavecrate/update-manifest.json"
+        ) && stderr.contains("must contain expected archive root wavecrate/"),
+        "flattened archive failure should name the asset and missing root\nstderr:\n{stderr}"
+    );
+}
+
+#[test]
+fn published_release_verifier_rejects_missing_platform_executable() {
+    let temp = tempfile::tempdir().expect("create published release fixture");
+    let key = temp.path().join("ed25519.pem");
+    if !generate_ed25519_key(&key) {
+        eprintln!(
+            "local openssl does not support Ed25519 key generation; skipping verifier roundtrip"
+        );
+        return;
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let (release_json, asset_dir) = write_published_release_fixture_with_zip_mutation(
+        &temp,
+        &key,
+        None,
+        Some(PublishedZipMutation::MissingWindowsExecutable),
+    );
+
+    let mut command =
+        published_release_verifier_command(&release_json, &asset_dir, expected_pubkey.trim());
+    let output = run_failure(&mut command);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "wavecrate-19.1.0-windows-x86_64.zip is missing required archive file wavecrate/wavecrate.exe"
+        ),
+        "missing executable failure should name the asset and missing executable path\nstderr:\n{stderr}"
+    );
+}
+
+#[test]
 fn portalsurfer_upload_catalog_verifier_accepts_equivalent_timestamp_precision() {
     let temp = tempfile::tempdir().expect("create PortalSurfer catalog fixture");
     let catalog = temp.path().join("catalog.json");
@@ -736,6 +796,21 @@ fn write_published_release_fixture(
     key: &Path,
     manifest_override: Option<(&str, &str)>,
 ) -> (std::path::PathBuf, std::path::PathBuf) {
+    write_published_release_fixture_with_zip_mutation(temp, key, manifest_override, None)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PublishedZipMutation {
+    FlattenWindows,
+    MissingWindowsExecutable,
+}
+
+fn write_published_release_fixture_with_zip_mutation(
+    temp: &TempDir,
+    key: &Path,
+    manifest_override: Option<(&str, &str)>,
+    zip_mutation: Option<PublishedZipMutation>,
+) -> (std::path::PathBuf, std::path::PathBuf) {
     let asset_dir = temp.path().join("published-assets");
     fs::create_dir_all(&asset_dir).expect("create asset dir");
     let zip_assets = [
@@ -764,12 +839,18 @@ fn write_published_release_fixture(
     let mut checksum_lines = Vec::new();
     let mut files = Vec::new();
     for (zip_name, target, platform, arch) in zip_assets {
+        let mutation = if platform == "windows" {
+            zip_mutation
+        } else {
+            None
+        };
         write_release_zip(
             &asset_dir.join(zip_name),
             target,
             platform,
             arch,
             manifest_override,
+            mutation,
         );
         let hash = sha256_file(&asset_dir.join(zip_name));
         checksum_lines.push(format!("{hash}  {zip_name}\n"));
@@ -828,20 +909,52 @@ fn write_published_release_fixture(
     (release_json, asset_dir)
 }
 
+fn published_release_verifier_command(
+    release_json: &Path,
+    asset_dir: &Path,
+    expected_pubkey: &str,
+) -> Command {
+    let mut command = Command::new("python3");
+    command
+        .arg(repo_path(
+            "scripts/internal/release/verify_published_release.py",
+        ))
+        .arg("--surface")
+        .arg("portalsurfer")
+        .arg("--channel")
+        .arg("stable")
+        .arg("--version")
+        .arg("19.1.0")
+        .arg("--target-version")
+        .arg("19.1.0")
+        .arg("--commit")
+        .arg("abcdef1")
+        .arg("--build-date")
+        .arg("2026-07-02")
+        .arg("--portal-build-id")
+        .arg("wavecrate-19.1.0")
+        .arg("--build-number")
+        .arg("6200")
+        .arg("--release-json")
+        .arg(release_json)
+        .arg("--asset-dir")
+        .arg(asset_dir)
+        .arg("--checksum-public-key")
+        .arg(expected_pubkey);
+    command
+}
+
 fn write_release_zip(
     path: &Path,
     target: &str,
     platform: &str,
     arch: &str,
     manifest_override: Option<(&str, &str)>,
+    mutation: Option<PublishedZipMutation>,
 ) {
     let file = fs::File::create(path).expect("create zip file");
     let mut zip = zip::ZipWriter::new(file);
-    zip.start_file(
-        "wavecrate/update-manifest.json",
-        SimpleFileOptions::default(),
-    )
-    .expect("start manifest file");
+    let (manifest_path, payload_files) = release_zip_payload(platform, mutation);
     let mut manifest = json!({
         "app": "wavecrate",
         "channel": "stable",
@@ -852,11 +965,24 @@ fn write_release_zip(
         "target_version": "19.1.0",
         "commit": "abcdef1",
         "build_date": "2026-07-02",
-        "files": ["wavecrate", "update-manifest.json"]
+        "files": payload_files.iter().chain(["update-manifest.json"].iter()).collect::<Vec<_>>()
     });
     if let Some((key, value)) = manifest_override {
         manifest[key] = json!(value);
     }
+    for file_name in payload_files {
+        let archive_path = if mutation == Some(PublishedZipMutation::FlattenWindows) {
+            file_name.to_string()
+        } else {
+            format!("wavecrate/{file_name}")
+        };
+        zip.start_file(archive_path, SimpleFileOptions::default())
+            .expect("start payload file");
+        zip.write_all(format!("fixture payload for {file_name}\n").as_bytes())
+            .expect("write payload file");
+    }
+    zip.start_file(manifest_path, SimpleFileOptions::default())
+        .expect("start manifest file");
     zip.write_all(
         serde_json::to_string(&manifest)
             .expect("serialize manifest")
@@ -864,6 +990,29 @@ fn write_release_zip(
     )
     .expect("write manifest");
     zip.finish().expect("finish zip");
+}
+
+fn release_zip_payload(
+    platform: &str,
+    mutation: Option<PublishedZipMutation>,
+) -> (&'static str, Vec<&'static str>) {
+    match (platform, mutation) {
+        ("windows", Some(PublishedZipMutation::FlattenWindows)) => {
+            ("update-manifest.json", vec!["wavecrate.exe"])
+        }
+        ("windows", Some(PublishedZipMutation::MissingWindowsExecutable)) => {
+            ("wavecrate/update-manifest.json", vec![])
+        }
+        ("windows", _) => ("wavecrate/update-manifest.json", vec!["wavecrate.exe"]),
+        ("macos", _) => (
+            "wavecrate/update-manifest.json",
+            vec![
+                "Wavecrate.app/Contents/Info.plist",
+                "Wavecrate.app/Contents/MacOS/wavecrate",
+            ],
+        ),
+        _ => ("wavecrate/update-manifest.json", vec!["wavecrate"]),
+    }
 }
 
 fn sha256_file(path: &Path) -> String {
