@@ -45,6 +45,22 @@ class ExpectedRelease:
         return [zip_asset.name for zip_asset in self.zips] + [self.checksum, self.signature]
 
 
+@dataclass(frozen=True)
+class ArchiveLayout:
+    root_dir: str
+    files: list[str]
+    optional_dirs: list[str]
+    platform_files: dict[str, list[str]]
+
+    def expected_files_for(self, platform: str) -> list[str]:
+        explicit = self.platform_files.get(platform)
+        if explicit is not None:
+            return explicit
+        if platform == "windows":
+            return [path for path in self.files if path.endswith(".exe")]
+        return [path for path in self.files if not path.endswith(".exe")]
+
+
 def main() -> int:
     args = parse_args()
     errors = validate_args(args)
@@ -54,6 +70,7 @@ def main() -> int:
 
     contract = load_release_contract(args.contract)
     expected = expected_release_assets(contract, args.channel, args.version, args.target_version)
+    archive_layout = archive_layout_from_contract(contract)
     release = load_release(args)
     errors.extend(validate_release_metadata(release, args, expected.required_assets))
     if errors:
@@ -61,7 +78,7 @@ def main() -> int:
         return 1
 
     with local_asset_dir(args, release, expected.required_assets) as asset_dir:
-        errors.extend(validate_downloaded_assets(asset_dir, release, expected, args))
+        errors.extend(validate_downloaded_assets(asset_dir, release, expected, archive_layout, args))
 
     if errors:
         print_errors(errors)
@@ -168,7 +185,38 @@ def parse_minimal_release_contract(text: str) -> dict[str, Any]:
     targets = re.findall(r'"([^"]+)"', targets_match)
     templates_match = require_match(r"(?ms)^\[templates\]\s*(.*?)(?:^\[|\Z)", text, "templates")
     templates = dict(re.findall(r'(?m)^([A-Za-z0-9_]+)\s*=\s*"([^"]+)"', templates_match))
-    return {"app_name": app_name, "targets": targets, "templates": templates}
+    archive_match = require_match(r"(?ms)^\[archive_layout\]\s*(.*?)(?:^\[|\Z)", text, "archive_layout")
+    root_dir = require_match(r'(?m)^root_dir\s*=\s*"([^"]+)"', archive_match, "archive_layout.root_dir")
+    files = parse_toml_string_array(archive_match, "files")
+    optional_dirs = parse_toml_string_array(archive_match, "optional_dirs")
+    platform_files_match = re.search(
+        r"(?ms)^\[archive_layout\.platform_files\]\s*(.*?)(?:^\[|\Z)",
+        text,
+    )
+    platform_files: dict[str, list[str]] = {}
+    if platform_files_match:
+        for platform in ("windows", "macos", "linux"):
+            values = parse_toml_string_array(platform_files_match.group(1), platform)
+            if values:
+                platform_files[platform] = values
+    return {
+        "app_name": app_name,
+        "targets": targets,
+        "templates": templates,
+        "archive_layout": {
+            "root_dir": root_dir,
+            "files": files,
+            "optional_dirs": optional_dirs,
+            "platform_files": platform_files,
+        },
+    }
+
+
+def parse_toml_string_array(text: str, key: str) -> list[str]:
+    match = re.search(rf"(?ms)^{re.escape(key)}\s*=\s*\[(.*?)\]", text)
+    if not match:
+        return []
+    return re.findall(r'"([^"]+)"', match.group(1))
 
 
 def require_match(pattern: str, text: str, label: str) -> str:
@@ -228,6 +276,56 @@ def expected_release_assets(
         checksum = apply_template(templates["stable_checksums"], app_name, version, "", "", "")
         signature = apply_template(templates["stable_checksums_sig"], app_name, version, "", "", "")
     return ExpectedRelease(sorted(zips, key=lambda item: item.name), checksum, signature)
+
+
+def archive_layout_from_contract(contract: dict[str, Any]) -> ArchiveLayout:
+    app_name = contract["app_name"]
+    layout = contract.get("archive_layout")
+    if not isinstance(layout, dict):
+        raise SystemExit("release contract is missing [archive_layout]")
+    root_dir = str(layout.get("root_dir") or "").strip()
+    if not root_dir:
+        raise SystemExit("release contract is missing archive_layout.root_dir")
+    files = layout.get("files")
+    if not isinstance(files, list) or not all(isinstance(path, str) and path for path in files):
+        raise SystemExit("release contract archive_layout.files must be a non-empty string array")
+    optional_dirs = layout.get("optional_dirs") or []
+    if not isinstance(optional_dirs, list) or not all(isinstance(path, str) for path in optional_dirs):
+        raise SystemExit("release contract archive_layout.optional_dirs must be a string array")
+    platform_files = layout.get("platform_files") or {}
+    if not isinstance(platform_files, dict):
+        raise SystemExit("release contract archive_layout.platform_files must be a table")
+
+    expanded_platform_files: dict[str, list[str]] = {}
+    for platform, paths in platform_files.items():
+        if not isinstance(paths, list) or not all(isinstance(path, str) and path for path in paths):
+            raise SystemExit(
+                f"release contract archive_layout.platform_files.{platform} must be a non-empty string array"
+            )
+        expanded_platform_files[str(platform)] = [
+            normalize_archive_relative_path(apply_archive_layout_template(path, app_name))
+            for path in paths
+        ]
+    return ArchiveLayout(
+        root_dir=normalize_archive_relative_path(apply_archive_layout_template(root_dir, app_name)),
+        files=[
+            normalize_archive_relative_path(apply_archive_layout_template(path, app_name))
+            for path in files
+        ],
+        optional_dirs=[
+            normalize_archive_relative_path(apply_archive_layout_template(path, app_name))
+            for path in optional_dirs
+        ],
+        platform_files=expanded_platform_files,
+    )
+
+
+def apply_archive_layout_template(template: str, app_name: str) -> str:
+    return template.replace("{APP_NAME}", app_name)
+
+
+def normalize_archive_relative_path(path: str) -> str:
+    return path.replace("\\", "/").strip("/")
 
 
 def apply_template(
@@ -437,6 +535,7 @@ def validate_downloaded_assets(
     asset_dir: Path,
     release: dict[str, Any],
     expected: ExpectedRelease,
+    archive_layout: ArchiveLayout,
     args: argparse.Namespace,
 ) -> list[str]:
     errors: list[str] = []
@@ -461,7 +560,7 @@ def validate_downloaded_assets(
     for zip_asset in expected.zips:
         zip_path = asset_dir / zip_asset.name
         if zip_path.is_file():
-            errors.extend(validate_zip_manifest(zip_path, zip_asset, args))
+            errors.extend(validate_zip_manifest(zip_path, zip_asset, archive_layout, args))
     return errors
 
 
@@ -568,18 +667,17 @@ def verify_checksum_signature(checksum_path: Path, signature_path: Path, checksu
 def validate_zip_manifest(
     zip_path: Path,
     zip_asset: ExpectedZip,
+    archive_layout: ArchiveLayout,
     args: argparse.Namespace,
 ) -> list[str]:
     errors: list[str] = []
     try:
         with zipfile.ZipFile(zip_path) as archive:
-            manifest_names = [
-                name
-                for name in archive.namelist()
-                if name == "update-manifest.json" or name.endswith("/update-manifest.json")
-            ]
+            archive_files = normalized_archive_files(archive)
+            manifest_names = [name for name in archive_files if name.endswith("update-manifest.json")]
             if len(manifest_names) != 1:
                 return [f"{zip_asset.name} must contain exactly one update-manifest.json"]
+            errors.extend(validate_archive_layout(zip_asset, archive_layout, archive_files, manifest_names[0]))
             manifest = json.loads(archive.read(manifest_names[0]).decode("utf-8"))
     except zipfile.BadZipFile:
         return [f"{zip_asset.name} is not a valid zip file"]
@@ -605,6 +703,83 @@ def validate_zip_manifest(
     files = manifest.get("files")
     if not isinstance(files, list) or "update-manifest.json" not in files:
         errors.append(f"{zip_asset.name} manifest files must include update-manifest.json")
+    else:
+        errors.extend(validate_manifest_file_list(zip_asset, archive_layout, archive_files, files))
+    return errors
+
+
+def normalized_archive_files(archive: zipfile.ZipFile) -> list[str]:
+    files: list[str] = []
+    for name in archive.namelist():
+        normalized = normalize_archive_relative_path(name)
+        if not normalized or name.endswith("/"):
+            continue
+        files.append(normalized)
+    return sorted(set(files))
+
+
+def validate_archive_layout(
+    zip_asset: ExpectedZip,
+    archive_layout: ArchiveLayout,
+    archive_files: list[str],
+    manifest_name: str,
+) -> list[str]:
+    errors: list[str] = []
+    root = archive_layout.root_dir
+    root_prefix = f"{root}/"
+    expected_manifest = f"{root_prefix}update-manifest.json"
+    if manifest_name != expected_manifest:
+        errors.append(
+            f"{zip_asset.name} manifest must be at {expected_manifest}, found {manifest_name}"
+        )
+    if not any(name.startswith(root_prefix) for name in archive_files):
+        errors.append(f"{zip_asset.name} must contain expected archive root {root}/")
+
+    allowed_prefixes = [root_prefix] + [f"{path.rstrip('/')}/" for path in archive_layout.optional_dirs]
+    outside_root = [
+        name
+        for name in archive_files
+        if not any(name == prefix.rstrip("/") or name.startswith(prefix) for prefix in allowed_prefixes)
+    ]
+    if outside_root:
+        errors.append(
+            f"{zip_asset.name} contains files outside expected archive root {root}/: "
+            + ", ".join(outside_root[:5])
+        )
+
+    for expected_file in archive_layout.expected_files_for(zip_asset.platform):
+        archive_path = f"{root_prefix}{expected_file}"
+        if archive_path not in archive_files:
+            errors.append(f"{zip_asset.name} is missing required archive file {archive_path}")
+    return errors
+
+
+def validate_manifest_file_list(
+    zip_asset: ExpectedZip,
+    archive_layout: ArchiveLayout,
+    archive_files: list[str],
+    manifest_files: list[Any],
+) -> list[str]:
+    if not all(isinstance(path, str) and path for path in manifest_files):
+        return [f"{zip_asset.name} manifest files must be a string array"]
+    root_prefix = f"{archive_layout.root_dir}/"
+    actual = {
+        name.removeprefix(root_prefix)
+        for name in archive_files
+        if name.startswith(root_prefix)
+    }
+    expected = {normalize_archive_relative_path(path) for path in manifest_files}
+    missing = sorted(actual - expected)
+    extra = sorted(expected - actual)
+    errors: list[str] = []
+    if missing:
+        errors.append(
+            f"{zip_asset.name} manifest files are missing archive entries: " + ", ".join(missing[:5])
+        )
+    if extra:
+        errors.append(
+            f"{zip_asset.name} manifest files lists entries absent from archive: " + ", ".join(extra[:5])
+        )
     return errors
 
 

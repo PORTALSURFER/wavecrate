@@ -653,6 +653,12 @@ fn release_workflows_verify_published_artifacts_after_publication() {
         "post-publish verifier must inspect package manifests"
     );
     assert!(
+        VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("archive_layout")
+            && VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("platform_files")
+            && VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("expected_files_for"),
+        "post-publish verifier must enforce archive layout from release_contract.toml"
+    );
+    assert!(
         VERIFY_PUBLISHED_RELEASE_SCRIPT.contains("PortalSurfer catalog sha256 mismatch"),
         "post-publish verifier must compare public catalog hashes to downloaded bytes"
     );
