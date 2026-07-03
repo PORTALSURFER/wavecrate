@@ -32,6 +32,23 @@ impl FolderEntry {
             .find_map(|child| child.find_mut(id))
     }
 
+    pub(super) fn find_path_mut(&mut self, path: &Path) -> Option<&mut FolderEntry> {
+        let self_path = Path::new(&self.id);
+        if self_path == path {
+            return Some(self);
+        }
+        if !path.starts_with(self_path) {
+            return None;
+        }
+        self.children.iter_mut().find_map(|child| {
+            if path.starts_with(Path::new(&child.id)) {
+                child.find_path_mut(path)
+            } else {
+                None
+            }
+        })
+    }
+
     pub(super) fn find_file(&self, id: &str) -> Option<&FileEntry> {
         self.files
             .iter()
@@ -308,5 +325,59 @@ impl FolderEntry {
         self.children
             .iter_mut()
             .any(|child| child.remove_file_collection(file_id, collection))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn folder(path: &str, children: Vec<FolderEntry>) -> FolderEntry {
+        FolderEntry {
+            id: path.to_owned(),
+            name: folder_label(Path::new(path)),
+            children,
+            files: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn find_path_mut_follows_only_matching_path_branch() {
+        let mut root = folder(
+            "/samples",
+            vec![
+                folder(
+                    "/samples/drums",
+                    vec![folder("/samples/drums/kicks", Vec::new())],
+                ),
+                folder(
+                    "/samples/drones",
+                    vec![folder("/samples/drones/long", Vec::new())],
+                ),
+            ],
+        );
+
+        let found = root
+            .find_path_mut(Path::new("/samples/drums/kicks"))
+            .expect("nested matching path");
+
+        assert_eq!(found.id, "/samples/drums/kicks");
+    }
+
+    #[test]
+    fn find_path_mut_rejects_sibling_prefix_strings() {
+        let mut root = folder(
+            "/samples",
+            vec![
+                folder("/samples/drum", Vec::new()),
+                folder("/samples/drum-long", Vec::new()),
+            ],
+        );
+
+        let found = root
+            .find_path_mut(Path::new("/samples/drum-long"))
+            .expect("component-exact sibling");
+
+        assert_eq!(found.id, "/samples/drum-long");
     }
 }

@@ -22,8 +22,11 @@ pub(super) use cache::{
 };
 pub(crate) use chrome::project_browser_chrome_model;
 use chrome::{browser_search_placeholder, browser_sort_label, browser_tab_label};
+#[cfg(test)]
+pub(crate) use frame::project_browser_panel_frame_model;
 pub(crate) use frame::{
-    project_browser_focused_sample_label, project_browser_model, project_browser_panel_frame_model,
+    project_browser_focused_sample_label, project_browser_model,
+    project_browser_panel_frame_model_without_sidebar,
 };
 pub(crate) use tag_sidebar::project_browser_tag_sidebar_model;
 pub(crate) type BrowserRowsProjectionInputs = rows::BrowserRowsProjectionInputs;

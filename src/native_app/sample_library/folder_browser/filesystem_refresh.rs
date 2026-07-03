@@ -617,8 +617,7 @@ fn set_file_last_played_at_by_parent(
     let Some(parent) = path.parent() else {
         return root.set_file_last_played_at(file_id, last_played_at);
     };
-    let parent_id = path_id(parent);
-    if let Some(folder) = root.find_mut(&parent_id) {
+    if let Some(folder) = root.find_path_mut(parent) {
         return folder.set_direct_file_last_played_at(file_id, last_played_at);
     }
     root.set_file_last_played_at(file_id, last_played_at)

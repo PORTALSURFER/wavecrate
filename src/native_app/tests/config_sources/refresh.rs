@@ -90,6 +90,62 @@ fn selecting_missing_source_reports_missing_status_without_scan() {
 }
 
 #[test]
+fn selecting_loaded_cached_source_does_not_queue_folder_tree_refresh() {
+    let first_root = tempfile::tempdir().expect("first source root");
+    let second_root = tempfile::tempdir().expect("second source root");
+    write_test_wav_i16(&first_root.path().join("first.wav"), &[0, 512, -512]);
+    write_test_wav_i16(&second_root.path().join("second.wav"), &[0, 1024, -1024]);
+    let mut state = gui_state_for_span_tests();
+    let first_request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(first_root.path().to_path_buf(), 100)
+        .expect("first source requests scan");
+    let first_source_id = first_request.source_id.clone();
+    let first_result =
+        crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+            first_request,
+            |_| {},
+            |_| {},
+        );
+    state.finish_folder_scan(first_result, &mut ui::UiUpdateContext::default());
+    let second_request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(second_root.path().to_path_buf(), 101)
+        .expect("second source requests scan");
+    let second_source_id = second_request.source_id.clone();
+    let second_result =
+        crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+            second_request,
+            |_| {},
+            |_| {},
+        );
+    state.finish_folder_scan(second_result, &mut ui::UiUpdateContext::default());
+    assert_eq!(
+        state.library.folder_browser.selected_source_id(),
+        second_source_id
+    );
+    let mut context = ui::UiUpdateContext::default();
+
+    state.select_source(first_source_id.clone(), &mut context);
+
+    assert_eq!(
+        state.library.folder_browser.selected_source_id(),
+        first_source_id
+    );
+    assert!(state.library.folder_browser.selected_source_loaded());
+    assert!(
+        state.background.folder_tree_refresh_task.active().is_none(),
+        "source switching must use the cached tree without queueing a whole-tree refresh"
+    );
+    assert!(
+        state.library.folder_progress().is_none(),
+        "selecting a loaded cached source must not start a foreground scan"
+    );
+}
+
+#[test]
 fn source_scan_records_discovered_audio_as_new_harvest_files() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
