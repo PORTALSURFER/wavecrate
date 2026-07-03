@@ -28,6 +28,7 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
     loaded_frames: usize,
     selection: SelectionRange,
     output_path: &Path,
+    gain: f32,
     fade_duration: Duration,
 ) -> Result<bool, String> {
     if selection.has_edit_effects() {
@@ -42,7 +43,7 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
     }
     let frame_range = selection.frame_bounds(total_frames);
     let byte_span = layout.byte_span(frame_range.start_frame, frame_range.end_frame)?;
-    write_raw_slice(reader, &layout, byte_span, output_path, fade_duration)?;
+    write_raw_slice(reader, &layout, byte_span, output_path, gain, fade_duration)?;
     Ok(true)
 }
 
@@ -282,6 +283,7 @@ fn write_raw_slice<R: Read + Seek>(
     layout: &RawWavLayout,
     span: RawByteSpan,
     output_path: &Path,
+    gain: f32,
     fade_duration: Duration,
 ) -> Result<(), String> {
     let data_len = u32::try_from(span.byte_len)
@@ -305,10 +307,10 @@ fn write_raw_slice<R: Read + Seek>(
     let frame_count = span.byte_len / u64::from(layout.block_align);
     let fade_frames =
         short_edge_fade_frame_count(layout.sample_rate, frame_count as usize, fade_duration);
-    if fade_frames == 0 {
+    if fade_frames == 0 && (gain - 1.0).abs() <= f32::EPSILON {
         copy_exact_data(reader, &mut writer, span.byte_len)?;
     } else {
-        fade::write_faded_data(reader, &mut writer, layout, frame_count, fade_frames)?;
+        fade::write_faded_data(reader, &mut writer, layout, frame_count, fade_frames, gain)?;
     }
     if span.byte_len % 2 == 1 {
         writer

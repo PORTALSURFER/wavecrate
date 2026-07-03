@@ -174,15 +174,16 @@ pub(super) fn extract_wav_reader_range_to_folder<R: Read + Seek>(
     gain: f32,
 ) -> Result<PathBuf, String> {
     let output_path = next_extraction_path(source_path, target_folder)?;
-    if (gain - 1.0).abs() <= f32::EPSILON
-        && raw_wav::copy_selection_to_file(
-            &mut reader,
-            loaded_frames,
-            selection,
-            &output_path,
-            DEFAULT_SHORT_EDGE_FADE,
-        )?
-    {
+    // Prefer the raw WAV path so extraction preserves the source bit depth/sample format
+    // while applying the same edge fade and gain policy.
+    if raw_wav::copy_selection_to_file(
+        &mut reader,
+        loaded_frames,
+        selection,
+        &output_path,
+        gain,
+        DEFAULT_SHORT_EDGE_FADE,
+    )? {
         return Ok(output_path);
     }
     reader
@@ -334,6 +335,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
             sample_count,
             channels,
             spec.sample_rate,
+            spec.bits_per_sample,
             gain,
         )?,
         hound::SampleFormat::Int if spec.bits_per_sample <= 16 => write_samples::<_, i16>(
@@ -342,6 +344,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
             sample_count,
             channels,
             spec.sample_rate,
+            spec.bits_per_sample,
             gain,
         )?,
         hound::SampleFormat::Int => write_samples::<_, i32>(
@@ -350,6 +353,7 @@ pub(super) fn write_wav_frame_range<R: Read + Seek>(
             sample_count,
             channels,
             spec.sample_rate,
+            spec.bits_per_sample,
             gain,
         )?,
     }
@@ -365,6 +369,7 @@ fn write_samples<R, S>(
     sample_count: usize,
     channels: usize,
     sample_rate: u32,
+    bits_per_sample: u16,
     gain: f32,
 ) -> Result<(), String>
 where
@@ -381,7 +386,7 @@ where
             .write_sample(
                 sample
                     .map_err(|err| format!("failed to read sample: {err}"))?
-                    .with_gain(gain),
+                    .with_gain(gain, bits_per_sample),
             )
             .map_err(|err| format!("failed to write extraction: {err}"))?;
     }
@@ -389,27 +394,35 @@ where
 }
 
 trait FadedSample {
-    fn with_gain(self, gain: f32) -> Self;
+    fn with_gain(self, gain: f32, bits_per_sample: u16) -> Self;
 }
 
 impl FadedSample for f32 {
-    fn with_gain(self, gain: f32) -> Self {
+    fn with_gain(self, gain: f32, _bits_per_sample: u16) -> Self {
         (self * gain).clamp(-1.0, 1.0)
     }
 }
 
 impl FadedSample for i16 {
-    fn with_gain(self, gain: f32) -> Self {
-        (f32::from(self) * gain)
+    fn with_gain(self, gain: f32, bits_per_sample: u16) -> Self {
+        let (min, max) = signed_integer_sample_bounds(bits_per_sample.min(16));
+        (f64::from(self) * f64::from(gain))
             .round()
-            .clamp(i16::MIN as f32, i16::MAX as f32) as i16
+            .clamp(min as f64, max as f64) as i16
     }
 }
 
 impl FadedSample for i32 {
-    fn with_gain(self, gain: f32) -> Self {
-        (self as f32 * gain)
+    fn with_gain(self, gain: f32, bits_per_sample: u16) -> Self {
+        let (min, max) = signed_integer_sample_bounds(bits_per_sample.min(32));
+        (f64::from(self) * f64::from(gain))
             .round()
-            .clamp(i32::MIN as f32, i32::MAX as f32) as i32
+            .clamp(min as f64, max as f64) as i32
     }
+}
+
+fn signed_integer_sample_bounds(bits_per_sample: u16) -> (i64, i64) {
+    let bits = u32::from(bits_per_sample.clamp(1, 32));
+    let max = (1_i64 << (bits - 1)) - 1;
+    (-1_i64 << (bits - 1), max)
 }
