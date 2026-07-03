@@ -170,6 +170,14 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
             .contains(&sample_path_string)
     );
     assert!(
+        state
+            .waveform
+            .cache
+            .instant_audition_sample_paths
+            .contains(&sample_path_string),
+        "playback-ready persisted cache rows should also feed instant-audition navigation"
+    );
+    assert!(
         !state.waveform.cache.entries.contains_key(&sample_path),
         "restart indicator refresh should not synchronously deserialize cached waveforms"
     );

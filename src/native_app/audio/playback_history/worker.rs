@@ -1,4 +1,6 @@
 use std::{
+    cell::RefCell,
+    collections::HashMap,
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
@@ -16,6 +18,17 @@ pub(in crate::native_app) struct LastPlayedPersistRequest {
     pub(in crate::native_app) played_at: i64,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct CachedSourceDbKey {
+    source_root: PathBuf,
+    source_database_root: PathBuf,
+}
+
+thread_local! {
+    static PLAYBACK_HISTORY_SOURCE_DBS: RefCell<HashMap<CachedSourceDbKey, SourceDatabase>> =
+        RefCell::new(HashMap::new());
+}
+
 pub(super) fn persist_last_played(request: LastPlayedPersistRequest) -> LastPlayedPersistResult {
     let result = persist_last_played_inner(&request);
     LastPlayedPersistResult {
@@ -27,11 +40,42 @@ pub(super) fn persist_last_played(request: LastPlayedPersistRequest) -> LastPlay
 fn persist_last_played_inner(request: &LastPlayedPersistRequest) -> Result<(), String> {
     let (file_size, modified_ns) =
         file_metadata(&request.source_root.join(&request.relative_path))?;
-    let db = SourceDatabase::open_for_playback_history_write_with_database_root(
-        &request.source_root,
-        &request.source_database_root,
-    )
-    .map_err(|err| err.to_string())?;
+    with_playback_history_source_db(request, |db| {
+        persist_last_played_with_db(db, request, file_size, modified_ns)
+    })
+}
+
+fn with_playback_history_source_db<T>(
+    request: &LastPlayedPersistRequest,
+    action: impl FnOnce(&SourceDatabase) -> Result<T, String>,
+) -> Result<T, String> {
+    let key = CachedSourceDbKey {
+        source_root: request.source_root.clone(),
+        source_database_root: request.source_database_root.clone(),
+    };
+    PLAYBACK_HISTORY_SOURCE_DBS.with(|dbs| {
+        let mut dbs = dbs.borrow_mut();
+        if !dbs.contains_key(&key) {
+            let db = SourceDatabase::open_for_playback_history_write_with_database_root(
+                &request.source_root,
+                &request.source_database_root,
+            )
+            .map_err(|err| err.to_string())?;
+            dbs.insert(key.clone(), db);
+        }
+        let db = dbs
+            .get(&key)
+            .expect("playback history source DB was inserted");
+        action(db)
+    })
+}
+
+fn persist_last_played_with_db(
+    db: &SourceDatabase,
+    request: &LastPlayedPersistRequest,
+    file_size: u64,
+    modified_ns: i64,
+) -> Result<(), String> {
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     batch
         .upsert_file(&request.relative_path, file_size, modified_ns)
@@ -63,7 +107,9 @@ mod tests {
     };
 
     use super::*;
-    use wavecrate::sample_sources::{SourceDatabase, SourceDatabaseConnectionRole};
+    use wavecrate::sample_sources::{
+        SourceDatabase, SourceDatabaseConnectionRole, db as source_db_test,
+    };
 
     #[test]
     fn last_played_persist_fails_fast_when_source_db_is_busy() {
@@ -115,6 +161,45 @@ mod tests {
         assert!(
             error.contains("Database is busy"),
             "expected busy error, got: {error}"
+        );
+    }
+
+    #[test]
+    fn last_played_persist_reuses_source_db_connection() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let source_root = temp.path().join("source");
+        fs::create_dir_all(&source_root).expect("create source");
+        let first_relative = PathBuf::from("kick.wav");
+        let second_relative = PathBuf::from("hat.wav");
+        let first = source_root.join(&first_relative);
+        let second = source_root.join(&second_relative);
+        fs::write(&first, [1_u8, 2, 3, 4]).expect("write first sample");
+        fs::write(&second, [5_u8, 6, 7, 8]).expect("write second sample");
+
+        source_db_test::test_reset_source_db_open_total_count(&source_root);
+        let first_request = LastPlayedPersistRequest {
+            file_id: first.display().to_string(),
+            source_root: source_root.clone(),
+            source_database_root: source_root.clone(),
+            relative_path: first_relative,
+            played_at: 42,
+        };
+        let second_request = LastPlayedPersistRequest {
+            file_id: second.display().to_string(),
+            source_root: source_root.clone(),
+            source_database_root: source_root.clone(),
+            relative_path: second_relative,
+            played_at: 43,
+        };
+
+        persist_last_played_inner(&first_request).expect("persist first");
+        source_db_test::test_reset_source_db_open_total_count(&source_root);
+        persist_last_played_inner(&second_request).expect("persist second");
+
+        assert_eq!(
+            source_db_test::test_source_db_open_total_count(&source_root),
+            0,
+            "last-played persistence should reuse its source DB handle after the first write"
         );
     }
 }
