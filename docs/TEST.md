@@ -47,9 +47,9 @@ development and release-risk checks:
 | Dead dependency sweep and env-var nudge | none | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
 | GUI semantic contracts | none | `scripts/gui.ps1 contract` or `scripts/gui.ps1 suite` | Local/manual or issue-specific |
 | Perf guard | none | `scripts/perf.* guard` | Local/manual or release-risk validation |
-| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Resolves the exact `main` SHA, runs `cargo test --workspace --locked` on Ubuntu before package builds or publication, builds Windows/macOS nightly assets from that SHA, embeds `X.Y.Z-nightly.DATE+SHA` metadata, verifies the checksum signing key against the pinned public key before public publication, uploads and verifies the immutable PortalSurfer release plus full changelog first, then refreshes the rolling GitHub `nightly` release assets and promotes the immutable and rolling GitHub tags as the final public identity step |
-| RC release | `Wavecrate RC release` manual dispatch | release workflow dispatch | Builds Windows/macOS RC assets from `release/X.Y`, validates the requested package version and branch, runs workspace tests, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z-rc.N` as a GitHub pre-release |
-| Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs workspace tests, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z` as the normal GitHub release |
+| Nightly release build/sync | `Wavecrate nightly release` on the evening schedule or manual dispatch | release workflow dispatch | Resolves the exact `main` SHA, runs `scripts/internal/release/run_release_validation.sh` on Ubuntu before package builds or publication, builds Windows/macOS nightly assets from that SHA, embeds `X.Y.Z-nightly.DATE+SHA` metadata, verifies the checksum signing key against the pinned public key before public publication, uploads and verifies the immutable PortalSurfer release plus full changelog first, then refreshes the rolling GitHub `nightly` release assets and promotes the immutable and rolling GitHub tags as the final public identity step |
+| RC release | `Wavecrate RC release` manual dispatch | release workflow dispatch | Builds Windows/macOS RC assets from `release/X.Y`, validates the requested package version and branch, runs `scripts/internal/release/run_release_validation.sh`, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z-rc.N` as a GitHub pre-release |
+| Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs `scripts/internal/release/run_release_validation.sh`, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z` as the normal GitHub release |
 
 The nextest policy is:
 
@@ -63,12 +63,14 @@ The nextest policy is:
 - Local nextest runs remain the primary development evidence. GitHub release
   workflows add deterministic packaging-time checks for nightly, RC, and stable
   artifacts.
-- Nightly uses `cargo test --workspace --locked` on `ubuntu-latest` to match
-  the RC/stable release gate before any package build or public publication.
-  It is intentionally narrower than local `ci-required` nextest coverage so the
-  scheduled release lane stays deterministic in GitHub Actions; quarantined,
-  GUI/manual, and performance checks remain explicit local or issue-specific
-  release-risk evidence.
+- Nightly, RC, and stable use `scripts/internal/release/run_release_validation.sh`
+  on `ubuntu-latest` before any package build or public publication. The helper
+  compiles Wavecrate-owned workspace test targets with `cargo test --workspace
+  --locked --exclude radiant --no-run`, then runs release contract/helper tests
+  and scanner tests. It intentionally avoids running the full native/UI default
+  Cargo test lane in scheduled release workflows; local `ci-required` nextest,
+  quarantined, GUI/manual, and performance checks remain explicit local or
+  issue-specific release-risk evidence.
 - The nightly, RC, and stable Ubuntu release-validation jobs install
   `pkg-config` and `libasound2-dev` before Cargo builds the workspace.
   Wavecrate still publishes only the Windows/macOS release targets declared in

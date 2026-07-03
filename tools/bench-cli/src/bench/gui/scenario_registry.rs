@@ -10,7 +10,9 @@ use super::interactions::{
 use super::{BenchOptions, stats};
 use wavecrate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeMotionModel};
 use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
-use wavecrate::app_core::ui_bridge::{WavecrateUiBridge, measure_projection_segment_probe};
+use wavecrate::app_core::ui_bridge::{
+    WavecrateUiBridge, measure_projection_segment_probe, new_ui_bridge_with_controller,
+};
 
 /// Latency summaries collected for every GUI benchmark scenario.
 pub(super) struct GuiScenarioMetrics {
@@ -56,7 +58,7 @@ pub(super) fn collect_gui_scenario_metrics(
     controller: AppController,
     mut execute_interaction_step: impl FnMut(&mut AppController, usize),
 ) -> Result<GuiScenarioMetrics, String> {
-    let mut bridge = WavecrateUiBridge::from_fixture_controller(controller);
+    let mut bridge = new_ui_bridge_with_controller(controller);
     Ok(GuiScenarioMetrics {
         app_model_projection: bench_retained_app_model_projection(options, &mut bridge)?,
         controller_app_model_projection: bench_controller_app_model_projection(

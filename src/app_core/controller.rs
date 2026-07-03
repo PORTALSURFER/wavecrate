@@ -22,7 +22,7 @@ mod waveform_actions;
 
 pub(crate) use frame_preparation::UiFramePreparationPlan;
 pub use runtime_facade::AppController;
-pub(crate) use startup::build_ui_app_controller;
+pub use startup::build_ui_app_controller;
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 #[cfg(test)]

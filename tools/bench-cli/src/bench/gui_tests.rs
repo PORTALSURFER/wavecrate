@@ -5,7 +5,7 @@ use super::interactions::step_patterns::{
 };
 use super::workspace::{build_controller_with_db_rows, wait_for_rows};
 use super::*;
-use wavecrate::app_core::actions::NativeUiAction;
+use wavecrate::app_core::actions::{NativeUiAction, NativeWaveformAction};
 
 /// Panic with context if a GUI benchmark test setup step fails.
 fn must<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
@@ -111,27 +111,27 @@ fn interaction_step_cycles_search_filter_and_sort() {
 fn waveform_action_sequence_covers_expected_native_actions() {
     assert!(matches!(
         waveform_action_for_step(0),
-        NativeUiAction::SeekWaveform { .. }
+        NativeUiAction::Waveform(NativeWaveformAction::SeekWaveformPrecise { .. })
     ));
     assert!(matches!(
         waveform_action_for_step(1),
-        NativeUiAction::SetWaveformCursor { .. }
+        NativeUiAction::Waveform(NativeWaveformAction::SetWaveformCursorPrecise { .. })
     ));
     assert!(matches!(
         waveform_action_for_step(2),
-        NativeUiAction::SetWaveformSelectionRange { .. }
+        NativeUiAction::Waveform(NativeWaveformAction::SetWaveformSelectionRange { .. })
     ));
     assert!(matches!(
         waveform_action_for_step(3),
-        NativeUiAction::ZoomWaveform { .. }
+        NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveform { .. })
     ));
     assert!(matches!(
         waveform_action_for_step(4),
-        NativeUiAction::ZoomWaveformToSelection
+        NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveformToSelection)
     ));
     assert!(matches!(
         waveform_action_for_step(5),
-        NativeUiAction::ZoomWaveformFull
+        NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveformFull)
     ));
 }
 
@@ -140,31 +140,31 @@ fn waveform_action_sequence_covers_expected_native_actions() {
 fn adjacent_waveform_action_sequence_covers_expected_native_actions() {
     assert!(matches!(
         adjacent_waveform_action_for_step(0),
-        NativeUiAction::SeekWaveform {
-            position_milli: 380
-        }
+        NativeUiAction::Waveform(NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 380_000_000
+        })
     ));
     assert!(matches!(
         adjacent_waveform_action_for_step(1),
-        NativeUiAction::SeekWaveform {
-            position_milli: 410
-        }
+        NativeUiAction::Waveform(NativeWaveformAction::SeekWaveformPrecise {
+            position_nanos: 410_000_000
+        })
     ));
     assert!(matches!(
         adjacent_waveform_action_for_step(2),
-        NativeUiAction::ZoomWaveform {
+        NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
             ..
-        }
+        })
     ));
     assert!(matches!(
         adjacent_waveform_action_for_step(3),
-        NativeUiAction::ZoomWaveform {
+        NativeUiAction::Waveform(NativeWaveformAction::ZoomWaveform {
             zoom_in: false,
             steps: 1,
             ..
-        }
+        })
     ));
 }
 
