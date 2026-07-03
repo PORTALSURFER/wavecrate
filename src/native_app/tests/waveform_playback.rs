@@ -381,6 +381,21 @@ fn external_drag_file_paths(
     }
 }
 
+fn run_named_perform(
+    command: radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
+    target_name: &'static str,
+) -> Option<crate::native_app::test_support::state::GuiMessage> {
+    match command {
+        radiant::runtime::Command::Perform { name, work, .. } if name == target_name => {
+            Some(work())
+        }
+        radiant::runtime::Command::Batch(commands) => commands
+            .into_iter()
+            .find_map(|command| run_named_perform(command, target_name)),
+        _ => None,
+    }
+}
+
 fn sample_load_completion(
     ticket: ui::TaskTicket,
     path: String,
@@ -748,7 +763,15 @@ fn playmark_selection_copy_extracts_into_current_folder_before_clipboard_handoff
         Ok(()),
         &mut copy_finished_context,
     );
+    let metadata_command = copy_finished_context.into_command();
+    assert_eq!(
+        metadata_command.business_task_priority("gui-metadata-rating-persist"),
+        Some(ui::TaskPriority::Background),
+        "extracted rating persistence should not block clipboard completion"
+    );
     assert_extracted_file_metadata(&scenario.state, &extracted, &["one-shot"]);
+    run_command_for_tests(&mut scenario.state, metadata_command);
+    assert_persisted_extracted_file_keep_1_rating(&scenario.state, &extracted);
     assert_source_file_not_keep_rated(&scenario.state, &source_path);
     let parent = wavecrate::sample_sources::library::harvest_file(&harvest_key)
         .expect("load harvest parent")
@@ -2050,7 +2073,12 @@ fn assert_extracted_file_keep_1_rating(
         .expect("extracted file should be visible in the browser");
     assert_eq!(row.rating, wavecrate::sample_sources::Rating::KEEP_1);
     assert!(!row.rating_locked);
+}
 
+fn assert_persisted_extracted_file_keep_1_rating(
+    state: &crate::native_app::test_support::state::NativeAppState,
+    extracted: &std::path::Path,
+) {
     let (source_root, source_database_root, relative_path) = state
         .library
         .folder_browser
@@ -2220,11 +2248,28 @@ fn playmark_selection_drag_extracts_before_external_handoff() {
     ));
 
     assert!(
+        !extracted_path.is_file(),
+        "drag start should schedule extraction instead of decoding/writing on the UI thread"
+    );
+    let command = context.into_command();
+    assert_eq!(
+        command.business_task_priority("gui-waveform-selection-drag-extract"),
+        Some(ui::TaskPriority::Interactive),
+        "drag extraction should be user-interactive but asynchronous"
+    );
+    let completion = run_named_perform(command, "gui-waveform-selection-drag-extract")
+        .expect("drag extraction worker command");
+    let mut finish_context = ui::UiUpdateContext::default();
+    scenario
+        .state
+        .apply_message(completion, &mut finish_context);
+
+    assert!(
         extracted_path.is_file(),
-        "dragging a playmark handle should create a durable file before native drag-out"
+        "drag worker should create a durable file before native drag-out starts"
     );
     assert_eq!(
-        external_drag_file_paths(context.into_command()),
+        external_drag_file_paths(finish_context.into_command()),
         Some(vec![extracted_path.clone()]),
         "DAWs need the extracted file path as the native drag payload"
     );
