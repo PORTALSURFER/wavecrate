@@ -13,8 +13,8 @@ use crate::native_app::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
-    waveform::file_backed_wav_playback_descriptor,
     waveform::{WaveformPlaybackReady, load_cached_waveform_playback_descriptor_sidecar},
+    waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
 use wavecrate::audio::{
     PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeRequest,
@@ -206,6 +206,10 @@ impl NativeAppState {
             .cloned()
         {
             descriptor
+        } else if !self.loop_playback_for_path_after_policy(path)
+            && should_use_file_backed_wav_decode(Path::new(path))
+        {
+            return false;
         } else if let Some(descriptor) =
             load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path))
         {
