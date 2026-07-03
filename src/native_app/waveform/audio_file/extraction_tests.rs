@@ -127,6 +127,69 @@ fn wav_range_extraction_applies_forced_normalized_gain() {
 }
 
 #[test]
+fn wav_range_extraction_preserves_i24_source_format_with_gain() {
+    let root = tempfile::tempdir().expect("temp root");
+    let source = root.path().join("source-24.wav");
+    let mut samples = vec![0_i32; 768];
+    samples[384] = 5_000_000;
+    samples[448] = -5_000_000;
+    write_i24_wav(&source, &samples);
+    let bytes = std::fs::read(&source).expect("read source wav");
+    let selection = SelectionRange::new_precise(128.0 / 768.0, 640.0 / 768.0);
+
+    let output = extract_wav_reader_range_to_folder(
+        &source,
+        root.path(),
+        Cursor::new(bytes),
+        768,
+        selection,
+        2.0,
+    )
+    .expect("extract 24-bit wav range with gain");
+
+    let mut reader = hound::WavReader::open(&output).expect("open extracted 24-bit wav");
+    let spec = reader.spec();
+    assert_eq!(spec.bits_per_sample, 24);
+    assert_eq!(spec.sample_format, hound::SampleFormat::Int);
+    let extracted = reader
+        .samples::<i32>()
+        .map(|sample| sample.expect("read 24-bit sample"))
+        .collect::<Vec<_>>();
+    assert_eq!(extracted.len(), 512);
+    assert_eq!(extracted[0], 0);
+    assert_eq!(extracted[256], 8_388_607);
+    assert_eq!(extracted[320], -8_388_608);
+    assert_eq!(extracted[511], 0);
+}
+
+#[test]
+fn decoded_wav_range_writer_clamps_i24_samples_to_destination_depth() {
+    let root = tempfile::tempdir().expect("temp root");
+    let source = root.path().join("decoded-source-24.wav");
+    let output = root.path().join("decoded-output-24.wav");
+    let mut samples = vec![0_i32; 256];
+    samples[128] = 5_000_000;
+    samples[160] = -5_000_000;
+    write_i24_wav(&source, &samples);
+    let reader = hound::WavReader::open(&source).expect("open 24-bit wav");
+    let spec = reader.spec();
+
+    write_wav_frame_range(reader, spec, 1, 0, 256, &output, 2.0)
+        .expect("write decoded 24-bit range with gain");
+
+    let mut reader = hound::WavReader::open(&output).expect("open decoded 24-bit output");
+    let spec = reader.spec();
+    assert_eq!(spec.bits_per_sample, 24);
+    assert_eq!(spec.sample_format, hound::SampleFormat::Int);
+    let extracted = reader
+        .samples::<i32>()
+        .map(|sample| sample.expect("read 24-bit sample"))
+        .collect::<Vec<_>>();
+    assert_eq!(extracted[128], 8_388_607);
+    assert_eq!(extracted[160], -8_388_608);
+}
+
+#[test]
 fn wav_range_extraction_handles_metadata_chunk_before_data() {
     let root = tempfile::tempdir().expect("temp root");
     let source = root.path().join("source.wav");
@@ -162,6 +225,20 @@ fn write_i16_wav(path: &std::path::Path, frames: i16) {
         writer.write_sample(sample).expect("write sample");
     }
     writer.finalize().expect("finalize wav");
+}
+
+fn write_i24_wav(path: &std::path::Path, samples: &[i32]) {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 44_100,
+        bits_per_sample: 24,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(path, spec).expect("create 24-bit wav");
+    for sample in samples {
+        writer.write_sample(*sample).expect("write 24-bit sample");
+    }
+    writer.finalize().expect("finalize 24-bit wav");
 }
 
 fn read_i16_wav(path: &std::path::Path) -> Vec<i16> {

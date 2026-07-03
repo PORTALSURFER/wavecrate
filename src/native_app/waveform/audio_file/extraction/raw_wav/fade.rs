@@ -10,13 +10,17 @@ pub(super) fn write_faded_data<R: Read, W: Write>(
     layout: &RawWavLayout,
     frame_count: u64,
     fade_frames: usize,
+    gain: f32,
 ) -> Result<(), String> {
     let fade_frames = fade_frames as u64;
     let block_align = usize::from(layout.block_align);
     let mut frame_bytes = vec![0_u8; block_align];
     let mut frame = 0_u64;
     while frame < frame_count {
-        if frame >= fade_frames && frame_count.saturating_sub(frame) > fade_frames {
+        if (gain - 1.0).abs() <= f32::EPSILON
+            && frame >= fade_frames
+            && frame_count.saturating_sub(frame) > fade_frames
+        {
             let middle_frames = frame_count
                 .saturating_sub(fade_frames)
                 .saturating_sub(frame);
@@ -32,7 +36,8 @@ pub(super) fn write_faded_data<R: Read, W: Write>(
         reader
             .read_exact(&mut frame_bytes)
             .map_err(|err| format!("failed to read WAV selection frame: {err}"))?;
-        let gain = short_edge_fade_gain(frame as usize, frame_count as usize, fade_frames as usize);
+        let gain =
+            gain * short_edge_fade_gain(frame as usize, frame_count as usize, fade_frames as usize);
         scale_frame_samples(&mut frame_bytes, layout, gain)?;
         writer
             .write_all(&frame_bytes)
