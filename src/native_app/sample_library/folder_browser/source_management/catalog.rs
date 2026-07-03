@@ -9,6 +9,7 @@ use wavecrate::sample_sources::{SampleSource, SourceRole};
 #[derive(Clone, Debug)]
 pub(in crate::native_app::sample_library::folder_browser) struct BrowserSourceState {
     pub(in crate::native_app::sample_library::folder_browser) selected_source: String,
+    pub(in crate::native_app::sample_library::folder_browser) selected_tree_loaded: bool,
     pub(in crate::native_app::sample_library::folder_browser) sources: Vec<SourceEntry>,
 }
 
@@ -16,9 +17,11 @@ impl BrowserSourceState {
     pub(in crate::native_app::sample_library::folder_browser) fn new(
         sources: Vec<SourceEntry>,
         selected_source: String,
+        selected_tree_loaded: bool,
     ) -> Self {
         Self {
             selected_source,
+            selected_tree_loaded,
             sources,
         }
     }
@@ -43,7 +46,16 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn save_source_scan_cache(&self) -> Result<(), String> {
-        save_source_scan_cache(&self.source.sources)
+        let mut sources = self.source.sources.clone();
+        if let Some(active_root) = self.tree.folders.first()
+            && let Some(source) = sources
+                .iter_mut()
+                .find(|source| source.id == self.source.selected_source)
+            && source.root_folder.is_none()
+        {
+            source.root_folder = Some(active_root.clone());
+        }
+        save_source_scan_cache(&sources)
     }
 
     #[cfg(test)]
@@ -119,7 +131,7 @@ impl FolderBrowserState {
         if source.is_missing() {
             return None;
         }
-        source.root_folder.as_ref()?;
+        self.selected_source_root_folder()?;
         Some(FolderTreeRefreshRequest {
             source_id: source.id.clone(),
             label: source.label.clone(),

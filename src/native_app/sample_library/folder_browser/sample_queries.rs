@@ -586,6 +586,11 @@ impl FolderBrowserState {
     }
 
     fn source_root_folder(&self, source_id: &str) -> Option<&FolderEntry> {
+        if source_id == self.source.selected_source
+            && let Some(folder) = self.tree.folders.first()
+        {
+            return Some(folder);
+        }
         self.source
             .sources
             .iter()
