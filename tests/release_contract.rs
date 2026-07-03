@@ -377,6 +377,14 @@ fn release_packager_uses_contract_nightly_asset_name_without_build_number() {
         RELEASE_ZIP_SCRIPT.contains(r#"printf "%s  %s\n" "$SHA" "$ZIP_NAME""#),
         "checksums-entry.txt must list the exact zip filename selected by the packager"
     );
+    assert!(
+        RELEASE_ZIP_SCRIPT.contains("Compress-Archive -LiteralPath"),
+        "PowerShell zip fallback must archive the app root directory as a literal path"
+    );
+    assert!(
+        !RELEASE_ZIP_SCRIPT.contains(r#"$POWERSHELL_WORK_DIR\\$APP_NAME\\*"#),
+        "PowerShell zip fallback must not flatten the archive root with a wildcard"
+    );
 }
 
 #[test]
