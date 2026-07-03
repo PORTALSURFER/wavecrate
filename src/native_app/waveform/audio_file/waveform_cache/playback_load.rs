@@ -18,6 +18,8 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     if let Some(cached) = read_cached_waveform_file(&path, &identity)
         && cached.playback_cache.is_some()
     {
+        let cache_path = super::identity::cache_path_for_identity(&path, &identity).ok()?;
+        let _ = write_playback_descriptor_sidecar(&cache_path, &cached);
         let Some(file) = cached.into_playback_ready_waveform_file(path.clone(), identity) else {
             log_stale_cache_entry(&path, CACHE_FORMAT_VERSION);
             return None;
@@ -52,6 +54,21 @@ pub(in crate::native_app) fn load_cached_waveform_file_for_playback(
     }
     log_slow_cache_phase("browser.sample_cache.load_for_playback", &path, started_at);
     file.playback_samples.is_some().then_some(file)
+}
+
+pub(in crate::native_app) fn load_cached_waveform_playback_descriptor_sidecar(
+    path: PathBuf,
+) -> Option<PersistedPlaybackDescriptor> {
+    let started_at = Instant::now();
+    let identity = CacheIdentity::for_path(&path).ok()?;
+    let descriptor = read_cached_playback_descriptor(&path, &identity)?;
+    log_playback_descriptor_source(&path, "sidecar");
+    log_slow_cache_phase(
+        "browser.sample_cache.load_playback_descriptor_sidecar",
+        &path,
+        started_at,
+    );
+    Some(descriptor)
 }
 
 pub(in crate::native_app) fn load_cached_waveform_playback_descriptor(

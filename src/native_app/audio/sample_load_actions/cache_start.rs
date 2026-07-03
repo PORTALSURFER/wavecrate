@@ -13,7 +13,7 @@ use crate::native_app::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
-    waveform::WaveformPlaybackReady,
+    waveform::{WaveformPlaybackReady, load_cached_waveform_playback_descriptor_sidecar},
 };
 use wavecrate::audio::{
     PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeRequest,
@@ -134,12 +134,14 @@ impl NativeAppState {
         true
     }
 
-    pub(super) fn start_foreground_sample_load(
+    pub(super) fn start_foreground_sample_load_with_priority(
         &mut self,
         path: &str,
         autoplay: bool,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
+        priority: ui::TaskPriority,
+        outcome: &'static str,
     ) {
         if self.sample_load_blocked_by_normalization(path) {
             self.ui.status.sample = format!(
@@ -156,12 +158,12 @@ impl NativeAppState {
             );
             return;
         }
-        self.prepare_uncached_sample_load(path, "foreground_load_queued", started_at);
+        self.prepare_uncached_sample_load(path, outcome, started_at);
         self.start_sample_load_with_priority(
             path.to_owned(),
             autoplay,
             context,
-            ui::TaskPriority::Interactive,
+            priority,
             SampleLoadStrategy::CacheThenDecode,
         );
     }
@@ -195,13 +197,22 @@ impl NativeAppState {
         started_at: Instant,
     ) -> bool {
         let lookup_started_at = Instant::now();
-        let Some(descriptor) = self
+        let descriptor = if let Some(descriptor) = self
             .waveform
             .cache
             .instant_audition_descriptors
             .get(Path::new(path))
             .cloned()
-        else {
+        {
+            descriptor
+        } else if let Some(descriptor) =
+            load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path))
+        {
+            self.waveform
+                .cache
+                .mark_sample_playback_descriptor_ready(descriptor.clone());
+            descriptor
+        } else {
             return false;
         };
         log_sample_load_timing(

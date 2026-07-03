@@ -63,6 +63,7 @@ pub(in crate::native_app) use audio_file::{
     cached_waveform_file_exists, flush_background_waveform_cache_stores_for_shutdown,
     invalidate_persisted_waveform_cache_path, invalidate_persisted_waveform_cache_paths,
     load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor,
+    load_cached_waveform_playback_descriptor_sidecar,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
     should_use_file_backed_wav_decode,
 };

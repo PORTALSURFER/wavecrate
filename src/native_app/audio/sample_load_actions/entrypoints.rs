@@ -180,10 +180,24 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
-        if autoplay {
-            self.start_persisted_cache_instant_audition(path.as_str(), context, started_at);
-        }
-        self.start_foreground_sample_load(path.as_str(), autoplay, context, started_at);
+        let instant_audition_started = autoplay
+            && self.start_persisted_cache_instant_audition(path.as_str(), context, started_at);
+        self.start_foreground_sample_load_with_priority(
+            path.as_str(),
+            autoplay,
+            context,
+            started_at,
+            if instant_audition_started {
+                ui::TaskPriority::Background
+            } else {
+                ui::TaskPriority::Interactive
+            },
+            if instant_audition_started {
+                "waveform_load_after_instant_audition"
+            } else {
+                "foreground_load_queued"
+            },
+        );
     }
 
     pub(in crate::native_app) fn load_navigation_sample_validated(
@@ -210,8 +224,24 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        self.start_persisted_cache_instant_audition(path.as_str(), context, started_at);
-        self.start_foreground_sample_load(path.as_str(), true, context, started_at);
+        let instant_audition_started =
+            self.start_persisted_cache_instant_audition(path.as_str(), context, started_at);
+        self.start_foreground_sample_load_with_priority(
+            path.as_str(),
+            true,
+            context,
+            started_at,
+            if instant_audition_started {
+                ui::TaskPriority::Background
+            } else {
+                ui::TaskPriority::Interactive
+            },
+            if instant_audition_started {
+                "waveform_load_after_instant_audition"
+            } else {
+                "foreground_load_queued"
+            },
+        );
     }
 
     fn queue_sample_load_path_validation(
