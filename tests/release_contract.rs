@@ -37,6 +37,10 @@ const VERIFY_PORTALSURFER_UPLOAD_CATALOG_SCRIPT: &str =
     include_str!("../scripts/internal/release/verify_portalsurfer_upload_catalog.py");
 const VERIFY_PUBLISHED_RELEASE_SCRIPT: &str =
     include_str!("../scripts/internal/release/verify_published_release.py");
+const TEST_DOCS: &str = include_str!("../docs/TEST.md");
+const TARGET_DOCS: &str = include_str!("../docs/TARGET.md");
+const GETTING_STARTED_DOCS: &str = include_str!("../docs/book/src/getting-started.md");
+const MANUAL_USAGE_DOCS: &str = include_str!("../manual/usage.md");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 const CHECKSUMS_PUBLIC_KEY: &str = "8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=";
 
@@ -341,6 +345,35 @@ fn release_contract_template_emits_supported_nightly_asset_names() {
 }
 
 #[test]
+fn release_surfaces_describe_supported_artifacts_without_setup_contracts() {
+    assert!(
+        TEST_DOCS.contains("### Windows ZIP Distribution Lifecycle"),
+        "docs/TEST.md must describe the supported manual Windows release lifecycle"
+    );
+    assert!(
+        GETTING_STARTED_DOCS.contains("On Windows, Wavecrate is a manual ZIP install"),
+        "user docs must explain the supported Windows ZIP install path"
+    );
+    assert!(
+        TARGET_DOCS.contains("Windows release installs are manual by design"),
+        "target contract must keep the manual Windows install policy explicit"
+    );
+    assert!(
+        MANUAL_USAGE_DOCS.contains("Downloaded bundles may include ML assets"),
+        "manual usage docs must avoid setup-managed asset-copy promises"
+    );
+
+    for (surface, contents) in release_distribution_surfaces() {
+        for forbidden in unsupported_setup_contract_terms() {
+            assert!(
+                !contents.contains(&forbidden),
+                "{surface} must not advertise unsupported OS-managed release behavior: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
 fn release_packager_uses_contract_nightly_asset_name_without_build_number() {
     let contract = parse_contract();
     let nightly_template = contract
@@ -385,6 +418,33 @@ fn release_packager_uses_contract_nightly_asset_name_without_build_number() {
         !RELEASE_ZIP_SCRIPT.contains(r#"$POWERSHELL_WORK_DIR\\$APP_NAME\\*"#),
         "PowerShell zip fallback must not flatten the archive root with a wildcard"
     );
+}
+
+fn release_distribution_surfaces() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("release_contract.toml", RELEASE_CONTRACT),
+        ("nightly release workflow", NIGHTLY_WORKFLOW),
+        ("RC release workflow", RC_WORKFLOW),
+        ("stable release workflow", STABLE_WORKFLOW),
+        ("release artifact builder", BUILD_RELEASE_ARTIFACT_SCRIPT),
+        ("release ZIP builder", RELEASE_ZIP_SCRIPT),
+        ("release assembly helper", ASSEMBLE_RELEASE_FILES_SCRIPT),
+        ("post-publish verifier", VERIFY_PUBLISHED_RELEASE_SCRIPT),
+        ("docs/TEST.md", TEST_DOCS),
+        ("docs/book/src/getting-started.md", GETTING_STARTED_DOCS),
+        ("manual/usage.md", MANUAL_USAGE_DOCS),
+    ]
+}
+
+fn unsupported_setup_contract_terms() -> Vec<String> {
+    let old_binary_suffix = ["instal", "ler"].concat();
+    vec![
+        ["wavecrate", old_binary_suffix.as_str()].join("-"),
+        ["Start", "Menu"].join(" "),
+        ["uninstall", "registry"].join(" "),
+        ["Add/Remove", "Programs"].join(" "),
+        ["Programs", "and", "Features"].join(" "),
+    ]
 }
 
 #[test]

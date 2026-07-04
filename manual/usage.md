@@ -37,7 +37,7 @@ the same shipped app platforms: macOS and Windows.
 - App settings live in `config.toml`; sources are stored in `library.db` in the same folder. Legacy `config.json` files migrate automatically.
 - You can override the app data root by setting `app_data_dir` in `config.toml` (absolute path to the `.wavecrate` folder). This controls where models, logs, and the library DB live.
 - Each source keeps `.wavecrate_samples.db` beside the audio. Logs live under `.wavecrate/logs`.
-- Portable bundles may include ML assets under `models/`; the Windows installer copies them into the app data directory if present.
+- Downloaded bundles may include ML assets under `models/`; keep those assets with the extracted app bundle unless a release note says they should be moved into app data.
 - Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`).
 - Tip: Use **Options → Open config folder** to jump to the right place on disk.
 

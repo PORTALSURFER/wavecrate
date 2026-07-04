@@ -12,6 +12,13 @@ Wavecrate works with ordinary local folders. It does not upload your samples or 
 
 Wavecrate app builds currently support macOS and Windows. Linux is not currently supported for app installs.
 
+On Windows, Wavecrate is a manual ZIP install. Extract the `wavecrate/` folder to
+a location you manage and run `wavecrate.exe` from that folder. To update, close
+Wavecrate and replace the extracted folder with the newer ZIP contents. To
+remove Wavecrate, delete the extracted folder; app settings, logs, source
+metadata, and caches remain in the `.wavecrate` app data folder until you remove
+that state deliberately.
+
 > Safety warning: Wavecrate includes destructive actions that can modify, rename, move, or delete files when you choose those commands. Keep backups for important sample folders.
 
 ## Add Your First Source
