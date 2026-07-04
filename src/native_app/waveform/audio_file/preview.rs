@@ -15,6 +15,7 @@ pub(in crate::native_app) struct PreviewAuditionClip {
     pub(in crate::native_app) sample_rate: u32,
     pub(in crate::native_app) channels: usize,
     pub(in crate::native_app) frames: usize,
+    pub(in crate::native_app) normalized_gain: f32,
 }
 
 impl PreviewAuditionClip {
@@ -71,6 +72,9 @@ pub(in crate::native_app) fn decode_wav_preview_clip(
         return Err(String::from("WAV contains no previewable samples"));
     }
     let frames = samples.len() / channels;
+    let normalized_gain = wavecrate::audio::peak_for_interleaved_span(&samples, channels, 0.0, 1.0)
+        .map(wavecrate::audio::normalized_gain_from_peak)
+        .unwrap_or(1.0);
     Ok(PreviewAuditionClip {
         path,
         source_len,
@@ -79,6 +83,7 @@ pub(in crate::native_app) fn decode_wav_preview_clip(
         sample_rate,
         channels,
         frames,
+        normalized_gain,
     })
 }
 
@@ -165,6 +170,7 @@ mod tests {
         assert_eq!(clip.channels, 2);
         assert_eq!(clip.frames, 480);
         assert_eq!(clip.samples.len(), 960);
+        assert!(clip.normalized_gain > 1.0);
         assert!(clip.matches_file(&clip.path));
     }
 }

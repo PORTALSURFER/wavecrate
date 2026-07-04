@@ -650,6 +650,8 @@ impl NativeAppState {
         };
         let playback_started_at = Instant::now();
         let duration = clip.duration_seconds();
+        let playback_gain =
+            preview_clip_playback_gain(&clip, self.audio.normalized_audition_enabled);
         let source = PlaybackRuntimeSource::DecodedSamples {
             audio_bytes: Arc::from([]),
             samples: clip.samples,
@@ -664,11 +666,8 @@ impl NativeAppState {
                 end: 1.0,
             },
             volume: self.audio.volume,
-            playback_gain: 1.0,
-            playback_gain_normalization: self
-                .audio
-                .normalized_audition_enabled
-                .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            playback_gain,
+            playback_gain_normalization: None,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
@@ -1476,6 +1475,18 @@ fn preview_audition_can_decode(path: &str) -> bool {
         })
 }
 
+fn preview_clip_playback_gain(
+    clip: &PreviewAuditionClip,
+    normalized_audition_enabled: bool,
+) -> f32 {
+    if normalized_audition_enabled && clip.normalized_gain.is_finite() && clip.normalized_gain > 0.0
+    {
+        clip.normalized_gain
+    } else {
+        1.0
+    }
+}
+
 fn starmap_item_in_preview_warm_viewport(
     item_x: f32,
     item_y: f32,
@@ -1520,7 +1531,7 @@ fn quantized_starmap_preview_warm_zoom(value: f32) -> i32 {
 mod tests {
     use super::*;
     use radiant::runtime::Command;
-    use std::{collections::HashSet, fs};
+    use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, time::SystemTime};
 
     fn after_messages(command: Command<GuiMessage>) -> Vec<GuiMessage> {
         match command {
@@ -1549,6 +1560,19 @@ mod tests {
         state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
         crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
         state
+    }
+
+    fn preview_clip_with_gain(normalized_gain: f32) -> PreviewAuditionClip {
+        PreviewAuditionClip {
+            path: PathBuf::from("/tmp/wavecrate-preview-gain.wav"),
+            source_len: 0,
+            source_modified: Some(SystemTime::UNIX_EPOCH),
+            samples: Arc::from([0.25_f32, -0.5]),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 2,
+            normalized_gain,
+        }
     }
 
     #[test]
@@ -1594,6 +1618,22 @@ mod tests {
         assert!(
             !FastAuditionOptions::starmap_drag().allow_file_backed_probe,
             "starmap drag playback should not probe WAV headers on the UI path"
+        );
+    }
+
+    #[test]
+    fn preview_clip_playback_uses_precomputed_normalized_gain() {
+        let clip = preview_clip_with_gain(2.5);
+
+        assert_eq!(preview_clip_playback_gain(&clip, true), 2.5);
+        assert_eq!(preview_clip_playback_gain(&clip, false), 1.0);
+        assert_eq!(
+            preview_clip_playback_gain(&preview_clip_with_gain(f32::NAN), true),
+            1.0
+        );
+        assert_eq!(
+            preview_clip_playback_gain(&preview_clip_with_gain(0.0), true),
+            1.0
         );
     }
 

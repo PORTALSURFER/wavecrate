@@ -493,6 +493,7 @@ mod tests {
             sample_rate: 44_100,
             channels: 1,
             frames: 1,
+            normalized_gain: 1.0,
         }
     }
 
