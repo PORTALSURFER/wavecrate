@@ -53,6 +53,7 @@ const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
+const MAP_SEGMENT_HIT_HANDOFF_LIMIT: usize = 16;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
 const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
@@ -413,12 +414,12 @@ impl StarmapWidget {
             .map(str::to_owned);
         self.last_primary_position = Some(point);
         let hit_started_at = starmap_telemetry::stage_timer();
-        let hits = self.hits_between(bounds, previous, point);
+        let raw_hits = self.hits_between(bounds, previous, point);
         let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
         if let Some(elapsed) = hit_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
         }
-        if hits.is_empty() {
+        if raw_hits.is_empty() {
             starmap_telemetry::record_event(
                 Some(StarmapAuditionCounter::WidgetSegmentMiss),
                 "widget.segment_hit_test",
@@ -431,23 +432,29 @@ impl StarmapWidget {
             );
             return None;
         }
-        let hits = hits
-            .into_iter()
-            .filter(|hit| Some(&hit.file_id) != last_hit_file_id.as_ref())
-            .collect::<Vec<_>>();
+        let raw_hit_count = raw_hits.len();
+        let hits =
+            segment_hits_for_drag_handoff(&raw_hits, &self.items, last_hit_file_id.as_deref());
         let Some(last_hit) = hits.last() else {
             return None;
         };
-        let hit_file_id = last_hit.file_id.clone();
+        let hit_file_id = self.items[last_hit.item_index].file_id.clone();
         let hit_item_index = last_hit.item_index;
-        let hit_file_ids = hits.into_iter().map(|hit| hit.file_id).collect::<Vec<_>>();
+        let hit_file_ids = hits
+            .iter()
+            .map(|hit| self.items[hit.item_index].file_id.clone())
+            .collect::<Vec<_>>();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::WidgetSegmentHit),
             "widget.segment_hit_test",
-            "hit",
+            if raw_hit_count > MAP_SEGMENT_HIT_HANDOFF_LIMIT {
+                "hit_capped"
+            } else {
+                "hit"
+            },
             Some(hit_file_id.as_str()),
+            raw_hit_count,
             hit_file_ids.len(),
-            0,
             last_hit_file_id.is_some(),
             hit_elapsed,
         );
@@ -515,7 +522,6 @@ impl StarmapWidget {
             }
             hits.push(StarmapSegmentHit {
                 item_index: index,
-                file_id: item.file_id.clone(),
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
             });
@@ -605,12 +611,29 @@ impl StarmapWidget {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct StarmapSegmentHit {
     item_index: usize,
-    file_id: String,
     segment_t: f32,
     distance_sq: f32,
+}
+
+fn segment_hits_for_drag_handoff(
+    hits: &[StarmapSegmentHit],
+    items: &[StarmapItem],
+    last_hit_file_id: Option<&str>,
+) -> Vec<StarmapSegmentHit> {
+    let mut retained = hits
+        .iter()
+        .rev()
+        .filter(|hit| {
+            last_hit_file_id != items.get(hit.item_index).map(|item| item.file_id.as_str())
+        })
+        .take(MAP_SEGMENT_HIT_HANDOFF_LIMIT)
+        .copied()
+        .collect::<Vec<_>>();
+    retained.reverse();
+    retained
 }
 
 #[derive(Clone, Debug, Default)]
@@ -2286,6 +2309,55 @@ mod tests {
                 position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })
+        );
+    }
+
+    #[test]
+    fn primary_drag_caps_dense_segment_handoff_to_latest_nodes() {
+        let total = MAP_SEGMENT_HIT_HANDOFF_LIMIT + 8;
+        let items = (0..total)
+            .map(|index| {
+                starmap_item(
+                    &format!("/samples/dense-{index}.wav"),
+                    (index + 1) as f32 / (total + 1) as f32,
+                    0.5,
+                    ui::Rgba8::new(57, 187, 245, 220),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut widget = StarmapWidget::new(items, StarmapViewport::default(), None);
+        let bounds = Rect::from_size(1_000.0, 100.0);
+
+        widget
+            .handle_input(bounds, WidgetInput::primary_press(Point::new(0.0, 50.0)))
+            .expect("press starts audition drag");
+        let output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(1_000.0, 50.0)))
+            .expect("swept drag should catch the crossed nodes");
+        let Some(GuiMessage::UpdateStarmapAuditionDrag { paths, .. }) =
+            output.typed_cloned::<GuiMessage>()
+        else {
+            panic!("expected starmap audition update");
+        };
+
+        assert_eq!(
+            paths.len(),
+            MAP_SEGMENT_HIT_HANDOFF_LIMIT,
+            "dense segment handoff should stay bounded on the UI path"
+        );
+        let expected_first = format!(
+            "/samples/dense-{}.wav",
+            total - MAP_SEGMENT_HIT_HANDOFF_LIMIT
+        );
+        let expected_last = format!("/samples/dense-{}.wav", total - 1);
+        assert_eq!(
+            paths.first().map(String::as_str),
+            Some(expected_first.as_str())
+        );
+        assert_eq!(
+            paths.last().map(String::as_str),
+            Some(expected_last.as_str()),
+            "the latest crossed node must always survive handoff capping"
         );
     }
 
