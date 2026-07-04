@@ -96,23 +96,27 @@ impl FolderBrowserState {
     }
 
     fn remove_folder_by_id(&mut self, folder_id: &str) -> bool {
-        let Some(source) = self
+        let active_tree_changed = self
+            .tree
+            .folders
+            .first_mut()
+            .is_some_and(|root_folder| root_folder.remove_child_by_id(folder_id));
+        if active_tree_changed {
+            self.bump_file_content_revision();
+        }
+
+        let parked_tree_changed = self
             .source
             .sources
             .iter_mut()
             .find(|source| source.id == self.source.selected_source)
-        else {
-            return false;
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return false;
-        };
-        let changed = root_folder.remove_child_by_id(folder_id);
-        if changed {
-            self.tree.folders = vec![root_folder.clone()];
+            .and_then(|source| source.root_folder.as_mut())
+            .is_some_and(|root_folder| root_folder.remove_child_by_id(folder_id));
+        if parked_tree_changed {
             self.bump_file_content_revision();
         }
-        changed
+
+        active_tree_changed || parked_tree_changed
     }
 
     pub(super) fn upsert_child_folder(&mut self, parent_id: &str, folder: FolderEntry) -> bool {
