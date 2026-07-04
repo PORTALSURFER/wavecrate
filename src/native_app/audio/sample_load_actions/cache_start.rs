@@ -1,5 +1,7 @@
 use radiant::prelude as ui;
 use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
@@ -63,6 +65,7 @@ const PREVIEW_AUDITION_WARM_TASK_NAME: &str = "gui-preview-audition-warm";
 const PREVIEW_AUDITION_DURATION: Duration = Duration::from_millis(220);
 const PREVIEW_AUDITION_WARM_BATCH: usize = 24;
 const PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD: usize = 96;
+const PREVIEW_AUDITION_STARMAP_VIEW_BUDGET: usize = PREVIEW_AUDITION_WARM_BATCH * 2;
 const PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD: f32 = 0.08;
 
 #[derive(Clone, Copy, Debug)]
@@ -112,6 +115,12 @@ enum FastAuditionProbe {
     PersistedCache,
     FileBackedWav,
     PreviewDecode,
+}
+
+#[derive(Debug, Default)]
+struct PreviewAuditionWarmPlan {
+    paths: Vec<String>,
+    starmap_signature: Option<u64>,
 }
 
 fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe; 4] {
@@ -760,13 +769,19 @@ impl NativeAppState {
         {
             return;
         }
-        let paths = self.preview_audition_warm_candidates();
-        if paths.is_empty() {
+        let plan = self.preview_audition_warm_candidates();
+        if plan.paths.is_empty() {
             return;
         }
+        let paths = plan.paths;
         self.waveform
             .cache
             .mark_preview_audition_warm_scheduled(&paths);
+        if let Some(signature) = plan.starmap_signature {
+            self.waveform
+                .cache
+                .reserve_starmap_preview_warm_budget(signature, paths.len());
+        }
         let started_at = Instant::now();
         context
             .business()
@@ -811,16 +826,19 @@ impl NativeAppState {
             || self.playback_visual_activity_active()
     }
 
-    fn preview_audition_warm_candidates(&mut self) -> Vec<String> {
+    fn preview_audition_warm_candidates(&mut self) -> PreviewAuditionWarmPlan {
         match self.ui.chrome.sample_browser_display {
             SampleBrowserDisplayMode::Map => self.preview_audition_warm_starmap_candidates(),
-            SampleBrowserDisplayMode::List => self.preview_audition_warm_list_candidates(),
+            SampleBrowserDisplayMode::List => PreviewAuditionWarmPlan {
+                paths: self.preview_audition_warm_list_candidates(),
+                starmap_signature: None,
+            },
         }
     }
 
-    fn preview_audition_warm_starmap_candidates(&mut self) -> Vec<String> {
+    fn preview_audition_warm_starmap_candidates(&mut self) -> PreviewAuditionWarmPlan {
         let Some(items) = self.library.folder_browser.cached_starmap_projection() else {
-            return Vec::new();
+            return PreviewAuditionWarmPlan::default();
         };
         let selected = self
             .library
@@ -830,6 +848,24 @@ impl NativeAppState {
         let center_x = self.ui.chrome.starmap_viewport.center_x;
         let center_y = self.ui.chrome.starmap_viewport.center_y;
         let zoom = self.ui.chrome.starmap_viewport.zoom.max(f32::EPSILON);
+        let signature = starmap_preview_warm_view_signature(
+            self.library.folder_browser.selected_source_id(),
+            selected.as_deref(),
+            items.len(),
+            center_x,
+            center_y,
+            zoom,
+        );
+        let remaining_budget = self
+            .waveform
+            .cache
+            .remaining_starmap_preview_warm_budget(signature, PREVIEW_AUDITION_STARMAP_VIEW_BUDGET);
+        if remaining_budget == 0 {
+            return PreviewAuditionWarmPlan {
+                paths: Vec::new(),
+                starmap_signature: Some(signature),
+            };
+        }
         let mut candidates = Vec::new();
         for item in items.iter() {
             if item.missing || !preview_audition_can_decode(&item.file_id) {
@@ -855,7 +891,7 @@ impl NativeAppState {
                 .total_cmp(&right.0)
                 .then_with(|| left.1.cmp(&right.1))
         });
-        candidates
+        let paths = candidates
             .into_iter()
             .map(|(_, path)| path)
             .filter(|path| {
@@ -864,8 +900,12 @@ impl NativeAppState {
                     .preview_audition_warm_needed(Path::new(path))
             })
             .take(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD)
-            .take(PREVIEW_AUDITION_WARM_BATCH)
-            .collect()
+            .take(PREVIEW_AUDITION_WARM_BATCH.min(remaining_budget))
+            .collect();
+        PreviewAuditionWarmPlan {
+            paths,
+            starmap_signature: Some(signature),
+        }
     }
 
     fn preview_audition_warm_list_candidates(&mut self) -> Vec<String> {
@@ -959,7 +999,18 @@ impl NativeAppState {
             self.runtime_playback_origin_for_path(result.path.as_str()),
             !self.ui.chrome.starmap_audition_drag.is_some(),
         );
-        self.start_preview_clip_instant_audition(clip, context, started_at, options);
+        let started = self.start_preview_clip_instant_audition(clip, context, started_at, options);
+        if started
+            && self.ui.chrome.starmap_audition_drag.is_some()
+            && !self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .queued_file_ids
+                .is_empty()
+        {
+            self.schedule_next_starmap_audition_hit(context);
+        }
     }
 
     pub(in crate::native_app) fn finish_preview_audition_warm(
@@ -1302,6 +1353,32 @@ fn starmap_item_in_preview_warm_viewport(
     (min..=max).contains(&normalized_x) && (min..=max).contains(&normalized_y)
 }
 
+fn starmap_preview_warm_view_signature(
+    source_id: &str,
+    selected_file_id: Option<&str>,
+    item_count: usize,
+    center_x: f32,
+    center_y: f32,
+    zoom: f32,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    source_id.hash(&mut hasher);
+    selected_file_id.hash(&mut hasher);
+    item_count.hash(&mut hasher);
+    quantized_starmap_preview_warm_coordinate(center_x).hash(&mut hasher);
+    quantized_starmap_preview_warm_coordinate(center_y).hash(&mut hasher);
+    quantized_starmap_preview_warm_zoom(zoom).hash(&mut hasher);
+    hasher.finish()
+}
+
+fn quantized_starmap_preview_warm_coordinate(value: f32) -> i32 {
+    (value * 64.0).round() as i32
+}
+
+fn quantized_starmap_preview_warm_zoom(value: f32) -> i32 {
+    (value * 16.0).round() as i32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1384,33 +1461,55 @@ mod tests {
         );
     }
 
-    #[test]
-    fn starmap_preview_warm_continues_beyond_initial_neighborhood_batch() {
-        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD + 24);
-        let mut warmed = HashSet::new();
-
-        for _ in 0..(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD / PREVIEW_AUDITION_WARM_BATCH) {
-            let batch = state.preview_audition_warm_starmap_candidates();
-            assert_eq!(batch.len(), PREVIEW_AUDITION_WARM_BATCH);
-            warmed.extend(batch.iter().cloned());
+    fn reserve_starmap_preview_warm_plan(
+        state: &mut crate::native_app::test_support::state::NativeAppState,
+        plan: &PreviewAuditionWarmPlan,
+    ) {
+        state
+            .waveform
+            .cache
+            .mark_preview_audition_warm_scheduled(&plan.paths);
+        if let Some(signature) = plan.starmap_signature {
             state
                 .waveform
                 .cache
-                .mark_preview_audition_warm_scheduled(&batch);
+                .reserve_starmap_preview_warm_budget(signature, plan.paths.len());
         }
-        assert_eq!(warmed.len(), PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD);
+    }
 
-        let next_batch = state.preview_audition_warm_starmap_candidates();
+    #[test]
+    fn starmap_preview_warm_stops_after_view_budget_until_view_changes() {
+        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET + 48);
+        let mut warmed = HashSet::new();
+
+        for _ in 0..(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET / PREVIEW_AUDITION_WARM_BATCH) {
+            let plan = state.preview_audition_warm_starmap_candidates();
+            assert_eq!(plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+            warmed.extend(plan.paths.iter().cloned());
+            reserve_starmap_preview_warm_plan(&mut state, &plan);
+        }
+        assert_eq!(warmed.len(), PREVIEW_AUDITION_STARMAP_VIEW_BUDGET);
+
+        let exhausted_plan = state.preview_audition_warm_starmap_candidates();
 
         assert_eq!(
-            next_batch.len(),
+            exhausted_plan.paths.len(),
+            0,
+            "starmap preview warming should not keep crawling a dense unchanged map forever"
+        );
+
+        state.ui.chrome.starmap_viewport.center_x += 0.25;
+        let changed_view_plan = state.preview_audition_warm_starmap_candidates();
+
+        assert_eq!(
+            changed_view_plan.paths.len(),
             PREVIEW_AUDITION_WARM_BATCH,
-            "starmap preview warming should advance to still-cold visible nodes after the first neighborhood is consumed"
+            "a meaningful starmap viewport change should open a fresh warm budget"
         );
-        assert!(
-            next_batch.iter().all(|path| !warmed.contains(path)),
-            "subsequent starmap preview warm batches should not churn on already scheduled nodes"
-        );
+        assert!(changed_view_plan
+            .paths
+            .iter()
+            .all(|path| !warmed.contains(path)));
     }
 
     #[test]

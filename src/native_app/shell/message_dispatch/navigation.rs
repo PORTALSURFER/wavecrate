@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
@@ -18,6 +18,7 @@ use crate::native_app::starmap_audition_telemetry::{
 
 const STARMAP_AUDITION_ADVANCE_DELAY: Duration = Duration::ZERO;
 const STARMAP_AUDITION_PROMOTION_DELAY: Duration = Duration::from_millis(120);
+const STARMAP_AUDITION_DRAG_READY_TAIL_LIMIT: usize = 3;
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -247,12 +248,24 @@ impl NativeAppState {
         self.ui.browser_interaction.context_menu = None;
         let drag_active = self.ui.chrome.starmap_audition_drag.is_some();
         let mut admitted_paths = Vec::new();
-        let queue = &mut self.ui.chrome.starmap_audition_queue;
+        let queued_back = self
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .back()
+            .cloned();
+        let queue_empty = self
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .is_empty();
+        let active_file_id = self.ui.chrome.starmap_audition_queue.active_file_id.clone();
         for path in paths {
             if admitted_paths.last() == Some(&path)
-                || queue.queued_file_ids.back() == Some(&path)
-                || (queue.queued_file_ids.is_empty()
-                    && queue.active_file_id.as_ref() == Some(&path))
+                || queued_back.as_ref() == Some(&path)
+                || (queue_empty && active_file_id.as_ref() == Some(&path))
             {
                 starmap_telemetry::record_event(
                     Some(StarmapAuditionCounter::QueueCoalesced),
@@ -260,8 +273,12 @@ impl NativeAppState {
                     "coalesced_duplicate",
                     Some(path.as_str()),
                     hit_count,
-                    queue.queued_file_ids.len(),
-                    queue.active_file_id.is_some(),
+                    self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+                    self.ui
+                        .chrome
+                        .starmap_audition_queue
+                        .active_file_id
+                        .is_some(),
                     starmap_telemetry::elapsed_since(started_at),
                 );
                 continue;
@@ -273,10 +290,18 @@ impl NativeAppState {
                 Some(StarmapAuditionCounter::DuplicateActive),
                 "controller.enqueue",
                 "duplicate_or_coalesced",
-                queue.active_file_id.as_deref(),
+                self.ui
+                    .chrome
+                    .starmap_audition_queue
+                    .active_file_id
+                    .as_deref(),
                 hit_count,
-                queue.queued_file_ids.len(),
-                queue.active_file_id.is_some(),
+                self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+                self.ui
+                    .chrome
+                    .starmap_audition_queue
+                    .active_file_id
+                    .is_some(),
                 starmap_telemetry::elapsed_since(started_at),
             );
             return;
@@ -286,6 +311,12 @@ impl NativeAppState {
             self.background.starmap_audition_promotion_task.cancel();
         }
         let latest_path = admitted_paths.last().cloned();
+        let paths_to_queue = if drag_active {
+            self.starmap_drag_audition_paths_to_queue(&admitted_paths)
+        } else {
+            admitted_paths.clone()
+        };
+        let queue = &mut self.ui.chrome.starmap_audition_queue;
         if drag_active {
             if queue.active_file_id.is_some() {
                 starmap_telemetry::record_event(
@@ -302,26 +333,24 @@ impl NativeAppState {
             queue.active_file_id = None;
             queue.queued_file_ids.clear();
         }
-        if drag_active && admitted_paths.len() > 1 {
+        if drag_active && admitted_paths.len() > paths_to_queue.len() {
             starmap_telemetry::record_event(
                 Some(StarmapAuditionCounter::QueueCoalesced),
                 "controller.enqueue",
-                "realtime_latest",
+                if paths_to_queue.len() > 1 {
+                    "realtime_ready_tail"
+                } else {
+                    "realtime_latest"
+                },
                 latest_path.as_deref(),
                 hit_count,
-                admitted_paths.len().saturating_sub(1),
+                admitted_paths.len().saturating_sub(paths_to_queue.len()),
                 queue.active_file_id.is_some(),
                 starmap_telemetry::elapsed_since(started_at),
             );
         }
-        if drag_active {
-            if let Some(path) = latest_path.clone() {
-                queue.queued_file_ids.push_back(path);
-            }
-        } else {
-            for path in admitted_paths {
-                queue.queued_file_ids.push_back(path);
-            }
+        for path in paths_to_queue {
+            queue.queued_file_ids.push_back(path);
         }
         queue.modifiers = starmap_audition_modifiers();
         starmap_telemetry::record_event(
@@ -345,6 +374,26 @@ impl NativeAppState {
             starmap_telemetry::elapsed_since(started_at),
         );
         self.start_next_starmap_audition_hit(context);
+    }
+
+    fn starmap_drag_audition_paths_to_queue(&self, admitted_paths: &[String]) -> Vec<String> {
+        starmap_drag_audition_paths_to_queue_with_ready(admitted_paths, |path| {
+            self.starmap_drag_path_ready_for_tail(path)
+        })
+    }
+
+    fn starmap_drag_path_ready_for_tail(&self, path: &str) -> bool {
+        self.audio.playback_runtime.is_some()
+            && (self
+                .waveform
+                .cache
+                .preview_audition_sample_paths()
+                .contains(path)
+                || self
+                    .waveform
+                    .cache
+                    .instant_audition_descriptors
+                    .contains_key(Path::new(path)))
     }
 
     pub(in crate::native_app) fn schedule_next_starmap_audition_hit(
@@ -591,4 +640,58 @@ impl NativeAppState {
 
 fn starmap_audition_modifiers() -> PointerModifiers {
     PointerModifiers::default()
+}
+
+fn starmap_drag_audition_paths_to_queue_with_ready(
+    admitted_paths: &[String],
+    mut ready_for_tail: impl FnMut(&str) -> bool,
+) -> Vec<String> {
+    let Some(latest_path) = admitted_paths.last() else {
+        return Vec::new();
+    };
+    let mut retained: Vec<String> = admitted_paths
+        .iter()
+        .take(admitted_paths.len().saturating_sub(1))
+        .rev()
+        .filter(|path| ready_for_tail(path.as_str()))
+        .take(STARMAP_AUDITION_DRAG_READY_TAIL_LIMIT.saturating_sub(1))
+        .cloned()
+        .collect();
+    retained.reverse();
+    if retained.last() != Some(latest_path) {
+        retained.push(latest_path.clone());
+    }
+    retained
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn starmap_drag_queue_keeps_latest_when_intermediate_hits_are_cold() {
+        let admitted = ["a.wav", "b.wav", "c.wav"].map(String::from);
+
+        let queued = starmap_drag_audition_paths_to_queue_with_ready(&admitted, |_path| false);
+
+        assert_eq!(queued, vec![String::from("c.wav")]);
+    }
+
+    #[test]
+    fn starmap_drag_queue_keeps_bounded_ready_tail_before_latest() {
+        let admitted = ["a.wav", "b.wav", "c.wav", "d.wav", "e.wav"].map(String::from);
+
+        let queued = starmap_drag_audition_paths_to_queue_with_ready(&admitted, |path| {
+            matches!(path, "a.wav" | "b.wav" | "d.wav")
+        });
+
+        assert_eq!(
+            queued,
+            vec![
+                String::from("b.wav"),
+                String::from("d.wav"),
+                String::from("e.wav")
+            ]
+        );
+    }
 }
