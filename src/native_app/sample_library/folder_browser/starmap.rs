@@ -62,6 +62,8 @@ impl StarmapStatus {
 pub(super) struct StarmapLayoutCache {
     signature: Option<u64>,
     pub(super) points_by_file: HashMap<String, StarmapLayoutPoint>,
+    pub(super) projection_items: Vec<StarmapItem>,
+    projection_prepared: bool,
     listed_count: usize,
     pending_load_signature: Option<u64>,
     loaded_signature: Option<u64>,
@@ -103,6 +105,8 @@ impl FolderBrowserState {
             signature: Some(signature),
             listed_count: snapshot.rows().len(),
             points_by_file: HashMap::new(),
+            projection_items: Vec::new(),
+            projection_prepared: false,
             pending_load_signature: None,
             loaded_signature: None,
         };
@@ -116,6 +120,9 @@ impl FolderBrowserState {
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<StarmapLayoutLoadRequest> {
+        if !self.starmap_layout_load_may_need_request() {
+            return None;
+        }
         let (request, listed_count) = self.starmap_layout_load_request(tags_by_file);
         let signature = request.signature;
         if self.sample_list.starmap_layout.signature != Some(signature) {
@@ -123,6 +130,8 @@ impl FolderBrowserState {
                 signature: Some(signature),
                 listed_count,
                 points_by_file: HashMap::new(),
+                projection_items: Vec::new(),
+                projection_prepared: false,
                 pending_load_signature: None,
                 loaded_signature: None,
             };
@@ -139,6 +148,14 @@ impl FolderBrowserState {
         }
         cache.pending_load_signature = Some(signature);
         Some(request)
+    }
+
+    pub(in crate::native_app) fn starmap_layout_load_may_need_request(&self) -> bool {
+        let cache = &self.sample_list.starmap_layout;
+        let Some(signature) = cache.signature else {
+            return true;
+        };
+        cache.pending_load_signature != Some(signature) && cache.loaded_signature != Some(signature)
     }
 
     pub(in crate::native_app) fn apply_starmap_layout_load_result(
@@ -178,6 +195,26 @@ impl FolderBrowserState {
         &self,
         projection: StarmapProjection<'_>,
     ) -> Vec<StarmapItem> {
+        self.build_starmap_projection(projection)
+    }
+
+    pub(in crate::native_app) fn prepare_starmap_projection(
+        &mut self,
+        projection: StarmapProjection<'_>,
+    ) {
+        let items = self.build_starmap_projection(projection);
+        self.sample_list.starmap_layout.projection_items = items;
+        self.sample_list.starmap_layout.projection_prepared = true;
+    }
+
+    pub(in crate::native_app) fn cached_starmap_projection(&self) -> Option<&[StarmapItem]> {
+        self.sample_list
+            .starmap_layout
+            .projection_prepared
+            .then_some(self.sample_list.starmap_layout.projection_items.as_slice())
+    }
+
+    fn build_starmap_projection(&self, projection: StarmapProjection<'_>) -> Vec<StarmapItem> {
         let snapshot = self.browser_listing_snapshot(projection.tags_by_file);
         let focused_file_id = self.selected_file_id();
         snapshot
@@ -667,6 +704,45 @@ mod tests {
             .expect("selected map item");
         assert_eq!(position, Some((selected.x, selected.y)));
         assert!(selected.focused);
+    }
+
+    #[test]
+    fn starmap_layout_request_is_needed_only_until_pending_or_loaded() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("kick.wav");
+        std::fs::write(&kick, []).expect("write sample");
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+        browser.prepare_starmap_layout(&tags_by_file);
+
+        assert!(browser.starmap_layout_load_may_need_request());
+        let request = browser
+            .take_starmap_layout_load_request(&tags_by_file)
+            .expect("first map layout request");
+
+        assert!(
+            !browser.starmap_layout_load_may_need_request(),
+            "pending layout loads should not ask the frame loop to rebuild map requests"
+        );
+        assert!(
+            browser
+                .take_starmap_layout_load_request(&tags_by_file)
+                .is_none(),
+            "duplicate layout requests should stay suppressed while one is pending"
+        );
+        browser.apply_starmap_layout_load_result(StarmapLayoutLoadResult {
+            signature: request.signature,
+            result: Ok(HashMap::new()),
+        });
+        assert!(
+            !browser.starmap_layout_load_may_need_request(),
+            "loaded layouts should stay quiet until the starmap layout is invalidated"
+        );
+
+        browser.invalidate_starmap_layout();
+        assert!(browser.starmap_layout_load_may_need_request());
     }
 
     #[test]
