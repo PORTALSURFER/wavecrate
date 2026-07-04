@@ -267,6 +267,79 @@ fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog(
 }
 
 #[test]
+fn portal_changelog_assembler_preserves_legacy_nightly_sections_after_current_stable() {
+    let temp = tempfile::tempdir().expect("create changelog fixture");
+    let catalog = temp.path().join("catalog.json");
+    let existing_changelog = temp.path().join("existing-changelog.json");
+    let release_log = temp.path().join("release-log.md");
+    let output = temp.path().join("changelog.md");
+    fs::write(
+        &catalog,
+        serde_json::to_string_pretty(&json!({
+            "releases": [
+                {
+                    "build_id": "wavecrate-19.1.0",
+                    "build_number": 6315,
+                    "version": "19.1.0",
+                    "released_at": "2026-07-04T10:00:00Z",
+                    "changelog": {
+                        "title": "Wavecrate 19.1.0",
+                        "format": "markdown",
+                        "body": "# Wavecrate 19.1.0\n\n- Current stable\n"
+                    }
+                }
+            ]
+        }))
+        .expect("serialize catalog"),
+    )
+    .expect("write catalog");
+    fs::write(
+        &existing_changelog,
+        serde_json::to_string_pretty(&json!({
+            "changelog": {
+                "title": "Wavecrate changelog",
+                "format": "markdown",
+                "body": "# Wavecrate Changelog\n\n- Latest release: wavecrate-19.1.0\n\n# Wavecrate 19.1.0\n\n- Old stable body\n\n## [nightly-b6307-8f1a7aa2]\n\n- Legacy nightly\n"
+            }
+        }))
+        .expect("serialize existing changelog"),
+    )
+    .expect("write existing changelog");
+    fs::write(&release_log, "# Wavecrate 19.1.0\n\n- Repaired stable body\n")
+        .expect("write current log");
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/assemble_portal_changelog.py",
+            ))
+            .arg("--catalog-file")
+            .arg(&catalog)
+            .arg("--current-build-id")
+            .arg("wavecrate-19.1.0")
+            .arg("--current-build-number")
+            .arg("6315")
+            .arg("--current-version")
+            .arg("19.1.0")
+            .arg("--current-released-at")
+            .arg("2026-07-04T10:00:00Z")
+            .arg("--current-log")
+            .arg(&release_log)
+            .arg("--existing-changelog-url")
+            .arg(&existing_changelog)
+            .arg("--generated-at")
+            .arg("2026-07-04T10:00:00Z")
+            .arg("--output")
+            .arg(&output),
+    );
+
+    let changelog = fs::read_to_string(output).expect("read generated changelog");
+    assert!(changelog.contains("Repaired stable body"));
+    assert!(changelog.contains("Legacy nightly"));
+    assert!(!changelog.contains("Old stable body"));
+}
+
+#[test]
 fn checksum_signing_helper_writes_signature_and_verifies_expected_pubkey() {
     let temp = tempfile::tempdir().expect("create signing fixture");
     let key = temp.path().join("ed25519.pem");
