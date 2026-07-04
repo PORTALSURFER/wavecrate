@@ -221,6 +221,10 @@ def remove_release_sections(body: str, versions: list[str]) -> str:
     return "\n\n".join(kept).strip()
 
 
+def starts_with_release_bound_section(body: str) -> bool:
+    return body.startswith("# Wavecrate ") or body.startswith("## [nightly-")
+
+
 def main() -> int:
     args = parse_args()
     catalog_url = args.catalog_url
@@ -281,7 +285,7 @@ def main() -> int:
             request_delay_seconds=args.request_delay_seconds,
         )
         previous_body = remove_release_sections(existing_body, current_versions)
-        if previous_body and not previous_body.startswith("# Wavecrate "):
+        if previous_body and not starts_with_release_bound_section(previous_body):
             raise SystemExit(
                 "Existing full changelog is not release-bound. Repair it so "
                 "each historical log starts with '# Wavecrate ...' "
