@@ -146,6 +146,65 @@ fn release_summary_helper_writes_public_metadata_without_secret_values() {
 }
 
 #[test]
+fn github_release_body_helper_leaves_short_logs_unchanged() {
+    let temp = tempfile::tempdir().expect("create GitHub body fixture");
+    let input = temp.path().join("release-log.md");
+    let output = temp.path().join("github-release-body.md");
+    let body = "# Wavecrate 19.1.0-rc.1\n\n- Short release log\n";
+    fs::write(&input, body).expect("write release log");
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/prepare_github_release_body.py",
+            ))
+            .arg("--input")
+            .arg(&input)
+            .arg("--output")
+            .arg(&output)
+            .arg("--max-chars")
+            .arg("1000"),
+    );
+
+    assert_eq!(
+        fs::read_to_string(output).expect("read GitHub release body"),
+        body
+    );
+}
+
+#[test]
+fn github_release_body_helper_caps_oversized_logs_with_full_log_notice() {
+    let temp = tempfile::tempdir().expect("create GitHub body fixture");
+    let input = temp.path().join("release-log.md");
+    let output = temp.path().join("github-release-body.md");
+    let body = format!(
+        "# Wavecrate 19.1.0-rc.1\n\n## Generated Changes\n\n- {}\n",
+        "very long generated change ".repeat(200)
+    );
+    fs::write(&input, body).expect("write release log");
+
+    run_success(
+        Command::new("python3")
+            .arg(repo_path(
+                "scripts/internal/release/prepare_github_release_body.py",
+            ))
+            .arg("--input")
+            .arg(&input)
+            .arg("--output")
+            .arg(&output)
+            .arg("--max-chars")
+            .arg("1000"),
+    );
+
+    let github_body = fs::read_to_string(output).expect("read GitHub release body");
+    assert!(github_body.len() <= 1000);
+    assert!(github_body.starts_with("# Wavecrate 19.1.0-rc.1"));
+    assert!(github_body.contains("## Full Release Log"));
+    assert!(github_body.contains("`release-log.md`"));
+    assert!(github_body.contains("PortalSurfer release changelog"));
+}
+
+#[test]
 fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog() {
     let temp = tempfile::tempdir().expect("create changelog fixture");
     let catalog = temp.path().join("catalog.json");

@@ -102,6 +102,9 @@ under `scripts/internal/release/`:
   entry naming.
 - `assemble_release_files.sh` copies built zips and assembles the channel
   checksum file.
+- `prepare_github_release_body.py` writes the bounded body used for RC/stable
+  GitHub releases. The canonical `release-log.md` remains attached to the
+  release and is still used for the PortalSurfer per-release and full changelog.
 - `sign_release_checksums.sh` signs and optionally verifies checksum files.
 - `validate_promoted_rc_release.py` verifies that stable promotion is backed by
   a complete RC GitHub prerelease before stable builds start.
