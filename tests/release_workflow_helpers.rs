@@ -563,6 +563,29 @@ fn published_release_verifier_accepts_portalsurfer_catalog_fixture() {
 }
 
 #[test]
+fn published_release_verifier_accepts_windows_backslash_archive_entries() {
+    let temp = tempfile::tempdir().expect("create published release fixture");
+    let key = temp.path().join("ed25519.pem");
+    if !generate_ed25519_key(&key) {
+        eprintln!(
+            "local openssl does not support Ed25519 key generation; skipping verifier roundtrip"
+        );
+        return;
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let (release_json, asset_dir) = write_published_release_fixture_with_zip_mutation(
+        &temp,
+        &key,
+        None,
+        Some(PublishedZipMutation::WindowsBackslashes),
+    );
+
+    let mut command =
+        published_release_verifier_command(&release_json, &asset_dir, expected_pubkey.trim());
+    run_success(&mut command);
+}
+
+#[test]
 fn published_release_verifier_rejects_manifest_mismatches() {
     let temp = tempfile::tempdir().expect("create published release fixture");
     let key = temp.path().join("ed25519.pem");
@@ -896,6 +919,7 @@ fn write_published_release_fixture(
 enum PublishedZipMutation {
     FlattenWindows,
     MissingWindowsExecutable,
+    WindowsBackslashes,
 }
 
 fn write_published_release_fixture_with_zip_mutation(
@@ -1066,6 +1090,8 @@ fn write_release_zip(
     for file_name in payload_files {
         let archive_path = if mutation == Some(PublishedZipMutation::FlattenWindows) {
             file_name.to_string()
+        } else if mutation == Some(PublishedZipMutation::WindowsBackslashes) {
+            format!("wavecrate\\{file_name}")
         } else {
             format!("wavecrate/{file_name}")
         };
@@ -1095,6 +1121,9 @@ fn release_zip_payload(
         }
         ("windows", Some(PublishedZipMutation::MissingWindowsExecutable)) => {
             ("wavecrate/update-manifest.json", vec![])
+        }
+        ("windows", Some(PublishedZipMutation::WindowsBackslashes)) => {
+            ("wavecrate\\update-manifest.json", vec!["wavecrate.exe"])
         }
         ("windows", _) => ("wavecrate/update-manifest.json", vec!["wavecrate.exe"]),
         ("macos", _) => (
