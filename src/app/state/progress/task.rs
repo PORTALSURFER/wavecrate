@@ -11,6 +11,8 @@ pub enum ProgressTaskKind {
     WavLoad,
     /// Scanning a sample source.
     Scan,
+    /// Preparing a newly added source.
+    SourceAdd,
     /// Running background analysis jobs.
     Analysis,
     /// Normalizing audio samples.
@@ -66,6 +68,7 @@ pub(super) fn task_priority(task: ProgressTaskKind) -> u8 {
     match task {
         ProgressTaskKind::TrashMove => 100,
         ProgressTaskKind::Scan => 90,
+        ProgressTaskKind::SourceAdd => 85,
         ProgressTaskKind::Analysis => 80,
         ProgressTaskKind::FileOps => 70,
         ProgressTaskKind::Normalization => 60,

@@ -15,12 +15,25 @@ mod mutations;
 /// Source-lane runtime state grouped by hydration, folder projection, and mutations.
 #[derive(Debug, Default)]
 pub(crate) struct SourceLaneRuntimeState {
+    /// Source roots currently being prepared before they are committed to the library.
+    pub(crate) pending_adds: HashMap<PathBuf, PendingSourceAdd>,
     /// In-flight source hydration requests keyed by selection lane.
     pub(crate) hydration: SourceHydrationRuntime,
     /// Pending pane-scoped folder projection work.
     pub(crate) folder_projection: FolderProjectionRuntime,
     /// Background metadata/file mutation tracking used by optimistic UI state.
     pub(crate) mutations: SourceMutationRuntime,
+}
+
+/// Active controller-side tracking for one source-add preparation request.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSourceAdd {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Source that should be committed when preparation succeeds.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Time when the preparation request was queued on the controller thread.
+    pub(crate) queued_at: Instant,
 }
 
 /// Runtime tracking for active and inactive source hydration requests.

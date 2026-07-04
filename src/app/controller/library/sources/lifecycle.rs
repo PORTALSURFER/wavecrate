@@ -12,6 +12,9 @@ mod remove;
 mod telemetry;
 mod validation;
 
+#[cfg(test)]
+pub(crate) use add::with_source_add_async_enabled_for_tests;
+
 impl AppController {
     pub(crate) fn database_for(
         &mut self,

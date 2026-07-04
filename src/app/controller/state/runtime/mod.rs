@@ -54,8 +54,8 @@ pub(crate) use source_lane::ActiveAutoRenameBatchSnapshot;
 pub(crate) use source_lane::{AutoRenameBatchRowSnapshot, AutoRenameBatchRowState};
 pub(crate) use source_lane::{
     BrowserRenameBusyDecision, BrowserRenameIntentKey, MetadataRollback,
-    PendingBrowserAutoRenameIntent, PendingMetadataMutation, PendingSourceHydration,
-    SourceLaneRuntimeState,
+    PendingBrowserAutoRenameIntent, PendingMetadataMutation, PendingSourceAdd,
+    PendingSourceHydration, SourceLaneRuntimeState,
 };
 pub(crate) use source_sync_runtime::SourceSyncRuntimeState;
 pub(crate) use startup_runtime::StartupRuntimeState;
