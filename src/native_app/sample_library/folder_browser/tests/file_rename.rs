@@ -45,6 +45,47 @@ fn file_rename_hides_and_preserves_extension() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn file_rename_updates_active_tree_without_parked_source_cache() {
+    let root = temp_source_root("wavecrate-gui-file-rename-active-tree");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create nested folder");
+    let kick = drums.join("kick loop.wav");
+    let snare = drums.join("snare loop.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+    browser.source.sources[0].root_folder = None;
+    browser
+        .begin_rename_selected()
+        .expect("rename can start")
+        .expect("rename input id");
+
+    let status = submit_rename(&mut browser, "snare loop").status;
+
+    assert_eq!(status, "Renamed file to snare loop.wav");
+    assert!(!kick.exists());
+    assert!(snare.is_file());
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .all(|file| file.id != path_id(&kick)),
+        "renamed file should disappear from the old active-tree path"
+    );
+    assert!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .any(|file| file.id == path_id(&snare)),
+        "renamed file should appear at the new active-tree path"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn file_rename_submission_cannot_change_extension() {
     let root = temp_source_root("wavecrate-gui-file-rename-extension");

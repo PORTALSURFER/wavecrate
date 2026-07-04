@@ -260,6 +260,14 @@ impl FolderBrowserState {
             .iter()
             .filter(|source| path.starts_with(&source.root))
             .filter(|source| {
+                if source.id == self.source.selected_source
+                    && self.tree.folders.first().is_some_and(|root| {
+                        root.find_file(file_id)
+                            .is_some_and(super::FileEntry::is_audio)
+                    })
+                {
+                    return true;
+                }
                 source.root_folder.as_ref().is_some_and(|root| {
                     root.find_file(file_id)
                         .is_some_and(super::FileEntry::is_audio)

@@ -60,7 +60,12 @@ impl FolderBrowserState {
             if source_old_ids.is_empty() {
                 continue;
             }
-            if let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() {
+            if self.source.sources[source_index].id == self.source.selected_source {
+                self.mutate_selected_source_trees(|root_folder| {
+                    root_folder.remove_files_by_ids(&source_old_ids)
+                });
+            } else if let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut()
+            {
                 root_folder.remove_files_by_ids(&source_old_ids);
             }
         }
@@ -160,13 +165,22 @@ impl FolderBrowserState {
         old_ids: &HashSet<String>,
     ) -> HashMap<String, super::FileEntry> {
         let mut previous_files = HashMap::new();
+        if let Some(root_folder) = self.tree.folders.first() {
+            for old_id in old_ids {
+                if let Some(file) = root_folder.find_file(old_id) {
+                    previous_files.insert(old_id.clone(), file.clone());
+                }
+            }
+        }
         for source in &self.source.sources {
             let Some(root_folder) = &source.root_folder else {
                 continue;
             };
             for old_id in old_ids {
                 if let Some(file) = root_folder.find_file(old_id) {
-                    previous_files.insert(old_id.clone(), file.clone());
+                    previous_files
+                        .entry(old_id.clone())
+                        .or_insert_with(|| file.clone());
                 }
             }
         }

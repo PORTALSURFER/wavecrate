@@ -139,22 +139,12 @@ impl FolderBrowserState {
             .as_deref()
             .is_some_and(|id| target_ids.contains(id));
         let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
-        let Some(source) = self
-            .source
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
-        else {
-            return false;
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return false;
-        };
-        let changed = root_folder.remove_files_by_ids(&target_ids);
+        let changed = self.mutate_selected_source_trees(|root_folder| {
+            root_folder.remove_files_by_ids(&target_ids)
+        });
         if !changed {
             return false;
         }
-        self.tree.folders = vec![root_folder.clone()];
         self.bump_file_content_revision();
         let after_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
         let fallback_id = focused_removed

@@ -43,6 +43,7 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
             ..Default::default()
         },
     );
+    browser.source.sources[0].root_folder = None;
 
     browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
     let result =
@@ -1044,6 +1045,46 @@ fn file_drag_from_protected_source_copies_to_writable_source_root() {
     assert!(
         copied.is_file(),
         "drop onto source should land at source root"
+    );
+    let _ = fs::remove_dir_all(source_root);
+    let _ = fs::remove_dir_all(target_root);
+}
+
+#[test]
+fn file_drag_between_sources_removes_origin_from_active_tree_without_parked_source_cache() {
+    let source_root = temp_source_root("wavecrate-gui-cross-source-drag-active-tree");
+    let target_root = temp_source_root("wavecrate-gui-cross-source-drag-target");
+    let drums = source_root.join("drums");
+    fs::create_dir_all(&drums).expect("create source folder");
+    fs::create_dir_all(&target_root).expect("create target source root");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, b"kick").expect("write kick");
+
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("drag-source"),
+        source_root.clone(),
+    );
+    let target = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("drag-target"),
+        target_root.clone(),
+    );
+    let mut browser = FolderBrowserState::from_sample_sources(&[source.clone(), target.clone()]);
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+    browser.source.sources[0].root_folder = None;
+
+    assert!(browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0)));
+    let result = submit_source_drop(&mut browser, target.id.as_str())
+        .expect("file drag should move into target source root");
+
+    let moved = target_root.join("kick.wav");
+    assert_eq!(result.moved_paths, vec![(kick.clone(), moved.clone())]);
+    assert!(!kick.exists());
+    assert!(moved.is_file());
+    assert_eq!(browser.selected_source_id(), source.id.as_str());
+    assert!(
+        browser.selected_audio_files().is_empty(),
+        "selected origin tree should drop the moved file even without parked source cache"
     );
     let _ = fs::remove_dir_all(source_root);
     let _ = fs::remove_dir_all(target_root);

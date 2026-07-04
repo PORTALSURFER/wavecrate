@@ -129,6 +129,43 @@ fn trashed_selected_file_focuses_next_sample_without_clearing_file_selection() {
 }
 
 #[test]
+fn trashed_selected_file_is_removed_from_active_tree_without_parked_source_cache() {
+    let root = temp_source_root("wavecrate-gui-file-trash-active-tree");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    for file in [&hat, &kick, &snare] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+    browser.source.sources[0].root_folder = None;
+
+    assert!(browser.discard_trashed_file_paths(std::slice::from_ref(&kick)));
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert!(
+        browser
+            .selected_files()
+            .iter()
+            .all(|file| file.id != path_id(&kick)),
+        "trashed file should disappear from the visible active tree immediately"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["hat.wav", "snare.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn trashed_last_selected_file_focuses_previous_sample() {
     let root = temp_source_root("wavecrate-gui-file-trash-focus-previous");
     let drums = root.join("drums");
