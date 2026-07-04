@@ -801,7 +801,7 @@ Undo/redo should cover:
 - move/copy/export/trash operations
 - folder operations where practical
 
-Transport play/stop/restart, momentary playback position, ordinary seek state, browser focus, row selection, source/folder navigation, browser position, waveform scroll/zoom position, cursor movement, ordinary view switching, Open/Reveal in Explorer actions, and Copy Path actions should not be undoable by default. Opening or revealing a file, folder, or source in the platform file manager and copying a path string to the clipboard are external non-mutating utility actions, not Wavecrate state. Undo should restore metadata, file, rating, collection, edit, workflow-flag, and play/edit selection context, but it should not behave like a transport, browsing history, external-app launch, or clipboard utility history.
+Transport play/stop/restart, momentary playback position, ordinary seek state, browser focus, row selection, source/folder navigation, browser position, waveform scroll/zoom position, cursor movement, ordinary view switching, Open/Reveal in Finder/Explorer/File Manager actions, and Copy Path actions should not be undoable by default. Opening or revealing a file, folder, or source in the platform file manager and copying a path string to the clipboard are external non-mutating utility actions, not Wavecrate state. Undo should restore metadata, file, rating, collection, edit, workflow-flag, and play/edit selection context, but it should not behave like a transport, browsing history, external-app launch, or clipboard utility history.
 
 Undo/redo should be transaction-based. A user action should either complete as a coherent operation or fail in a recoverable way. Partial failures should be logged and reported clearly.
 
@@ -934,7 +934,7 @@ Region handoff behavior should be:
 
 When an explicit export writes a new audio file inside an indexed source folder, Wavecrate should register and index the exported file if registration succeeds. When an export writes outside indexed sources, the result should remain an external file and should not become Wavecrate library state unless the user later adds/imports that location as a source.
 
-If an explicit export successfully writes a file but registration or indexing fails, Wavecrate should leave the exported file on disk and show a clear recoverable warning. The warning should explain that the file was created but is not yet indexed, and should offer retry registration, rescan/reconcile, reveal in Explorer, or diagnostics where practical.
+If an explicit export successfully writes a file but registration or indexing fails, Wavecrate should leave the exported file on disk and show a clear recoverable warning. The warning should explain that the file was created but is not yet indexed, and should offer retry registration, rescan/reconcile, reveal in the platform file manager, or diagnostics where practical.
 
 Explicit exports outside indexed sources should not be undoable in Wavecrate because they create user-directed external files outside Wavecrate-managed library state. Explicit exports that are successfully registered into an indexed source should be undoable as library file-creation transactions, using the same recovery and file-removal safety expectations as other Wavecrate-created source files.
 
@@ -1127,13 +1127,13 @@ When a source-add request is rejected because it is nested with an existing sour
 
 Removing a source from Wavecrate should remove it from the indexed source list but should not delete audio files from disk. Source removal should be available from the source's context menu as `Remove Source` and should act as the explicit cancel/remove path for a source that was just added. It should stop file watching, stop or cancel in-progress scan/indexing/background jobs for that source, and ignore stale completions from those jobs. Source removal can happen immediately without confirmation because it only removes Wavecrate's active index reference and does not delete files. The result status should make that boundary clear, such as by saying the source was removed from Wavecrate and files were left on disk. If the user has no configured sources, the source list should be empty; Wavecrate should not show a bundled, hardcoded, or otherwise non-removable placeholder source in the normal source list.
 
-Source items should have a context menu with an "Open in Explorer" action on Windows. This should open the source root folder in Explorer so users can inspect files, manually back up `.wavecrate.db`, or manage the folder outside Wavecrate. Future platforms should provide the equivalent reveal/open-in-file-manager action.
+Source items should have a context menu with a platform-native file-manager action. The visible label should be "Open in Explorer" on Windows, "Open in Finder" on macOS, and "Open in File Manager" on fallback platforms. This should open the source root folder in the platform file manager so users can inspect files, manually back up `.wavecrate.db`, or manage the folder outside Wavecrate.
 
-Sample rows should have a context menu with a "Reveal in Explorer" action on Windows. This should open Explorer at the containing folder and select the specific audio file where the platform supports file selection. If the file is missing or unavailable, Wavecrate should show the missing-file state and offer source reconciliation or cleanup actions instead of opening an invalid path.
+Sample rows should have a context menu with a platform-native reveal action. The visible label should be "Reveal in Explorer" on Windows, "Reveal in Finder" on macOS, and "Reveal in File Manager" on fallback platforms. This should open the containing folder and select the specific audio file where the platform supports file selection. If the file is missing or unavailable, Wavecrate should show the missing-file state and offer source reconciliation or cleanup actions instead of opening an invalid path.
 
-Folder rows in the folder tree should also have an "Open in Explorer" context-menu action on Windows. This should open the actual folder path in Explorer. If the folder is missing or unavailable, Wavecrate should show the missing-folder/source state and offer reconciliation, relink, rescan, or cleanup actions instead of opening an invalid path.
+Folder rows in the folder tree should also have the same platform-native open action as source rows. This should open the actual folder path in the platform file manager. If the folder is missing or unavailable, Wavecrate should show the missing-folder/source state and offer reconciliation, relink, rescan, or cleanup actions instead of opening an invalid path.
 
-The context-menu labels should be standardized: sources and folders use "Open in Explorer"; sample files use "Reveal in Explorer". When multiple rows are selected, these Explorer actions should operate on only one item: the focused row if it is part of the relevant selection, otherwise the first selected row in visible order. They should not open multiple Explorer windows in the current target.
+The context-menu labels should be standardized by platform: sources and folders use the platform's open label; sample files use the platform's reveal label. When multiple rows are selected, these file-manager actions should operate on only one item: the focused row if it is part of the relevant selection, otherwise the first selected row in visible order. They should not open multiple file-manager windows in the current target.
 
 Source items, folder rows, and sample rows should also have a shared "Copy Path" context-menu action for path copying. This should copy the real absolute filesystem path as text to the normal text clipboard only. Copied paths should use forward slashes as separators, including on Windows. If the copied path contains spaces, Wavecrate should wrap the copied path in standard double quotes, for example `"C:/sample folder/kick.wav"`. Paths without spaces should be copied unquoted. For sample rows it should copy the selected file path; for folder rows it should copy the folder path; for source rows it should copy the source root path. It should not copy source-relative paths in the current target. This is distinct from clipboard audio/file handoff, which places files on the system clipboard for DAWs or Explorer.
 
@@ -1358,12 +1358,12 @@ Dragging a waveform selection outside Wavecrate should create a new audio file f
 Wavecrate should also support workflows such as:
 
 - copy a file path
-- reveal a sample file in Explorer
+- reveal a sample file in the platform file manager
 - export or copy a prepared sample file to a chosen folder
 - extract a region and immediately drag/copy/export the new file
 - hand off the exact audio the user auditioned, including baked audition-time warp when extraction/export requires it
 
-Initial implementation should prioritize drag-and-drop into DAWs such as Ableton Live and Bitwig where practical, plus reveal-in-Explorer and copy-file-path.
+Initial implementation should prioritize drag-and-drop into DAWs such as Ableton Live and Bitwig where practical, plus reveal-in-platform-file-manager and copy-file-path.
 
 Handoff should be fast and predictable. It should not require users to understand Wavecrate internals.
 
@@ -1865,7 +1865,7 @@ Wavecrate should support:
 * applying generated display names to disk filenames
 * exporting extracted or edited files to chosen folders
 * moving rejected files to the configured trash folder
-* revealing files in Explorer
+* revealing files in the platform file manager
 
 Moving or renaming a folder inside a source should happen immediately without confirmation, even when the folder contains files hidden by the current visibility mode, as long as the folder is not the configured source root itself. It should be undoable during the current session, preserve Wavecrate metadata for affected files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a folder with the same name.
 

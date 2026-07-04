@@ -6,7 +6,7 @@ Wavecrate keeps source browsing, file moves, and source maintenance close to the
 
 Right-click a sample row to open the sample context menu.
 
-- **Reveal in Explorer:** open the selected sample in the system file browser.
+- **Reveal in Finder/Explorer/File Manager:** open the selected sample in the system file browser.
 - **Copy Path:** copy the sample path.
 - **Duplicate Same:** create a duplicate at the same playback length.
 - **Duplicate Double:** create a duplicate with doubled playback length.
@@ -34,7 +34,7 @@ Wavecrate preserves source safety rules during moves. If a target source is prot
 
 Right-click a source in the Sources list to open source actions.
 
-- **Open in Explorer:** open the source folder in the system file browser.
+- **Open in Finder/Explorer/File Manager:** open the source folder in the system file browser.
 - **Copy Path:** copy the source root path.
 - **New Folder:** create a folder under the source root.
 - **Protect Source** or **Unprotect Source:** change whether Wavecrate treats the source as protected original material.
@@ -47,7 +47,7 @@ Right-click a source in the Sources list to open source actions.
 
 Right-click a folder in the sidebar to open folder actions.
 
-- **Open in Explorer:** open the folder in the system file browser.
+- **Open in Finder/Explorer/File Manager:** open the folder in the system file browser.
 - **Copy Path:** copy the folder path.
 - **New Folder:** create a child folder.
 - **Rename Folder:** rename the folder.
