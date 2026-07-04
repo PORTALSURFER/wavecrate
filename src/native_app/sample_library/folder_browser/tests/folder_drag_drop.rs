@@ -13,6 +13,7 @@ fn folder_drag_drop_moves_subtree_into_target_folder() {
     browser.expand_selected_folder();
     browser.activate_folder(path_id(&kicks));
     browser.select_file(path_id(&kick));
+    browser.source.sources[0].root_folder = None;
 
     browser.apply_folder_drag(
         path_id(&kicks),

@@ -52,18 +52,9 @@ impl FolderBrowserState {
     }
 
     pub(super) fn rewrite_renamed_file_path(&mut self, old_path: &Path, new_path: &Path) {
-        let Some(source) = self
-            .source
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
-        else {
-            return;
-        };
-        if let Some(root_folder) = &mut source.root_folder {
-            root_folder.rewrite_file_path(old_path, new_path);
-            self.tree.folders = vec![root_folder.clone()];
-        }
+        self.mutate_selected_source_trees(|root_folder| {
+            root_folder.rewrite_file_path(old_path, new_path)
+        });
         self.selection.set_renamed_file(path_id(new_path));
         self.rewrite_similarity_path_prefix(old_path, new_path);
         self.bump_file_content_revision();
@@ -96,58 +87,19 @@ impl FolderBrowserState {
     }
 
     fn remove_folder_by_id(&mut self, folder_id: &str) -> bool {
-        let active_tree_changed = self
-            .tree
-            .folders
-            .first_mut()
-            .is_some_and(|root_folder| root_folder.remove_child_by_id(folder_id));
-        if active_tree_changed {
+        let changed = self
+            .mutate_selected_source_trees(|root_folder| root_folder.remove_child_by_id(folder_id));
+        if changed {
             self.bump_file_content_revision();
         }
-
-        let parked_tree_changed = self
-            .source
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
-            .and_then(|source| source.root_folder.as_mut())
-            .is_some_and(|root_folder| root_folder.remove_child_by_id(folder_id));
-        if parked_tree_changed {
-            self.bump_file_content_revision();
-        }
-
-        active_tree_changed || parked_tree_changed
+        changed
     }
 
     pub(super) fn upsert_child_folder(&mut self, parent_id: &str, folder: FolderEntry) -> bool {
-        if let Some(changed) =
-            self.tree.folders.first_mut().and_then(|root_folder| {
-                upsert_child_in_root(root_folder, parent_id, folder.clone())
-            })
-        {
-            if changed {
-                self.bump_file_content_revision();
-            }
-            return changed;
-        }
-
-        let Some(source) = self
-            .source
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
-        else {
-            return false;
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return false;
-        };
-        let Some(parent) = root_folder.find_mut(parent_id) else {
-            return false;
-        };
-        let changed = upsert_folder(&mut parent.children, folder);
+        let changed = self.mutate_selected_source_trees(|root_folder| {
+            upsert_child_in_root(root_folder, parent_id, folder.clone()).unwrap_or(false)
+        });
         if changed {
-            self.tree.folders = vec![root_folder.clone()];
             self.bump_file_content_revision();
         }
         changed

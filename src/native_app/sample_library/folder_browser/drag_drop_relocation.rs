@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::{
-    FolderBrowserState,
+    FolderBrowserState, FolderEntry,
     path_helpers::{path_id, rewrite_path_id},
     scanning::{file_entry_for_source_path, upsert_file, upsert_folder},
 };
@@ -16,39 +16,29 @@ impl FolderBrowserState {
         new_path: &Path,
         target_parent: &Path,
     ) -> Result<(), String> {
-        let old_id = path_id(old_path);
         let target_parent_id = path_id(target_parent);
-        let Some(source) = self
+        let Some(source_index) = self
             .source
             .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
+            .iter()
+            .position(|source| source.id == self.source.selected_source)
         else {
             return Err(String::from(
                 "Folder move failed: selected source is unavailable",
             ));
         };
-        let Some(root_folder) = &mut source.root_folder else {
-            return Err(String::from(
-                "Folder move failed: source tree is unavailable",
-            ));
-        };
-        let Some(mut moved_folder) = root_folder.take_child_by_id(&old_id) else {
-            return Err(String::from(
-                "Folder move failed: source folder is unavailable",
-            ));
-        };
-        moved_folder.rewrite_path_prefix(old_path, new_path);
-        let Some(target_folder) = root_folder.find_mut(&target_parent_id) else {
-            return Err(String::from(
-                "Folder move failed: target folder is unavailable",
-            ));
-        };
-        upsert_folder(&mut target_folder.children, moved_folder);
+
+        self.try_mutate_selected_source_trees(
+            "Folder move failed: source tree is unavailable",
+            |root_folder| {
+                relocate_moved_folder_in_root(root_folder, old_path, new_path, target_parent)
+            },
+        )?;
+
+        let source = &mut self.source.sources[source_index];
         let removed_old_missing = source.missing_collection_snapshot.remove_prefix(old_path);
         let removed_new_missing = source.missing_collection_snapshot.remove_prefix(new_path);
         let missing_changed = removed_old_missing || removed_new_missing;
-        self.tree.folders = vec![root_folder.clone()];
 
         self.selection.rewrite_folder_prefix(old_path, new_path);
         self.rewrite_similarity_path_prefix(old_path, new_path);
@@ -71,72 +61,39 @@ impl FolderBrowserState {
         moves: &[(PathBuf, PathBuf)],
         target_parent: &Path,
     ) -> Result<(), String> {
-        let Some((source_root, source_database_root)) = self
+        let Some(source_index) = self
             .source
             .sources
             .iter()
-            .find(|source| source.id == self.source.selected_source)
-            .map(|source| (source.root.clone(), source.database_root.clone()))
+            .position(|source| source.id == self.source.selected_source)
         else {
             return Err(String::from(
                 "File move failed: selected source is unavailable",
             ));
         };
-        let old_ids = moves
-            .iter()
-            .map(|(old_path, _)| path_id(old_path))
-            .collect::<HashSet<_>>();
+        let source_root = self.source.sources[source_index].root.clone();
+        let source_database_root = self.source.sources[source_index].database_root.clone();
         let target_parent_id = path_id(target_parent);
-        let Some(source) = self
-            .source
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
-        else {
-            return Err(String::from(
-                "File move failed: selected source is unavailable",
-            ));
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return Err(String::from("File move failed: source tree is unavailable"));
-        };
-        let previous_files = moves
-            .iter()
-            .filter_map(|(old_path, _)| {
-                let old_id = path_id(old_path);
-                root_folder
-                    .find_file(&old_id)
-                    .cloned()
-                    .map(|file| (old_id, file))
-            })
-            .collect::<HashMap<_, _>>();
-        root_folder.remove_files_by_ids(&old_ids);
-        let Some(target_folder) = root_folder.find_mut(&target_parent_id) else {
-            return Err(String::from(
-                "File move failed: target folder is unavailable",
-            ));
-        };
-        for (old_path, new_path) in moves {
-            let mut moved_file =
-                file_entry_for_source_path(new_path, &source_root, &source_database_root);
-            let old_id = path_id(old_path);
-            if let Some(previous) = previous_files.get(&old_id)
-                && moved_file.rating.is_neutral()
-                && !previous.rating.is_neutral()
-            {
-                moved_file.rating = previous.rating;
-                moved_file.rating_locked = previous.rating_locked;
-                moved_file.collection = previous.collection;
-                moved_file.collections = previous.collections.clone();
-            }
-            upsert_file(&mut target_folder.files, moved_file);
-        }
+
+        self.try_mutate_selected_source_trees(
+            "File move failed: source tree is unavailable",
+            |root_folder| {
+                relocate_moved_files_in_root(
+                    root_folder,
+                    moves,
+                    target_parent,
+                    &source_root,
+                    &source_database_root,
+                )
+            },
+        )?;
+
+        let source = &mut self.source.sources[source_index];
         let mut missing_changed = false;
         for (old_path, new_path) in moves {
             missing_changed |= source.missing_collection_snapshot.remove_path(old_path);
             missing_changed |= source.missing_collection_snapshot.remove_path(new_path);
         }
-        self.tree.folders = vec![root_folder.clone()];
         let moved_file_ids = moves
             .iter()
             .map(|(old_path, new_path)| (path_id(old_path), path_id(new_path)))
@@ -153,6 +110,97 @@ impl FolderBrowserState {
         }
         Ok(())
     }
+}
+
+fn relocate_moved_folder_in_root(
+    root_folder: &mut FolderEntry,
+    old_path: &Path,
+    new_path: &Path,
+    target_parent: &Path,
+) -> Result<(), String> {
+    let old_id = path_id(old_path);
+    let target_parent_id = path_id(target_parent);
+    if target_parent.starts_with(old_path) {
+        return Err(String::from(
+            "Folder move failed: target folder is unavailable",
+        ));
+    }
+    if root_folder.find(&old_id).is_none() {
+        return Err(String::from(
+            "Folder move failed: source folder is unavailable",
+        ));
+    }
+    if root_folder.find(&target_parent_id).is_none() {
+        return Err(String::from(
+            "Folder move failed: target folder is unavailable",
+        ));
+    }
+    let Some(mut moved_folder) = root_folder.take_child_by_id(&old_id) else {
+        return Err(String::from(
+            "Folder move failed: source folder is unavailable",
+        ));
+    };
+    moved_folder.rewrite_path_prefix(old_path, new_path);
+    let Some(target_folder) = root_folder.find_mut(&target_parent_id) else {
+        return Err(String::from(
+            "Folder move failed: target folder is unavailable",
+        ));
+    };
+    upsert_folder(&mut target_folder.children, moved_folder);
+    Ok(())
+}
+
+fn relocate_moved_files_in_root(
+    root_folder: &mut FolderEntry,
+    moves: &[(PathBuf, PathBuf)],
+    target_parent: &Path,
+    source_root: &Path,
+    source_database_root: &Path,
+) -> Result<(), String> {
+    let target_parent_id = path_id(target_parent);
+    if root_folder.find(&target_parent_id).is_none() {
+        return Err(String::from(
+            "File move failed: target folder is unavailable",
+        ));
+    }
+
+    let old_ids = moves
+        .iter()
+        .map(|(old_path, _)| path_id(old_path))
+        .collect::<HashSet<_>>();
+    let previous_files = moves
+        .iter()
+        .filter_map(|(old_path, _)| {
+            let old_id = path_id(old_path);
+            root_folder
+                .find_file(&old_id)
+                .cloned()
+                .map(|file| (old_id, file))
+        })
+        .collect::<HashMap<_, _>>();
+    root_folder.remove_files_by_ids(&old_ids);
+
+    let Some(target_folder) = root_folder.find_mut(&target_parent_id) else {
+        return Err(String::from(
+            "File move failed: target folder is unavailable",
+        ));
+    };
+    for (old_path, new_path) in moves {
+        let mut moved_file =
+            file_entry_for_source_path(new_path, source_root, source_database_root);
+        let old_id = path_id(old_path);
+        if let Some(previous) = previous_files.get(&old_id)
+            && moved_file.rating.is_neutral()
+            && !previous.rating.is_neutral()
+        {
+            moved_file.rating = previous.rating;
+            moved_file.rating_locked = previous.rating_locked;
+            moved_file.collection = previous.collection;
+            moved_file.collections = previous.collections.clone();
+        }
+        upsert_file(&mut target_folder.files, moved_file);
+    }
+    Ok(())
 }
 
 pub(super) fn persist_moved_folders_metadata(
