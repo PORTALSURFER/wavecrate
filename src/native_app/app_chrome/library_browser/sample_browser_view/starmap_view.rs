@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-        push_stroke_polyline,
+        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
+        PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,7 +13,7 @@ use radiant::{
     },
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap, HashSet},
     hash::{Hash, Hasher},
 };
 
@@ -25,7 +25,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
+    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
 };
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -39,6 +39,7 @@ const MAP_NODE_SIZE_DENSE: f32 = 4.4;
 const MAP_NODE_SIZE_VERY_DENSE: f32 = 3.2;
 const MAP_SELECTED_SIZE: f32 = 9.0;
 const MAP_SELECTED_GLOW_SIZE: f32 = 17.0;
+const MAP_SELECTED_OUTER_GLOW_SIZE: f32 = 25.0;
 const MAP_ANCHOR_SIZE: f32 = 12.0;
 const MAP_ANCHOR_GLOW_SIZE: f32 = 22.0;
 const MAP_ACTIVE_AUDITION_SIZE: f32 = 11.0;
@@ -864,8 +865,12 @@ fn queue_or_paint_item(
     if item.copy_flash {
         paint_copy_flash_item(primitives, widget_id, center, color);
     }
-    if item.selected || item.similarity_anchor {
-        paint_highlight_item(primitives, widget_id, center, color, item.similarity_anchor);
+    if item.selected {
+        paint_selected_item(primitives, widget_id, center, color);
+        return;
+    }
+    if item.similarity_anchor {
+        paint_similarity_anchor_item(primitives, widget_id, center, color);
         return;
     }
     if !item.instant_audition_ready {
@@ -920,36 +925,70 @@ fn paint_copy_flash_item(
     );
 }
 
-fn paint_highlight_item(
+fn paint_selected_item(
     primitives: &mut Vec<PaintPrimitive>,
     widget_id: u64,
     center: Point,
     color: ui::Rgba8,
-    similarity_anchor: bool,
 ) {
-    let size = if similarity_anchor {
-        MAP_ANCHOR_SIZE
-    } else {
-        MAP_SELECTED_SIZE
-    };
-    let glow_size = if similarity_anchor {
-        MAP_ANCHOR_GLOW_SIZE
-    } else {
-        MAP_SELECTED_GLOW_SIZE
-    };
     paint_diamond(
         primitives,
         widget_id,
         center,
-        glow_size,
-        color.with_alpha(42),
+        MAP_SELECTED_OUTER_GLOW_SIZE,
+        color.with_alpha(64),
     );
-    paint_diamond(primitives, widget_id, center, size, color);
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_SELECTED_GLOW_SIZE,
+        color.with_alpha(118),
+    );
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_SELECTED_SIZE + 2.0,
+        color.with_alpha(255),
+    );
     stroke_diamond(
         primitives,
         widget_id,
         center,
-        size + 4.0,
+        MAP_SELECTED_SIZE + 6.0,
+        ui::Rgba8::new(255, 252, 229, 245),
+        1.35,
+    );
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_SELECTED_SIZE + 1.5,
+        ui::Rgba8::new(255, 255, 255, 210),
+        0.85,
+    );
+}
+
+fn paint_similarity_anchor_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    center: Point,
+    color: ui::Rgba8,
+) {
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_ANCHOR_GLOW_SIZE,
+        color.with_alpha(42),
+    );
+    paint_diamond(primitives, widget_id, center, MAP_ANCHOR_SIZE, color);
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_ANCHOR_SIZE + 4.0,
         ui::Rgba8::new(245, 245, 245, 220),
         1.0,
     );
@@ -1086,15 +1125,10 @@ fn item_center(bounds: Rect, item: &StarmapItem, viewport: StarmapViewport) -> P
 }
 
 fn paint_bounds(bounds: Rect) -> Rect {
+    let margin = MAP_SELECTED_OUTER_GLOW_SIZE * 0.5;
     Rect::from_min_max(
-        Point::new(
-            bounds.min.x - MAP_ANCHOR_SIZE,
-            bounds.min.y - MAP_ANCHOR_SIZE,
-        ),
-        Point::new(
-            bounds.max.x + MAP_ANCHOR_SIZE,
-            bounds.max.y + MAP_ANCHOR_SIZE,
-        ),
+        Point::new(bounds.min.x - margin, bounds.min.y - margin),
+        Point::new(bounds.max.x + margin, bounds.max.y + margin),
     )
 }
 
@@ -1369,7 +1403,7 @@ mod tests {
     }
 
     #[test]
-    fn selected_and_anchor_starmap_nodes_paint_highlight_layers() {
+    fn selected_starmap_nodes_paint_stronger_than_similarity_anchor() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let mut selected = starmap_item("/samples/kick.wav", 0.25, 0.5, color);
         selected.selected = true;
@@ -1392,17 +1426,41 @@ mod tests {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        assert!(fills.iter().any(|fill| fill.color == color.with_alpha(42)
+        assert!(fills.iter().any(|fill| fill.color == color.with_alpha(64)
+            && fill.points.len() == 4
+            && fill.points[0] == Point::new(50.0, 50.0 - MAP_SELECTED_OUTER_GLOW_SIZE * 0.5)));
+        assert!(fills.iter().any(|fill| fill.color == color.with_alpha(118)
             && fill.points.len() == 4
             && fill.points[0] == Point::new(50.0, 50.0 - MAP_SELECTED_GLOW_SIZE * 0.5)));
+        assert!(fills.iter().any(|fill| fill.color == color.with_alpha(255)
+            && fill.points.len() == 4
+            && fill.points[0] == Point::new(50.0, 50.0 - (MAP_SELECTED_SIZE + 2.0) * 0.5)));
         assert!(fills.iter().any(|fill| fill.color == color.with_alpha(42)
             && fill.points.len() == 4
             && fill.points[0] == Point::new(150.0, 50.0 - MAP_ANCHOR_GLOW_SIZE * 0.5)));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::StrokePolyline(stroke)
-                if stroke.color == ui::Rgba8::new(245, 245, 245, 220)
+                if stroke.color == ui::Rgba8::new(255, 252, 229, 245)
+                    && stroke.width == 1.35
                     && stroke.points.len() == 5
+                    && stroke.points[0] == Point::new(50.0, 50.0 - (MAP_SELECTED_SIZE + 6.0) * 0.5)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(255, 255, 255, 210)
+                    && stroke.width == 0.85
+                    && stroke.points.len() == 5
+                    && stroke.points[0] == Point::new(50.0, 50.0 - (MAP_SELECTED_SIZE + 1.5) * 0.5)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(245, 245, 245, 220)
+                    && stroke.width == 1.0
+                    && stroke.points.len() == 5
+                    && stroke.points[0] == Point::new(150.0, 50.0 - (MAP_ANCHOR_SIZE + 4.0) * 0.5)
         )));
     }
 
@@ -1574,10 +1632,9 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature)
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature));
     }
 
     #[test]
@@ -1607,10 +1664,9 @@ mod tests {
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature)
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature));
     }
 
     #[test]
