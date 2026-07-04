@@ -7,17 +7,17 @@ use std::{
 
 use crate::native_app::{
     app::{
-        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
-        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
-        emit_gui_action, sample_path_label,
+        emit_gui_action, sample_path_label, GuiMessage, NativeAppState, PendingPlaybackStart,
+        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
+        SampleBrowserDisplayMode, WaveformState,
     },
     audio::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
     waveform::{
-        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
-        load_cached_waveform_playback_descriptor_sidecar,
+        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
+        PreviewAuditionClip, WaveformPlaybackReady,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -63,6 +63,7 @@ const PREVIEW_AUDITION_WARM_TASK_NAME: &str = "gui-preview-audition-warm";
 const PREVIEW_AUDITION_DURATION: Duration = Duration::from_millis(220);
 const PREVIEW_AUDITION_WARM_BATCH: usize = 24;
 const PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD: usize = 96;
+const PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD: f32 = 0.08;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct FastAuditionOptions {
@@ -828,12 +829,19 @@ impl NativeAppState {
             .map(str::to_owned);
         let center_x = self.ui.chrome.starmap_viewport.center_x;
         let center_y = self.ui.chrome.starmap_viewport.center_y;
+        let zoom = self.ui.chrome.starmap_viewport.zoom.max(f32::EPSILON);
         let mut candidates = Vec::new();
         for item in items.iter() {
             if item.missing || !preview_audition_can_decode(&item.file_id) {
                 continue;
             }
-            let score = if selected.as_deref() == Some(item.file_id.as_str()) {
+            let selected_item = selected.as_deref() == Some(item.file_id.as_str());
+            if !selected_item
+                && !starmap_item_in_preview_warm_viewport(item.x, item.y, center_x, center_y, zoom)
+            {
+                continue;
+            }
+            let score = if selected_item {
                 -1.0
             } else {
                 let dx = item.x - center_x;
@@ -850,12 +858,12 @@ impl NativeAppState {
         candidates
             .into_iter()
             .map(|(_, path)| path)
-            .take(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD)
             .filter(|path| {
                 self.waveform
                     .cache
                     .preview_audition_warm_needed(Path::new(path))
             })
+            .take(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD)
             .take(PREVIEW_AUDITION_WARM_BATCH)
             .collect()
     }
@@ -1280,10 +1288,25 @@ fn preview_audition_can_decode(path: &str) -> bool {
         })
 }
 
+fn starmap_item_in_preview_warm_viewport(
+    item_x: f32,
+    item_y: f32,
+    center_x: f32,
+    center_y: f32,
+    zoom: f32,
+) -> bool {
+    let normalized_x = (item_x - center_x) * zoom + 0.5;
+    let normalized_y = (item_y - center_y) * zoom + 0.5;
+    let min = -PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD;
+    let max = 1.0 + PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD;
+    (min..=max).contains(&normalized_x) && (min..=max).contains(&normalized_y)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use radiant::runtime::Command;
+    use std::{collections::HashSet, fs};
 
     fn after_messages(command: Command<GuiMessage>) -> Vec<GuiMessage> {
         match command {
@@ -1291,6 +1314,27 @@ mod tests {
             Command::Batch(commands) => commands.into_iter().flat_map(after_messages).collect(),
             _ => Vec::new(),
         }
+    }
+
+    fn starmap_state_with_wav_files(
+        file_count: usize,
+    ) -> crate::native_app::test_support::state::NativeAppState {
+        let source_root = tempfile::tempdir().expect("source root");
+        let source_path = source_root.path().to_path_buf();
+        for index in 0..file_count {
+            fs::write(source_path.join(format!("sample-{index:03}.wav")), [])
+                .expect("write wav placeholder");
+        }
+        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+            .with_folder_browser(
+                crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                    wavecrate::sample_sources::SampleSource::new(source_path),
+                ]),
+            )
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+        state
     }
 
     #[test]
@@ -1338,6 +1382,45 @@ mod tests {
                 FastAuditionProbe::FileBackedWav,
             ]
         );
+    }
+
+    #[test]
+    fn starmap_preview_warm_continues_beyond_initial_neighborhood_batch() {
+        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD + 24);
+        let mut warmed = HashSet::new();
+
+        for _ in 0..(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD / PREVIEW_AUDITION_WARM_BATCH) {
+            let batch = state.preview_audition_warm_starmap_candidates();
+            assert_eq!(batch.len(), PREVIEW_AUDITION_WARM_BATCH);
+            warmed.extend(batch.iter().cloned());
+            state
+                .waveform
+                .cache
+                .mark_preview_audition_warm_scheduled(&batch);
+        }
+        assert_eq!(warmed.len(), PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD);
+
+        let next_batch = state.preview_audition_warm_starmap_candidates();
+
+        assert_eq!(
+            next_batch.len(),
+            PREVIEW_AUDITION_WARM_BATCH,
+            "starmap preview warming should advance to still-cold visible nodes after the first neighborhood is consumed"
+        );
+        assert!(
+            next_batch.iter().all(|path| !warmed.contains(path)),
+            "subsequent starmap preview warm batches should not churn on already scheduled nodes"
+        );
+    }
+
+    #[test]
+    fn starmap_preview_warm_ignores_offscreen_zoomed_nodes() {
+        assert!(starmap_item_in_preview_warm_viewport(
+            0.5, 0.5, 0.5, 0.5, 4.0
+        ));
+        assert!(!starmap_item_in_preview_warm_viewport(
+            0.95, 0.95, 0.5, 0.5, 4.0
+        ));
     }
 
     #[test]
