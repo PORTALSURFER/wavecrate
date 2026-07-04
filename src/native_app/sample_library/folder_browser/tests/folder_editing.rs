@@ -49,6 +49,45 @@ fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn folder_rename_updates_selected_tree_without_parked_source_cache() {
+    let root = temp_source_root("wavecrate-gui-folder-rename-selected-tree");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create nested folder");
+    fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.source.sources[0].root_folder = None;
+
+    browser
+        .begin_rename_selected()
+        .expect("rename can start")
+        .expect("rename input id");
+    let status = submit_rename(&mut browser, "breaks").status;
+
+    let renamed = root.join("breaks");
+    assert_eq!(status, "Renamed folder to breaks");
+    assert!(!drums.exists());
+    assert!(renamed.join("kick.wav").is_file());
+    assert_eq!(browser.selection.selected_folder, path_id(&renamed));
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.id == path_id(&renamed) && folder.name == "breaks")
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![path_id(&renamed.join("kick.wav"))]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
     let root = temp_source_root("wavecrate-gui-folder-create");
