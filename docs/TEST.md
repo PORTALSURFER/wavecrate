@@ -269,29 +269,29 @@ that validation did not leak fixture sources into the real startup profile.
    so the session writes to the dedicated `sandbox` profile instead of the live
    profile.
 
-### Windows installer identity
+### Windows ZIP Distribution Lifecycle
 
-New Windows installer runs are Wavecrate-branded only. The installer display
-name, publisher value, default install directory, Start Menu folder, and
-uninstall registry key must use `Wavecrate`; new installs must not register a
-`SemPal` uninstall entry.
+Windows releases are distributed as downloadable ZIP artifacts. A supported
+Windows release package contains the `wavecrate/` archive root, the
+`wavecrate/wavecrate.exe` runtime binary, and `wavecrate/update-manifest.json`.
+Wavecrate does not currently provide OS-managed app registration or automatic
+system cleanup for the supported release path.
 
-The SemPal compatibility path is uninstall-only. `wavecrate-installer
---uninstall` first reads the Wavecrate uninstall key and then falls back to the
-legacy SemPal key so older installs can still be removed with the current
-binary. During install or uninstall, a legacy SemPal uninstall key is removed
-only when its `InstallLocation` points at the same installation being updated or
-removed. A separate old SemPal install is not silently deleted by a Wavecrate
-install.
+Windows users install Wavecrate by extracting the ZIP to a folder they manage.
+To update a manual install, close Wavecrate, download a newer ZIP, and replace
+the extracted `wavecrate/` folder or its files with the newer release contents.
+To remove Wavecrate, delete the extracted folder. App settings, source metadata,
+logs, and rebuildable caches live under the user's `.wavecrate` app data paths
+and can be removed separately when the user deliberately wants to clear local
+Wavecrate state.
 
-Focused validation for installer identity changes:
+Focused validation for Windows release distribution changes:
 
-- `cargo test -p wavecrate-installer`
-- `cargo run -p wavecrate-installer -- --dry-run`
-- On Windows, inspect `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Wavecrate`
-  after a real install and confirm `DisplayName=Wavecrate`,
-  `Publisher=Wavecrate`, and `UninstallString` points at
-  `wavecrate-installer.exe --uninstall`.
+- `cargo test --test release_contract`
+- `python3 -m py_compile scripts/internal/release/verify_published_release.py`
+  when archive verification behavior changes
+- Inspect the release ZIP and confirm it preserves the archive root and required
+  runtime files declared by `release_contract.toml`
 
 ### Database migration and compatibility
 
