@@ -267,6 +267,11 @@ impl FolderBrowserState {
         projection: StarmapProjection<'_>,
     ) -> Option<(f32, f32)> {
         let selected_file = self.selected_file_id()?;
+        if let Some(items) = self.cached_starmap_projection()
+            && let Some(item) = find_starmap_item_by_file_id(&items, selected_file)
+        {
+            return Some((item.x, item.y));
+        }
         self.starmap_projection(projection)
             .into_iter()
             .find(|item| item.file_id == selected_file)
@@ -284,15 +289,20 @@ impl FolderBrowserState {
             return None;
         }
         self.prepare_starmap_layout(tags_by_file);
-        let target = starmap_navigation_target(
-            &self.starmap_projection(StarmapProjection {
+        let cached_projection = self.cached_starmap_projection();
+        let built_projection;
+        let projection_items = if let Some(items) = cached_projection.as_deref() {
+            items
+        } else {
+            built_projection = self.starmap_projection(StarmapProjection {
                 tags_by_file,
                 instant_audition_sample_paths,
                 preview_audition_sample_paths: &HashSet::new(),
-            }),
-            self.selection.selected_file_id()?,
-            delta,
-        )?;
+            });
+            &built_projection
+        };
+        let target =
+            starmap_navigation_target(projection_items, self.selection.selected_file_id()?, delta)?;
         let visible_ids = self.browser_listing_snapshot(tags_by_file).ids().to_vec();
         if extend {
             self.selection.select_file_with_modifiers(
@@ -337,9 +347,7 @@ fn starmap_navigation_target(
     selected_file_id: &str,
     delta: i32,
 ) -> Option<String> {
-    let current = items
-        .iter()
-        .find(|item| item.file_id.as_str() == selected_file_id)?;
+    let current = find_starmap_item_by_file_id(items, selected_file_id)?;
     let direction = delta.signum() as f32;
     items
         .iter()
@@ -351,6 +359,13 @@ fn starmap_navigation_target(
                 .then_with(|| left.file_id.cmp(&right.file_id))
         })
         .map(|item| item.file_id.clone())
+}
+
+fn find_starmap_item_by_file_id<'a>(
+    items: &'a [StarmapItem],
+    file_id: &str,
+) -> Option<&'a StarmapItem> {
+    items.iter().find(|item| item.file_id.as_str() == file_id)
 }
 
 fn starmap_navigation_rank(current: &StarmapItem, candidate: &StarmapItem) -> f32 {
@@ -591,6 +606,23 @@ mod tests {
     use super::*;
     use wavecrate::sample_sources::SampleSource;
 
+    fn test_starmap_item(file_id: &str, x: f32, y: f32) -> StarmapItem {
+        StarmapItem {
+            file_id: file_id.to_string(),
+            label: file_id.to_string(),
+            x,
+            y,
+            color: ui::Rgba8::new(57, 187, 245, 220),
+            selected: false,
+            focused: false,
+            copy_flash: false,
+            similarity_anchor: false,
+            instant_audition_ready: true,
+            preview_audition_ready: false,
+            missing: false,
+        }
+    }
+
     #[test]
     fn starmap_position_is_stable_and_bounded() {
         let first = starmap_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
@@ -715,6 +747,29 @@ mod tests {
     }
 
     #[test]
+    fn selected_starmap_position_reuses_cached_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("kick.wav");
+        std::fs::write(&kick, []).expect("write sample");
+        let kick_id = kick.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        browser.select_file(kick_id.clone());
+        browser.sample_list.starmap_layout.projection_items =
+            Some(Arc::from(vec![test_starmap_item(&kick_id, 0.18, 0.82)]));
+        let tags_by_file = HashMap::new();
+
+        let position = browser.selected_starmap_position(StarmapProjection {
+            tags_by_file: &tags_by_file,
+            instant_audition_sample_paths: &HashSet::new(),
+            preview_audition_sample_paths: &HashSet::new(),
+        });
+
+        assert_eq!(position, Some((0.18, 0.82)));
+    }
+
+    #[test]
     fn starmap_layout_request_is_needed_only_until_pending_or_loaded() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("kick.wav");
@@ -807,6 +862,65 @@ mod tests {
             "map navigation should pick the closest lower map node, not the next filename row"
         );
         assert_eq!(up, Some(alpha_id));
+    }
+
+    #[test]
+    fn starmap_keyboard_navigation_reuses_cached_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let alpha = root.path().join("alpha.wav");
+        let beta = root.path().join("beta.wav");
+        let close_below = root.path().join("close_below.wav");
+        std::fs::write(&alpha, []).expect("write alpha");
+        std::fs::write(&beta, []).expect("write beta");
+        std::fs::write(&close_below, []).expect("write close");
+        let alpha_id = alpha.to_string_lossy().to_string();
+        let beta_id = beta.to_string_lossy().to_string();
+        let close_below_id = close_below.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+        browser.prepare_starmap_layout(&tags_by_file);
+        browser.sample_list.starmap_layout.points_by_file = HashMap::from([
+            (
+                alpha_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.50,
+                    y: 0.50,
+                    cluster_id: None,
+                },
+            ),
+            (
+                beta_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.51,
+                    y: 0.58,
+                    cluster_id: None,
+                },
+            ),
+            (
+                close_below_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.50,
+                    y: 0.92,
+                    cluster_id: None,
+                },
+            ),
+        ]);
+        browser.sample_list.starmap_layout.projection_items = Some(Arc::from(vec![
+            test_starmap_item(&alpha_id, 0.50, 0.50),
+            test_starmap_item(&beta_id, 0.50, 0.92),
+            test_starmap_item(&close_below_id, 0.52, 0.58),
+        ]));
+        browser.select_file(alpha_id);
+
+        let down = browser.navigate_starmap_matching_tags(1, false, &tags_by_file, &HashSet::new());
+
+        assert_eq!(
+            down,
+            Some(close_below_id),
+            "keyboard navigation should use the already prepared map projection instead of rebuilding dense items"
+        );
     }
 
     #[test]
