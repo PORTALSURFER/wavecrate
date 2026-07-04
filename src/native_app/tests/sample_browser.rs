@@ -4,7 +4,7 @@ use radiant::{
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 use super::{
     native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
@@ -302,9 +302,42 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
             ]),
         )
         .build();
-    state.library.folder_browser.select_file(first_id);
+    state.library.folder_browser.select_file(first_id.clone());
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     state.ui.chrome.starmap_viewport.zoom = 4.0;
+    state
+        .library
+        .folder_browser
+        .prepare_starmap_layout(&state.metadata.tags_by_file);
+    let layout_request = state
+        .library
+        .folder_browser
+        .take_starmap_layout_load_request(&state.metadata.tags_by_file)
+        .expect("starmap layout request");
+    state
+        .library
+        .folder_browser
+        .apply_starmap_layout_load_result(wavecrate::sample_sources::StarmapLayoutLoadResult {
+            signature: layout_request.signature,
+            result: Ok(HashMap::from([
+                (
+                    first_id,
+                    wavecrate::sample_sources::StarmapLayoutPoint {
+                        x: 0.50,
+                        y: 0.35,
+                        cluster_id: None,
+                    },
+                ),
+                (
+                    second_id.clone(),
+                    wavecrate::sample_sources::StarmapLayoutPoint {
+                        x: 0.50,
+                        y: 0.70,
+                        cluster_id: None,
+                    },
+                ),
+            ])),
+        });
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
@@ -765,6 +798,54 @@ fn starmap_drag_finish_cancels_cold_preview_audition_decode() {
 
     assert_eq!(state.background.preview_audition_task.active(), None);
     assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_audition_promotion_only_loads_latest_stable_target() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(second_id.clone());
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.schedule_starmap_audition_promotion(first_id, &mut context);
+    state.schedule_starmap_audition_promotion(second_id.clone(), &mut context);
+    let delayed = run_after_commands(context.into_command());
+    assert_eq!(delayed.len(), 2);
+
+    let mut stale_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[0].clone(), &mut stale_context);
+    assert_eq!(
+        stale_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        None,
+        "stale starmap promotion tickets must not start full sample loads"
+    );
+
+    let mut latest_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[1].clone(), &mut latest_context);
+    assert_eq!(
+        latest_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "latest stable starmap target should promote to the normal full load path"
+    );
 }
 
 #[test]

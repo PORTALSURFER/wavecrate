@@ -282,6 +282,20 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn promote_starmap_audition_sample(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        self.queue_sample_load_path_validation(
+            path,
+            SampleLoadPathValidationIntent::Selection { autoplay: true },
+            started_at,
+            context,
+        );
+    }
+
     pub(in crate::native_app) fn load_sample(
         &mut self,
         path: String,

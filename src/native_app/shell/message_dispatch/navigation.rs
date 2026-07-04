@@ -17,6 +17,7 @@ use crate::native_app::starmap_audition_telemetry::{
 };
 
 const STARMAP_AUDITION_ADVANCE_DELAY: Duration = Duration::ZERO;
+const STARMAP_AUDITION_PROMOTION_DELAY: Duration = Duration::from_millis(120);
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -82,6 +83,9 @@ impl NativeAppState {
             }
             GuiMessage::AdvanceStarmapAudition { ticket } => {
                 self.advance_starmap_audition(ticket, context);
+            }
+            GuiMessage::PromoteStarmapAudition { ticket, path } => {
+                self.promote_starmap_audition(ticket, path, context);
             }
             GuiMessage::FinishStarmapAuditionDrag => {
                 self.finish_starmap_audition_drag();
@@ -244,6 +248,7 @@ impl NativeAppState {
         let drag_active = self.ui.chrome.starmap_audition_drag.is_some();
         if drag_active {
             self.background.starmap_audition_advance_task.cancel();
+            self.background.starmap_audition_promotion_task.cancel();
         }
         let mut admitted_paths = Vec::new();
         let queue = &mut self.ui.chrome.starmap_audition_queue;
@@ -381,6 +386,38 @@ impl NativeAppState {
             STARMAP_AUDITION_ADVANCE_DELAY,
             |ticket| GuiMessage::AdvanceStarmapAudition { ticket },
         );
+    }
+
+    pub(in crate::native_app) fn schedule_starmap_audition_promotion(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        context.after_latest(
+            &mut self.background.starmap_audition_promotion_task,
+            STARMAP_AUDITION_PROMOTION_DELAY,
+            |ticket| GuiMessage::PromoteStarmapAudition { ticket, path },
+        );
+    }
+
+    fn promote_starmap_audition(
+        &mut self,
+        ticket: ui::TaskTicket,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if !self.background.starmap_audition_promotion_task.finish(ticket) {
+            return;
+        }
+        if self.library.folder_browser.selected_file_id() != Some(path.as_str()) {
+            return;
+        }
+        if self.waveform.current.has_loaded_sample()
+            && self.waveform.current.path() == std::path::Path::new(path.as_str())
+        {
+            return;
+        }
+        self.promote_starmap_audition_sample(path, context);
     }
 
     pub(in crate::native_app) fn start_next_starmap_audition_hit(

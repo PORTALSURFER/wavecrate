@@ -346,6 +346,10 @@ pub(in crate::native_app) enum GuiMessage {
     AdvanceStarmapAudition {
         ticket: ui::TaskTicket,
     },
+    PromoteStarmapAudition {
+        ticket: ui::TaskTicket,
+        path: String,
+    },
     FinishStarmapAuditionDrag,
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),
     FolderTreeWindowChanged(ui::VirtualListWindowChange),

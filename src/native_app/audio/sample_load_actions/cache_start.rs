@@ -61,7 +61,8 @@ const SAMPLE_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes 
 const PREVIEW_AUDITION_TASK_NAME: &str = "gui-preview-audition-decode";
 const PREVIEW_AUDITION_WARM_TASK_NAME: &str = "gui-preview-audition-warm";
 const PREVIEW_AUDITION_DURATION: Duration = Duration::from_millis(220);
-const PREVIEW_AUDITION_WARM_BATCH: usize = 64;
+const PREVIEW_AUDITION_WARM_BATCH: usize = 24;
+const PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD: usize = 96;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct FastAuditionOptions {
@@ -611,6 +612,9 @@ impl NativeAppState {
         if options.record_history {
             self.record_sample_last_played(path.clone(), context);
         }
+        if options.origin == "starmap_drag" {
+            self.schedule_starmap_audition_promotion(path.clone(), context);
+        }
         log_sample_load_timing(
             "browser.sample_load.preview_audition.playback_submit",
             path.as_str(),
@@ -665,6 +669,9 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.background.preview_audition_warm_task.active().is_some() {
+            return;
+        }
+        if self.ui.chrome.starmap_audition_drag.is_some() {
             return;
         }
         let paths = self.preview_audition_warm_candidates();
@@ -726,10 +733,6 @@ impl NativeAppState {
             if item.missing || !preview_audition_can_decode(&item.file_id) {
                 continue;
             }
-            let path = Path::new(&item.file_id);
-            if !self.waveform.cache.preview_audition_warm_needed(path) {
-                continue;
-            }
             let score = if selected.as_deref() == Some(item.file_id.as_str()) {
                 -1.0
             } else {
@@ -746,8 +749,14 @@ impl NativeAppState {
         });
         candidates
             .into_iter()
-            .take(PREVIEW_AUDITION_WARM_BATCH)
             .map(|(_, path)| path)
+            .take(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD)
+            .filter(|path| {
+                self.waveform
+                    .cache
+                    .preview_audition_warm_needed(Path::new(path))
+            })
+            .take(PREVIEW_AUDITION_WARM_BATCH)
             .collect()
     }
 
