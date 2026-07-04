@@ -668,10 +668,11 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if self.background.preview_audition_warm_task.active().is_some() {
+        if self.preview_audition_warm_should_yield() {
+            self.background.preview_audition_warm_task.cancel();
             return;
         }
-        if self.ui.chrome.starmap_audition_drag.is_some() {
+        if self.background.preview_audition_warm_task.active().is_some() {
             return;
         }
         let paths = self.preview_audition_warm_candidates();
@@ -712,6 +713,12 @@ impl NativeAppState {
                     started_at,
                 },
             );
+    }
+
+    fn preview_audition_warm_should_yield(&self) -> bool {
+        self.ui.chrome.starmap_audition_drag.is_some()
+            || self.sample_cache_warm_should_pause_active()
+            || self.playback_visual_activity_active()
     }
 
     fn preview_audition_warm_candidates(&mut self) -> Vec<String> {

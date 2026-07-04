@@ -328,13 +328,11 @@ impl WaveformCacheState {
         Some(entry.clip.clone())
     }
 
-    pub(in crate::native_app) fn preview_audition_warm_needed(&mut self, path: &Path) -> bool {
-        if self.preview_audition_clip_ready(path) {
-            return false;
-        }
-        !self
-            .preview_audition_attempted_paths
-            .contains(&path.display().to_string())
+    pub(in crate::native_app) fn preview_audition_warm_needed(&self, path: &Path) -> bool {
+        !self.preview_audition_clips.contains_key(path)
+            && !self
+                .preview_audition_attempted_paths
+                .contains(&path.display().to_string())
     }
 
     pub(in crate::native_app) fn mark_preview_audition_attempted(&mut self, path: &Path) {
@@ -366,28 +364,36 @@ impl WaveformCacheState {
     }
 
     fn preview_audition_clip_ready(&mut self, path: &Path) -> bool {
-        if self
-            .preview_audition_clips
-            .get(path)
-            .is_some_and(|entry| entry.clip.matches_file(path))
-        {
-            return true;
+        match self.preview_audition_clips.get(path) {
+            Some(entry) if entry.clip.matches_file(path) => true,
+            Some(_) => {
+                self.remove_preview_audition_clip(path);
+                false
+            }
+            None => false,
         }
-        self.remove_preview_audition_clip(path);
-        false
     }
 
     fn remove_preview_audition_clip(&mut self, path: &Path) {
         let file_id = path.display().to_string();
+        self.remove_preview_audition_clip_entry(path, &file_id);
+        self.preview_audition_attempted_paths.remove(&file_id);
+    }
+
+    fn evict_preview_audition_clip(&mut self, path: &Path) {
+        let file_id = path.display().to_string();
+        self.remove_preview_audition_clip_entry(path, &file_id);
+    }
+
+    fn remove_preview_audition_clip_entry(&mut self, path: &Path, file_id: &str) {
         if let Some(entry) = self.preview_audition_clips.remove(path) {
             self.preview_audition_bytes =
                 self.preview_audition_bytes.saturating_sub(entry.byte_len);
         }
-        self.preview_audition_attempted_paths.remove(&file_id);
-        if !self.cached_sample_paths.contains(&file_id)
+        if !self.cached_sample_paths.contains(file_id)
             && !self.instant_audition_descriptors.contains_key(path)
         {
-            self.instant_audition_sample_paths.remove(&file_id);
+            self.instant_audition_sample_paths.remove(file_id);
         }
     }
 
@@ -407,7 +413,54 @@ impl WaveformCacheState {
                 self.preview_audition_bytes = 0;
                 return;
             };
-            self.remove_preview_audition_clip(&oldest_path);
+            self.evict_preview_audition_clip(&oldest_path);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{path::PathBuf, sync::Arc, time::SystemTime};
+
+    fn preview_clip(path: PathBuf) -> PreviewAuditionClip {
+        PreviewAuditionClip {
+            path,
+            source_len: 0,
+            source_modified: Some(SystemTime::UNIX_EPOCH),
+            samples: Arc::from([0.0_f32]),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 1,
+        }
+    }
+
+    #[test]
+    fn preview_warm_attempt_marker_survives_missing_clip_probe() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-missing.wav");
+        let mut cache = WaveformCacheState::default();
+
+        assert!(cache.preview_audition_warm_needed(&path));
+        cache.mark_preview_audition_attempted(&path);
+        assert!(!cache.preview_audition_warm_needed(&path));
+        assert_eq!(cache.preview_audition_clip(&path), None);
+        assert!(
+            !cache.preview_audition_warm_needed(&path),
+            "a failed warm attempt must not become eligible again on the next frame"
+        );
+    }
+
+    #[test]
+    fn preview_cache_eviction_does_not_immediately_requeue_warm() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-evicted.wav");
+        let mut cache = WaveformCacheState::default();
+
+        cache.store_preview_audition_clip(preview_clip(path.clone()));
+        cache.evict_preview_audition_clip(&path);
+
+        assert!(
+            !cache.preview_audition_warm_needed(&path),
+            "background preview warm should not churn on evicted cache entries"
+        );
     }
 }

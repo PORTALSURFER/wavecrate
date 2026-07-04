@@ -7,7 +7,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
-        mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
+        mpsc::{self, Receiver, SendError, Sender, TryRecvError},
     },
     thread,
     time::Duration,
@@ -31,10 +31,11 @@ impl PlaybackRequestId {
     }
 }
 
-/// Bounded playback runtime queue configuration.
+/// Playback runtime queue configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlaybackRuntimeConfig {
-    /// Maximum queued commands before non-blocking submit returns `QueueFull`.
+    /// Deprecated compatibility field. Playback commands are coalesced on the
+    /// runtime thread instead of being rejected by a small bounded inbox.
     pub queue_capacity: usize,
 }
 
@@ -249,52 +250,52 @@ pub enum PlaybackRuntimeSubmitError {
     Closed,
 }
 
-/// Cloneable non-blocking handle for a playback command runtime.
+/// Cloneable handle for submitting playback commands to the runtime thread.
 #[derive(Clone)]
 pub struct PlaybackRuntimeHandle {
-    commands: SyncSender<PlaybackRuntimeCommand>,
+    commands: Sender<PlaybackRuntimeCommand>,
     next_id: Arc<AtomicU64>,
 }
 
 impl PlaybackRuntimeHandle {
-    /// Submit a playback request without blocking the caller.
+    /// Submit a playback request without waiting for the runtime thread.
     pub fn try_play(
         &self,
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
         let id = self.next_request_id();
         self.commands
-            .try_send(PlaybackRuntimeCommand::Play { id, request })
+            .send(PlaybackRuntimeCommand::Play { id, request })
             .map(|()| id)
-            .map_err(map_try_send_error)
+            .map_err(map_send_error)
     }
 
-    /// Submit a stop command without blocking the caller.
+    /// Submit a stop command without waiting for the runtime thread.
     pub fn try_stop(&self) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
         let id = self.next_request_id();
         self.commands
-            .try_send(PlaybackRuntimeCommand::Stop { id })
+            .send(PlaybackRuntimeCommand::Stop { id })
             .map(|()| id)
-            .map_err(map_try_send_error)
+            .map_err(map_send_error)
     }
 
-    /// Submit a non-blocking playback-progress snapshot request.
+    /// Submit a playback-progress snapshot request without waiting for the runtime thread.
     pub fn try_poll_progress(&self) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
         let id = self.next_request_id();
         self.commands
-            .try_send(PlaybackRuntimeCommand::PollProgress { id })
+            .send(PlaybackRuntimeCommand::PollProgress { id })
             .map(|()| id)
-            .map_err(map_try_send_error)
+            .map_err(map_send_error)
     }
 
-    /// Submit a non-blocking volume update for current and future playback.
+    /// Submit a volume update for current and future playback without waiting for the runtime thread.
     pub fn try_set_volume(&self, volume: f32) -> Result<(), PlaybackRuntimeSubmitError> {
         self.commands
-            .try_send(PlaybackRuntimeCommand::SetVolume { volume })
-            .map_err(map_try_send_error)
+            .send(PlaybackRuntimeCommand::SetVolume { volume })
+            .map_err(map_send_error)
     }
 
-    /// Submit a non-blocking playback-gain update for current and future playback.
+    /// Submit a playback-gain update for current and future playback without waiting for the runtime thread.
     pub fn try_set_playback_gain(&self, gain: f32) -> Result<(), PlaybackRuntimeSubmitError> {
         self.try_set_playback_gain_with_normalization(gain, None)
     }
@@ -306,30 +307,30 @@ impl PlaybackRuntimeHandle {
         normalization: Option<PlaybackRuntimeGainNormalization>,
     ) -> Result<(), PlaybackRuntimeSubmitError> {
         self.commands
-            .try_send(PlaybackRuntimeCommand::SetPlaybackGain {
+            .send(PlaybackRuntimeCommand::SetPlaybackGain {
                 gain,
                 normalization,
             })
-            .map_err(map_try_send_error)
+            .map_err(map_send_error)
     }
 
-    /// Submit an in-place span-retarget request without blocking the caller.
+    /// Submit an in-place span-retarget request without waiting for the runtime thread.
     pub fn try_retarget_span(
         &self,
         update: PlaybackRuntimeSpanUpdate,
     ) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
         let id = self.next_request_id();
         self.commands
-            .try_send(PlaybackRuntimeCommand::RetargetSpan { id, update })
+            .send(PlaybackRuntimeCommand::RetargetSpan { id, update })
             .map(|()| id)
-            .map_err(map_try_send_error)
+            .map_err(map_send_error)
     }
 
-    /// Request runtime shutdown without blocking the caller.
+    /// Request runtime shutdown without waiting for the runtime thread.
     pub fn try_shutdown(&self) -> Result<(), PlaybackRuntimeSubmitError> {
         self.commands
-            .try_send(PlaybackRuntimeCommand::Shutdown)
-            .map_err(map_try_send_error)
+            .send(PlaybackRuntimeCommand::Shutdown)
+            .map_err(map_send_error)
     }
 
     fn next_request_id(&self) -> PlaybackRequestId {
@@ -494,8 +495,8 @@ fn spawn_executor(
     executor: impl PlaybackRuntimeExecutor,
     config: PlaybackRuntimeConfig,
 ) -> Result<PlaybackRuntime, std::io::Error> {
-    let capacity = config.queue_capacity.max(1);
-    let (command_sender, command_receiver) = mpsc::sync_channel(capacity);
+    let _ = config;
+    let (command_sender, command_receiver) = mpsc::channel();
     let (event_sender, event_receiver) = mpsc::channel();
     let handle = PlaybackRuntimeHandle {
         commands: command_sender,
@@ -798,11 +799,8 @@ fn send_cancelled(
     let _ = events.send(PlaybackRuntimeEvent::Cancelled { id, reason });
 }
 
-fn map_try_send_error(error: TrySendError<PlaybackRuntimeCommand>) -> PlaybackRuntimeSubmitError {
-    match error {
-        TrySendError::Full(_) => PlaybackRuntimeSubmitError::QueueFull,
-        TrySendError::Disconnected(_) => PlaybackRuntimeSubmitError::Closed,
-    }
+fn map_send_error(_error: SendError<PlaybackRuntimeCommand>) -> PlaybackRuntimeSubmitError {
+    PlaybackRuntimeSubmitError::Closed
 }
 
 fn runtime_playback_gain_for_source(
@@ -1008,6 +1006,70 @@ mod tests {
         }
     }
 
+    struct BlockingExecutor {
+        entered_tx: mpsc::Sender<()>,
+        release_rx: mpsc::Receiver<()>,
+        blocked_once: bool,
+        played: Arc<Mutex<Vec<PlaybackRuntimeMode>>>,
+    }
+
+    impl BlockingExecutor {
+        fn new(entered_tx: mpsc::Sender<()>, release_rx: mpsc::Receiver<()>) -> Self {
+            Self {
+                entered_tx,
+                release_rx,
+                blocked_once: false,
+                played: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn played(&self) -> Arc<Mutex<Vec<PlaybackRuntimeMode>>> {
+            Arc::clone(&self.played)
+        }
+    }
+
+    impl PlaybackRuntimeExecutor for BlockingExecutor {
+        fn play(
+            &mut self,
+            request: PlaybackRuntimeRequest,
+        ) -> Result<PlaybackRuntimeStartedData, String> {
+            self.played.lock().expect("played lock").push(request.mode);
+            if !self.blocked_once {
+                self.blocked_once = true;
+                let _ = self.entered_tx.send(());
+                self.release_rx.recv().expect("release blocking executor");
+            }
+            Ok(PlaybackRuntimeStartedData {
+                output: ResolvedOutput::default(),
+                playback_start: match request.mode {
+                    PlaybackRuntimeMode::OneShot { start, .. } => start as f32,
+                    PlaybackRuntimeMode::Looped { offset, .. } => offset as f32,
+                },
+            })
+        }
+
+        fn stop(&mut self) -> Result<(), String> {
+            Ok(())
+        }
+
+        fn retarget_span(&mut self, _update: PlaybackRuntimeSpanUpdate) -> Result<f32, String> {
+            Ok(0.0)
+        }
+
+        fn set_volume(&mut self, _volume: f32) {}
+
+        fn set_playback_gain(
+            &mut self,
+            _gain: f32,
+            _normalization: Option<PlaybackRuntimeGainNormalization>,
+        ) {
+        }
+
+        fn progress(&mut self) -> PlaybackRuntimeProgress {
+            PlaybackRuntimeProgress::default()
+        }
+    }
+
     impl PlaybackRuntimeExecutor for FakeExecutor {
         fn play(
             &mut self,
@@ -1176,17 +1238,74 @@ mod tests {
     }
 
     #[test]
-    fn playback_runtime_submit_is_bounded_and_non_blocking() {
-        let (sender, _receiver) = mpsc::sync_channel(1);
+    fn playback_runtime_accepts_rapid_play_burst_while_executor_is_busy() {
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let executor = BlockingExecutor::new(entered_tx, release_rx);
+        let played = executor.played();
+        let runtime =
+            spawn_executor(executor, PlaybackRuntimeConfig::default()).expect("spawn runtime");
+
+        let first = runtime.handle.try_play(test_request(0.0)).expect("first");
+        entered_rx.recv().expect("executor entered first play");
+        let mut latest = first;
+        for index in 1..64 {
+            latest = runtime
+                .handle
+                .try_play(test_request(index as f64 / 100.0))
+                .expect("rapid play burst should not be rejected");
+        }
+        release_tx.send(()).expect("release executor");
+
+        assert!(matches!(
+            runtime.events.recv().expect("first started"),
+            PlaybackRuntimeEvent::Started(PlaybackRuntimeStarted { id, .. }) if id == first
+        ));
+        let mut saw_latest = false;
+        while let Ok(event) = runtime.events.recv_timeout(Duration::from_secs(1)) {
+            match event {
+                PlaybackRuntimeEvent::Started(PlaybackRuntimeStarted { id, .. })
+                    if id == latest =>
+                {
+                    saw_latest = true;
+                    break;
+                }
+                PlaybackRuntimeEvent::Cancelled {
+                    reason: PlaybackRuntimeCancellation::Superseded,
+                    ..
+                } => {}
+                other => panic!("unexpected playback runtime event: {other:?}"),
+            }
+        }
+
+        assert!(saw_latest, "latest rapid play request should start");
+        assert_eq!(
+            played.lock().expect("played").as_slice(),
+            &[
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.0,
+                    end: 1.0
+                },
+                PlaybackRuntimeMode::OneShot {
+                    start: 0.63,
+                    end: 1.0
+                }
+            ]
+        );
+    }
+
+    #[test]
+    fn playback_runtime_reports_closed_submit_errors() {
+        let (sender, receiver) = mpsc::channel();
+        drop(receiver);
         let handle = PlaybackRuntimeHandle {
             commands: sender,
             next_id: Arc::new(AtomicU64::new(1)),
         };
 
-        assert!(handle.try_play(test_request(0.0)).is_ok());
         assert_eq!(
-            handle.try_play(test_request(0.25)),
-            Err(PlaybackRuntimeSubmitError::QueueFull)
+            handle.try_play(test_request(0.0)),
+            Err(PlaybackRuntimeSubmitError::Closed)
         );
     }
 

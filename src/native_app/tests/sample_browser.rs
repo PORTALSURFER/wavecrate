@@ -764,6 +764,43 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
 }
 
 #[test]
+fn starmap_mode_frame_does_not_warm_preview_audition_heads_while_playback_active() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display =
+        crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.audio.early_sample_playback_path = Some(sample_id);
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        None,
+        "preview warming should yield while playback is active"
+    );
+    assert_eq!(
+        state.background.preview_audition_warm_task.active(),
+        None,
+        "preview warming should not leave a tracked background task while playback is active"
+    );
+}
+
+#[test]
 fn starmap_drag_finish_cancels_cold_preview_audition_decode() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("large-cold.wav");
