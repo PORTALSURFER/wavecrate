@@ -673,12 +673,16 @@ def validate_zip_manifest(
     errors: list[str] = []
     try:
         with zipfile.ZipFile(zip_path) as archive:
-            archive_files = normalized_archive_files(archive)
+            archive_entries = normalized_archive_entries(archive)
+            archive_files = sorted(archive_entries)
             manifest_names = [name for name in archive_files if name.endswith("update-manifest.json")]
             if len(manifest_names) != 1:
                 return [f"{zip_asset.name} must contain exactly one update-manifest.json"]
+            manifest_archive_names = archive_entries[manifest_names[0]]
+            if len(manifest_archive_names) != 1:
+                return [f"{zip_asset.name} must contain exactly one update-manifest.json"]
             errors.extend(validate_archive_layout(zip_asset, archive_layout, archive_files, manifest_names[0]))
-            manifest = json.loads(archive.read(manifest_names[0]).decode("utf-8"))
+            manifest = json.loads(archive.read(manifest_archive_names[0]).decode("utf-8"))
     except zipfile.BadZipFile:
         return [f"{zip_asset.name} is not a valid zip file"]
     except (json.JSONDecodeError, UnicodeDecodeError) as error:
@@ -708,14 +712,14 @@ def validate_zip_manifest(
     return errors
 
 
-def normalized_archive_files(archive: zipfile.ZipFile) -> list[str]:
-    files: list[str] = []
+def normalized_archive_entries(archive: zipfile.ZipFile) -> dict[str, list[str]]:
+    entries: dict[str, list[str]] = {}
     for name in archive.namelist():
         normalized = normalize_archive_relative_path(name)
-        if not normalized or name.endswith("/"):
+        if not normalized or normalized.endswith("/"):
             continue
-        files.append(normalized)
-    return sorted(set(files))
+        entries.setdefault(normalized, []).append(name)
+    return entries
 
 
 def validate_archive_layout(
