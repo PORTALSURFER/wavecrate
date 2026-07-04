@@ -39,6 +39,14 @@ impl InstantAuditionOutcome {
         matches!(self, Self::Started)
     }
 
+    pub(super) fn as_str(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::AudioPending => "audio_pending",
+            Self::Unavailable => "unavailable",
+        }
+    }
+
     pub(super) fn uses_ready_source(self) -> bool {
         matches!(self, Self::Started | Self::AudioPending)
     }

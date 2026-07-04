@@ -5,6 +5,9 @@ use std::{
 };
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::starmap_audition_telemetry::{
+    self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
+};
 
 use super::validation_worker;
 
@@ -126,12 +129,14 @@ impl NativeAppState {
         modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let total_started_at = starmap_telemetry::stage_timer();
         let started_at = Instant::now();
         let previous_selection = self
             .library
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
+        let focus_started_at = starmap_telemetry::stage_timer();
         self.library
             .folder_browser
             .select_file_with_modifiers_matching_tags(
@@ -139,25 +144,115 @@ impl NativeAppState {
                 modifiers,
                 &self.metadata.tags_by_file,
             );
+        let focus_elapsed = starmap_telemetry::elapsed_since(focus_started_at);
+        if let Some(elapsed) = focus_elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::Focus, elapsed);
+        }
         self.log_sample_identity_checkpoint(
             "browser.starmap_drag_audition.after_focus",
             "start_starmap_drag_audition_sample",
             Some(Path::new(&path)),
             None,
         );
-        if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
+        let selection_changed =
+            self.library.folder_browser.selected_file_id() != previous_selection.as_deref();
+        starmap_telemetry::record_event(
+            None,
+            "sample_start.focus",
+            if selection_changed {
+                "selection_changed"
+            } else {
+                "same_selection"
+            },
+            Some(path.as_str()),
+            1,
+            self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+            self.ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some(),
+            focus_elapsed,
+        );
+        if selection_changed {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
         if self.start_loaded_navigation_sample(path.as_str(), context, started_at) {
+            starmap_telemetry::record_event(
+                Some(StarmapAuditionCounter::LoadedCurrent),
+                "sample_start.loaded_current",
+                "started",
+                Some(path.as_str()),
+                1,
+                self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+                self.ui
+                    .chrome
+                    .starmap_audition_queue
+                    .active_file_id
+                    .is_some(),
+                starmap_telemetry::elapsed_since(total_started_at),
+            );
+            if let Some(elapsed) = starmap_telemetry::elapsed_since(total_started_at) {
+                starmap_telemetry::record_duration(StarmapAuditionDuration::StartTotal, elapsed);
+            }
             return;
         }
-        if self
-            .start_starmap_ready_instant_audition(path.as_str(), context, started_at)
-            .uses_ready_source()
-        {
+        let ready_started_at = starmap_telemetry::stage_timer();
+        let ready_outcome =
+            self.start_starmap_ready_instant_audition(path.as_str(), context, started_at);
+        let ready_elapsed = starmap_telemetry::elapsed_since(ready_started_at);
+        if let Some(elapsed) = ready_elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::ReadySource, elapsed);
+        }
+        let ready_counter = match ready_outcome {
+            super::cache_start::InstantAuditionOutcome::Started => {
+                Some(StarmapAuditionCounter::ReadyStarted)
+            }
+            super::cache_start::InstantAuditionOutcome::AudioPending => {
+                Some(StarmapAuditionCounter::ReadyPending)
+            }
+            super::cache_start::InstantAuditionOutcome::Unavailable => {
+                Some(StarmapAuditionCounter::ReadyUnavailable)
+            }
+        };
+        starmap_telemetry::record_event(
+            ready_counter,
+            "sample_start.ready_source",
+            ready_outcome.as_str(),
+            Some(path.as_str()),
+            1,
+            self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+            self.ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some(),
+            ready_elapsed,
+        );
+        if ready_outcome.uses_ready_source() {
+            if let Some(elapsed) = starmap_telemetry::elapsed_since(total_started_at) {
+                starmap_telemetry::record_duration(StarmapAuditionDuration::StartTotal, elapsed);
+            }
             return;
+        }
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::ValidationQueued),
+            "sample_start.validation",
+            "queued",
+            Some(path.as_str()),
+            1,
+            self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+            self.ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some(),
+            starmap_telemetry::elapsed_since(total_started_at),
+        );
+        if let Some(elapsed) = starmap_telemetry::elapsed_since(total_started_at) {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::StartTotal, elapsed);
         }
         self.queue_sample_load_path_validation(
             path,

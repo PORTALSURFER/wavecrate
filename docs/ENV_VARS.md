@@ -469,10 +469,14 @@ support.
 Enables opt-in structured hot-path telemetry logs for latency-sensitive paths.
 Current coverage includes browser search workers, audio loader stages, cached
 playback startup, persistent waveform-cache reads, Reson decoder open/probe/seek,
-async decode prefill, and audio stream append handoff. Use with `--log` or an
-`--log` or an equivalent `RUST_LOG` filter so `perf::audio_start` and
-`perf::hotpath` events are written to the launch log. Accepted values: `1`,
-`true`, `on`, `yes`.
+async decode prefill, audio stream append handoff, and starmap drag-audition
+hit testing/queue/playback routing. Use with `--log` or an equivalent
+`RUST_LOG` filter so `perf::audio_start`, `perf::starmap_drag`, and
+`perf::hotpath` events are written to the launch log. For starmap playback
+investigations, inspect `stage`, `outcome`, `hits_queued`, `hits_started`,
+`ready_started`, `ready_unavailable`, `validation_queued`,
+`avg_widget_hit_test_ms`, `avg_ready_source_ms`, and `avg_start_total_ms`.
+Accepted values: `1`, `true`, `on`, `yes`.
 
 - `RESON_PLAYBACK_TELEMETRY`
 Enables only Reson playback-engine hot-path logs, including decoder setup,

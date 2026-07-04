@@ -28,6 +28,9 @@ use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMe
 use crate::native_app::sample_library::folder_browser::starmap::{
     StarmapItem, StarmapStatus, starmap_cluster_palette_color,
 };
+use crate::native_app::starmap_audition_telemetry::{
+    self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
+};
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 use wavecrate_analysis::aspects::SimilarityAspect;
@@ -356,8 +359,27 @@ impl StarmapWidget {
         point: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
+        let hit_started_at = starmap_telemetry::stage_timer();
         let hit_index = self.hit_item_index(bounds, point);
+        let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
+        if let Some(elapsed) = hit_elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
+        }
         let hit_file_id = hit_index.map(|index| self.items[index].file_id.clone());
+        starmap_telemetry::record_event(
+            Some(if hit_file_id.is_some() {
+                StarmapAuditionCounter::WidgetPointHit
+            } else {
+                StarmapAuditionCounter::WidgetPointMiss
+            }),
+            "widget.point_hit_test",
+            if hit_file_id.is_some() { "hit" } else { "miss" },
+            hit_file_id.as_deref(),
+            usize::from(hit_file_id.is_some()),
+            0,
+            false,
+            hit_elapsed,
+        );
         self.last_hit_file_id = hit_file_id.clone();
         self.last_hit_index = hit_index;
         self.last_primary_position = Some(point);
@@ -387,15 +409,51 @@ impl StarmapWidget {
             .or(self.last_hit_file_id.as_deref())
             .map(str::to_owned);
         self.last_primary_position = Some(point);
-        let Some(hit) = self.hit_between(bounds, previous, point) else {
+        let hit_started_at = starmap_telemetry::stage_timer();
+        let hit = self.hit_between(bounds, previous, point);
+        let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
+        if let Some(elapsed) = hit_elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
+        }
+        let Some(hit) = hit else {
+            starmap_telemetry::record_event(
+                Some(StarmapAuditionCounter::WidgetSegmentMiss),
+                "widget.segment_hit_test",
+                "miss",
+                None,
+                0,
+                0,
+                last_hit_file_id.is_some(),
+                hit_elapsed,
+            );
             return None;
         };
         let hit_file_id = hit.file_id;
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::WidgetSegmentHit),
+            "widget.segment_hit_test",
+            "hit",
+            Some(hit_file_id.as_str()),
+            1,
+            0,
+            last_hit_file_id.is_some(),
+            hit_elapsed,
+        );
         if Some(&hit_file_id) == last_hit_file_id.as_ref() {
             return None;
         }
         self.last_hit_file_id = Some(hit_file_id.clone());
         self.last_hit_index = Some(hit.item_index);
+        starmap_telemetry::record_event(
+            None,
+            "widget.drag_update",
+            "hit_changed",
+            Some(hit_file_id.as_str()),
+            1,
+            0,
+            true,
+            None,
+        );
         Some(WidgetOutput::typed(GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![hit_file_id],
             position: point,
