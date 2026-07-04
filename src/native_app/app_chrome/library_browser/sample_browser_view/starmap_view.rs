@@ -567,21 +567,13 @@ impl StarmapWidget {
     fn hovered_item(&self) -> Option<&StarmapItem> {
         let hovered_file_id = self.hovered_file_id.as_deref()?;
         self.item_for_cached_index(self.hovered_item_index, hovered_file_id)
-            .or_else(|| {
-                self.items
-                    .iter()
-                    .find(|item| item.file_id.as_str() == hovered_file_id)
-            })
+            .or_else(|| self.item_for_file_id(hovered_file_id))
     }
 
     fn active_drag_item(&self) -> Option<&StarmapItem> {
         let active_file_id = self.active_drag.as_ref()?.last_hit_file_id.as_deref()?;
         self.item_for_cached_index(self.last_hit_index, active_file_id)
-            .or_else(|| {
-                self.items
-                    .iter()
-                    .find(|item| item.file_id.as_str() == active_file_id)
-            })
+            .or_else(|| self.item_for_file_id(active_file_id))
     }
 
     fn focused_item(&self) -> Option<&StarmapItem> {
@@ -597,6 +589,11 @@ impl StarmapWidget {
         (item.file_id == expected_file_id).then_some(item)
     }
 
+    fn item_for_file_id(&self, file_id: &str) -> Option<&StarmapItem> {
+        let index = self.item_metadata().item_indices.get(file_id).copied();
+        self.item_for_cached_index(index, file_id)
+    }
+
     fn item_signature(&self) -> u64 {
         self.item_metadata().signatures.hit
     }
@@ -605,9 +602,8 @@ impl StarmapWidget {
         self.item_metadata().signatures.paint
     }
 
-    fn item_metadata(&self) -> StarmapItemMetadata {
-        *self
-            .item_metadata
+    fn item_metadata(&self) -> &StarmapItemMetadata {
+        self.item_metadata
             .get_or_init(|| starmap_item_metadata(&self.items))
     }
 }
@@ -891,19 +887,22 @@ struct StarmapItemSignatures {
     paint: u64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct StarmapItemMetadata {
     signatures: StarmapItemSignatures,
     focused_item_index: Option<usize>,
+    item_indices: HashMap<String, usize>,
 }
 
 fn starmap_item_metadata(items: &[StarmapItem]) -> StarmapItemMetadata {
     let mut hit_hasher = DefaultHasher::new();
     let mut paint_hasher = DefaultHasher::new();
+    let mut item_indices = HashMap::with_capacity(items.len());
     items.len().hash(&mut hit_hasher);
     items.len().hash(&mut paint_hasher);
     let mut focused_item_index = None;
     for (index, item) in items.iter().enumerate() {
+        item_indices.entry(item.file_id.clone()).or_insert(index);
         item.file_id.hash(&mut hit_hasher);
         item.x.to_bits().hash(&mut hit_hasher);
         item.y.to_bits().hash(&mut hit_hasher);
@@ -931,6 +930,7 @@ fn starmap_item_metadata(items: &[StarmapItem]) -> StarmapItemMetadata {
             paint: paint_hasher.finish(),
         },
         focused_item_index,
+        item_indices,
     }
 }
 
@@ -2259,6 +2259,60 @@ mod tests {
             next.active_drag_item().map(|item| item.file_id.as_str()),
             Some(file_id.as_str()),
             "runtime overlay paint should reuse the synchronized hit index for active drag nodes"
+        );
+    }
+
+    #[test]
+    fn active_starmap_drag_lookup_recovers_from_stale_cached_index() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let target = String::from("/samples/target.wav");
+        let mut items = vec![starmap_item("/samples/wrong.wav", 0.10, 0.10, color)];
+        items.extend((0..MAP_DENSE_ITEM_COUNT).map(|index| {
+            starmap_item(
+                &format!("/samples/filler-{index}.wav"),
+                0.15 + (index % 100) as f32 * 0.001,
+                0.20 + (index / 100) as f32 * 0.001,
+                color,
+            )
+        }));
+        items.push(starmap_item(target.as_str(), 0.80, 0.80, color));
+        let mut widget = StarmapWidget::new(
+            items,
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(target.clone()),
+                last_position: Point::new(160.0, 80.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        widget.last_hit_index = Some(0);
+
+        assert_eq!(
+            widget.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(target.as_str()),
+            "active drag overlay lookup should use metadata when synchronized hit index is stale"
+        );
+    }
+
+    #[test]
+    fn hovered_starmap_lookup_recovers_from_stale_cached_index() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let target = String::from("/samples/hovered.wav");
+        let mut widget = StarmapWidget::new(
+            vec![
+                starmap_item("/samples/wrong.wav", 0.10, 0.10, color),
+                starmap_item(target.as_str(), 0.80, 0.80, color),
+            ],
+            StarmapViewport::default(),
+            None,
+        );
+        widget.hovered_file_id = Some(target.clone());
+        widget.hovered_item_index = Some(0);
+
+        assert_eq!(
+            widget.hovered_item().map(|item| item.file_id.as_str()),
+            Some(target.as_str()),
+            "hover overlay lookup should use metadata when synchronized hover index is stale"
         );
     }
 
