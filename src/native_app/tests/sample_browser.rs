@@ -921,6 +921,52 @@ fn starmap_audition_promotion_only_loads_latest_stable_target() {
 }
 
 #[test]
+fn starmap_drag_duplicate_active_hit_preserves_pending_promotion() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("same-node.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(sample_id.clone());
+    state.ui.chrome.starmap_audition_drag = Some(crate::native_app::app::StarmapAuditionDragState {
+        last_hit_file_id: Some(sample_id.clone()),
+        last_position: Point::new(10.0, 10.0),
+        modifiers: PointerModifiers::default(),
+    });
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(sample_id.clone());
+    let mut schedule_context = radiant::prelude::UiUpdateContext::default();
+
+    state.schedule_starmap_audition_promotion(sample_id.clone(), &mut schedule_context);
+    let delayed = run_after_commands(schedule_context.into_command());
+    assert_eq!(delayed.len(), 1);
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![sample_id],
+            position: Point::new(12.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    let mut promote_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[0].clone(), &mut promote_context);
+    assert_eq!(
+        promote_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "same-node drag updates should not cancel the pending full-quality promotion"
+    );
+}
+
+#[test]
 fn starmap_drag_retriggers_sample_after_sweeping_away_and_back() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

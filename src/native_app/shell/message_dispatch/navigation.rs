@@ -246,10 +246,6 @@ impl NativeAppState {
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
         let drag_active = self.ui.chrome.starmap_audition_drag.is_some();
-        if drag_active {
-            self.background.starmap_audition_advance_task.cancel();
-            self.background.starmap_audition_promotion_task.cancel();
-        }
         let mut admitted_paths = Vec::new();
         let queue = &mut self.ui.chrome.starmap_audition_queue;
         for path in paths {
@@ -284,6 +280,10 @@ impl NativeAppState {
                 starmap_telemetry::elapsed_since(started_at),
             );
             return;
+        }
+        if drag_active {
+            self.background.starmap_audition_advance_task.cancel();
+            self.background.starmap_audition_promotion_task.cancel();
         }
         let latest_path = admitted_paths.last().cloned();
         if drag_active {
