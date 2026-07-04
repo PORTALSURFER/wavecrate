@@ -13,7 +13,7 @@ use radiant::{
     },
 };
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap, HashSet},
     hash::{Hash, Hasher},
     sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
@@ -747,11 +747,25 @@ impl StarmapHitIndex {
         item_count: usize,
         scratch: &'a mut StarmapHitScratch,
     ) -> &'a [usize] {
-        self.collect_item_indices_for_rect(
-            segment_bounds(from, to).expanded(MAP_HIT_RADIUS),
-            item_count,
-            scratch,
-        )
+        scratch.begin(item_count);
+        let from = StarmapGridCell::from_point(from);
+        let to = StarmapGridCell::from_point(to);
+        let dx = to.x - from.x;
+        let dy = to.y - from.y;
+        let steps = dx.abs().max(dy.abs());
+        if steps == 0 {
+            self.collect_item_indices_near_cell(from, scratch);
+            return scratch.indices.as_slice();
+        }
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let cell = StarmapGridCell {
+                x: (from.x as f32 + dx as f32 * t).round() as i32,
+                y: (from.y as f32 + dy as f32 * t).round() as i32,
+            };
+            self.collect_item_indices_near_cell(cell, scratch);
+        }
+        scratch.indices.as_slice()
     }
 
     fn collect_item_indices_for_rect<'a>(
@@ -778,6 +792,29 @@ impl StarmapHitIndex {
         scratch.indices.as_slice()
     }
 
+    fn collect_item_indices_near_cell(
+        &self,
+        cell: StarmapGridCell,
+        scratch: &mut StarmapHitScratch,
+    ) {
+        for y in cell.y - 1..=cell.y + 1 {
+            for x in cell.x - 1..=cell.x + 1 {
+                let cell = StarmapGridCell { x, y };
+                if !scratch.mark_cell_seen(cell) {
+                    continue;
+                }
+                let Some(cell_indices) = self.cells.get(&cell) else {
+                    continue;
+                };
+                for &index in cell_indices {
+                    if scratch.mark_seen(index) {
+                        scratch.indices.push(index);
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(test)]
     fn item_indices_near_segment(&self, from: Point, to: Point, item_count: usize) -> Vec<usize> {
         let mut scratch = StarmapHitScratch::default();
@@ -790,12 +827,14 @@ impl StarmapHitIndex {
 struct StarmapHitScratch {
     generation: u32,
     seen_generation: Vec<u32>,
+    seen_cells: HashSet<StarmapGridCell>,
     indices: Vec<usize>,
 }
 
 impl StarmapHitScratch {
     fn begin(&mut self, item_count: usize) {
         self.indices.clear();
+        self.seen_cells.clear();
         if self.seen_generation.len() < item_count {
             self.seen_generation.resize(item_count, 0);
         }
@@ -816,6 +855,10 @@ impl StarmapHitScratch {
         *seen_generation = self.generation;
         true
     }
+
+    fn mark_cell_seen(&mut self, cell: StarmapGridCell) -> bool {
+        self.seen_cells.insert(cell)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -835,13 +878,6 @@ impl StarmapGridCell {
 
 fn grid_coordinate(value: f32) -> i32 {
     (value / MAP_HIT_GRID_CELL_SIZE).floor() as i32
-}
-
-fn segment_bounds(from: Point, to: Point) -> Rect {
-    Rect::from_min_max(
-        Point::new(from.x.min(to.x), from.y.min(to.y)),
-        Point::new(from.x.max(to.x), from.y.max(to.y)),
-    )
 }
 
 #[cfg(test)]
@@ -2748,6 +2784,41 @@ mod tests {
         );
 
         assert_eq!(candidates, vec![2_000]);
+    }
+
+    #[test]
+    fn starmap_hit_index_walks_diagonal_segments_without_scanning_bounding_box() {
+        let bounds = Rect::from_size(1_000.0, 1_000.0);
+        let viewport = StarmapViewport::default();
+        let mut items = Vec::new();
+        for index in 0..2_000 {
+            items.push(starmap_item(
+                &format!("/samples/off-diagonal-{index}.wav"),
+                0.20 + (index % 40) as f32 * 0.002,
+                0.80 + (index / 40) as f32 * 0.002,
+                ui::Rgba8::new(255, 160, 80, 220),
+            ));
+        }
+        items.push(starmap_item(
+            "/samples/crossed.wav",
+            0.50,
+            0.50,
+            ui::Rgba8::new(57, 187, 245, 220),
+        ));
+
+        let index =
+            StarmapHitIndex::build(bounds, viewport, starmap_items_signature(&items), &items);
+        let candidates = index.item_indices_near_segment(
+            Point::new(100.0, 100.0),
+            Point::new(900.0, 900.0),
+            items.len(),
+        );
+
+        assert_eq!(
+            candidates,
+            vec![2_000],
+            "diagonal drag sweeps should visit cells along the pointer path instead of every populated cell inside the path bounding box"
+        );
     }
 
     fn starmap_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> StarmapItem {
