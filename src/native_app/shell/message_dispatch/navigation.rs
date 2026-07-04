@@ -406,7 +406,11 @@ impl NativeAppState {
         path: String,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if !self.background.starmap_audition_promotion_task.finish(ticket) {
+        if !self
+            .background
+            .starmap_audition_promotion_task
+            .finish(ticket)
+        {
             return;
         }
         if self.library.folder_browser.selected_file_id() != Some(path.as_str()) {
@@ -544,6 +548,10 @@ impl NativeAppState {
                         .waveform
                         .cache
                         .instant_audition_sample_paths,
+                    preview_audition_sample_paths: self
+                        .waveform
+                        .cache
+                        .preview_audition_sample_paths(),
                 })
         else {
             return;

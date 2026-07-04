@@ -138,6 +138,7 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) instant_audition_descriptors:
         HashMap<PathBuf, PersistedPlaybackDescriptor>,
     preview_audition_clips: HashMap<PathBuf, PreviewAuditionCacheEntry>,
+    preview_audition_sample_paths: HashSet<String>,
     preview_audition_bytes: usize,
     preview_audition_tick: u64,
     preview_audition_attempted_paths: HashSet<String>,
@@ -182,6 +183,7 @@ impl Default for WaveformCacheState {
             instant_audition_sample_paths: Default::default(),
             instant_audition_descriptors: Default::default(),
             preview_audition_clips: Default::default(),
+            preview_audition_sample_paths: Default::default(),
             preview_audition_bytes: 0,
             preview_audition_tick: 0,
             preview_audition_attempted_paths: Default::default(),
@@ -314,6 +316,7 @@ impl WaveformCacheState {
             self.preview_audition_bytes =
                 self.preview_audition_bytes.saturating_sub(entry.byte_len);
         }
+        self.preview_audition_sample_paths.remove(&file_id);
         self.preview_audition_attempted_paths.remove(&file_id);
         self.preview_audition_scheduled_paths.remove(&file_id);
     }
@@ -341,14 +344,24 @@ impl WaveformCacheState {
                 .contains(&path.display().to_string())
     }
 
+    pub(in crate::native_app) fn preview_audition_decode_needed(&self, path: &Path) -> bool {
+        !self.preview_audition_clips.contains_key(path)
+    }
+
+    pub(in crate::native_app) fn preview_audition_sample_paths(&self) -> &HashSet<String> {
+        &self.preview_audition_sample_paths
+    }
+
     pub(in crate::native_app) fn mark_preview_audition_attempted(&mut self, path: &Path) {
         self.preview_audition_attempted_paths
             .insert(path.display().to_string());
     }
 
     pub(in crate::native_app) fn mark_preview_audition_warm_scheduled(&mut self, paths: &[String]) {
-        self.preview_audition_scheduled_paths
-            .extend(paths.iter().cloned());
+        for path in paths {
+            self.preview_audition_scheduled_paths.insert(path.clone());
+            self.preview_audition_attempted_paths.insert(path.clone());
+        }
     }
 
     pub(in crate::native_app) fn finish_preview_audition_warm_schedule(
@@ -386,7 +399,9 @@ impl WaveformCacheState {
                 .saturating_sub(previous.byte_len);
         }
         self.preview_audition_bytes = self.preview_audition_bytes.saturating_add(byte_len);
-        self.preview_audition_attempted_paths.insert(file_id.clone());
+        self.preview_audition_sample_paths.insert(file_id.clone());
+        self.preview_audition_attempted_paths
+            .insert(file_id.clone());
         self.preview_audition_scheduled_paths.remove(&file_id);
         self.prune_preview_audition_cache();
     }
@@ -418,6 +433,7 @@ impl WaveformCacheState {
             self.preview_audition_bytes =
                 self.preview_audition_bytes.saturating_sub(entry.byte_len);
         }
+        self.preview_audition_sample_paths.remove(file_id);
         if !self.cached_sample_paths.contains(file_id)
             && !self.instant_audition_descriptors.contains_key(path)
         {
@@ -502,7 +518,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_warm_cancel_releases_scheduled_paths() {
+    fn preview_warm_cancel_does_not_requeue_scheduled_paths() {
         let path = PathBuf::from("/tmp/wavecrate-preview-cancelled.wav");
         let path_id = path.display().to_string();
         let mut cache = WaveformCacheState::default();
@@ -512,8 +528,33 @@ mod tests {
         cache.cancel_preview_audition_warm_schedule();
 
         assert!(
-            cache.preview_audition_warm_needed(&path),
-            "cancelled background warm work can be retried once the UI is idle again"
+            !cache.preview_audition_warm_needed(&path),
+            "cancelled background warm work must not churn on the same visible path"
+        );
+    }
+
+    #[test]
+    fn preview_warm_partial_finish_does_not_requeue_unattempted_tail() {
+        let attempted = PathBuf::from("/tmp/wavecrate-preview-attempted.wav");
+        let skipped = PathBuf::from("/tmp/wavecrate-preview-skipped.wav");
+        let attempted_id = attempted.display().to_string();
+        let skipped_id = skipped.display().to_string();
+        let mut cache = WaveformCacheState::default();
+
+        cache.mark_preview_audition_warm_scheduled(&[attempted_id.clone(), skipped_id.clone()]);
+        cache.finish_preview_audition_warm_schedule(
+            &[attempted_id, skipped_id],
+            &[attempted.display().to_string()],
+        );
+
+        assert!(!cache.preview_audition_warm_needed(&attempted));
+        assert!(
+            !cache.preview_audition_warm_needed(&skipped),
+            "scheduled-but-unattempted warm tails should not be rediscovered every frame"
+        );
+        assert!(
+            cache.preview_audition_decode_needed(&skipped),
+            "foreground drag playback can still decode a path skipped by background warming"
         );
     }
 

@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
-        PaintPrimitive,
+        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
+        push_stroke_polyline,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,7 +13,7 @@ use radiant::{
     },
 };
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -26,7 +26,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
+    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
 };
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
@@ -803,6 +803,7 @@ fn starmap_item_signatures(items: &[StarmapItem]) -> StarmapItemSignatures {
         item.copy_flash.hash(&mut paint_hasher);
         item.similarity_anchor.hash(&mut paint_hasher);
         item.instant_audition_ready.hash(&mut paint_hasher);
+        item.preview_audition_ready.hash(&mut paint_hasher);
         item.missing.hash(&mut paint_hasher);
     }
     StarmapItemSignatures {
@@ -1191,7 +1192,7 @@ fn queue_or_paint_item(
         paint_similarity_anchor_item(primitives, widget_id, center, color);
         return;
     }
-    if !item.instant_audition_ready {
+    if !item.fast_audition_ready() {
         paint_cold_audition_item(primitives, widget_id, center, node_size, color);
         return;
     }
@@ -1418,7 +1419,7 @@ fn stroke_diamond(
 fn starmap_item_color(item: &StarmapItem) -> ui::Rgba8 {
     if item.missing {
         ui::Rgba8::new(120, 120, 120, 180)
-    } else if !item.instant_audition_ready {
+    } else if !item.fast_audition_ready() {
         item.color.with_alpha(item.color.a.min(150))
     } else {
         item.color
@@ -1694,6 +1695,33 @@ mod tests {
     }
 
     #[test]
+    fn preview_ready_nodes_do_not_paint_as_cold_audition_markers() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let mut preview_ready = starmap_item("/samples/preview-ready.wav", 0.50, 0.50, color);
+        preview_ready.instant_audition_ready = false;
+        preview_ready.preview_audition_ready = true;
+        let widget = StarmapWidget::new(vec![preview_ready], StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(232, 236, 238, 165)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRectBatch(batch) if batch.color == color
+        )));
+    }
+
+    #[test]
     fn copied_starmap_nodes_paint_confirmation_glow() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
         let mut copied = starmap_item("/samples/copied.wav", 0.50, 0.50, color);
@@ -1950,9 +1978,10 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
-        assert!(next
-            .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature));
+        assert!(
+            next.hit_index
+                .matches(bounds, StarmapViewport::default(), next.item_signature)
+        );
     }
 
     #[test]
@@ -2101,9 +2130,10 @@ mod tests {
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(next
-            .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature));
+        assert!(
+            next.hit_index
+                .matches(bounds, StarmapViewport::default(), next.item_signature)
+        );
     }
 
     #[test]
@@ -2546,6 +2576,7 @@ mod tests {
             copy_flash: false,
             similarity_anchor: false,
             instant_audition_ready: true,
+            preview_audition_ready: false,
             missing: false,
         }
     }

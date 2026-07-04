@@ -272,6 +272,7 @@ mod tests {
                 copy_flash: false,
                 similarity_anchor: false,
                 instant_audition_ready: true,
+                preview_audition_ready: false,
                 missing: false,
             }]
             .into(),
@@ -330,6 +331,7 @@ mod tests {
                 copy_flash: false,
                 similarity_anchor: false,
                 instant_audition_ready: true,
+                preview_audition_ready: false,
                 missing: false,
             }]
             .into(),
@@ -388,6 +390,7 @@ mod tests {
                 copy_flash: false,
                 similarity_anchor: false,
                 instant_audition_ready: true,
+                preview_audition_ready: false,
                 missing: false,
             }]
             .into(),
@@ -433,6 +436,7 @@ mod tests {
                 copy_flash: false,
                 similarity_anchor: false,
                 instant_audition_ready: true,
+                preview_audition_ready: false,
                 missing: false,
             }],
             crate::native_app::app::StarmapViewport::default(),
@@ -474,6 +478,7 @@ mod tests {
                 copy_flash: false,
                 similarity_anchor: false,
                 instant_audition_ready: true,
+                preview_audition_ready: false,
                 missing: false,
             }],
             crate::native_app::app::StarmapViewport::default(),
@@ -591,6 +596,7 @@ mod tests {
                             copy_flash: false,
                             similarity_anchor: false,
                             instant_audition_ready: true,
+                            preview_audition_ready: false,
                             missing: false,
                         }]
                         .into(),
@@ -668,6 +674,7 @@ mod tests {
                         copy_flash: false,
                         similarity_anchor: false,
                         instant_audition_ready: true,
+                        preview_audition_ready: false,
                         missing: false,
                     }]
                     .into(),
@@ -751,6 +758,7 @@ mod tests {
                                 copy_flash: false,
                                 similarity_anchor: false,
                                 instant_audition_ready: true,
+                                preview_audition_ready: false,
                                 missing: false,
                             },
                             StarmapItem {
@@ -764,6 +772,7 @@ mod tests {
                                 copy_flash: false,
                                 similarity_anchor: false,
                                 instant_audition_ready: true,
+                                preview_audition_ready: false,
                                 missing: false,
                             },
                         ]

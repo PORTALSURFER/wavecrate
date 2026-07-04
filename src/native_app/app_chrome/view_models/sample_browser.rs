@@ -157,6 +157,7 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
             .prepare_starmap_projection(StarmapProjection {
                 tags_by_file: &state.metadata.tags_by_file,
                 instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+                preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
             });
     }
 }
@@ -182,6 +183,7 @@ fn starmap_items_for_display(
         .starmap_projection(StarmapProjection {
             tags_by_file: &state.metadata.tags_by_file,
             instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+            preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
         })
         .into()
 }

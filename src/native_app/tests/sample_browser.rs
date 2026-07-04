@@ -359,6 +359,7 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
             crate::native_app::sample_library::folder_browser::starmap::StarmapProjection {
                 tags_by_file: &state.metadata.tags_by_file,
                 instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+                preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
             },
         )
         .expect("selected sample should have a map position");
@@ -550,6 +551,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
         crate::native_app::sample_library::folder_browser::starmap::StarmapProjection {
             tags_by_file: &state.metadata.tags_by_file,
             instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+            preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
         },
     );
     assert!(
@@ -741,8 +743,7 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
             ]),
         )
         .build();
-    state.ui.chrome.sample_browser_display =
-        crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     prepare_sample_browser_view(&mut state);
     let mut context = radiant::prelude::UiUpdateContext::default();
 
@@ -758,7 +759,11 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
         "starmap mode should warm tiny preview heads before drag playback needs them"
     );
     assert!(
-        state.background.preview_audition_warm_task.active().is_some(),
+        state
+            .background
+            .preview_audition_warm_task
+            .active()
+            .is_some(),
         "preview audition warm should be tracked as cancellable background work"
     );
 }
@@ -776,8 +781,7 @@ fn starmap_mode_frame_does_not_duplicate_scheduled_preview_audition_heads() {
             ]),
         )
         .build();
-    state.ui.chrome.sample_browser_display =
-        crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     prepare_sample_browser_view(&mut state);
     state
         .waveform
@@ -811,8 +815,7 @@ fn starmap_mode_frame_does_not_warm_preview_audition_heads_while_playback_active
             ]),
         )
         .build();
-    state.ui.chrome.sample_browser_display =
-        crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     state.audio.early_sample_playback_path = Some(sample_id);
     prepare_sample_browser_view(&mut state);
     let mut context = radiant::prelude::UiUpdateContext::default();
@@ -888,10 +891,7 @@ fn starmap_audition_promotion_only_loads_latest_stable_target() {
             ]),
         )
         .build();
-    state
-        .library
-        .folder_browser
-        .select_file(second_id.clone());
+    state.library.folder_browser.select_file(second_id.clone());
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.schedule_starmap_audition_promotion(first_id, &mut context);
@@ -934,11 +934,12 @@ fn starmap_drag_duplicate_active_hit_preserves_pending_promotion() {
         )
         .build();
     state.library.folder_browser.select_file(sample_id.clone());
-    state.ui.chrome.starmap_audition_drag = Some(crate::native_app::app::StarmapAuditionDragState {
-        last_hit_file_id: Some(sample_id.clone()),
-        last_position: Point::new(10.0, 10.0),
-        modifiers: PointerModifiers::default(),
-    });
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(sample_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
     state.ui.chrome.starmap_audition_queue.active_file_id = Some(sample_id.clone());
     let mut schedule_context = radiant::prelude::UiUpdateContext::default();
 

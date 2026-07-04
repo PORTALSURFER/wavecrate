@@ -27,6 +27,7 @@ const GROUP_CENTERS: [(f32, f32); wavecrate_analysis::aspects::ASPECT_COUNT] = [
 pub(in crate::native_app) struct StarmapProjection<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) instant_audition_sample_paths: &'a HashSet<String>,
+    pub(in crate::native_app) preview_audition_sample_paths: &'a HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -88,7 +89,14 @@ pub(in crate::native_app) struct StarmapItem {
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) instant_audition_ready: bool,
+    pub(in crate::native_app) preview_audition_ready: bool,
     pub(in crate::native_app) missing: bool,
+}
+
+impl StarmapItem {
+    pub(in crate::native_app) fn fast_audition_ready(&self) -> bool {
+        self.instant_audition_ready || self.preview_audition_ready
+    }
 }
 
 impl FolderBrowserState {
@@ -219,6 +227,8 @@ impl FolderBrowserState {
                     file,
                     projection.instant_audition_sample_paths,
                 );
+                let preview_audition_ready =
+                    projection.preview_audition_sample_paths.contains(&file.id);
                 let aspects = self.similarity_aspect_display_strengths_for_file(&file.id);
                 let strength = self.similarity_display_strength_for_file(&file.id);
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
@@ -245,6 +255,7 @@ impl FolderBrowserState {
                     copy_flash: self.copied_file_flash_active(&file.id),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
                     instant_audition_ready,
+                    preview_audition_ready,
                     missing: file.is_missing(),
                 }
             })
@@ -277,6 +288,7 @@ impl FolderBrowserState {
             &self.starmap_projection(StarmapProjection {
                 tags_by_file,
                 instant_audition_sample_paths,
+                preview_audition_sample_paths: &HashSet::new(),
             }),
             self.selection.selected_file_id()?,
             delta,
@@ -685,12 +697,14 @@ mod tests {
         let position = browser.selected_starmap_position(StarmapProjection {
             tags_by_file: &tags_by_file,
             instant_audition_sample_paths: &HashSet::new(),
+            preview_audition_sample_paths: &HashSet::new(),
         });
 
         assert!(position.is_some());
         let projection = browser.starmap_projection(StarmapProjection {
             tags_by_file: &tags_by_file,
             instant_audition_sample_paths: &HashSet::new(),
+            preview_audition_sample_paths: &HashSet::new(),
         });
         let selected = projection
             .iter()
@@ -832,6 +846,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| item.file_id)
@@ -880,6 +895,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| item.file_id)
@@ -916,6 +932,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| (item.file_id, item.instant_audition_ready))
@@ -924,6 +941,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::from([long_id.clone()]),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| (item.file_id, item.instant_audition_ready))
@@ -934,6 +952,32 @@ mod tests {
             vec![(long_id.clone(), false), (short_id.clone(), true)]
         );
         assert_eq!(ready_items, vec![(long_id, true), (short_id, true)]);
+    }
+
+    #[test]
+    fn starmap_projection_marks_preview_heads_fast_ready_without_full_cache() {
+        let root = tempfile::tempdir().expect("source root");
+        let long = root.path().join("long.wav");
+        std::fs::write(&long, vec![0_u8; 2048]).expect("write long sample");
+        let long_id = long.to_string_lossy().to_string();
+        let browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+
+        let item = browser
+            .starmap_projection(StarmapProjection {
+                tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::from([long_id.clone()]),
+            })
+            .into_iter()
+            .find(|item| item.file_id == long_id)
+            .expect("long map item");
+
+        assert!(!item.instant_audition_ready);
+        assert!(item.preview_audition_ready);
+        assert!(item.fast_audition_ready());
     }
 
     #[test]
@@ -962,6 +1006,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .find(|item| item.file_id == snare_id.as_str())
@@ -975,6 +1020,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .find(|item| item.file_id == snare_id.as_str())
@@ -1021,6 +1067,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .filter(|item| item.selected)

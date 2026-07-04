@@ -94,10 +94,7 @@ impl FastAuditionOptions {
         }
     }
 
-    pub(super) fn preview_decode_completion(
-        origin: &'static str,
-        record_history: bool,
-    ) -> Self {
+    pub(super) fn preview_decode_completion(origin: &'static str, record_history: bool) -> Self {
         Self {
             origin,
             record_history,
@@ -145,9 +142,8 @@ impl NativeAppState {
         for probe in fast_audition_probe_order(options) {
             match probe {
                 FastAuditionProbe::PreviewCache => {
-                    if self.start_preview_cache_instant_audition(
-                        path, context, started_at, options,
-                    ) {
+                    if self.start_preview_cache_instant_audition(path, context, started_at, options)
+                    {
                         return InstantAuditionOutcome::Started;
                     }
                 }
@@ -192,7 +188,7 @@ impl NativeAppState {
             && self
                 .waveform
                 .cache
-                .preview_audition_warm_needed(Path::new(path))
+                .preview_audition_decode_needed(Path::new(path))
     }
 
     pub(super) fn start_memory_cached_sample(
@@ -685,11 +681,7 @@ impl NativeAppState {
         if options.record_history {
             self.record_sample_last_played(path.clone(), context);
         }
-        self.maybe_schedule_starmap_audition_promotion(
-            path.as_str(),
-            options.origin,
-            context,
-        );
+        self.maybe_schedule_starmap_audition_promotion(path.as_str(), options.origin, context);
         log_sample_load_timing(
             "browser.sample_load.preview_audition.playback_submit",
             path.as_str(),
@@ -756,12 +748,15 @@ impl NativeAppState {
     ) {
         if self.preview_audition_warm_should_yield() {
             self.background.preview_audition_warm_task.cancel();
-            self.waveform
-                .cache
-                .cancel_preview_audition_warm_schedule();
+            self.waveform.cache.cancel_preview_audition_warm_schedule();
             return;
         }
-        if self.background.preview_audition_warm_task.active().is_some() {
+        if self
+            .background
+            .preview_audition_warm_task
+            .active()
+            .is_some()
+        {
             return;
         }
         let paths = self.preview_audition_warm_candidates();
@@ -826,7 +821,11 @@ impl NativeAppState {
         let Some(items) = self.library.folder_browser.cached_starmap_projection() else {
             return Vec::new();
         };
-        let selected = self.library.folder_browser.selected_file_id().map(str::to_owned);
+        let selected = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned);
         let center_x = self.ui.chrome.starmap_viewport.center_x;
         let center_y = self.ui.chrome.starmap_viewport.center_y;
         let mut candidates = Vec::new();
@@ -865,10 +864,13 @@ impl NativeAppState {
         let visible_paths: Vec<String> = {
             use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 
-            let visible = self.library.folder_browser.visible_samples(VisibleSampleQuery {
-                tags_by_file: &self.metadata.tags_by_file,
-                cached_sample_paths: &self.waveform.cache.cached_sample_paths,
-            });
+            let visible = self
+                .library
+                .folder_browser
+                .visible_samples(VisibleSampleQuery {
+                    tags_by_file: &self.metadata.tags_by_file,
+                    cached_sample_paths: &self.waveform.cache.cached_sample_paths,
+                });
             visible
                 .rows
                 .iter()
@@ -964,12 +966,10 @@ impl NativeAppState {
         else {
             return;
         };
-        self.waveform
-            .cache
-            .finish_preview_audition_warm_schedule(
-                &result.scheduled_paths,
-                &result.attempted_paths,
-            );
+        self.waveform.cache.finish_preview_audition_warm_schedule(
+            &result.scheduled_paths,
+            &result.attempted_paths,
+        );
         let clip_count = result.clips.len();
         for clip in result.clips {
             self.waveform.cache.store_preview_audition_clip(clip);
@@ -1342,8 +1342,8 @@ mod tests {
 
     #[test]
     fn starmap_drag_instant_audition_schedules_stable_target_promotion() {
-        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
-            .build();
+        let mut state =
+            crate::native_app::test_support::state::NativeAppStateFixture::default().build();
         let mut context = ui::UiUpdateContext::default();
 
         state.maybe_schedule_starmap_audition_promotion(
@@ -1364,8 +1364,8 @@ mod tests {
 
     #[test]
     fn non_starmap_instant_audition_does_not_schedule_stable_target_promotion() {
-        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
-            .build();
+        let mut state =
+            crate::native_app::test_support::state::NativeAppStateFixture::default().build();
         let mut context = ui::UiUpdateContext::default();
 
         state.maybe_schedule_starmap_audition_promotion(
