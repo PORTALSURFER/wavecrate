@@ -7,6 +7,9 @@ impl AppController {
     pub(super) fn handle_background_job_message(&mut self, message: JobMessage) {
         match message {
             JobMessage::WavLoaded(message) => self.handle_wav_loaded_message(message),
+            JobMessage::SourceAddPrepared(message) => {
+                self.handle_source_add_prepared_message(message)
+            }
             JobMessage::SourceHydrated(message) => self.handle_source_hydrated_message(message),
             JobMessage::BrowserFeatureCacheRefreshed(message) => {
                 self.handle_feature_cache_refreshed_message(message)

@@ -39,6 +39,28 @@ pub(crate) struct SourceHydrationJob {
     pub(crate) defer_startup_follow_up_work: bool,
 }
 
+/// Background source-add preparation request.
+#[derive(Debug)]
+pub(crate) struct SourceAddJob {
+    /// Monotonic request identifier used to discard stale or duplicate results.
+    pub(crate) request_id: u64,
+    /// Source that will be committed after DB validation succeeds.
+    pub(crate) source: crate::sample_sources::SampleSource,
+}
+
+/// Result of one background source-add preparation request.
+#[derive(Debug)]
+pub(crate) struct SourceAddPreparedResult {
+    /// Request identifier echoed from [`SourceAddJob::request_id`].
+    pub(crate) request_id: u64,
+    /// Source that was prepared.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Worker time spent opening or migrating source state.
+    pub(crate) elapsed: Duration,
+    /// Preparation outcome.
+    pub(crate) result: Result<(), String>,
+}
+
 /// Compact source snapshot prepared off the UI thread for later controller apply.
 #[derive(Debug)]
 pub(crate) struct SourceHydrationSnapshot {

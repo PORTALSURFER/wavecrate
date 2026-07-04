@@ -1,9 +1,13 @@
 use super::super::jobs::{
-    JobMessage, MetadataMutationResult, SourceDbMaintenanceOutcome, SourceDbMaintenanceRefresh,
-    SourceDbMaintenanceResult, SourceHydrationKind, SourceHydrationResult, SourceHydrationSnapshot,
+    JobMessage, MetadataMutationResult, SourceAddPreparedResult, SourceDbMaintenanceOutcome,
+    SourceDbMaintenanceRefresh, SourceDbMaintenanceResult, SourceHydrationKind,
+    SourceHydrationResult, SourceHydrationSnapshot,
 };
 use super::super::library::source_folders::with_folder_projection_async_enabled_for_tests;
-use super::super::library::sources::hydration::with_source_hydration_async_enabled_for_tests;
+use super::super::library::sources::{
+    hydration::with_source_hydration_async_enabled_for_tests,
+    with_source_add_async_enabled_for_tests,
+};
 use super::super::library::wavs::with_browser_async_pipeline_enabled_for_tests;
 use super::super::test_support::sample_entry;
 use super::super::*;
@@ -155,4 +159,5 @@ mod file_op_gating;
 mod inactive_projection;
 mod maintenance_reconcile;
 mod passive_status;
+mod source_add;
 mod startup_deferral;

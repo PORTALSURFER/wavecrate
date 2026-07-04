@@ -23,6 +23,7 @@ pub(crate) struct PendingSliceBatchExport {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct JobRequestCounters {
     pub(crate) next_source_hydration_request_id: u64,
+    pub(crate) next_source_add_request_id: u64,
     pub(crate) next_feature_cache_request_id: u64,
     pub(crate) next_folder_projection_request_id: u64,
     pub(crate) next_metadata_request_id: u64,
@@ -41,6 +42,7 @@ impl Default for JobRequestCounters {
     fn default() -> Self {
         Self {
             next_source_hydration_request_id: 1,
+            next_source_add_request_id: 1,
             next_feature_cache_request_id: 1,
             next_folder_projection_request_id: 1,
             next_metadata_request_id: 1,
