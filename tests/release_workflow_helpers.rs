@@ -586,6 +586,29 @@ fn published_release_verifier_accepts_windows_backslash_archive_entries() {
 }
 
 #[test]
+fn published_release_verifier_ignores_macos_directory_entries() {
+    let temp = tempfile::tempdir().expect("create published release fixture");
+    let key = temp.path().join("ed25519.pem");
+    if !generate_ed25519_key(&key) {
+        eprintln!(
+            "local openssl does not support Ed25519 key generation; skipping verifier roundtrip"
+        );
+        return;
+    }
+    let expected_pubkey = expected_public_key(&key, &temp);
+    let (release_json, asset_dir) = write_published_release_fixture_with_zip_mutation(
+        &temp,
+        &key,
+        None,
+        Some(PublishedZipMutation::MacosDirectoryEntries),
+    );
+
+    let mut command =
+        published_release_verifier_command(&release_json, &asset_dir, expected_pubkey.trim());
+    run_success(&mut command);
+}
+
+#[test]
 fn published_release_verifier_rejects_manifest_mismatches() {
     let temp = tempfile::tempdir().expect("create published release fixture");
     let key = temp.path().join("ed25519.pem");
@@ -918,6 +941,7 @@ fn write_published_release_fixture(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PublishedZipMutation {
     FlattenWindows,
+    MacosDirectoryEntries,
     MissingWindowsExecutable,
     WindowsBackslashes,
 }
@@ -956,10 +980,11 @@ fn write_published_release_fixture_with_zip_mutation(
     let mut checksum_lines = Vec::new();
     let mut files = Vec::new();
     for (zip_name, target, platform, arch) in zip_assets {
-        let mutation = if platform == "windows" {
-            zip_mutation
-        } else {
-            None
+        let mutation = match (platform, zip_mutation) {
+            ("windows", Some(PublishedZipMutation::MacosDirectoryEntries)) => None,
+            ("macos", Some(PublishedZipMutation::MacosDirectoryEntries)) => zip_mutation,
+            ("windows", _) => zip_mutation,
+            _ => None,
         };
         write_release_zip(
             &asset_dir.join(zip_name),
@@ -1086,6 +1111,18 @@ fn write_release_zip(
     });
     if let Some((key, value)) = manifest_override {
         manifest[key] = json!(value);
+    }
+    if mutation == Some(PublishedZipMutation::MacosDirectoryEntries) {
+        for directory in [
+            "wavecrate/Wavecrate.app/",
+            "wavecrate/Wavecrate.app/Contents/",
+            "wavecrate/Wavecrate.app/Contents/MacOS/",
+            "wavecrate/Wavecrate.app/Contents/Resources/",
+            "wavecrate/Wavecrate.app/Contents/_CodeSignature/",
+        ] {
+            zip.add_directory(directory, SimpleFileOptions::default())
+                .expect("add app bundle directory");
+        }
     }
     for file_name in payload_files {
         let archive_path = if mutation == Some(PublishedZipMutation::FlattenWindows) {
