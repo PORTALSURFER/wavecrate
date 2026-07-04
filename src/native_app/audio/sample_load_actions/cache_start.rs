@@ -9,17 +9,18 @@ use std::{
 
 use crate::native_app::{
     app::{
-        emit_gui_action, sample_path_label, GuiMessage, NativeAppState, PendingPlaybackStart,
-        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
-        SampleBrowserDisplayMode, WaveformState,
+        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
+        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
+        emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
+    starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
-        PreviewAuditionClip, WaveformPlaybackReady,
+        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
+        load_cached_waveform_playback_descriptor_sidecar,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -84,7 +85,7 @@ impl FastAuditionOptions {
             record_history: false,
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
-            prefer_preview_decode: false,
+            prefer_preview_decode: true,
         }
     }
 
@@ -1026,7 +1027,8 @@ impl NativeAppState {
         else {
             return;
         };
-        if self.library.folder_browser.selected_file_id() != Some(result.path.as_str()) {
+        if !self.preview_audition_decode_matches_current_target(result.path.as_str()) {
+            self.record_preview_audition_decode_stale(result.path.as_str(), started_at);
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -1086,6 +1088,60 @@ impl NativeAppState {
         {
             self.advance_starmap_drag_audition_tail_immediately(context);
         }
+    }
+
+    fn preview_audition_decode_matches_current_target(&self, path: &str) -> bool {
+        if self.ui.chrome.starmap_audition_drag.is_some()
+            || self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some()
+        {
+            return self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .as_deref()
+                == Some(path);
+        }
+        self.library.folder_browser.selected_file_id() == Some(path)
+    }
+
+    fn record_preview_audition_decode_stale(&self, path: &str, started_at: Instant) {
+        let starmap_active = self.ui.chrome.starmap_audition_drag.is_some()
+            || self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some()
+            || !self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .queued_file_ids
+                .is_empty();
+        starmap_telemetry::record_event(
+            None,
+            "preview_decode.finish",
+            if starmap_active {
+                "stale_starmap_target"
+            } else {
+                "stale_selection"
+            },
+            Some(path),
+            0,
+            self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+            self.ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some(),
+            Some(started_at.elapsed()),
+        );
     }
 
     pub(in crate::native_app) fn finish_preview_audition_warm(
@@ -1490,14 +1546,14 @@ mod tests {
     }
 
     #[test]
-    fn starmap_drag_fast_audition_prefers_source_file_before_preview_decode() {
+    fn starmap_drag_fast_audition_prefers_preview_decode_before_source_file_probe() {
         assert_eq!(
             fast_audition_probe_order(FastAuditionOptions::starmap_drag()),
             [
                 FastAuditionProbe::PreviewCache,
                 FastAuditionProbe::PersistedCache,
-                FastAuditionProbe::FileBackedWav,
                 FastAuditionProbe::PreviewDecode,
+                FastAuditionProbe::FileBackedWav,
             ]
         );
     }
@@ -1533,6 +1589,60 @@ mod tests {
                 FastAuditionProbe::PreviewDecode,
                 FastAuditionProbe::FileBackedWav,
             ]
+        );
+    }
+
+    #[test]
+    fn preview_decode_completion_uses_active_starmap_target_during_drag() {
+        let mut state = starmap_state_with_wav_files(2);
+        let files = state
+            .library
+            .folder_browser
+            .selected_source_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        let active = files[0].clone();
+        let selected = files[1].clone();
+        state.ui.chrome.starmap_audition_drag =
+            Some(crate::native_app::app::StarmapAuditionDragState {
+                last_hit_file_id: Some(active.clone()),
+                last_position: ui::Point::new(0.0, 0.0),
+                modifiers: Default::default(),
+            });
+        state.ui.chrome.starmap_audition_queue.active_file_id = Some(active.clone());
+        state.library.folder_browser.select_file(selected);
+
+        assert!(
+            state.preview_audition_decode_matches_current_target(active.as_str()),
+            "active starmap drag target should be allowed to finish even if browser selection has already moved"
+        );
+    }
+
+    #[test]
+    fn preview_decode_completion_rejects_replaced_starmap_target() {
+        let mut state = starmap_state_with_wav_files(2);
+        let files = state
+            .library
+            .folder_browser
+            .selected_source_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        let stale = files[0].clone();
+        let active = files[1].clone();
+        state.ui.chrome.starmap_audition_drag =
+            Some(crate::native_app::app::StarmapAuditionDragState {
+                last_hit_file_id: Some(active.clone()),
+                last_position: ui::Point::new(0.0, 0.0),
+                modifiers: Default::default(),
+            });
+        state.ui.chrome.starmap_audition_queue.active_file_id = Some(active);
+        state.library.folder_browser.select_file(stale.clone());
+
+        assert!(
+            !state.preview_audition_decode_matches_current_target(stale.as_str()),
+            "stale starmap preview decode must not play just because the browser selection still points at it"
         );
     }
 
@@ -1581,10 +1691,12 @@ mod tests {
             PREVIEW_AUDITION_WARM_BATCH,
             "a meaningful starmap viewport change should open a fresh warm budget"
         );
-        assert!(changed_view_plan
-            .paths
-            .iter()
-            .all(|path| !warmed.contains(path)));
+        assert!(
+            changed_view_plan
+                .paths
+                .iter()
+                .all(|path| !warmed.contains(path))
+        );
     }
 
     #[test]
