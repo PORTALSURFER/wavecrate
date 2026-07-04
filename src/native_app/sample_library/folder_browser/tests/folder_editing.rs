@@ -133,6 +133,13 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
                 && folder.name == "loops"
                 && folder.rename_draft.is_none())
     );
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .all(|folder| folder.id != path_id(&pending)),
+        "pending placeholder row must be removed after folder create succeeds"
+    );
     let _ = fs::remove_dir_all(root);
 }
 
