@@ -414,12 +414,12 @@ impl StarmapWidget {
             .map(str::to_owned);
         self.last_primary_position = Some(point);
         let hit_started_at = starmap_telemetry::stage_timer();
-        let raw_hits = self.hits_between(bounds, previous, point);
+        let hits = self.hits_between(bounds, previous, point, last_hit_file_id.as_deref());
         let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
         if let Some(elapsed) = hit_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
         }
-        if raw_hits.is_empty() {
+        if hits.is_empty() {
             starmap_telemetry::record_event(
                 Some(StarmapAuditionCounter::WidgetSegmentMiss),
                 "widget.segment_hit_test",
@@ -432,9 +432,6 @@ impl StarmapWidget {
             );
             return None;
         }
-        let raw_hit_count = raw_hits.len();
-        let hits =
-            segment_hits_for_drag_handoff(&raw_hits, &self.items, last_hit_file_id.as_deref());
         let Some(last_hit) = hits.last() else {
             return None;
         };
@@ -447,13 +444,13 @@ impl StarmapWidget {
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::WidgetSegmentHit),
             "widget.segment_hit_test",
-            if raw_hit_count > MAP_SEGMENT_HIT_HANDOFF_LIMIT {
+            if hits.raw_count > MAP_SEGMENT_HIT_HANDOFF_LIMIT {
                 "hit_capped"
             } else {
                 "hit"
             },
             Some(hit_file_id.as_str()),
-            raw_hit_count,
+            hits.raw_count,
             hit_file_ids.len(),
             last_hit_file_id.is_some(),
             hit_elapsed,
@@ -503,9 +500,15 @@ impl StarmapWidget {
         best.map(|(index, _)| index)
     }
 
-    fn hits_between(&mut self, bounds: Rect, from: Point, to: Point) -> Vec<StarmapSegmentHit> {
+    fn hits_between(
+        &mut self,
+        bounds: Rect,
+        from: Point,
+        to: Point,
+        last_hit_file_id: Option<&str>,
+    ) -> StarmapSegmentHits {
         self.ensure_hit_index(bounds);
-        let mut hits = Vec::new();
+        let mut hits = StarmapSegmentHits::default();
         let mut hit_scratch = lock_starmap_mutex(&self.hit_scratch);
         let candidates = self.hit_index.collect_item_indices_near_segment(
             from,
@@ -515,23 +518,21 @@ impl StarmapWidget {
         );
         for &index in candidates {
             let item = &self.items[index];
+            if last_hit_file_id == Some(item.file_id.as_str()) {
+                continue;
+            }
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = point_segment_distance_squared(center, from, to);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
-            hits.push(StarmapSegmentHit {
+            hits.retain(StarmapSegmentHit {
                 item_index: index,
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
             });
         }
-        hits.sort_by(|left, right| {
-            left.segment_t
-                .total_cmp(&right.segment_t)
-                .then_with(|| left.distance_sq.total_cmp(&right.distance_sq))
-        });
-        hits.dedup_by(|left, right| left.item_index == right.item_index);
+        hits.sort();
         hits
     }
 
@@ -618,22 +619,65 @@ struct StarmapSegmentHit {
     distance_sq: f32,
 }
 
-fn segment_hits_for_drag_handoff(
-    hits: &[StarmapSegmentHit],
-    items: &[StarmapItem],
-    last_hit_file_id: Option<&str>,
-) -> Vec<StarmapSegmentHit> {
-    let mut retained = hits
-        .iter()
-        .rev()
-        .filter(|hit| {
-            last_hit_file_id != items.get(hit.item_index).map(|item| item.file_id.as_str())
-        })
-        .take(MAP_SEGMENT_HIT_HANDOFF_LIMIT)
-        .copied()
-        .collect::<Vec<_>>();
-    retained.reverse();
-    retained
+#[derive(Debug, Default)]
+struct StarmapSegmentHits {
+    raw_count: usize,
+    retained: Vec<StarmapSegmentHit>,
+}
+
+impl StarmapSegmentHits {
+    fn is_empty(&self) -> bool {
+        self.retained.is_empty()
+    }
+
+    fn last(&self) -> Option<&StarmapSegmentHit> {
+        self.retained.last()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &StarmapSegmentHit> {
+        self.retained.iter()
+    }
+
+    fn retain(&mut self, hit: StarmapSegmentHit) {
+        self.raw_count += 1;
+        if self.retained.len() < MAP_SEGMENT_HIT_HANDOFF_LIMIT {
+            self.retained.push(hit);
+            return;
+        }
+        let Some((worst_index, worst)) = self
+            .retained
+            .iter()
+            .enumerate()
+            .min_by(|(_, left), (_, right)| segment_hit_handoff_priority_order(left, right))
+        else {
+            return;
+        };
+        if segment_hit_handoff_priority_order(&hit, worst).is_gt() {
+            self.retained[worst_index] = hit;
+        }
+    }
+
+    fn sort(&mut self) {
+        self.retained.sort_by(segment_hit_display_order);
+    }
+}
+
+fn segment_hit_display_order(
+    left: &StarmapSegmentHit,
+    right: &StarmapSegmentHit,
+) -> std::cmp::Ordering {
+    left.segment_t
+        .total_cmp(&right.segment_t)
+        .then_with(|| left.distance_sq.total_cmp(&right.distance_sq))
+}
+
+fn segment_hit_handoff_priority_order(
+    left: &StarmapSegmentHit,
+    right: &StarmapSegmentHit,
+) -> std::cmp::Ordering {
+    left.segment_t
+        .total_cmp(&right.segment_t)
+        .then_with(|| right.distance_sq.total_cmp(&left.distance_sq))
 }
 
 #[derive(Clone, Debug, Default)]
@@ -2327,6 +2371,21 @@ mod tests {
             .collect::<Vec<_>>();
         let mut widget = StarmapWidget::new(items, StarmapViewport::default(), None);
         let bounds = Rect::from_size(1_000.0, 100.0);
+        let hits = widget.hits_between(
+            bounds,
+            Point::new(0.0, 50.0),
+            Point::new(1_000.0, 50.0),
+            None,
+        );
+        assert_eq!(
+            hits.raw_count, total,
+            "test setup should cross every dense node"
+        );
+        assert_eq!(
+            hits.retained.len(),
+            MAP_SEGMENT_HIT_HANDOFF_LIMIT,
+            "hit testing itself should retain only a bounded latest-node payload"
+        );
 
         widget
             .handle_input(bounds, WidgetInput::primary_press(Point::new(0.0, 50.0)))
