@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
+    prelude::{dense_row_palette_from_style, IntoView, ThemeTokens, WidgetStyle, WidgetTone},
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
@@ -765,6 +765,56 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
             .active()
             .is_some(),
         "preview audition warm should be tracked as cancellable background work"
+    );
+}
+
+#[test]
+fn list_mode_frame_warms_preview_audition_heads_near_selected_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let mut paths = Vec::new();
+    for index in 0..36 {
+        let path = source_root.path().join(format!("{index:02}.wav"));
+        fs::write(&path, []).expect("write sample");
+        paths.push(path.display().to_string());
+    }
+    let selected = paths[30].clone();
+    let first_visible = paths[0].clone();
+    let next_selected_neighbor = paths[31].clone();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::List;
+    state.library.folder_browser.select_file(selected.clone());
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+    let scheduled = state.waveform.cache.preview_audition_scheduled_paths();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "list mode should warm tiny preview heads for rapid navigation"
+    );
+    assert!(
+        scheduled.contains(&selected),
+        "list preview warming should prioritize the selected sample"
+    );
+    assert!(
+        scheduled.contains(&next_selected_neighbor),
+        "list preview warming should include the next keyboard-navigation target"
+    );
+    assert!(
+        !scheduled.contains(&first_visible),
+        "list preview warming should not spend the first batch on far-away visible rows"
     );
 }
 

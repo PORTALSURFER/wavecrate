@@ -356,6 +356,11 @@ impl WaveformCacheState {
         &self.preview_audition_sample_paths
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn preview_audition_scheduled_paths(&self) -> &HashSet<String> {
+        &self.preview_audition_scheduled_paths
+    }
+
     pub(in crate::native_app) fn mark_preview_audition_attempted(&mut self, path: &Path) {
         self.preview_audition_attempted_paths
             .insert(path.display().to_string());

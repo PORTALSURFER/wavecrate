@@ -909,7 +909,7 @@ impl NativeAppState {
     }
 
     fn preview_audition_warm_list_candidates(&mut self) -> Vec<String> {
-        let visible_paths: Vec<String> = {
+        let ordered_paths: Vec<String> = {
             use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 
             let visible = self
@@ -919,14 +919,12 @@ impl NativeAppState {
                     tags_by_file: &self.metadata.tags_by_file,
                     cached_sample_paths: &self.waveform.cache.cached_sample_paths,
                 });
-            visible
-                .rows
-                .iter()
-                .filter(|row| !row.missing)
-                .map(|row| row.file.id.clone())
-                .collect()
+            Self::preview_audition_list_warm_ordered_paths(
+                &visible.rows,
+                self.library.folder_browser.selected_file_id(),
+            )
         };
-        visible_paths
+        ordered_paths
             .into_iter()
             .filter(|path| preview_audition_can_decode(path))
             .filter(|path| {
@@ -936,6 +934,36 @@ impl NativeAppState {
             })
             .take(PREVIEW_AUDITION_WARM_BATCH)
             .collect()
+    }
+
+    fn preview_audition_list_warm_ordered_paths(
+        rows: &[crate::native_app::sample_library::folder_browser::projection::VisibleSampleRow<
+            '_,
+        >],
+        selected_file_id: Option<&str>,
+    ) -> Vec<String> {
+        let selected_index = selected_file_id
+            .and_then(|selected| rows.iter().position(|row| row.file.id == selected));
+        let mut ordered = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| !row.missing)
+            .map(|(index, row)| {
+                (
+                    Self::list_preview_warm_priority(index, selected_index),
+                    row.file.id.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        ordered.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+        ordered.into_iter().map(|(_, path)| path).collect()
+    }
+
+    fn list_preview_warm_priority(index: usize, selected_index: Option<usize>) -> (usize, bool) {
+        let Some(selected_index) = selected_index else {
+            return (index, false);
+        };
+        (index.abs_diff(selected_index), index < selected_index)
     }
 
     pub(in crate::native_app) fn finish_preview_audition_decode(
