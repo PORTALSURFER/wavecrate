@@ -93,9 +93,9 @@ impl FastAuditionOptions {
         Self {
             origin: "instant_audition",
             record_history: true,
-            allow_sidecar_lookup: true,
+            allow_sidecar_lookup: false,
             queue_preview_decode: true,
-            prefer_preview_decode: false,
+            prefer_preview_decode: true,
         }
     }
 
@@ -1559,15 +1559,23 @@ mod tests {
     }
 
     #[test]
-    fn instant_navigation_fast_audition_prefers_file_backed_wav_before_preview_decode() {
+    fn instant_navigation_fast_audition_prefers_preview_decode_before_source_file_probe() {
         assert_eq!(
             fast_audition_probe_order(FastAuditionOptions::instant_navigation()),
             [
                 FastAuditionProbe::PreviewCache,
                 FastAuditionProbe::PersistedCache,
-                FastAuditionProbe::FileBackedWav,
                 FastAuditionProbe::PreviewDecode,
+                FastAuditionProbe::FileBackedWav,
             ]
+        );
+    }
+
+    #[test]
+    fn instant_navigation_fast_audition_avoids_ui_thread_sidecar_lookup() {
+        assert!(
+            !FastAuditionOptions::instant_navigation().allow_sidecar_lookup,
+            "list and keyboard navigation should not read playback descriptor sidecars on the UI path"
         );
     }
 

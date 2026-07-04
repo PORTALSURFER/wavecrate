@@ -243,6 +243,11 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
         Some(radiant::prelude::TaskPriority::Interactive),
         "keyboard navigation should share the fast preview-audition path"
     );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "full waveform loading should run behind the preview-head audition path"
+    );
     assert!(
         state
             .waveform
