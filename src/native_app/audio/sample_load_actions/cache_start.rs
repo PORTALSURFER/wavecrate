@@ -404,7 +404,7 @@ impl NativeAppState {
         );
         self.prepare_playback_mode_for_path(path);
         self.maybe_open_audio_player(context);
-        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+        let Some(runtime) = self.audio.playback_runtime.clone() else {
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -447,6 +447,7 @@ impl NativeAppState {
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
+        self.cancel_replaced_starmap_foreground_load_for_fast_audition(path, origin);
         let request_id = match runtime.try_play(request) {
             Ok(request_id) => request_id,
             Err(err) => {
@@ -516,7 +517,7 @@ impl NativeAppState {
         );
         self.prepare_playback_mode_for_path(path);
         self.maybe_open_audio_player(context);
-        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+        let Some(runtime) = self.audio.playback_runtime.clone() else {
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -549,6 +550,7 @@ impl NativeAppState {
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
+        self.cancel_replaced_starmap_foreground_load_for_fast_audition(path, origin);
         let request_id = match runtime.try_play(request) {
             Ok(request_id) => request_id,
             Err(err) => {
@@ -628,7 +630,7 @@ impl NativeAppState {
         }
         self.prepare_playback_mode_for_path(path.as_str());
         self.maybe_open_audio_player(context);
-        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+        let Some(runtime) = self.audio.playback_runtime.clone() else {
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -663,6 +665,10 @@ impl NativeAppState {
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
+        self.cancel_replaced_starmap_foreground_load_for_fast_audition(
+            path.as_str(),
+            options.origin,
+        );
         let request_id = match runtime.try_play(request) {
             Ok(request_id) => request_id,
             Err(err) => {
@@ -718,6 +724,47 @@ impl NativeAppState {
         if origin == "starmap_drag" {
             self.schedule_starmap_audition_promotion(path.to_owned(), context);
         }
+    }
+
+    pub(in crate::native_app) fn cancel_replaced_starmap_foreground_load_for_fast_audition(
+        &mut self,
+        path: &str,
+        origin: &'static str,
+    ) {
+        if origin != "starmap_drag" {
+            return;
+        }
+        let had_validation = self
+            .background
+            .sample_load_validation_task
+            .active()
+            .is_some();
+        let had_preview_decode = self.background.preview_audition_task.active().is_some();
+        self.background.sample_load_validation_task.cancel();
+        self.background.preview_audition_task.cancel();
+        let foreground_load_for_other_path = self
+            .waveform
+            .load
+            .selection
+            .selected_path
+            .as_deref()
+            .is_some_and(|selected| selected != path);
+        if !foreground_load_for_other_path {
+            return;
+        }
+        self.cancel_inflight_sample_load();
+        self.waveform.load.selection.selected_path = None;
+        self.waveform.load.label = None;
+        self.waveform.load.progress = 0.0;
+        self.waveform.load.target_progress = 0.0;
+        tracing::debug!(
+            target: "perf::starmap_drag",
+            event = "fast_audition.cancel_replaced_load",
+            path = %path,
+            had_validation,
+            had_preview_decode,
+            "Cancelled stale starmap foreground load before fast audition"
+        );
     }
 
     fn queue_preview_audition_decode(

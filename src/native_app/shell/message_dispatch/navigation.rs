@@ -131,6 +131,8 @@ impl NativeAppState {
             modifiers,
         });
         self.background.starmap_audition_advance_task.cancel();
+        self.background.preview_audition_warm_task.cancel();
+        self.waveform.cache.cancel_preview_audition_warm_schedule();
         self.ui.chrome.starmap_audition_queue = Default::default();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::DragBegin),

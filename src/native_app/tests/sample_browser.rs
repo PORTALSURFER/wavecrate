@@ -732,6 +732,67 @@ fn starmap_drag_cold_wav_queues_preview_audition_not_sample_load_validation() {
 }
 
 #[test]
+fn starmap_fast_audition_cancels_replaced_foreground_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.library.folder_browser.select_file(first_id.clone());
+    state.load_navigation_sample(first_id.clone(), &mut context);
+    assert!(
+        state.active_sample_load_task().is_some(),
+        "initial cold navigation should have a foreground sample load to cancel"
+    );
+    assert_eq!(
+        state.waveform.load.selection.selected_path.as_deref(),
+        Some(first_id.as_str())
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "initial cold navigation should have a stale preview decode to cancel"
+    );
+
+    state.library.folder_browser.select_file(second_id.clone());
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(second_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.cancel_replaced_starmap_foreground_load_for_fast_audition(
+        second_id.as_str(),
+        "starmap_drag",
+    );
+
+    assert_eq!(
+        state.active_sample_load_task(),
+        None,
+        "starmap fast audition should cancel the replaced full-load worker"
+    );
+    assert_eq!(
+        state.background.preview_audition_task.active(),
+        None,
+        "starmap fast audition should cancel stale preview-decode work"
+    );
+    assert_eq!(
+        state.waveform.load.selection.selected_path.as_deref(),
+        None,
+        "replaced foreground load selection must not be able to complete later"
+    );
+}
+
+#[test]
 fn starmap_mode_frame_warms_preview_audition_heads() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("large-cold.wav");
@@ -765,6 +826,67 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
             .active()
             .is_some(),
         "preview audition warm should be tracked as cancellable background work"
+    );
+}
+
+#[test]
+fn starmap_drag_begin_cancels_active_preview_audition_warm() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    assert!(
+        state
+            .background
+            .preview_audition_warm_task
+            .active()
+            .is_some(),
+        "test setup should start preview warming"
+    );
+    assert!(
+        !state
+            .waveform
+            .cache
+            .preview_audition_scheduled_paths()
+            .is_empty(),
+        "test setup should mark preview-warm paths scheduled"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.background.preview_audition_warm_task.active(),
+        None,
+        "drag playback should immediately cancel background preview warming"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_scheduled_paths()
+            .is_empty(),
+        "cancelled preview warming must release scheduled paths instead of sparkling forever"
     );
 }
 
