@@ -40,16 +40,24 @@ static STARMAP_AUDITION_RUNTIME_CANCELLED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_RUNTIME_STALE: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_FOCUS_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_FOCUS_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_FOCUS_NS_MAX: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_HIT_TEST_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_WIDGET_HIT_TEST_NS_MAX: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_PAINT_BUILD_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_MAX: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_SOURCE_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_SOURCE_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_READY_SOURCE_NS_MAX: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_RUNTIME_START_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_RUNTIME_START_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_START_NS_MAX: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_START_TOTAL_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_START_TOTAL_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_START_TOTAL_NS_MAX: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_HIT_COUNT_MAX: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_QUEUE_LEN_MAX: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::native_app) enum StarmapAuditionCounter {
@@ -142,28 +150,52 @@ pub(in crate::native_app) fn record_duration(counter: StarmapAuditionDuration, d
     }
     match counter {
         StarmapAuditionDuration::Focus => {
-            add_duration_ns(&STARMAP_AUDITION_FOCUS_NS_TOTAL, duration);
-            STARMAP_AUDITION_FOCUS_COUNT.fetch_add(1, Ordering::Relaxed);
+            record_duration_sample(
+                &STARMAP_AUDITION_FOCUS_NS_TOTAL,
+                &STARMAP_AUDITION_FOCUS_COUNT,
+                &STARMAP_AUDITION_FOCUS_NS_MAX,
+                duration,
+            );
         }
         StarmapAuditionDuration::WidgetHitTest => {
-            add_duration_ns(&STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL, duration);
-            STARMAP_AUDITION_WIDGET_HIT_TEST_COUNT.fetch_add(1, Ordering::Relaxed);
+            record_duration_sample(
+                &STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL,
+                &STARMAP_AUDITION_WIDGET_HIT_TEST_COUNT,
+                &STARMAP_AUDITION_WIDGET_HIT_TEST_NS_MAX,
+                duration,
+            );
         }
         StarmapAuditionDuration::WidgetPaintBuild => {
-            add_duration_ns(&STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL, duration);
-            STARMAP_AUDITION_WIDGET_PAINT_BUILD_COUNT.fetch_add(1, Ordering::Relaxed);
+            record_duration_sample(
+                &STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL,
+                &STARMAP_AUDITION_WIDGET_PAINT_BUILD_COUNT,
+                &STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_MAX,
+                duration,
+            );
         }
         StarmapAuditionDuration::ReadySource => {
-            add_duration_ns(&STARMAP_AUDITION_READY_SOURCE_NS_TOTAL, duration);
-            STARMAP_AUDITION_READY_SOURCE_COUNT.fetch_add(1, Ordering::Relaxed);
+            record_duration_sample(
+                &STARMAP_AUDITION_READY_SOURCE_NS_TOTAL,
+                &STARMAP_AUDITION_READY_SOURCE_COUNT,
+                &STARMAP_AUDITION_READY_SOURCE_NS_MAX,
+                duration,
+            );
         }
         StarmapAuditionDuration::RuntimeStart => {
-            add_duration_ns(&STARMAP_AUDITION_RUNTIME_START_NS_TOTAL, duration);
-            STARMAP_AUDITION_RUNTIME_START_COUNT.fetch_add(1, Ordering::Relaxed);
+            record_duration_sample(
+                &STARMAP_AUDITION_RUNTIME_START_NS_TOTAL,
+                &STARMAP_AUDITION_RUNTIME_START_COUNT,
+                &STARMAP_AUDITION_RUNTIME_START_NS_MAX,
+                duration,
+            );
         }
         StarmapAuditionDuration::StartTotal => {
-            add_duration_ns(&STARMAP_AUDITION_START_TOTAL_NS_TOTAL, duration);
-            STARMAP_AUDITION_START_TOTAL_COUNT.fetch_add(1, Ordering::Relaxed);
+            record_duration_sample(
+                &STARMAP_AUDITION_START_TOTAL_NS_TOTAL,
+                &STARMAP_AUDITION_START_TOTAL_COUNT,
+                &STARMAP_AUDITION_START_TOTAL_NS_MAX,
+                duration,
+            );
         }
     }
 }
@@ -181,6 +213,8 @@ pub(in crate::native_app) fn record_event(
     if !enabled() {
         return;
     }
+    record_max_usize(&STARMAP_AUDITION_HIT_COUNT_MAX, hit_count);
+    record_max_usize(&STARMAP_AUDITION_QUEUE_LEN_MAX, queue_len);
     let sample_tick = STARMAP_AUDITION_EVENTS_TOTAL.fetch_add(1, Ordering::Relaxed) + 1;
     let counter_name = counter.map(StarmapAuditionCounter::as_str).unwrap_or("");
     if let Some(counter) = counter {
@@ -336,30 +370,44 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         runtime_failed = STARMAP_AUDITION_RUNTIME_FAILED.load(Ordering::Relaxed),
         runtime_cancelled = STARMAP_AUDITION_RUNTIME_CANCELLED.load(Ordering::Relaxed),
         runtime_stale = STARMAP_AUDITION_RUNTIME_STALE.load(Ordering::Relaxed),
+        max_hit_count = STARMAP_AUDITION_HIT_COUNT_MAX.load(Ordering::Relaxed),
+        max_queue_len = STARMAP_AUDITION_QUEUE_LEN_MAX.load(Ordering::Relaxed),
         avg_focus_ms = avg_ms(
             STARMAP_AUDITION_FOCUS_NS_TOTAL.load(Ordering::Relaxed),
             focus_count
         ),
+        max_focus_ms = ns_ms(STARMAP_AUDITION_FOCUS_NS_MAX.load(Ordering::Relaxed)),
         avg_widget_hit_test_ms = avg_ms(
             STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL.load(Ordering::Relaxed),
             widget_hit_test_count
+        ),
+        max_widget_hit_test_ms = ns_ms(
+            STARMAP_AUDITION_WIDGET_HIT_TEST_NS_MAX.load(Ordering::Relaxed)
         ),
         avg_widget_paint_build_ms = avg_ms(
             STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL.load(Ordering::Relaxed),
             widget_paint_build_count
         ),
+        max_widget_paint_build_ms = ns_ms(
+            STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_MAX.load(Ordering::Relaxed)
+        ),
         avg_ready_source_ms = avg_ms(
             STARMAP_AUDITION_READY_SOURCE_NS_TOTAL.load(Ordering::Relaxed),
             ready_source_count
         ),
+        max_ready_source_ms = ns_ms(STARMAP_AUDITION_READY_SOURCE_NS_MAX.load(Ordering::Relaxed)),
         avg_runtime_start_ms = avg_ms(
             STARMAP_AUDITION_RUNTIME_START_NS_TOTAL.load(Ordering::Relaxed),
             runtime_start_count
+        ),
+        max_runtime_start_ms = ns_ms(
+            STARMAP_AUDITION_RUNTIME_START_NS_MAX.load(Ordering::Relaxed)
         ),
         avg_start_total_ms = avg_ms(
             STARMAP_AUDITION_START_TOTAL_NS_TOTAL.load(Ordering::Relaxed),
             start_total_count
         ),
+        max_start_total_ms = ns_ms(STARMAP_AUDITION_START_TOTAL_NS_MAX.load(Ordering::Relaxed)),
         "Starmap audition telemetry snapshot"
     );
 }
@@ -372,9 +420,34 @@ fn duration_ms(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
 }
 
-fn add_duration_ns(counter: &AtomicU64, duration: Duration) {
+fn record_duration_sample(
+    total: &AtomicU64,
+    count: &AtomicU64,
+    max: &AtomicU64,
+    duration: Duration,
+) {
     let dur_ns = duration.as_nanos().min(u64::MAX as u128) as u64;
-    counter.fetch_add(dur_ns, Ordering::Relaxed);
+    total.fetch_add(dur_ns, Ordering::Relaxed);
+    count.fetch_add(1, Ordering::Relaxed);
+    record_max_u64(max, dur_ns);
+}
+
+fn record_max_usize(counter: &AtomicU64, value: usize) {
+    record_max_u64(counter, value.min(u64::MAX as usize) as u64);
+}
+
+fn record_max_u64(counter: &AtomicU64, value: u64) {
+    let mut current = counter.load(Ordering::Relaxed);
+    while value > current {
+        match counter.compare_exchange_weak(current, value, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return,
+            Err(next) => current = next,
+        }
+    }
+}
+
+fn ns_ms(ns: u64) -> f64 {
+    ns as f64 / 1_000_000.0
 }
 
 fn should_emit(sample_tick: u64, every: u64) -> bool {
@@ -419,6 +492,33 @@ mod tests {
     #[test]
     fn starmap_audition_duration_ms_uses_fractional_precision() {
         assert_eq!(duration_ms(Duration::from_micros(1_500)), 1.5);
+    }
+
+    #[test]
+    fn starmap_audition_max_counter_keeps_largest_sample() {
+        let counter = AtomicU64::new(7);
+
+        record_max_u64(&counter, 3);
+        record_max_u64(&counter, 11);
+        record_max_u64(&counter, 9);
+
+        assert_eq!(counter.load(Ordering::Relaxed), 11);
+    }
+
+    #[test]
+    fn starmap_audition_duration_sample_tracks_total_count_and_max() {
+        let total = AtomicU64::new(0);
+        let count = AtomicU64::new(0);
+        let max = AtomicU64::new(0);
+
+        record_duration_sample(&total, &count, &max, Duration::from_micros(250));
+        record_duration_sample(&total, &count, &max, Duration::from_micros(750));
+        record_duration_sample(&total, &count, &max, Duration::from_micros(500));
+
+        assert_eq!(total.load(Ordering::Relaxed), 1_500_000);
+        assert_eq!(count.load(Ordering::Relaxed), 3);
+        assert_eq!(max.load(Ordering::Relaxed), 750_000);
+        assert_eq!(ns_ms(max.load(Ordering::Relaxed)), 0.75);
     }
 
     #[test]
