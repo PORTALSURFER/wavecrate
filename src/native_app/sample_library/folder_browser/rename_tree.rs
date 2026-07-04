@@ -101,6 +101,17 @@ impl FolderBrowserState {
     }
 
     pub(super) fn upsert_child_folder(&mut self, parent_id: &str, folder: FolderEntry) -> bool {
+        if let Some(changed) =
+            self.tree.folders.first_mut().and_then(|root_folder| {
+                upsert_child_in_root(root_folder, parent_id, folder.clone())
+            })
+        {
+            if changed {
+                self.bump_file_content_revision();
+            }
+            return changed;
+        }
+
         let Some(source) = self
             .source
             .sources
@@ -122,4 +133,13 @@ impl FolderBrowserState {
         }
         changed
     }
+}
+
+fn upsert_child_in_root(
+    root_folder: &mut FolderEntry,
+    parent_id: &str,
+    folder: FolderEntry,
+) -> Option<bool> {
+    let parent = root_folder.find_mut(parent_id)?;
+    Some(upsert_folder(&mut parent.children, folder))
 }
