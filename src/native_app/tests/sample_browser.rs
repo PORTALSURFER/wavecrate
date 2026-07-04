@@ -528,7 +528,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
 }
 
 #[test]
-fn starmap_drag_sweep_starts_first_crossed_hit_and_queues_the_rest() {
+fn starmap_drag_sweep_retargets_to_latest_hit_without_backlog() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -567,8 +567,8 @@ fn starmap_drag_sweep_starts_first_crossed_hit_and_queues_the_rest() {
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
-        Some(second_id.as_str()),
-        "the first newly crossed drag hit should become the immediate playback target"
+        Some(third_id.as_str()),
+        "the latest crossed drag hit should become the immediate playback target"
     );
     assert_eq!(
         state
@@ -577,7 +577,7 @@ fn starmap_drag_sweep_starts_first_crossed_hit_and_queues_the_rest() {
             .starmap_audition_queue
             .active_file_id
             .as_deref(),
-        Some(second_id.as_str())
+        Some(third_id.as_str())
     );
     assert_eq!(
         state
@@ -588,8 +588,8 @@ fn starmap_drag_sweep_starts_first_crossed_hit_and_queues_the_rest() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        vec![third_id],
-        "the rest of the swept nodes should remain queued for immediate follow-up audition"
+        Vec::<String>::new(),
+        "drag sweeps should not create a delayed playback backlog"
     );
 }
 
@@ -689,6 +689,47 @@ fn starmap_drag_cold_large_sample_falls_back_to_sample_load_validation() {
         Some(radiant::prelude::TaskPriority::Interactive),
         "cold starmap drag targets should still use the normal load path"
     );
+}
+
+#[test]
+fn starmap_drag_finish_cancels_cold_load_validation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    assert!(
+        state
+            .background
+            .sample_load_validation_task
+            .active()
+            .is_some(),
+        "cold drag targets should start validation while the drag is active"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(state.background.sample_load_validation_task.active(), None);
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
 }
 
 #[test]
@@ -807,7 +848,7 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
             .starmap_audition_queue
             .active_file_id
             .as_deref(),
-        Some(second_id.as_str())
+        Some(third_id.as_str())
     );
     assert_eq!(
         state
@@ -818,8 +859,8 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        vec![third_id.clone()],
-        "drag updates should queue swept follow-up targets until release clears them"
+        Vec::<String>::new(),
+        "drag updates should not leave swept follow-up targets queued behind the current pointer"
     );
 
     state.apply_message(
@@ -1020,12 +1061,14 @@ fn starmap_drag_update_selects_next_hit_immediately() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(state
-        .ui
-        .chrome
-        .starmap_audition_queue
-        .queued_file_ids
-        .is_empty());
+    assert!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
 }
 
 #[test]

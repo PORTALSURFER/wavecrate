@@ -186,6 +186,19 @@ impl NativeAppState {
     fn finish_starmap_audition_drag(&mut self) {
         let started_at = starmap_telemetry::stage_timer();
         self.background.starmap_audition_advance_task.cancel();
+        self.background.sample_load_validation_task.cancel();
+        self.background.deferred_sample_load_task.cancel();
+        if let Some(token) = self.background.sample_load_cancel.take() {
+            token.cancel();
+        }
+        if let Some(key) = self.background.active_sample_load_key.take() {
+            self.background.sample_load_tasks.cancel(&key);
+        }
+        self.waveform.load.label = None;
+        self.waveform.load.progress = 0.0;
+        self.waveform.load.target_progress = 0.0;
+        self.waveform.load.selection.cancel();
+        self.audio.pending_sample_playback = None;
         self.ui.chrome.starmap_audition_drag = None;
         self.ui.chrome.starmap_audition_queue = Default::default();
         starmap_telemetry::record_event(
@@ -283,8 +296,26 @@ impl NativeAppState {
             queue.active_file_id = None;
             queue.queued_file_ids.clear();
         }
-        for path in admitted_paths {
-            queue.queued_file_ids.push_back(path);
+        if drag_active && admitted_paths.len() > 1 {
+            starmap_telemetry::record_event(
+                Some(StarmapAuditionCounter::QueueCoalesced),
+                "controller.enqueue",
+                "realtime_latest",
+                latest_path.as_deref(),
+                hit_count,
+                admitted_paths.len().saturating_sub(1),
+                queue.active_file_id.is_some(),
+                starmap_telemetry::elapsed_since(started_at),
+            );
+        }
+        if drag_active {
+            if let Some(path) = latest_path.clone() {
+                queue.queued_file_ids.push_back(path);
+            }
+        } else {
+            for path in admitted_paths {
+                queue.queued_file_ids.push_back(path);
+            }
         }
         queue.modifiers = starmap_audition_modifiers();
         starmap_telemetry::record_event(

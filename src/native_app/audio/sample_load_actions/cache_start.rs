@@ -236,7 +236,7 @@ impl NativeAppState {
         started_at: Instant,
     ) -> InstantAuditionOutcome {
         self.start_persisted_cache_instant_audition_with_options(
-            path, context, started_at, false, true,
+            path, context, started_at, false, false,
         )
     }
 
