@@ -228,7 +228,7 @@ impl NativeAppState {
         if let Some(drag) = self.ui.chrome.starmap_audition_drag.as_mut() {
             drag.last_hit_file_id = Some(path.clone());
         }
-        self.select_sample_with_modifiers(path, starmap_audition_modifiers(), context);
+        self.start_starmap_drag_audition_sample(path, starmap_audition_modifiers(), context);
     }
 
     fn advance_starmap_audition(

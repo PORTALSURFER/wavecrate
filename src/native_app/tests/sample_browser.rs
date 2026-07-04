@@ -8,7 +8,7 @@ use std::{fs, path::PathBuf};
 
 use super::{
     native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
-    write_test_wav_i16,
+    write_sparse_test_wav_i16, write_test_wav_i16,
 };
 
 fn sample_hit_target(
@@ -594,6 +594,104 @@ fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
 }
 
 #[test]
+fn starmap_drag_ready_descriptor_skips_foreground_sample_load_validation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-ready.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let cache_file = crate::native_app::waveform::PersistedPlaybackCacheFile::new(
+        sample.with_extension("f32"),
+        700,
+    )
+    .expect("playback cache file");
+    let descriptor = crate::native_app::waveform::PersistedPlaybackDescriptor::new(
+        sample.clone(),
+        cache_file,
+        48_000,
+        1,
+        700,
+    )
+    .expect("persisted playback descriptor");
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state
+        .waveform
+        .cache
+        .mark_sample_playback_descriptor_ready(descriptor);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load-validate"),
+        None,
+        "playback-ready starmap drag targets should not enter the foreground sample-load path"
+    );
+}
+
+#[test]
+fn starmap_drag_cold_large_sample_falls_back_to_sample_load_validation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "cold starmap drag targets should still use the normal load path"
+    );
+}
+
+#[test]
 fn starmap_drag_retriggers_sample_after_sweeping_away_and_back() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
@@ -919,12 +1017,14 @@ fn starmap_drag_update_selects_next_hit_immediately() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(state
-        .ui
-        .chrome
-        .starmap_audition_queue
-        .queued_file_ids
-        .is_empty());
+    assert!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
 }
 
 #[test]

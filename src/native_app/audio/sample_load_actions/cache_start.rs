@@ -27,6 +27,23 @@ struct CachedPlaybackOutcomes {
     error: &'static str,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum InstantAuditionOutcome {
+    Started,
+    AudioPending,
+    Unavailable,
+}
+
+impl InstantAuditionOutcome {
+    fn started(self) -> bool {
+        matches!(self, Self::Started)
+    }
+
+    pub(super) fn uses_ready_source(self) -> bool {
+        matches!(self, Self::Started | Self::AudioPending)
+    }
+}
+
 const SAMPLE_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes {
     playing: "autoplay_started",
     pending: "autoplay_pending",
@@ -198,6 +215,31 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) -> bool {
+        self.start_persisted_cache_instant_audition_with_options(
+            path, context, started_at, true, true,
+        )
+        .started()
+    }
+
+    pub(super) fn start_starmap_ready_instant_audition(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) -> InstantAuditionOutcome {
+        self.start_persisted_cache_instant_audition_with_options(
+            path, context, started_at, false, true,
+        )
+    }
+
+    fn start_persisted_cache_instant_audition_with_options(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+        allow_sidecar_lookup: bool,
+        record_history: bool,
+    ) -> InstantAuditionOutcome {
         let lookup_started_at = Instant::now();
         let descriptor = if let Some(descriptor) = self
             .waveform
@@ -210,16 +252,17 @@ impl NativeAppState {
         } else if !self.loop_playback_for_path_after_policy(path)
             && should_use_file_backed_wav_decode(Path::new(path))
         {
-            return false;
-        } else if let Some(descriptor) =
-            load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path))
+            return InstantAuditionOutcome::Unavailable;
+        } else if let Some(descriptor) = allow_sidecar_lookup
+            .then(|| load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path)))
+            .flatten()
         {
             self.waveform
                 .cache
                 .mark_sample_playback_descriptor_ready(descriptor.clone());
             descriptor
         } else {
-            return false;
+            return InstantAuditionOutcome::Unavailable;
         };
         log_sample_load_timing(
             "browser.sample_load.persisted_descriptor.lookup",
@@ -238,7 +281,7 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            return false;
+            return InstantAuditionOutcome::AudioPending;
         };
         let playback_started_at = Instant::now();
         let duration = descriptor.duration_seconds();
@@ -283,7 +326,7 @@ impl NativeAppState {
                     started_at,
                     Some(&format!("submit playback request: {err:?}")),
                 );
-                return false;
+                return InstantAuditionOutcome::Unavailable;
             }
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
@@ -295,7 +338,9 @@ impl NativeAppState {
             show_start_marker: true,
         });
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
-        self.record_sample_last_played(path.to_owned(), context);
+        if record_history {
+            self.record_sample_last_played(path.to_owned(), context);
+        }
         log_sample_load_timing(
             "browser.sample_load.persisted_descriptor.playback_submit",
             path,
@@ -310,7 +355,7 @@ impl NativeAppState {
             started_at,
             None,
         );
-        true
+        InstantAuditionOutcome::Started
     }
 
     pub(super) fn start_file_backed_wav_instant_audition(
