@@ -1,7 +1,7 @@
 use std::{
     sync::{
-        OnceLock,
         atomic::{AtomicU64, Ordering},
+        OnceLock,
     },
     time::{Duration, Instant},
 };
@@ -19,6 +19,8 @@ static STARMAP_AUDITION_WIDGET_POINT_HIT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_POINT_MISS: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_SEGMENT_HIT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_SEGMENT_MISS: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_WIDGET_PAINT_CACHE_HIT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_WIDGET_PAINT_CACHE_MISS: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_HITS_QUEUED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_HITS_STARTED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_DUPLICATE_ACTIVE: AtomicU64 = AtomicU64::new(0);
@@ -39,6 +41,8 @@ static STARMAP_AUDITION_FOCUS_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_FOCUS_COUNT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_HIT_TEST_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_WIDGET_PAINT_BUILD_COUNT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_SOURCE_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_SOURCE_COUNT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_RUNTIME_START_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
@@ -55,6 +59,8 @@ pub(in crate::native_app) enum StarmapAuditionCounter {
     WidgetPointMiss,
     WidgetSegmentHit,
     WidgetSegmentMiss,
+    WidgetPaintCacheHit,
+    WidgetPaintCacheMiss,
     HitQueued,
     HitStarted,
     DuplicateActive,
@@ -83,6 +89,8 @@ impl StarmapAuditionCounter {
             Self::WidgetPointMiss => "widget_point_miss",
             Self::WidgetSegmentHit => "widget_segment_hit",
             Self::WidgetSegmentMiss => "widget_segment_miss",
+            Self::WidgetPaintCacheHit => "widget_paint_cache_hit",
+            Self::WidgetPaintCacheMiss => "widget_paint_cache_miss",
             Self::HitQueued => "hit_queued",
             Self::HitStarted => "hit_started",
             Self::DuplicateActive => "duplicate_active",
@@ -107,6 +115,7 @@ impl StarmapAuditionCounter {
 pub(in crate::native_app) enum StarmapAuditionDuration {
     Focus,
     WidgetHitTest,
+    WidgetPaintBuild,
     ReadySource,
     RuntimeStart,
     StartTotal,
@@ -136,6 +145,10 @@ pub(in crate::native_app) fn record_duration(counter: StarmapAuditionDuration, d
         StarmapAuditionDuration::WidgetHitTest => {
             add_duration_ns(&STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL, duration);
             STARMAP_AUDITION_WIDGET_HIT_TEST_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionDuration::WidgetPaintBuild => {
+            add_duration_ns(&STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL, duration);
+            STARMAP_AUDITION_WIDGET_PAINT_BUILD_COUNT.fetch_add(1, Ordering::Relaxed);
         }
         StarmapAuditionDuration::ReadySource => {
             add_duration_ns(&STARMAP_AUDITION_READY_SOURCE_NS_TOTAL, duration);
@@ -209,6 +222,12 @@ fn record_counter(counter: StarmapAuditionCounter) {
         StarmapAuditionCounter::WidgetSegmentMiss => {
             STARMAP_AUDITION_WIDGET_SEGMENT_MISS.fetch_add(1, Ordering::Relaxed);
         }
+        StarmapAuditionCounter::WidgetPaintCacheHit => {
+            STARMAP_AUDITION_WIDGET_PAINT_CACHE_HIT.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionCounter::WidgetPaintCacheMiss => {
+            STARMAP_AUDITION_WIDGET_PAINT_CACHE_MISS.fetch_add(1, Ordering::Relaxed);
+        }
         StarmapAuditionCounter::HitQueued => {
             STARMAP_AUDITION_HITS_QUEUED.fetch_add(1, Ordering::Relaxed);
         }
@@ -271,6 +290,9 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
     let ready_source_count = STARMAP_AUDITION_READY_SOURCE_COUNT
         .load(Ordering::Relaxed)
         .max(1);
+    let widget_paint_build_count = STARMAP_AUDITION_WIDGET_PAINT_BUILD_COUNT
+        .load(Ordering::Relaxed)
+        .max(1);
     let runtime_start_count = STARMAP_AUDITION_RUNTIME_START_COUNT
         .load(Ordering::Relaxed)
         .max(1);
@@ -289,6 +311,8 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         widget_point_miss = STARMAP_AUDITION_WIDGET_POINT_MISS.load(Ordering::Relaxed),
         widget_segment_hit = STARMAP_AUDITION_WIDGET_SEGMENT_HIT.load(Ordering::Relaxed),
         widget_segment_miss = STARMAP_AUDITION_WIDGET_SEGMENT_MISS.load(Ordering::Relaxed),
+        widget_paint_cache_hit = STARMAP_AUDITION_WIDGET_PAINT_CACHE_HIT.load(Ordering::Relaxed),
+        widget_paint_cache_miss = STARMAP_AUDITION_WIDGET_PAINT_CACHE_MISS.load(Ordering::Relaxed),
         hits_queued = STARMAP_AUDITION_HITS_QUEUED.load(Ordering::Relaxed),
         hits_started = STARMAP_AUDITION_HITS_STARTED.load(Ordering::Relaxed),
         duplicate_active = STARMAP_AUDITION_DUPLICATE_ACTIVE.load(Ordering::Relaxed),
@@ -312,6 +336,10 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         avg_widget_hit_test_ms = avg_ms(
             STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL.load(Ordering::Relaxed),
             widget_hit_test_count
+        ),
+        avg_widget_paint_build_ms = avg_ms(
+            STARMAP_AUDITION_WIDGET_PAINT_BUILD_NS_TOTAL.load(Ordering::Relaxed),
+            widget_paint_build_count
         ),
         avg_ready_source_ms = avg_ms(
             STARMAP_AUDITION_READY_SOURCE_NS_TOTAL.load(Ordering::Relaxed),
@@ -370,6 +398,10 @@ mod tests {
         assert_eq!(
             StarmapAuditionCounter::ReadyUnavailable.as_str(),
             "ready_unavailable"
+        );
+        assert_eq!(
+            StarmapAuditionCounter::WidgetPaintCacheHit.as_str(),
+            "widget_paint_cache_hit"
         );
     }
 

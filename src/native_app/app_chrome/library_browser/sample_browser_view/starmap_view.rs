@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-        push_stroke_polyline,
+        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
+        PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,9 +13,9 @@ use radiant::{
     },
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
     hash::{Hash, Hasher},
-    sync::Arc,
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use crate::native_app::app::{
@@ -26,7 +26,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
+    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
 };
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
@@ -314,9 +314,13 @@ struct StarmapWidget {
     last_pan_position: Option<Point>,
     active_drag: Option<StarmapAuditionDragState>,
     item_signature: u64,
+    paint_signature: u64,
     hit_index: StarmapHitIndex,
+    hit_scratch: Arc<Mutex<StarmapHitScratch>>,
+    paint_cache: Arc<Mutex<StarmapPaintCache>>,
     hovered_file_id: Option<String>,
     hovered_item_index: Option<usize>,
+    focused_item_index: Option<usize>,
 }
 
 impl StarmapWidget {
@@ -335,7 +339,10 @@ impl StarmapWidget {
         )
         .with_pointer_focus()
         .without_default_chrome();
-        let item_signature = starmap_items_signature(&items);
+        let signatures = starmap_item_signatures(&items);
+        let item_signature = signatures.hit;
+        let paint_signature = signatures.paint;
+        let focused_item_index = items.iter().position(|item| item.focused);
         Self {
             common,
             gesture: CanvasGestureState::new(),
@@ -347,9 +354,13 @@ impl StarmapWidget {
             last_pan_position: None,
             active_drag,
             item_signature,
+            paint_signature,
             hit_index: StarmapHitIndex::default(),
+            hit_scratch: Arc::new(Mutex::new(StarmapHitScratch::default())),
+            paint_cache: Arc::new(Mutex::new(StarmapPaintCache::default())),
             hovered_file_id: None,
             hovered_item_index: None,
+            focused_item_index,
         }
     }
 
@@ -464,7 +475,13 @@ impl StarmapWidget {
     fn hit_item_index(&mut self, bounds: Rect, point: Point) -> Option<usize> {
         self.ensure_hit_index(bounds);
         let mut best: Option<(usize, f32)> = None;
-        for index in self.hit_index.item_indices_near_point(point) {
+        let mut hit_scratch = lock_starmap_mutex(&self.hit_scratch);
+        let candidates = self.hit_index.collect_item_indices_near_point(
+            point,
+            self.items.len(),
+            &mut hit_scratch,
+        );
+        for &index in candidates {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = distance_squared(center, point);
@@ -481,7 +498,14 @@ impl StarmapWidget {
     fn hit_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<StarmapSegmentHit> {
         self.ensure_hit_index(bounds);
         let mut best: Option<StarmapSegmentHit> = None;
-        for index in self.hit_index.item_indices_near_segment(from, to) {
+        let mut hit_scratch = lock_starmap_mutex(&self.hit_scratch);
+        let candidates = self.hit_index.collect_item_indices_near_segment(
+            from,
+            to,
+            self.items.len(),
+            &mut hit_scratch,
+        );
+        for &index in candidates {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = point_segment_distance_squared(center, from, to);
@@ -555,7 +579,7 @@ impl StarmapWidget {
     }
 
     fn focused_item(&self) -> Option<&StarmapItem> {
-        self.items.iter().find(|item| item.focused)
+        self.items.get(self.focused_item_index?)
     }
 
     fn item_for_cached_index(
@@ -623,32 +647,94 @@ impl StarmapHitIndex {
             && self.item_signature == item_signature
     }
 
-    fn item_indices_near_point(&self, point: Point) -> Vec<usize> {
-        self.item_indices_for_rect(centered_rect(point, MAP_HIT_RADIUS * 2.0))
+    fn collect_item_indices_near_point<'a>(
+        &'a self,
+        point: Point,
+        item_count: usize,
+        scratch: &'a mut StarmapHitScratch,
+    ) -> &'a [usize] {
+        self.collect_item_indices_for_rect(
+            centered_rect(point, MAP_HIT_RADIUS * 2.0),
+            item_count,
+            scratch,
+        )
     }
 
-    fn item_indices_near_segment(&self, from: Point, to: Point) -> Vec<usize> {
-        self.item_indices_for_rect(segment_bounds(from, to).expanded(MAP_HIT_RADIUS))
+    fn collect_item_indices_near_segment<'a>(
+        &'a self,
+        from: Point,
+        to: Point,
+        item_count: usize,
+        scratch: &'a mut StarmapHitScratch,
+    ) -> &'a [usize] {
+        self.collect_item_indices_for_rect(
+            segment_bounds(from, to).expanded(MAP_HIT_RADIUS),
+            item_count,
+            scratch,
+        )
     }
 
-    fn item_indices_for_rect(&self, rect: Rect) -> Vec<usize> {
+    fn collect_item_indices_for_rect<'a>(
+        &'a self,
+        rect: Rect,
+        item_count: usize,
+        scratch: &'a mut StarmapHitScratch,
+    ) -> &'a [usize] {
+        scratch.begin(item_count);
         let min = StarmapGridCell::from_point(rect.min);
         let max = StarmapGridCell::from_point(rect.max);
-        let mut indices = Vec::new();
-        let mut seen = HashSet::new();
         for y in min.y..=max.y {
             for x in min.x..=max.x {
                 let Some(cell_indices) = self.cells.get(&StarmapGridCell { x, y }) else {
                     continue;
                 };
                 for &index in cell_indices {
-                    if seen.insert(index) {
-                        indices.push(index);
+                    if scratch.mark_seen(index) {
+                        scratch.indices.push(index);
                     }
                 }
             }
         }
-        indices
+        scratch.indices.as_slice()
+    }
+
+    #[cfg(test)]
+    fn item_indices_near_segment(&self, from: Point, to: Point, item_count: usize) -> Vec<usize> {
+        let mut scratch = StarmapHitScratch::default();
+        self.collect_item_indices_near_segment(from, to, item_count, &mut scratch)
+            .to_vec()
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct StarmapHitScratch {
+    generation: u32,
+    seen_generation: Vec<u32>,
+    indices: Vec<usize>,
+}
+
+impl StarmapHitScratch {
+    fn begin(&mut self, item_count: usize) {
+        self.indices.clear();
+        if self.seen_generation.len() < item_count {
+            self.seen_generation.resize(item_count, 0);
+        }
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            self.seen_generation.fill(0);
+            self.generation = 1;
+        }
+    }
+
+    fn mark_seen(&mut self, index: usize) -> bool {
+        let Some(seen_generation) = self.seen_generation.get_mut(index) else {
+            return false;
+        };
+        if *seen_generation == self.generation {
+            return false;
+        }
+        *seen_generation = self.generation;
+        true
     }
 }
 
@@ -678,15 +764,44 @@ fn segment_bounds(from: Point, to: Point) -> Rect {
     )
 }
 
+#[cfg(test)]
 fn starmap_items_signature(items: &[StarmapItem]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    items.len().hash(&mut hasher);
+    starmap_item_signatures(items).hit
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct StarmapItemSignatures {
+    hit: u64,
+    paint: u64,
+}
+
+fn starmap_item_signatures(items: &[StarmapItem]) -> StarmapItemSignatures {
+    let mut hit_hasher = DefaultHasher::new();
+    let mut paint_hasher = DefaultHasher::new();
+    items.len().hash(&mut hit_hasher);
+    items.len().hash(&mut paint_hasher);
     for item in items {
-        item.file_id.hash(&mut hasher);
-        item.x.to_bits().hash(&mut hasher);
-        item.y.to_bits().hash(&mut hasher);
+        item.file_id.hash(&mut hit_hasher);
+        item.x.to_bits().hash(&mut hit_hasher);
+        item.y.to_bits().hash(&mut hit_hasher);
+
+        item.file_id.hash(&mut paint_hasher);
+        item.x.to_bits().hash(&mut paint_hasher);
+        item.y.to_bits().hash(&mut paint_hasher);
+        item.color.r.hash(&mut paint_hasher);
+        item.color.g.hash(&mut paint_hasher);
+        item.color.b.hash(&mut paint_hasher);
+        item.color.a.hash(&mut paint_hasher);
+        item.selected.hash(&mut paint_hasher);
+        item.copy_flash.hash(&mut paint_hasher);
+        item.similarity_anchor.hash(&mut paint_hasher);
+        item.instant_audition_ready.hash(&mut paint_hasher);
+        item.missing.hash(&mut paint_hasher);
     }
-    hasher.finish()
+    StarmapItemSignatures {
+        hit: hit_hasher.finish(),
+        paint: paint_hasher.finish(),
+    }
 }
 
 fn point_segment_t(point: Point, start: Point, end: Point) -> f32 {
@@ -826,6 +941,8 @@ impl Widget for StarmapWidget {
         self.last_pan_position = previous.last_pan_position;
         self.hovered_file_id = previous.hovered_file_id.clone();
         self.hovered_item_index = previous.hovered_item_index;
+        self.hit_scratch = previous.hit_scratch.clone();
+        self.paint_cache = previous.paint_cache.clone();
         if previous
             .hit_index
             .matches_current(self.viewport, self.item_signature)
@@ -859,12 +976,14 @@ impl Widget for StarmapWidget {
             bounds,
             ui::Rgba8::new(8, 9, 10, 255),
         );
-        paint_items(
+        append_cached_items_paint(
             primitives,
             self.common.id,
             bounds,
             &self.items,
             self.viewport,
+            self.paint_signature,
+            &self.paint_cache,
         );
     }
 
@@ -905,6 +1024,113 @@ impl Widget for StarmapWidget {
             return;
         }
         paint_hover_item(primitives, self.common.id, center, starmap_item_color(item));
+    }
+}
+
+fn append_cached_items_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    items: &[StarmapItem],
+    viewport: StarmapViewport,
+    paint_signature: u64,
+    cache: &Mutex<StarmapPaintCache>,
+) {
+    let started_at = starmap_telemetry::stage_timer();
+    if let Some(cached) = cached_item_paint(cache, bounds, viewport, paint_signature) {
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::WidgetPaintCacheHit),
+            "widget.paint_cache",
+            "hit",
+            None,
+            items.len(),
+            cached.len(),
+            false,
+            starmap_telemetry::elapsed_since(started_at),
+        );
+        primitives.extend(cached.iter().cloned());
+        return;
+    }
+
+    let mut item_primitives = Vec::new();
+    paint_items(&mut item_primitives, widget_id, bounds, items, viewport);
+    let elapsed = starmap_telemetry::elapsed_since(started_at);
+    if let Some(elapsed) = elapsed {
+        starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetPaintBuild, elapsed);
+    }
+    let item_primitives = Arc::<[PaintPrimitive]>::from(item_primitives);
+    store_cached_item_paint(
+        cache,
+        bounds,
+        viewport,
+        paint_signature,
+        item_primitives.clone(),
+    );
+    starmap_telemetry::record_event(
+        Some(StarmapAuditionCounter::WidgetPaintCacheMiss),
+        "widget.paint_cache",
+        "miss",
+        None,
+        items.len(),
+        item_primitives.len(),
+        false,
+        elapsed,
+    );
+    primitives.extend(item_primitives.iter().cloned());
+}
+
+fn cached_item_paint(
+    cache: &Mutex<StarmapPaintCache>,
+    bounds: Rect,
+    viewport: StarmapViewport,
+    paint_signature: u64,
+) -> Option<Arc<[PaintPrimitive]>> {
+    lock_starmap_mutex(cache)
+        .entry
+        .as_ref()
+        .filter(|entry| entry.matches(bounds, viewport, paint_signature))
+        .map(|entry| entry.primitives.clone())
+}
+
+fn store_cached_item_paint(
+    cache: &Mutex<StarmapPaintCache>,
+    bounds: Rect,
+    viewport: StarmapViewport,
+    paint_signature: u64,
+    primitives: Arc<[PaintPrimitive]>,
+) {
+    lock_starmap_mutex(cache).entry = Some(StarmapPaintCacheEntry {
+        bounds,
+        viewport,
+        paint_signature,
+        primitives,
+    });
+}
+
+fn lock_starmap_mutex<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+#[derive(Clone, Debug, Default)]
+struct StarmapPaintCache {
+    entry: Option<StarmapPaintCacheEntry>,
+}
+
+#[derive(Clone, Debug)]
+struct StarmapPaintCacheEntry {
+    bounds: Rect,
+    viewport: StarmapViewport,
+    paint_signature: u64,
+    primitives: Arc<[PaintPrimitive]>,
+}
+
+impl StarmapPaintCacheEntry {
+    fn matches(&self, bounds: Rect, viewport: StarmapViewport, paint_signature: u64) -> bool {
+        self.bounds == bounds
+            && self.viewport == viewport
+            && self.paint_signature == paint_signature
     }
 }
 
@@ -1717,9 +1943,95 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature));
+    }
+
+    #[test]
+    fn starmap_widget_reuses_dense_base_paint_cache_from_previous_instance() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(640.0, 360.0);
+        let items = (0..MAP_DENSE_ITEM_COUNT)
+            .map(|index| {
+                starmap_item(
+                    &format!("/samples/dense-{index}.wav"),
+                    (index % 100) as f32 / 100.0,
+                    (index / 100) as f32 / 10.0,
+                    color,
+                )
+            })
+            .collect::<Vec<_>>();
+        let previous = StarmapWidget::new(items.clone(), StarmapViewport::default(), None);
+        let mut previous_primitives = Vec::new();
+        previous.append_paint(
+            &mut previous_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        let previous_cached = lock_starmap_mutex(&previous.paint_cache)
+            .entry
+            .as_ref()
+            .expect("initial paint should populate base paint cache")
+            .primitives
+            .clone();
+
+        let mut next = StarmapWidget::new(
+            items,
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/dense-42.wav")),
+                last_position: Point::new(100.0, 100.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+        let mut next_primitives = Vec::new();
+        next.append_paint(
+            &mut next_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let next_cached = lock_starmap_mutex(&next.paint_cache)
+            .entry
+            .as_ref()
+            .expect("synchronized widget should retain base paint cache")
+            .primitives
+            .clone();
         assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature)
+            Arc::ptr_eq(&previous_cached, &next_cached),
+            "active drag refreshes should replay cached dense node paint instead of rebuilding it"
+        );
+        assert!(next_primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRectBatch(batch) if batch.rects.len() == MAP_DENSE_ITEM_COUNT
+        )));
+    }
+
+    #[test]
+    fn starmap_widget_synchronizes_hit_scratch_from_previous_instance() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut previous = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(50.0, 50.0)));
+
+        let mut next = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert!(
+            Arc::ptr_eq(&previous.hit_scratch, &next.hit_scratch),
+            "hit-test scratch should survive widget refreshes during dense drag playback"
         );
     }
 
@@ -1782,10 +2094,9 @@ mod tests {
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature)
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature));
     }
 
     #[test]
@@ -2203,8 +2514,11 @@ mod tests {
 
         let index =
             StarmapHitIndex::build(bounds, viewport, starmap_items_signature(&items), &items);
-        let candidates =
-            index.item_indices_near_segment(Point::new(720.0, 750.0), Point::new(780.0, 750.0));
+        let candidates = index.item_indices_near_segment(
+            Point::new(720.0, 750.0),
+            Point::new(780.0, 750.0),
+            items.len(),
+        );
 
         assert_eq!(candidates, vec![2_000]);
     }
