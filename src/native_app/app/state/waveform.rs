@@ -329,9 +329,8 @@ impl WaveformCacheState {
         &mut self,
         path: &Path,
     ) -> Option<PreviewAuditionClip> {
-        if !self.preview_audition_clip_ready(path) {
-            return None;
-        }
+        // Hot audition paths call this per target. Trust the in-memory preview
+        // entry here; source refresh invalidation removes changed samples.
         let tick = self.next_preview_audition_tick();
         let entry = self.preview_audition_clips.get_mut(path)?;
         entry.last_used = tick;
@@ -441,23 +440,6 @@ impl WaveformCacheState {
         self.prune_preview_audition_cache();
     }
 
-    fn preview_audition_clip_ready(&mut self, path: &Path) -> bool {
-        match self.preview_audition_clips.get(path) {
-            Some(entry) if entry.clip.matches_file(path) => true,
-            Some(_) => {
-                self.remove_preview_audition_clip(path);
-                false
-            }
-            None => false,
-        }
-    }
-
-    fn remove_preview_audition_clip(&mut self, path: &Path) {
-        let file_id = path.display().to_string();
-        self.remove_preview_audition_clip_entry(path, &file_id);
-        self.preview_audition_attempted_paths.remove(&file_id);
-    }
-
     fn evict_preview_audition_clip(&mut self, path: &Path) {
         let file_id = path.display().to_string();
         self.remove_preview_audition_clip_entry(path, &file_id);
@@ -526,6 +508,24 @@ mod tests {
         assert!(
             !cache.preview_audition_warm_needed(&path),
             "a failed warm attempt must not become eligible again on the next frame"
+        );
+    }
+
+    #[test]
+    fn preview_clip_lookup_trusts_cached_head_without_file_metadata_probe() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-head-without-source-file.wav");
+        let mut cache = WaveformCacheState::default();
+        cache.store_preview_audition_clip(preview_clip(path.clone()));
+
+        let clip = cache.preview_audition_clip(&path);
+
+        assert!(
+            clip.is_some(),
+            "hot preview-head playback lookup should not require a synchronous filesystem metadata probe"
+        );
+        assert!(
+            cache.preview_audition_clips.contains_key(&path),
+            "hot lookup should not evict a cached preview head just because the source file is unavailable during the UI update"
         );
     }
 

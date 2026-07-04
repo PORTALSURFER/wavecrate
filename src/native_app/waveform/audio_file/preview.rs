@@ -28,6 +28,7 @@ impl PreviewAuditionClip {
         self.frames as f32 / self.sample_rate.max(1) as f32
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn matches_file(&self, path: &Path) -> bool {
         source_identity(path)
             .is_some_and(|identity| identity == (self.source_len, self.source_modified))
