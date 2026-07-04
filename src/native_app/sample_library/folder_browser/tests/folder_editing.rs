@@ -96,6 +96,63 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn context_created_folder_updates_selected_tree_without_parked_source_cache() {
+    let root = temp_source_root("wavecrate-gui-context-folder-create-selected");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create nested folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.source.sources[0].root_folder = None;
+
+    let loops = drums.join("loops");
+    let input_id = browser
+        .apply_created_folder(path_id(&drums), loops.clone())
+        .expect("context-created folder should update active tree");
+
+    assert_ne!(input_id, 0);
+    assert_eq!(browser.selection.selected_folder, path_id(&loops));
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.id == path_id(&loops)
+                && folder.name == "loops"
+                && folder.rename_draft.as_deref() == Some("loops")
+                && folder.rename_input_id == Some(input_id))
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn context_created_folder_updates_deferred_source_root_placeholder() {
+    let root = temp_source_root("wavecrate-gui-context-folder-create-deferred");
+    let sources = vec![wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(root.to_string_lossy().to_string()),
+        root.clone(),
+    )];
+    let mut browser = FolderBrowserState::from_sample_sources_deferred(&sources);
+    let new_folder = root.join("incoming");
+
+    let input_id = browser
+        .apply_created_folder(path_id(&root), new_folder.clone())
+        .expect("context-created folder should update deferred source root");
+
+    assert_ne!(input_id, 0);
+    assert!(!browser.selected_source_loaded());
+    assert_eq!(browser.selection.selected_folder, path_id(&new_folder));
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .any(|folder| folder.id == path_id(&new_folder)
+                && folder.name == "incoming"
+                && folder.rename_draft.as_deref() == Some("incoming")
+                && folder.rename_input_id == Some(input_id))
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn create_subfolder_cancel_removes_pending_row_without_touching_disk() {
     let root = temp_source_root("wavecrate-gui-folder-create-cancel");
