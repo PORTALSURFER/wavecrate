@@ -8,6 +8,7 @@ mod extraction_tests;
 mod file_io;
 mod loader;
 mod model;
+mod preview;
 mod progress;
 mod signal_summary;
 mod visual_bands;
@@ -67,6 +68,7 @@ pub(super) use loader::{
 pub(in crate::native_app) use model::{
     PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformFile, WaveformPlaybackReady,
 };
+pub(in crate::native_app) use preview::{PreviewAuditionClip, decode_wav_preview_clip};
 pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
 #[cfg(test)]
 pub(super) use visual_bands::split_frequency_bands;

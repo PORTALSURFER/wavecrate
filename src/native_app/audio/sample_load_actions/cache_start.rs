@@ -1,19 +1,24 @@
 use radiant::prelude as ui;
 use std::{
     path::{Path, PathBuf},
-    time::Instant,
+    sync::Arc,
+    time::{Duration, Instant},
 };
 
 use crate::native_app::{
     app::{
         GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
-        WaveformState, emit_gui_action, sample_path_label,
+        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
+        emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
-    waveform::{WaveformPlaybackReady, load_cached_waveform_playback_descriptor_sidecar},
+    waveform::{
+        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
+        load_cached_waveform_playback_descriptor_sidecar,
+    },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
 use wavecrate::audio::{
@@ -35,10 +40,6 @@ pub(super) enum InstantAuditionOutcome {
 }
 
 impl InstantAuditionOutcome {
-    fn started(self) -> bool {
-        matches!(self, Self::Started)
-    }
-
     pub(super) fn as_str(self) -> &'static str {
         match self {
             Self::Started => "started",
@@ -57,8 +58,75 @@ const SAMPLE_AUTOPLAY_OUTCOMES: CachedPlaybackOutcomes = CachedPlaybackOutcomes 
     pending: "autoplay_pending",
     error: "autoplay_error",
 };
+const PREVIEW_AUDITION_TASK_NAME: &str = "gui-preview-audition-decode";
+const PREVIEW_AUDITION_WARM_TASK_NAME: &str = "gui-preview-audition-warm";
+const PREVIEW_AUDITION_DURATION: Duration = Duration::from_millis(220);
+const PREVIEW_AUDITION_WARM_BATCH: usize = 64;
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FastAuditionOptions {
+    pub(super) origin: &'static str,
+    pub(super) record_history: bool,
+    pub(super) allow_sidecar_lookup: bool,
+    pub(super) queue_preview_decode: bool,
+    pub(super) prefer_preview_decode: bool,
+}
 
 impl NativeAppState {
+    pub(super) fn start_fast_path_audition(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+        options: FastAuditionOptions,
+    ) -> InstantAuditionOutcome {
+        if self.start_preview_cache_instant_audition(path, context, started_at, options) {
+            return InstantAuditionOutcome::Started;
+        }
+        let persisted = self.start_persisted_cache_instant_audition_with_options(
+            path,
+            context,
+            started_at,
+            options.allow_sidecar_lookup,
+            options.record_history,
+            options.origin,
+        );
+        if persisted.uses_ready_source() {
+            return persisted;
+        }
+        if options.prefer_preview_decode
+            && options.queue_preview_decode
+            && preview_audition_can_decode(path)
+            && self
+                .waveform
+                .cache
+                .preview_audition_warm_needed(Path::new(path))
+        {
+            self.queue_preview_audition_decode(path.to_owned(), started_at, context);
+            return InstantAuditionOutcome::AudioPending;
+        }
+        if self.start_file_backed_wav_instant_audition_with_options(
+            path,
+            context,
+            started_at,
+            options.record_history,
+            options.origin,
+        ) {
+            return InstantAuditionOutcome::Started;
+        }
+        if options.queue_preview_decode
+            && preview_audition_can_decode(path)
+            && self
+                .waveform
+                .cache
+                .preview_audition_warm_needed(Path::new(path))
+        {
+            self.queue_preview_audition_decode(path.to_owned(), started_at, context);
+            return InstantAuditionOutcome::AudioPending;
+        }
+        InstantAuditionOutcome::Unavailable
+    }
+
     pub(super) fn start_memory_cached_sample(
         &mut self,
         path: &str,
@@ -217,29 +285,6 @@ impl NativeAppState {
         true
     }
 
-    pub(super) fn start_persisted_cache_instant_audition(
-        &mut self,
-        path: &str,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-        started_at: Instant,
-    ) -> bool {
-        self.start_persisted_cache_instant_audition_with_options(
-            path, context, started_at, true, true,
-        )
-        .started()
-    }
-
-    pub(super) fn start_starmap_ready_instant_audition(
-        &mut self,
-        path: &str,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-        started_at: Instant,
-    ) -> InstantAuditionOutcome {
-        self.start_persisted_cache_instant_audition_with_options(
-            path, context, started_at, false, false,
-        )
-    }
-
     fn start_persisted_cache_instant_audition_with_options(
         &mut self,
         path: &str,
@@ -247,6 +292,7 @@ impl NativeAppState {
         started_at: Instant,
         allow_sidecar_lookup: bool,
         record_history: bool,
+        origin: &'static str,
     ) -> InstantAuditionOutcome {
         let lookup_started_at = Instant::now();
         let descriptor = if let Some(descriptor) = self
@@ -344,11 +390,7 @@ impl NativeAppState {
             path.to_owned(),
             (0.0, 1.0),
             true,
-            if record_history {
-                "instant_audition"
-            } else {
-                "starmap_drag"
-            },
+            origin,
             "interleaved_f32_file",
         ));
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
@@ -372,11 +414,13 @@ impl NativeAppState {
         InstantAuditionOutcome::Started
     }
 
-    pub(super) fn start_file_backed_wav_instant_audition(
+    fn start_file_backed_wav_instant_audition_with_options(
         &mut self,
         path: &str,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
+        record_history: bool,
+        origin: &'static str,
     ) -> bool {
         if self.loop_playback_for_path_after_policy(path) {
             return false;
@@ -447,11 +491,13 @@ impl NativeAppState {
             path.to_owned(),
             (0.0, 1.0),
             true,
-            "instant_audition",
+            origin,
             "audio_file",
         ));
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
-        self.record_sample_last_played(path.to_owned(), context);
+        if record_history {
+            self.record_sample_last_played(path.to_owned(), context);
+        }
         log_sample_load_timing(
             "browser.sample_load.file_backed_wav.playback_submit",
             path,
@@ -467,6 +513,373 @@ impl NativeAppState {
             None,
         );
         true
+    }
+
+    fn start_preview_cache_instant_audition(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+        options: FastAuditionOptions,
+    ) -> bool {
+        let lookup_started_at = Instant::now();
+        let Some(clip) = self.waveform.cache.preview_audition_clip(Path::new(path)) else {
+            return false;
+        };
+        log_sample_load_timing(
+            "browser.sample_load.preview_audition.lookup",
+            path,
+            lookup_started_at.elapsed(),
+            false,
+        );
+        self.start_preview_clip_instant_audition(clip, context, started_at, options)
+    }
+
+    fn start_preview_clip_instant_audition(
+        &mut self,
+        clip: PreviewAuditionClip,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+        options: FastAuditionOptions,
+    ) -> bool {
+        let path = clip.path.display().to_string();
+        if self.loop_playback_for_path_after_policy(path.as_str()) {
+            return false;
+        }
+        self.prepare_playback_mode_for_path(path.as_str());
+        self.maybe_open_audio_player(context);
+        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "preview_audition_audio_pending",
+                started_at,
+                None,
+            );
+            return false;
+        };
+        let playback_started_at = Instant::now();
+        let duration = clip.duration_seconds();
+        let source = PlaybackRuntimeSource::DecodedSamples {
+            audio_bytes: Arc::from([]),
+            samples: clip.samples,
+            duration,
+            sample_rate: clip.sample_rate,
+            channels: clip.channels,
+        };
+        let request = PlaybackRuntimeRequest {
+            source,
+            mode: PlaybackRuntimeMode::OneShot {
+                start: 0.0,
+                end: 1.0,
+            },
+            volume: self.audio.volume,
+            playback_gain: 1.0,
+            playback_gain_normalization: self
+                .audio
+                .normalized_audition_enabled
+                .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            edit_fade: None,
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
+        };
+        let request_id = match runtime.try_play(request) {
+            Ok(request_id) => request_id,
+            Err(err) => {
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&sample_path_label(path.as_str())),
+                    "preview_audition_playback_error",
+                    started_at,
+                    Some(&format!("submit playback request: {err:?}")),
+                );
+                return false;
+            }
+        };
+        self.audio.early_sample_playback_path = Some(path.clone());
+        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
+            request_id,
+            path.clone(),
+            (0.0, 1.0),
+            true,
+            options.origin,
+            "preview_samples",
+        ));
+        self.ui.status.sample = format!("Playing {}", sample_path_label(path.as_str()));
+        if options.record_history {
+            self.record_sample_last_played(path.clone(), context);
+        }
+        log_sample_load_timing(
+            "browser.sample_load.preview_audition.playback_submit",
+            path.as_str(),
+            playback_started_at.elapsed(),
+            false,
+        );
+        emit_gui_action(
+            "browser.select_sample",
+            Some("browser"),
+            Some(&sample_path_label(path.as_str())),
+            "preview_audition_playback_started",
+            started_at,
+            None,
+        );
+        true
+    }
+
+    fn queue_preview_audition_decode(
+        &mut self,
+        path: String,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.loop_playback_for_path_after_policy(path.as_str()) {
+            return;
+        }
+        context
+            .business()
+            .interactive(PREVIEW_AUDITION_TASK_NAME)
+            .latest(&mut self.background.preview_audition_task)
+            .run(
+                move |worker_context| {
+                    let clip = if worker_context.is_cancelled() {
+                        Err(String::from("cancelled"))
+                    } else {
+                        decode_wav_preview_clip(
+                            PathBuf::from(path.as_str()),
+                            PREVIEW_AUDITION_DURATION,
+                        )
+                    };
+                    PreviewAuditionResult { path, clip }
+                },
+                move |completion| GuiMessage::PreviewAuditionDecoded {
+                    completion,
+                    started_at,
+                },
+            );
+    }
+
+    pub(in crate::native_app) fn maybe_start_preview_audition_warm(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.background.preview_audition_warm_task.active().is_some() {
+            return;
+        }
+        let paths = self.preview_audition_warm_candidates();
+        if paths.is_empty() {
+            return;
+        }
+        let started_at = Instant::now();
+        context
+            .business()
+            .background(PREVIEW_AUDITION_WARM_TASK_NAME)
+            .latest(&mut self.background.preview_audition_warm_task)
+            .run(
+                move |worker_context| {
+                    let mut attempted_paths = Vec::new();
+                    let mut clips = Vec::new();
+                    let mut errors = 0;
+                    for path in paths {
+                        if worker_context.is_cancelled() {
+                            break;
+                        }
+                        attempted_paths.push(path.clone());
+                        match decode_wav_preview_clip(
+                            PathBuf::from(path.as_str()),
+                            PREVIEW_AUDITION_DURATION,
+                        ) {
+                            Ok(clip) => clips.push(clip),
+                            Err(_) => errors += 1,
+                        }
+                    }
+                    PreviewAuditionWarmResult {
+                        attempted_paths,
+                        clips,
+                        errors,
+                    }
+                },
+                move |completion| GuiMessage::PreviewAuditionWarmFinished {
+                    completion,
+                    started_at,
+                },
+            );
+    }
+
+    fn preview_audition_warm_candidates(&mut self) -> Vec<String> {
+        match self.ui.chrome.sample_browser_display {
+            SampleBrowserDisplayMode::Map => self.preview_audition_warm_starmap_candidates(),
+            SampleBrowserDisplayMode::List => self.preview_audition_warm_list_candidates(),
+        }
+    }
+
+    fn preview_audition_warm_starmap_candidates(&mut self) -> Vec<String> {
+        let Some(items) = self.library.folder_browser.cached_starmap_projection() else {
+            return Vec::new();
+        };
+        let selected = self.library.folder_browser.selected_file_id().map(str::to_owned);
+        let center_x = self.ui.chrome.starmap_viewport.center_x;
+        let center_y = self.ui.chrome.starmap_viewport.center_y;
+        let mut candidates = Vec::new();
+        for item in items.iter() {
+            if item.missing || !preview_audition_can_decode(&item.file_id) {
+                continue;
+            }
+            let path = Path::new(&item.file_id);
+            if !self.waveform.cache.preview_audition_warm_needed(path) {
+                continue;
+            }
+            let score = if selected.as_deref() == Some(item.file_id.as_str()) {
+                -1.0
+            } else {
+                let dx = item.x - center_x;
+                let dy = item.y - center_y;
+                dx * dx + dy * dy
+            };
+            candidates.push((score, item.file_id.clone()));
+        }
+        candidates.sort_by(|left, right| {
+            left.0
+                .total_cmp(&right.0)
+                .then_with(|| left.1.cmp(&right.1))
+        });
+        candidates
+            .into_iter()
+            .take(PREVIEW_AUDITION_WARM_BATCH)
+            .map(|(_, path)| path)
+            .collect()
+    }
+
+    fn preview_audition_warm_list_candidates(&mut self) -> Vec<String> {
+        let visible_paths: Vec<String> = {
+            use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
+
+            let visible = self.library.folder_browser.visible_samples(VisibleSampleQuery {
+                tags_by_file: &self.metadata.tags_by_file,
+                cached_sample_paths: &self.waveform.cache.cached_sample_paths,
+            });
+            visible
+                .rows
+                .iter()
+                .filter(|row| !row.missing)
+                .map(|row| row.file.id.clone())
+                .collect()
+        };
+        visible_paths
+            .into_iter()
+            .filter(|path| preview_audition_can_decode(path))
+            .filter(|path| {
+                self.waveform
+                    .cache
+                    .preview_audition_warm_needed(Path::new(path))
+            })
+            .take(PREVIEW_AUDITION_WARM_BATCH)
+            .collect()
+    }
+
+    pub(in crate::native_app) fn finish_preview_audition_decode(
+        &mut self,
+        completion: ui::TaskCompletion<PreviewAuditionResult>,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(result) = self
+            .background
+            .preview_audition_task
+            .finish_completion(completion)
+        else {
+            return;
+        };
+        if self.library.folder_browser.selected_file_id() != Some(result.path.as_str()) {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(result.path.as_str())),
+                "preview_audition_stale",
+                started_at,
+                None,
+            );
+            return;
+        }
+        let clip = match result.clip {
+            Ok(clip) => clip,
+            Err(error) => {
+                self.waveform
+                    .cache
+                    .mark_preview_audition_attempted(Path::new(result.path.as_str()));
+                emit_gui_action(
+                    "browser.select_sample",
+                    Some("browser"),
+                    Some(&sample_path_label(result.path.as_str())),
+                    "preview_audition_error",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        };
+        self.waveform
+            .cache
+            .store_preview_audition_clip(clip.clone());
+        if self.waveform.current.has_loaded_sample()
+            && self.waveform.current.path() == Path::new(result.path.as_str())
+        {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(result.path.as_str())),
+                "preview_audition_superseded_by_full_load",
+                started_at,
+                None,
+            );
+            return;
+        }
+        let options = FastAuditionOptions {
+            origin: self.runtime_playback_origin_for_path(result.path.as_str()),
+            record_history: !self.ui.chrome.starmap_audition_drag.is_some(),
+            allow_sidecar_lookup: false,
+            queue_preview_decode: false,
+            prefer_preview_decode: false,
+        };
+        self.start_preview_clip_instant_audition(clip, context, started_at, options);
+    }
+
+    pub(in crate::native_app) fn finish_preview_audition_warm(
+        &mut self,
+        completion: ui::TaskCompletion<PreviewAuditionWarmResult>,
+        started_at: Instant,
+    ) {
+        let Some(result) = self
+            .background
+            .preview_audition_warm_task
+            .finish_completion(completion)
+        else {
+            return;
+        };
+        for path in &result.attempted_paths {
+            self.waveform
+                .cache
+                .mark_preview_audition_attempted(Path::new(path));
+        }
+        let clip_count = result.clips.len();
+        for clip in result.clips {
+            self.waveform.cache.store_preview_audition_clip(clip);
+        }
+        log_sample_load_timing(
+            "browser.sample_load.preview_audition.warm",
+            "preview-audition-warm",
+            started_at.elapsed(),
+            false,
+        );
+        if result.errors > 0 {
+            tracing::debug!(
+                attempted = result.attempted_paths.len(),
+                decoded = clip_count,
+                errors = result.errors,
+                "Preview audition warm finished with decode misses"
+            );
+        }
     }
 
     pub(super) fn start_playback_ready_instant_audition(
@@ -737,4 +1150,13 @@ impl NativeAppState {
         self.record_current_playback_history(0.0, 1.0);
         Ok(())
     }
+}
+
+fn preview_audition_can_decode(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("wav") || extension.eq_ignore_ascii_case("wave")
+        })
 }

@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::waveform::{WaveformPlaybackReady, WaveformState};
+use crate::native_app::waveform::{PreviewAuditionClip, WaveformPlaybackReady, WaveformState};
 
 pub(in crate::native_app) type SampleLoadTaskCompletion<T> =
     ui::KeyedTaskCompletion<ui::ResourceKey, T>;
@@ -17,6 +17,19 @@ pub(in crate::native_app) struct SamplePlaybackReady {
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) audio: WaveformPlaybackReady,
     pub(in crate::native_app) autoplay: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct PreviewAuditionResult {
+    pub(in crate::native_app) path: String,
+    pub(in crate::native_app) clip: Result<PreviewAuditionClip, String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct PreviewAuditionWarmResult {
+    pub(in crate::native_app) attempted_paths: Vec<String>,
+    pub(in crate::native_app) clips: Vec<PreviewAuditionClip>,
+    pub(in crate::native_app) errors: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

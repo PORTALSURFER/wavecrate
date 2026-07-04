@@ -219,6 +219,7 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
         },
         &mut context,
     );
+    let command = context.into_command();
     let mut context = ui::UiUpdateContext::default();
 
     assert_eq!(
@@ -236,6 +237,11 @@ fn keyboard_navigation_queues_foreground_load_immediately() {
     assert!(
         active_sample_load_ticket(&state).is_some(),
         "keyboard navigation should immediately queue background sample-load work"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "keyboard navigation should share the fast preview-audition path"
     );
     assert!(
         state

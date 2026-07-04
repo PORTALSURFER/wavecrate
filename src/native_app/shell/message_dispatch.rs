@@ -77,6 +77,8 @@ impl NativeAppState {
             | GuiMessage::SampleLoadPathValidated { .. }
             | GuiMessage::SampleLoadProgress(_, _, _)
             | GuiMessage::SamplePlaybackReady(_)
+            | GuiMessage::PreviewAuditionDecoded { .. }
+            | GuiMessage::PreviewAuditionWarmFinished { .. }
             | GuiMessage::SampleLoadFinished(_)
             | GuiMessage::WaveformCacheIndicatorRefreshFinished(_)
             | GuiMessage::WaveformCacheWarmFinished(_)
@@ -269,6 +271,8 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::SampleLoadPathValidated { .. } => "SampleLoadPathValidated",
         GuiMessage::SampleLoadProgress(_, _, _) => "SampleLoadProgress",
         GuiMessage::SamplePlaybackReady(_) => "SamplePlaybackReady",
+        GuiMessage::PreviewAuditionDecoded { .. } => "PreviewAuditionDecoded",
+        GuiMessage::PreviewAuditionWarmFinished { .. } => "PreviewAuditionWarmFinished",
         GuiMessage::SampleLoadFinished(_) => "SampleLoadFinished",
         GuiMessage::AudioPlayerOpenFinished(_) => "AudioPlayerOpenFinished",
         GuiMessage::LastPlayedPersistReady { .. } => "LastPlayedPersistReady",

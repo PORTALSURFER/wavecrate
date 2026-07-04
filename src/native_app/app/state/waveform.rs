@@ -9,7 +9,9 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmStage,
     SampleSelectionLoadState, WaveformCacheEntry,
 };
-use crate::native_app::waveform::{PersistedPlaybackDescriptor, WaveformState};
+use crate::native_app::waveform::{
+    PersistedPlaybackDescriptor, PreviewAuditionClip, WaveformState,
+};
 use wavecrate::selection::SelectionRange;
 
 pub(in crate::native_app) struct WaveformAppState {
@@ -135,7 +137,20 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) instant_audition_sample_paths: HashSet<String>,
     pub(in crate::native_app) instant_audition_descriptors:
         HashMap<PathBuf, PersistedPlaybackDescriptor>,
+    preview_audition_clips: HashMap<PathBuf, PreviewAuditionCacheEntry>,
+    preview_audition_bytes: usize,
+    preview_audition_tick: u64,
+    preview_audition_attempted_paths: HashSet<String>,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+struct PreviewAuditionCacheEntry {
+    clip: PreviewAuditionClip,
+    byte_len: usize,
+    last_used: u64,
+}
+
+const PREVIEW_AUDITION_CACHE_MAX_BYTES: usize = 96 * 1024 * 1024;
 
 impl Default for WaveformCacheState {
     fn default() -> Self {
@@ -165,6 +180,10 @@ impl Default for WaveformCacheState {
             cached_sample_paths: Default::default(),
             instant_audition_sample_paths: Default::default(),
             instant_audition_descriptors: Default::default(),
+            preview_audition_clips: Default::default(),
+            preview_audition_bytes: 0,
+            preview_audition_tick: 0,
+            preview_audition_attempted_paths: Default::default(),
         }
     }
 }
@@ -289,5 +308,106 @@ impl WaveformCacheState {
         self.cached_sample_paths.remove(&file_id);
         self.instant_audition_sample_paths.remove(&file_id);
         self.instant_audition_descriptors.remove(path);
+        if let Some(entry) = self.preview_audition_clips.remove(path) {
+            self.preview_audition_bytes =
+                self.preview_audition_bytes.saturating_sub(entry.byte_len);
+        }
+        self.preview_audition_attempted_paths.remove(&file_id);
+    }
+
+    pub(in crate::native_app) fn preview_audition_clip(
+        &mut self,
+        path: &Path,
+    ) -> Option<PreviewAuditionClip> {
+        if !self.preview_audition_clip_ready(path) {
+            return None;
+        }
+        let tick = self.next_preview_audition_tick();
+        let entry = self.preview_audition_clips.get_mut(path)?;
+        entry.last_used = tick;
+        Some(entry.clip.clone())
+    }
+
+    pub(in crate::native_app) fn preview_audition_warm_needed(&mut self, path: &Path) -> bool {
+        if self.preview_audition_clip_ready(path) {
+            return false;
+        }
+        !self
+            .preview_audition_attempted_paths
+            .contains(&path.display().to_string())
+    }
+
+    pub(in crate::native_app) fn mark_preview_audition_attempted(&mut self, path: &Path) {
+        self.preview_audition_attempted_paths
+            .insert(path.display().to_string());
+    }
+
+    pub(in crate::native_app) fn store_preview_audition_clip(&mut self, clip: PreviewAuditionClip) {
+        let path = clip.path.clone();
+        let file_id = path.display().to_string();
+        let byte_len = clip.byte_len();
+        let last_used = self.next_preview_audition_tick();
+        if let Some(previous) = self.preview_audition_clips.insert(
+            path,
+            PreviewAuditionCacheEntry {
+                clip,
+                byte_len,
+                last_used,
+            },
+        ) {
+            self.preview_audition_bytes = self
+                .preview_audition_bytes
+                .saturating_sub(previous.byte_len);
+        }
+        self.preview_audition_bytes = self.preview_audition_bytes.saturating_add(byte_len);
+        self.preview_audition_attempted_paths.insert(file_id.clone());
+        self.instant_audition_sample_paths.insert(file_id);
+        self.prune_preview_audition_cache();
+    }
+
+    fn preview_audition_clip_ready(&mut self, path: &Path) -> bool {
+        if self
+            .preview_audition_clips
+            .get(path)
+            .is_some_and(|entry| entry.clip.matches_file(path))
+        {
+            return true;
+        }
+        self.remove_preview_audition_clip(path);
+        false
+    }
+
+    fn remove_preview_audition_clip(&mut self, path: &Path) {
+        let file_id = path.display().to_string();
+        if let Some(entry) = self.preview_audition_clips.remove(path) {
+            self.preview_audition_bytes =
+                self.preview_audition_bytes.saturating_sub(entry.byte_len);
+        }
+        self.preview_audition_attempted_paths.remove(&file_id);
+        if !self.cached_sample_paths.contains(&file_id)
+            && !self.instant_audition_descriptors.contains_key(path)
+        {
+            self.instant_audition_sample_paths.remove(&file_id);
+        }
+    }
+
+    fn next_preview_audition_tick(&mut self) -> u64 {
+        self.preview_audition_tick = self.preview_audition_tick.saturating_add(1);
+        self.preview_audition_tick
+    }
+
+    fn prune_preview_audition_cache(&mut self) {
+        while self.preview_audition_bytes > PREVIEW_AUDITION_CACHE_MAX_BYTES {
+            let Some(oldest_path) = self
+                .preview_audition_clips
+                .iter()
+                .min_by_key(|(_, entry)| entry.last_used)
+                .map(|(path, _)| path.clone())
+            else {
+                self.preview_audition_bytes = 0;
+                return;
+            };
+            self.remove_preview_audition_clip(&oldest_path);
+        }
     }
 }

@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use crate::native_app::app::{emit_gui_action, sample_path_label, GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
@@ -200,8 +200,18 @@ impl NativeAppState {
             return;
         }
         let ready_started_at = starmap_telemetry::stage_timer();
-        let ready_outcome =
-            self.start_starmap_ready_instant_audition(path.as_str(), context, started_at);
+        let ready_outcome = self.start_fast_path_audition(
+            path.as_str(),
+            context,
+            started_at,
+            super::cache_start::FastAuditionOptions {
+                origin: "starmap_drag",
+                record_history: false,
+                allow_sidecar_lookup: false,
+                queue_preview_decode: true,
+                prefer_preview_decode: true,
+            },
+        );
         let ready_elapsed = starmap_telemetry::elapsed_since(ready_started_at);
         if let Some(elapsed) = ready_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::ReadySource, elapsed);
@@ -333,8 +343,20 @@ impl NativeAppState {
             return;
         }
         let instant_audition_started = autoplay
-            && (self.start_persisted_cache_instant_audition(path.as_str(), context, started_at)
-                || self.start_file_backed_wav_instant_audition(path.as_str(), context, started_at));
+            && self
+                .start_fast_path_audition(
+                    path.as_str(),
+                    context,
+                    started_at,
+                    super::cache_start::FastAuditionOptions {
+                        origin: "instant_audition",
+                        record_history: true,
+                        allow_sidecar_lookup: true,
+                        queue_preview_decode: true,
+                        prefer_preview_decode: true,
+                    },
+                )
+                .uses_ready_source();
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             autoplay,
@@ -382,9 +404,20 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        let instant_audition_started =
-            self.start_persisted_cache_instant_audition(path.as_str(), context, started_at)
-                || self.start_file_backed_wav_instant_audition(path.as_str(), context, started_at);
+        let instant_audition_started = self
+            .start_fast_path_audition(
+                path.as_str(),
+                context,
+                started_at,
+                super::cache_start::FastAuditionOptions {
+                    origin: "instant_audition",
+                    record_history: true,
+                    allow_sidecar_lookup: true,
+                    queue_preview_decode: true,
+                    prefer_preview_decode: true,
+                },
+            )
+            .uses_ready_source();
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             true,

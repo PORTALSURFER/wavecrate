@@ -656,7 +656,7 @@ fn starmap_drag_ready_descriptor_skips_foreground_sample_load_validation() {
 }
 
 #[test]
-fn starmap_drag_cold_large_sample_falls_back_to_sample_load_validation() {
+fn starmap_drag_cold_wav_queues_preview_audition_not_sample_load_validation() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("large-cold.wav");
     write_sparse_test_wav_i16(&sample, 1, 700);
@@ -686,13 +686,52 @@ fn starmap_drag_cold_large_sample_falls_back_to_sample_load_validation() {
     );
     assert_eq!(
         command.business_task_priority("gui-sample-load-validate"),
+        None,
+        "cold starmap drag audition should not need the normal foreground load path"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
         Some(radiant::prelude::TaskPriority::Interactive),
-        "cold starmap drag targets should still use the normal load path"
+        "cold starmap drag WAV targets should decode only a tiny preview head"
     );
 }
 
 #[test]
-fn starmap_drag_finish_cancels_cold_load_validation() {
+fn starmap_mode_frame_warms_preview_audition_heads() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display =
+        crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "starmap mode should warm tiny preview heads before drag playback needs them"
+    );
+    assert!(
+        state.background.preview_audition_warm_task.active().is_some(),
+        "preview audition warm should be tracked as cancellable background work"
+    );
+}
+
+#[test]
+fn starmap_drag_finish_cancels_cold_preview_audition_decode() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("large-cold.wav");
     write_sparse_test_wav_i16(&sample, 1, 700);
@@ -715,12 +754,8 @@ fn starmap_drag_finish_cancels_cold_load_validation() {
         &mut context,
     );
     assert!(
-        state
-            .background
-            .sample_load_validation_task
-            .active()
-            .is_some(),
-        "cold drag targets should start validation while the drag is active"
+        state.background.preview_audition_task.active().is_some(),
+        "cold drag targets should start preview decode while the drag is active"
     );
 
     state.apply_message(
@@ -728,7 +763,7 @@ fn starmap_drag_finish_cancels_cold_load_validation() {
         &mut context,
     );
 
-    assert_eq!(state.background.sample_load_validation_task.active(), None);
+    assert_eq!(state.background.preview_audition_task.active(), None);
     assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
 }
 

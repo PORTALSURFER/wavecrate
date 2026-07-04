@@ -41,6 +41,14 @@ impl NativeAppState {
             GuiMessage::SamplePlaybackReady(result) => {
                 self.finish_sample_playback_ready(result, context)
             }
+            GuiMessage::PreviewAuditionDecoded {
+                completion,
+                started_at,
+            } => self.finish_preview_audition_decode(completion, started_at, context),
+            GuiMessage::PreviewAuditionWarmFinished {
+                completion,
+                started_at,
+            } => self.finish_preview_audition_warm(completion, started_at),
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result, context),
             GuiMessage::WaveformCacheIndicatorRefreshFinished(result) => {
                 self.finish_waveform_cache_indicator_refresh(result)

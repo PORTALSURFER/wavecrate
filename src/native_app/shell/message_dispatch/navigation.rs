@@ -186,6 +186,7 @@ impl NativeAppState {
     fn finish_starmap_audition_drag(&mut self) {
         let started_at = starmap_telemetry::stage_timer();
         self.background.starmap_audition_advance_task.cancel();
+        self.background.preview_audition_task.cancel();
         self.background.sample_load_validation_task.cancel();
         self.background.deferred_sample_load_task.cancel();
         if let Some(token) = self.background.sample_load_cancel.take() {
