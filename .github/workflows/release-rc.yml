@@ -246,7 +246,7 @@ jobs:
             --out dist/release/release-log.md
           scripts/internal/release/prepare_github_release_body.py \
             --input dist/release/release-log.md \
-            --output dist/release/github-release-body.md
+            --output dist/github-release-body.md
       - name: Sign release checksums
         env:
           CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY || secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
@@ -262,7 +262,7 @@ jobs:
           tag_name: ${{ needs.resolve.outputs.release_tag }}
           name: Wavecrate ${{ needs.resolve.outputs.release_version }}
           target_commitish: ${{ needs.resolve.outputs.target_sha }}
-          body_path: dist/release/github-release-body.md
+          body_path: dist/github-release-body.md
           prerelease: true
           make_latest: false
           files: dist/release/*

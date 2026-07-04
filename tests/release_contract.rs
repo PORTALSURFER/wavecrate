@@ -587,11 +587,11 @@ fn rc_and_stable_workflows_use_structured_release_log_generator() {
             "{name} must prepare the GitHub body from the canonical release log"
         );
         assert!(
-            workflow.contains("--output dist/release/github-release-body.md"),
-            "{name} must write the bounded GitHub body beside the canonical log"
+            workflow.contains("--output dist/github-release-body.md"),
+            "{name} must keep the bounded GitHub body outside the release asset directory"
         );
         assert!(
-            workflow.contains("body_path: dist/release/github-release-body.md"),
+            workflow.contains("body_path: dist/github-release-body.md"),
             "{name} must publish the bounded GitHub release body"
         );
     }
