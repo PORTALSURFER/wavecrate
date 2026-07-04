@@ -10,17 +10,32 @@ impl FolderBrowserState {
     pub(super) fn rewrite_renamed_folder_paths(&mut self, old_path: &Path, new_path: &Path) {
         let old_id = path_id(old_path);
         let new_id = path_id(new_path);
-        let Some(source) = self
+
+        let active_tree_rewritten = if self
+            .tree
+            .folders
+            .iter()
+            .any(|root_folder| root_folder.find(&old_id).is_some())
+        {
+            for root_folder in &mut self.tree.folders {
+                root_folder.rewrite_path_prefix(old_path, new_path);
+            }
+            true
+        } else {
+            false
+        };
+
+        if let Some(root_folder) = self
             .source
             .sources
             .iter_mut()
             .find(|source| source.id == self.source.selected_source)
-        else {
-            return;
-        };
-        if let Some(root_folder) = &mut source.root_folder {
+            .and_then(|source| source.root_folder.as_mut())
+        {
             root_folder.rewrite_path_prefix(old_path, new_path);
-            self.tree.folders = vec![root_folder.clone()];
+            if !active_tree_rewritten {
+                self.tree.folders = vec![root_folder.clone()];
+            }
         }
         self.selection.rewrite_folder_prefix(old_path, new_path);
         self.rewrite_similarity_path_prefix(old_path, new_path);
