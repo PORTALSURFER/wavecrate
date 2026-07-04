@@ -11,6 +11,9 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+use crate::native_app::sample_library::folder_browser::view_contract::{
+    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn apply_folder_browser_message(
@@ -93,6 +96,21 @@ impl NativeAppState {
             }
             FolderBrowserMessage::ToggleSimilarityAnchor(file_id) => {
                 self.toggle_similarity_anchor(file_id, context);
+            }
+            FolderBrowserMessage::ToggleEmptyFolderVisibility => {
+                let enabled = self.library.folder_browser.toggle_empty_folder_visibility();
+                self.library.folder_browser.sync_tree_view_to_selection(
+                    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+                    FOLDER_TREE_OVERSCAN_ROWS,
+                    FOLDER_TREE_EDGE_CONTEXT_ROWS,
+                );
+                if enabled {
+                    self.queue_selected_source_folder_tree_refresh(
+                        context,
+                        "folder_browser.show_empty_folders_refresh",
+                        "gui-show-empty-folder-tree-refresh",
+                    );
+                }
             }
             message => self.library.folder_browser.apply_message(message),
         }

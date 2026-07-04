@@ -63,6 +63,46 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
 }
 
 #[test]
+fn enabling_empty_folders_queues_tree_refresh_for_disk_only_folders() {
+    let source_root = tempfile::tempdir().expect("source root");
+    write_test_wav_i16(&source_root.path().join("kick.wav"), &[0, 512, -512]);
+    let folder_browser = crate::native_app::test_support::state::FolderBrowserState::from_root(
+        source_root.path().to_path_buf(),
+    );
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .with_sample_status("Ready")
+        .build();
+    let disk_only_empty = source_root.path().join("new-empty-folder");
+    fs::create_dir_all(&disk_only_empty).expect("create empty folder after source load");
+    assert!(
+        state
+            .library
+            .folder_browser
+            .folder_path(&disk_only_empty.to_string_lossy())
+            .is_none(),
+        "test setup should leave the empty folder outside the loaded tree"
+    );
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_folder_browser_message(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::ToggleEmptyFolderVisibility,
+        &mut context,
+    );
+
+    assert!(
+        state
+            .library
+            .folder_browser
+            .empty_folder_visibility_enabled()
+    );
+    assert!(
+        state.background.folder_tree_refresh_task.active().is_some(),
+        "show-empty toggle should immediately queue a selected-source tree refresh"
+    );
+}
+
+#[test]
 fn selecting_missing_source_reports_missing_status_without_scan() {
     let temp = tempfile::tempdir().expect("tempdir");
     let missing_root = temp.path().join("missing-source");
