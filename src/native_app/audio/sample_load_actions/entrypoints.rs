@@ -204,7 +204,7 @@ impl NativeAppState {
                 .queued_file_ids
                 .is_empty()
             {
-                self.schedule_next_starmap_audition_hit(context);
+                self.advance_starmap_drag_audition_tail_immediately(context);
             }
             return;
         }
@@ -253,7 +253,7 @@ impl NativeAppState {
                     .queued_file_ids
                     .is_empty()
             {
-                self.schedule_next_starmap_audition_hit(context);
+                self.advance_starmap_drag_audition_tail_immediately(context);
             }
             if let Some(elapsed) = starmap_telemetry::elapsed_since(total_started_at) {
                 starmap_telemetry::record_duration(StarmapAuditionDuration::StartTotal, elapsed);

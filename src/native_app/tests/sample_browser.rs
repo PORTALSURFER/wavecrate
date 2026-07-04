@@ -1365,6 +1365,69 @@ fn starmap_drag_replacement_ignores_stale_advance_ticket() {
 }
 
 #[test]
+fn starmap_drag_ready_tail_advances_without_zero_delay_message() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(first_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(first_id);
+    state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .push_back(second_id.clone());
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.advance_starmap_drag_audition_tail_immediately(&mut context);
+    let delayed = run_after_commands(context.into_command());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "ready drag tail progression should start the next target in the same update"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert!(state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .is_empty());
+    assert!(
+        delayed.iter().all(|message| !matches!(
+            message,
+            crate::native_app::test_support::state::GuiMessage::AdvanceStarmapAudition { .. }
+        )),
+        "ready drag tail progression should not depend on a zero-delay advance message"
+    );
+}
+
+#[test]
 fn starmap_audition_queue_clears_after_last_hit_finishes() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

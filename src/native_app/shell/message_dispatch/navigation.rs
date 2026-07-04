@@ -437,6 +437,44 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn advance_starmap_drag_audition_tail_immediately(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.ui.chrome.starmap_audition_drag.is_none()
+            || self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .queued_file_ids
+                .is_empty()
+        {
+            return;
+        }
+        self.background.starmap_audition_advance_task.cancel();
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::AdvanceScheduled),
+            "controller.advance_schedule",
+            "immediate_ready_tail",
+            self.ui
+                .chrome
+                .starmap_audition_queue
+                .queued_file_ids
+                .front()
+                .map(String::as_str),
+            0,
+            self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+            self.ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .is_some(),
+            None,
+        );
+        self.ui.chrome.starmap_audition_queue.active_file_id = None;
+        self.start_next_starmap_audition_hit(context);
+    }
+
     pub(in crate::native_app) fn schedule_starmap_audition_promotion(
         &mut self,
         path: String,
