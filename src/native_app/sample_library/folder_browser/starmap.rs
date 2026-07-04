@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use std::sync::Arc;
 
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
@@ -62,8 +63,7 @@ impl StarmapStatus {
 pub(super) struct StarmapLayoutCache {
     signature: Option<u64>,
     pub(super) points_by_file: HashMap<String, StarmapLayoutPoint>,
-    pub(super) projection_items: Vec<StarmapItem>,
-    projection_prepared: bool,
+    pub(super) projection_items: Option<Arc<[StarmapItem]>>,
     listed_count: usize,
     pending_load_signature: Option<u64>,
     loaded_signature: Option<u64>,
@@ -105,8 +105,7 @@ impl FolderBrowserState {
             signature: Some(signature),
             listed_count: snapshot.rows().len(),
             points_by_file: HashMap::new(),
-            projection_items: Vec::new(),
-            projection_prepared: false,
+            projection_items: None,
             pending_load_signature: None,
             loaded_signature: None,
         };
@@ -130,8 +129,7 @@ impl FolderBrowserState {
                 signature: Some(signature),
                 listed_count,
                 points_by_file: HashMap::new(),
-                projection_items: Vec::new(),
-                projection_prepared: false,
+                projection_items: None,
                 pending_load_signature: None,
                 loaded_signature: None,
             };
@@ -203,15 +201,11 @@ impl FolderBrowserState {
         projection: StarmapProjection<'_>,
     ) {
         let items = self.build_starmap_projection(projection);
-        self.sample_list.starmap_layout.projection_items = items;
-        self.sample_list.starmap_layout.projection_prepared = true;
+        self.sample_list.starmap_layout.projection_items = Some(Arc::from(items));
     }
 
-    pub(in crate::native_app) fn cached_starmap_projection(&self) -> Option<&[StarmapItem]> {
-        self.sample_list
-            .starmap_layout
-            .projection_prepared
-            .then_some(self.sample_list.starmap_layout.projection_items.as_slice())
+    pub(in crate::native_app) fn cached_starmap_projection(&self) -> Option<Arc<[StarmapItem]>> {
+        self.sample_list.starmap_layout.projection_items.clone()
     }
 
     fn build_starmap_projection(&self, projection: StarmapProjection<'_>) -> Vec<StarmapItem> {

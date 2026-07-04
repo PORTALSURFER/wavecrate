@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
-        PaintPrimitive,
+        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
+        push_stroke_polyline,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,8 +13,9 @@ use radiant::{
     },
 };
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
+    sync::Arc,
 };
 
 use crate::native_app::app::{
@@ -25,7 +26,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
+    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
 };
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -63,7 +64,7 @@ const MAP_CONTROL_ANCHOR: Vector2 = Vector2 { x: 0.5, y: 0.5 };
 const MAP_LEGEND_SWATCH_SIZE: u8 = 7;
 
 pub(super) fn starmap_view(
-    items: Vec<StarmapItem>,
+    items: impl Into<Arc<[StarmapItem]>>,
     viewport: StarmapViewport,
     name_filter: String,
     similarity_controls: &SimilarityAspectSettings,
@@ -72,6 +73,7 @@ pub(super) fn starmap_view(
     curation_mode_enabled: bool,
     active_drag: Option<StarmapAuditionDragState>,
 ) -> ui::View<GuiMessage> {
+    let items = items.into();
     let map = if items.is_empty() {
         ui::column([
             ui::text_line(starmap_empty_message(curation_mode_enabled), 23.0).muted_text(),
@@ -301,23 +303,26 @@ fn starmap_status_overlay(status: StarmapStatus, prep_running: bool) -> ui::View
 struct StarmapWidget {
     common: WidgetCommon,
     gesture: CanvasGestureState,
-    items: Vec<StarmapItem>,
+    items: Arc<[StarmapItem]>,
     viewport: StarmapViewport,
     last_hit_file_id: Option<String>,
+    last_hit_index: Option<usize>,
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
     active_drag: Option<StarmapAuditionDragState>,
     item_signature: u64,
     hit_index: StarmapHitIndex,
     hovered_file_id: Option<String>,
+    hovered_item_index: Option<usize>,
 }
 
 impl StarmapWidget {
     fn new(
-        items: Vec<StarmapItem>,
+        items: impl Into<Arc<[StarmapItem]>>,
         viewport: StarmapViewport,
         active_drag: Option<StarmapAuditionDragState>,
     ) -> Self {
+        let items = items.into();
         let common = WidgetCommon::new(
             widget_ids::SAMPLE_BROWSER_MAP_ID,
             WidgetSizing::new(
@@ -334,18 +339,15 @@ impl StarmapWidget {
             items,
             viewport,
             last_hit_file_id: None,
+            last_hit_index: None,
             last_primary_position: None,
             last_pan_position: None,
             active_drag,
             item_signature,
             hit_index: StarmapHitIndex::default(),
             hovered_file_id: None,
+            hovered_item_index: None,
         }
-    }
-
-    fn hit_file_id(&mut self, bounds: Rect, point: Point) -> Option<String> {
-        self.hit_test(bounds, point)
-            .map(|item| item.file_id.clone())
     }
 
     fn begin_audition_drag_message(
@@ -354,8 +356,10 @@ impl StarmapWidget {
         point: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
-        let hit_file_id = self.hit_file_id(bounds, point);
+        let hit_index = self.hit_item_index(bounds, point);
+        let hit_file_id = hit_index.map(|index| self.items[index].file_id.clone());
         self.last_hit_file_id = hit_file_id.clone();
+        self.last_hit_index = hit_index;
         self.last_primary_position = Some(point);
         Some(WidgetOutput::typed(GuiMessage::BeginStarmapAuditionDrag {
             path: hit_file_id,
@@ -383,13 +387,15 @@ impl StarmapWidget {
             .or(self.last_hit_file_id.as_deref())
             .map(str::to_owned);
         self.last_primary_position = Some(point);
-        let Some(hit_file_id) = self.hit_file_id_between(bounds, previous, point) else {
+        let Some(hit) = self.hit_between(bounds, previous, point) else {
             return None;
         };
+        let hit_file_id = hit.file_id;
         if Some(&hit_file_id) == last_hit_file_id.as_ref() {
             return None;
         }
         self.last_hit_file_id = Some(hit_file_id.clone());
+        self.last_hit_index = Some(hit.item_index);
         Some(WidgetOutput::typed(GuiMessage::UpdateStarmapAuditionDrag {
             paths: vec![hit_file_id],
             position: point,
@@ -397,9 +403,9 @@ impl StarmapWidget {
         }))
     }
 
-    fn hit_test(&mut self, bounds: Rect, point: Point) -> Option<&StarmapItem> {
+    fn hit_item_index(&mut self, bounds: Rect, point: Point) -> Option<usize> {
         self.ensure_hit_index(bounds);
-        let mut best: Option<(&StarmapItem, f32)> = None;
+        let mut best: Option<(usize, f32)> = None;
         for index in self.hit_index.item_indices_near_point(point) {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
@@ -408,13 +414,13 @@ impl StarmapWidget {
                 continue;
             }
             if best.is_none_or(|(_, best_distance)| distance_sq < best_distance) {
-                best = Some((item, distance_sq));
+                best = Some((index, distance_sq));
             }
         }
-        best.map(|(item, _)| item)
+        best.map(|(index, _)| index)
     }
 
-    fn hit_file_id_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<String> {
+    fn hit_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<StarmapSegmentHit> {
         self.ensure_hit_index(bounds);
         let mut best: Option<StarmapSegmentHit> = None;
         for index in self.hit_index.item_indices_near_segment(from, to) {
@@ -425,6 +431,7 @@ impl StarmapWidget {
                 continue;
             }
             let hit = StarmapSegmentHit {
+                item_index: index,
                 file_id: item.file_id.clone(),
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
@@ -438,7 +445,7 @@ impl StarmapWidget {
                 best = Some(hit);
             }
         }
-        best.map(|hit| hit.file_id)
+        best
     }
 
     fn ensure_hit_index(&mut self, bounds: Rect) {
@@ -453,7 +460,9 @@ impl StarmapWidget {
     }
 
     fn set_hovered_file_at(&mut self, bounds: Rect, point: Point) {
-        self.hovered_file_id = self.hit_file_id(bounds, point);
+        let index = self.hit_item_index(bounds, point);
+        self.hovered_item_index = index;
+        self.hovered_file_id = index.map(|index| self.items[index].file_id.clone());
     }
 
     fn remember_hovered_context_menu_anchor(&self, point: Point) -> Option<WidgetOutput> {
@@ -469,25 +478,41 @@ impl StarmapWidget {
 
     fn hovered_item(&self) -> Option<&StarmapItem> {
         let hovered_file_id = self.hovered_file_id.as_deref()?;
-        self.items
-            .iter()
-            .find(|item| item.file_id.as_str() == hovered_file_id)
+        self.item_for_cached_index(self.hovered_item_index, hovered_file_id)
+            .or_else(|| {
+                self.items
+                    .iter()
+                    .find(|item| item.file_id.as_str() == hovered_file_id)
+            })
     }
 
     fn active_drag_item(&self) -> Option<&StarmapItem> {
         let active_file_id = self.active_drag.as_ref()?.last_hit_file_id.as_deref()?;
-        self.items
-            .iter()
-            .find(|item| item.file_id.as_str() == active_file_id)
+        self.item_for_cached_index(self.last_hit_index, active_file_id)
+            .or_else(|| {
+                self.items
+                    .iter()
+                    .find(|item| item.file_id.as_str() == active_file_id)
+            })
     }
 
     fn focused_item(&self) -> Option<&StarmapItem> {
         self.items.iter().find(|item| item.focused)
     }
+
+    fn item_for_cached_index(
+        &self,
+        index: Option<usize>,
+        expected_file_id: &str,
+    ) -> Option<&StarmapItem> {
+        let item = self.items.get(index?)?;
+        (item.file_id == expected_file_id).then_some(item)
+    }
 }
 
 #[derive(Clone, Debug)]
 struct StarmapSegmentHit {
+    item_index: usize,
     file_id: String,
     segment_t: f32,
     distance_sq: f32,
@@ -498,7 +523,7 @@ struct StarmapHitIndex {
     bounds: Option<Rect>,
     viewport: Option<StarmapViewport>,
     item_signature: u64,
-    cells: HashMap<StarmapGridCell, Vec<usize>>,
+    cells: Arc<HashMap<StarmapGridCell, Vec<usize>>>,
 }
 
 impl StarmapHitIndex {
@@ -524,7 +549,7 @@ impl StarmapHitIndex {
             bounds: Some(bounds),
             viewport: Some(viewport),
             item_signature,
-            cells,
+            cells: Arc::new(cells),
         }
     }
 
@@ -738,9 +763,11 @@ impl Widget for StarmapWidget {
         self.common.state = previous.common.state;
         self.gesture = previous.gesture.clone();
         self.last_hit_file_id = previous.last_hit_file_id.clone();
+        self.last_hit_index = previous.last_hit_index;
         self.last_primary_position = previous.last_primary_position;
         self.last_pan_position = previous.last_pan_position;
         self.hovered_file_id = previous.hovered_file_id.clone();
+        self.hovered_item_index = previous.hovered_item_index;
         if previous
             .hit_index
             .matches_current(self.viewport, self.item_signature)
@@ -1632,9 +1659,42 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
-        assert!(next
-            .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature));
+        assert!(
+            next.hit_index
+                .matches(bounds, StarmapViewport::default(), next.item_signature)
+        );
+    }
+
+    #[test]
+    fn starmap_widget_synchronizes_drag_hit_index_for_runtime_overlay() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let file_id = String::from("/samples/kick.wav");
+        let mut previous = StarmapWidget::new(
+            vec![starmap_item(file_id.as_str(), 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        previous.handle_input(bounds, WidgetInput::primary_press(Point::new(50.0, 50.0)));
+        assert_eq!(previous.last_hit_index, Some(0));
+
+        let mut next = StarmapWidget::new(
+            vec![starmap_item(file_id.as_str(), 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(file_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(next.last_hit_index, Some(0));
+        assert_eq!(
+            next.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(file_id.as_str()),
+            "runtime overlay paint should reuse the synchronized hit index for active drag nodes"
+        );
     }
 
     #[test]
@@ -1664,9 +1724,10 @@ mod tests {
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(next
-            .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature));
+        assert!(
+            next.hit_index
+                .matches(bounds, StarmapViewport::default(), next.item_signature)
+        );
     }
 
     #[test]

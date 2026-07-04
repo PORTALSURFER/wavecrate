@@ -205,7 +205,7 @@ mod tests {
                         similarity_mode_active: false,
                         similarity_controls: &similarity_controls,
                     },
-                    map_items: Vec::new(),
+                    map_items: Vec::<StarmapItem>::new().into(),
                     map_status: Default::default(),
                     map_prep_running: false,
                     map_audition_drag: None,
@@ -273,7 +273,8 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 missing: false,
-            }],
+            }]
+            .into(),
             map_status: Default::default(),
             map_prep_running: false,
             map_audition_drag: None,
@@ -330,7 +331,8 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 missing: false,
-            }],
+            }]
+            .into(),
             map_status: StarmapStatus {
                 listed_count: 2,
                 layout_count: 1,
@@ -387,7 +389,8 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 missing: false,
-            }],
+            }]
+            .into(),
             map_status: Default::default(),
             map_prep_running: false,
             map_audition_drag: None,
@@ -527,7 +530,7 @@ mod tests {
                 similarity_mode_active: false,
                 similarity_controls: &similarity_controls,
             },
-            map_items: Vec::new(),
+            map_items: Vec::<StarmapItem>::new().into(),
             map_status: Default::default(),
             map_prep_running: false,
             map_audition_drag: None,
@@ -589,7 +592,8 @@ mod tests {
                             similarity_anchor: false,
                             instant_audition_ready: true,
                             missing: false,
-                        }],
+                        }]
+                        .into(),
                         map_status: StarmapStatus {
                             listed_count: 2,
                             layout_count: 1,
@@ -665,7 +669,8 @@ mod tests {
                         similarity_anchor: false,
                         instant_audition_ready: true,
                         missing: false,
-                    }],
+                    }]
+                    .into(),
                     map_status: StarmapStatus {
                         listed_count: 2,
                         layout_count: 1,
@@ -761,7 +766,8 @@ mod tests {
                                 instant_audition_ready: true,
                                 missing: false,
                             },
-                        ],
+                        ]
+                        .into(),
                         map_status: Default::default(),
                         map_prep_running: false,
                         map_audition_drag: messages
