@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-        push_stroke_polyline,
+        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
+        PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,9 +13,9 @@ use radiant::{
     },
 };
 use std::{
-    collections::{BTreeMap, HashMap, hash_map::DefaultHasher},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap},
     hash::{Hash, Hasher},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
 
 use crate::native_app::app::{
@@ -26,7 +26,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
+    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
 };
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
@@ -313,14 +313,12 @@ struct StarmapWidget {
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
     active_drag: Option<StarmapAuditionDragState>,
-    item_signature: u64,
-    paint_signature: u64,
+    item_metadata: Arc<OnceLock<StarmapItemMetadata>>,
     hit_index: StarmapHitIndex,
     hit_scratch: Arc<Mutex<StarmapHitScratch>>,
     paint_cache: Arc<Mutex<StarmapPaintCache>>,
     hovered_file_id: Option<String>,
     hovered_item_index: Option<usize>,
-    focused_item_index: Option<usize>,
 }
 
 impl StarmapWidget {
@@ -339,10 +337,6 @@ impl StarmapWidget {
         )
         .with_pointer_focus()
         .without_default_chrome();
-        let signatures = starmap_item_signatures(&items);
-        let item_signature = signatures.hit;
-        let paint_signature = signatures.paint;
-        let focused_item_index = items.iter().position(|item| item.focused);
         Self {
             common,
             gesture: CanvasGestureState::new(),
@@ -353,14 +347,12 @@ impl StarmapWidget {
             last_primary_position: None,
             last_pan_position: None,
             active_drag,
-            item_signature,
-            paint_signature,
+            item_metadata: Arc::new(OnceLock::new()),
             hit_index: StarmapHitIndex::default(),
             hit_scratch: Arc::new(Mutex::new(StarmapHitScratch::default())),
             paint_cache: Arc::new(Mutex::new(StarmapPaintCache::default())),
             hovered_file_id: None,
             hovered_item_index: None,
-            focused_item_index,
         }
     }
 
@@ -538,14 +530,14 @@ impl StarmapWidget {
     }
 
     fn ensure_hit_index(&mut self, bounds: Rect) {
+        let item_signature = self.item_signature();
         if self
             .hit_index
-            .matches(bounds, self.viewport, self.item_signature)
+            .matches(bounds, self.viewport, item_signature)
         {
             return;
         }
-        self.hit_index =
-            StarmapHitIndex::build(bounds, self.viewport, self.item_signature, &self.items);
+        self.hit_index = StarmapHitIndex::build(bounds, self.viewport, item_signature, &self.items);
     }
 
     fn set_hovered_file_at(&mut self, bounds: Rect, point: Point) {
@@ -586,7 +578,7 @@ impl StarmapWidget {
     }
 
     fn focused_item(&self) -> Option<&StarmapItem> {
-        self.items.get(self.focused_item_index?)
+        self.items.get(self.item_metadata().focused_item_index?)
     }
 
     fn item_for_cached_index(
@@ -596,6 +588,20 @@ impl StarmapWidget {
     ) -> Option<&StarmapItem> {
         let item = self.items.get(index?)?;
         (item.file_id == expected_file_id).then_some(item)
+    }
+
+    fn item_signature(&self) -> u64 {
+        self.item_metadata().signatures.hit
+    }
+
+    fn paint_signature(&self) -> u64 {
+        self.item_metadata().signatures.paint
+    }
+
+    fn item_metadata(&self) -> StarmapItemMetadata {
+        *self
+            .item_metadata
+            .get_or_init(|| starmap_item_metadata(&self.items))
     }
 }
 
@@ -773,7 +779,7 @@ fn segment_bounds(from: Point, to: Point) -> Rect {
 
 #[cfg(test)]
 fn starmap_items_signature(items: &[StarmapItem]) -> u64 {
-    starmap_item_signatures(items).hit
+    starmap_item_metadata(items).signatures.hit
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -782,12 +788,19 @@ struct StarmapItemSignatures {
     paint: u64,
 }
 
-fn starmap_item_signatures(items: &[StarmapItem]) -> StarmapItemSignatures {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct StarmapItemMetadata {
+    signatures: StarmapItemSignatures,
+    focused_item_index: Option<usize>,
+}
+
+fn starmap_item_metadata(items: &[StarmapItem]) -> StarmapItemMetadata {
     let mut hit_hasher = DefaultHasher::new();
     let mut paint_hasher = DefaultHasher::new();
     items.len().hash(&mut hit_hasher);
     items.len().hash(&mut paint_hasher);
-    for item in items {
+    let mut focused_item_index = None;
+    for (index, item) in items.iter().enumerate() {
         item.file_id.hash(&mut hit_hasher);
         item.x.to_bits().hash(&mut hit_hasher);
         item.y.to_bits().hash(&mut hit_hasher);
@@ -805,10 +818,16 @@ fn starmap_item_signatures(items: &[StarmapItem]) -> StarmapItemSignatures {
         item.instant_audition_ready.hash(&mut paint_hasher);
         item.preview_audition_ready.hash(&mut paint_hasher);
         item.missing.hash(&mut paint_hasher);
+        if item.focused && focused_item_index.is_none() {
+            focused_item_index = Some(index);
+        }
     }
-    StarmapItemSignatures {
-        hit: hit_hasher.finish(),
-        paint: paint_hasher.finish(),
+    StarmapItemMetadata {
+        signatures: StarmapItemSignatures {
+            hit: hit_hasher.finish(),
+            paint: paint_hasher.finish(),
+        },
+        focused_item_index,
     }
 }
 
@@ -949,11 +968,15 @@ impl Widget for StarmapWidget {
         self.last_pan_position = previous.last_pan_position;
         self.hovered_file_id = previous.hovered_file_id.clone();
         self.hovered_item_index = previous.hovered_item_index;
+        if Arc::ptr_eq(&previous.items, &self.items) {
+            self.item_metadata = previous.item_metadata.clone();
+        }
         self.hit_scratch = previous.hit_scratch.clone();
         self.paint_cache = previous.paint_cache.clone();
+        let item_signature = self.item_signature();
         if previous
             .hit_index
-            .matches_current(self.viewport, self.item_signature)
+            .matches_current(self.viewport, item_signature)
         {
             self.hit_index = previous.hit_index.clone();
         }
@@ -990,7 +1013,7 @@ impl Widget for StarmapWidget {
             bounds,
             &self.items,
             self.viewport,
-            self.paint_signature,
+            self.paint_signature(),
             &self.paint_cache,
         );
     }
@@ -1978,10 +2001,9 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature)
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature()));
     }
 
     #[test]
@@ -2072,6 +2094,40 @@ mod tests {
     }
 
     #[test]
+    fn starmap_widget_reuses_item_metadata_for_shared_item_arc() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let mut focused = starmap_item("/samples/focused.wav", 0.25, 0.5, color);
+        focused.focused = true;
+        let items = Arc::<[StarmapItem]>::from(vec![
+            starmap_item("/samples/kick.wav", 0.10, 0.5, color),
+            focused,
+            starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+        ]);
+        let previous = StarmapWidget::new(items.clone(), StarmapViewport::default(), None);
+        assert_eq!(
+            previous.focused_item().map(|item| item.file_id.as_str()),
+            Some("/samples/focused.wav")
+        );
+
+        let mut next = StarmapWidget::new(
+            items,
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/snare.wav")),
+                last_position: Point::new(150.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert!(
+            Arc::ptr_eq(&previous.item_metadata, &next.item_metadata),
+            "active drag widget refreshes should reuse starmap signature/focus metadata for the same prepared item Arc"
+        );
+        assert_eq!(next.item_signature(), previous.item_signature());
+    }
+
+    #[test]
     fn starmap_widget_synchronizes_drag_hit_index_for_runtime_overlay() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
@@ -2123,17 +2179,16 @@ mod tests {
         assert!(
             !next
                 .hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature),
+                .matches(bounds, StarmapViewport::default(), next.item_signature()),
             "same-count filtered listings must not reuse stale node cells"
         );
 
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature)
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature()));
     }
 
     #[test]
