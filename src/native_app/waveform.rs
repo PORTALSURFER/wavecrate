@@ -51,6 +51,8 @@ mod zero_crossing_snap;
 pub(in crate::native_app) use state_marked_ranges::random_marked_play_range_for_unit;
 
 mod audio_file;
+#[cfg(test)]
+pub(in crate::native_app) use audio_file::PersistedPlaybackCacheFile;
 pub(super) use audio_file::WaveformFile;
 #[cfg(test)]
 pub(in crate::native_app) use audio_file::cached_waveform_file_playback_ready_exists;
@@ -59,11 +61,11 @@ pub(super) use audio_file::store_cached_waveform_file_for_tests;
 #[cfg(test)]
 pub(super) use audio_file::store_summary_only_cached_waveform_file_for_tests;
 pub(in crate::native_app) use audio_file::{
-    PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformPlaybackReady,
-    cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
-    file_backed_wav_playback_descriptor, flush_background_waveform_cache_stores_for_shutdown,
-    invalidate_persisted_waveform_cache_path, invalidate_persisted_waveform_cache_paths,
-    load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor_sidecar,
+    PersistedPlaybackDescriptor, WaveformPlaybackReady, cached_waveform_file_audition_ready_exists,
+    cached_waveform_file_exists, file_backed_wav_playback_descriptor,
+    flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
+    invalidate_persisted_waveform_cache_paths, load_cached_waveform_file_for_playback,
+    load_cached_waveform_playback_descriptor_sidecar,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
     should_use_file_backed_wav_decode,
 };
