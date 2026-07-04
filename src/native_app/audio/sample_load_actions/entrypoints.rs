@@ -204,13 +204,7 @@ impl NativeAppState {
             path.as_str(),
             context,
             started_at,
-            super::cache_start::FastAuditionOptions {
-                origin: "starmap_drag",
-                record_history: false,
-                allow_sidecar_lookup: false,
-                queue_preview_decode: true,
-                prefer_preview_decode: true,
-            },
+            super::cache_start::FastAuditionOptions::starmap_drag(),
         );
         let ready_elapsed = starmap_telemetry::elapsed_since(ready_started_at);
         if let Some(elapsed) = ready_elapsed {
@@ -362,13 +356,7 @@ impl NativeAppState {
                     path.as_str(),
                     context,
                     started_at,
-                    super::cache_start::FastAuditionOptions {
-                        origin: "instant_audition",
-                        record_history: true,
-                        allow_sidecar_lookup: true,
-                        queue_preview_decode: true,
-                        prefer_preview_decode: true,
-                    },
+                    super::cache_start::FastAuditionOptions::instant_navigation(),
                 )
                 .uses_ready_source();
         self.start_foreground_sample_load_with_priority(
@@ -423,13 +411,7 @@ impl NativeAppState {
                 path.as_str(),
                 context,
                 started_at,
-                super::cache_start::FastAuditionOptions {
-                    origin: "instant_audition",
-                    record_history: true,
-                    allow_sidecar_lookup: true,
-                    queue_preview_decode: true,
-                    prefer_preview_decode: true,
-                },
+                super::cache_start::FastAuditionOptions::instant_navigation(),
             )
             .uses_ready_source();
         self.start_foreground_sample_load_with_priority(

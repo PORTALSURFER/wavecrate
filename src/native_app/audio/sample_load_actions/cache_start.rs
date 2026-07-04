@@ -73,6 +73,67 @@ pub(super) struct FastAuditionOptions {
     pub(super) prefer_preview_decode: bool,
 }
 
+impl FastAuditionOptions {
+    pub(super) fn starmap_drag() -> Self {
+        Self {
+            origin: "starmap_drag",
+            record_history: false,
+            allow_sidecar_lookup: false,
+            queue_preview_decode: true,
+            prefer_preview_decode: false,
+        }
+    }
+
+    pub(super) fn instant_navigation() -> Self {
+        Self {
+            origin: "instant_audition",
+            record_history: true,
+            allow_sidecar_lookup: true,
+            queue_preview_decode: true,
+            prefer_preview_decode: false,
+        }
+    }
+
+    pub(super) fn preview_decode_completion(
+        origin: &'static str,
+        record_history: bool,
+    ) -> Self {
+        Self {
+            origin,
+            record_history,
+            allow_sidecar_lookup: false,
+            queue_preview_decode: false,
+            prefer_preview_decode: false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FastAuditionProbe {
+    PreviewCache,
+    PersistedCache,
+    FileBackedWav,
+    PreviewDecode,
+}
+
+fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe; 4] {
+    if options.prefer_preview_decode {
+        [
+            FastAuditionProbe::PreviewCache,
+            FastAuditionProbe::PersistedCache,
+            FastAuditionProbe::PreviewDecode,
+            FastAuditionProbe::FileBackedWav,
+        ]
+    } else {
+        [
+            FastAuditionProbe::PreviewCache,
+            FastAuditionProbe::PersistedCache,
+            FastAuditionProbe::FileBackedWav,
+            FastAuditionProbe::PreviewDecode,
+        ]
+    }
+}
+
 impl NativeAppState {
     pub(super) fn start_fast_path_audition(
         &mut self,
@@ -81,51 +142,57 @@ impl NativeAppState {
         started_at: Instant,
         options: FastAuditionOptions,
     ) -> InstantAuditionOutcome {
-        if self.start_preview_cache_instant_audition(path, context, started_at, options) {
-            return InstantAuditionOutcome::Started;
-        }
-        let persisted = self.start_persisted_cache_instant_audition_with_options(
-            path,
-            context,
-            started_at,
-            options.allow_sidecar_lookup,
-            options.record_history,
-            options.origin,
-        );
-        if persisted.uses_ready_source() {
-            return persisted;
-        }
-        if options.prefer_preview_decode
-            && options.queue_preview_decode
-            && preview_audition_can_decode(path)
-            && self
-                .waveform
-                .cache
-                .preview_audition_warm_needed(Path::new(path))
-        {
-            self.queue_preview_audition_decode(path.to_owned(), started_at, context);
-            return InstantAuditionOutcome::AudioPending;
-        }
-        if self.start_file_backed_wav_instant_audition_with_options(
-            path,
-            context,
-            started_at,
-            options.record_history,
-            options.origin,
-        ) {
-            return InstantAuditionOutcome::Started;
-        }
-        if options.queue_preview_decode
-            && preview_audition_can_decode(path)
-            && self
-                .waveform
-                .cache
-                .preview_audition_warm_needed(Path::new(path))
-        {
-            self.queue_preview_audition_decode(path.to_owned(), started_at, context);
-            return InstantAuditionOutcome::AudioPending;
+        for probe in fast_audition_probe_order(options) {
+            match probe {
+                FastAuditionProbe::PreviewCache => {
+                    if self.start_preview_cache_instant_audition(
+                        path, context, started_at, options,
+                    ) {
+                        return InstantAuditionOutcome::Started;
+                    }
+                }
+                FastAuditionProbe::PersistedCache => {
+                    let persisted = self.start_persisted_cache_instant_audition_with_options(
+                        path,
+                        context,
+                        started_at,
+                        options.allow_sidecar_lookup,
+                        options.record_history,
+                        options.origin,
+                    );
+                    if persisted.uses_ready_source() {
+                        return persisted;
+                    }
+                }
+                FastAuditionProbe::FileBackedWav => {
+                    if self.start_file_backed_wav_instant_audition_with_options(
+                        path,
+                        context,
+                        started_at,
+                        options.record_history,
+                        options.origin,
+                    ) {
+                        return InstantAuditionOutcome::Started;
+                    }
+                }
+                FastAuditionProbe::PreviewDecode => {
+                    if self.preview_audition_decode_needed(path, options) {
+                        self.queue_preview_audition_decode(path.to_owned(), started_at, context);
+                        return InstantAuditionOutcome::AudioPending;
+                    }
+                }
+            }
         }
         InstantAuditionOutcome::Unavailable
+    }
+
+    fn preview_audition_decode_needed(&self, path: &str, options: FastAuditionOptions) -> bool {
+        options.queue_preview_decode
+            && preview_audition_can_decode(path)
+            && self
+                .waveform
+                .cache
+                .preview_audition_warm_needed(Path::new(path))
     }
 
     pub(super) fn start_memory_cached_sample(
@@ -398,6 +465,7 @@ impl NativeAppState {
         if record_history {
             self.record_sample_last_played(path.to_owned(), context);
         }
+        self.maybe_schedule_starmap_audition_promotion(path, origin, context);
         log_sample_load_timing(
             "browser.sample_load.persisted_descriptor.playback_submit",
             path,
@@ -499,6 +567,7 @@ impl NativeAppState {
         if record_history {
             self.record_sample_last_played(path.to_owned(), context);
         }
+        self.maybe_schedule_starmap_audition_promotion(path, origin, context);
         log_sample_load_timing(
             "browser.sample_load.file_backed_wav.playback_submit",
             path,
@@ -612,9 +681,11 @@ impl NativeAppState {
         if options.record_history {
             self.record_sample_last_played(path.clone(), context);
         }
-        if options.origin == "starmap_drag" {
-            self.schedule_starmap_audition_promotion(path.clone(), context);
-        }
+        self.maybe_schedule_starmap_audition_promotion(
+            path.as_str(),
+            options.origin,
+            context,
+        );
         log_sample_load_timing(
             "browser.sample_load.preview_audition.playback_submit",
             path.as_str(),
@@ -630,6 +701,17 @@ impl NativeAppState {
             None,
         );
         true
+    }
+
+    fn maybe_schedule_starmap_audition_promotion(
+        &mut self,
+        path: &str,
+        origin: &'static str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if origin == "starmap_drag" {
+            self.schedule_starmap_audition_promotion(path.to_owned(), context);
+        }
     }
 
     fn queue_preview_audition_decode(
@@ -851,13 +933,10 @@ impl NativeAppState {
             );
             return;
         }
-        let options = FastAuditionOptions {
-            origin: self.runtime_playback_origin_for_path(result.path.as_str()),
-            record_history: !self.ui.chrome.starmap_audition_drag.is_some(),
-            allow_sidecar_lookup: false,
-            queue_preview_decode: false,
-            prefer_preview_decode: false,
-        };
+        let options = FastAuditionOptions::preview_decode_completion(
+            self.runtime_playback_origin_for_path(result.path.as_str()),
+            !self.ui.chrome.starmap_audition_drag.is_some(),
+        );
         self.start_preview_clip_instant_audition(clip, context, started_at, options);
     }
 
@@ -1175,4 +1254,102 @@ fn preview_audition_can_decode(path: &str) -> bool {
         .is_some_and(|extension| {
             extension.eq_ignore_ascii_case("wav") || extension.eq_ignore_ascii_case("wave")
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::runtime::Command;
+
+    fn after_messages(command: Command<GuiMessage>) -> Vec<GuiMessage> {
+        match command {
+            Command::After { message, .. } => vec![message],
+            Command::Batch(commands) => commands.into_iter().flat_map(after_messages).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    #[test]
+    fn starmap_drag_fast_audition_prefers_file_backed_wav_before_preview_decode() {
+        assert_eq!(
+            fast_audition_probe_order(FastAuditionOptions::starmap_drag()),
+            [
+                FastAuditionProbe::PreviewCache,
+                FastAuditionProbe::PersistedCache,
+                FastAuditionProbe::FileBackedWav,
+                FastAuditionProbe::PreviewDecode,
+            ]
+        );
+    }
+
+    #[test]
+    fn instant_navigation_fast_audition_prefers_file_backed_wav_before_preview_decode() {
+        assert_eq!(
+            fast_audition_probe_order(FastAuditionOptions::instant_navigation()),
+            [
+                FastAuditionProbe::PreviewCache,
+                FastAuditionProbe::PersistedCache,
+                FastAuditionProbe::FileBackedWav,
+                FastAuditionProbe::PreviewDecode,
+            ]
+        );
+    }
+
+    #[test]
+    fn legacy_preview_preference_keeps_preview_decode_before_file_backed_wav() {
+        let options = FastAuditionOptions {
+            origin: "test",
+            record_history: false,
+            allow_sidecar_lookup: false,
+            queue_preview_decode: true,
+            prefer_preview_decode: true,
+        };
+
+        assert_eq!(
+            fast_audition_probe_order(options),
+            [
+                FastAuditionProbe::PreviewCache,
+                FastAuditionProbe::PersistedCache,
+                FastAuditionProbe::PreviewDecode,
+                FastAuditionProbe::FileBackedWav,
+            ]
+        );
+    }
+
+    #[test]
+    fn starmap_drag_instant_audition_schedules_stable_target_promotion() {
+        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+            .build();
+        let mut context = ui::UiUpdateContext::default();
+
+        state.maybe_schedule_starmap_audition_promotion(
+            "/tmp/starmap-target.wav",
+            "starmap_drag",
+            &mut context,
+        );
+        let delayed = after_messages(context.into_command());
+
+        assert!(delayed.iter().any(|message| matches!(
+            message,
+            GuiMessage::PromoteStarmapAudition {
+                path,
+                ..
+            } if path == "/tmp/starmap-target.wav"
+        )));
+    }
+
+    #[test]
+    fn non_starmap_instant_audition_does_not_schedule_stable_target_promotion() {
+        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+            .build();
+        let mut context = ui::UiUpdateContext::default();
+
+        state.maybe_schedule_starmap_audition_promotion(
+            "/tmp/browser-target.wav",
+            "instant_audition",
+            &mut context,
+        );
+
+        assert!(after_messages(context.into_command()).is_empty());
+    }
 }
