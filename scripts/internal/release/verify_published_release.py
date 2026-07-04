@@ -716,7 +716,7 @@ def normalized_archive_entries(archive: zipfile.ZipFile) -> dict[str, list[str]]
     entries: dict[str, list[str]] = {}
     for name in archive.namelist():
         normalized = normalize_archive_relative_path(name)
-        if not normalized or normalized.endswith("/"):
+        if not normalized or name.endswith("/"):
             continue
         entries.setdefault(normalized, []).append(name)
     return entries
