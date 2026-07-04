@@ -12,6 +12,62 @@ const NEW_FOLDER_HOTKEY_HINT: &str = "N";
 const RENAME_HOTKEY_HINT: &str = "F2 / Cmd-R";
 const DELETE_HOTKEY_HINT: &str = "Delete / Backspace";
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum FileManagerLabelPlatform {
+    Windows,
+    Macos,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) struct FileManagerContextLabels {
+    open: &'static str,
+    reveal: &'static str,
+}
+
+impl FileManagerContextLabels {
+    pub(in crate::native_app) fn open(self) -> &'static str {
+        self.open
+    }
+
+    pub(in crate::native_app) fn reveal(self) -> &'static str {
+        self.reveal
+    }
+}
+
+pub(in crate::native_app) fn file_manager_context_labels() -> FileManagerContextLabels {
+    file_manager_context_labels_for_platform(current_file_manager_label_platform())
+}
+
+pub(in crate::native_app) fn file_manager_context_labels_for_platform(
+    platform: FileManagerLabelPlatform,
+) -> FileManagerContextLabels {
+    match platform {
+        FileManagerLabelPlatform::Windows => FileManagerContextLabels {
+            open: "Open in Explorer",
+            reveal: "Reveal in Explorer",
+        },
+        FileManagerLabelPlatform::Macos => FileManagerContextLabels {
+            open: "Open in Finder",
+            reveal: "Reveal in Finder",
+        },
+        FileManagerLabelPlatform::Other => FileManagerContextLabels {
+            open: "Open in File Manager",
+            reveal: "Reveal in File Manager",
+        },
+    }
+}
+
+fn current_file_manager_label_platform() -> FileManagerLabelPlatform {
+    if cfg!(target_os = "windows") {
+        FileManagerLabelPlatform::Windows
+    } else if cfg!(target_os = "macos") {
+        FileManagerLabelPlatform::Macos
+    } else {
+        FileManagerLabelPlatform::Other
+    }
+}
+
 pub(in crate::native_app) fn overlay(
     menu: &BrowserContextMenu,
     harvest_active: bool,
@@ -41,10 +97,13 @@ fn context_menu_commands(
         return collection_context_menu_commands(menu);
     }
 
+    let file_manager_labels = file_manager_context_labels();
     let action_label = match menu.kind {
-        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => "Open in Explorer",
+        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => {
+            file_manager_labels.open()
+        }
         BrowserContextTargetKind::Collection => unreachable!("handled above"),
-        BrowserContextTargetKind::Sample => "Reveal in Explorer",
+        BrowserContextTargetKind::Sample => file_manager_labels.reveal(),
         BrowserContextTargetKind::MetadataTag => unreachable!("handled above"),
     };
     if menu.kind == BrowserContextTargetKind::Sample && menu.sample_missing {

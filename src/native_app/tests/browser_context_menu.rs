@@ -1,9 +1,35 @@
 use super::*;
+use crate::native_app::app_chrome::browser_context_menu::{
+    FileManagerLabelPlatform, file_manager_context_labels, file_manager_context_labels_for_platform,
+};
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextPointerAnchor, BrowserContextPointerTarget,
 };
 use crate::native_app::test_support::state::GuiMessage;
 use radiant::runtime::{PaintTextAlign, RuntimeUpdateSnapshot};
+
+fn open_file_manager_label() -> &'static str {
+    file_manager_context_labels().open()
+}
+
+fn reveal_file_manager_label() -> &'static str {
+    file_manager_context_labels().reveal()
+}
+
+#[test]
+fn file_manager_context_labels_are_platform_native() {
+    let windows = file_manager_context_labels_for_platform(FileManagerLabelPlatform::Windows);
+    assert_eq!(windows.open(), "Open in Explorer");
+    assert_eq!(windows.reveal(), "Reveal in Explorer");
+
+    let macos = file_manager_context_labels_for_platform(FileManagerLabelPlatform::Macos);
+    assert_eq!(macos.open(), "Open in Finder");
+    assert_eq!(macos.reveal(), "Reveal in Finder");
+
+    let fallback = file_manager_context_labels_for_platform(FileManagerLabelPlatform::Other);
+    assert_eq!(fallback.open(), "Open in File Manager");
+    assert_eq!(fallback.reveal(), "Reveal in File Manager");
+}
 
 #[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
@@ -27,7 +53,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
 
     let action_text_rect = frame
         .paint_plan
-        .first_text_run("Open in Explorer")
+        .first_text_run(open_file_manager_label())
         .map(|text| text.rect)
         .expect("folder context menu action text should render");
 
@@ -144,7 +170,7 @@ fn folder_context_menu_opens_downward_when_space_allows() {
 
     let action_text_rect = frame
         .paint_plan
-        .first_text_run("Open in Explorer")
+        .first_text_run(open_file_manager_label())
         .map(|text| text.rect)
         .expect("folder context menu action text should render");
 
@@ -177,7 +203,7 @@ fn folder_context_menu_flips_upward_near_bottom_edge() {
 
     let first_action = frame
         .paint_plan
-        .first_text_run("Open in Explorer")
+        .first_text_run(open_file_manager_label())
         .map(|text| text.rect)
         .expect("folder context menu action text should render");
     let final_action = frame
@@ -222,7 +248,7 @@ fn harvest_sample_context_menu_flips_using_dynamic_height() {
 
     let first_action = frame
         .paint_plan
-        .first_text_run("Reveal in Explorer")
+        .first_text_run(reveal_file_manager_label())
         .map(|text| text.rect)
         .expect("sample context menu action text should render");
     let final_action = frame
@@ -863,6 +889,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
     let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
+    assert!(frame.paint_plan.contains_text(open_file_manager_label()));
     assert!(frame.paint_plan.contains_text("Refresh Source"));
     assert!(frame.paint_plan.contains_text("Process Source"));
     assert!(frame.paint_plan.contains_text("New Folder"));
@@ -1016,7 +1043,7 @@ fn folder_context_menu_commands_share_neutral_style() {
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     let command_labels = [
-        "Open in Explorer",
+        open_file_manager_label(),
         "Copy Path",
         "New Folder",
         "Rename Folder",
@@ -1109,6 +1136,7 @@ fn sample_context_menu_paints_remove_from_collection_action_in_collection_view()
     let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
+    assert!(frame.paint_plan.contains_text(reveal_file_manager_label()));
     assert!(frame.paint_plan.contains_text("Remove from collection"));
     assert!(!frame.paint_plan.contains_text("New Folder"));
     assert!(!frame.paint_plan.contains_text("Delete Folder"));
@@ -2193,7 +2221,7 @@ fn missing_sample_context_menu_paints_cleanup_actions_without_file_actions() {
             .paint_plan
             .contains_text("Clean all missing in collection")
     );
-    assert!(!frame.paint_plan.contains_text("Reveal in Explorer"));
+    assert!(!frame.paint_plan.contains_text(reveal_file_manager_label()));
     assert!(!frame.paint_plan.contains_text("Move to Trash"));
 }
 
