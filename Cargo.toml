@@ -1,7 +1,6 @@
 [workspace]
 members = [
     ".",
-    "apps/installer",
     "apps/updater-helper",
     "crates/reson",
     "crates/wavecrate-analysis",
@@ -130,7 +129,6 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 windows-implement = "0.60.2"
 windows-core = "0.62.2"
-winreg = "0.52.0"
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 libc = "0.2.176"

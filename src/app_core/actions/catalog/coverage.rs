@@ -21,7 +21,7 @@ pub enum GuiSurface {
     Options,
     /// Prompt or confirmation dialog surface.
     Prompt,
-    /// Update notification and installer surface.
+    /// Update notification surface.
     Update,
 }
 
