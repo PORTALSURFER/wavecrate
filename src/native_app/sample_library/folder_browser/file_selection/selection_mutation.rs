@@ -44,6 +44,14 @@ impl FolderBrowserState {
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
 
+    pub(in crate::native_app) fn select_known_starmap_file_for_audition(&mut self, id: String) {
+        if self.rename_active() {
+            return;
+        }
+        self.cancel_rename();
+        self.selection.select_known_single_file(id);
+    }
+
     pub(in crate::native_app) fn focus_file_preserving_selection(&mut self, id: String) {
         let file_ids = self.selected_audio_file_ids();
         self.selection

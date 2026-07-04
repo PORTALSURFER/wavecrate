@@ -142,6 +142,18 @@ impl FileSelectionModel {
         Some(target)
     }
 
+    pub(super) fn select_known_single(&mut self, target: String) -> bool {
+        let changed = self.focused_id.as_deref() != Some(target.as_str())
+            || self.explicit
+            || self.selected_ids.len() != 1
+            || !self.selected_ids.contains(&target);
+        self.focused_id = Some(target.clone());
+        self.selected_ids.clear();
+        self.selected_ids.insert(target);
+        self.explicit = false;
+        changed
+    }
+
     pub(super) fn toggle_focused(
         &mut self,
         visible_ids: &[String],
@@ -322,6 +334,30 @@ mod tests {
         assert_eq!(selection.focused_id(), Some("snare"));
         assert!(selection.explicit());
         assert_eq!(selection.active_ids(), set(&["kick", "hat"]));
+    }
+
+    #[test]
+    fn known_single_selection_collapses_explicit_selection_without_visible_ids() {
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick", "hat"]), true);
+
+        assert!(selection.select_known_single(String::from("snare")));
+
+        assert_eq!(selection.focused_id(), Some("snare"));
+        assert!(!selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["snare"]));
+    }
+
+    #[test]
+    fn known_single_selection_reports_unchanged_when_already_single() {
+        let mut selection =
+            FileSelectionModel::new(Some(String::from("kick")), set(&["kick"]), false);
+
+        assert!(!selection.select_known_single(String::from("kick")));
+
+        assert_eq!(selection.focused_id(), Some("kick"));
+        assert!(!selection.explicit());
+        assert_eq!(selection.active_ids(), set(&["kick"]));
     }
 
     #[test]

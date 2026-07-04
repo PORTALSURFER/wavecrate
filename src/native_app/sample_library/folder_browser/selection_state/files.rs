@@ -158,6 +158,16 @@ impl BrowserSelectionState {
         Some(target)
     }
 
+    pub(in crate::native_app::sample_library::folder_browser) fn select_known_single_file(
+        &mut self,
+        target: String,
+    ) -> bool {
+        let mut selection = self.file_selection_model();
+        let changed = selection.select_known_single(target);
+        self.apply_file_selection_model(selection);
+        changed
+    }
+
     pub(in crate::native_app::sample_library::folder_browser) fn toggle_focused_file(
         &mut self,
         visible_ids: &[String],

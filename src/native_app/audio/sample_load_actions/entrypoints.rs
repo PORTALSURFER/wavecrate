@@ -126,7 +126,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn start_starmap_drag_audition_sample(
         &mut self,
         path: String,
-        modifiers: PointerModifiers,
+        _modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let total_started_at = starmap_telemetry::stage_timer();
@@ -139,11 +139,7 @@ impl NativeAppState {
         let focus_started_at = starmap_telemetry::stage_timer();
         self.library
             .folder_browser
-            .select_file_with_modifiers_matching_tags(
-                path.clone(),
-                modifiers,
-                &self.metadata.tags_by_file,
-            );
+            .select_known_starmap_file_for_audition(path.clone());
         let focus_elapsed = starmap_telemetry::elapsed_since(focus_started_at);
         if let Some(elapsed) = focus_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::Focus, elapsed);
