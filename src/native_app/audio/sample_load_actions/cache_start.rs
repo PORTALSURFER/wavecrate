@@ -752,6 +752,9 @@ impl NativeAppState {
     ) {
         if self.preview_audition_warm_should_yield() {
             self.background.preview_audition_warm_task.cancel();
+            self.waveform
+                .cache
+                .cancel_preview_audition_warm_schedule();
             return;
         }
         if self.background.preview_audition_warm_task.active().is_some() {
@@ -761,6 +764,9 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
+        self.waveform
+            .cache
+            .mark_preview_audition_warm_scheduled(&paths);
         let started_at = Instant::now();
         context
             .business()
@@ -768,6 +774,7 @@ impl NativeAppState {
             .latest(&mut self.background.preview_audition_warm_task)
             .run(
                 move |worker_context| {
+                    let scheduled_paths = paths.clone();
                     let mut attempted_paths = Vec::new();
                     let mut clips = Vec::new();
                     let mut errors = 0;
@@ -785,6 +792,7 @@ impl NativeAppState {
                         }
                     }
                     PreviewAuditionWarmResult {
+                        scheduled_paths,
                         attempted_paths,
                         clips,
                         errors,
@@ -952,20 +960,32 @@ impl NativeAppState {
         else {
             return;
         };
-        for path in &result.attempted_paths {
-            self.waveform
-                .cache
-                .mark_preview_audition_attempted(Path::new(path));
-        }
+        self.waveform
+            .cache
+            .finish_preview_audition_warm_schedule(
+                &result.scheduled_paths,
+                &result.attempted_paths,
+            );
         let clip_count = result.clips.len();
         for clip in result.clips {
             self.waveform.cache.store_preview_audition_clip(clip);
         }
+        let elapsed = started_at.elapsed();
         log_sample_load_timing(
             "browser.sample_load.preview_audition.warm",
             "preview-audition-warm",
-            started_at.elapsed(),
+            elapsed,
             false,
+        );
+        tracing::debug!(
+            target: "wavecrate::debug::sample_load",
+            event = "browser.sample_load.preview_audition.warm_finished",
+            scheduled = result.scheduled_paths.len(),
+            attempted = result.attempted_paths.len(),
+            decoded = clip_count,
+            errors = result.errors,
+            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            "Preview audition warm finished"
         );
         if result.errors > 0 {
             tracing::debug!(

@@ -141,6 +141,7 @@ pub(in crate::native_app) struct WaveformCacheState {
     preview_audition_bytes: usize,
     preview_audition_tick: u64,
     preview_audition_attempted_paths: HashSet<String>,
+    preview_audition_scheduled_paths: HashSet<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -184,6 +185,7 @@ impl Default for WaveformCacheState {
             preview_audition_bytes: 0,
             preview_audition_tick: 0,
             preview_audition_attempted_paths: Default::default(),
+            preview_audition_scheduled_paths: Default::default(),
         }
     }
 }
@@ -313,6 +315,7 @@ impl WaveformCacheState {
                 self.preview_audition_bytes.saturating_sub(entry.byte_len);
         }
         self.preview_audition_attempted_paths.remove(&file_id);
+        self.preview_audition_scheduled_paths.remove(&file_id);
     }
 
     pub(in crate::native_app) fn preview_audition_clip(
@@ -333,11 +336,36 @@ impl WaveformCacheState {
             && !self
                 .preview_audition_attempted_paths
                 .contains(&path.display().to_string())
+            && !self
+                .preview_audition_scheduled_paths
+                .contains(&path.display().to_string())
     }
 
     pub(in crate::native_app) fn mark_preview_audition_attempted(&mut self, path: &Path) {
         self.preview_audition_attempted_paths
             .insert(path.display().to_string());
+    }
+
+    pub(in crate::native_app) fn mark_preview_audition_warm_scheduled(&mut self, paths: &[String]) {
+        self.preview_audition_scheduled_paths
+            .extend(paths.iter().cloned());
+    }
+
+    pub(in crate::native_app) fn finish_preview_audition_warm_schedule(
+        &mut self,
+        scheduled_paths: &[String],
+        attempted_paths: &[String],
+    ) {
+        for path in scheduled_paths {
+            self.preview_audition_scheduled_paths.remove(path);
+        }
+        for path in attempted_paths {
+            self.preview_audition_attempted_paths.insert(path.clone());
+        }
+    }
+
+    pub(in crate::native_app) fn cancel_preview_audition_warm_schedule(&mut self) {
+        self.preview_audition_scheduled_paths.clear();
     }
 
     pub(in crate::native_app) fn store_preview_audition_clip(&mut self, clip: PreviewAuditionClip) {
@@ -359,7 +387,7 @@ impl WaveformCacheState {
         }
         self.preview_audition_bytes = self.preview_audition_bytes.saturating_add(byte_len);
         self.preview_audition_attempted_paths.insert(file_id.clone());
-        self.instant_audition_sample_paths.insert(file_id);
+        self.preview_audition_scheduled_paths.remove(&file_id);
         self.prune_preview_audition_cache();
     }
 
@@ -447,6 +475,60 @@ mod tests {
         assert!(
             !cache.preview_audition_warm_needed(&path),
             "a failed warm attempt must not become eligible again on the next frame"
+        );
+    }
+
+    #[test]
+    fn preview_warm_scheduled_path_is_not_requeued_before_completion() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-scheduled.wav");
+        let path_id = path.display().to_string();
+        let mut cache = WaveformCacheState::default();
+
+        assert!(cache.preview_audition_warm_needed(&path));
+        cache.mark_preview_audition_warm_scheduled(std::slice::from_ref(&path_id));
+        assert!(
+            !cache.preview_audition_warm_needed(&path),
+            "a scheduled warm path must not be rediscovered by the next frame"
+        );
+
+        cache.finish_preview_audition_warm_schedule(
+            std::slice::from_ref(&path_id),
+            std::slice::from_ref(&path_id),
+        );
+        assert!(
+            !cache.preview_audition_warm_needed(&path),
+            "a completed warm attempt should stay ineligible even if no clip was produced"
+        );
+    }
+
+    #[test]
+    fn preview_warm_cancel_releases_scheduled_paths() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-cancelled.wav");
+        let path_id = path.display().to_string();
+        let mut cache = WaveformCacheState::default();
+
+        cache.mark_preview_audition_warm_scheduled(std::slice::from_ref(&path_id));
+        assert!(!cache.preview_audition_warm_needed(&path));
+        cache.cancel_preview_audition_warm_schedule();
+
+        assert!(
+            cache.preview_audition_warm_needed(&path),
+            "cancelled background warm work can be retried once the UI is idle again"
+        );
+    }
+
+    #[test]
+    fn preview_head_cache_does_not_mark_sample_fully_instant_ready() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-head.wav");
+        let path_id = path.display().to_string();
+        let mut cache = WaveformCacheState::default();
+
+        cache.store_preview_audition_clip(preview_clip(path.clone()));
+
+        assert!(cache.preview_audition_clips.contains_key(&path));
+        assert!(
+            !cache.instant_audition_sample_paths.contains(&path_id),
+            "a tiny preview head should not make the UI advertise full instant-audition readiness"
         );
     }
 

@@ -27,6 +27,7 @@ pub(in crate::native_app) struct PreviewAuditionResult {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct PreviewAuditionWarmResult {
+    pub(in crate::native_app) scheduled_paths: Vec<String>,
     pub(in crate::native_app) attempted_paths: Vec<String>,
     pub(in crate::native_app) clips: Vec<PreviewAuditionClip>,
     pub(in crate::native_app) errors: usize,
