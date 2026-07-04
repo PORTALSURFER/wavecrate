@@ -1284,6 +1284,51 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
 }
 
 #[test]
+fn starmap_drag_finish_cancels_pending_promotion() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("late-promotion.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let mut schedule_context = radiant::prelude::UiUpdateContext::default();
+    state.schedule_starmap_audition_promotion(sample_id, &mut schedule_context);
+    let delayed = run_after_commands(schedule_context.into_command());
+    assert_eq!(delayed.len(), 1);
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    let mut stale_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[0].clone(), &mut stale_context);
+
+    assert_eq!(
+        stale_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        None,
+        "promotion tickets scheduled before drag finish must not restart full sample loading"
+    );
+}
+
+#[test]
 fn starmap_drag_update_after_finish_is_ignored() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

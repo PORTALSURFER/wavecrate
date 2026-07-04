@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use std::{path::Path, time::Duration};
+use std::time::Duration;
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
@@ -18,7 +18,6 @@ use crate::native_app::starmap_audition_telemetry::{
 
 const STARMAP_AUDITION_ADVANCE_DELAY: Duration = Duration::ZERO;
 const STARMAP_AUDITION_PROMOTION_DELAY: Duration = Duration::from_millis(120);
-const STARMAP_AUDITION_DRAG_READY_TAIL_LIMIT: usize = 3;
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -193,6 +192,7 @@ impl NativeAppState {
     fn finish_starmap_audition_drag(&mut self) {
         let started_at = starmap_telemetry::stage_timer();
         self.background.starmap_audition_advance_task.cancel();
+        self.background.starmap_audition_promotion_task.cancel();
         self.background.preview_audition_task.cancel();
         self.background.sample_load_validation_task.cancel();
         self.background.deferred_sample_load_task.cancel();
@@ -314,7 +314,7 @@ impl NativeAppState {
         }
         let latest_path = admitted_paths.last().cloned();
         let paths_to_queue = if drag_active {
-            self.starmap_drag_audition_paths_to_queue(&admitted_paths)
+            starmap_drag_audition_paths_to_queue(&admitted_paths)
         } else {
             admitted_paths.clone()
         };
@@ -376,26 +376,6 @@ impl NativeAppState {
             starmap_telemetry::elapsed_since(started_at),
         );
         self.start_next_starmap_audition_hit(context);
-    }
-
-    fn starmap_drag_audition_paths_to_queue(&self, admitted_paths: &[String]) -> Vec<String> {
-        starmap_drag_audition_paths_to_queue_with_ready(admitted_paths, |path| {
-            self.starmap_drag_path_ready_for_tail(path)
-        })
-    }
-
-    fn starmap_drag_path_ready_for_tail(&self, path: &str) -> bool {
-        self.audio.playback_runtime.is_some()
-            && (self
-                .waveform
-                .cache
-                .preview_audition_sample_paths()
-                .contains(path)
-                || self
-                    .waveform
-                    .cache
-                    .instant_audition_descriptors
-                    .contains_key(Path::new(path)))
     }
 
     pub(in crate::native_app) fn schedule_next_starmap_audition_hit(
@@ -682,26 +662,11 @@ fn starmap_audition_modifiers() -> PointerModifiers {
     PointerModifiers::default()
 }
 
-fn starmap_drag_audition_paths_to_queue_with_ready(
-    admitted_paths: &[String],
-    mut ready_for_tail: impl FnMut(&str) -> bool,
-) -> Vec<String> {
+fn starmap_drag_audition_paths_to_queue(admitted_paths: &[String]) -> Vec<String> {
     let Some(latest_path) = admitted_paths.last() else {
         return Vec::new();
     };
-    let mut retained: Vec<String> = admitted_paths
-        .iter()
-        .take(admitted_paths.len().saturating_sub(1))
-        .rev()
-        .filter(|path| ready_for_tail(path.as_str()))
-        .take(STARMAP_AUDITION_DRAG_READY_TAIL_LIMIT.saturating_sub(1))
-        .cloned()
-        .collect();
-    retained.reverse();
-    if retained.last() != Some(latest_path) {
-        retained.push(latest_path.clone());
-    }
-    retained
+    vec![latest_path.clone()]
 }
 
 #[cfg(test)]
@@ -712,26 +677,17 @@ mod tests {
     fn starmap_drag_queue_keeps_latest_when_intermediate_hits_are_cold() {
         let admitted = ["a.wav", "b.wav", "c.wav"].map(String::from);
 
-        let queued = starmap_drag_audition_paths_to_queue_with_ready(&admitted, |_path| false);
+        let queued = starmap_drag_audition_paths_to_queue(&admitted);
 
         assert_eq!(queued, vec![String::from("c.wav")]);
     }
 
     #[test]
-    fn starmap_drag_queue_keeps_bounded_ready_tail_before_latest() {
+    fn starmap_drag_queue_discards_ready_tail_before_latest() {
         let admitted = ["a.wav", "b.wav", "c.wav", "d.wav", "e.wav"].map(String::from);
 
-        let queued = starmap_drag_audition_paths_to_queue_with_ready(&admitted, |path| {
-            matches!(path, "a.wav" | "b.wav" | "d.wav")
-        });
+        let queued = starmap_drag_audition_paths_to_queue(&admitted);
 
-        assert_eq!(
-            queued,
-            vec![
-                String::from("b.wav"),
-                String::from("d.wav"),
-                String::from("e.wav")
-            ]
-        );
+        assert_eq!(queued, vec![String::from("e.wav")]);
     }
 }

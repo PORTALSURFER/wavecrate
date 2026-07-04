@@ -84,7 +84,7 @@ impl FastAuditionOptions {
             record_history: false,
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
-            prefer_preview_decode: true,
+            prefer_preview_decode: false,
         }
     }
 
@@ -1490,14 +1490,14 @@ mod tests {
     }
 
     #[test]
-    fn starmap_drag_fast_audition_prefers_preview_decode_before_file_backed_wav() {
+    fn starmap_drag_fast_audition_prefers_source_file_before_preview_decode() {
         assert_eq!(
             fast_audition_probe_order(FastAuditionOptions::starmap_drag()),
             [
                 FastAuditionProbe::PreviewCache,
                 FastAuditionProbe::PersistedCache,
-                FastAuditionProbe::PreviewDecode,
                 FastAuditionProbe::FileBackedWav,
+                FastAuditionProbe::PreviewDecode,
             ]
         );
     }
