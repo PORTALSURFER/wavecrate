@@ -321,6 +321,13 @@ pub(in crate::native_app) fn should_use_file_backed_wav_decode(path: &Path) -> b
             .is_ok_and(|metadata| metadata.len() > FILE_BACKED_WAV_DECODE_MIN_BYTES)
 }
 
+pub(in crate::native_app) fn should_use_file_backed_wav_decode_for_entry(
+    extension: &str,
+    size_bytes: u64,
+) -> bool {
+    extension.eq_ignore_ascii_case("wav") && size_bytes > FILE_BACKED_WAV_DECODE_MIN_BYTES
+}
+
 pub(in crate::native_app) fn file_backed_wav_playback_descriptor(
     path: &Path,
 ) -> Option<FileBackedWavPlaybackDescriptor> {

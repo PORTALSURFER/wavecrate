@@ -11,7 +11,7 @@ use wavecrate::sample_sources::{
 };
 use wavecrate_analysis::aspects::SimilarityAspect;
 
-use crate::native_app::waveform::should_use_file_backed_wav_decode;
+use crate::native_app::waveform::should_use_file_backed_wav_decode_for_entry;
 
 use super::{FileEntry, FolderBrowserState, SimilarityAspectStrengths};
 
@@ -351,7 +351,7 @@ fn instant_audition_ready_for_starmap(
     file: &FileEntry,
     instant_audition_sample_paths: &HashSet<String>,
 ) -> bool {
-    !should_use_file_backed_wav_decode(Path::new(&file.id))
+    !should_use_file_backed_wav_decode_for_entry(&file.extension, file.size_bytes)
         || instant_audition_sample_paths.contains(&file.id)
 }
 

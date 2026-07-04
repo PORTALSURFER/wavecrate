@@ -68,7 +68,7 @@ pub(in crate::native_app) use audio_file::{
     invalidate_persisted_waveform_cache_paths, load_cached_waveform_file_for_playback,
     load_cached_waveform_playback_descriptor_sidecar,
     mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
-    should_use_file_backed_wav_decode,
+    should_use_file_backed_wav_decode, should_use_file_backed_wav_decode_for_entry,
 };
 #[cfg(test)]
 pub(super) use audio_file::{

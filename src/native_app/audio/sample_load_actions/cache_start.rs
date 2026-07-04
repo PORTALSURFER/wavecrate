@@ -80,7 +80,7 @@ impl FastAuditionOptions {
             record_history: false,
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
-            prefer_preview_decode: false,
+            prefer_preview_decode: true,
         }
     }
 
@@ -371,18 +371,22 @@ impl NativeAppState {
             .cloned()
         {
             descriptor
-        } else if !self.loop_playback_for_path_after_policy(path)
-            && should_use_file_backed_wav_decode(Path::new(path))
-        {
-            return InstantAuditionOutcome::Unavailable;
-        } else if let Some(descriptor) = allow_sidecar_lookup
-            .then(|| load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path)))
-            .flatten()
-        {
-            self.waveform
-                .cache
-                .mark_sample_playback_descriptor_ready(descriptor.clone());
-            descriptor
+        } else if allow_sidecar_lookup {
+            if !self.loop_playback_for_path_after_policy(path)
+                && should_use_file_backed_wav_decode(Path::new(path))
+            {
+                return InstantAuditionOutcome::Unavailable;
+            }
+            if let Some(descriptor) =
+                load_cached_waveform_playback_descriptor_sidecar(PathBuf::from(path))
+            {
+                self.waveform
+                    .cache
+                    .mark_sample_playback_descriptor_ready(descriptor.clone());
+                descriptor
+            } else {
+                return InstantAuditionOutcome::Unavailable;
+            }
         } else {
             return InstantAuditionOutcome::Unavailable;
         };
@@ -1290,14 +1294,14 @@ mod tests {
     }
 
     #[test]
-    fn starmap_drag_fast_audition_prefers_file_backed_wav_before_preview_decode() {
+    fn starmap_drag_fast_audition_prefers_preview_decode_before_file_backed_wav() {
         assert_eq!(
             fast_audition_probe_order(FastAuditionOptions::starmap_drag()),
             [
                 FastAuditionProbe::PreviewCache,
                 FastAuditionProbe::PersistedCache,
-                FastAuditionProbe::FileBackedWav,
                 FastAuditionProbe::PreviewDecode,
+                FastAuditionProbe::FileBackedWav,
             ]
         );
     }
