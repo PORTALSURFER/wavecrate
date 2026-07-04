@@ -68,6 +68,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             .is_some();
         let drag_feedback = state.library.folder_browser.file_column_drag_feedback();
         let display_mode = state.ui.chrome.sample_browser_display;
+        let waveform_drag_active = state.waveform.current.active_drag_kind().is_some();
         let visible_samples = state
             .library
             .folder_browser
@@ -75,7 +76,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
                 tags_by_file: &state.metadata.tags_by_file,
                 cached_sample_paths: &state.waveform.cache.cached_sample_paths,
             });
-        let map_items = starmap_items_for_display(state, display_mode);
+        let map_items = starmap_items_for_display(state, display_mode, waveform_drag_active);
 
         Self {
             visible_samples,
@@ -150,14 +151,29 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
             .library
             .folder_browser
             .prepare_starmap_layout(&state.metadata.tags_by_file);
+        state
+            .library
+            .folder_browser
+            .prepare_starmap_projection(StarmapProjection {
+                tags_by_file: &state.metadata.tags_by_file,
+                instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+            });
     }
 }
 
 fn starmap_items_for_display(
     state: &NativeAppState,
     display_mode: SampleBrowserDisplayMode,
+    waveform_drag_active: bool,
 ) -> Vec<StarmapItem> {
     if display_mode != SampleBrowserDisplayMode::Map {
+        return Vec::new();
+    }
+    let cached = state.library.folder_browser.cached_starmap_projection();
+    if let Some(cached) = cached {
+        return cached.to_vec();
+    }
+    if waveform_drag_active {
         return Vec::new();
     }
     state
@@ -180,9 +196,12 @@ fn waveform_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::native_app::sample_library::folder_browser::FolderBrowserState;
     use crate::native_app::test_support::state::{NativeAppStateFixture, WaveformInteraction};
     use crate::native_app::waveform::WaveformSelectionKind;
+    use crate::native_app::{
+        app::SampleBrowserDisplayMode, sample_library::folder_browser::FolderBrowserState,
+    };
+    use radiant::widgets::TextInputMessage;
     use std::fs;
 
     #[test]
@@ -251,6 +270,72 @@ mod tests {
             "extracted row should be visible before the active playmark drag ends"
         );
         assert!(waveform_drag_defers_sample_browser_preparation(&state));
+    }
+
+    #[test]
+    fn active_waveform_drag_reuses_cached_starmap_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let source = root.path().join("source");
+        fs::create_dir_all(&source).expect("create source folder");
+        let kick = source.join("kick.wav");
+        let snare = source.join("snare.wav");
+        fs::write(&kick, [0_u8; 8]).expect("write kick");
+        fs::write(&snare, [1_u8; 8]).expect("write snare");
+        let mut state = NativeAppStateFixture::default()
+            .with_folder_browser(FolderBrowserState::from_root(source.clone()))
+            .with_synthetic_waveform()
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        prepare_sample_browser_view(&mut state);
+        let before_drag_ids = {
+            let before_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
+            assert_eq!(before_drag.map_items.len(), 2);
+            before_drag
+                .map_items
+                .iter()
+                .map(|item| item.file_id.clone())
+                .collect::<Vec<_>>()
+        };
+
+        state
+            .waveform
+            .current
+            .apply_interaction(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.25,
+            });
+        state
+            .library
+            .folder_browser
+            .apply_name_filter_input(TextInputMessage::Changed {
+                value: String::from("does-not-match"),
+            });
+        assert!(waveform_drag_defers_sample_browser_preparation(&state));
+        prepare_sample_browser_view(&mut state);
+        let during_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
+
+        assert_eq!(
+            during_drag
+                .map_items
+                .iter()
+                .map(|item| item.file_id.clone())
+                .collect::<Vec<_>>(),
+            before_drag_ids,
+            "live playmark drags should reuse the prepared starmap projection instead of rebuilding it"
+        );
+
+        state
+            .waveform
+            .current
+            .apply_interaction(WaveformInteraction::FinishSelection {
+                visible_ratio: 0.45,
+            });
+        prepare_sample_browser_view(&mut state);
+        let after_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
+        assert!(
+            after_drag.map_items.is_empty(),
+            "starmap projection should refresh normally after the live playmark drag ends"
+        );
     }
 
     #[test]
