@@ -16,7 +16,7 @@ use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter,
 };
 
-const STARMAP_AUDITION_ADVANCE_DELAY: Duration = Duration::from_millis(90);
+const STARMAP_AUDITION_ADVANCE_DELAY: Duration = Duration::ZERO;
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -227,44 +227,38 @@ impl NativeAppState {
         }
         self.ui.browser_interaction.clipboard_handoff_target = ClipboardHandoffTarget::BrowserFiles;
         self.ui.browser_interaction.context_menu = None;
-        let Some(path) = paths.into_iter().last() else {
-            return;
-        };
-        let queue = &mut self.ui.chrome.starmap_audition_queue;
-        if queue.active_file_id.as_ref() == Some(&path) && queue.queued_file_ids.is_empty() {
-            starmap_telemetry::record_event(
-                Some(StarmapAuditionCounter::DuplicateActive),
-                "controller.enqueue",
-                "duplicate_active",
-                Some(path.as_str()),
-                hit_count,
-                queue.queued_file_ids.len(),
-                true,
-                starmap_telemetry::elapsed_since(started_at),
-            );
-            return;
-        }
-        if self.ui.chrome.starmap_audition_drag.is_some() {
+        let drag_active = self.ui.chrome.starmap_audition_drag.is_some();
+        if drag_active {
             self.background.starmap_audition_advance_task.cancel();
-            if queue.active_file_id.is_some() {
+        }
+        let mut admitted_paths = Vec::new();
+        let queue = &mut self.ui.chrome.starmap_audition_queue;
+        for path in paths {
+            if admitted_paths.last() == Some(&path)
+                || queue.queued_file_ids.back() == Some(&path)
+                || (queue.queued_file_ids.is_empty()
+                    && queue.active_file_id.as_ref() == Some(&path))
+            {
                 starmap_telemetry::record_event(
-                    Some(StarmapAuditionCounter::ActiveReplaced),
+                    Some(StarmapAuditionCounter::QueueCoalesced),
                     "controller.enqueue",
-                    "replace_active_drag",
+                    "coalesced_duplicate",
                     Some(path.as_str()),
                     hit_count,
                     queue.queued_file_ids.len(),
-                    true,
+                    queue.active_file_id.is_some(),
                     starmap_telemetry::elapsed_since(started_at),
                 );
+                continue;
             }
-            queue.active_file_id = None;
-        } else if queue.queued_file_ids.len() == 1 && queue.queued_file_ids.front() == Some(&path) {
+            admitted_paths.push(path);
+        }
+        if admitted_paths.is_empty() {
             starmap_telemetry::record_event(
-                Some(StarmapAuditionCounter::DuplicateQueued),
+                Some(StarmapAuditionCounter::DuplicateActive),
                 "controller.enqueue",
-                "duplicate_queued",
-                Some(path.as_str()),
+                "duplicate_or_coalesced",
+                queue.active_file_id.as_deref(),
                 hit_count,
                 queue.queued_file_ids.len(),
                 queue.active_file_id.is_some(),
@@ -272,26 +266,45 @@ impl NativeAppState {
             );
             return;
         }
-        queue.queued_file_ids.clear();
-        queue.queued_file_ids.push_back(path);
-        self.ui.chrome.starmap_audition_queue.modifiers = starmap_audition_modifiers();
+        let latest_path = admitted_paths.last().cloned();
+        if drag_active {
+            if queue.active_file_id.is_some() {
+                starmap_telemetry::record_event(
+                    Some(StarmapAuditionCounter::ActiveReplaced),
+                    "controller.enqueue",
+                    "replace_active_drag",
+                    latest_path.as_deref(),
+                    hit_count,
+                    queue.queued_file_ids.len(),
+                    true,
+                    starmap_telemetry::elapsed_since(started_at),
+                );
+            }
+            queue.active_file_id = None;
+            queue.queued_file_ids.clear();
+        }
+        for path in admitted_paths {
+            queue.queued_file_ids.push_back(path);
+        }
+        queue.modifiers = starmap_audition_modifiers();
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::QueueAdmitted),
+            "controller.enqueue",
+            "admitted",
+            latest_path.as_deref(),
+            hit_count,
+            queue.queued_file_ids.len(),
+            queue.active_file_id.is_some(),
+            starmap_telemetry::elapsed_since(started_at),
+        );
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::HitQueued),
             "controller.enqueue",
             "queued_latest",
-            self.ui
-                .chrome
-                .starmap_audition_queue
-                .queued_file_ids
-                .back()
-                .map(String::as_str),
+            queue.queued_file_ids.back().map(String::as_str),
             hit_count,
-            self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
-            self.ui
-                .chrome
-                .starmap_audition_queue
-                .active_file_id
-                .is_some(),
+            queue.queued_file_ids.len(),
+            queue.active_file_id.is_some(),
             starmap_telemetry::elapsed_since(started_at),
         );
         self.start_next_starmap_audition_hit(context);

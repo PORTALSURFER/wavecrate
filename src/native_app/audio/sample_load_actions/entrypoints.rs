@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::app::{emit_gui_action, sample_path_label, GuiMessage, NativeAppState};
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
@@ -232,6 +232,16 @@ impl NativeAppState {
             ready_elapsed,
         );
         if ready_outcome.uses_ready_source() {
+            if ready_outcome == super::cache_start::InstantAuditionOutcome::Started
+                && !self
+                    .ui
+                    .chrome
+                    .starmap_audition_queue
+                    .queued_file_ids
+                    .is_empty()
+            {
+                self.schedule_next_starmap_audition_hit(context);
+            }
             if let Some(elapsed) = starmap_telemetry::elapsed_since(total_started_at) {
                 starmap_telemetry::record_duration(StarmapAuditionDuration::StartTotal, elapsed);
             }

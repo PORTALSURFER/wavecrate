@@ -3,8 +3,8 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{
-        NativeAppState, SampleLoadTaskCompletion, SamplePlaybackReady, emit_gui_action,
-        sample_path_label,
+        emit_gui_action, sample_path_label, NativeAppState, SampleLoadTaskCompletion,
+        SamplePlaybackReady,
     },
     audio::sample_load_actions::log_sample_load_timing,
     starmap_audition_telemetry::{
@@ -121,6 +121,16 @@ impl NativeAppState {
                 StarmapAuditionDuration::ReadySource,
                 started_at.elapsed(),
             );
+            if outcome == "playback_ready_playing"
+                && !self
+                    .ui
+                    .chrome
+                    .starmap_audition_queue
+                    .queued_file_ids
+                    .is_empty()
+            {
+                self.schedule_next_starmap_audition_hit(context);
+            }
         }
         emit_gui_action(
             "browser.sample_load.playback_ready",

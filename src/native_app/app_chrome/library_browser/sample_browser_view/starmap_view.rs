@@ -421,12 +421,12 @@ impl StarmapWidget {
             .map(str::to_owned);
         self.last_primary_position = Some(point);
         let hit_started_at = starmap_telemetry::stage_timer();
-        let hit = self.hit_between(bounds, previous, point);
+        let hits = self.hits_between(bounds, previous, point);
         let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
         if let Some(elapsed) = hit_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
         }
-        let Some(hit) = hit else {
+        if hits.is_empty() {
             starmap_telemetry::record_event(
                 Some(StarmapAuditionCounter::WidgetSegmentMiss),
                 "widget.segment_hit_test",
@@ -438,14 +438,23 @@ impl StarmapWidget {
                 hit_elapsed,
             );
             return None;
+        }
+        let hits = hits
+            .into_iter()
+            .filter(|hit| Some(&hit.file_id) != last_hit_file_id.as_ref())
+            .collect::<Vec<_>>();
+        let Some(last_hit) = hits.last() else {
+            return None;
         };
-        let hit_file_id = hit.file_id;
+        let hit_file_id = last_hit.file_id.clone();
+        let hit_item_index = last_hit.item_index;
+        let hit_file_ids = hits.into_iter().map(|hit| hit.file_id).collect::<Vec<_>>();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::WidgetSegmentHit),
             "widget.segment_hit_test",
             "hit",
             Some(hit_file_id.as_str()),
-            1,
+            hit_file_ids.len(),
             0,
             last_hit_file_id.is_some(),
             hit_elapsed,
@@ -454,19 +463,19 @@ impl StarmapWidget {
             return None;
         }
         self.last_hit_file_id = Some(hit_file_id.clone());
-        self.last_hit_index = Some(hit.item_index);
+        self.last_hit_index = Some(hit_item_index);
         starmap_telemetry::record_event(
             None,
             "widget.drag_update",
             "hit_changed",
             Some(hit_file_id.as_str()),
-            1,
+            hit_file_ids.len(),
             0,
             true,
             None,
         );
         Some(WidgetOutput::typed(GuiMessage::UpdateStarmapAuditionDrag {
-            paths: vec![hit_file_id],
+            paths: hit_file_ids,
             position: point,
             modifiers,
         }))
@@ -495,9 +504,9 @@ impl StarmapWidget {
         best.map(|(index, _)| index)
     }
 
-    fn hit_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<StarmapSegmentHit> {
+    fn hits_between(&mut self, bounds: Rect, from: Point, to: Point) -> Vec<StarmapSegmentHit> {
         self.ensure_hit_index(bounds);
-        let mut best: Option<StarmapSegmentHit> = None;
+        let mut hits = Vec::new();
         let mut hit_scratch = lock_starmap_mutex(&self.hit_scratch);
         let candidates = self.hit_index.collect_item_indices_near_segment(
             from,
@@ -512,22 +521,20 @@ impl StarmapWidget {
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
-            let hit = StarmapSegmentHit {
+            hits.push(StarmapSegmentHit {
                 item_index: index,
                 file_id: item.file_id.clone(),
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
-            };
-            if best.as_ref().is_none_or(|best| {
-                hit.segment_t
-                    .total_cmp(&best.segment_t)
-                    .then_with(|| best.distance_sq.total_cmp(&hit.distance_sq))
-                    .is_gt()
-            }) {
-                best = Some(hit);
-            }
+            });
         }
-        best
+        hits.sort_by(|left, right| {
+            left.segment_t
+                .total_cmp(&right.segment_t)
+                .then_with(|| left.distance_sq.total_cmp(&right.distance_sq))
+        });
+        hits.dedup_by(|left, right| left.item_index == right.item_index);
+        hits
     }
 
     fn ensure_hit_index(&mut self, bounds: Rect) {
@@ -2149,7 +2156,7 @@ mod tests {
     }
 
     #[test]
-    fn primary_drag_auditions_latest_node_crossed_between_pointer_samples() {
+    fn primary_drag_auditions_nodes_crossed_between_pointer_samples_in_order() {
         let mut widget = StarmapWidget::new(
             vec![
                 starmap_item(
@@ -2186,7 +2193,11 @@ mod tests {
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
             Some(GuiMessage::UpdateStarmapAuditionDrag {
-                paths: vec![String::from("/samples/hat.wav")],
+                paths: vec![
+                    String::from("/samples/kick.wav"),
+                    String::from("/samples/snare.wav"),
+                    String::from("/samples/hat.wav")
+                ],
                 position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })

@@ -21,10 +21,11 @@ static STARMAP_AUDITION_WIDGET_SEGMENT_HIT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_SEGMENT_MISS: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_PAINT_CACHE_HIT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_PAINT_CACHE_MISS: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_QUEUE_ADMITTED: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_QUEUE_COALESCED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_HITS_QUEUED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_HITS_STARTED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_DUPLICATE_ACTIVE: AtomicU64 = AtomicU64::new(0);
-static STARMAP_AUDITION_DUPLICATE_QUEUED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_ACTIVE_REPLACED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_ADVANCE_SCHEDULED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_ADVANCE_STALE: AtomicU64 = AtomicU64::new(0);
@@ -61,10 +62,11 @@ pub(in crate::native_app) enum StarmapAuditionCounter {
     WidgetSegmentMiss,
     WidgetPaintCacheHit,
     WidgetPaintCacheMiss,
+    QueueAdmitted,
+    QueueCoalesced,
     HitQueued,
     HitStarted,
     DuplicateActive,
-    DuplicateQueued,
     ActiveReplaced,
     AdvanceScheduled,
     AdvanceStale,
@@ -91,10 +93,11 @@ impl StarmapAuditionCounter {
             Self::WidgetSegmentMiss => "widget_segment_miss",
             Self::WidgetPaintCacheHit => "widget_paint_cache_hit",
             Self::WidgetPaintCacheMiss => "widget_paint_cache_miss",
+            Self::QueueAdmitted => "queue_admitted",
+            Self::QueueCoalesced => "queue_coalesced",
             Self::HitQueued => "hit_queued",
             Self::HitStarted => "hit_started",
             Self::DuplicateActive => "duplicate_active",
-            Self::DuplicateQueued => "duplicate_queued",
             Self::ActiveReplaced => "active_replaced",
             Self::AdvanceScheduled => "advance_scheduled",
             Self::AdvanceStale => "advance_stale",
@@ -228,6 +231,12 @@ fn record_counter(counter: StarmapAuditionCounter) {
         StarmapAuditionCounter::WidgetPaintCacheMiss => {
             STARMAP_AUDITION_WIDGET_PAINT_CACHE_MISS.fetch_add(1, Ordering::Relaxed);
         }
+        StarmapAuditionCounter::QueueAdmitted => {
+            STARMAP_AUDITION_QUEUE_ADMITTED.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionCounter::QueueCoalesced => {
+            STARMAP_AUDITION_QUEUE_COALESCED.fetch_add(1, Ordering::Relaxed);
+        }
         StarmapAuditionCounter::HitQueued => {
             STARMAP_AUDITION_HITS_QUEUED.fetch_add(1, Ordering::Relaxed);
         }
@@ -236,9 +245,6 @@ fn record_counter(counter: StarmapAuditionCounter) {
         }
         StarmapAuditionCounter::DuplicateActive => {
             STARMAP_AUDITION_DUPLICATE_ACTIVE.fetch_add(1, Ordering::Relaxed);
-        }
-        StarmapAuditionCounter::DuplicateQueued => {
-            STARMAP_AUDITION_DUPLICATE_QUEUED.fetch_add(1, Ordering::Relaxed);
         }
         StarmapAuditionCounter::ActiveReplaced => {
             STARMAP_AUDITION_ACTIVE_REPLACED.fetch_add(1, Ordering::Relaxed);
@@ -313,10 +319,11 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         widget_segment_miss = STARMAP_AUDITION_WIDGET_SEGMENT_MISS.load(Ordering::Relaxed),
         widget_paint_cache_hit = STARMAP_AUDITION_WIDGET_PAINT_CACHE_HIT.load(Ordering::Relaxed),
         widget_paint_cache_miss = STARMAP_AUDITION_WIDGET_PAINT_CACHE_MISS.load(Ordering::Relaxed),
+        queue_admitted = STARMAP_AUDITION_QUEUE_ADMITTED.load(Ordering::Relaxed),
+        queue_coalesced = STARMAP_AUDITION_QUEUE_COALESCED.load(Ordering::Relaxed),
         hits_queued = STARMAP_AUDITION_HITS_QUEUED.load(Ordering::Relaxed),
         hits_started = STARMAP_AUDITION_HITS_STARTED.load(Ordering::Relaxed),
         duplicate_active = STARMAP_AUDITION_DUPLICATE_ACTIVE.load(Ordering::Relaxed),
-        duplicate_queued = STARMAP_AUDITION_DUPLICATE_QUEUED.load(Ordering::Relaxed),
         active_replaced = STARMAP_AUDITION_ACTIVE_REPLACED.load(Ordering::Relaxed),
         advance_scheduled = STARMAP_AUDITION_ADVANCE_SCHEDULED.load(Ordering::Relaxed),
         advance_stale = STARMAP_AUDITION_ADVANCE_STALE.load(Ordering::Relaxed),
@@ -402,6 +409,10 @@ mod tests {
         assert_eq!(
             StarmapAuditionCounter::WidgetPaintCacheHit.as_str(),
             "widget_paint_cache_hit"
+        );
+        assert_eq!(
+            StarmapAuditionCounter::QueueAdmitted.as_str(),
+            "queue_admitted"
         );
     }
 

@@ -528,7 +528,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
 }
 
 #[test]
-fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
+fn starmap_drag_sweep_starts_first_crossed_hit_and_queues_the_rest() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -567,8 +567,8 @@ fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
-        Some(third_id.as_str()),
-        "the latest drag hit should become the selected playback target immediately"
+        Some(second_id.as_str()),
+        "the first newly crossed drag hit should become the immediate playback target"
     );
     assert_eq!(
         state
@@ -577,7 +577,7 @@ fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
             .starmap_audition_queue
             .active_file_id
             .as_deref(),
-        Some(third_id.as_str())
+        Some(second_id.as_str())
     );
     assert_eq!(
         state
@@ -588,8 +588,8 @@ fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        Vec::<String>::new(),
-        "drag audition should replace active playback intent instead of building a delayed backlog"
+        vec![third_id],
+        "the rest of the swept nodes should remain queued for immediate follow-up audition"
     );
 }
 
@@ -793,7 +793,7 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
     );
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
-            paths: vec![second_id, third_id.clone()],
+            paths: vec![second_id.clone(), third_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
         },
@@ -807,16 +807,19 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
             .starmap_audition_queue
             .active_file_id
             .as_deref(),
-        Some(third_id.as_str())
+        Some(second_id.as_str())
     );
-    assert!(
+    assert_eq!(
         state
             .ui
             .chrome
             .starmap_audition_queue
             .queued_file_ids
-            .is_empty(),
-        "drag updates should replace active playback intent without leaving a backlog"
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        vec![third_id.clone()],
+        "drag updates should queue swept follow-up targets until release clears them"
     );
 
     state.apply_message(
@@ -1017,14 +1020,12 @@ fn starmap_drag_update_selects_next_hit_immediately() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(
-        state
-            .ui
-            .chrome
-            .starmap_audition_queue
-            .queued_file_ids
-            .is_empty()
-    );
+    assert!(state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .is_empty());
 }
 
 #[test]
