@@ -528,7 +528,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
 }
 
 #[test]
-fn starmap_drag_keeps_only_latest_pending_hit() {
+fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -567,8 +567,8 @@ fn starmap_drag_keeps_only_latest_pending_hit() {
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
-        Some(first_id.as_str()),
-        "the first hit should start immediately instead of being cancelled by later swept hits"
+        Some(third_id.as_str()),
+        "the latest drag hit should become the selected playback target immediately"
     );
     assert_eq!(
         state
@@ -577,7 +577,7 @@ fn starmap_drag_keeps_only_latest_pending_hit() {
             .starmap_audition_queue
             .active_file_id
             .as_deref(),
-        Some(first_id.as_str())
+        Some(third_id.as_str())
     );
     assert_eq!(
         state
@@ -588,13 +588,13 @@ fn starmap_drag_keeps_only_latest_pending_hit() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        vec![third_id],
-        "drag audition should follow the newest hit without building a flickery backlog"
+        Vec::<String>::new(),
+        "drag audition should replace active playback intent instead of building a delayed backlog"
     );
 }
 
 #[test]
-fn starmap_drag_requeues_sample_after_sweeping_away_and_back() {
+fn starmap_drag_retriggers_sample_after_sweeping_away_and_back() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -646,6 +646,11 @@ fn starmap_drag_requeues_sample_after_sweeping_away_and_back() {
         Some(first_id.as_str())
     );
     assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(first_id.as_str()),
+        "returning to a node should make it the immediate playback target again"
+    );
+    assert_eq!(
         state
             .ui
             .chrome
@@ -654,13 +659,13 @@ fn starmap_drag_requeues_sample_after_sweeping_away_and_back() {
             .iter()
             .cloned()
             .collect::<Vec<_>>(),
-        vec![first_id],
-        "dragging away from a sample and back should replay it once without chattering"
+        Vec::<String>::new(),
+        "dragging away from a sample and back should not leave a delayed replay queued"
     );
 }
 
 #[test]
-fn starmap_drag_finish_drops_swept_hit_backlog() {
+fn starmap_drag_finish_clears_active_drag_audition_state() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -690,7 +695,7 @@ fn starmap_drag_finish_drops_swept_hit_backlog() {
     );
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
-            paths: vec![second_id, third_id],
+            paths: vec![second_id, third_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
         },
@@ -704,15 +709,16 @@ fn starmap_drag_finish_drops_swept_hit_backlog() {
             .starmap_audition_queue
             .active_file_id
             .as_deref(),
-        Some(first_id.as_str())
+        Some(third_id.as_str())
     );
     assert!(
-        !state
+        state
             .ui
             .chrome
             .starmap_audition_queue
             .queued_file_ids
-            .is_empty()
+            .is_empty(),
+        "drag updates should replace active playback intent without leaving a backlog"
     );
 
     state.apply_message(
@@ -724,7 +730,7 @@ fn starmap_drag_finish_drops_swept_hit_backlog() {
     assert_eq!(
         state.ui.chrome.starmap_audition_queue,
         Default::default(),
-        "releasing the drag should not leave swept nodes queued for later playback"
+        "releasing the drag should not leave active or queued audition state behind"
     );
 }
 
@@ -858,7 +864,7 @@ fn starmap_audition_hit_preserves_current_viewport() {
 }
 
 #[test]
-fn starmap_audition_advance_selects_next_queued_hit() {
+fn starmap_drag_update_selects_next_hit_immediately() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -896,11 +902,6 @@ fn starmap_audition_advance_selects_next_queued_hit() {
         &mut context,
     );
 
-    let mut advance_context = radiant::prelude::UiUpdateContext::default();
-    state.schedule_next_starmap_audition_hit(&mut advance_context);
-    let advance = run_first_after(advance_context.into_command()).expect("queued map advance");
-    state.apply_message(advance, &mut radiant::prelude::UiUpdateContext::default());
-
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(second_id.as_str())
@@ -918,13 +919,69 @@ fn starmap_audition_advance_selects_next_queued_hit() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(
+    assert!(state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .is_empty());
+}
+
+#[test]
+fn starmap_drag_replacement_ignores_stale_advance_ticket() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let stale_advance = state.background.starmap_audition_advance_task.begin();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::AdvanceStarmapAudition {
+            ticket: stale_advance,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "stale delayed advances must not undo the latest drag target"
+    );
+    assert_eq!(
         state
             .ui
             .chrome
             .starmap_audition_queue
-            .queued_file_ids
-            .is_empty()
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
     );
 }
 

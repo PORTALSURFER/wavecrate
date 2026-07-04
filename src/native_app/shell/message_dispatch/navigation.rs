@@ -120,6 +120,7 @@ impl NativeAppState {
             last_position: position,
             modifiers,
         });
+        self.background.starmap_audition_advance_task.cancel();
         self.ui.chrome.starmap_audition_queue = Default::default();
         self.enqueue_starmap_audition_hits(path.into_iter().collect(), modifiers, context);
     }
@@ -143,6 +144,7 @@ impl NativeAppState {
     }
 
     fn finish_starmap_audition_drag(&mut self) {
+        self.background.starmap_audition_advance_task.cancel();
         self.ui.chrome.starmap_audition_drag = None;
         self.ui.chrome.starmap_audition_queue = Default::default();
     }
@@ -165,7 +167,10 @@ impl NativeAppState {
         if queue.active_file_id.as_ref() == Some(&path) && queue.queued_file_ids.is_empty() {
             return;
         }
-        if queue.queued_file_ids.len() == 1 && queue.queued_file_ids.front() == Some(&path) {
+        if self.ui.chrome.starmap_audition_drag.is_some() {
+            self.background.starmap_audition_advance_task.cancel();
+            queue.active_file_id = None;
+        } else if queue.queued_file_ids.len() == 1 && queue.queued_file_ids.front() == Some(&path) {
             return;
         }
         queue.queued_file_ids.clear();
