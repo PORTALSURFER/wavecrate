@@ -31,12 +31,18 @@ static STARMAP_AUDITION_READY_STARTED: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_PENDING: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_UNAVAILABLE: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_VALIDATION_QUEUED: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_STARTED: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_FAILED: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_CANCELLED: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_STALE: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_FOCUS_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_FOCUS_COUNT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_HIT_TEST_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_WIDGET_HIT_TEST_COUNT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_SOURCE_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_READY_SOURCE_COUNT: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_START_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
+static STARMAP_AUDITION_RUNTIME_START_COUNT: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_START_TOTAL_NS_TOTAL: AtomicU64 = AtomicU64::new(0);
 static STARMAP_AUDITION_START_TOTAL_COUNT: AtomicU64 = AtomicU64::new(0);
 
@@ -61,6 +67,10 @@ pub(in crate::native_app) enum StarmapAuditionCounter {
     ReadyPending,
     ReadyUnavailable,
     ValidationQueued,
+    RuntimeStarted,
+    RuntimeFailed,
+    RuntimeCancelled,
+    RuntimeStale,
 }
 
 impl StarmapAuditionCounter {
@@ -85,6 +95,10 @@ impl StarmapAuditionCounter {
             Self::ReadyPending => "ready_pending",
             Self::ReadyUnavailable => "ready_unavailable",
             Self::ValidationQueued => "validation_queued",
+            Self::RuntimeStarted => "runtime_started",
+            Self::RuntimeFailed => "runtime_failed",
+            Self::RuntimeCancelled => "runtime_cancelled",
+            Self::RuntimeStale => "runtime_stale",
         }
     }
 }
@@ -94,6 +108,7 @@ pub(in crate::native_app) enum StarmapAuditionDuration {
     Focus,
     WidgetHitTest,
     ReadySource,
+    RuntimeStart,
     StartTotal,
 }
 
@@ -125,6 +140,10 @@ pub(in crate::native_app) fn record_duration(counter: StarmapAuditionDuration, d
         StarmapAuditionDuration::ReadySource => {
             add_duration_ns(&STARMAP_AUDITION_READY_SOURCE_NS_TOTAL, duration);
             STARMAP_AUDITION_READY_SOURCE_COUNT.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionDuration::RuntimeStart => {
+            add_duration_ns(&STARMAP_AUDITION_RUNTIME_START_NS_TOTAL, duration);
+            STARMAP_AUDITION_RUNTIME_START_COUNT.fetch_add(1, Ordering::Relaxed);
         }
         StarmapAuditionDuration::StartTotal => {
             add_duration_ns(&STARMAP_AUDITION_START_TOTAL_NS_TOTAL, duration);
@@ -226,6 +245,18 @@ fn record_counter(counter: StarmapAuditionCounter) {
         StarmapAuditionCounter::ValidationQueued => {
             STARMAP_AUDITION_VALIDATION_QUEUED.fetch_add(1, Ordering::Relaxed);
         }
+        StarmapAuditionCounter::RuntimeStarted => {
+            STARMAP_AUDITION_RUNTIME_STARTED.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionCounter::RuntimeFailed => {
+            STARMAP_AUDITION_RUNTIME_FAILED.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionCounter::RuntimeCancelled => {
+            STARMAP_AUDITION_RUNTIME_CANCELLED.fetch_add(1, Ordering::Relaxed);
+        }
+        StarmapAuditionCounter::RuntimeStale => {
+            STARMAP_AUDITION_RUNTIME_STALE.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }
 
@@ -238,6 +269,9 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         .load(Ordering::Relaxed)
         .max(1);
     let ready_source_count = STARMAP_AUDITION_READY_SOURCE_COUNT
+        .load(Ordering::Relaxed)
+        .max(1);
+    let runtime_start_count = STARMAP_AUDITION_RUNTIME_START_COUNT
         .load(Ordering::Relaxed)
         .max(1);
     let start_total_count = STARMAP_AUDITION_START_TOTAL_COUNT
@@ -267,6 +301,10 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         ready_pending = STARMAP_AUDITION_READY_PENDING.load(Ordering::Relaxed),
         ready_unavailable = STARMAP_AUDITION_READY_UNAVAILABLE.load(Ordering::Relaxed),
         validation_queued = STARMAP_AUDITION_VALIDATION_QUEUED.load(Ordering::Relaxed),
+        runtime_started = STARMAP_AUDITION_RUNTIME_STARTED.load(Ordering::Relaxed),
+        runtime_failed = STARMAP_AUDITION_RUNTIME_FAILED.load(Ordering::Relaxed),
+        runtime_cancelled = STARMAP_AUDITION_RUNTIME_CANCELLED.load(Ordering::Relaxed),
+        runtime_stale = STARMAP_AUDITION_RUNTIME_STALE.load(Ordering::Relaxed),
         avg_focus_ms = avg_ms(
             STARMAP_AUDITION_FOCUS_NS_TOTAL.load(Ordering::Relaxed),
             focus_count
@@ -278,6 +316,10 @@ fn maybe_emit_starmap_audition_telemetry(sample_tick: u64) {
         avg_ready_source_ms = avg_ms(
             STARMAP_AUDITION_READY_SOURCE_NS_TOTAL.load(Ordering::Relaxed),
             ready_source_count
+        ),
+        avg_runtime_start_ms = avg_ms(
+            STARMAP_AUDITION_RUNTIME_START_NS_TOTAL.load(Ordering::Relaxed),
+            runtime_start_count
         ),
         avg_start_total_ms = avg_ms(
             STARMAP_AUDITION_START_TOTAL_NS_TOTAL.load(Ordering::Relaxed),

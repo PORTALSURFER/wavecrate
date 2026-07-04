@@ -475,8 +475,12 @@ hit testing/queue/playback routing. Use with `--log` or an equivalent
 `perf::hotpath` events are written to the launch log. For starmap playback
 investigations, inspect `stage`, `outcome`, `hits_queued`, `hits_started`,
 `ready_started`, `ready_unavailable`, `validation_queued`,
-`avg_widget_hit_test_ms`, `avg_ready_source_ms`, and `avg_start_total_ms`.
-Accepted values: `1`, `true`, `on`, `yes`.
+`runtime_started`, `runtime_failed`, `runtime_cancelled`,
+`avg_widget_hit_test_ms`, `avg_ready_source_ms`, `avg_runtime_start_ms`, and
+`avg_start_total_ms`. `perf::audio_start` runtime events also include
+`origin` and `source_kind`, which distinguish starmap drag handoffs from
+ordinary browser or waveform playback. Accepted values: `1`, `true`, `on`,
+`yes`.
 
 - `RESON_PLAYBACK_TELEMETRY`
 Enables only Reson playback-engine hot-path logs, including decoder setup,

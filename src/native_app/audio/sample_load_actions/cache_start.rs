@@ -339,12 +339,18 @@ impl NativeAppState {
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
         self.audio.current_playback_span = Some((0.0, 1.0));
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
-            id: request_id,
-            path: path.to_owned(),
-            span: (0.0, 1.0),
-            show_start_marker: true,
-        });
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
+            request_id,
+            path.to_owned(),
+            (0.0, 1.0),
+            true,
+            if record_history {
+                "instant_audition"
+            } else {
+                "starmap_drag"
+            },
+            "interleaved_f32_file",
+        ));
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
         if record_history {
             self.record_sample_last_played(path.to_owned(), context);
@@ -436,12 +442,14 @@ impl NativeAppState {
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
         self.audio.current_playback_span = Some((0.0, 1.0));
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
-            id: request_id,
-            path: path.to_owned(),
-            span: (0.0, 1.0),
-            show_start_marker: true,
-        });
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
+            request_id,
+            path.to_owned(),
+            (0.0, 1.0),
+            true,
+            "instant_audition",
+            "audio_file",
+        ));
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
         self.record_sample_last_played(path.to_owned(), context);
         log_sample_load_timing(
@@ -522,12 +530,15 @@ impl NativeAppState {
         };
         self.audio.early_sample_playback_path = Some(path.clone());
         self.audio.current_playback_span = Some((0.0, 1.0));
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
-            id: request_id,
+        let origin = self.runtime_playback_origin_for_path(path.as_str());
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
+            request_id,
             path,
-            span: (0.0, 1.0),
-            show_start_marker: true,
-        });
+            (0.0, 1.0),
+            true,
+            origin,
+            "decoded_samples",
+        ));
         self.ui.status.sample = format!("Playing {label}");
         log_sample_load_timing(
             "browser.sample_load.playback_ready.playback_submit",
@@ -715,12 +726,14 @@ impl NativeAppState {
         self.waveform.current.start_playback(0.0);
         let path = self.waveform.current.path().display().to_string();
         self.audio.current_playback_span = Some((0.0, 1.0));
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
-            id: request_id,
-            path,
-            span: (0.0, 1.0),
-            show_start_marker: true,
-        });
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
+            request_id,
+            path.clone(),
+            (0.0, 1.0),
+            true,
+            self.runtime_playback_origin_for_path(path.as_str()),
+            self.current_waveform_runtime_source_kind(),
+        ));
         self.record_current_playback_history(0.0, 1.0);
         Ok(())
     }

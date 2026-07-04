@@ -43,6 +43,30 @@ pub(in crate::native_app) struct PendingRuntimePlaybackStart {
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) span: (f32, f32),
     pub(in crate::native_app) show_start_marker: bool,
+    pub(in crate::native_app) submitted_at: Instant,
+    pub(in crate::native_app) origin: &'static str,
+    pub(in crate::native_app) source_kind: &'static str,
+}
+
+impl PendingRuntimePlaybackStart {
+    pub(in crate::native_app) fn new(
+        id: PlaybackRequestId,
+        path: String,
+        span: (f32, f32),
+        show_start_marker: bool,
+        origin: &'static str,
+        source_kind: &'static str,
+    ) -> Self {
+        Self {
+            id,
+            path,
+            span,
+            show_start_marker,
+            submitted_at: Instant::now(),
+            origin,
+            source_kind,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
