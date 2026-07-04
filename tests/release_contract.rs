@@ -579,8 +579,20 @@ fn rc_and_stable_workflows_use_structured_release_log_generator() {
             "{name} must invoke the shared structured release-log generator"
         );
         assert!(
-            workflow.contains("body_path: dist/release/release-log.md"),
-            "{name} must publish the generated release log as the GitHub release body"
+            workflow.contains("scripts/internal/release/prepare_github_release_body.py \\"),
+            "{name} must bound the GitHub release body before public publication"
+        );
+        assert!(
+            workflow.contains("--input dist/release/release-log.md"),
+            "{name} must prepare the GitHub body from the canonical release log"
+        );
+        assert!(
+            workflow.contains("--output dist/release/github-release-body.md"),
+            "{name} must write the bounded GitHub body beside the canonical log"
+        );
+        assert!(
+            workflow.contains("body_path: dist/release/github-release-body.md"),
+            "{name} must publish the bounded GitHub release body"
         );
     }
     assert!(
