@@ -76,6 +76,7 @@ pub(super) struct FastAuditionOptions {
     pub(super) allow_sidecar_lookup: bool,
     pub(super) queue_preview_decode: bool,
     pub(super) prefer_preview_decode: bool,
+    pub(super) allow_file_backed_probe: bool,
 }
 
 impl FastAuditionOptions {
@@ -86,6 +87,7 @@ impl FastAuditionOptions {
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
             prefer_preview_decode: true,
+            allow_file_backed_probe: false,
         }
     }
 
@@ -96,6 +98,7 @@ impl FastAuditionOptions {
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
             prefer_preview_decode: true,
+            allow_file_backed_probe: false,
         }
     }
 
@@ -106,6 +109,7 @@ impl FastAuditionOptions {
             allow_sidecar_lookup: false,
             queue_preview_decode: false,
             prefer_preview_decode: false,
+            allow_file_backed_probe: false,
         }
     }
 }
@@ -172,13 +176,15 @@ impl NativeAppState {
                     }
                 }
                 FastAuditionProbe::FileBackedWav => {
-                    if self.start_file_backed_wav_instant_audition_with_options(
-                        path,
-                        context,
-                        started_at,
-                        options.record_history,
-                        options.origin,
-                    ) {
+                    if options.allow_file_backed_probe
+                        && self.start_file_backed_wav_instant_audition_with_options(
+                            path,
+                            context,
+                            started_at,
+                            options.record_history,
+                            options.origin,
+                        )
+                    {
                         return InstantAuditionOutcome::Started;
                     }
                 }
@@ -1580,6 +1586,18 @@ mod tests {
     }
 
     #[test]
+    fn hot_fast_audition_options_avoid_ui_thread_source_file_probing() {
+        assert!(
+            !FastAuditionOptions::instant_navigation().allow_file_backed_probe,
+            "list and keyboard navigation should not probe WAV headers on the UI path"
+        );
+        assert!(
+            !FastAuditionOptions::starmap_drag().allow_file_backed_probe,
+            "starmap drag playback should not probe WAV headers on the UI path"
+        );
+    }
+
+    #[test]
     fn legacy_preview_preference_keeps_preview_decode_before_file_backed_wav() {
         let options = FastAuditionOptions {
             origin: "test",
@@ -1587,6 +1605,7 @@ mod tests {
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
             prefer_preview_decode: true,
+            allow_file_backed_probe: false,
         };
 
         assert_eq!(
