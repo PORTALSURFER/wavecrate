@@ -1,1 +1,1 @@
-//! Shared helpers for the installer and updater helper companion apps.
+//! Shared helpers for updater helper companion apps.

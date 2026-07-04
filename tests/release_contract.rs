@@ -5,6 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use toml::Value;
 
 const RELEASE_CONTRACT: &str = include_str!("../release_contract.toml");
+const WORKSPACE_MANIFEST: &str = include_str!("../Cargo.toml");
+const WORKSPACE_LOCKFILE: &str = include_str!("../Cargo.lock");
+const CODEOWNERS: &str = include_str!("../.github/CODEOWNERS");
 const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.yml");
 const RELEASE_TRAIN_PREP_WORKFLOW: &str =
     include_str!("../.github/workflows/release-train-prepare.yml");
@@ -374,6 +377,22 @@ fn release_surfaces_describe_supported_artifacts_without_setup_contracts() {
 }
 
 #[test]
+fn workspace_no_longer_declares_removed_setup_crate() {
+    for (surface, contents) in [
+        ("Cargo.toml", WORKSPACE_MANIFEST),
+        ("Cargo.lock", WORKSPACE_LOCKFILE),
+        (".github/CODEOWNERS", CODEOWNERS),
+    ] {
+        for forbidden in removed_setup_crate_terms() {
+            assert!(
+                !contents.contains(&forbidden),
+                "{surface} must not keep the removed setup-crate contract: {forbidden}"
+            );
+        }
+    }
+}
+
+#[test]
 fn release_packager_uses_contract_nightly_asset_name_without_build_number() {
     let contract = parse_contract();
     let nightly_template = contract
@@ -444,6 +463,14 @@ fn unsupported_setup_contract_terms() -> Vec<String> {
         ["uninstall", "registry"].join(" "),
         ["Add/Remove", "Programs"].join(" "),
         ["Programs", "and", "Features"].join(" "),
+    ]
+}
+
+fn removed_setup_crate_terms() -> Vec<String> {
+    let old_binary_suffix = ["instal", "ler"].concat();
+    vec![
+        ["apps", old_binary_suffix.as_str()].join("/"),
+        ["wavecrate", old_binary_suffix.as_str()].join("-"),
     ]
 }
 

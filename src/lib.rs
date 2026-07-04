@@ -15,7 +15,7 @@ pub use wavecrate_library::app_dirs;
 mod app_dirs_tests;
 /// Audio playback utilities.
 pub mod audio;
-/// Shared helpers used by companion binaries such as the installer and updater helper.
+/// Shared helpers used by companion binaries such as the updater helper.
 pub mod companion_apps;
 /// Internal helpers for parsing environment-flag booleans.
 mod env_flags;
@@ -48,7 +48,7 @@ pub mod sample_sources;
 pub mod selection;
 /// Optional SQLite extension loader.
 pub use wavecrate_library::sqlite_ext;
-/// Update check + installer helper utilities.
+/// Update check and updater helper utilities.
 pub mod updater;
 /// WAV header sanitization helpers.
 pub mod wav_sanitize;
