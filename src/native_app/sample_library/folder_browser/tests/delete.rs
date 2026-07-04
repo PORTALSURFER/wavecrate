@@ -32,6 +32,37 @@ fn folder_delete_blocks_hard_delete_and_keeps_selected_folder() {
 }
 
 #[test]
+fn trashed_selected_folder_is_removed_from_active_tree_without_parked_source_cache() {
+    let root = temp_source_root("wavecrate-gui-folder-trash-active-tree");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    fs::create_dir_all(&kicks).expect("create nested folder");
+    fs::write(kicks.join("kick.wav"), [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.expand_selected_folder();
+    browser.activate_folder(path_id(&kicks));
+    browser.source.sources[0].root_folder = None;
+
+    assert!(browser.discard_trashed_folder_path(&kicks));
+
+    assert_eq!(browser.selection.selected_folder, path_id(&drums));
+    assert!(browser.find_folder(&path_id(&kicks)).is_none());
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .all(|folder| folder.id != path_id(&kicks)),
+        "trashed folder should disappear from the visible folder tree immediately"
+    );
+    assert!(
+        !browser.tree.expanded_folders.contains(&path_id(&kicks)),
+        "trashed folder expansion state should be discarded"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn file_delete_blocks_hard_delete_and_keeps_selection() {
     let root = temp_source_root("wavecrate-gui-file-delete");
     let drums = root.join("drums");

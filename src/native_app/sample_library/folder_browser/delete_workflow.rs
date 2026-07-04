@@ -83,22 +83,22 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn discard_trashed_folder_path(&mut self, path: &Path) -> bool {
         let folder_id = path_id(path);
         let parent_id = path.parent().map(path_id);
-        let Some(source) = self
+        let active_tree_changed = self
+            .tree
+            .folders
+            .first_mut()
+            .is_some_and(|root_folder| root_folder.remove_child_by_id(&folder_id));
+        let parked_tree_changed = self
             .source
             .sources
             .iter_mut()
             .find(|source| source.id == self.source.selected_source)
-        else {
-            return false;
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return false;
-        };
-        let changed = root_folder.remove_child_by_id(&folder_id);
+            .and_then(|source| source.root_folder.as_mut())
+            .is_some_and(|root_folder| root_folder.remove_child_by_id(&folder_id));
+        let changed = active_tree_changed || parked_tree_changed;
         if !changed {
             return false;
         }
-        self.tree.folders = vec![root_folder.clone()];
         let fallback_folder = parent_id
             .filter(|id| self.find_folder(id).is_some())
             .unwrap_or_else(|| {
@@ -110,7 +110,9 @@ impl FolderBrowserState {
             });
         self.selection.discard_folder(&folder_id, fallback_folder);
         self.selection.clear_file_selection();
-        self.tree.expanded_folders.retain(|id| id != &folder_id);
+        self.tree
+            .expanded_folders
+            .retain(|id| id != &folder_id && !Path::new(id).starts_with(path));
         self.bump_file_content_revision();
         true
     }
