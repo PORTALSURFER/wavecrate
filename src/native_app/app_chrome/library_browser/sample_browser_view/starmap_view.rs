@@ -56,6 +56,11 @@ const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
 const MAP_SEGMENT_HIT_HANDOFF_LIMIT: usize = 16;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
+const MAP_DENSE_OVERVIEW_ITEM_COUNT: usize = 3_000;
+const MAP_DENSE_OVERVIEW_MAX_ZOOM: f32 = 1.35;
+const MAP_DENSE_OVERVIEW_GRID_SIZE: i32 = 72;
+const MAP_DENSE_OVERVIEW_NODE_SIZE: f32 = 3.6;
+const MAP_DENSE_OVERVIEW_NODE_SIZE_MAX: f32 = 6.8;
 const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
 const MAP_CONTROL_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const MAP_CONTROL_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
@@ -1252,6 +1257,25 @@ fn append_cached_items_paint(
     cache: &Mutex<StarmapPaintCache>,
 ) {
     let started_at = starmap_telemetry::stage_timer();
+    if should_use_dense_overview(items.len(), viewport) {
+        let (cells, exact_items) = dense_overview_paint(cache, items, paint_signature);
+        paint_dense_overview_items(primitives, widget_id, bounds, viewport, &cells, &exact_items);
+        let elapsed = starmap_telemetry::elapsed_since(started_at);
+        if let Some(elapsed) = elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetPaintBuild, elapsed);
+        }
+        starmap_telemetry::record_event(
+            None,
+            "widget.paint_dense_overview",
+            "painted",
+            None,
+            items.len(),
+            cells.len() + exact_items.len(),
+            false,
+            elapsed,
+        );
+        return;
+    }
     if let Some(cached) = cached_item_paint(cache, bounds, viewport, paint_signature) {
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::WidgetPaintCacheHit),
@@ -1322,6 +1346,34 @@ fn store_cached_item_paint(
     });
 }
 
+fn dense_overview_paint(
+    cache: &Mutex<StarmapPaintCache>,
+    items: &[StarmapItem],
+    paint_signature: u64,
+) -> (
+    Arc<[StarmapDenseOverviewCell]>,
+    Arc<[StarmapDenseOverviewExactItem]>,
+) {
+    if let Some((cells, exact_items)) = lock_starmap_mutex(cache)
+        .dense_overview
+        .as_ref()
+        .filter(|entry| entry.paint_signature == paint_signature)
+        .map(|entry| (entry.cells.clone(), entry.exact_items.clone()))
+    {
+        return (cells, exact_items);
+    }
+
+    let (cells, exact_items) = build_dense_overview_paint(items);
+    let cells = Arc::<[StarmapDenseOverviewCell]>::from(cells);
+    let exact_items = Arc::<[StarmapDenseOverviewExactItem]>::from(exact_items);
+    lock_starmap_mutex(cache).dense_overview = Some(StarmapDenseOverviewCacheEntry {
+        paint_signature,
+        cells: cells.clone(),
+        exact_items: exact_items.clone(),
+    });
+    (cells, exact_items)
+}
+
 fn lock_starmap_mutex<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
@@ -1331,6 +1383,7 @@ fn lock_starmap_mutex<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 #[derive(Clone, Debug, Default)]
 struct StarmapPaintCache {
     entry: Option<StarmapPaintCacheEntry>,
+    dense_overview: Option<StarmapDenseOverviewCacheEntry>,
 }
 
 #[derive(Clone, Debug)]
@@ -1347,6 +1400,31 @@ impl StarmapPaintCacheEntry {
             && self.viewport == viewport
             && self.paint_signature == paint_signature
     }
+}
+
+#[derive(Clone, Debug)]
+struct StarmapDenseOverviewCacheEntry {
+    paint_signature: u64,
+    cells: Arc<[StarmapDenseOverviewCell]>,
+    exact_items: Arc<[StarmapDenseOverviewExactItem]>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct StarmapDenseOverviewCell {
+    x: f32,
+    y: f32,
+    color: ui::Rgba8,
+    side: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct StarmapDenseOverviewExactItem {
+    x: f32,
+    y: f32,
+    color: ui::Rgba8,
+    selected: bool,
+    copy_flash: bool,
+    similarity_anchor: bool,
 }
 
 fn paint_items(
@@ -1371,6 +1449,84 @@ fn paint_items(
     }
     for (color, rects) in batches {
         push_fill_rect_batch(primitives, widget_id, rects, color.rgba());
+    }
+}
+
+fn should_use_dense_overview(item_count: usize, viewport: StarmapViewport) -> bool {
+    item_count >= MAP_DENSE_OVERVIEW_ITEM_COUNT && viewport.zoom <= MAP_DENSE_OVERVIEW_MAX_ZOOM
+}
+
+fn build_dense_overview_paint(
+    items: &[StarmapItem],
+) -> (Vec<StarmapDenseOverviewCell>, Vec<StarmapDenseOverviewExactItem>) {
+    let mut cells = BTreeMap::<StarmapDenseOverviewCellKey, StarmapDenseOverviewAccumulator>::new();
+    let mut exact_items = Vec::new();
+    for item in items {
+        if item.selected || item.copy_flash || item.similarity_anchor {
+            exact_items.push(StarmapDenseOverviewExactItem::from_item(item));
+            continue;
+        }
+        let key = StarmapDenseOverviewCellKey::from_item(item);
+        cells.entry(key).or_default().add(starmap_item_color(item));
+    }
+    let cells = cells
+        .into_iter()
+        .filter_map(|(key, accumulator)| accumulator.into_cell(key))
+        .collect();
+    (cells, exact_items)
+}
+
+fn paint_dense_overview_items(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    viewport: StarmapViewport,
+    cells: &[StarmapDenseOverviewCell],
+    exact_items: &[StarmapDenseOverviewExactItem],
+) {
+    let mut batches = BTreeMap::<ColorKey, Vec<Rect>>::new();
+    for cell in cells {
+        let center = dense_overview_cell_center(bounds, *cell, viewport);
+        if !paint_bounds(bounds).contains(center) {
+            continue;
+        }
+        batches
+            .entry(ColorKey::from(cell.color))
+            .or_default()
+            .push(centered_rect(center, cell.side));
+    }
+    for (color, rects) in batches {
+        push_fill_rect_batch(primitives, widget_id, rects, color.rgba());
+    }
+    for item in exact_items {
+        paint_dense_overview_exact_item(primitives, widget_id, bounds, item, viewport);
+    }
+}
+
+fn paint_dense_overview_exact_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    item: &StarmapDenseOverviewExactItem,
+    viewport: StarmapViewport,
+) {
+    if !item.selected && !item.copy_flash && !item.similarity_anchor {
+        return;
+    }
+    let center = dense_overview_exact_item_center(bounds, *item, viewport);
+    if !paint_bounds(bounds).contains(center) {
+        return;
+    }
+    let color = item.color;
+    if item.copy_flash {
+        paint_copy_flash_item(primitives, widget_id, center, color);
+    }
+    if item.selected {
+        paint_selected_item(primitives, widget_id, center, color);
+        return;
+    }
+    if item.similarity_anchor {
+        paint_similarity_anchor_item(primitives, widget_id, center, color);
     }
 }
 
@@ -1677,6 +1833,123 @@ fn paint_bounds(bounds: Rect) -> Rect {
 
 fn centered_rect(center: Point, side: f32) -> Rect {
     Rect::from_xy_size(center.x - side * 0.5, center.y - side * 0.5, side, side)
+}
+
+fn dense_overview_cell_center(
+    bounds: Rect,
+    cell: StarmapDenseOverviewCell,
+    viewport: StarmapViewport,
+) -> Point {
+    Point::new(
+        bounds.x_for_ratio_unclamped((cell.x - viewport.center_x) * viewport.zoom + 0.5),
+        bounds.y_for_ratio_unclamped((cell.y - viewport.center_y) * viewport.zoom + 0.5),
+    )
+}
+
+fn dense_overview_exact_item_center(
+    bounds: Rect,
+    item: StarmapDenseOverviewExactItem,
+    viewport: StarmapViewport,
+) -> Point {
+    Point::new(
+        bounds.x_for_ratio_unclamped((item.x - viewport.center_x) * viewport.zoom + 0.5),
+        bounds.y_for_ratio_unclamped((item.y - viewport.center_y) * viewport.zoom + 0.5),
+    )
+}
+
+impl StarmapDenseOverviewExactItem {
+    fn from_item(item: &StarmapItem) -> Self {
+        Self {
+            x: item.x,
+            y: item.y,
+            color: starmap_item_color(item),
+            selected: item.selected,
+            copy_flash: item.copy_flash,
+            similarity_anchor: item.similarity_anchor,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct StarmapDenseOverviewCellKey {
+    x: i32,
+    y: i32,
+}
+
+impl StarmapDenseOverviewCellKey {
+    fn from_item(item: &StarmapItem) -> Self {
+        Self {
+            x: dense_overview_coordinate(item.x),
+            y: dense_overview_coordinate(item.y),
+        }
+    }
+
+    fn center(self) -> (f32, f32) {
+        let grid = MAP_DENSE_OVERVIEW_GRID_SIZE as f32;
+        ((self.x as f32 + 0.5) / grid, (self.y as f32 + 0.5) / grid)
+    }
+}
+
+fn dense_overview_coordinate(value: f32) -> i32 {
+    let max = MAP_DENSE_OVERVIEW_GRID_SIZE - 1;
+    ((value.clamp(0.0, 0.999_999) * MAP_DENSE_OVERVIEW_GRID_SIZE as f32).floor() as i32)
+        .clamp(0, max)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct StarmapDenseOverviewAccumulator {
+    count: u32,
+    r_sum: u32,
+    g_sum: u32,
+    b_sum: u32,
+    a_sum: u32,
+}
+
+impl StarmapDenseOverviewAccumulator {
+    fn add(&mut self, color: ui::Rgba8) {
+        self.count += 1;
+        self.r_sum += u32::from(color.r);
+        self.g_sum += u32::from(color.g);
+        self.b_sum += u32::from(color.b);
+        self.a_sum += u32::from(color.a);
+    }
+
+    fn into_cell(self, key: StarmapDenseOverviewCellKey) -> Option<StarmapDenseOverviewCell> {
+        if self.count == 0 {
+            return None;
+        }
+        let (x, y) = key.center();
+        Some(StarmapDenseOverviewCell {
+            x,
+            y,
+            color: self.quantized_color(),
+            side: self.side(),
+        })
+    }
+
+    fn quantized_color(self) -> ui::Rgba8 {
+        ui::Rgba8::new(
+            quantized_average_channel(self.r_sum, self.count),
+            quantized_average_channel(self.g_sum, self.count),
+            quantized_average_channel(self.b_sum, self.count),
+            quantized_average_alpha(self.a_sum, self.count),
+        )
+    }
+
+    fn side(self) -> f32 {
+        let density = (self.count as f32).log2().max(0.0);
+        (MAP_DENSE_OVERVIEW_NODE_SIZE + density * 0.55).min(MAP_DENSE_OVERVIEW_NODE_SIZE_MAX)
+    }
+}
+
+fn quantized_average_channel(sum: u32, count: u32) -> u8 {
+    let average = ((sum + count / 2) / count).min(u32::from(u8::MAX)) as u8;
+    ((((u32::from(average) + 6) / 12) * 12).min(u32::from(u8::MAX))) as u8
+}
+
+fn quantized_average_alpha(sum: u32, count: u32) -> u8 {
+    let average = ((sum + count / 2) / count).min(u32::from(u8::MAX)) as u8;
+    ((((u32::from(average) + 6) / 12) * 12).min(u32::from(u8::MAX)) as u8).max(96)
 }
 
 fn diamond_points(center: Point, side: f32) -> [Point; 4] {
@@ -2508,6 +2781,125 @@ mod tests {
     }
 
     #[test]
+    fn zoomed_out_dense_starmap_paints_bounded_overview_cells() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(1_000.0, 600.0);
+        let items = dense_overview_test_items(MAP_DENSE_OVERVIEW_ITEM_COUNT + 900, color);
+        let item_count = items.len();
+        let widget = StarmapWidget::new(items, StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let overview_rect_count = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRectBatch(batch) => Some(batch.rects.len()),
+                _ => None,
+            })
+            .sum::<usize>();
+        let cache = lock_starmap_mutex(&widget.paint_cache);
+        let cached_cell_count = cache
+            .dense_overview
+            .as_ref()
+            .map(|entry| entry.cells.len())
+            .unwrap_or_default();
+
+        assert!(
+            overview_rect_count < item_count / 2,
+            "fully zoomed-out dense maps should aggregate ordinary nodes instead of painting one rect per sample"
+        );
+        assert_eq!(overview_rect_count, cached_cell_count);
+        assert!(
+            cache.entry.is_none(),
+            "dense overview paint should not churn exact-viewport primitive caches while panning"
+        );
+    }
+
+    #[test]
+    fn zoomed_out_dense_starmap_reuses_overview_cache_while_panning() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(1_000.0, 600.0);
+        let items = Arc::<[StarmapItem]>::from(dense_overview_test_items(
+            MAP_DENSE_OVERVIEW_ITEM_COUNT + 900,
+            color,
+        ));
+        let previous = StarmapWidget::new(items.clone(), StarmapViewport::default(), None);
+        let mut previous_primitives = Vec::new();
+        previous.append_paint(
+            &mut previous_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        let previous_cells = lock_starmap_mutex(&previous.paint_cache)
+            .dense_overview
+            .as_ref()
+            .expect("initial dense paint should cache overview cells")
+            .cells
+            .clone();
+        let mut panned_viewport = StarmapViewport::default();
+        panned_viewport.center_x = 0.58;
+        panned_viewport.center_y = 0.42;
+        let mut next = StarmapWidget::new(items, panned_viewport, None);
+        next.synchronize_from_previous(&previous);
+        let mut next_primitives = Vec::new();
+
+        next.append_paint(
+            &mut next_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let next_cells = lock_starmap_mutex(&next.paint_cache)
+            .dense_overview
+            .as_ref()
+            .expect("panned dense paint should retain overview cells")
+            .cells
+            .clone();
+        assert!(
+            Arc::ptr_eq(&previous_cells, &next_cells),
+            "panning a fully zoomed-out dense map should transform cached map-space overview cells instead of rebuilding from every item"
+        );
+        assert!(lock_starmap_mutex(&next.paint_cache).entry.is_none());
+    }
+
+    #[test]
+    fn zoomed_out_dense_starmap_keeps_selected_node_exact() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(1_000.0, 600.0);
+        let mut items = dense_overview_test_items(MAP_DENSE_OVERVIEW_ITEM_COUNT + 900, color);
+        items.push({
+            let mut selected = starmap_item("/samples/selected.wav", 0.5, 0.5, color);
+            selected.selected = true;
+            selected
+        });
+        let widget = StarmapWidget::new(items, StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(500.0, 300.0 - (MAP_SELECTED_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
     fn starmap_widget_synchronizes_hit_scratch_from_previous_instance() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
@@ -3292,6 +3684,19 @@ mod tests {
             vec![2_000],
             "diagonal drag sweeps should visit cells along the pointer path instead of every populated cell inside the path bounding box"
         );
+    }
+
+    fn dense_overview_test_items(count: usize, color: ui::Rgba8) -> Vec<StarmapItem> {
+        (0..count)
+            .map(|index| {
+                starmap_item(
+                    &format!("/samples/dense-overview-{index}.wav"),
+                    ((index % 36) as f32 + 0.5) / 36.0,
+                    (((index / 36) % 36) as f32 + 0.5) / 36.0,
+                    color,
+                )
+            })
+            .collect()
     }
 
     fn starmap_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> StarmapItem {
