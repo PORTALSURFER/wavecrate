@@ -8,11 +8,11 @@ use std::{
 };
 
 use super::{
+    default_file_columns, listing::BrowserListingRevealState, starmap::StarmapLayoutCache,
     FileColumn, FileEntry, FileRenameView, FolderBrowserState, SimilarityAspectStrengths,
-    SimilarityBrowserState, default_file_columns, listing::BrowserListingRevealState,
-    starmap::StarmapLayoutCache,
+    SimilarityBrowserState,
 };
-use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
+use wavecrate::sample_sources::{config::SimilarityAspectSettings, HarvestState};
 
 const COPY_FLASH_FRAMES: u8 = 12;
 const PROTECTED_SOURCE_ERROR_FLASH_FRAMES: u8 = 24;
@@ -277,6 +277,21 @@ impl VisibleSampleProjectionCache {
         })
     }
 
+    pub(super) fn cached_audio_indices(
+        &self,
+        request: VisibleSampleProjectionRequest<'_>,
+    ) -> Option<Ref<'_, Vec<usize>>> {
+        let key = request.key();
+        if !self.entries.borrow().contains_key(&key) {
+            return None;
+        }
+        Some(Ref::map(self.entries.borrow(), |entries| {
+            entries
+                .get(&key)
+                .expect("visible sample projection cache should contain computed key")
+        }))
+    }
+
     pub(super) fn audio_ids(
         &self,
         request: VisibleSampleProjectionRequest<'_>,
@@ -294,6 +309,21 @@ impl VisibleSampleProjectionCache {
                 .get(&key)
                 .expect("visible sample id projection cache should contain computed key")
         })
+    }
+
+    pub(super) fn cached_audio_ids(
+        &self,
+        request: VisibleSampleProjectionRequest<'_>,
+    ) -> Option<Ref<'_, Vec<String>>> {
+        let key = request.key();
+        if !self.id_entries.borrow().contains_key(&key) {
+            return None;
+        }
+        Some(Ref::map(self.id_entries.borrow(), |entries| {
+            entries
+                .get(&key)
+                .expect("visible sample id projection cache should contain computed key")
+        }))
     }
 
     pub(super) fn invalidate_for_content_revision(&mut self, content_revision: u64) {
@@ -612,17 +642,24 @@ impl FolderBrowserState {
         }
     }
 
-    pub(in crate::native_app) fn visible_sample_file_ids_matching_tags(
+    pub(in crate::native_app) fn prepared_visible_sample_file_ids_matching_tags(
         &self,
         tags_by_file: &HashMap<String, Vec<String>>,
-    ) -> Vec<String> {
-        self.visible_sample_window_files(tags_by_file)
-            .1
-            .rows
-            .into_iter()
-            .filter(|file| !file.is_missing())
-            .map(|file| file.id.clone())
-            .collect()
+    ) -> Option<Vec<String>> {
+        if self.sample_list.prepared_content_revision != self.sample_list.content_revision {
+            return None;
+        }
+        let window = self.sample_list.prepared_window;
+        let window_files =
+            self.selected_audio_file_window_matching_tags_if_cached(window, tags_by_file)?;
+        window_files_complete(window, &window_files).then(|| {
+            window_files
+                .rows
+                .into_iter()
+                .filter(|file| !file.is_missing())
+                .map(|file| file.id.clone())
+                .collect()
+        })
     }
 
     fn visible_sample_window_files(

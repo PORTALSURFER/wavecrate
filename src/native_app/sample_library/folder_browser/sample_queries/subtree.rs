@@ -11,8 +11,8 @@ use super::{
     curation, curation_filter_allows_file, filters, playback_type_filter, rating_filter, traversal,
 };
 use crate::native_app::sample_library::folder_browser::{
-    FileEntry, FolderBrowserState, FolderEntry,
     visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
+    FileEntry, FolderBrowserState, FolderEntry,
 };
 
 impl FolderBrowserState {
@@ -76,6 +76,58 @@ impl FolderBrowserState {
             .collect();
 
         VisibleSampleWindowFiles { total_count, rows }
+    }
+
+    pub(super) fn selected_folder_recursive_audio_file_window_matching_tags_if_cached<'a>(
+        &'a self,
+        folder: &'a FolderEntry,
+        window: ui::VirtualListWindow,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<VisibleSampleWindowFiles<'a>> {
+        let required_tags = self.active_required_tags();
+        let playback_type_filters = self.active_playback_type_filters();
+        let ids = self.selected_folder_recursive_audio_file_ids_ref_with_sort_tags_if_cached(
+            folder,
+            Some(tags_by_file),
+        )?;
+        if required_tags.is_empty()
+            && playback_type_filters.is_empty()
+            && !self.filters.curation.enabled
+        {
+            let total_count = ids.len();
+            let window_start = window.window_start.min(total_count);
+            let window_end = window.window_end.min(total_count);
+            return Some(VisibleSampleWindowFiles {
+                total_count,
+                rows: recursive_audio_files_for_window_ids(
+                    folder,
+                    &ids.as_slice()[window_start..window_end],
+                ),
+            });
+        }
+
+        let files_by_id = recursive_audio_file_lookup_for_ids(folder, ids.as_slice());
+        let mut total_count = 0;
+        let rows = ids
+            .iter()
+            .filter_map(|id| files_by_id.get(id.as_str()).copied())
+            .filter(|file| {
+                filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        &playback_type_filters,
+                    )
+            })
+            .filter_map(|file| {
+                let row = (total_count >= window.window_start && total_count < window.window_end)
+                    .then_some(file);
+                total_count += 1;
+                row
+            })
+            .collect();
+
+        Some(VisibleSampleWindowFiles { total_count, rows })
     }
 
     pub(super) fn selected_folder_recursive_audio_file_index_matching_tags(
@@ -165,6 +217,34 @@ impl FolderBrowserState {
             }
             files.into_iter().map(|file| file.id.clone()).collect()
         })
+    }
+
+    fn selected_folder_recursive_audio_file_ids_ref_with_sort_tags_if_cached(
+        &self,
+        folder: &FolderEntry,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Option<Ref<'_, Vec<String>>> {
+        let name_filter = filters::normalized_name_filter(self.active_name_filter());
+        let active_rating_filter = self.active_rating_filter();
+        let rating_filter_key = rating_filter::rating_filter_key(&active_rating_filter);
+        let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
+        let curation_key = if sort_tags.is_some() {
+            self.filters.curation.cache_key()
+        } else {
+            String::new()
+        };
+        let request = VisibleSampleProjectionRequest::new(
+            folder.id.as_str(),
+            name_filter.as_str(),
+            rating_filter_key.as_str(),
+            curation_key.as_str(),
+            &self.sample_list.file_sort,
+            self.similarity_anchor_id(),
+            self.sample_list.content_revision,
+        )
+        .with_listing_reveal(listing_reveal_id)
+        .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
+        self.sample_list.projection_cache.cached_audio_ids(request)
     }
 }
 

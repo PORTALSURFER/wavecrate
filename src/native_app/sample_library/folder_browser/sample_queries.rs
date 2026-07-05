@@ -475,6 +475,80 @@ impl FolderBrowserState {
         VisibleSampleWindowFiles { total_count, rows }
     }
 
+    pub(super) fn selected_audio_file_window_matching_tags_if_cached(
+        &self,
+        window: radiant::prelude::VirtualListWindow,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Option<VisibleSampleWindowFiles<'_>> {
+        if self.active_listing_reveal_id(Some(tags_by_file)).is_some()
+            || self.active_harvest_filter().is_some()
+        {
+            return None;
+        }
+        if let Some(collection) = self.selection.selected_collection {
+            return self.selected_collection_audio_file_window_matching_tags_if_cached(
+                collection,
+                window,
+                tags_by_file,
+            );
+        }
+
+        let folder = self.selected_folder()?;
+        if self.folder_subtree_listing_enabled() {
+            return self.selected_folder_recursive_audio_file_window_matching_tags_if_cached(
+                folder,
+                window,
+                tags_by_file,
+            );
+        }
+
+        let required_tags = self.active_required_tags();
+        let playback_type_filter = self.active_playback_type_filters();
+        let indices =
+            self.selected_folder_audio_file_indices_ref_with_sort_tags_if_cached(
+                folder,
+                Some(tags_by_file),
+            )?;
+        if required_tags.is_empty()
+            && playback_type_filter.is_empty()
+            && !self.filters.curation.enabled
+        {
+            let total_count = indices.len();
+            return Some(VisibleSampleWindowFiles {
+                total_count,
+                rows: (window.window_start.min(total_count)..window.window_end.min(total_count))
+                    .filter_map(|index| {
+                        indices
+                            .get(index)
+                            .and_then(|file_index| folder.files.get(*file_index))
+                    })
+                    .collect(),
+            });
+        }
+
+        let mut total_count = 0;
+        let rows = indices
+            .iter()
+            .filter_map(|file_index| folder.files.get(*file_index))
+            .filter(|file| {
+                filters::audio_file_matches_parsed_tags(file, tags_by_file, &required_tags)
+                    && playback_type_filter::playback_type_filter_matches(
+                        file,
+                        tags_by_file,
+                        &playback_type_filter,
+                    )
+            })
+            .filter_map(|file| {
+                let row = (total_count >= window.window_start && total_count < window.window_end)
+                    .then_some(file);
+                total_count += 1;
+                row
+            })
+            .collect();
+
+        Some(VisibleSampleWindowFiles { total_count, rows })
+    }
+
     pub(super) fn uncached_selected_audio_file_window_matching_tags(
         &self,
         window: radiant::prelude::VirtualListWindow,
@@ -677,6 +751,34 @@ impl FolderBrowserState {
                 ordering::sort_file_indices_by_similarity(self, folder, &mut indices);
                 indices
             })
+    }
+
+    fn selected_folder_audio_file_indices_ref_with_sort_tags_if_cached(
+        &self,
+        folder: &FolderEntry,
+        sort_tags: Option<&HashMap<String, Vec<String>>>,
+    ) -> Option<Ref<'_, Vec<usize>>> {
+        let name_filter = filters::normalized_name_filter(self.active_name_filter());
+        let active_rating_filter = self.active_rating_filter();
+        let rating_filter_key = rating_filter::rating_filter_key(&active_rating_filter);
+        let listing_reveal_id = self.active_listing_reveal_id(sort_tags);
+        let curation_key = if sort_tags.is_some() {
+            self.filters.curation.cache_key()
+        } else {
+            String::new()
+        };
+        let request = VisibleSampleProjectionRequest::new(
+            folder.id.as_str(),
+            name_filter.as_str(),
+            rating_filter_key.as_str(),
+            curation_key.as_str(),
+            &self.sample_list.file_sort,
+            self.similarity_anchor_id(),
+            self.sample_list.content_revision,
+        )
+        .with_listing_reveal(listing_reveal_id)
+        .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
+        self.sample_list.projection_cache.cached_audio_indices(request)
     }
 
     pub(super) fn active_listing_reveal_id(

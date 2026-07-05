@@ -1327,10 +1327,13 @@ impl NativeAppState {
 
     fn preview_audition_warm_list_candidates(&mut self) -> PreviewAuditionWarmPlan {
         let ordered_paths: Vec<String> = {
-            let visible_paths = self
+            let Some(visible_paths) = self
                 .library
                 .folder_browser
-                .visible_sample_file_ids_matching_tags(&self.metadata.tags_by_file);
+                .prepared_visible_sample_file_ids_matching_tags(&self.metadata.tags_by_file)
+            else {
+                return PreviewAuditionWarmPlan::default();
+            };
             Self::preview_audition_list_warm_ordered_paths(
                 &visible_paths,
                 self.library.folder_browser.selected_file_id(),
@@ -2072,6 +2075,36 @@ mod tests {
         (state, paths)
     }
 
+    fn unprepared_list_state_with_wav_files(
+        file_count: usize,
+        selected_index: usize,
+    ) -> (
+        crate::native_app::test_support::state::NativeAppState,
+        Vec<String>,
+    ) {
+        let source_root = tempfile::tempdir().expect("source root");
+        let source_path = source_root.path().to_path_buf();
+        let mut paths = Vec::new();
+        for index in 0..file_count {
+            let path = source_path.join(format!("sample-{index:03}.wav"));
+            fs::write(&path, []).expect("write wav placeholder");
+            paths.push(path.display().to_string());
+        }
+        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+            .with_folder_browser(
+                crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                    wavecrate::sample_sources::SampleSource::new(source_path),
+                ]),
+            )
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::List;
+        state
+            .library
+            .folder_browser
+            .select_file(paths[selected_index].clone());
+        (state, paths)
+    }
+
     fn preview_clip_with_gain(normalized_gain: f32) -> PreviewAuditionClip {
         PreviewAuditionClip {
             path: PathBuf::from("/tmp/wavecrate-preview-gain.wav"),
@@ -2269,6 +2302,31 @@ mod tests {
         assert_eq!(exhausted_plan.inspected_count, 0);
         assert_eq!(exhausted_plan.candidate_count, 0);
         assert_eq!(exhausted_plan.eligible_count, 0);
+    }
+
+    #[test]
+    fn list_preview_warm_skips_until_visible_window_is_prepared() {
+        let (mut state, _paths) = unprepared_list_state_with_wav_files(256, 128);
+        let cache_len_before = state
+            .library
+            .folder_browser
+            .selected_audio_projection_cache_len_for_tests();
+
+        let plan = state.preview_audition_warm_list_candidates();
+
+        assert_eq!(
+            plan.paths.len(),
+            0,
+            "preview warming should not build the list projection before the visible list is prepared"
+        );
+        assert_eq!(
+            state
+                .library
+                .folder_browser
+                .selected_audio_projection_cache_len_for_tests(),
+            cache_len_before,
+            "preview warming must stay opportunistic instead of filling the projection cache on the UI frame"
+        );
     }
 
     #[test]
