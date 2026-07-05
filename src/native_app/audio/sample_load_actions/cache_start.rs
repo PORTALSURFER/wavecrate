@@ -915,7 +915,6 @@ impl NativeAppState {
         let zoom = self.ui.chrome.starmap_viewport.zoom.max(f32::EPSILON);
         let signature = starmap_preview_warm_view_signature(
             self.library.folder_browser.selected_source_id(),
-            selected.as_deref(),
             items.len(),
             center_x,
             center_y,
@@ -1543,7 +1542,6 @@ fn starmap_item_in_preview_warm_viewport(
 
 fn starmap_preview_warm_view_signature(
     source_id: &str,
-    selected_file_id: Option<&str>,
     item_count: usize,
     center_x: f32,
     center_y: f32,
@@ -1551,7 +1549,6 @@ fn starmap_preview_warm_view_signature(
 ) -> u64 {
     let mut hasher = DefaultHasher::new();
     source_id.hash(&mut hasher);
-    selected_file_id.hash(&mut hasher);
     item_count.hash(&mut hasher);
     quantized_starmap_preview_warm_coordinate(center_x).hash(&mut hasher);
     quantized_starmap_preview_warm_coordinate(center_y).hash(&mut hasher);
@@ -1889,6 +1886,34 @@ mod tests {
                 .iter()
                 .all(|path| !warmed.contains(path))
         );
+    }
+
+    #[test]
+    fn starmap_preview_warm_budget_survives_selection_changes() {
+        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET + 48);
+        let files = state
+            .library
+            .folder_browser
+            .selected_source_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+
+        for _ in 0..(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET / PREVIEW_AUDITION_WARM_BATCH) {
+            let plan = state.preview_audition_warm_starmap_candidates();
+            assert_eq!(plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+            reserve_starmap_preview_warm_plan(&mut state, &plan);
+        }
+
+        for selected in files.iter().take(6) {
+            state.library.folder_browser.select_file(selected.clone());
+            let plan = state.preview_audition_warm_starmap_candidates();
+            assert_eq!(
+                plan.paths.len(),
+                0,
+                "starmap audition selection changes must not reset the finite viewport warm budget"
+            );
+        }
     }
 
     #[test]
