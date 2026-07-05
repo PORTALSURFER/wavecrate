@@ -1773,23 +1773,28 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let start_ratio = self
-            .preview_slice_full_sample_handoff_ratio(path)
-            .unwrap_or(0.0);
-        self.start_current_sample_autoplay_from_ratio(
+        let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(path);
+        let replace_policy = if preview_handoff_start_ratio.is_some() {
+            PlaybackRuntimeReplacePolicy::ClearPrevious
+        } else {
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious
+        };
+        self.start_current_sample_autoplay_with_replace_policy(
             path,
             file_name,
-            start_ratio,
+            preview_handoff_start_ratio.unwrap_or(0.0),
+            replace_policy,
             started_at,
             context,
         );
     }
 
-    pub(in crate::native_app::audio) fn start_current_sample_autoplay_from_ratio(
+    pub(in crate::native_app::audio) fn start_current_sample_autoplay_with_replace_policy(
         &mut self,
         path: &str,
         file_name: &str,
         start_ratio: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
@@ -1806,6 +1811,9 @@ impl NativeAppState {
             );
             return;
         }
+        if self.library.folder_browser.selected_file_id() == Some(path) {
+            self.background.settled_sample_promotion_task.cancel();
+        }
         let audio_open_started_at = Instant::now();
         self.maybe_open_audio_player(context);
         log_sample_load_timing(
@@ -1818,6 +1826,7 @@ impl NativeAppState {
             &file_name,
             SAMPLE_AUTOPLAY_OUTCOMES,
             start_ratio,
+            replace_policy,
             started_at,
             context,
         );
@@ -1829,11 +1838,12 @@ impl NativeAppState {
         file_name: &str,
         outcomes: CachedPlaybackOutcomes,
         start_ratio: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let playback_started_at = Instant::now();
-        match self.start_current_full_sample_runtime_playback(start_ratio) {
+        match self.start_current_full_sample_runtime_playback(start_ratio, replace_policy) {
             Ok(()) => {
                 self.record_selected_sample_last_played(context);
                 log_sample_load_timing(
@@ -1881,6 +1891,7 @@ impl NativeAppState {
     fn start_current_full_sample_runtime_playback(
         &mut self,
         start_ratio: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
     ) -> Result<(), String> {
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
@@ -1952,7 +1963,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,
-            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+            replace_policy,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, start_ratio),
         };

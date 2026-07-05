@@ -7,6 +7,7 @@ use crate::native_app::{
     },
     audio::{playback::RandomAuditionUnits, sample_load_actions::log_slow_sample_load_phase},
 };
+use wavecrate::audio::PlaybackRuntimeReplacePolicy;
 
 impl NativeAppState {
     pub(super) fn finish_loaded_sample_load(
@@ -89,10 +90,15 @@ impl NativeAppState {
             );
             return;
         }
-        self.start_current_sample_autoplay_from_ratio(
+        self.start_current_sample_autoplay_with_replace_policy(
             &path,
             &file_name,
             preview_handoff_start_ratio.unwrap_or(0.0),
+            if preview_handoff_start_ratio.is_some() {
+                PlaybackRuntimeReplacePolicy::ClearPrevious
+            } else {
+                PlaybackRuntimeReplacePolicy::FadeOutPrevious
+            },
             started_at,
             context,
         );

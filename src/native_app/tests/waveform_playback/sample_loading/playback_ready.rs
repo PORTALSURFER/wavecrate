@@ -255,6 +255,52 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
 }
 
 #[test]
+fn settled_preview_promotion_does_not_restart_already_promoted_full_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("already-promoted.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 48_000);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("sample loads");
+    state.audio.pending_playback_start =
+        Some(crate::native_app::app::PendingPlaybackStart::record(
+            crate::native_app::audio::playback::PlaybackIntent::new(0.11, 1.0),
+        ));
+    let ticket = state.background.settled_sample_promotion_task.begin();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SettledSamplePromotion {
+            ticket,
+            path: sample_path_string.clone(),
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    let pending = state
+        .audio
+        .pending_playback_start
+        .expect("already promoted full playback should remain pending");
+    assert_eq!(
+        pending.intent.start_ratio, 0.11,
+        "stale settled promotion must not restart the same full sample"
+    );
+    assert_eq!(state.waveform.current.path(), sample_path);
+}
+
+#[test]
 fn stale_settled_preview_promotion_does_not_start_old_full_load() {
     let source_root = tempfile::tempdir().expect("source root");
     let first_path = source_root.path().join("first-preview.wav");

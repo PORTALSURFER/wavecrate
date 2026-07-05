@@ -520,6 +520,17 @@ impl NativeAppState {
             );
             return;
         }
+        if self.full_sample_playback_already_promoted_for_path(path.as_str()) {
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "already_promoted",
+                started_at,
+                None,
+            );
+            return;
+        }
         log_settled_promotion_timing(path.as_str(), scheduled_at.elapsed());
         self.background.preview_audition_task.cancel();
         self.yield_sample_cache_warm_for_foreground_load(context);
@@ -711,6 +722,29 @@ impl NativeAppState {
             super::cache_start::InstantAuditionOutcome::AudioPending => true,
             super::cache_start::InstantAuditionOutcome::Unavailable => false,
         }
+    }
+
+    fn full_sample_playback_already_promoted_for_path(&self, path: &str) -> bool {
+        if self.audio.early_sample_playback_path.as_deref() == Some(path) {
+            return self.audio.early_sample_playback_kind
+                == Some(EarlySamplePlaybackKind::FullSample);
+        }
+        if self
+            .audio
+            .pending_runtime_start
+            .as_ref()
+            .is_some_and(|pending| pending.path == path && pending.source_kind != "preview_samples")
+        {
+            return true;
+        }
+        if !self.waveform.current.has_loaded_sample()
+            || self.waveform.current.path() != Path::new(path)
+        {
+            return false;
+        }
+        self.audio.pending_playback_start.is_some()
+            || (self.audio.current_playback_span.is_some()
+                && (self.waveform.current.is_playing() || self.audio.playback_progress.active))
     }
 }
 
