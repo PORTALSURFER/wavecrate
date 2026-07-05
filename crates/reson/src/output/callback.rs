@@ -142,3 +142,94 @@ fn load_volume(bits: &AtomicU32) -> f32 {
 pub(super) fn store_volume(bits: &AtomicU32, volume: f32) {
     bits.store(volume.to_bits(), Ordering::Relaxed);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    struct ConstantSource {
+        value: f32,
+        remaining: usize,
+    }
+
+    impl Iterator for ConstantSource {
+        type Item = f32;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.remaining == 0 {
+                return None;
+            }
+            self.remaining -= 1;
+            Some(self.value)
+        }
+    }
+
+    impl crate::Source for ConstantSource {
+        fn current_frame_len(&self) -> Option<usize> {
+            Some(self.remaining)
+        }
+
+        fn channels(&self) -> u16 {
+            1
+        }
+
+        fn sample_rate(&self) -> u32 {
+            44_100
+        }
+
+        fn total_duration(&self) -> Option<Duration> {
+            None
+        }
+    }
+
+    #[test]
+    fn newer_append_generation_replaces_older_queued_sources() {
+        let (command_sender, command_receiver) = mpsc::channel();
+        let (error_sender, _error_receiver) = mpsc::channel();
+        let active_sources = Arc::new(AtomicUsize::new(0));
+        let command_generation = Arc::new(AtomicU64::new(1));
+        let mut state = CallbackState::new(
+            command_receiver,
+            error_sender,
+            Arc::new(AtomicU32::new(1.0f32.to_bits())),
+            active_sources.clone(),
+            Arc::new(AtomicBool::new(false)),
+            command_generation,
+        );
+
+        command_sender
+            .send(StreamCommand::Append {
+                generation: 1,
+                source: Box::new(ConstantSource {
+                    value: 0.25,
+                    remaining: 32,
+                }),
+                volume: 1.0,
+            })
+            .unwrap();
+        command_sender
+            .send(StreamCommand::Append {
+                generation: 2,
+                source: Box::new(ConstantSource {
+                    value: 0.75,
+                    remaining: 32,
+                }),
+                volume: 1.0,
+            })
+            .unwrap();
+
+        let mut data = [0.0; 8];
+        process_audio_callback(&mut state, &mut data);
+
+        assert_eq!(state.current_generation, 2);
+        assert_eq!(state.sources.len(), 1);
+        assert_eq!(active_sources.load(Ordering::Relaxed), 1);
+        assert!(
+            data.iter()
+                .all(|sample| (*sample - 0.75).abs() < f32::EPSILON)
+        );
+    }
+}

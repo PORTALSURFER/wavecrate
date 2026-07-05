@@ -9,7 +9,7 @@ use super::super::DEFAULT_ANTI_CLIP_FADE;
 #[cfg(test)]
 use super::super::fade::{EdgeFade, fade_duration};
 use super::super::fade::{FadeOutHandle, FadeOutOnRequest, fade_frames_for_duration};
-use super::{AudioPlaybackSource, AudioPlayer};
+use super::{AudioPlaybackSource, AudioPlayer, PlaybackRuntimeReplacePolicy};
 #[cfg(test)]
 use crate::mixer::{decoder_from_bytes, map_seek_error};
 #[cfg(test)]
@@ -42,6 +42,7 @@ impl AudioPlayer {
     pub(super) fn build_sink_with_fade<S: Source + Send + 'static>(
         &mut self,
         source: S,
+        replace_policy: PlaybackRuntimeReplacePolicy,
     ) -> Result<(FadeOutHandle, (u32, u16)), String> {
         let started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
         let _volume = self.effective_volume();
@@ -63,12 +64,21 @@ impl AudioPlayer {
         let handle = FadeOutHandle::new();
 
         let append_started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
-        self.stream
-            .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0)
-            .map_err(|err| {
-                warn!("Failed to append audio source: {err}");
-                err
-            })?;
+        let append_result = match replace_policy {
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious => self
+                .stream
+                .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0),
+            PlaybackRuntimeReplacePolicy::ClearPrevious => {
+                self.stream.append_source_replacing_previous(
+                    FadeOutOnRequest::new(source, handle.clone()),
+                    1.0,
+                )
+            }
+        };
+        append_result.map_err(|err| {
+            warn!("Failed to append audio source: {err}");
+            err
+        })?;
         if let Some(append_started_at) = append_started_at {
             tracing::info!(
                 target: "perf::audio_start",
@@ -83,7 +93,10 @@ impl AudioPlayer {
                 "Audio player stage"
             );
         }
-        self.active_sources = self.active_sources.saturating_add(1);
+        self.active_sources = match replace_policy {
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious => self.active_sources.saturating_add(1),
+            PlaybackRuntimeReplacePolicy::ClearPrevious => 1,
+        };
         if let Some(started_at) = started_at {
             tracing::info!(
                 target: "perf::audio_start",
@@ -100,6 +113,21 @@ impl AudioPlayer {
         }
 
         Ok((handle, format))
+    }
+
+    pub(super) fn prepare_previous_sink_for_new_source(
+        &mut self,
+        fade: Duration,
+        replace_policy: PlaybackRuntimeReplacePolicy,
+    ) {
+        match replace_policy {
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious => self.fade_out_current_sink(fade),
+            PlaybackRuntimeReplacePolicy::ClearPrevious => {
+                self.fade_out = None;
+                self.sink_format = None;
+                self.active_sources = 0;
+            }
+        }
     }
 
     /// Create a monitor sink that taps the current output stream state.

@@ -293,7 +293,8 @@ impl AudioPlayer {
                 ))
             };
 
-        let (handle, format) = self.build_sink_with_fade(diagnostic)?;
+        let (handle, format) =
+            self.build_sink_with_fade(diagnostic, PlaybackRuntimeReplacePolicy::FadeOutPrevious)?;
         self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
         self.active_playback_span = None;
         self.fade_out = Some(handle);
@@ -317,7 +318,7 @@ impl AudioPlayer {
         }
 
         let clear_started_at = playback_stage_started();
-        self.fade_out_current_sink(previous_source_fade(self.anti_clip_fade(), replace_policy));
+        self.prepare_previous_sink_for_new_source(self.anti_clip_fade(), replace_policy);
         log_playback_stage(
             "clear_or_fade_current",
             clear_started_at,
@@ -417,7 +418,7 @@ impl AudioPlayer {
             looped,
         );
 
-        let (handle, format) = self.build_sink_with_fade(final_source)?;
+        let (handle, format) = self.build_sink_with_fade(final_source, replace_policy)?;
         let finish_started_at = playback_stage_started();
         self.finish_span_playback(&plan, None);
         self.active_playback_span = active_playback_span;
@@ -468,7 +469,7 @@ impl AudioPlayer {
         }
 
         let clear_started_at = playback_stage_started();
-        self.fade_out_current_sink(previous_source_fade(self.anti_clip_fade(), replace_policy));
+        self.prepare_previous_sink_for_new_source(self.anti_clip_fade(), replace_policy);
         log_playback_stage("clear_or_fade_current", clear_started_at, source_kind, true);
 
         let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
@@ -532,7 +533,7 @@ impl AudioPlayer {
         let diagnostic = source_with_metronome(diagnostic, metronome, &plan);
         log_playback_stage("source_construction", source_started_at, source_kind, true);
 
-        let (handle, format) = self.build_sink_with_fade(diagnostic)?;
+        let (handle, format) = self.build_sink_with_fade(diagnostic, replace_policy)?;
         let finish_started_at = playback_stage_started();
         self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
         self.active_playback_span = active_playback_span;
@@ -611,16 +612,6 @@ fn source_with_metronome(
     }
 }
 
-fn previous_source_fade(
-    anti_clip_fade: std::time::Duration,
-    replace_policy: PlaybackRuntimeReplacePolicy,
-) -> std::time::Duration {
-    match replace_policy {
-        PlaybackRuntimeReplacePolicy::FadeOutPrevious => anti_clip_fade,
-        PlaybackRuntimeReplacePolicy::ClearPrevious => std::time::Duration::ZERO,
-    }
-}
-
 fn playback_stage_started() -> Option<std::time::Instant> {
     telemetry::playback_telemetry_enabled().then(std::time::Instant::now)
 }
@@ -684,24 +675,5 @@ fn repeating_source_for_audio_source(
             }
         }
         source => Ok(Box::new(LazyRepeatingSpanSource::new(source, plan))),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn previous_source_fade_honors_replace_policy() {
-        let fade = std::time::Duration::from_millis(2);
-
-        assert_eq!(
-            previous_source_fade(fade, PlaybackRuntimeReplacePolicy::FadeOutPrevious),
-            fade
-        );
-        assert_eq!(
-            previous_source_fade(fade, PlaybackRuntimeReplacePolicy::ClearPrevious),
-            std::time::Duration::ZERO
-        );
     }
 }
