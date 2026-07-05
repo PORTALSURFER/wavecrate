@@ -65,6 +65,7 @@ const PREVIEW_AUDITION_TASK_NAME: &str = "gui-preview-audition-decode";
 const PREVIEW_AUDITION_WARM_TASK_NAME: &str = "gui-preview-audition-warm";
 const PREVIEW_AUDITION_DURATION: Duration = Duration::from_millis(220);
 const PREVIEW_AUDITION_WARM_BATCH: usize = 24;
+const PREVIEW_AUDITION_LIST_VIEW_BUDGET: usize = PREVIEW_AUDITION_WARM_BATCH * 2;
 const PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD: usize = 96;
 const PREVIEW_AUDITION_STARMAP_VIEW_BUDGET: usize = PREVIEW_AUDITION_WARM_BATCH * 2;
 const PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD: f32 = 0.08;
@@ -986,6 +987,7 @@ impl NativeAppState {
             Self::preview_audition_list_warm_ordered_paths(
                 &visible.rows,
                 self.library.folder_browser.selected_file_id(),
+                PREVIEW_AUDITION_LIST_VIEW_BUDGET,
             )
         };
         ordered_paths
@@ -1005,29 +1007,51 @@ impl NativeAppState {
             '_,
         >],
         selected_file_id: Option<&str>,
+        limit: usize,
     ) -> Vec<String> {
+        if limit == 0 {
+            return Vec::new();
+        }
         let selected_index = selected_file_id
             .and_then(|selected| rows.iter().position(|row| row.file.id == selected));
-        let mut ordered = rows
-            .iter()
-            .enumerate()
-            .filter(|(_, row)| !row.missing)
-            .map(|(index, row)| {
-                (
-                    Self::list_preview_warm_priority(index, selected_index),
-                    row.file.id.clone(),
-                )
-            })
-            .collect::<Vec<_>>();
-        ordered.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
-        ordered.into_iter().map(|(_, path)| path).collect()
-    }
-
-    fn list_preview_warm_priority(index: usize, selected_index: Option<usize>) -> (usize, bool) {
         let Some(selected_index) = selected_index else {
-            return (index, false);
+            return rows
+                .iter()
+                .filter(|row| !row.missing)
+                .take(limit)
+                .map(|row| row.file.id.clone())
+                .collect();
         };
-        (index.abs_diff(selected_index), index < selected_index)
+        let mut ordered = Vec::with_capacity(limit.min(rows.len()));
+        for offset in 0..rows.len() {
+            if offset == 0 {
+                if let Some(row) = rows.get(selected_index).filter(|row| !row.missing) {
+                    ordered.push(row.file.id.clone());
+                }
+            } else {
+                if let Some(row) = selected_index
+                    .checked_add(offset)
+                    .and_then(|index| rows.get(index))
+                    .filter(|row| !row.missing)
+                {
+                    ordered.push(row.file.id.clone());
+                }
+                if ordered.len() >= limit {
+                    break;
+                }
+                if let Some(row) = selected_index
+                    .checked_sub(offset)
+                    .and_then(|index| rows.get(index))
+                    .filter(|row| !row.missing)
+                {
+                    ordered.push(row.file.id.clone());
+                }
+            }
+            if ordered.len() >= limit {
+                break;
+            }
+        }
+        ordered
     }
 
     pub(in crate::native_app) fn finish_preview_audition_decode(
@@ -1165,6 +1189,7 @@ impl NativeAppState {
         completion: ui::TaskCompletion<PreviewAuditionWarmResult>,
         started_at: Instant,
     ) {
+        let finish_started_at = Instant::now();
         let Some(result) = self
             .background
             .preview_audition_warm_task
@@ -1180,11 +1205,12 @@ impl NativeAppState {
         for clip in result.clips {
             self.waveform.cache.store_preview_audition_clip(clip);
         }
-        let elapsed = started_at.elapsed();
+        let worker_elapsed = started_at.elapsed();
+        let commit_elapsed = finish_started_at.elapsed();
         log_sample_load_timing(
-            "browser.sample_load.preview_audition.warm",
+            "browser.sample_load.preview_audition.warm_commit",
             "preview-audition-warm",
-            elapsed,
+            commit_elapsed,
             false,
         );
         tracing::debug!(
@@ -1194,7 +1220,8 @@ impl NativeAppState {
             attempted = result.attempted_paths.len(),
             decoded = clip_count,
             errors = result.errors,
-            elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+            worker_elapsed_ms = worker_elapsed.as_secs_f64() * 1000.0,
+            commit_elapsed_ms = commit_elapsed.as_secs_f64() * 1000.0,
             "Preview audition warm finished"
         );
         if result.errors > 0 {
@@ -1575,6 +1602,37 @@ mod tests {
         state
     }
 
+    fn list_state_with_wav_files(
+        file_count: usize,
+        selected_index: usize,
+    ) -> (
+        crate::native_app::test_support::state::NativeAppState,
+        Vec<String>,
+    ) {
+        let source_root = tempfile::tempdir().expect("source root");
+        let source_path = source_root.path().to_path_buf();
+        let mut paths = Vec::new();
+        for index in 0..file_count {
+            let path = source_path.join(format!("sample-{index:03}.wav"));
+            fs::write(&path, []).expect("write wav placeholder");
+            paths.push(path.display().to_string());
+        }
+        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+            .with_folder_browser(
+                crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                    wavecrate::sample_sources::SampleSource::new(source_path),
+                ]),
+            )
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::List;
+        state
+            .library
+            .folder_browser
+            .select_file(paths[selected_index].clone());
+        crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
+        (state, paths)
+    }
+
     fn preview_clip_with_gain(normalized_gain: f32) -> PreviewAuditionClip {
         PreviewAuditionClip {
             path: PathBuf::from("/tmp/wavecrate-preview-gain.wav"),
@@ -1661,6 +1719,45 @@ mod tests {
         assert_eq!(
             preview_clip_playback_gain(&preview_clip_with_gain(0.0), true),
             1.0
+        );
+    }
+
+    #[test]
+    fn list_preview_warm_stops_after_selected_neighborhood_budget() {
+        let selected_index = 48;
+        let (mut state, paths) = list_state_with_wav_files(96, selected_index);
+        let mut warmed = HashSet::new();
+
+        for _ in 0..(PREVIEW_AUDITION_LIST_VIEW_BUDGET / PREVIEW_AUDITION_WARM_BATCH) {
+            let plan = state.preview_audition_warm_list_candidates();
+            assert_eq!(plan.len(), PREVIEW_AUDITION_WARM_BATCH);
+            warmed.extend(plan.iter().cloned());
+            state
+                .waveform
+                .cache
+                .mark_preview_audition_warm_scheduled(&plan);
+        }
+
+        assert_eq!(warmed.len(), PREVIEW_AUDITION_LIST_VIEW_BUDGET);
+        assert!(
+            warmed.contains(&paths[selected_index]),
+            "list preview warming should include the selected row"
+        );
+        assert!(
+            !warmed.contains(&paths[0]),
+            "list preview warming should not crawl back to the start of a large source"
+        );
+        assert!(
+            !warmed.contains(&paths[paths.len() - 1]),
+            "list preview warming should not crawl to the end of a large source"
+        );
+
+        let exhausted_plan = state.preview_audition_warm_list_candidates();
+
+        assert_eq!(
+            exhausted_plan.len(),
+            0,
+            "list preview warming should stop after the selected-row neighborhood budget"
         );
     }
 
