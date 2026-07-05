@@ -102,6 +102,30 @@ pub(super) fn starmap_view(
     .height(MAP_MIN_HEIGHT)
 }
 
+pub(in crate::native_app) fn paint_active_starmap_audition_overlay(
+    primitives: &mut Vec<PaintPrimitive>,
+    bounds: Rect,
+    items: &[StarmapItem],
+    viewport: StarmapViewport,
+    active_drag: &StarmapAuditionDragState,
+) {
+    let Some(active_file_id) = active_drag.last_hit_file_id.as_deref() else {
+        return;
+    };
+    let Some(item) = items.iter().find(|item| item.file_id == active_file_id) else {
+        return;
+    };
+    let center = item_center(bounds, item, viewport);
+    if paint_bounds(bounds).contains(center) {
+        paint_active_audition_item(
+            primitives,
+            widget_ids::SAMPLE_BROWSER_MAP_ID,
+            center,
+            starmap_item_color(item),
+        );
+    }
+}
+
 fn starmap_empty_message(curation_mode_enabled: bool) -> &'static str {
     if curation_mode_enabled {
         "No files left to curate"
@@ -2181,6 +2205,44 @@ mod tests {
                 if fill.color == color.with_alpha(70)
                     && fill.points.len() == 4
                     && fill.points[0] == Point::new(150.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
+        )));
+    }
+
+    #[test]
+    fn app_transient_drag_overlay_paints_current_controller_target() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let items = vec![
+            starmap_item("/samples/kick.wav", 0.25, 0.5, color),
+            starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+        ];
+        let active_drag = StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/snare.wav")),
+            last_position: Point::new(150.0, 50.0),
+            modifiers: PointerModifiers::default(),
+        };
+        let mut primitives = Vec::new();
+
+        paint_active_starmap_audition_overlay(
+            &mut primitives,
+            bounds,
+            &items,
+            StarmapViewport::default(),
+            &active_drag,
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(70)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(255, 250, 224, 245)
+                    && stroke.points.len() == 5
         )));
     }
 

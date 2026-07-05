@@ -4,7 +4,7 @@ use radiant::{
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use super::{
     native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
@@ -336,6 +336,101 @@ fn list_selection_cold_wav_queues_preview_audition_before_validation_finishes() 
             .active()
             .is_some(),
         "validation should remain active after fast preview scheduling"
+    );
+}
+
+#[test]
+fn list_selection_ignores_stale_preview_audition_decode_after_rapid_navigation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first-large-selection.wav");
+    let second = source_root.path().join("second-large-selection.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: first_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let stale_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("first cold row selection should queue preview decode");
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: second_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let latest_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("second cold row selection should replace preview decode");
+    assert_ne!(
+        stale_ticket, latest_ticket,
+        "rapid row navigation should replace the active preview decode ticket"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::PreviewAuditionDecoded {
+            completion: radiant::prelude::TaskCompletion {
+                ticket: stale_ticket,
+                output: crate::native_app::app::PreviewAuditionResult {
+                    path: first_id.clone(),
+                    clip: Ok(crate::native_app::waveform::PreviewAuditionClip {
+                        path: PathBuf::from(&first_id),
+                        source_len: 2048,
+                        source_modified: Some(std::time::SystemTime::UNIX_EPOCH),
+                        samples: Arc::from([0.25_f32, -0.25, 0.0, 0.125]),
+                        sample_rate: 44_100,
+                        channels: 1,
+                        frames: 4,
+                        normalized_gain: 1.0,
+                    }),
+                },
+            },
+            started_at: std::time::Instant::now(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "stale preview decode completion must not move selection back"
+    );
+    assert_eq!(
+        state.background.preview_audition_task.active(),
+        Some(latest_ticket),
+        "stale preview decode completion must not consume the latest decode ticket"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_clip(std::path::Path::new(&first_id))
+            .is_none(),
+        "stale preview decode completion must not populate the preview cache for an old target"
+    );
+    assert_ne!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(first_id.as_str()),
+        "stale preview decode completion must not start early playback for the old target"
     );
 }
 

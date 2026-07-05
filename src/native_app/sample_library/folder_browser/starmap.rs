@@ -634,6 +634,44 @@ mod tests {
         }
     }
 
+    fn write_sparse_wav_i16(path: &Path, channels: u16, frames: u32) {
+        let channels = channels.max(1);
+        let sample_rate = 48_000_u32;
+        let bits_per_sample = 16_u16;
+        let block_align = channels * (bits_per_sample / 8);
+        let byte_rate = sample_rate * u32::from(block_align);
+        let data_bytes = frames
+            .checked_mul(u32::from(block_align))
+            .expect("test wav data size");
+        let riff_size = 36_u32.checked_add(data_bytes).expect("test wav riff size");
+        let mut file = std::fs::File::create(path).expect("create sparse wav");
+        use std::io::Write;
+        file.write_all(b"RIFF").expect("write riff");
+        file.write_all(&riff_size.to_le_bytes())
+            .expect("write riff size");
+        file.write_all(b"WAVE").expect("write wave");
+        file.write_all(b"fmt ").expect("write fmt");
+        file.write_all(&16_u32.to_le_bytes())
+            .expect("write fmt size");
+        file.write_all(&1_u16.to_le_bytes())
+            .expect("write pcm format");
+        file.write_all(&channels.to_le_bytes())
+            .expect("write channels");
+        file.write_all(&sample_rate.to_le_bytes())
+            .expect("write sample rate");
+        file.write_all(&byte_rate.to_le_bytes())
+            .expect("write byte rate");
+        file.write_all(&block_align.to_le_bytes())
+            .expect("write block align");
+        file.write_all(&bits_per_sample.to_le_bytes())
+            .expect("write bits");
+        file.write_all(b"data").expect("write data chunk");
+        file.write_all(&data_bytes.to_le_bytes())
+            .expect("write data size");
+        file.set_len(44_u64 + u64::from(data_bytes))
+            .expect("extend sparse wav");
+    }
+
     #[test]
     fn starmap_position_is_stable_and_bounded() {
         let first = starmap_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
@@ -1045,7 +1083,7 @@ mod tests {
         let short = root.path().join("short.wav");
         let long = root.path().join("long.wav");
         std::fs::write(&short, []).expect("write short sample");
-        std::fs::write(&long, vec![0_u8; 2048]).expect("write long sample");
+        write_sparse_wav_i16(&long, 1, 1_024);
         let short_id = short.to_string_lossy().to_string();
         let long_id = long.to_string_lossy().to_string();
         let browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
@@ -1105,7 +1143,7 @@ mod tests {
     fn starmap_projection_marks_preview_heads_fast_ready_without_full_cache() {
         let root = tempfile::tempdir().expect("source root");
         let long = root.path().join("long.wav");
-        std::fs::write(&long, vec![0_u8; 2048]).expect("write long sample");
+        write_sparse_wav_i16(&long, 1, 1_024);
         let long_id = long.to_string_lossy().to_string();
         let browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
             root.path().to_path_buf(),

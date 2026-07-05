@@ -1067,6 +1067,12 @@ impl NativeAppState {
             return;
         };
         if !self.preview_audition_decode_matches_current_target(result.path.as_str()) {
+            log_sample_load_timing(
+                "browser.sample_load.preview_audition.decode_stale",
+                result.path.as_str(),
+                started_at.elapsed(),
+                false,
+            );
             self.record_preview_audition_decode_stale(result.path.as_str(), started_at);
             emit_gui_action(
                 "browser.select_sample",
@@ -1081,6 +1087,12 @@ impl NativeAppState {
         let clip = match result.clip {
             Ok(clip) => clip,
             Err(error) => {
+                log_sample_load_timing(
+                    "browser.sample_load.preview_audition.decode_error",
+                    result.path.as_str(),
+                    started_at.elapsed(),
+                    false,
+                );
                 self.waveform
                     .cache
                     .mark_preview_audition_attempted(Path::new(result.path.as_str()));
@@ -1101,6 +1113,12 @@ impl NativeAppState {
         if self.waveform.current.has_loaded_sample()
             && self.waveform.current.path() == Path::new(result.path.as_str())
         {
+            log_sample_load_timing(
+                "browser.sample_load.preview_audition.decode_superseded_by_full_load",
+                result.path.as_str(),
+                started_at.elapsed(),
+                false,
+            );
             emit_gui_action(
                 "browser.select_sample",
                 Some("browser"),
@@ -1111,6 +1129,12 @@ impl NativeAppState {
             );
             return;
         }
+        log_sample_load_timing(
+            "browser.sample_load.preview_audition.decode_ready",
+            result.path.as_str(),
+            started_at.elapsed(),
+            false,
+        );
         let options = FastAuditionOptions::preview_decode_completion(
             self.runtime_playback_origin_for_path(result.path.as_str()),
             !self.ui.chrome.starmap_audition_drag.is_some(),

@@ -24,6 +24,7 @@ mod rows;
 mod starmap_view;
 use header::{SampleBrowserHeaderBar, sample_browser_header_bar, sample_similarity_controls_bar};
 use rows::sample_browser_rows;
+pub(in crate::native_app) use starmap_view::paint_active_starmap_audition_overlay;
 use starmap_view::starmap_view;
 
 pub(super) const SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH: f32 = 190.0;
