@@ -165,22 +165,17 @@ fn normalized_layout_points(
     if raw_points.is_empty() {
         return HashMap::new();
     }
-    let (mut min_x, mut max_x) = (f32::INFINITY, f32::NEG_INFINITY);
-    let (mut min_y, mut max_y) = (f32::INFINITY, f32::NEG_INFINITY);
-    for point in raw_points.values().copied() {
-        min_x = min_x.min(point.x);
-        max_x = max_x.max(point.x);
-        min_y = min_y.min(point.y);
-        max_y = max_y.max(point.y);
-    }
+    let bounds = raw_layout_bounds(raw_points.values().copied());
+    let projection = AspectPreservingLayoutProjection::new(bounds, (0.04, 0.96), (0.06, 0.94));
     raw_points
         .into_iter()
         .map(|(file_id, point)| {
+            let (x, y) = projection.project(point.x, point.y);
             (
                 file_id,
                 StarmapLayoutPoint {
-                    x: normalize_layout_axis(point.x, min_x, max_x, 0.04, 0.96),
-                    y: normalize_layout_axis(point.y, min_y, max_y, 0.06, 0.94),
+                    x,
+                    y,
                     cluster_id: point.cluster_id,
                 },
             )
@@ -188,16 +183,123 @@ fn normalized_layout_points(
         .collect()
 }
 
-fn normalize_layout_axis(value: f32, min: f32, max: f32, out_min: f32, out_max: f32) -> f32 {
-    if !value.is_finite() || !min.is_finite() || !max.is_finite() {
-        return (out_min + out_max) * 0.5;
+fn raw_layout_bounds(
+    points: impl IntoIterator<Item = RawStarmapLayoutPoint>,
+) -> Option<RawStarmapLayoutBounds> {
+    let (mut min_x, mut max_x) = (f32::INFINITY, f32::NEG_INFINITY);
+    let (mut min_y, mut max_y) = (f32::INFINITY, f32::NEG_INFINITY);
+    let mut valid_count = 0;
+    for point in points {
+        if !point.x.is_finite() || !point.y.is_finite() {
+            continue;
+        }
+        min_x = min_x.min(point.x);
+        max_x = max_x.max(point.x);
+        min_y = min_y.min(point.y);
+        max_y = max_y.max(point.y);
+        valid_count += 1;
     }
-    let span = max - min;
-    if span.abs() <= f32::EPSILON {
-        return (out_min + out_max) * 0.5;
+    (valid_count > 0).then_some(RawStarmapLayoutBounds {
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+    })
+}
+
+#[derive(Clone, Copy)]
+struct RawStarmapLayoutBounds {
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+}
+
+#[derive(Clone, Copy)]
+struct AspectPreservingLayoutProjection {
+    center_x: f32,
+    center_y: f32,
+    raw_center_x: f32,
+    raw_center_y: f32,
+    raw_units_per_normalized_unit: f32,
+    out_min_x: f32,
+    out_max_x: f32,
+    out_min_y: f32,
+    out_max_y: f32,
+}
+
+impl AspectPreservingLayoutProjection {
+    fn new(
+        bounds: Option<RawStarmapLayoutBounds>,
+        output_x: (f32, f32),
+        output_y: (f32, f32),
+    ) -> Self {
+        let (out_min_x, out_max_x) = output_x;
+        let (out_min_y, out_max_y) = output_y;
+        let center_x = (out_min_x + out_max_x) * 0.5;
+        let center_y = (out_min_y + out_max_y) * 0.5;
+        let Some(bounds) = bounds else {
+            return Self::centered(
+                center_x, center_y, out_min_x, out_max_x, out_min_y, out_max_y,
+            );
+        };
+        let raw_center_x = (bounds.min_x + bounds.max_x) * 0.5;
+        let raw_center_y = (bounds.min_y + bounds.max_y) * 0.5;
+        let span_x = (bounds.max_x - bounds.min_x).abs();
+        let span_y = (bounds.max_y - bounds.min_y).abs();
+        let output_span_x = (out_max_x - out_min_x).abs().max(f32::EPSILON);
+        let output_span_y = (out_max_y - out_min_y).abs().max(f32::EPSILON);
+        let raw_units_per_normalized_unit = (span_x / output_span_x).max(span_y / output_span_y);
+        if raw_units_per_normalized_unit <= f32::EPSILON {
+            return Self::centered(
+                center_x, center_y, out_min_x, out_max_x, out_min_y, out_max_y,
+            );
+        }
+        Self {
+            center_x,
+            center_y,
+            raw_center_x,
+            raw_center_y,
+            raw_units_per_normalized_unit,
+            out_min_x,
+            out_max_x,
+            out_min_y,
+            out_max_y,
+        }
     }
-    let unit = ((value - min) / span).clamp(0.0, 1.0);
-    out_min + (out_max - out_min) * unit
+
+    fn centered(
+        center_x: f32,
+        center_y: f32,
+        out_min_x: f32,
+        out_max_x: f32,
+        out_min_y: f32,
+        out_max_y: f32,
+    ) -> Self {
+        Self {
+            center_x,
+            center_y,
+            raw_center_x: 0.0,
+            raw_center_y: 0.0,
+            raw_units_per_normalized_unit: f32::INFINITY,
+            out_min_x,
+            out_max_x,
+            out_min_y,
+            out_max_y,
+        }
+    }
+
+    fn project(self, x: f32, y: f32) -> (f32, f32) {
+        if !x.is_finite() || !y.is_finite() {
+            return (self.center_x, self.center_y);
+        }
+        (
+            (self.center_x + (x - self.raw_center_x) / self.raw_units_per_normalized_unit)
+                .clamp(self.out_min_x, self.out_max_x),
+            (self.center_y + (y - self.raw_center_y) / self.raw_units_per_normalized_unit)
+                .clamp(self.out_min_y, self.out_max_y),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -205,7 +307,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normalized_layout_positions_fill_map_domain() {
+    fn normalized_layout_positions_preserve_raw_shape_inside_map_domain() {
         let positions = normalized_layout_points(HashMap::from([
             (
                 String::from("a.wav"),
@@ -226,20 +328,48 @@ mod tests {
         ]));
 
         assert_eq!(
-            positions.get("a.wav"),
-            Some(&StarmapLayoutPoint {
-                x: 0.04,
-                y: 0.06,
-                cluster_id: Some(3),
-            })
+            positions.get("a.wav").map(|point| point.cluster_id),
+            Some(Some(3))
         );
+        let a = positions.get("a.wav").expect("a");
+        assert!((a.x - 0.28).abs() < 0.0001);
+        assert!((a.y - 0.06).abs() < 0.0001);
         assert_eq!(
-            positions.get("b.wav"),
-            Some(&StarmapLayoutPoint {
-                x: 0.96,
-                y: 0.94,
-                cluster_id: Some(7),
-            })
+            positions.get("b.wav").map(|point| point.cluster_id),
+            Some(Some(7))
         );
+        let b = positions.get("b.wav").expect("b");
+        assert!((b.x - 0.72).abs() < 0.0001);
+        assert!((b.y - 0.94).abs() < 0.0001);
+    }
+
+    #[test]
+    fn normalized_layout_positions_do_not_stretch_tiny_sets_into_rectangle() {
+        let positions = normalized_layout_points(HashMap::from([
+            (
+                String::from("a.wav"),
+                RawStarmapLayoutPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    cluster_id: None,
+                },
+            ),
+            (
+                String::from("b.wav"),
+                RawStarmapLayoutPoint {
+                    x: 0.10,
+                    y: 8.0,
+                    cluster_id: None,
+                },
+            ),
+        ]));
+
+        let a = positions.get("a.wav").expect("a");
+        let b = positions.get("b.wav").expect("b");
+
+        assert!((a.x - 0.4945).abs() < 0.0002);
+        assert!((b.x - 0.5055).abs() < 0.0002);
+        assert!((a.y - 0.06).abs() < 0.0001);
+        assert!((b.y - 0.94).abs() < 0.0001);
     }
 }
