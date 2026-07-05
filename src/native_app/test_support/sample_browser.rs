@@ -9,6 +9,8 @@ use crate::native_app::app_chrome::view_models::sample_browser::{
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 use radiant::runtime::UiSurface;
+use std::collections::HashMap;
+use wavecrate::sample_sources::{StarmapLayoutLoadResult, StarmapLayoutPoint};
 
 pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::view_contract::{
     DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
@@ -35,6 +37,61 @@ pub(in crate::native_app) fn sample_browser(state: &NativeAppState) -> ui::View<
 
 pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppState) {
     prepare_chrome_sample_browser_view(state);
+}
+
+pub(in crate::native_app) fn complete_starmap_layout(
+    state: &mut NativeAppState,
+    points_by_file: HashMap<String, StarmapLayoutPoint>,
+) {
+    let tags_by_file = state.metadata.tags_by_file.clone();
+    state
+        .library
+        .folder_browser
+        .prepare_starmap_layout(&tags_by_file);
+    let Some(request) = state
+        .library
+        .folder_browser
+        .take_starmap_layout_load_request(&tags_by_file)
+    else {
+        return;
+    };
+    state
+        .library
+        .folder_browser
+        .apply_starmap_layout_load_result(StarmapLayoutLoadResult {
+            signature: request.signature,
+            result: Ok(points_by_file),
+        });
+}
+
+pub(in crate::native_app) fn complete_starmap_layout_for_selected_source(
+    state: &mut NativeAppState,
+) -> Vec<String> {
+    let file_ids = state
+        .library
+        .folder_browser
+        .selected_source_audio_files()
+        .into_iter()
+        .map(|file| file.id.clone())
+        .collect::<Vec<_>>();
+    let total = file_ids.len().max(1) as f32;
+    let points_by_file = file_ids
+        .iter()
+        .enumerate()
+        .map(|(index, file_id)| {
+            let t = (index as f32 + 0.5) / total;
+            (
+                file_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.10 + 0.80 * t,
+                    y: 0.50 + ((index % 7) as f32 - 3.0) * 0.035,
+                    cluster_id: None,
+                },
+            )
+        })
+        .collect();
+    complete_starmap_layout(state, points_by_file);
+    file_ids
 }
 
 pub(in crate::native_app) fn sample_file_hit_target(
