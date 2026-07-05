@@ -90,12 +90,17 @@ pub(in crate::native_app) struct StarmapItem {
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) instant_audition_ready: bool,
     pub(in crate::native_app) preview_audition_ready: bool,
+    pub(in crate::native_app) preview_audition_candidate: bool,
     pub(in crate::native_app) missing: bool,
 }
 
 impl StarmapItem {
     pub(in crate::native_app) fn fast_audition_ready(&self) -> bool {
         self.instant_audition_ready || self.preview_audition_ready
+    }
+
+    pub(in crate::native_app) fn audition_candidate(&self) -> bool {
+        self.fast_audition_ready() || self.preview_audition_candidate
     }
 }
 
@@ -256,6 +261,7 @@ impl FolderBrowserState {
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
                     instant_audition_ready,
                     preview_audition_ready,
+                    preview_audition_candidate: preview_audition_candidate_for_starmap(file),
                     missing: file.is_missing(),
                 }
             })
@@ -380,6 +386,10 @@ fn instant_audition_ready_for_starmap(
 ) -> bool {
     !should_use_file_backed_wav_decode_for_entry(&file.extension, file.size_bytes)
         || instant_audition_sample_paths.contains(&file.id)
+}
+
+fn preview_audition_candidate_for_starmap(file: &FileEntry) -> bool {
+    file.extension.eq_ignore_ascii_case("wav") || file.extension.eq_ignore_ascii_case("wave")
 }
 
 impl FolderBrowserState {
@@ -619,6 +629,7 @@ mod tests {
             similarity_anchor: false,
             instant_audition_ready: true,
             preview_audition_ready: false,
+            preview_audition_candidate: true,
             missing: false,
         }
     }
@@ -1029,7 +1040,7 @@ mod tests {
     }
 
     #[test]
-    fn starmap_projection_marks_cold_long_wavs_as_not_audition_ready() {
+    fn starmap_projection_marks_cold_long_wavs_as_preview_candidates() {
         let root = tempfile::tempdir().expect("source root");
         let short = root.path().join("short.wav");
         let long = root.path().join("long.wav");
@@ -1049,7 +1060,15 @@ mod tests {
                 preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
-            .map(|item| (item.file_id, item.instant_audition_ready))
+            .map(|item| {
+                let audition_candidate = item.audition_candidate();
+                (
+                    item.file_id,
+                    item.instant_audition_ready,
+                    item.preview_audition_candidate,
+                    audition_candidate,
+                )
+            })
             .collect::<Vec<_>>();
         let ready_items = browser
             .starmap_projection(StarmapProjection {
@@ -1058,14 +1077,28 @@ mod tests {
                 preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
-            .map(|item| (item.file_id, item.instant_audition_ready))
+            .map(|item| {
+                let audition_candidate = item.audition_candidate();
+                (
+                    item.file_id,
+                    item.instant_audition_ready,
+                    item.preview_audition_candidate,
+                    audition_candidate,
+                )
+            })
             .collect::<Vec<_>>();
 
         assert_eq!(
             cold_items,
-            vec![(long_id.clone(), false), (short_id.clone(), true)]
+            vec![
+                (long_id.clone(), false, true, true),
+                (short_id.clone(), true, true, true)
+            ]
         );
-        assert_eq!(ready_items, vec![(long_id, true), (short_id, true)]);
+        assert_eq!(
+            ready_items,
+            vec![(long_id, true, true, true), (short_id, true, true, true)]
+        );
     }
 
     #[test]

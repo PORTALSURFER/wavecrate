@@ -15,7 +15,6 @@ use radiant::{
 use std::{
     collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
-    path::Path,
     sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
 
@@ -610,6 +609,36 @@ impl StarmapWidget {
         self.item_metadata
             .get_or_init(|| starmap_item_metadata(&self.items))
     }
+
+    fn sync_drag_hit_from_previous(&mut self, previous: &Self) {
+        let previous_model_hit = previous
+            .active_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.clone());
+        let current_model_hit = self
+            .active_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.clone());
+        let previous_local_hit = previous.last_hit_file_id.clone();
+        let previous_local_is_newer = previous_local_hit.is_some()
+            && previous_local_hit.as_deref() != previous_model_hit.as_deref();
+
+        if previous_local_is_newer && current_model_hit.as_deref() == previous_model_hit.as_deref()
+        {
+            self.last_hit_file_id = previous.last_hit_file_id.clone();
+            self.last_hit_index = previous.last_hit_index;
+            return;
+        }
+
+        if let Some(current_hit) = current_model_hit {
+            self.last_hit_index = self.item_metadata().item_indices.get(&current_hit).copied();
+            self.last_hit_file_id = Some(current_hit);
+            return;
+        }
+
+        self.last_hit_file_id = previous.last_hit_file_id.clone();
+        self.last_hit_index = previous.last_hit_index;
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -923,6 +952,7 @@ fn starmap_item_metadata(items: &[StarmapItem]) -> StarmapItemMetadata {
         item.similarity_anchor.hash(&mut paint_hasher);
         item.instant_audition_ready.hash(&mut paint_hasher);
         item.preview_audition_ready.hash(&mut paint_hasher);
+        item.preview_audition_candidate.hash(&mut paint_hasher);
         item.missing.hash(&mut paint_hasher);
         if item.focused && focused_item_index.is_none() {
             focused_item_index = Some(index);
@@ -1069,8 +1099,7 @@ impl Widget for StarmapWidget {
         };
         self.common.state = previous.common.state;
         self.gesture = previous.gesture.clone();
-        self.last_hit_file_id = previous.last_hit_file_id.clone();
-        self.last_hit_index = previous.last_hit_index;
+        self.sync_drag_hit_from_previous(previous);
         self.last_primary_position = previous.last_primary_position;
         self.last_pan_position = previous.last_pan_position;
         self.hovered_file_id = previous.hovered_file_id.clone();
@@ -1322,7 +1351,7 @@ fn queue_or_paint_item(
         paint_similarity_anchor_item(primitives, widget_id, center, color);
         return;
     }
-    if !item_audition_candidate(item) {
+    if !item.audition_candidate() {
         paint_cold_audition_item(primitives, widget_id, center, node_size, color);
         return;
     }
@@ -1549,26 +1578,13 @@ fn stroke_diamond(
 fn starmap_item_color(item: &StarmapItem) -> ui::Rgba8 {
     if item.missing {
         ui::Rgba8::new(120, 120, 120, 180)
-    } else if !item_audition_candidate(item) {
+    } else if !item.audition_candidate() {
         item.color.with_alpha(item.color.a.min(150))
     } else if !item.fast_audition_ready() {
         item.color.with_alpha(item.color.a.min(205))
     } else {
         item.color
     }
-}
-
-fn item_audition_candidate(item: &StarmapItem) -> bool {
-    item.fast_audition_ready() || item_preview_audition_candidate(item)
-}
-
-fn item_preview_audition_candidate(item: &StarmapItem) -> bool {
-    Path::new(&item.file_id)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            extension.eq_ignore_ascii_case("wav") || extension.eq_ignore_ascii_case("wave")
-        })
 }
 
 fn map_node_size(item_count: usize) -> f32 {
@@ -2359,6 +2375,90 @@ mod tests {
     }
 
     #[test]
+    fn starmap_widget_sync_prefers_new_controller_drag_hit_over_stale_local_hit() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let left_id = String::from("/samples/kick.wav");
+        let right_id = String::from("/samples/snare.wav");
+        let mut previous = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        previous.last_hit_file_id = Some(left_id.clone());
+        previous.last_hit_index = Some(0);
+
+        let mut next = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(right_id.clone()),
+                last_position: Point::new(150.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(
+            next.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(right_id.as_str()),
+            "a fresh controller drag target must not be overwritten by the previous widget-local hit"
+        );
+    }
+
+    #[test]
+    fn starmap_widget_sync_preserves_local_hit_ahead_of_controller_refresh() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let left_id = String::from("/samples/kick.wav");
+        let right_id = String::from("/samples/snare.wav");
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut previous = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        previous
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)))
+            .expect("pointer move should emit drag update");
+
+        let mut next = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(
+            next.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(right_id.as_str()),
+            "widget-local hit testing should still drive live overlay paint before controller refresh catches up"
+        );
+    }
+
+    #[test]
     fn active_starmap_drag_lookup_recovers_from_stale_cached_index() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let target = String::from("/samples/target.wav");
@@ -2985,6 +3085,9 @@ mod tests {
             similarity_anchor: false,
             instant_audition_ready: true,
             preview_audition_ready: false,
+            preview_audition_candidate: file_id.rsplit_once('.').is_some_and(|(_, extension)| {
+                extension.eq_ignore_ascii_case("wav") || extension.eq_ignore_ascii_case("wave")
+            }),
             missing: false,
         }
     }

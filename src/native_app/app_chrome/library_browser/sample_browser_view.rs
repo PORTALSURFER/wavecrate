@@ -274,6 +274,7 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 preview_audition_ready: false,
+                preview_audition_candidate: true,
                 missing: false,
             }]
             .into(),
@@ -333,6 +334,7 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 preview_audition_ready: false,
+                preview_audition_candidate: true,
                 missing: false,
             }]
             .into(),
@@ -392,6 +394,7 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 preview_audition_ready: false,
+                preview_audition_candidate: true,
                 missing: false,
             }]
             .into(),
@@ -438,6 +441,7 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 preview_audition_ready: false,
+                preview_audition_candidate: true,
                 missing: false,
             }],
             crate::native_app::app::StarmapViewport::default(),
@@ -480,6 +484,7 @@ mod tests {
                 similarity_anchor: false,
                 instant_audition_ready: true,
                 preview_audition_ready: false,
+                preview_audition_candidate: true,
                 missing: false,
             }],
             crate::native_app::app::StarmapViewport::default(),
@@ -598,6 +603,7 @@ mod tests {
                             similarity_anchor: false,
                             instant_audition_ready: true,
                             preview_audition_ready: false,
+                            preview_audition_candidate: true,
                             missing: false,
                         }]
                         .into(),
@@ -676,6 +682,7 @@ mod tests {
                         similarity_anchor: false,
                         instant_audition_ready: true,
                         preview_audition_ready: false,
+                        preview_audition_candidate: true,
                         missing: false,
                     }]
                     .into(),
@@ -760,6 +767,7 @@ mod tests {
                                 similarity_anchor: false,
                                 instant_audition_ready: true,
                                 preview_audition_ready: false,
+                                preview_audition_candidate: true,
                                 missing: false,
                             },
                             StarmapItem {
@@ -774,6 +782,7 @@ mod tests {
                                 similarity_anchor: false,
                                 instant_audition_ready: true,
                                 preview_audition_ready: false,
+                                preview_audition_candidate: true,
                                 missing: false,
                             },
                         ]
@@ -866,6 +875,7 @@ mod tests {
                                 similarity_anchor: false,
                                 instant_audition_ready: true,
                                 preview_audition_ready: false,
+                                preview_audition_candidate: true,
                                 missing: false,
                             },
                             StarmapItem {
@@ -880,6 +890,7 @@ mod tests {
                                 similarity_anchor: false,
                                 instant_audition_ready: true,
                                 preview_audition_ready: false,
+                                preview_audition_candidate: true,
                                 missing: false,
                             },
                         ]
