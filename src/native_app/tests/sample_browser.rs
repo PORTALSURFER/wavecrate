@@ -488,6 +488,64 @@ fn keyboard_navigation_cold_wav_queues_preview_audition_before_full_load() {
 }
 
 #[test]
+fn keyboard_navigation_stops_previous_preview_tail_before_cold_target_is_ready() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-first-keyboard.wav");
+    let second = source_root.path().join("b-second-keyboard.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id.clone());
+    state.audio.early_sample_playback_path = Some(first_id);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "keyboard navigation should update selection immediately"
+    );
+    assert_eq!(
+        state.audio.early_sample_playback_path, None,
+        "rapid keyboard/list navigation should stop the previous preview before the cold target is ready"
+    );
+    assert_eq!(state.audio.current_playback_span, None);
+    assert_eq!(
+        state.audio.playback_progress,
+        wavecrate::audio::PlaybackRuntimeProgress::default(),
+        "previous preview playback should not remain visually active while the next preview decodes"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "the next cold target should still use the shared preview-decode path"
+    );
+}
+
+#[test]
 fn keyboard_navigation_ignores_stale_preview_audition_decode_after_rapid_navigation() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a-first-keyboard.wav");

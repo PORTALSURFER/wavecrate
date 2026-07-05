@@ -106,7 +106,9 @@ impl NativeAppState {
             .is_some_and(|path| self.audio.early_sample_playback_path.as_deref() == Some(path));
         if self.audio.early_sample_playback_path.is_some() && !preserve_early_playback {
             self.stop_audio_output_playback();
+            self.audio.pending_runtime_start = None;
             self.audio.current_playback_span = None;
+            self.audio.playback_progress = Default::default();
         }
         if !preserve_early_playback {
             self.audio.early_sample_playback_path = None;
