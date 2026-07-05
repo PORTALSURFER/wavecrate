@@ -82,6 +82,7 @@ impl NativeAppState {
             | GuiMessage::SamplePlaybackReady(_)
             | GuiMessage::PreviewAuditionDecoded { .. }
             | GuiMessage::PreviewAuditionWarmFinished { .. }
+            | GuiMessage::InstantWaveformPreviewFinished { .. }
             | GuiMessage::SampleLoadFinished(_)
             | GuiMessage::WaveformCacheIndicatorRefreshFinished(_)
             | GuiMessage::WaveformCacheWarmFinished(_)
@@ -278,6 +279,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::SamplePlaybackReady(_) => "SamplePlaybackReady",
         GuiMessage::PreviewAuditionDecoded { .. } => "PreviewAuditionDecoded",
         GuiMessage::PreviewAuditionWarmFinished { .. } => "PreviewAuditionWarmFinished",
+        GuiMessage::InstantWaveformPreviewFinished { .. } => "InstantWaveformPreviewFinished",
         GuiMessage::PromoteStarmapAudition { .. } => "PromoteStarmapAudition",
         GuiMessage::SampleLoadFinished(_) => "SampleLoadFinished",
         GuiMessage::AudioPlayerOpenFinished(_) => "AudioPlayerOpenFinished",

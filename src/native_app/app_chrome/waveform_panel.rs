@@ -3,7 +3,9 @@ use radiant::prelude as ui;
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::waveform_panel::WaveformPanelViewModel;
 use crate::native_app::ui::ids as widget_ids;
-use crate::native_app::waveform::{self, WaveformInteraction, WaveformState};
+use crate::native_app::waveform::{
+    self, InstantWaveformPreviewTier, WaveformInteraction, WaveformState,
+};
 
 const WAVEFORM_STATUS_HEIGHT: f32 = 16.0;
 const WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH: f32 = 14.0;
@@ -16,6 +18,9 @@ pub(in crate::native_app) fn waveform_panel(
     ui::column([
         waveform_title_row(
             model.waveform,
+            model.instant_preview_active,
+            model.instant_preview_label.as_deref(),
+            model.instant_preview_tier,
             model.loading_label,
             model.failed_label.as_deref(),
             model.help_tooltips_enabled,
@@ -98,12 +103,25 @@ fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
 
 fn waveform_title_row(
     waveform: &WaveformState,
+    instant_preview_active: bool,
+    instant_preview_label: Option<&str>,
+    instant_preview_tier: Option<InstantWaveformPreviewTier>,
     loading_label: Option<&str>,
     failed_label: Option<&str>,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    let title = waveform_title(waveform, loading_label, failed_label);
-    if loading_label.is_some() || failed_label.is_some() || !waveform.has_loaded_sample() {
+    let title = waveform_title(
+        waveform,
+        instant_preview_label,
+        instant_preview_tier,
+        loading_label,
+        failed_label,
+    );
+    if instant_preview_active
+        || loading_label.is_some()
+        || failed_label.is_some()
+        || !waveform.has_loaded_sample()
+    {
         return ui::text_line(title, WAVEFORM_STATUS_HEIGHT);
     }
     ui::row([
@@ -126,9 +144,18 @@ fn loaded_sample_drag_handle(help_tooltips_enabled: bool) -> ui::View<GuiMessage
 
 fn waveform_title(
     waveform: &WaveformState,
+    instant_preview_label: Option<&str>,
+    instant_preview_tier: Option<InstantWaveformPreviewTier>,
     loading_label: Option<&str>,
     failed_label: Option<&str>,
 ) -> String {
+    if let Some(label) = instant_preview_label {
+        return match instant_preview_tier {
+            Some(InstantWaveformPreviewTier::Head) => format!("Previewing {label} | head"),
+            Some(InstantWaveformPreviewTier::Coarse) => format!("Previewing {label} | coarse"),
+            None => format!("Loading preview {label}"),
+        };
+    }
     if let Some(label) = loading_label {
         return format!("Loading {label}");
     }

@@ -14,6 +14,7 @@ mod playback_state;
 mod reload;
 mod types;
 mod validation_worker;
+mod visual_preview;
 mod worker;
 
 #[cfg(test)]

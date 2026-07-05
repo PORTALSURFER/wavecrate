@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use crate::native_app::app::{NativeAppState, NativeFileDropHover};
+use crate::native_app::app::{NativeAppState, NativeFileDropHover, sample_path_label};
 use crate::native_app::app_chrome::waveform_context_menu;
 use crate::native_app::waveform::WaveformState;
 
@@ -9,6 +9,10 @@ pub(in crate::native_app) struct WaveformPanelViewModel<'a> {
     pub(in crate::native_app) drop_hover: Option<&'a NativeFileDropHover>,
     pub(in crate::native_app) loading_label: Option<&'a str>,
     pub(in crate::native_app) failed_label: Option<String>,
+    pub(in crate::native_app) instant_preview_label: Option<String>,
+    pub(in crate::native_app) instant_preview_tier:
+        Option<crate::native_app::waveform::InstantWaveformPreviewTier>,
+    pub(in crate::native_app) instant_preview_active: bool,
     pub(in crate::native_app) block_input_while_loading: bool,
     pub(in crate::native_app) help_tooltips_enabled: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
@@ -24,7 +28,14 @@ impl<'a> WaveformPanelViewModel<'a> {
             drop_hover: state.ui.browser_interaction.native_file_drop_hover.as_ref(),
             loading_label: state.waveform.load.label.as_deref(),
             failed_label: state.waveform.load.selection.failed_waveform_label(),
-            block_input_while_loading: state.waveform_input_blocked_by_sample_load(),
+            instant_preview_label: state
+                .waveform
+                .instant_preview_path()
+                .map(|path| sample_path_label(&path.display().to_string())),
+            instant_preview_tier: state.waveform.instant_preview_tier(),
+            instant_preview_active: state.waveform.instant_preview_active(),
+            block_input_while_loading: state.waveform_input_blocked_by_sample_load()
+                || state.waveform.instant_preview_active(),
             help_tooltips_enabled: state.ui.chrome.help_tooltips_enabled,
             beat_guides_enabled: state.ui.chrome.beat_guides_enabled,
             beat_guide_count: state.ui.chrome.beat_guide_count,

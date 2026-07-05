@@ -1,7 +1,9 @@
 use radiant::prelude as ui;
 use std::path::Path;
 
-use crate::native_app::waveform::{PreviewAuditionClip, WaveformPlaybackReady, WaveformState};
+use crate::native_app::waveform::{
+    InstantWaveformPreview, PreviewAuditionClip, WaveformPlaybackReady, WaveformState,
+};
 
 pub(in crate::native_app) type SampleLoadTaskCompletion<T> =
     ui::KeyedTaskCompletion<ui::ResourceKey, T>;
@@ -33,7 +35,14 @@ pub(in crate::native_app) struct PreviewAuditionWarmResult {
     pub(in crate::native_app) attempted_paths: Vec<String>,
     pub(in crate::native_app) failed_paths: Vec<String>,
     pub(in crate::native_app) clips: Vec<PreviewAuditionClip>,
+    pub(in crate::native_app) waveform_previews: Vec<InstantWaveformPreview>,
     pub(in crate::native_app) errors: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::native_app) struct InstantWaveformPreviewResult {
+    pub(in crate::native_app) path: String,
+    pub(in crate::native_app) preview: Result<InstantWaveformPreview, String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -122,6 +131,12 @@ pub(in crate::native_app) enum CacheLoadState {
 impl PartialEq for SampleLoadResult {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.result.as_ref().err() == other.result.as_ref().err()
+    }
+}
+
+impl PartialEq for InstantWaveformPreviewResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path && self.preview.as_ref().err() == other.preview.as_ref().err()
     }
 }
 

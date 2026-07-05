@@ -54,6 +54,10 @@ impl NativeAppState {
                 completion,
                 started_at,
             } => self.finish_preview_audition_warm(completion, started_at),
+            GuiMessage::InstantWaveformPreviewFinished {
+                completion,
+                started_at,
+            } => self.finish_instant_waveform_preview(completion, started_at, context),
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result, context),
             GuiMessage::WaveformCacheIndicatorRefreshFinished(result) => {
                 self.finish_waveform_cache_indicator_refresh(result)

@@ -187,6 +187,7 @@ impl NativeAppState {
             }
             return;
         }
+        self.start_starmap_waveform_preview(path.as_str(), context, started_at);
         let ready_started_at = starmap_telemetry::stage_timer();
         let ready_outcome = self.start_fast_path_audition(
             path.as_str(),
