@@ -401,14 +401,14 @@ impl NativeAppState {
         }
         self.paint_loading_overlay(context, primitives);
         self.paint_playback_overlay(context, primitives);
-        self.paint_starmap_audition_drag_overlay(context, primitives);
+        self.paint_starmap_active_audition_overlay(context, primitives);
     }
 
     pub(in crate::native_app) fn should_paint_app_transient_overlay(&self) -> bool {
         !self.chrome_overlay_suppresses_waveform_transient_overlay()
             && (self.playback_visual_activity_active()
                 || self.waveform.load.label.is_some()
-                || self.ui.chrome.starmap_audition_drag.is_some())
+                || self.active_starmap_audition_file_id().is_some())
     }
 
     #[cfg(test)]
@@ -465,12 +465,12 @@ impl NativeAppState {
         );
     }
 
-    fn paint_starmap_audition_drag_overlay(
+    fn paint_starmap_active_audition_overlay(
         &mut self,
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        let Some(active_drag) = self.ui.chrome.starmap_audition_drag.as_ref() else {
+        let Some(active_file_id) = self.active_starmap_audition_file_id() else {
             return;
         };
         let Some(bounds) = context
@@ -487,8 +487,29 @@ impl NativeAppState {
             bounds,
             &items,
             self.ui.chrome.starmap_viewport,
-            active_drag,
+            active_file_id,
         );
+    }
+
+    fn active_starmap_audition_file_id(&self) -> Option<&str> {
+        self.ui
+            .chrome
+            .starmap_audition_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.as_deref())
+            .or(self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .as_deref())
+            .or_else(|| {
+                self.audio
+                    .pending_runtime_start
+                    .as_ref()
+                    .filter(|pending| pending.origin == "starmap_drag")
+                    .map(|pending| pending.path.as_str())
+            })
     }
 
     fn stop_playback_after_progress_error(&mut self, error: String) {

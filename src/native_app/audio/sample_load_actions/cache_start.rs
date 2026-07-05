@@ -1593,7 +1593,13 @@ fn quantized_starmap_preview_warm_zoom(value: f32) -> i32 {
 mod tests {
     use super::*;
     use radiant::runtime::Command;
-    use std::{collections::HashSet, fs, path::PathBuf, sync::Arc, time::SystemTime};
+    use std::{
+        collections::HashSet,
+        fs,
+        path::{Path, PathBuf},
+        sync::Arc,
+        time::SystemTime,
+    };
 
     fn after_messages(command: Command<GuiMessage>) -> Vec<GuiMessage> {
         match command {
@@ -1668,6 +1674,23 @@ mod tests {
         }
     }
 
+    fn write_sparse_wav_i16(path: &Path, channels: u16, frames: usize) {
+        let spec = hound::WavSpec {
+            channels,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+        for frame in 0..frames {
+            for channel in 0..channels {
+                let sample = ((frame + usize::from(channel)) % 256) as i16;
+                writer.write_sample(sample).expect("write sample");
+            }
+        }
+        writer.finalize().expect("finalize wav");
+    }
+
     #[test]
     fn starmap_drag_fast_audition_prefers_preview_decode_before_source_file_probe() {
         assert_eq!(
@@ -1725,6 +1748,55 @@ mod tests {
             FastAuditionOptions::starmap_drag().replace_policy,
             PlaybackRuntimeReplacePolicy::ClearPrevious,
             "starmap drag playback should replace the prior preview source immediately"
+        );
+    }
+
+    #[test]
+    fn starmap_drag_long_wav_queues_preview_head_decode() {
+        let source_root = tempfile::tempdir().expect("source root");
+        let sample = source_root.path().join("long.wav");
+        write_sparse_wav_i16(&sample, 1, 700);
+        let sample_id = sample.display().to_string();
+        let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+            .with_folder_browser(
+                crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                    wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+                ]),
+            )
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        state.ui.chrome.starmap_audition_drag =
+            Some(crate::native_app::app::StarmapAuditionDragState {
+                last_hit_file_id: Some(sample_id.clone()),
+                last_position: ui::Point::new(0.0, 0.0),
+                modifiers: Default::default(),
+            });
+        state.ui.chrome.starmap_audition_queue.active_file_id = Some(sample_id.clone());
+        let mut context = ui::UiUpdateContext::default();
+
+        assert!(
+            crate::native_app::waveform::should_use_file_backed_wav_decode(&sample),
+            "fixture should exercise the long/file-backed WAV threshold"
+        );
+        let outcome = state.start_fast_path_audition(
+            sample_id.as_str(),
+            &mut context,
+            Instant::now(),
+            FastAuditionOptions::starmap_drag(),
+        );
+
+        assert_eq!(
+            outcome,
+            InstantAuditionOutcome::AudioPending,
+            "long WAVs should queue the tiny preview-head decode instead of falling through to full foreground loading"
+        );
+        assert!(
+            state.background.preview_audition_task.active().is_some(),
+            "preview-head decode should be tracked as the active cancellable task"
+        );
+        assert!(
+            state.audio.pending_runtime_start.is_none(),
+            "the long WAV path should not synchronously probe or submit file-backed playback on the UI path"
         );
     }
 

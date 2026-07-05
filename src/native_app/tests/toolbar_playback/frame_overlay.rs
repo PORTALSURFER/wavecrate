@@ -51,6 +51,19 @@ fn active_starmap_drag_keeps_app_transient_overlay_active_without_waveform_overl
 }
 
 #[test]
+fn active_starmap_queue_keeps_app_transient_overlay_active_between_pointer_events() {
+    let mut state = gui_state_for_span_tests();
+    assert!(!state.should_paint_app_transient_overlay());
+
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(String::from("/samples/kick.wav"));
+
+    assert!(
+        state.should_paint_app_transient_overlay(),
+        "starmap active audition feedback should repaint even when the next pointer event has not arrived yet"
+    );
+}
+
+#[test]
 fn early_runtime_playback_handoff_still_uses_paint_only_frames() {
     let mut state = gui_state_for_span_tests();
     state.audio.early_sample_playback_path = Some(String::from("kick.wav"));

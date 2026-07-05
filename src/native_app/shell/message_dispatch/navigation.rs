@@ -88,7 +88,7 @@ impl NativeAppState {
                 self.promote_starmap_audition(ticket, path, context);
             }
             GuiMessage::FinishStarmapAuditionDrag => {
-                self.finish_starmap_audition_drag();
+                self.finish_starmap_audition_drag(context);
             }
             GuiMessage::SampleBrowserWindowChanged(change) => {
                 self.library
@@ -191,7 +191,7 @@ impl NativeAppState {
         self.enqueue_starmap_audition_hits(paths, modifiers, context);
     }
 
-    fn finish_starmap_audition_drag(&mut self) {
+    fn finish_starmap_audition_drag(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
         let started_at = starmap_telemetry::stage_timer();
         self.background.starmap_audition_advance_task.cancel();
         self.background.starmap_audition_promotion_task.cancel();
@@ -211,6 +211,7 @@ impl NativeAppState {
         self.audio.pending_sample_playback = None;
         self.ui.chrome.starmap_audition_drag = None;
         self.ui.chrome.starmap_audition_queue = Default::default();
+        context.request_paint_only();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::DragFinish),
             "controller.drag_finish",
@@ -543,6 +544,7 @@ impl NativeAppState {
         if let Some(drag) = self.ui.chrome.starmap_audition_drag.as_mut() {
             drag.last_hit_file_id = Some(path.clone());
         }
+        context.request_paint_only();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::HitStarted),
             "controller.start_next",
@@ -579,6 +581,7 @@ impl NativeAppState {
             return;
         }
         self.ui.chrome.starmap_audition_queue.active_file_id = None;
+        context.request_paint_only();
         self.start_next_starmap_audition_hit(context);
     }
 

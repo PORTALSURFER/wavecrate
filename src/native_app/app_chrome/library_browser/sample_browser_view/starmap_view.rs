@@ -107,11 +107,8 @@ pub(in crate::native_app) fn paint_active_starmap_audition_overlay(
     bounds: Rect,
     items: &[StarmapItem],
     viewport: StarmapViewport,
-    active_drag: &StarmapAuditionDragState,
+    active_file_id: &str,
 ) {
-    let Some(active_file_id) = active_drag.last_hit_file_id.as_deref() else {
-        return;
-    };
     let Some(item) = items.iter().find(|item| item.file_id == active_file_id) else {
         return;
     };
@@ -2339,11 +2336,6 @@ mod tests {
             starmap_item("/samples/kick.wav", 0.25, 0.5, color),
             starmap_item("/samples/snare.wav", 0.75, 0.5, color),
         ];
-        let active_drag = StarmapAuditionDragState {
-            last_hit_file_id: Some(String::from("/samples/snare.wav")),
-            last_position: Point::new(150.0, 50.0),
-            modifiers: PointerModifiers::default(),
-        };
         let mut primitives = Vec::new();
 
         paint_active_starmap_audition_overlay(
@@ -2351,7 +2343,7 @@ mod tests {
             bounds,
             &items,
             StarmapViewport::default(),
-            &active_drag,
+            "/samples/snare.wav",
         );
 
         assert!(primitives.iter().any(|primitive| matches!(
