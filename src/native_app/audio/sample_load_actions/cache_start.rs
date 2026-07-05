@@ -209,6 +209,7 @@ fn record_preview_audition_warm_plan(
     outcome: &'static str,
     reason: Option<&'static str>,
     plan: Option<&PreviewAuditionWarmPlan>,
+    elapsed: Option<Duration>,
 ) {
     if !starmap_telemetry::enabled() {
         return;
@@ -230,6 +231,9 @@ fn record_preview_audition_warm_plan(
         starmap_remaining_budget = plan
             .and_then(|plan| plan.starmap_remaining_budget)
             .unwrap_or_default(),
+        elapsed_ms = elapsed
+            .map(|elapsed| elapsed.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0),
         "Preview audition warm plan"
     );
 }
@@ -982,6 +986,7 @@ impl NativeAppState {
                 "yield",
                 Some(self.preview_audition_warm_yield_reason()),
                 None,
+                None,
             );
             return;
         }
@@ -993,12 +998,26 @@ impl NativeAppState {
         {
             return;
         }
+        let plan_started_at = starmap_telemetry::stage_timer();
         let plan = self.preview_audition_warm_candidates();
+        let plan_elapsed = starmap_telemetry::elapsed_since(plan_started_at);
         if plan.paths.is_empty() {
-            record_preview_audition_warm_plan(display_mode, "empty", None, Some(&plan));
+            record_preview_audition_warm_plan(
+                display_mode,
+                "empty",
+                None,
+                Some(&plan),
+                plan_elapsed,
+            );
             return;
         }
-        record_preview_audition_warm_plan(display_mode, "scheduled", None, Some(&plan));
+        record_preview_audition_warm_plan(
+            display_mode,
+            "scheduled",
+            None,
+            Some(&plan),
+            plan_elapsed,
+        );
         let paths = plan.paths;
         self.waveform
             .cache
