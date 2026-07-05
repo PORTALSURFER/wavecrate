@@ -338,8 +338,9 @@ def diagnostics(groups: dict[str, EventGroup]) -> list[str]:
     warnings: list[str] = []
     if "starmap_audition.event" not in groups and "starmap_audition.snapshot" not in groups:
         warnings.append(
-            "no starmap audition telemetry found; ensure WAVECRATE_HOTPATH_TELEMETRY=1 "
-            "and RUST_LOG includes perf::starmap_drag"
+            "no starmap audition events found; normal logs only include slow starmap "
+            "hotpath warnings, so run a dense drag repro with WAVECRATE_HOTPATH_TELEMETRY=1 "
+            "and RUST_LOG including perf::starmap_drag for full queue/hit/playback coverage"
         )
     if "fast_audition.decision" not in groups:
         warnings.append(

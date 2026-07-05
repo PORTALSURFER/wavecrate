@@ -472,7 +472,11 @@ playback startup, persistent waveform-cache reads, Reson decoder open/probe/seek
 async decode prefill, audio stream append handoff, and starmap drag-audition
 hit testing/queue/playback routing. Use with `--log` or an equivalent
 `RUST_LOG` filter so `perf::audio_start`, `perf::starmap_drag`, and
-`perf::hotpath` events are written to the launch log. For starmap playback
+`perf::hotpath` events are written to the launch log. Normal `--log` runs also
+emit warning-level `starmap_audition.slow_event` and
+`starmap_audition.slow_duration` records when a starmap audition hot phase
+crosses the slow-path threshold, so obvious drag stalls are still visible
+without full event telemetry. For starmap playback
 investigations, inspect `stage`, `outcome`, `hits_queued`, `hits_started`,
 `ready_started`, `ready_unavailable`, `validation_queued`,
 `runtime_started`, `runtime_failed`, `runtime_cancelled`,

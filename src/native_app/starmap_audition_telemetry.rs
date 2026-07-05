@@ -9,6 +9,7 @@ use std::{
 const HOTPATH_TELEMETRY_ENV: &str = "WAVECRATE_HOTPATH_TELEMETRY";
 
 const STARMAP_AUDITION_TELEMETRY_LOG_EVERY: u64 = 32;
+const STARMAP_AUDITION_SLOW_EVENT_THRESHOLD: Duration = Duration::from_millis(8);
 
 static STARMAP_AUDITION_TELEMETRY_ENABLED: OnceLock<bool> = OnceLock::new();
 static STARMAP_AUDITION_EVENTS_TOTAL: AtomicU64 = AtomicU64::new(0);
@@ -132,12 +133,25 @@ pub(in crate::native_app) enum StarmapAuditionDuration {
     StartTotal,
 }
 
+impl StarmapAuditionDuration {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Focus => "focus",
+            Self::WidgetHitTest => "widget_hit_test",
+            Self::WidgetPaintBuild => "widget_paint_build",
+            Self::ReadySource => "ready_source",
+            Self::RuntimeStart => "runtime_start",
+            Self::StartTotal => "start_total",
+        }
+    }
+}
+
 pub(in crate::native_app) fn enabled() -> bool {
     *STARMAP_AUDITION_TELEMETRY_ENABLED.get_or_init(|| env_var_truthy(HOTPATH_TELEMETRY_ENV))
 }
 
 pub(in crate::native_app) fn stage_timer() -> Option<Instant> {
-    enabled().then(Instant::now)
+    Some(Instant::now())
 }
 
 pub(in crate::native_app) fn elapsed_since(started_at: Option<Instant>) -> Option<Duration> {
@@ -146,6 +160,7 @@ pub(in crate::native_app) fn elapsed_since(started_at: Option<Instant>) -> Optio
 
 pub(in crate::native_app) fn record_duration(counter: StarmapAuditionDuration, duration: Duration) {
     if !enabled() {
+        record_slow_duration_if_needed(counter, duration);
         return;
     }
     match counter {
@@ -211,6 +226,7 @@ pub(in crate::native_app) fn record_event(
     elapsed: Option<Duration>,
 ) {
     if !enabled() {
+        record_slow_event_if_needed(stage, outcome, path, hit_count, queue_len, active, elapsed);
         return;
     }
     record_max_usize(&STARMAP_AUDITION_HIT_COUNT_MAX, hit_count);
@@ -234,6 +250,48 @@ pub(in crate::native_app) fn record_event(
         "Starmap audition telemetry event"
     );
     maybe_emit_starmap_audition_telemetry(sample_tick);
+}
+
+fn record_slow_event_if_needed(
+    stage: &'static str,
+    outcome: &'static str,
+    path: Option<&str>,
+    hit_count: usize,
+    queue_len: usize,
+    active: bool,
+    elapsed: Option<Duration>,
+) {
+    let Some(elapsed) = elapsed.filter(|elapsed| *elapsed >= STARMAP_AUDITION_SLOW_EVENT_THRESHOLD)
+    else {
+        return;
+    };
+    tracing::warn!(
+        target: "wavecrate::debug::starmap_drag",
+        module = "starmap_audition",
+        event = "starmap_audition.slow_event",
+        stage,
+        outcome,
+        path = path.unwrap_or_default(),
+        hit_count,
+        queue_len,
+        active,
+        elapsed_ms = duration_ms(elapsed),
+        "Slow starmap audition event"
+    );
+}
+
+fn record_slow_duration_if_needed(counter: StarmapAuditionDuration, duration: Duration) {
+    if duration < STARMAP_AUDITION_SLOW_EVENT_THRESHOLD {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::starmap_drag",
+        module = "starmap_audition",
+        event = "starmap_audition.slow_duration",
+        phase = counter.as_str(),
+        elapsed_ms = duration_ms(duration),
+        "Slow starmap audition phase"
+    );
 }
 
 fn record_counter(counter: StarmapAuditionCounter) {
@@ -487,6 +545,24 @@ mod tests {
             StarmapAuditionCounter::QueueAdmitted.as_str(),
             "queue_admitted"
         );
+    }
+
+    #[test]
+    fn starmap_audition_duration_names_are_stable() {
+        assert_eq!(
+            StarmapAuditionDuration::WidgetHitTest.as_str(),
+            "widget_hit_test"
+        );
+        assert_eq!(
+            StarmapAuditionDuration::WidgetPaintBuild.as_str(),
+            "widget_paint_build"
+        );
+        assert_eq!(StarmapAuditionDuration::StartTotal.as_str(), "start_total");
+    }
+
+    #[test]
+    fn starmap_audition_stage_timer_is_available_for_slow_path_logs() {
+        assert!(stage_timer().is_some());
     }
 
     #[test]
