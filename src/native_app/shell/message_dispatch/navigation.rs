@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use crate::native_app::app::{
     ClipboardHandoffTarget, GuiMessage, NativeAppState, SampleBrowserDisplayMode,
@@ -18,6 +18,7 @@ use crate::native_app::starmap_audition_telemetry::{
 
 const STARMAP_AUDITION_ADVANCE_DELAY: Duration = Duration::ZERO;
 const STARMAP_AUDITION_PROMOTION_DELAY: Duration = Duration::from_millis(120);
+const STARMAP_AUDITION_READY_BURST_LIMIT: usize = 4;
 
 impl NativeAppState {
     pub(super) fn apply_navigation_dispatch(
@@ -314,7 +315,9 @@ impl NativeAppState {
         }
         let latest_path = admitted_paths.last().cloned();
         let paths_to_queue = if drag_active {
-            starmap_drag_audition_paths_to_queue(&admitted_paths)
+            starmap_drag_audition_paths_to_queue(&admitted_paths, |path| {
+                self.waveform.cache.hot_audition_ready(Path::new(path))
+            })
         } else {
             admitted_paths.clone()
         };
@@ -662,11 +665,24 @@ fn starmap_audition_modifiers() -> PointerModifiers {
     PointerModifiers::default()
 }
 
-fn starmap_drag_audition_paths_to_queue(admitted_paths: &[String]) -> Vec<String> {
+fn starmap_drag_audition_paths_to_queue(
+    admitted_paths: &[String],
+    hot_ready: impl Fn(&str) -> bool,
+) -> Vec<String> {
     let Some(latest_path) = admitted_paths.last() else {
         return Vec::new();
     };
-    vec![latest_path.clone()]
+    let mut ready_tail = admitted_paths
+        .iter()
+        .rev()
+        .skip(1)
+        .filter(|path| hot_ready(path.as_str()))
+        .take(STARMAP_AUDITION_READY_BURST_LIMIT.saturating_sub(1))
+        .cloned()
+        .collect::<Vec<_>>();
+    ready_tail.reverse();
+    ready_tail.push(latest_path.clone());
+    ready_tail
 }
 
 #[cfg(test)]
@@ -677,17 +693,44 @@ mod tests {
     fn starmap_drag_queue_keeps_latest_when_intermediate_hits_are_cold() {
         let admitted = ["a.wav", "b.wav", "c.wav"].map(String::from);
 
-        let queued = starmap_drag_audition_paths_to_queue(&admitted);
+        let queued = starmap_drag_audition_paths_to_queue(&admitted, |_| false);
 
         assert_eq!(queued, vec![String::from("c.wav")]);
     }
 
     #[test]
-    fn starmap_drag_queue_discards_ready_tail_before_latest() {
+    fn starmap_drag_queue_keeps_bounded_ready_tail_before_latest() {
         let admitted = ["a.wav", "b.wav", "c.wav", "d.wav", "e.wav"].map(String::from);
 
-        let queued = starmap_drag_audition_paths_to_queue(&admitted);
+        let queued = starmap_drag_audition_paths_to_queue(&admitted, |path| {
+            matches!(path, "b.wav" | "d.wav")
+        });
 
-        assert_eq!(queued, vec![String::from("e.wav")]);
+        assert_eq!(
+            queued,
+            vec![
+                String::from("b.wav"),
+                String::from("d.wav"),
+                String::from("e.wav")
+            ]
+        );
+    }
+
+    #[test]
+    fn starmap_drag_queue_caps_ready_burst_to_recent_hits() {
+        let admitted = ["a.wav", "b.wav", "c.wav", "d.wav", "e.wav", "f.wav"].map(String::from);
+
+        let queued = starmap_drag_audition_paths_to_queue(&admitted, |_| true);
+
+        assert_eq!(
+            queued,
+            vec![
+                String::from("c.wav"),
+                String::from("d.wav"),
+                String::from("e.wav"),
+                String::from("f.wav")
+            ],
+            "dense pointer samples should submit a bounded immediate burst ending at the latest hit"
+        );
     }
 }
