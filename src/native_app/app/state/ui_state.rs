@@ -10,7 +10,9 @@ use wavecrate::sample_sources::SampleSource;
 use wavecrate::sample_sources::config::AppSettingsCore;
 use wavecrate::selection::SelectionRange;
 
-use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover};
+use crate::native_app::app::{
+    AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover, SamplePlaybackSession,
+};
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextPointerAnchor,
 };
@@ -78,9 +80,11 @@ pub(in crate::native_app) struct StarmapAuditionDragState {
     pub(in crate::native_app) modifiers: PointerModifiers,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::native_app) struct StarmapAuditionQueueState {
     pub(in crate::native_app) active_file_id: Option<String>,
+    pub(in crate::native_app) last_played_file_id: Option<String>,
+    pub(in crate::native_app) last_played_session: Option<SamplePlaybackSession>,
     pub(in crate::native_app) queued_file_ids: VecDeque<String>,
     pub(in crate::native_app) modifiers: PointerModifiers,
     pub(in crate::native_app) gesture_moved: bool,

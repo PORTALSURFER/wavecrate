@@ -131,6 +131,9 @@ impl NativeAppState {
             {
                 self.schedule_next_starmap_audition_hit(context);
             }
+            if outcome == "playback_ready_playing" {
+                self.remember_starmap_last_played_sample(ready.path.as_str());
+            }
         }
         emit_gui_action(
             "browser.sample_load.playback_ready",

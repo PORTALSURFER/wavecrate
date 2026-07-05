@@ -36,6 +36,16 @@ struct CachedPlaybackOutcomes {
     error: &'static str,
 }
 
+#[derive(Clone, Copy)]
+struct FullSamplePlaybackOptions {
+    start_ratio: f32,
+    replace_policy: PlaybackRuntimeReplacePolicy,
+    origin: &'static str,
+    history: SamplePlaybackHistory,
+    show_start_marker: bool,
+    record_history: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum InstantAuditionOutcome {
     Started,
@@ -392,6 +402,16 @@ fn record_preview_audition_warm_phase_profile(
 }
 
 impl NativeAppState {
+    pub(in crate::native_app) fn remember_starmap_last_played_sample(&mut self, path: &str) {
+        self.ui.chrome.starmap_audition_queue.last_played_file_id = Some(path.to_owned());
+        self.ui.chrome.starmap_audition_queue.last_played_session = self
+            .audio
+            .sample_playback_session
+            .as_ref()
+            .filter(|session| session.request.path == path)
+            .cloned();
+    }
+
     pub(super) fn start_fast_path_audition(
         &mut self,
         path: &str,
@@ -1020,6 +1040,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if origin == "starmap_drag" {
+            self.remember_starmap_last_played_sample(path);
             self.schedule_starmap_audition_promotion(path.to_owned(), context);
         }
     }
@@ -1926,16 +1947,35 @@ impl NativeAppState {
         start_ratio: f32,
         replace_policy: PlaybackRuntimeReplacePolicy,
     ) -> Result<(), String> {
+        let current_path = self.waveform.current.path().display().to_string();
+        let origin = self.runtime_playback_origin_for_path(current_path.as_str());
+        self.submit_current_full_sample_runtime_playback(FullSamplePlaybackOptions {
+            start_ratio,
+            replace_policy,
+            origin,
+            history: SamplePlaybackHistory::Record,
+            show_start_marker: true,
+            record_history: true,
+        })
+    }
+
+    fn submit_current_full_sample_runtime_playback(
+        &mut self,
+        options: FullSamplePlaybackOptions,
+    ) -> Result<(), String> {
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
         let current_path = self.waveform.current.path().display().to_string();
-        let start_ratio = start_ratio.clamp(0.0, 0.999);
+        let start_ratio = options.start_ratio.clamp(0.0, 0.999);
         self.prepare_playback_mode_for_loaded_sample();
         if self.audio.playback_runtime.is_none() {
-            self.audio.pending_playback_start = Some(PendingPlaybackStart::record(
-                PlaybackIntent::new(start_ratio, 1.0),
-            ));
+            let intent = PlaybackIntent::new(start_ratio, 1.0);
+            self.audio.pending_playback_start = Some(if options.record_history {
+                PendingPlaybackStart::record(intent)
+            } else {
+                PendingPlaybackStart::skip_history(intent)
+            });
             if self.background.audio_open.active().is_some() {
                 return Ok(());
             }
@@ -1993,7 +2033,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,
-            replace_policy,
+            replace_policy: options.replace_policy,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, start_ratio),
         };
@@ -2015,20 +2055,28 @@ impl NativeAppState {
         let request_id = runtime
             .try_play(request)
             .map_err(|err| format!("submit playback request: {err:?}"))?;
-        self.waveform.current.start_playback(start_ratio);
+        if options.show_start_marker {
+            self.waveform.current.start_playback(start_ratio);
+        } else {
+            self.waveform
+                .current
+                .start_playback_without_marker(start_ratio);
+        }
         self.audio.current_playback_span = Some((0.0, 1.0));
-        let origin = self.runtime_playback_origin_for_path(current_path.as_str());
         let source_kind = self.current_waveform_runtime_source_kind();
         let session_request = SamplePlaybackRequest::waveform(
             current_path.clone(),
             (0.0, 1.0),
             SamplePlaybackIntent::ExplicitPlayback,
-            origin,
-            SamplePlaybackHistory::Record,
-        );
+            options.origin,
+            options.history,
+        )
+        .with_start_marker(options.show_start_marker);
         self.audio
             .start_sample_playback_session(session_request, request_id, source_kind);
-        self.record_current_playback_history(0.0, 1.0);
+        if options.record_history {
+            self.record_current_playback_history(0.0, 1.0);
+        }
         Ok(())
     }
 

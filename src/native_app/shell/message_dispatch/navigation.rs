@@ -199,8 +199,15 @@ impl NativeAppState {
             .ui
             .chrome
             .starmap_audition_queue
-            .active_file_id
+            .last_played_file_id
             .as_deref()
+            .or_else(|| {
+                self.ui
+                    .chrome
+                    .starmap_audition_queue
+                    .active_file_id
+                    .as_deref()
+            })
             .or_else(|| {
                 self.ui
                     .chrome
@@ -209,9 +216,12 @@ impl NativeAppState {
                     .and_then(|drag| drag.last_hit_file_id.as_deref())
             })
             .map(str::to_owned);
+        let active_target_for_log = active_target.clone();
+        let active_target = active_target_for_log.as_deref();
         self.background.starmap_audition_advance_task.cancel();
         if gesture_moved {
             self.background.starmap_audition_promotion_task.cancel();
+            self.background.settled_sample_promotion_task.cancel();
             self.background.preview_audition_task.cancel();
             self.background.sample_load_validation_task.cancel();
             self.background.deferred_sample_load_task.cancel();
@@ -226,7 +236,18 @@ impl NativeAppState {
             self.waveform.load.target_progress = 0.0;
             self.waveform.load.selection.cancel();
             self.audio.pending_sample_playback = None;
-            self.stop_starmap_drag_audio(active_target.as_deref(), "finish_after_motion");
+            self.restore_starmap_waveform_preview_after_drag();
+            let loaded_path = self
+                .waveform
+                .current
+                .has_loaded_sample()
+                .then(|| self.waveform.current.path().display().to_string());
+            if let Some(loaded_path) = loaded_path.as_deref() {
+                self.library
+                    .folder_browser
+                    .select_known_starmap_file_for_audition(loaded_path.to_owned());
+            }
+            self.keep_starmap_drag_audio_after_release(loaded_path.as_deref(), active_target);
         }
         self.ui.chrome.starmap_audition_drag = None;
         self.ui.chrome.starmap_audition_queue = Default::default();
@@ -239,11 +260,66 @@ impl NativeAppState {
             } else {
                 "cleared_click"
             },
-            None,
+            active_target,
             0,
             0,
             false,
             starmap_telemetry::elapsed_since(started_at),
+        );
+    }
+
+    fn keep_starmap_drag_audio_after_release(
+        &mut self,
+        loaded_path: Option<&str>,
+        active_target: Option<&str>,
+    ) {
+        let active_playback_path = self.audio.active_sample_playback_path().map(str::to_owned);
+        let playback_progress = self.audio.playback_progress.progress.unwrap_or(0.0);
+        let mut playback_span = (0.0, 1.0);
+        let last_played_session = self
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .last_played_session
+            .clone();
+        if let Some(session) = self.audio.sample_playback_session.as_mut() {
+            playback_span = session.request.span;
+            session.request.origin = "starmap_release";
+        }
+        if loaded_path.is_some_and(|path| active_playback_path.as_deref() == Some(path)) {
+            self.waveform
+                .current
+                .start_playback_without_marker(playback_progress);
+            self.audio.current_playback_span = Some(playback_span);
+        } else if loaded_path.is_some_and(|path| active_playback_path.as_deref() != Some(path))
+            && active_playback_path.is_some()
+            && self.waveform.current.has_loaded_sample()
+        {
+            if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+                let _ = runtime.try_cancel_pending_playback();
+            }
+            self.audio.clear_sample_playback_session();
+            if let Some(mut session) = last_played_session.filter(|session| {
+                loaded_path.is_some_and(|path| session.request.path.as_str() == path)
+            }) {
+                playback_span = session.request.span;
+                session.request.origin = "starmap_release";
+                self.audio.sample_playback_session = Some(session);
+            }
+            self.waveform
+                .current
+                .start_playback_without_marker(playback_progress);
+            self.audio.current_playback_span = Some(playback_span);
+        }
+        starmap_telemetry::record_event(
+            None,
+            "controller.drag_audio_keep",
+            "release",
+            active_playback_path.as_deref().or(active_target),
+            0,
+            0,
+            self.audio.playback_progress.active,
+            None,
         );
     }
 

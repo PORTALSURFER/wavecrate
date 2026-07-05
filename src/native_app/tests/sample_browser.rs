@@ -1811,7 +1811,7 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
 }
 
 #[test]
-fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
+fn starmap_drag_finish_after_motion_keeps_drag_playback_state() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -1863,12 +1863,259 @@ fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
         &mut context,
     );
 
-    assert_eq!(state.audio.sample_playback_session, None);
-    assert_eq!(state.audio.current_playback_span, None);
+    assert!(state.audio.sample_playback_session.is_some());
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
     assert_eq!(
         state.audio.playback_progress,
-        wavecrate::audio::PlaybackRuntimeProgress::default(),
-        "drag release after motion should not leave preview playback visually active"
+        wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(std::time::Duration::from_millis(90)),
+            looping: false,
+            progress: Some(0.25),
+            error: None,
+        },
+        "drag release after motion should keep active playback running"
+    );
+    assert_ne!(
+        state
+            .audio
+            .sample_playback_session
+            .as_ref()
+            .map(|session| session.request.origin),
+        Some("starmap_drag"),
+        "release should not leave kept playback tagged as an active starmap drag"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_drag_release_preserves_loaded_last_played_sample_not_latest_hit() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120, 60]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(second.clone())
+            .expect("second sample loads");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![third_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    state.ui.chrome.starmap_audition_queue.last_played_file_id = Some(second_id.clone());
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        second_id,
+        "preview_samples",
+    );
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+    assert!(
+        !state.waveform.current.has_loaded_sample(),
+        "test setup should reproduce the blank waveform preview-loading state"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(third_id.as_str()),
+        "test setup keeps the latest drag hit different from the audible sample"
+    );
+    let stale_settled_ticket = state.background.settled_sample_promotion_task.begin();
+
+    let mut release_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut release_context,
+    );
+    let (delayed, perform_count) =
+        collect_after_commands_and_perform_count(release_context.into_command());
+
+    assert_eq!(state.waveform.current.path(), second.as_path());
+    assert!(state.waveform.current.has_loaded_sample());
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second.to_string_lossy().as_ref()),
+        "release should keep keyboard playback aligned with the restored loaded sample"
+    );
+    assert!(
+        !state.waveform.instant_preview_active(),
+        "release should restore the authoritative waveform display"
+    );
+    assert!(
+        state.waveform.current.is_playing(),
+        "release should keep the loaded starmap sample playing"
+    );
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        state.audio.sample_playback_session.is_some(),
+        "release should preserve the matching playback session"
+    );
+    assert_ne!(
+        state
+            .audio
+            .sample_playback_session
+            .as_ref()
+            .map(|session| session.request.origin),
+        Some("starmap_drag"),
+        "release should not leave kept playback tagged as an active starmap drag"
+    );
+    assert_ne!(
+        state.waveform.current.path(),
+        third.as_path(),
+        "release should not retarget to the latest dense-node hit"
+    );
+    assert_eq!(
+        delayed,
+        Vec::new(),
+        "release should not schedule a delayed load for the last played sample"
+    );
+    assert_eq!(
+        perform_count, 0,
+        "release should not run a foreground sample load"
+    );
+    assert!(
+        state
+            .background
+            .settled_sample_promotion_task
+            .active()
+            .is_none(),
+        "release should cancel settled promotions that could retarget after mouse-up"
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SettledSamplePromotion {
+            ticket: stale_settled_ticket,
+            path: third_id.clone(),
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    assert_eq!(
+        state.waveform.current.path(),
+        second.as_path(),
+        "stale settled promotion after release must not load the latest hit"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_drag_release_replaces_mismatched_audio_target_with_restored_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120, 60]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(second.clone())
+            .expect("second sample loads");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![third_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    state.ui.chrome.starmap_audition_queue.last_played_file_id = Some(second_id.clone());
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        second_id.clone(),
+        "preview_samples",
+    );
+    state.ui.chrome.starmap_audition_queue.last_played_session =
+        state.audio.sample_playback_session.clone();
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        third_id.clone(),
+        "preview_samples",
+    );
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.waveform.current.path(), second.as_path());
+    assert!(state.waveform.current.has_loaded_sample());
+    assert!(
+        state.waveform.current.is_playing(),
+        "release should keep the restored loaded sample visually playing"
+    );
+    assert_ne!(
+        state.audio.active_sample_playback_path(),
+        Some(third_id.as_str()),
+        "release must not leave a stale dense-node hit as the active audio target"
+    );
+    assert_eq!(
+        state.audio.active_sample_playback_path(),
+        Some(second_id.as_str()),
+        "release should restore the previous active session instead of restarting playback"
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second.to_string_lossy().as_ref()),
+        "keyboard playback should remain aligned with the restored sample"
     );
     assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
 }
