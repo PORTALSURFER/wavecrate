@@ -171,6 +171,29 @@ fn async_source_prefill_waits_for_samples() {
 }
 
 #[test]
+fn async_source_buffer_seconds_caps_prefill_window() {
+    let source = TestSource {
+        samples: (0..100).map(|sample| sample as f32).collect(),
+        pos: 0,
+        sample_rate: 1_000,
+        channels: 1,
+        delay: Duration::ZERO,
+        error: None,
+        panic_at: None,
+        start_barrier: None,
+        start_barrier_waited: false,
+        dropped: None,
+    };
+    let mut async_source = AsyncSource::with_buffer_seconds(source, 0.01);
+    let available =
+        async_source.prefill_for_duration(Duration::from_millis(100), Duration::from_millis(50));
+    assert!(
+        available <= 10,
+        "tiny stream policy should not prefill beyond its ring buffer, got {available}"
+    );
+}
+
+#[test]
 fn async_source_waits_for_consumer_when_buffer_full() {
     let source = TestSource {
         samples: vec![0.1, 0.2],

@@ -3,8 +3,8 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{
-        emit_gui_action, sample_path_label, NativeAppState, SampleLoadTaskCompletion,
-        SamplePlaybackReady,
+        NativeAppState, SampleLoadTaskCompletion, SamplePlaybackReady, emit_gui_action,
+        sample_path_label,
     },
     audio::sample_load_actions::log_sample_load_timing,
     starmap_audition_telemetry::{

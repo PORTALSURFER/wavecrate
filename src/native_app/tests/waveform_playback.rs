@@ -412,6 +412,28 @@ fn sample_load_completion(
             path,
             result,
             autoplay,
+            display_after_instant_audition: false,
+        },
+    }
+}
+
+fn sample_load_completion_with_display_after_instant_audition(
+    ticket: ui::TaskTicket,
+    path: String,
+    result: Result<crate::native_app::test_support::state::WaveformState, String>,
+    autoplay: bool,
+) -> ui::KeyedTaskCompletion<
+    ui::ResourceKey,
+    crate::native_app::test_support::state::SampleLoadResult,
+> {
+    ui::KeyedTaskCompletion {
+        key: crate::native_app::audio::sample_load_actions::sample_resource_key(path.as_str()),
+        ticket,
+        output: crate::native_app::test_support::state::SampleLoadResult {
+            path,
+            result,
+            autoplay,
+            display_after_instant_audition: true,
         },
     }
 }

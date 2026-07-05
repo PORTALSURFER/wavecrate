@@ -25,6 +25,11 @@ impl NativeAppState {
                     context,
                 );
             }
+            GuiMessage::SettledSamplePromotion {
+                ticket,
+                path,
+                scheduled_at,
+            } => self.promote_settled_sample_to_full_playback(ticket, path, scheduled_at, context),
             GuiMessage::SampleLoadPathValidated {
                 completion,
                 started_at,

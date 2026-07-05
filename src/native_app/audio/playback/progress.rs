@@ -5,7 +5,7 @@ use std::{
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{
-    NativeAppState, PendingRuntimePlaybackStart, emit_gui_action, sample_path_label,
+    emit_gui_action, sample_path_label, NativeAppState, PendingRuntimePlaybackStart,
 };
 use crate::native_app::app_chrome::library_browser::sample_browser_view;
 use crate::native_app::starmap_audition_telemetry::{
@@ -151,7 +151,7 @@ impl NativeAppState {
         let Some(pending) = self.audio.pending_runtime_start.take() else {
             return;
         };
-        if pending.id != started.id {
+        if pending.id != started.id || !self.runtime_start_matches_active_session(&pending) {
             log_runtime_playback_event(
                 "runtime.started",
                 "id_mismatch",
@@ -172,14 +172,15 @@ impl NativeAppState {
             Some(submit_elapsed),
             None,
         );
+        let source_updates_waveform = pending.visibility.updates_waveform_playhead();
         self.audio.output_resolved = Some(started.output);
-        self.audio.current_playback_span = Some(pending.span);
+        self.audio.current_playback_span = source_updates_waveform.then_some(pending.span);
         self.audio.playback_progress.active = true;
         self.audio.playback_progress.elapsed = Some(Duration::ZERO);
         self.audio.playback_progress.looping = self.audio.loop_playback;
         self.audio.playback_progress.progress = Some(started.playback_start);
         self.audio.playback_progress.error = None;
-        if self.waveform.current.path() == Path::new(&pending.path) {
+        if source_updates_waveform && self.waveform.current.path() == Path::new(&pending.path) {
             if pending.show_start_marker {
                 self.waveform.current.start_playback(started.playback_start);
             } else {
@@ -199,7 +200,7 @@ impl NativeAppState {
         let Some(pending) = self.audio.pending_runtime_start.take() else {
             return;
         };
-        if pending.id != id {
+        if pending.id != id || !self.runtime_start_matches_active_session(&pending) {
             log_runtime_playback_event(
                 "runtime.failed",
                 "id_mismatch",
@@ -225,12 +226,25 @@ impl NativeAppState {
             return;
         }
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
         self.audio.current_playback_span = None;
         self.waveform.current.stop_playback();
         self.ui.status.sample = format!(
             "Loaded {} | playback unavailable: {error}",
             sample_path_label(&pending.path)
         );
+    }
+
+    fn runtime_start_matches_active_session(&self, pending: &PendingRuntimePlaybackStart) -> bool {
+        self.audio
+            .sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                session.generation == pending.session_generation
+                    && session.runtime_request_id == Some(pending.id)
+                    && session.request.path == pending.path
+            })
     }
 
     fn finish_runtime_playback_cancelled(
@@ -268,6 +282,7 @@ impl NativeAppState {
         );
         if reason != PlaybackRuntimeCancellation::Superseded {
             self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
             self.audio.current_playback_span = None;
             self.waveform.current.stop_playback();
         }
@@ -321,9 +336,11 @@ impl NativeAppState {
             self.stop_playback_after_progress_error(error);
             return;
         }
-        if self.audio.pending_runtime_start.is_some() {
+        if let Some(pending) = self.audio.pending_runtime_start.as_ref() {
             if let Some(progress) = self.audio.playback_progress.progress {
-                self.waveform.current.set_playhead_ratio(progress);
+                if pending.visibility.updates_waveform_playhead() {
+                    self.waveform.current.set_playhead_ratio(progress);
+                }
             }
             return;
         }
@@ -335,6 +352,11 @@ impl NativeAppState {
         let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
+        if self.audio.early_sample_playback_kind
+            == Some(crate::native_app::app::EarlySamplePlaybackKind::PreviewSlice)
+        {
+            return;
+        }
 
         if self.loop_recovery_needed(
             should_be_looping,
@@ -537,6 +559,8 @@ impl NativeAppState {
         self.audio.pending_playback_start = None;
         self.audio.pending_runtime_start = None;
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
         if let Some(runtime) = self.audio.playback_runtime.take() {
             let _ = runtime.try_shutdown();
         }
@@ -576,6 +600,7 @@ impl NativeAppState {
             self.audio.loop_playback = false;
             self.waveform.current.stop_playback();
             self.audio.current_playback_span = None;
+            self.audio.clear_sample_playback_session();
             self.ui.status.sample = format!("Loop playback stopped: {err}");
             emit_gui_action(
                 "playback.loop.recover",
@@ -593,6 +618,8 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.playback_progress = Default::default();
+        self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
         emit_gui_action(
             "playback.progress",
             Some("transport"),
@@ -742,4 +769,47 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
 fn playback_error_indicates_output_unavailable(error: &str) -> bool {
     error.starts_with(AUDIO_OUTPUT_STREAM_ERROR_PREFIX)
         || error.contains(AUDIO_OUTPUT_UNAVAILABLE_ERROR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::{
+        app::EarlySamplePlaybackKind,
+        test_support::state::{NativeAppStateFixture, WaveformState},
+        waveform::test_decoded_waveform_file_from_mono_samples,
+    };
+    use std::{path::PathBuf, sync::Arc};
+
+    #[test]
+    fn preview_slice_runtime_progress_does_not_move_full_waveform_playhead() {
+        let path = PathBuf::from("preview-visual.wav");
+        let file =
+            test_decoded_waveform_file_from_mono_samples(path.clone(), vec![0.0, 0.5, -0.5, 0.0]);
+        let mut state = NativeAppStateFixture::default().build();
+        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
+        state.audio.early_sample_playback_path = Some(path.display().to_string());
+        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+        state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(80)),
+            looping: false,
+            progress: Some(0.5),
+            error: None,
+        };
+
+        state.refresh_runtime_playback_progress();
+
+        assert!(
+            !state.waveform.current.is_playing(),
+            "preview-slice playback should not mark the full waveform as playing"
+        );
+        assert_eq!(
+            state.waveform.current.playhead_ratio(),
+            None,
+            "preview-slice progress is normalized to the tiny cache slice, not the full waveform"
+        );
+        assert_eq!(state.audio.current_playback_span, None);
+        assert_eq!(state.audio.playback_progress.progress, Some(0.5));
+    }
 }

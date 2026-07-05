@@ -11,6 +11,7 @@ pub(in crate::native_app) struct SampleLoadResult {
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) result: Result<WaveformState, String>,
     pub(in crate::native_app) autoplay: bool,
+    pub(in crate::native_app) display_after_instant_audition: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

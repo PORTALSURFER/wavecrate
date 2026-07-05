@@ -27,7 +27,7 @@ pub use runtime::{
     PlaybackRuntimeEvent, PlaybackRuntimeGainNormalization, PlaybackRuntimeHandle,
     PlaybackRuntimeMode, PlaybackRuntimeProgress, PlaybackRuntimeReplacePolicy,
     PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeSpanUpdate,
-    PlaybackRuntimeStarted, PlaybackRuntimeSubmitError,
+    PlaybackRuntimeStarted, PlaybackRuntimeStreamPolicy, PlaybackRuntimeSubmitError,
 };
 
 #[derive(Clone)]
@@ -83,6 +83,7 @@ pub struct AudioPlayer {
     anti_clip_enabled: bool,
     anti_clip_fade: Duration,
     min_span_seconds: Option<f32>,
+    stream_policy: PlaybackRuntimeStreamPolicy,
     output: ResolvedOutput,
     #[cfg(test)]
     elapsed_override: Option<Duration>,

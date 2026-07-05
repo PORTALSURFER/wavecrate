@@ -85,6 +85,8 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
     }
 
     pub(super) fn cancel_inflight_sample_load(&mut self) {
@@ -109,9 +111,12 @@ impl NativeAppState {
             self.audio.pending_runtime_start = None;
             self.audio.current_playback_span = None;
             self.audio.playback_progress = Default::default();
+            self.audio.clear_sample_playback_session();
         }
         if !preserve_early_playback {
             self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
+            self.audio.clear_sample_playback_session();
         }
     }
 

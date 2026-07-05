@@ -111,6 +111,11 @@ pub(in crate::native_app) enum GuiMessage {
         check_cache: bool,
         scheduled_at: Instant,
     },
+    SettledSamplePromotion {
+        ticket: ui::TaskTicket,
+        path: String,
+        scheduled_at: Instant,
+    },
     SampleLoadPathValidated {
         completion: ui::TaskCompletion<SampleLoadPathValidation>,
         started_at: Instant,

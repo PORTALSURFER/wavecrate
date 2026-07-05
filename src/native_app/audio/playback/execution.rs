@@ -2,11 +2,15 @@ use super::{
     diagnostics::log_slow_playback_phase,
     intent::{PlaybackCommand, PlaybackIntent, PlaybackMode},
 };
-use crate::native_app::app::{NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart};
+use crate::native_app::app::{
+    NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart, SamplePlaybackIntent,
+    SamplePlaybackRequest, SamplePlaybackVisibility,
+};
 use std::time::Instant;
 use wavecrate::audio::{
     PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
-    PlaybackRuntimeRequest, PlaybackRuntimeSource, edit_fade_range_from_selection,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStreamPolicy,
+    edit_fade_range_from_selection,
 };
 
 impl NativeAppState {
@@ -135,13 +139,27 @@ impl NativeAppState {
         self.audio.playback_progress = Default::default();
         self.audio.current_playback_span =
             Some((command.resolved.start_ratio, command.resolved.end_ratio));
+        let session_request = SamplePlaybackRequest {
+            path: self.waveform.current.path().display().to_string(),
+            span: (command.resolved.start_ratio, command.resolved.end_ratio),
+            intent: SamplePlaybackIntent::WaveformSpan,
+            visibility: SamplePlaybackVisibility::Waveform,
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
+            show_start_marker: command.intent.show_start_marker,
+        };
+        let source_kind = self.current_waveform_runtime_source_kind();
+        let session_generation =
+            self.audio
+                .start_sample_playback_session(session_request.clone(), request_id, source_kind);
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            self.waveform.current.path().display().to_string(),
-            (command.resolved.start_ratio, command.resolved.end_ratio),
+            session_generation,
+            session_request.path,
+            session_request.span,
             command.intent.show_start_marker,
+            SamplePlaybackVisibility::Waveform,
             "waveform",
-            self.current_waveform_runtime_source_kind(),
+            source_kind,
         ));
         if record_history {
             self.record_current_playback_history(
@@ -219,6 +237,7 @@ impl NativeAppState {
         Ok(PlaybackRuntimeRequest {
             source,
             mode,
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,

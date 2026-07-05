@@ -47,6 +47,38 @@ impl Default for PlaybackRuntimeConfig {
     }
 }
 
+/// Decoder buffering policy for lazy/file-backed playback sources.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlaybackRuntimeStreamPolicy {
+    pub buffer_seconds: f32,
+    pub prefill_duration: Duration,
+    pub prefill_timeout: Duration,
+}
+
+impl PlaybackRuntimeStreamPolicy {
+    pub const fn full() -> Self {
+        Self {
+            buffer_seconds: 1.0,
+            prefill_duration: Duration::from_millis(5),
+            prefill_timeout: Duration::from_millis(5),
+        }
+    }
+
+    pub const fn transient_navigation() -> Self {
+        Self {
+            buffer_seconds: 0.12,
+            prefill_duration: Duration::from_millis(3),
+            prefill_timeout: Duration::from_millis(3),
+        }
+    }
+}
+
+impl Default for PlaybackRuntimeStreamPolicy {
+    fn default() -> Self {
+        Self::full()
+    }
+}
+
 /// Audio source payload and timing metadata for a playback command.
 #[derive(Clone, Debug)]
 pub enum PlaybackRuntimeSource {
@@ -209,6 +241,7 @@ impl PlaybackRuntimeGainNormalization {
 pub struct PlaybackRuntimeRequest {
     pub source: PlaybackRuntimeSource,
     pub mode: PlaybackRuntimeMode,
+    pub stream_policy: PlaybackRuntimeStreamPolicy,
     pub volume: f32,
     pub playback_gain: f32,
     pub playback_gain_normalization: Option<PlaybackRuntimeGainNormalization>,
@@ -434,6 +467,7 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         request: PlaybackRuntimeRequest,
     ) -> Result<PlaybackRuntimeStartedData, String> {
         self.player.set_volume(request.volume);
+        self.player.set_stream_policy(request.stream_policy);
         self.player
             .set_playback_gain(runtime_playback_gain_for_source(
                 request.playback_gain,
@@ -1446,6 +1480,7 @@ mod tests {
                 channels: 1,
             },
             mode: PlaybackRuntimeMode::OneShot { start, end: 1.0 },
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
             volume: 1.0,
             playback_gain: 1.0,
             playback_gain_normalization: None,

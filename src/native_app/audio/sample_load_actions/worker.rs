@@ -44,20 +44,26 @@ impl SampleLoadWorker {
         );
         if context.check_cancelled().is_err() {
             let autoplay = self.request.autoplay();
+            let display_after_instant_audition =
+                self.request.strategy() == SampleLoadStrategy::DisplayAfterInstantAudition;
             return SampleLoadResult {
                 path: self.request.into_path(),
                 result: Err(String::from("cancelled")),
                 autoplay,
+                display_after_instant_audition,
             };
         }
 
         let progress_reporter = Self::progress_reporter(events.clone());
         let result = self.load(&context, &events, &progress_reporter);
         let autoplay = self.request.autoplay();
+        let display_after_instant_audition =
+            self.request.strategy() == SampleLoadStrategy::DisplayAfterInstantAudition;
         SampleLoadResult {
             path: self.request.path().to_owned(),
             result,
             autoplay,
+            display_after_instant_audition,
         }
     }
 

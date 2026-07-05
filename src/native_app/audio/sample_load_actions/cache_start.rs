@@ -9,9 +9,10 @@ use std::{
 
 use crate::native_app::{
     app::{
-        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
-        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
-        emit_gui_action, sample_path_label,
+        emit_gui_action, sample_path_label, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
+        PendingPlaybackStart, PendingRuntimePlaybackStart, PreviewAuditionResult,
+        PreviewAuditionWarmResult, SampleBrowserDisplayMode, SamplePlaybackIntent,
+        SamplePlaybackRequest, SamplePlaybackVisibility, WaveformState,
     },
     audio::{
         playback::PlaybackIntent,
@@ -19,14 +20,14 @@ use crate::native_app::{
     },
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
-        load_cached_waveform_playback_descriptor_sidecar,
+        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
+        PreviewAuditionClip, WaveformPlaybackReady,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
 use wavecrate::audio::{
     PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
-    PlaybackRuntimeRequest, PlaybackRuntimeSource,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeStreamPolicy,
 };
 
 struct CachedPlaybackOutcomes {
@@ -234,6 +235,21 @@ fn sample_browser_display_mode_str(mode: SampleBrowserDisplayMode) -> &'static s
         SampleBrowserDisplayMode::List => "list",
         SampleBrowserDisplayMode::Map => "starmap",
     }
+}
+
+fn fast_audition_session_intent(options: FastAuditionOptions) -> SamplePlaybackIntent {
+    fast_audition_session_intent_for_origin(options.origin)
+}
+
+fn fast_audition_session_intent_for_origin(origin: &'static str) -> SamplePlaybackIntent {
+    match origin {
+        "starmap_drag" => SamplePlaybackIntent::StarmapDrag,
+        _ => SamplePlaybackIntent::TransientNavigation,
+    }
+}
+
+fn fast_audition_session_visibility() -> SamplePlaybackVisibility {
+    SamplePlaybackVisibility::Transient
 }
 
 fn record_preview_audition_warm_plan(
@@ -713,6 +729,7 @@ impl NativeAppState {
                     end: 1.0,
                 }
             },
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
             volume: self.audio.volume,
             playback_gain: 1.0,
             playback_gain_normalization: self
@@ -739,12 +756,30 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
-        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
+        let visibility = fast_audition_session_visibility();
+        self.audio.current_playback_span =
+            visibility.updates_waveform_playhead().then_some((0.0, 1.0));
+        let session_request = SamplePlaybackRequest {
+            path: path.to_owned(),
+            span: (0.0, 1.0),
+            intent: fast_audition_session_intent_for_origin(origin),
+            visibility,
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
+            show_start_marker: visibility.updates_waveform_playhead(),
+        };
+        let session_generation = self.audio.start_sample_playback_session(
+            session_request.clone(),
+            request_id,
+            "interleaved_f32_file",
+        );
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            path.to_owned(),
-            (0.0, 1.0),
-            true,
+            session_generation,
+            session_request.path,
+            session_request.span,
+            session_request.show_start_marker,
+            visibility,
             origin,
             "interleaved_f32_file",
         ));
@@ -818,6 +853,7 @@ impl NativeAppState {
                 start: 0.0,
                 end: 1.0,
             },
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
             volume: self.audio.volume,
             playback_gain: 1.0,
             playback_gain_normalization: self
@@ -844,12 +880,29 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
-        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
+        let visibility = SamplePlaybackVisibility::Transient;
+        self.audio.current_playback_span = None;
+        let session_request = SamplePlaybackRequest {
+            path: path.to_owned(),
+            span: (0.0, 1.0),
+            intent: SamplePlaybackIntent::TransientNavigation,
+            visibility,
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
+            show_start_marker: false,
+        };
+        let session_generation = self.audio.start_sample_playback_session(
+            session_request.clone(),
+            request_id,
+            "audio_file",
+        );
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            path.to_owned(),
-            (0.0, 1.0),
-            true,
+            session_generation,
+            session_request.path,
+            session_request.span,
+            session_request.show_start_marker,
+            visibility,
             origin,
             "audio_file",
         ));
@@ -936,6 +989,7 @@ impl NativeAppState {
                 start: 0.0,
                 end: 1.0,
             },
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization: None,
@@ -962,12 +1016,29 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.clone());
-        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+        self.audio.current_playback_span = None;
+        let visibility = fast_audition_session_visibility();
+        let session_request = SamplePlaybackRequest {
+            path: path.clone(),
+            span: (0.0, 1.0),
+            intent: fast_audition_session_intent(options),
+            visibility,
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
+            show_start_marker: false,
+        };
+        let session_generation = self.audio.start_sample_playback_session(
+            session_request.clone(),
+            request_id,
+            "preview_samples",
+        );
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            path.clone(),
-            (0.0, 1.0),
-            true,
+            session_generation,
+            session_request.path,
+            session_request.span,
+            session_request.show_start_marker,
+            visibility,
             options.origin,
             "preview_samples",
         ));
@@ -1717,6 +1788,7 @@ impl NativeAppState {
                     end: 1.0,
                 }
             },
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
             volume: self.audio.volume,
             playback_gain: 1.0,
             playback_gain_normalization: self
@@ -1742,13 +1814,29 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.clone());
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
         self.audio.current_playback_span = Some((0.0, 1.0));
         let origin = self.runtime_playback_origin_for_path(path.as_str());
+        let session_request = SamplePlaybackRequest {
+            path,
+            span: (0.0, 1.0),
+            intent: SamplePlaybackIntent::ExplicitPlayback,
+            visibility: SamplePlaybackVisibility::Waveform,
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
+            show_start_marker: true,
+        };
+        let session_generation = self.audio.start_sample_playback_session(
+            session_request.clone(),
+            request_id,
+            "decoded_samples",
+        );
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            path,
-            (0.0, 1.0),
-            true,
+            session_generation,
+            session_request.path,
+            session_request.span,
+            session_request.show_start_marker,
+            session_request.visibility,
             origin,
             "decoded_samples",
         ));
@@ -1769,6 +1857,31 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(path);
+        let replace_policy = if preview_handoff_start_ratio.is_some() {
+            PlaybackRuntimeReplacePolicy::ClearPrevious
+        } else {
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious
+        };
+        self.start_current_sample_autoplay_with_replace_policy(
+            path,
+            file_name,
+            preview_handoff_start_ratio.unwrap_or(0.0),
+            replace_policy,
+            started_at,
+            context,
+        );
+    }
+
+    pub(in crate::native_app::audio) fn start_current_sample_autoplay_with_replace_policy(
+        &mut self,
+        path: &str,
+        file_name: &str,
+        start_ratio: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         if !self.waveform.current.has_loaded_sample()
             || self.waveform.current.path() != Path::new(path)
         {
@@ -1782,6 +1895,9 @@ impl NativeAppState {
             );
             return;
         }
+        if self.library.folder_browser.selected_file_id() == Some(path) {
+            self.background.settled_sample_promotion_task.cancel();
+        }
         let audio_open_started_at = Instant::now();
         self.maybe_open_audio_player(context);
         log_sample_load_timing(
@@ -1793,6 +1909,8 @@ impl NativeAppState {
         self.start_cached_sample_playback(
             &file_name,
             SAMPLE_AUTOPLAY_OUTCOMES,
+            start_ratio,
+            replace_policy,
             started_at,
             context,
         );
@@ -1803,11 +1921,13 @@ impl NativeAppState {
         &mut self,
         file_name: &str,
         outcomes: CachedPlaybackOutcomes,
+        start_ratio: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let playback_started_at = Instant::now();
-        match self.start_current_full_sample_runtime_playback() {
+        match self.start_current_full_sample_runtime_playback(start_ratio, replace_policy) {
             Ok(()) => {
                 self.record_selected_sample_last_played(context);
                 log_sample_load_timing(
@@ -1852,14 +1972,25 @@ impl NativeAppState {
         }
     }
 
-    fn start_current_full_sample_runtime_playback(&mut self) -> Result<(), String> {
+    fn start_current_full_sample_runtime_playback(
+        &mut self,
+        start_ratio: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
+    ) -> Result<(), String> {
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
+        let current_path = self.waveform.current.path().display().to_string();
+        let start_ratio = start_ratio.clamp(0.0, 0.999);
+        if self.audio.early_sample_playback_path.as_deref() == Some(current_path.as_str()) {
+            self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
+        }
         self.prepare_playback_mode_for_loaded_sample();
         if self.audio.playback_runtime.is_none() {
-            self.audio.pending_playback_start =
-                Some(PendingPlaybackStart::record(PlaybackIntent::new(0.0, 1.0)));
+            self.audio.pending_playback_start = Some(PendingPlaybackStart::record(
+                PlaybackIntent::new(start_ratio, 1.0),
+            ));
             if self.background.audio_open.active().is_some() {
                 return Ok(());
             }
@@ -1905,20 +2036,21 @@ impl NativeAppState {
                 PlaybackRuntimeMode::Looped {
                     start: 0.0,
                     end: 1.0,
-                    offset: 0.0,
+                    offset: f64::from(start_ratio),
                 }
             } else {
                 PlaybackRuntimeMode::OneShot {
-                    start: 0.0,
+                    start: f64::from(start_ratio),
                     end: 1.0,
                 }
             },
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,
-            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+            replace_policy,
             edit_fade: None,
-            metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
+            metronome: self.playback_metronome_config_for_span(0.0, 1.0, start_ratio),
         };
         self.log_sample_identity_checkpoint(
             "playback.runtime.full_sample_request_built",
@@ -1938,20 +2070,71 @@ impl NativeAppState {
         let request_id = runtime
             .try_play(request)
             .map_err(|err| format!("submit playback request: {err:?}"))?;
-        self.waveform.current.start_playback(0.0);
-        let path = self.waveform.current.path().display().to_string();
+        self.waveform.current.start_playback(start_ratio);
         self.audio.current_playback_span = Some((0.0, 1.0));
+        let origin = self.runtime_playback_origin_for_path(current_path.as_str());
+        let source_kind = self.current_waveform_runtime_source_kind();
+        let session_request = SamplePlaybackRequest {
+            path: current_path.clone(),
+            span: (0.0, 1.0),
+            intent: SamplePlaybackIntent::ExplicitPlayback,
+            visibility: SamplePlaybackVisibility::Waveform,
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
+            show_start_marker: true,
+        };
+        let session_generation = self.audio.start_sample_playback_session(
+            session_request.clone(),
+            request_id,
+            source_kind,
+        );
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            path.clone(),
-            (0.0, 1.0),
-            true,
-            self.runtime_playback_origin_for_path(path.as_str()),
-            self.current_waveform_runtime_source_kind(),
+            session_generation,
+            session_request.path,
+            session_request.span,
+            session_request.show_start_marker,
+            session_request.visibility,
+            origin,
+            source_kind,
         ));
         self.record_current_playback_history(0.0, 1.0);
         Ok(())
     }
+
+    pub(in crate::native_app::audio) fn preview_slice_full_sample_handoff_ratio(
+        &self,
+        path: &str,
+    ) -> Option<f32> {
+        if self.audio.early_sample_playback_path.as_deref() != Some(path)
+            || self.audio.early_sample_playback_kind != Some(EarlySamplePlaybackKind::PreviewSlice)
+            || !self.waveform.current.has_loaded_sample()
+            || self.waveform.current.path() != Path::new(path)
+        {
+            return None;
+        }
+        preview_slice_full_sample_handoff_ratio(
+            self.waveform.current.duration_seconds(),
+            self.audio.playback_progress.elapsed,
+            self.audio.playback_progress.progress,
+        )
+    }
+}
+
+fn preview_slice_full_sample_handoff_ratio(
+    full_duration_seconds: f32,
+    elapsed: Option<Duration>,
+    preview_progress: Option<f32>,
+) -> Option<f32> {
+    if !full_duration_seconds.is_finite() || full_duration_seconds <= 0.0 {
+        return None;
+    }
+    let heard_seconds = elapsed.map(|elapsed| elapsed.as_secs_f32()).or_else(|| {
+        preview_progress.map(|progress| progress * PREVIEW_AUDITION_DURATION.as_secs_f32())
+    })?;
+    if !heard_seconds.is_finite() || heard_seconds <= 0.0 {
+        return None;
+    }
+    Some((heard_seconds / full_duration_seconds).clamp(0.0, 0.999))
 }
 
 fn preview_audition_can_decode(path: &str) -> bool {

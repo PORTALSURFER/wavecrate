@@ -14,6 +14,7 @@ pub(super) enum SampleLoadCompletion {
         path: String,
         waveform: Box<WaveformState>,
         autoplay: bool,
+        display_after_instant_audition: bool,
     },
     Failed {
         path: String,
@@ -37,6 +38,7 @@ impl SampleLoadCompletion {
                 path: load.path,
                 waveform: Box::new(waveform),
                 autoplay: load.autoplay,
+                display_after_instant_audition: load.display_after_instant_audition,
             },
             Err(error) => Self::Failed {
                 path: load.path,
@@ -109,6 +111,7 @@ impl NativeAppState {
                 path,
                 waveform,
                 autoplay,
+                display_after_instant_audition,
             } => {
                 if self.waveform.load.selection.selected_path.as_deref() != Some(path.as_str()) {
                     self.audio.pending_sample_playback = None;
@@ -128,7 +131,14 @@ impl NativeAppState {
                     );
                     return;
                 }
-                self.finish_loaded_sample_load(path, *waveform, autoplay, started_at, context);
+                self.finish_loaded_sample_load(
+                    path,
+                    *waveform,
+                    autoplay,
+                    display_after_instant_audition,
+                    started_at,
+                    context,
+                );
             }
         }
     }
@@ -150,6 +160,7 @@ mod tests {
                 path: String::from(path),
                 result,
                 autoplay: true,
+                display_after_instant_audition: false,
             },
         }
     }

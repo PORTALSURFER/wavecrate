@@ -1,9 +1,13 @@
 use std::{path::Path, time::Instant};
 
 use crate::native_app::{
-    app::{GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState, emit_gui_action},
+    app::{
+        emit_gui_action, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
+        PendingSamplePlayback, WaveformState,
+    },
     audio::{playback::RandomAuditionUnits, sample_load_actions::log_slow_sample_load_phase},
 };
+use wavecrate::audio::PlaybackRuntimeReplacePolicy;
 
 impl NativeAppState {
     pub(super) fn finish_loaded_sample_load(
@@ -11,6 +15,7 @@ impl NativeAppState {
         path: String,
         waveform: WaveformState,
         autoplay: bool,
+        display_after_instant_audition: bool,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
@@ -51,6 +56,22 @@ impl NativeAppState {
             replace_started_at,
         );
         self.schedule_harvest_seen_for_path(Path::new(&path), context);
+        if display_after_instant_audition
+            && self.audio.early_sample_playback_path.as_deref() == Some(path.as_str())
+            && self.audio.early_sample_playback_kind == Some(EarlySamplePlaybackKind::PreviewSlice)
+        {
+            self.ui.status.sample = format!("Preparing {file_name}");
+            emit_gui_action(
+                "browser.sample_load.finish",
+                Some("browser"),
+                Some(&file_name),
+                "display_ready_waiting_for_settled_full_playback",
+                started_at,
+                None,
+            );
+            return;
+        }
+        let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(&path);
         if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
@@ -69,7 +90,18 @@ impl NativeAppState {
             );
             return;
         }
-        self.start_current_sample_autoplay(&path, &file_name, started_at, context);
+        self.start_current_sample_autoplay_with_replace_policy(
+            &path,
+            &file_name,
+            preview_handoff_start_ratio.unwrap_or(0.0),
+            if preview_handoff_start_ratio.is_some() {
+                PlaybackRuntimeReplacePolicy::ClearPrevious
+            } else {
+                PlaybackRuntimeReplacePolicy::FadeOutPrevious
+            },
+            started_at,
+            context,
+        );
     }
 
     fn continue_early_sample_playback(
@@ -82,11 +114,17 @@ impl NativeAppState {
         if self.audio.early_sample_playback_path.as_deref() != Some(path) {
             return false;
         }
+        if self.audio.early_sample_playback_kind != Some(EarlySamplePlaybackKind::FullSample) {
+            self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
+            return false;
+        }
         let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
         self.waveform.current.start_playback(progress);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.record_current_playback_history(0.0, 1.0);
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
         self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
         emit_gui_action(

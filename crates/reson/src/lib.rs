@@ -38,9 +38,9 @@ pub use player::{
     PlaybackRuntimeEvent, PlaybackRuntimeGainNormalization, PlaybackRuntimeHandle,
     PlaybackRuntimeMode, PlaybackRuntimeProgress, PlaybackRuntimeReplacePolicy,
     PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeSpanUpdate,
-    PlaybackRuntimeStarted, PlaybackRuntimeSubmitError, PlaybackSeekBehavior,
-    PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan, PlaybackSpanPlanError,
-    PlaybackSpanRequest,
+    PlaybackRuntimeStarted, PlaybackRuntimeStreamPolicy, PlaybackRuntimeSubmitError,
+    PlaybackSeekBehavior, PlaybackSourceIdentity, PlaybackSourceKind, PlaybackSpanPlan,
+    PlaybackSpanPlanError, PlaybackSpanRequest,
 };
 pub use recording::{AudioRecorder, InputMonitor, RecordingOutcome};
 pub use time_stretch::Wsola;

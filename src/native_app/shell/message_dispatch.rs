@@ -76,6 +76,7 @@ impl NativeAppState {
             | GuiMessage::DragSampleFile { .. }
             | GuiMessage::ExternalDragCompleted(_) => self.apply_browser_dispatch(message, context),
             GuiMessage::DeferredSampleLoad { .. }
+            | GuiMessage::SettledSamplePromotion { .. }
             | GuiMessage::SampleLoadPathValidated { .. }
             | GuiMessage::SampleLoadProgress(_, _, _)
             | GuiMessage::SamplePlaybackReady(_)
@@ -271,6 +272,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::NavigateBrowser { .. } => "NavigateBrowser",
         GuiMessage::SelectSampleWithModifiers { .. } => "SelectSampleWithModifiers",
         GuiMessage::DeferredSampleLoad { .. } => "DeferredSampleLoad",
+        GuiMessage::SettledSamplePromotion { .. } => "SettledSamplePromotion",
         GuiMessage::SampleLoadPathValidated { .. } => "SampleLoadPathValidated",
         GuiMessage::SampleLoadProgress(_, _, _) => "SampleLoadProgress",
         GuiMessage::SamplePlaybackReady(_) => "SamplePlaybackReady",

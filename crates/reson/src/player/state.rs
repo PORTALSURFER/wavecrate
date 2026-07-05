@@ -12,6 +12,7 @@ use super::super::timebase::seconds_to_frames_round;
 
 use super::{
     AudioPlaybackSource, AudioPlayer, EditFadeHandle, EditFadeRange, PlaybackRuntimeReplacePolicy,
+    PlaybackRuntimeStreamPolicy,
 };
 
 impl AudioPlayer {
@@ -47,6 +48,7 @@ impl AudioPlayer {
             anti_clip_enabled: true,
             anti_clip_fade: DEFAULT_ANTI_CLIP_FADE,
             min_span_seconds: None,
+            stream_policy: PlaybackRuntimeStreamPolicy::default(),
             output: outcome.resolved,
             #[cfg(test)]
             elapsed_override: None,
@@ -250,6 +252,11 @@ impl AudioPlayer {
         self.min_span_seconds = min_span.filter(|value| value.is_finite() && *value > 0.0);
     }
 
+    /// Configure lazy-source buffering for the next playback request.
+    pub fn set_stream_policy(&mut self, policy: PlaybackRuntimeStreamPolicy) {
+        self.stream_policy = policy;
+    }
+
     /// Configure the anti-click fade used for playback edges.
     pub fn set_anti_clip_settings(&mut self, enabled: bool, fade_ms: f32) {
         self.anti_clip_enabled = enabled;
@@ -310,6 +317,7 @@ impl AudioPlayer {
             anti_clip_enabled: true,
             anti_clip_fade: DEFAULT_ANTI_CLIP_FADE,
             min_span_seconds: None,
+            stream_policy: PlaybackRuntimeStreamPolicy::default(),
             output: ResolvedOutput::default(),
             elapsed_override,
         }

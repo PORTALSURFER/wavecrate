@@ -2,7 +2,8 @@ use std::{sync::mpsc::Receiver, time::Instant};
 
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
-    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeProgress, ResolvedOutput,
+    PlaybackRuntimeEvent, PlaybackRuntimeHandle, PlaybackRuntimeProgress,
+    PlaybackRuntimeStreamPolicy, ResolvedOutput,
 };
 use wavecrate::sample_sources::config::AppSettingsCore;
 
@@ -32,17 +33,72 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
     pub(in crate::native_app) playback_history: PlaybackNavigationHistory,
     pub(in crate::native_app) early_sample_playback_path: Option<String>,
+    pub(in crate::native_app) early_sample_playback_kind: Option<EarlySamplePlaybackKind>,
+    pub(in crate::native_app) sample_playback_session: Option<SamplePlaybackSession>,
+    pub(in crate::native_app) next_sample_playback_generation: u64,
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
     pub(in crate::native_app) pending_runtime_start: Option<PendingRuntimePlaybackStart>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum EarlySamplePlaybackKind {
+    PreviewSlice,
+    FullSample,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(dead_code)]
+pub(in crate::native_app) enum SamplePlaybackIntent {
+    TransientNavigation,
+    SettledNavigation,
+    ExplicitPlayback,
+    WaveformSpan,
+    StarmapDrag,
+    RandomAudition,
+    Playmark,
+    Normalized,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum SamplePlaybackVisibility {
+    Transient,
+    Waveform,
+}
+
+impl SamplePlaybackVisibility {
+    pub(in crate::native_app) fn updates_waveform_playhead(self) -> bool {
+        matches!(self, Self::Waveform)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SamplePlaybackRequest {
+    pub(in crate::native_app) path: String,
+    pub(in crate::native_app) span: (f32, f32),
+    pub(in crate::native_app) intent: SamplePlaybackIntent,
+    pub(in crate::native_app) visibility: SamplePlaybackVisibility,
+    pub(in crate::native_app) stream_policy: PlaybackRuntimeStreamPolicy,
+    pub(in crate::native_app) show_start_marker: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SamplePlaybackSession {
+    pub(in crate::native_app) generation: u64,
+    pub(in crate::native_app) request: SamplePlaybackRequest,
+    pub(in crate::native_app) runtime_request_id: Option<PlaybackRequestId>,
+    pub(in crate::native_app) source_kind: &'static str,
+    pub(in crate::native_app) submitted_at: Instant,
+}
+
 pub(in crate::native_app) struct PendingRuntimePlaybackStart {
     pub(in crate::native_app) id: PlaybackRequestId,
+    pub(in crate::native_app) session_generation: u64,
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) span: (f32, f32),
     pub(in crate::native_app) show_start_marker: bool,
+    pub(in crate::native_app) visibility: SamplePlaybackVisibility,
     pub(in crate::native_app) submitted_at: Instant,
     pub(in crate::native_app) origin: &'static str,
     pub(in crate::native_app) source_kind: &'static str,
@@ -51,17 +107,21 @@ pub(in crate::native_app) struct PendingRuntimePlaybackStart {
 impl PendingRuntimePlaybackStart {
     pub(in crate::native_app) fn new(
         id: PlaybackRequestId,
+        session_generation: u64,
         path: String,
         span: (f32, f32),
         show_start_marker: bool,
+        visibility: SamplePlaybackVisibility,
         origin: &'static str,
         source_kind: &'static str,
     ) -> Self {
         Self {
             id,
+            session_generation,
             path,
             span,
             show_start_marker,
+            visibility,
             submitted_at: Instant::now(),
             origin,
             source_kind,
@@ -114,6 +174,9 @@ impl AudioAppState {
             pending_sample_playback: None,
             playback_history: PlaybackNavigationHistory::default(),
             early_sample_playback_path: None,
+            early_sample_playback_kind: None,
+            sample_playback_session: None,
+            next_sample_playback_generation: 1,
             playback_runtime: None,
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),
@@ -124,5 +187,47 @@ impl AudioAppState {
     #[cfg(test)]
     pub(in crate::native_app) fn for_tests() -> Self {
         Self::from_settings(&AppSettingsCore::default())
+    }
+
+    pub(in crate::native_app) fn start_sample_playback_session(
+        &mut self,
+        request: SamplePlaybackRequest,
+        runtime_request_id: PlaybackRequestId,
+        source_kind: &'static str,
+    ) -> u64 {
+        let generation = self.next_sample_playback_generation;
+        self.next_sample_playback_generation = self
+            .next_sample_playback_generation
+            .saturating_add(1)
+            .max(1);
+        self.sample_playback_session = Some(SamplePlaybackSession {
+            generation,
+            request,
+            runtime_request_id: Some(runtime_request_id),
+            source_kind,
+            submitted_at: Instant::now(),
+        });
+        generation
+    }
+
+    pub(in crate::native_app) fn clear_sample_playback_session(&mut self) {
+        self.sample_playback_session = None;
+    }
+
+    pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(
+        &mut self,
+        path: &str,
+    ) -> bool {
+        let Some(session) = self.sample_playback_session.as_mut() else {
+            return false;
+        };
+        if session.request.path != path
+            || session.request.visibility == SamplePlaybackVisibility::Waveform
+            || session.source_kind == "preview_samples"
+        {
+            return false;
+        }
+        session.request.visibility = SamplePlaybackVisibility::Waveform;
+        true
     }
 }

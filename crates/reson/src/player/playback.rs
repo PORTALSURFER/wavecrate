@@ -268,30 +268,35 @@ impl AudioPlayer {
             true,
             PlaybackSeekBehavior::FrameOffset(offset_frame),
         )?;
-        let diagnostic: Box<dyn Source<Item = f32> + Send> =
-            if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                let source = SamplesBuffer::from_arc_span_at(
-                    channels,
-                    sample_rate,
-                    samples,
-                    0,
-                    plan.sample_count() as usize,
-                    plan.seek_sample(),
-                )
-                .repeat_infinite();
-                Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                    source,
-                    plan.sample_count(),
-                ))
-            } else {
-                let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
-                let mut async_source = AsyncSource::new(loop_source);
-                async_source.prefill();
-                Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
-                    async_source,
-                    plan.sample_count(),
-                ))
-            };
+        let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
+            self.playback_samples.as_ref().cloned()
+        {
+            let source = SamplesBuffer::from_arc_span_at(
+                channels,
+                sample_rate,
+                samples,
+                0,
+                plan.sample_count() as usize,
+                plan.seek_sample(),
+            )
+            .repeat_infinite();
+            Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
+                source,
+                plan.sample_count(),
+            ))
+        } else {
+            let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
+            let mut async_source =
+                AsyncSource::with_buffer_seconds(loop_source, self.stream_policy.buffer_seconds);
+            async_source.prefill_for_duration(
+                self.stream_policy.prefill_duration,
+                self.stream_policy.prefill_timeout,
+            );
+            Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
+                async_source,
+                plan.sample_count(),
+            ))
+        };
 
         let (handle, format) =
             self.build_sink_with_fade(diagnostic, PlaybackRuntimeReplacePolicy::FadeOutPrevious)?;
@@ -361,8 +366,14 @@ impl AudioPlayer {
                 ))
             } else {
                 let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
-                let mut async_source = AsyncSource::new(loop_source);
-                async_source.prefill();
+                let mut async_source = AsyncSource::with_buffer_seconds(
+                    loop_source,
+                    self.stream_policy.buffer_seconds,
+                );
+                async_source.prefill_for_duration(
+                    self.stream_policy.prefill_duration,
+                    self.stream_policy.prefill_timeout,
+                );
                 let faded =
                     StaticSpanEdgeFadeSource::new(async_source, &plan, self.anti_clip_fade());
                 Box::new(crate::loop_diagnostic::LoopDiagnostic::new(
@@ -395,8 +406,14 @@ impl AudioPlayer {
                     Box::new(source)
                 } else {
                     let lazy_source = span_source_for_audio_source(self.audio_source()?, &plan)?;
-                    let mut async_source = AsyncSource::new(lazy_source);
-                    async_source.prefill();
+                    let mut async_source = AsyncSource::with_buffer_seconds(
+                        lazy_source,
+                        self.stream_policy.buffer_seconds,
+                    );
+                    async_source.prefill_for_duration(
+                        self.stream_policy.prefill_duration,
+                        self.stream_policy.prefill_timeout,
+                    );
                     let source = async_source
                         .take_samples(plan.sample_count() as usize)
                         .buffered();
@@ -515,8 +532,12 @@ impl AudioPlayer {
             ))
         } else {
             let loop_source = repeating_source_for_audio_source(self.audio_source()?, &plan)?;
-            let mut async_source = AsyncSource::new(loop_source);
-            async_source.prefill();
+            let mut async_source =
+                AsyncSource::with_buffer_seconds(loop_source, self.stream_policy.buffer_seconds);
+            async_source.prefill_for_duration(
+                self.stream_policy.prefill_duration,
+                self.stream_policy.prefill_timeout,
+            );
             let faded = StaticSpanEdgeFadeSource::new(async_source, &plan, self.anti_clip_fade());
             let editable = EditFadeSource::new_looped(
                 faded,

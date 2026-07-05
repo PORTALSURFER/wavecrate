@@ -1,17 +1,21 @@
 use radiant::{prelude as ui, widgets::PointerModifiers};
 use std::{
     path::{Path, PathBuf},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::app::{
+    emit_gui_action, sample_path_label, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
+    SamplePlaybackVisibility,
+};
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
 
-use super::validation_worker;
+use super::{types::SampleLoadStrategy, validation_worker};
 
 const SAMPLE_LOAD_VALIDATION_TASK_NAME: &str = "gui-sample-load-validate";
+const SETTLED_SAMPLE_PROMOTION_DELAY: Duration = Duration::from_millis(180);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct SampleLoadPathValidationRequest {
@@ -71,7 +75,6 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
-        self.start_selection_fast_audition(path.as_str(), context, started_at);
         self.queue_sample_load_path_validation(
             path,
             SampleLoadPathValidationIntent::Selection { autoplay: true },
@@ -104,7 +107,6 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
-        self.start_selection_fast_audition(path.as_str(), context, started_at);
         self.queue_sample_load_path_validation(
             path,
             SampleLoadPathValidationIntent::Selection { autoplay: true },
@@ -324,7 +326,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         self.background.sample_load_validation_task.cancel();
-        self.load_navigation_sample_validated(path, context, started_at);
+        self.load_navigation_sample_validated_with_policy(path, context, started_at, true);
     }
 
     fn load_sample_with_autoplay_validated(
@@ -339,35 +341,14 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
-        let instant_audition_started = autoplay
-            && self
-                .start_fast_path_audition(
-                    path.as_str(),
-                    context,
-                    started_at,
-                    super::cache_start::FastAuditionOptions::instant_navigation(),
-                )
-                .uses_ready_source();
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             autoplay,
             context,
             started_at,
-            if instant_audition_started {
-                ui::TaskPriority::Background
-            } else {
-                ui::TaskPriority::Interactive
-            },
-            if instant_audition_started {
-                "waveform_load_after_instant_audition"
-            } else {
-                "foreground_load_queued"
-            },
-            if instant_audition_started {
-                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::DisplayAfterInstantAudition
-            } else {
-                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::CacheThenDecode
-            },
+            ui::TaskPriority::Interactive,
+            "foreground_load_queued",
+            SampleLoadStrategy::CacheThenDecode,
         );
     }
 
@@ -376,6 +357,16 @@ impl NativeAppState {
         path: String,
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
+    ) {
+        self.load_navigation_sample_validated_with_policy(path, context, started_at, false);
+    }
+
+    fn load_navigation_sample_validated_with_policy(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+        transient_navigation: bool,
     ) {
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
@@ -389,14 +380,27 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        let instant_audition_started = self
-            .start_fast_path_audition(
+        let existing_early_playback = self.early_sample_playback_kind_for_path(path.as_str());
+        let instant_audition_outcome = if existing_early_playback.is_none() {
+            self.start_fast_path_audition(
                 path.as_str(),
                 context,
                 started_at,
                 super::cache_start::FastAuditionOptions::instant_navigation(),
             )
-            .uses_ready_source();
+        } else {
+            super::cache_start::InstantAuditionOutcome::Unavailable
+        };
+        if transient_navigation
+            && (existing_early_playback == Some(EarlySamplePlaybackKind::PreviewSlice)
+                || self
+                    .fast_audition_needs_settled_promotion(path.as_str(), instant_audition_outcome))
+        {
+            self.schedule_settled_sample_promotion(path.as_str(), context);
+        }
+        let instant_audition_started = existing_early_playback.is_some()
+            || instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started
+            || (transient_navigation && instant_audition_outcome.uses_ready_source());
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             true,
@@ -413,9 +417,9 @@ impl NativeAppState {
                 "foreground_load_queued"
             },
             if instant_audition_started {
-                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::DisplayAfterInstantAudition
+                SampleLoadStrategy::DisplayAfterInstantAudition
             } else {
-                crate::native_app::audio::sample_load_actions::types::SampleLoadStrategy::CacheThenDecode
+                SampleLoadStrategy::CacheThenDecode
             },
         );
     }
@@ -441,6 +445,123 @@ impl NativeAppState {
                     started_at,
                 },
             );
+    }
+
+    fn schedule_settled_sample_promotion(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let path = path.to_owned();
+        context.after_latest(
+            &mut self.background.settled_sample_promotion_task,
+            SETTLED_SAMPLE_PROMOTION_DELAY,
+            |ticket| GuiMessage::SettledSamplePromotion {
+                ticket,
+                path,
+                scheduled_at: Instant::now(),
+            },
+        );
+    }
+
+    pub(in crate::native_app) fn promote_settled_sample_to_full_playback(
+        &mut self,
+        ticket: ui::TaskTicket,
+        path: String,
+        scheduled_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if !self.background.settled_sample_promotion_task.finish(ticket) {
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "stale_ticket",
+                started_at,
+                None,
+            );
+            return;
+        }
+        if self.library.folder_browser.selected_file_id() != Some(path.as_str()) {
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "stale_selection",
+                started_at,
+                None,
+            );
+            return;
+        }
+        if self
+            .audio
+            .promote_sample_playback_session_to_waveform(path.as_str())
+        {
+            self.audio.current_playback_span = Some((0.0, 1.0));
+            if self.waveform.current.has_loaded_sample()
+                && self.waveform.current.path() == Path::new(path.as_str())
+            {
+                let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
+                self.waveform.current.start_playback_without_marker(progress);
+            }
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "session_promoted",
+                started_at,
+                None,
+            );
+            return;
+        }
+        if self.full_sample_playback_already_promoted_for_path(path.as_str()) {
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "already_promoted",
+                started_at,
+                None,
+            );
+            return;
+        }
+        log_settled_promotion_timing(path.as_str(), scheduled_at.elapsed());
+        self.background.preview_audition_task.cancel();
+        self.yield_sample_cache_warm_for_foreground_load(context);
+        self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
+        self.audio.pending_sample_playback = None;
+        if self.start_loaded_navigation_sample(path.as_str(), context, started_at) {
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "loaded_sample_promoted",
+                started_at,
+                None,
+            );
+            return;
+        }
+        if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "memory_cache_promoted",
+                started_at,
+                None,
+            );
+            return;
+        }
+        self.start_foreground_sample_load_with_priority(
+            path.as_str(),
+            true,
+            context,
+            started_at,
+            ui::TaskPriority::Interactive,
+            "settled_full_playback_queued",
+            SampleLoadStrategy::CacheThenDecode,
+        );
     }
 
     pub(in crate::native_app) fn finish_sample_load_path_validation(
@@ -537,6 +658,8 @@ impl NativeAppState {
             self.stop_audio_output_playback();
             self.audio.current_playback_span = None;
             self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
+            self.audio.clear_sample_playback_session();
         }
         self.ui.status.sample = format!("Removed missing {}", sample_path_label(path));
         if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
@@ -562,17 +685,94 @@ impl NativeAppState {
         true
     }
 
-    fn start_selection_fast_audition(
-        &mut self,
+    fn early_sample_playback_kind_for_path(&self, path: &str) -> Option<EarlySamplePlaybackKind> {
+        (self.audio.early_sample_playback_path.as_deref() == Some(path))
+            .then_some(self.audio.early_sample_playback_kind)
+            .flatten()
+    }
+
+    fn fast_audition_needs_settled_promotion(
+        &self,
         path: &str,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-        started_at: Instant,
-    ) {
-        self.start_fast_path_audition(
+        outcome: super::cache_start::InstantAuditionOutcome,
+    ) -> bool {
+        match outcome {
+            super::cache_start::InstantAuditionOutcome::Started => {
+                self.early_sample_playback_kind_for_path(path)
+                    == Some(EarlySamplePlaybackKind::PreviewSlice)
+            }
+            super::cache_start::InstantAuditionOutcome::AudioPending => true,
+            super::cache_start::InstantAuditionOutcome::Unavailable => false,
+        }
+    }
+
+    fn full_sample_playback_already_promoted_for_path(&self, path: &str) -> bool {
+        if let Some(session) = self.audio.sample_playback_session.as_ref()
+            && session.request.path == path
+        {
+            return session.request.visibility == SamplePlaybackVisibility::Waveform;
+        }
+        if self.audio.early_sample_playback_path.as_deref() == Some(path) {
+            return self.audio.early_sample_playback_kind
+                == Some(EarlySamplePlaybackKind::FullSample);
+        }
+        if self
+            .audio
+            .pending_runtime_start
+            .as_ref()
+            .is_some_and(|pending| pending.path == path && pending.visibility == SamplePlaybackVisibility::Waveform)
+        {
+            return true;
+        }
+        if !self.waveform.current.has_loaded_sample()
+            || self.waveform.current.path() != Path::new(path)
+        {
+            return false;
+        }
+        self.audio.pending_playback_start.is_some()
+            || (self.audio.current_playback_span.is_some()
+                && (self.waveform.current.is_playing() || self.audio.playback_progress.active))
+    }
+}
+
+fn log_settled_promotion_timing(path: &str, elapsed: Duration) {
+    tracing::debug!(
+        target: "wavecrate::debug::sample_load",
+        event = "browser.sample_load.settled_promotion",
+        path = %path,
+        delay_ms = elapsed.as_secs_f64() * 1000.0,
+        "Promoting settled preview audition to full sample playback"
+    );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::test_support::state::NativeAppStateFixture;
+
+    #[test]
+    fn full_sample_fast_audition_does_not_schedule_settled_replay() {
+        let mut state = NativeAppStateFixture::default().build();
+        let path = "full-ready.wav";
+        state.audio.early_sample_playback_path = Some(path.to_owned());
+        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
+
+        assert!(!state.fast_audition_needs_settled_promotion(
             path,
-            context,
-            started_at,
-            super::cache_start::FastAuditionOptions::instant_navigation(),
-        );
+            super::super::cache_start::InstantAuditionOutcome::Started,
+        ));
+    }
+
+    #[test]
+    fn preview_fast_audition_schedules_settled_promotion() {
+        let mut state = NativeAppStateFixture::default().build();
+        let path = "preview-ready.wav";
+        state.audio.early_sample_playback_path = Some(path.to_owned());
+        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+
+        assert!(state.fast_audition_needs_settled_promotion(
+            path,
+            super::super::cache_start::InstantAuditionOutcome::Started,
+        ));
     }
 }

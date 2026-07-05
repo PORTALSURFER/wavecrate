@@ -10,10 +10,7 @@ use ringbuf::{HeapRb, traits::*};
 use crate::Source;
 use crate::telemetry;
 
-const DEFAULT_BUFFER_SECONDS: f32 = 1.0;
 const PRODUCER_BACKOFF: Duration = Duration::from_millis(1);
-const PREFILL_DURATION: Duration = Duration::from_millis(5);
-const PREFILL_TIMEOUT: Duration = Duration::from_millis(5);
 const PREFILL_POLL: Duration = Duration::from_millis(1);
 
 /// Streams samples from a source on a background thread into a lock-free ring buffer.
@@ -40,11 +37,6 @@ impl<S> AsyncSource<S>
 where
     S: Source + 'static,
 {
-    /// Spawn a decoder thread with a 1-second buffer sized to the source format.
-    pub(crate) fn new(source: S) -> Self {
-        Self::with_buffer_seconds(source, DEFAULT_BUFFER_SECONDS)
-    }
-
     /// Spawn a decoder thread with a buffer sized to `buffer_seconds`.
     ///
     /// Non-finite or tiny buffer sizes are sanitized through [`buffer_samples`].
@@ -186,11 +178,6 @@ where
         {
             *slot = Some(String::from("Async decode thread panicked"));
         }
-    }
-
-    /// Prefill the ring buffer with a short slice of audio to avoid blocking playback.
-    pub(crate) fn prefill(&mut self) -> usize {
-        self.prefill_for_duration(PREFILL_DURATION, PREFILL_TIMEOUT)
     }
 
     /// Prefill the ring buffer for at least `duration`, waiting up to `timeout`.
@@ -352,7 +339,7 @@ fn buffer_samples(sample_rate: u32, channels: u16, buffer_seconds: f32) -> usize
     let buffer_seconds = if buffer_seconds.is_finite() {
         buffer_seconds.max(0.01)
     } else {
-        DEFAULT_BUFFER_SECONDS
+        1.0
     };
     (sample_rate * channels * buffer_seconds).ceil() as usize
 }
