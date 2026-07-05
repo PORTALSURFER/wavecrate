@@ -1,4 +1,5 @@
 use radiant::prelude as ui;
+use std::path::Path;
 
 use crate::native_app::waveform::{PreviewAuditionClip, WaveformPlaybackReady, WaveformState};
 
@@ -88,6 +89,13 @@ impl SampleSelectionLoadState {
         self.audition = AuditionLoadState::Cancelled;
         self.waveform = WaveformLoadStage::Idle;
     }
+
+    pub(in crate::native_app) fn failed_waveform_label(&self) -> Option<String> {
+        matches!(self.waveform, WaveformLoadStage::Failed(_))
+            .then(|| self.selected_path.as_deref())
+            .flatten()
+            .map(sample_file_label)
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -121,4 +129,12 @@ impl PartialEq for SampleLoadResult {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.result.as_ref().err() == other.result.as_ref().err()
     }
+}
+
+fn sample_file_label(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| path.to_owned())
 }

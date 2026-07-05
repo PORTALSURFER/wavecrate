@@ -214,6 +214,20 @@ fn failed_sample_load_status_names_and_focuses_sample() {
         state.ui.status.sample
     );
     assert_eq!(state.waveform.load.label, None);
+    let frame = crate::native_app::app_chrome::waveform_panel::waveform_panel(
+        crate::native_app::app_chrome::view_models::waveform_panel::WaveformPanelViewModel::from_app_state(&state),
+    )
+    .view_frame_at_size_with_default_theme(ui::Vector2::new(900.0, 220.0));
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Could not load b-failed.wav"),
+        "failed waveform loads should explain the empty waveform panel"
+    );
+    assert!(
+        !frame.paint_plan.contains_text("No sample loaded"),
+        "failed waveform loads should not collapse to a silent empty state"
+    );
 }
 
 #[test]
@@ -769,6 +783,127 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
             .cached_sample_paths
             .contains(&sample_path_string)
     );
+}
+
+#[test]
+fn long_summary_sample_load_completion_shows_loaded_waveform_panel() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("long-summary-miss.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+    let ticket = active_sample_load_ticket(&state).expect("long sample load queued");
+
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("long foreground summary load");
+    assert_eq!(
+        loaded.playback_source_file().as_deref(),
+        Some(sample_path.as_path()),
+        "long non-looped samples should be displayable from a file-backed summary"
+    );
+    assert!(loaded.playback_samples().is_none());
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(ticket, sample_path_string.clone(), Ok(loaded), true),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(state.waveform.current.path(), sample_path);
+    assert!(state.waveform.current.has_loaded_sample());
+    assert_eq!(state.waveform.load.label, None);
+    let frame = crate::native_app::app_chrome::waveform_panel::waveform_panel(
+        crate::native_app::app_chrome::view_models::waveform_panel::WaveformPanelViewModel::from_app_state(&state),
+    )
+    .view_frame_at_size_with_default_theme(ui::Vector2::new(900.0, 220.0));
+    assert!(
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text.starts_with("long-summary-miss.wav |")),
+        "loaded long samples should identify the waveform instead of leaving a blank panel"
+    );
+    assert!(!frame.paint_plan.contains_text("No sample loaded"));
+}
+
+#[test]
+fn long_summary_memory_cache_hit_shows_loaded_waveform_without_worker() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("long-summary-hit.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    let sample_path_string = sample_path.display().to_string();
+
+    let loaded =
+        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+            sample_path.clone(),
+            |_| {},
+            || false,
+            |_| {},
+        )
+        .expect("long foreground summary load");
+    assert_eq!(
+        loaded.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
+    );
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.remember_waveform(&loaded);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path_string.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert_eq!(state.waveform.current.path(), sample_path);
+    assert!(state.waveform.current.has_loaded_sample());
+    assert_eq!(state.waveform.load.label, None);
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "long summary memory cache hits should not queue foreground decode"
+    );
+    let frame = crate::native_app::app_chrome::waveform_panel::waveform_panel(
+        crate::native_app::app_chrome::view_models::waveform_panel::WaveformPanelViewModel::from_app_state(&state),
+    )
+    .view_frame_at_size_with_default_theme(ui::Vector2::new(900.0, 220.0));
+    assert!(
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text.starts_with("long-summary-hit.wav |"))
+    );
+    assert!(!frame.paint_plan.contains_text("No sample loaded"));
 }
 
 #[test]

@@ -17,6 +17,7 @@ pub(in crate::native_app) fn waveform_panel(
         waveform_title_row(
             model.waveform,
             model.loading_label,
+            model.failed_label.as_deref(),
             model.help_tooltips_enabled,
         ),
         waveform_viewport_with_loading_state(&model),
@@ -98,10 +99,11 @@ fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
 fn waveform_title_row(
     waveform: &WaveformState,
     loading_label: Option<&str>,
+    failed_label: Option<&str>,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    let title = waveform_title(waveform, loading_label);
-    if loading_label.is_some() || !waveform.has_loaded_sample() {
+    let title = waveform_title(waveform, loading_label, failed_label);
+    if loading_label.is_some() || failed_label.is_some() || !waveform.has_loaded_sample() {
         return ui::text_line(title, WAVEFORM_STATUS_HEIGHT);
     }
     ui::row([
@@ -122,9 +124,16 @@ fn loaded_sample_drag_handle(help_tooltips_enabled: bool) -> ui::View<GuiMessage
         .size(WAVEFORM_SAMPLE_DRAG_HANDLE_WIDTH, WAVEFORM_STATUS_HEIGHT)
 }
 
-fn waveform_title(waveform: &WaveformState, loading_label: Option<&str>) -> String {
+fn waveform_title(
+    waveform: &WaveformState,
+    loading_label: Option<&str>,
+    failed_label: Option<&str>,
+) -> String {
     if let Some(label) = loading_label {
         return format!("Loading {label}");
+    }
+    if let Some(label) = failed_label {
+        return format!("Could not load {label}");
     }
     if !waveform.has_loaded_sample() {
         return String::from("No sample loaded");
