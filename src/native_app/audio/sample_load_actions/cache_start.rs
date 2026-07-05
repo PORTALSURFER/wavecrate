@@ -142,6 +142,10 @@ impl FastAuditionProbe {
 struct PreviewAuditionWarmPlan {
     paths: Vec<String>,
     starmap_signature: Option<u64>,
+    inspected_count: usize,
+    candidate_count: usize,
+    eligible_count: usize,
+    starmap_remaining_budget: Option<usize>,
 }
 
 fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe; 4] {
@@ -190,6 +194,76 @@ fn record_fast_audition_decision(
             .map(|elapsed| elapsed.as_secs_f64() * 1000.0)
             .unwrap_or(0.0),
         "Fast audition decision"
+    );
+}
+
+fn sample_browser_display_mode_str(mode: SampleBrowserDisplayMode) -> &'static str {
+    match mode {
+        SampleBrowserDisplayMode::List => "list",
+        SampleBrowserDisplayMode::Map => "starmap",
+    }
+}
+
+fn record_preview_audition_warm_plan(
+    display_mode: SampleBrowserDisplayMode,
+    outcome: &'static str,
+    reason: Option<&'static str>,
+    plan: Option<&PreviewAuditionWarmPlan>,
+) {
+    if !starmap_telemetry::enabled() {
+        return;
+    }
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "preview_audition_warm",
+        event = "preview_audition.warm_plan",
+        display_mode = sample_browser_display_mode_str(display_mode),
+        outcome,
+        reason = reason.unwrap_or(""),
+        scheduled = plan.map(|plan| plan.paths.len()).unwrap_or(0),
+        inspected = plan.map(|plan| plan.inspected_count).unwrap_or(0),
+        candidates = plan.map(|plan| plan.candidate_count).unwrap_or(0),
+        eligible = plan.map(|plan| plan.eligible_count).unwrap_or(0),
+        starmap_signature = plan
+            .and_then(|plan| plan.starmap_signature)
+            .unwrap_or_default(),
+        starmap_remaining_budget = plan
+            .and_then(|plan| plan.starmap_remaining_budget)
+            .unwrap_or_default(),
+        "Preview audition warm plan"
+    );
+}
+
+fn record_preview_audition_warm_finished(
+    scheduled: usize,
+    attempted: usize,
+    decoded: usize,
+    errors: usize,
+    worker_elapsed: Duration,
+    commit_elapsed: Duration,
+) {
+    if !starmap_telemetry::enabled() {
+        return;
+    }
+    let outcome = if errors > 0 {
+        "errors"
+    } else if decoded == 0 {
+        "empty"
+    } else {
+        "decoded"
+    };
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "preview_audition_warm",
+        event = "preview_audition.warm_finished",
+        outcome,
+        scheduled,
+        attempted,
+        decoded,
+        errors,
+        worker_elapsed_ms = worker_elapsed.as_secs_f64() * 1000.0,
+        commit_elapsed_ms = commit_elapsed.as_secs_f64() * 1000.0,
+        "Preview audition warm finished"
     );
 }
 
@@ -899,9 +973,16 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let display_mode = self.ui.chrome.sample_browser_display;
         if self.preview_audition_warm_should_yield() {
             self.background.preview_audition_warm_task.cancel();
             self.waveform.cache.cancel_preview_audition_warm_schedule();
+            record_preview_audition_warm_plan(
+                display_mode,
+                "yield",
+                Some(self.preview_audition_warm_yield_reason()),
+                None,
+            );
             return;
         }
         if self
@@ -914,8 +995,10 @@ impl NativeAppState {
         }
         let plan = self.preview_audition_warm_candidates();
         if plan.paths.is_empty() {
+            record_preview_audition_warm_plan(display_mode, "empty", None, Some(&plan));
             return;
         }
+        record_preview_audition_warm_plan(display_mode, "scheduled", None, Some(&plan));
         let paths = plan.paths;
         self.waveform
             .cache
@@ -969,13 +1052,22 @@ impl NativeAppState {
             || self.playback_visual_activity_active()
     }
 
+    fn preview_audition_warm_yield_reason(&self) -> &'static str {
+        if self.ui.chrome.starmap_audition_drag.is_some() {
+            "starmap_drag"
+        } else if self.sample_cache_warm_should_pause_active() {
+            "sample_load_or_normalization"
+        } else if self.playback_visual_activity_active() {
+            "playback_active"
+        } else {
+            "unknown"
+        }
+    }
+
     fn preview_audition_warm_candidates(&mut self) -> PreviewAuditionWarmPlan {
         match self.ui.chrome.sample_browser_display {
             SampleBrowserDisplayMode::Map => self.preview_audition_warm_starmap_candidates(),
-            SampleBrowserDisplayMode::List => PreviewAuditionWarmPlan {
-                paths: self.preview_audition_warm_list_candidates(),
-                starmap_signature: None,
-            },
+            SampleBrowserDisplayMode::List => self.preview_audition_warm_list_candidates(),
         }
     }
 
@@ -1006,6 +1098,10 @@ impl NativeAppState {
             return PreviewAuditionWarmPlan {
                 paths: Vec::new(),
                 starmap_signature: Some(signature),
+                inspected_count: items.len(),
+                candidate_count: 0,
+                eligible_count: 0,
+                starmap_remaining_budget: Some(0),
             };
         }
         let mut candidates = Vec::new();
@@ -1033,7 +1129,8 @@ impl NativeAppState {
                 .total_cmp(&right.0)
                 .then_with(|| left.1.cmp(&right.1))
         });
-        let paths = candidates
+        let candidate_count = candidates.len();
+        let eligible_paths = candidates
             .into_iter()
             .map(|(_, path)| path)
             .filter(|path| {
@@ -1042,15 +1139,23 @@ impl NativeAppState {
                     .preview_audition_warm_needed(Path::new(path))
             })
             .take(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD)
+            .collect::<Vec<_>>();
+        let eligible_count = eligible_paths.len();
+        let paths = eligible_paths
+            .into_iter()
             .take(PREVIEW_AUDITION_WARM_BATCH.min(remaining_budget))
             .collect();
         PreviewAuditionWarmPlan {
             paths,
             starmap_signature: Some(signature),
+            inspected_count: items.len(),
+            candidate_count,
+            eligible_count,
+            starmap_remaining_budget: Some(remaining_budget),
         }
     }
 
-    fn preview_audition_warm_list_candidates(&mut self) -> Vec<String> {
+    fn preview_audition_warm_list_candidates(&mut self) -> PreviewAuditionWarmPlan {
         let ordered_paths: Vec<String> = {
             use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
 
@@ -1067,16 +1172,32 @@ impl NativeAppState {
                 PREVIEW_AUDITION_LIST_VIEW_BUDGET,
             )
         };
-        ordered_paths
+        let inspected_count = ordered_paths.len();
+        let candidate_paths = ordered_paths
             .into_iter()
             .filter(|path| preview_audition_can_decode(path))
+            .collect::<Vec<_>>();
+        let candidate_count = candidate_paths.len();
+        let eligible_paths = candidate_paths
+            .into_iter()
             .filter(|path| {
                 self.waveform
                     .cache
                     .preview_audition_warm_needed(Path::new(path))
             })
+            .collect::<Vec<_>>();
+        let eligible_count = eligible_paths.len();
+        let paths = eligible_paths
+            .into_iter()
             .take(PREVIEW_AUDITION_WARM_BATCH)
-            .collect()
+            .collect();
+        PreviewAuditionWarmPlan {
+            paths,
+            inspected_count,
+            candidate_count,
+            eligible_count,
+            ..PreviewAuditionWarmPlan::default()
+        }
     }
 
     fn preview_audition_list_warm_ordered_paths(
@@ -1302,12 +1423,23 @@ impl NativeAppState {
             &result.scheduled_paths,
             &result.attempted_paths,
         );
+        let scheduled_count = result.scheduled_paths.len();
+        let attempted_count = result.attempted_paths.len();
         let clip_count = result.clips.len();
+        let error_count = result.errors;
         for clip in result.clips {
             self.waveform.cache.store_preview_audition_clip(clip);
         }
         let worker_elapsed = started_at.elapsed();
         let commit_elapsed = finish_started_at.elapsed();
+        record_preview_audition_warm_finished(
+            scheduled_count,
+            attempted_count,
+            clip_count,
+            error_count,
+            worker_elapsed,
+            commit_elapsed,
+        );
         log_sample_load_timing(
             "browser.sample_load.preview_audition.warm_commit",
             "preview-audition-warm",
@@ -1317,19 +1449,19 @@ impl NativeAppState {
         tracing::debug!(
             target: "wavecrate::debug::sample_load",
             event = "browser.sample_load.preview_audition.warm_finished",
-            scheduled = result.scheduled_paths.len(),
-            attempted = result.attempted_paths.len(),
+            scheduled = scheduled_count,
+            attempted = attempted_count,
             decoded = clip_count,
-            errors = result.errors,
+            errors = error_count,
             worker_elapsed_ms = worker_elapsed.as_secs_f64() * 1000.0,
             commit_elapsed_ms = commit_elapsed.as_secs_f64() * 1000.0,
             "Preview audition warm finished"
         );
-        if result.errors > 0 {
+        if error_count > 0 {
             tracing::debug!(
-                attempted = result.attempted_paths.len(),
+                attempted = attempted_count,
                 decoded = clip_count,
-                errors = result.errors,
+                errors = error_count,
                 "Preview audition warm finished with decode misses"
             );
         }
@@ -1902,12 +2034,17 @@ mod tests {
 
         for _ in 0..(PREVIEW_AUDITION_LIST_VIEW_BUDGET / PREVIEW_AUDITION_WARM_BATCH) {
             let plan = state.preview_audition_warm_list_candidates();
-            assert_eq!(plan.len(), PREVIEW_AUDITION_WARM_BATCH);
-            warmed.extend(plan.iter().cloned());
+            assert_eq!(plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+            if warmed.is_empty() {
+                assert_eq!(plan.inspected_count, PREVIEW_AUDITION_LIST_VIEW_BUDGET);
+                assert_eq!(plan.candidate_count, PREVIEW_AUDITION_LIST_VIEW_BUDGET);
+                assert_eq!(plan.eligible_count, PREVIEW_AUDITION_LIST_VIEW_BUDGET);
+            }
+            warmed.extend(plan.paths.iter().cloned());
             state
                 .waveform
                 .cache
-                .mark_preview_audition_warm_scheduled(&plan);
+                .mark_preview_audition_warm_scheduled(&plan.paths);
         }
 
         assert_eq!(warmed.len(), PREVIEW_AUDITION_LIST_VIEW_BUDGET);
@@ -1927,10 +2064,19 @@ mod tests {
         let exhausted_plan = state.preview_audition_warm_list_candidates();
 
         assert_eq!(
-            exhausted_plan.len(),
+            exhausted_plan.paths.len(),
             0,
             "list preview warming should stop after the selected-row neighborhood budget"
         );
+        assert_eq!(
+            exhausted_plan.inspected_count,
+            PREVIEW_AUDITION_LIST_VIEW_BUDGET
+        );
+        assert_eq!(
+            exhausted_plan.candidate_count,
+            PREVIEW_AUDITION_LIST_VIEW_BUDGET
+        );
+        assert_eq!(exhausted_plan.eligible_count, 0);
     }
 
     #[test]
@@ -2034,6 +2180,13 @@ mod tests {
         for _ in 0..(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET / PREVIEW_AUDITION_WARM_BATCH) {
             let plan = state.preview_audition_warm_starmap_candidates();
             assert_eq!(plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+            if warmed.is_empty() {
+                assert_eq!(
+                    plan.starmap_remaining_budget,
+                    Some(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET)
+                );
+                assert!(plan.eligible_count >= PREVIEW_AUDITION_WARM_BATCH);
+            }
             warmed.extend(plan.paths.iter().cloned());
             reserve_starmap_preview_warm_plan(&mut state, &plan);
         }
@@ -2046,6 +2199,7 @@ mod tests {
             0,
             "starmap preview warming should not keep crawling a dense unchanged map forever"
         );
+        assert_eq!(exhausted_plan.starmap_remaining_budget, Some(0));
 
         state.ui.chrome.starmap_viewport.center_x += 0.25;
         let changed_view_plan = state.preview_audition_warm_starmap_candidates();
