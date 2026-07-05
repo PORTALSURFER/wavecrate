@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use crate::native_app::app::{emit_gui_action, sample_path_label, GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
@@ -144,12 +144,6 @@ impl NativeAppState {
         if let Some(elapsed) = focus_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::Focus, elapsed);
         }
-        self.log_sample_identity_checkpoint(
-            "browser.starmap_drag_audition.after_focus",
-            "start_starmap_drag_audition_sample",
-            Some(Path::new(&path)),
-            None,
-        );
         let selection_changed =
             self.library.folder_browser.selected_file_id() != previous_selection.as_deref();
         starmap_telemetry::record_event(

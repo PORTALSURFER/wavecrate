@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
+    sync::OnceLock,
     time::UNIX_EPOCH,
 };
 
@@ -9,6 +10,9 @@ use crate::native_app::app::{NativeAppState, WaveformState};
 
 const SAMPLE_IDENTITY_HASH_CHUNK: usize = 4096;
 const SAMPLE_IDENTITY_HASH_F32_CHUNK: usize = 64;
+const SAMPLE_IDENTITY_DIAGNOSTICS_ENV: &str = "WAVECRATE_SAMPLE_IDENTITY_DIAGNOSTICS";
+
+static SAMPLE_IDENTITY_DIAGNOSTICS_ENABLED: OnceLock<bool> = OnceLock::new();
 
 impl NativeAppState {
     pub(in crate::native_app) fn log_sample_identity_checkpoint(
@@ -225,7 +229,25 @@ pub(in crate::native_app) fn log_sample_identity_path_event(
 
 fn sample_identity_info_enabled() -> bool {
     wavecrate::logging::debug_logging_enabled()
+        && sample_identity_diagnostics_enabled()
         && tracing::enabled!(target: "wavecrate::debug::sample_identity", tracing::Level::INFO)
+}
+
+fn sample_identity_diagnostics_enabled() -> bool {
+    *SAMPLE_IDENTITY_DIAGNOSTICS_ENABLED
+        .get_or_init(|| env_var_truthy(SAMPLE_IDENTITY_DIAGNOSTICS_ENV))
+}
+
+fn env_var_truthy(name: &str) -> bool {
+    std::env::var(name)
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 fn sorted_path_strings<'a>(paths: impl IntoIterator<Item = &'a Path>) -> Vec<String> {

@@ -115,10 +115,34 @@ fn sample_identity_fingerprints_require_wavecrate_debug_mode() {
     );
     assert!(
         source.contains("wavecrate::logging::debug_logging_enabled()")
+            && source.contains("WAVECRATE_SAMPLE_IDENTITY_DIAGNOSTICS")
+            && source.contains("sample_identity_diagnostics_enabled()")
             && source.contains(
                 "tracing::enabled!(target: \"wavecrate::debug::sample_identity\", tracing::Level::INFO)",
             ),
-        "sample identity diagnostics compute file/waveform fingerprints and must require Wavecrate-owned debug mode, not plain info logging"
+        "sample identity diagnostics compute file/waveform fingerprints and must require explicit diagnostic opt-in, not plain info logging"
+    );
+}
+
+#[test]
+fn starmap_drag_hot_path_does_not_fingerprint_sample_identity() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!(
+        "{manifest_dir}/src/native_app/audio/sample_load_actions/entrypoints.rs"
+    ))
+    .expect("sample-load entrypoints should be readable");
+    let body = source
+        .split("pub(in crate::native_app) fn start_starmap_drag_audition_sample")
+        .nth(1)
+        .and_then(|tail| {
+            tail.split("pub(in crate::native_app) fn promote_starmap_audition_sample")
+                .next()
+        })
+        .expect("starmap audition entrypoint should be present");
+
+    assert!(
+        !body.contains("log_sample_identity_checkpoint"),
+        "starmap drag audition is a pointer hot path; use perf::starmap_drag telemetry instead of sample identity fingerprint diagnostics"
     );
 }
 
