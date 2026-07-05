@@ -2220,6 +2220,81 @@ fn starmap_drag_latest_hit_advances_without_zero_delay_message() {
 }
 
 #[test]
+fn starmap_preview_decode_error_advances_to_queued_latest_hit() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id.clone());
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(first_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(first_id.clone());
+    state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .push_back(second_id.clone());
+    let failed_preview_ticket = state.background.preview_audition_task.begin();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::PreviewAuditionDecoded {
+            completion: radiant::prelude::TaskCompletion {
+                ticket: failed_preview_ticket,
+                output: crate::native_app::app::PreviewAuditionResult {
+                    path: first_id.clone(),
+                    clip: Err(String::from("synthetic preview decode failed")),
+                },
+            },
+            started_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "a failed preview head must not strand a newer starmap drag target behind it"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert!(
+        !state
+            .waveform
+            .cache
+            .preview_audition_decode_needed(std::path::Path::new(&first_id)),
+        "known failed preview heads should not be retried on the next hover"
+    );
+    assert!(
+        command.requests_paint_only(),
+        "preview failure recovery should repaint the live active node immediately"
+    );
+}
+
+#[test]
 fn starmap_audition_queue_clears_after_last_hit_finishes() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");

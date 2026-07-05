@@ -1055,6 +1055,7 @@ impl NativeAppState {
                 move |worker_context| {
                     let scheduled_paths = paths.clone();
                     let mut attempted_paths = Vec::new();
+                    let mut failed_paths = Vec::new();
                     let mut clips = Vec::new();
                     let mut errors = 0;
                     for path in paths {
@@ -1067,12 +1068,16 @@ impl NativeAppState {
                             PREVIEW_AUDITION_DURATION,
                         ) {
                             Ok(clip) => clips.push(clip),
-                            Err(_) => errors += 1,
+                            Err(_) => {
+                                errors += 1;
+                                failed_paths.push(path);
+                            }
                         }
                     }
                     PreviewAuditionWarmResult {
                         scheduled_paths,
                         attempted_paths,
+                        failed_paths,
                         clips,
                         errors,
                     }
@@ -1342,7 +1347,7 @@ impl NativeAppState {
                 );
                 self.waveform
                     .cache
-                    .mark_preview_audition_attempted(Path::new(result.path.as_str()));
+                    .mark_preview_audition_failed(Path::new(result.path.as_str()));
                 emit_gui_action(
                     "browser.select_sample",
                     Some("browser"),
@@ -1350,6 +1355,10 @@ impl NativeAppState {
                     "preview_audition_error",
                     started_at,
                     Some(&error),
+                );
+                self.advance_starmap_audition_after_preview_decode_failure(
+                    result.path.as_str(),
+                    context,
                 );
                 return;
             }
@@ -1420,6 +1429,26 @@ impl NativeAppState {
         self.library.folder_browser.selected_file_id() == Some(path)
     }
 
+    fn advance_starmap_audition_after_preview_decode_failure(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref()
+            != Some(path)
+        {
+            return;
+        }
+        self.ui.chrome.starmap_audition_queue.active_file_id = None;
+        context.request_paint_only();
+        self.start_next_starmap_audition_hit(context);
+    }
+
     fn record_preview_audition_decode_stale(&self, path: &str, started_at: Instant) {
         let starmap_active = self.ui.chrome.starmap_audition_drag.is_some()
             || self
@@ -1470,6 +1499,7 @@ impl NativeAppState {
         self.waveform.cache.finish_preview_audition_warm_schedule(
             &result.scheduled_paths,
             &result.attempted_paths,
+            &result.failed_paths,
         );
         let scheduled_count = result.scheduled_paths.len();
         let attempted_count = result.attempted_paths.len();
@@ -2127,6 +2157,7 @@ mod tests {
         state.waveform.cache.finish_preview_audition_warm_schedule(
             &first_plan.paths,
             &first_plan.paths,
+            &[],
         );
 
         let exhausted_plan = state.preview_audition_warm_list_candidates();
@@ -2334,6 +2365,7 @@ mod tests {
         state.waveform.cache.finish_preview_audition_warm_schedule(
             &first_plan.paths,
             &first_plan.paths,
+            &[],
         );
 
         let exhausted_plan = state.preview_audition_warm_starmap_candidates();

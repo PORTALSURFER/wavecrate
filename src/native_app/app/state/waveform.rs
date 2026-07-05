@@ -143,6 +143,7 @@ pub(in crate::native_app) struct WaveformCacheState {
     preview_audition_tick: u64,
     preview_audition_attempted_paths: HashSet<String>,
     preview_audition_scheduled_paths: HashSet<String>,
+    preview_audition_failed_paths: HashSet<String>,
     preview_audition_starmap_warm_signature: Option<u64>,
     preview_audition_starmap_warm_scheduled: usize,
     preview_audition_list_warm_signature: Option<u64>,
@@ -192,6 +193,7 @@ impl Default for WaveformCacheState {
             preview_audition_tick: 0,
             preview_audition_attempted_paths: Default::default(),
             preview_audition_scheduled_paths: Default::default(),
+            preview_audition_failed_paths: Default::default(),
             preview_audition_starmap_warm_signature: None,
             preview_audition_starmap_warm_scheduled: 0,
             preview_audition_list_warm_signature: None,
@@ -327,6 +329,7 @@ impl WaveformCacheState {
         self.preview_audition_sample_paths.remove(&file_id);
         self.preview_audition_attempted_paths.remove(&file_id);
         self.preview_audition_scheduled_paths.remove(&file_id);
+        self.preview_audition_failed_paths.remove(&file_id);
     }
 
     pub(in crate::native_app) fn preview_audition_clip(
@@ -353,6 +356,9 @@ impl WaveformCacheState {
 
     pub(in crate::native_app) fn preview_audition_decode_needed(&self, path: &Path) -> bool {
         !self.preview_audition_clips.contains_key(path)
+            && !self
+                .preview_audition_failed_paths
+                .contains(&path.display().to_string())
     }
 
     pub(in crate::native_app) fn preview_audition_sample_paths(&self) -> &HashSet<String> {
@@ -364,9 +370,12 @@ impl WaveformCacheState {
         &self.preview_audition_scheduled_paths
     }
 
-    pub(in crate::native_app) fn mark_preview_audition_attempted(&mut self, path: &Path) {
+    pub(in crate::native_app) fn mark_preview_audition_failed(&mut self, path: &Path) {
+        let file_id = path.display().to_string();
         self.preview_audition_attempted_paths
-            .insert(path.display().to_string());
+            .insert(file_id.clone());
+        self.preview_audition_scheduled_paths.remove(&file_id);
+        self.preview_audition_failed_paths.insert(file_id);
     }
 
     pub(in crate::native_app) fn mark_preview_audition_warm_scheduled(&mut self, paths: &[String]) {
@@ -432,12 +441,17 @@ impl WaveformCacheState {
         &mut self,
         scheduled_paths: &[String],
         attempted_paths: &[String],
+        failed_paths: &[String],
     ) {
         for path in scheduled_paths {
             self.preview_audition_scheduled_paths.remove(path);
         }
         for path in attempted_paths {
             self.preview_audition_attempted_paths.insert(path.clone());
+        }
+        for path in failed_paths {
+            self.preview_audition_attempted_paths.insert(path.clone());
+            self.preview_audition_failed_paths.insert(path.clone());
         }
     }
 
@@ -467,6 +481,7 @@ impl WaveformCacheState {
         self.preview_audition_attempted_paths
             .insert(file_id.clone());
         self.preview_audition_scheduled_paths.remove(&file_id);
+        self.preview_audition_failed_paths.remove(&file_id);
         self.prune_preview_audition_cache();
     }
 
@@ -530,10 +545,15 @@ mod tests {
     #[test]
     fn preview_warm_attempt_marker_survives_missing_clip_probe() {
         let path = PathBuf::from("/tmp/wavecrate-preview-missing.wav");
+        let path_id = path.display().to_string();
         let mut cache = WaveformCacheState::default();
 
         assert!(cache.preview_audition_warm_needed(&path));
-        cache.mark_preview_audition_attempted(&path);
+        cache.finish_preview_audition_warm_schedule(
+            std::slice::from_ref(&path_id),
+            std::slice::from_ref(&path_id),
+            std::slice::from_ref(&path_id),
+        );
         assert!(!cache.preview_audition_warm_needed(&path));
         assert_eq!(cache.preview_audition_clip(&path), None);
         assert!(
@@ -576,6 +596,7 @@ mod tests {
         cache.finish_preview_audition_warm_schedule(
             std::slice::from_ref(&path_id),
             std::slice::from_ref(&path_id),
+            &[],
         );
         assert!(
             !cache.preview_audition_warm_needed(&path),
@@ -611,6 +632,7 @@ mod tests {
         cache.finish_preview_audition_warm_schedule(
             &[attempted_id, skipped_id],
             &[attempted.display().to_string()],
+            &[],
         );
 
         assert!(!cache.preview_audition_warm_needed(&attempted));
@@ -621,6 +643,43 @@ mod tests {
         assert!(
             cache.preview_audition_decode_needed(&skipped),
             "foreground drag playback can still decode a path skipped by background warming"
+        );
+    }
+
+    #[test]
+    fn confirmed_preview_failure_is_not_retried_by_foreground_decode() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-failed.wav");
+        let mut cache = WaveformCacheState::default();
+
+        assert!(cache.preview_audition_decode_needed(&path));
+        cache.mark_preview_audition_failed(&path);
+
+        assert!(
+            !cache.preview_audition_decode_needed(&path),
+            "interactive preview decode should not churn on a path that already failed preview decoding"
+        );
+        assert!(
+            !cache.preview_audition_warm_needed(&path),
+            "confirmed preview failures should remain out of background warm planning"
+        );
+    }
+
+    #[test]
+    fn warm_failed_path_is_not_retried_by_foreground_decode() {
+        let path = PathBuf::from("/tmp/wavecrate-preview-warm-failed.wav");
+        let path_id = path.display().to_string();
+        let mut cache = WaveformCacheState::default();
+
+        cache.mark_preview_audition_warm_scheduled(std::slice::from_ref(&path_id));
+        cache.finish_preview_audition_warm_schedule(
+            std::slice::from_ref(&path_id),
+            std::slice::from_ref(&path_id),
+            std::slice::from_ref(&path_id),
+        );
+
+        assert!(
+            !cache.preview_audition_decode_needed(&path),
+            "foreground drag/list/keyboard playback should skip known failed preview heads"
         );
     }
 
