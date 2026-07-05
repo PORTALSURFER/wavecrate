@@ -80,6 +80,26 @@ SUM_FIELDS = (
     "runtime_stale",
 )
 
+METRIC_FIELDS = (
+    "scheduled",
+    "attempted",
+    "decoded",
+    "errors",
+    "inspected",
+    "candidates",
+    "eligible",
+    "starmap_cells",
+    "starmap_visited_cells",
+    "starmap_remaining_budget",
+    "list_remaining_budget",
+    "hit_count",
+    "queue_len",
+    "hits_queued",
+    "hits_started",
+    "ready_unavailable",
+    "max_queue_len",
+)
+
 
 @dataclass
 class ParsedEvent:
@@ -101,6 +121,7 @@ class EventGroup:
         default_factory=lambda: defaultdict(Counter)
     )
     timings: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    metrics: dict[str, list[int]] = field(default_factory=lambda: defaultdict(list))
     totals: Counter[str] = field(default_factory=Counter)
 
     def add(self, record: ParsedEvent) -> None:
@@ -113,6 +134,10 @@ class EventGroup:
             value = parse_float(record.fields.get(key))
             if value is not None:
                 self.timings[key].append(value)
+        for key in METRIC_FIELDS:
+            value = parse_int(record.fields.get(key))
+            if value is not None:
+                self.metrics[key].append(value)
         for key in SUM_FIELDS:
             value = parse_int(record.fields.get(key))
             if value is not None:
@@ -249,6 +274,14 @@ def percentile(values: list[float], quantile: float) -> float:
     return sorted_values[int(index)]
 
 
+def percentile_int(values: list[int], quantile: float) -> int:
+    if not values:
+        return 0
+    sorted_values = sorted(values)
+    index = round((len(sorted_values) - 1) * quantile)
+    return sorted_values[int(index)]
+
+
 def summarize(records: list[ParsedEvent]) -> dict[str, Any]:
     groups: dict[str, EventGroup] = defaultdict(EventGroup)
     for record in records:
@@ -265,6 +298,15 @@ def summarize(records: list[ParsedEvent]) -> dict[str, Any]:
                 "p95": percentile(values, 0.95),
                 "max": max(values),
             }
+        metrics: dict[str, Any] = {}
+        for key, values in sorted(group.metrics.items()):
+            metrics[key] = {
+                "count": len(values),
+                "avg": mean(values),
+                "p50": median(values),
+                "p95": percentile_int(values, 0.95),
+                "max": max(values),
+            }
         event_payloads[event] = {
             "count": len(group.records),
             "counts": {
@@ -272,6 +314,7 @@ def summarize(records: list[ParsedEvent]) -> dict[str, Any]:
                 for key, counter in sorted(group.counts.items())
             },
             "timings": timings,
+            "metrics": metrics,
             "totals": dict(group.totals),
         }
 
@@ -347,6 +390,7 @@ def emit_text(summary: dict[str, Any], log_paths: list[str], top: int) -> None:
         print(f"{event}: {payload['count']}")
         emit_group_counts(payload["counts"], top)
         emit_timings(payload["timings"], top)
+        emit_metrics(payload["metrics"], top)
         emit_totals(payload["totals"])
         print()
 
@@ -384,6 +428,21 @@ def emit_timings(timings: dict[str, dict[str, float]], top: int) -> None:
             f"  {key}: count={int(stats['count'])} "
             f"avg={stats['avg']:.3f}ms p50={stats['p50']:.3f}ms "
             f"p95={stats['p95']:.3f}ms max={stats['max']:.3f}ms"
+        )
+
+
+def emit_metrics(metrics: dict[str, dict[str, float]], top: int) -> None:
+    visible = [
+        (key, stats)
+        for key, stats in metrics.items()
+        if stats["max"] > 0
+    ]
+    visible.sort(key=lambda item: (-item[1]["max"], item[0]))
+    for key, stats in visible[:top]:
+        print(
+            f"  {key}: count={int(stats['count'])} "
+            f"avg={stats['avg']:.1f} p50={stats['p50']:.0f} "
+            f"p95={stats['p95']:.0f} max={stats['max']:.0f}"
         )
 
 
