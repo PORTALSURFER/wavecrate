@@ -1132,7 +1132,7 @@ impl Widget for StarmapWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        if self.active_drag.is_some() {
+        if self.active_drag.is_some() || self.last_primary_position.is_some() {
             if let Some(item) = self.active_drag_item() {
                 let center = item_center(bounds, item, self.viewport);
                 if paint_bounds(bounds).contains(center) {

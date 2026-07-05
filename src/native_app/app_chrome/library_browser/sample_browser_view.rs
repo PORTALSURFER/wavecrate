@@ -170,6 +170,7 @@ mod tests {
         layout::Vector2,
         prelude::IntoView,
         runtime::{DeclarativeOwnedRuntimeBridge, SurfaceRuntime},
+        theme::ThemeTokens,
         widgets::{PointerModifiers, WidgetInput},
     };
     use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -824,6 +825,114 @@ mod tests {
                     modifiers: PointerModifiers::default(),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn starmap_runtime_drag_overlay_tracks_deferred_pointer_move_before_surface_refresh() {
+        let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
+        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let similarity_controls = SimilarityAspectSettings::default();
+        let left_path = String::from("/samples/kick.wav");
+        let right_path = String::from("/samples/snare.wav");
+        let right_color = ui::Rgba8::new(57, 187, 245, 220);
+        let bridge = DeclarativeOwnedRuntimeBridge::new(
+            Vec::<GuiMessage>::new(),
+            {
+                let left_path = left_path.clone();
+                let right_path = right_path.clone();
+                move |messages| {
+                    sample_browser(SampleBrowserViewModel {
+                        visible_samples: VisibleSampleList {
+                            total_count: 2,
+                            includes_subfolders: false,
+                            window: ui::VirtualListWindow::default(),
+                            rows: Vec::new(),
+                            columns: Vec::new(),
+                            sort: &sort,
+                            similarity_mode_active: false,
+                            similarity_controls: &similarity_controls,
+                        },
+                        map_items: vec![
+                            StarmapItem {
+                                file_id: left_path.clone(),
+                                label: String::from("kick"),
+                                x: 0.30,
+                                y: 0.5,
+                                color: ui::Rgba8::new(255, 160, 82, 220),
+                                selected: false,
+                                focused: false,
+                                copy_flash: false,
+                                similarity_anchor: false,
+                                instant_audition_ready: true,
+                                preview_audition_ready: false,
+                                missing: false,
+                            },
+                            StarmapItem {
+                                file_id: right_path.clone(),
+                                label: String::from("snare"),
+                                x: 0.70,
+                                y: 0.5,
+                                color: right_color,
+                                selected: false,
+                                focused: false,
+                                copy_flash: false,
+                                similarity_anchor: false,
+                                instant_audition_ready: true,
+                                preview_audition_ready: false,
+                                missing: false,
+                            },
+                        ]
+                        .into(),
+                        map_status: Default::default(),
+                        map_prep_running: false,
+                        map_audition_drag: messages
+                            .iter()
+                            .rev()
+                            .find_map(starmap_drag_state_from_message),
+                        map_viewport: crate::native_app::app::StarmapViewport::default(),
+                        name_filter: String::new(),
+                        display_mode: SampleBrowserDisplayMode::Map,
+                        name_view_mode: SampleNameViewMode::DiskFilename,
+                        random_navigation_enabled: false,
+                        curation_mode_enabled: false,
+                        metadata_tags_by_file: &metadata_tags_by_file,
+                        cut_file_ids: None,
+                        file_drag_active: false,
+                        extracted_file_drag_active: false,
+                        hovered_folder_drop_target: false,
+                        drag_feedback: None,
+                        help_tooltips_enabled: false,
+                    })
+                    .into_surface()
+                }
+            },
+            |messages, message| messages.push(message),
+        );
+        let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 320.0));
+
+        runtime.dispatch_input_at(
+            ui::Point::new(156.0, 160.0),
+            WidgetInput::primary_press(ui::Point::new(156.0, 160.0)),
+        );
+        runtime.dispatch_pointer_move_deferred_refresh_with_outcome(ui::Point::new(364.0, 160.0));
+
+        let mut overlay = Vec::new();
+        runtime.runtime_overlay_paint_into(&ThemeTokens::default(), &mut overlay);
+        let expected_right_center_x = 4.0 + (516.0 - 4.0) * 0.70;
+
+        assert!(
+            overlay.iter().any(|primitive| matches!(
+                primitive,
+                radiant::runtime::PaintPrimitive::FillPolygon(fill)
+                    if fill.color == right_color.with_alpha(70)
+                        && (fill.points.iter().map(|point| point.x).sum::<f32>()
+                            / fill.points.len() as f32
+                            - expected_right_center_x)
+                            .abs()
+                            < 0.01
+            )),
+            "deferred drag motion should paint the newly hit starmap node before app-state refresh"
         );
     }
 
