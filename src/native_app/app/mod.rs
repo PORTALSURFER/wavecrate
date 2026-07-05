@@ -34,14 +34,15 @@ pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::ReleaseUpdateStatus;
 pub(in crate::native_app) use state::{
     AudioAppState, AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,
-    ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, ExtractedFilePlaybackType,
-    FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
-    MetadataAppState, NativeAppState, PendingFolderDelete, PendingPlaySelectionRetargetCycle,
-    PendingPlaybackStart, PendingProtectedExtractionAction, PendingProtectedExtractionTargetSource,
-    PendingRuntimePlaybackStart, PendingWaveformDestructiveEdit, SampleBrowserDisplayMode,
-    SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish,
-    StarmapAuditionDragState, StarmapViewport, StarmapViewportChange, StartupState, StatusState,
-    UiAppState, WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, EarlySamplePlaybackKind,
+    ExtractedFilePlaybackType, FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT,
+    MIN_BEAT_GUIDE_COUNT, MetadataAppState, NativeAppState, PendingFolderDelete,
+    PendingPlaySelectionRetargetCycle, PendingPlaybackStart, PendingProtectedExtractionAction,
+    PendingProtectedExtractionTargetSource, PendingRuntimePlaybackStart,
+    PendingWaveformDestructiveEdit, SampleBrowserDisplayMode, SettingsAppState,
+    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, StarmapAuditionDragState,
+    StarmapViewport, StarmapViewportChange, StartupState, StatusState, UiAppState,
+    WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
     WaveformDestructiveEditTarget, WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot,
     WaveformPlaySelectionSnapshot, run_folder_scan_worker,
 };

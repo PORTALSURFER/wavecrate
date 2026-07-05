@@ -225,6 +225,7 @@ impl NativeAppState {
             return;
         }
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
         self.audio.current_playback_span = None;
         self.waveform.current.stop_playback();
         self.ui.status.sample = format!(
@@ -268,6 +269,7 @@ impl NativeAppState {
         );
         if reason != PlaybackRuntimeCancellation::Superseded {
             self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
             self.audio.current_playback_span = None;
             self.waveform.current.stop_playback();
         }
@@ -537,6 +539,7 @@ impl NativeAppState {
         self.audio.pending_playback_start = None;
         self.audio.pending_runtime_start = None;
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
         if let Some(runtime) = self.audio.playback_runtime.take() {
             let _ = runtime.try_shutdown();
         }
@@ -593,6 +596,8 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.playback_progress = Default::default();
+        self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
         emit_gui_action(
             "playback.progress",
             Some("transport"),

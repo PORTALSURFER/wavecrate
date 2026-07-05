@@ -32,10 +32,17 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
     pub(in crate::native_app) playback_history: PlaybackNavigationHistory,
     pub(in crate::native_app) early_sample_playback_path: Option<String>,
+    pub(in crate::native_app) early_sample_playback_kind: Option<EarlySamplePlaybackKind>,
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
     pub(in crate::native_app) pending_runtime_start: Option<PendingRuntimePlaybackStart>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum EarlySamplePlaybackKind {
+    PreviewSlice,
+    FullSample,
 }
 
 pub(in crate::native_app) struct PendingRuntimePlaybackStart {
@@ -114,6 +121,7 @@ impl AudioAppState {
             pending_sample_playback: None,
             playback_history: PlaybackNavigationHistory::default(),
             early_sample_playback_path: None,
+            early_sample_playback_kind: None,
             playback_runtime: None,
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),

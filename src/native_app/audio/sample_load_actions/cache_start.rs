@@ -9,9 +9,9 @@ use std::{
 
 use crate::native_app::{
     app::{
-        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
-        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
-        emit_gui_action, sample_path_label,
+        EarlySamplePlaybackKind, GuiMessage, NativeAppState, PendingPlaybackStart,
+        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
+        SampleBrowserDisplayMode, WaveformState, emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
@@ -739,6 +739,7 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
@@ -844,6 +845,7 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.to_owned());
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
@@ -962,6 +964,7 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.clone());
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
@@ -1742,6 +1745,7 @@ impl NativeAppState {
             }
         };
         self.audio.early_sample_playback_path = Some(path.clone());
+        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
         self.audio.current_playback_span = Some((0.0, 1.0));
         let origin = self.runtime_playback_origin_for_path(path.as_str());
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
@@ -1856,6 +1860,11 @@ impl NativeAppState {
         if !self.waveform.current.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
+        let current_path = self.waveform.current.path().display().to_string();
+        if self.audio.early_sample_playback_path.as_deref() == Some(current_path.as_str()) {
+            self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
+        }
         self.prepare_playback_mode_for_loaded_sample();
         if self.audio.playback_runtime.is_none() {
             self.audio.pending_playback_start =
@@ -1939,14 +1948,13 @@ impl NativeAppState {
             .try_play(request)
             .map_err(|err| format!("submit playback request: {err:?}"))?;
         self.waveform.current.start_playback(0.0);
-        let path = self.waveform.current.path().display().to_string();
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
-            path.clone(),
+            current_path.clone(),
             (0.0, 1.0),
             true,
-            self.runtime_playback_origin_for_path(path.as_str()),
+            self.runtime_playback_origin_for_path(current_path.as_str()),
             self.current_waveform_runtime_source_kind(),
         ));
         self.record_current_playback_history(0.0, 1.0);

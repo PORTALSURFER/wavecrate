@@ -1,7 +1,10 @@
 use std::{path::Path, time::Instant};
 
 use crate::native_app::{
-    app::{GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState, emit_gui_action},
+    app::{
+        EarlySamplePlaybackKind, GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState,
+        emit_gui_action,
+    },
     audio::{playback::RandomAuditionUnits, sample_load_actions::log_slow_sample_load_phase},
 };
 
@@ -11,6 +14,7 @@ impl NativeAppState {
         path: String,
         waveform: WaveformState,
         autoplay: bool,
+        display_after_instant_audition: bool,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
@@ -51,6 +55,21 @@ impl NativeAppState {
             replace_started_at,
         );
         self.schedule_harvest_seen_for_path(Path::new(&path), context);
+        if display_after_instant_audition
+            && self.audio.early_sample_playback_path.as_deref() == Some(path.as_str())
+            && self.audio.early_sample_playback_kind == Some(EarlySamplePlaybackKind::PreviewSlice)
+        {
+            self.ui.status.sample = format!("Preparing {file_name}");
+            emit_gui_action(
+                "browser.sample_load.finish",
+                Some("browser"),
+                Some(&file_name),
+                "display_ready_waiting_for_settled_full_playback",
+                started_at,
+                None,
+            );
+            return;
+        }
         if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
@@ -82,11 +101,17 @@ impl NativeAppState {
         if self.audio.early_sample_playback_path.as_deref() != Some(path) {
             return false;
         }
+        if self.audio.early_sample_playback_kind != Some(EarlySamplePlaybackKind::FullSample) {
+            self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
+            return false;
+        }
         let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
         self.waveform.current.start_playback(progress);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.record_current_playback_history(0.0, 1.0);
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
         self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
         emit_gui_action(

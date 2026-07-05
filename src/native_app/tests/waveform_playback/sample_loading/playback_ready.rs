@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::app::EarlySamplePlaybackKind;
 
 #[test]
 fn wav_load_reports_playback_ready_before_waveform_summary_completion() {
@@ -132,6 +133,176 @@ fn playback_ready_message_starts_audio_before_waveform_completion() {
     assert_eq!(state.audio.early_sample_playback_path, None);
     assert!(state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+}
+
+#[test]
+fn display_after_preview_waits_for_settled_full_playback_promotion() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("preview-display.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    state.audio.early_sample_playback_path = Some(sample_path_string.clone());
+    state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_navigation_sample_validated(
+        sample_path_string.clone(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+    let ticket = active_sample_load_ticket(&state).expect("display load queued");
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion_with_display_after_instant_audition(
+                ticket,
+                sample_path_string.clone(),
+                crate::native_app::test_support::state::WaveformState::load_path(
+                    sample_path.clone(),
+                ),
+                true,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert_eq!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(sample_path_string.as_str()),
+        "display-only completion should keep the preview marker for the settle handoff"
+    );
+    assert_eq!(
+        state.audio.early_sample_playback_kind,
+        Some(EarlySamplePlaybackKind::PreviewSlice)
+    );
+    assert!(
+        state.ui.status.sample.contains("Preparing"),
+        "display-only completion should not claim full playback has started"
+    );
+    assert!(
+        !state.waveform.current.is_playing(),
+        "display-only completion must not mark the waveform as playing the full sample"
+    );
+}
+
+#[test]
+fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("settled-full.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
+            .expect("sample loads");
+    state.audio.early_sample_playback_path = Some(sample_path_string.clone());
+    state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+    let ticket = state.background.settled_sample_promotion_task.begin();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SettledSamplePromotion {
+            ticket,
+            path: sample_path_string.clone(),
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.early_sample_playback_kind, None);
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_path_string.as_str())
+    );
+    assert_eq!(state.waveform.current.path(), sample_path);
+    assert!(
+        state.waveform.current.is_playing()
+            || state.audio.pending_playback_start.is_some()
+            || state.audio.pending_runtime_start.is_some()
+            || state.audio.current_playback_span == Some((0.0, 1.0)),
+        "settled promotion should hand the current loaded sample to full playback"
+    );
+}
+
+#[test]
+fn stale_settled_preview_promotion_does_not_start_old_full_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("first-preview.wav");
+    let second_path = source_root.path().join("second-preview.wav");
+    write_test_wav_i16(&first_path, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second_path, &[0, 512, -512, 1024]);
+    let first_path_string = first_path.display().to_string();
+    let second_path_string = second_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(second_path_string.clone());
+    let stale_ticket = state.background.settled_sample_promotion_task.begin();
+    let latest_ticket = state.background.settled_sample_promotion_task.begin();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SettledSamplePromotion {
+            ticket: stale_ticket,
+            path: first_path_string,
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        active_sample_load_ticket(&state).is_none(),
+        "stale settle promotion must not queue a full load for a transient row"
+    );
+    assert_eq!(
+        state.background.settled_sample_promotion_task.active(),
+        Some(latest_ticket),
+        "stale settle promotion must leave the latest settle ticket active"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SettledSamplePromotion {
+            ticket: latest_ticket,
+            path: second_path_string.clone(),
+            scheduled_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        active_sample_load_ticket(&state).is_some(),
+        "the latest still-selected row should be promoted to full sample loading"
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_path_string.as_str())
+    );
 }
 
 #[test]

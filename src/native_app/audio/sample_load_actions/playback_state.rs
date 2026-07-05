@@ -85,6 +85,7 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.early_sample_playback_path = None;
+        self.audio.early_sample_playback_kind = None;
     }
 
     pub(super) fn cancel_inflight_sample_load(&mut self) {
@@ -112,6 +113,7 @@ impl NativeAppState {
         }
         if !preserve_early_playback {
             self.audio.early_sample_playback_path = None;
+            self.audio.early_sample_playback_kind = None;
         }
     }
 
