@@ -74,10 +74,6 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
-        let fast_audition = self.start_selection_fast_audition(path.as_str(), context, started_at);
-        if self.fast_audition_needs_settled_promotion(path.as_str(), fast_audition) {
-            self.schedule_settled_sample_promotion(path.as_str(), context);
-        }
         self.queue_sample_load_path_validation(
             path,
             SampleLoadPathValidationIntent::Selection { autoplay: true },
@@ -110,10 +106,6 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
-        let fast_audition = self.start_selection_fast_audition(path.as_str(), context, started_at);
-        if self.fast_audition_needs_settled_promotion(path.as_str(), fast_audition) {
-            self.schedule_settled_sample_promotion(path.as_str(), context);
-        }
         self.queue_sample_load_path_validation(
             path,
             SampleLoadPathValidationIntent::Selection { autoplay: true },
@@ -348,40 +340,14 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
-        let existing_early_playback = self.early_sample_playback_kind_for_path(path.as_str());
-        let instant_audition_outcome = if autoplay && existing_early_playback.is_none() {
-            self.start_fast_path_audition(
-                path.as_str(),
-                context,
-                started_at,
-                super::cache_start::FastAuditionOptions::instant_navigation(),
-            )
-        } else {
-            super::cache_start::InstantAuditionOutcome::Unavailable
-        };
-        let instant_audition_started = autoplay
-            && (existing_early_playback.is_some()
-                || instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started);
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             autoplay,
             context,
             started_at,
-            if instant_audition_started {
-                ui::TaskPriority::Background
-            } else {
-                ui::TaskPriority::Interactive
-            },
-            if instant_audition_started {
-                "waveform_load_after_instant_audition"
-            } else {
-                "foreground_load_queued"
-            },
-            if instant_audition_started {
-                SampleLoadStrategy::DisplayAfterInstantAudition
-            } else {
-                SampleLoadStrategy::CacheThenDecode
-            },
+            ui::TaskPriority::Interactive,
+            "foreground_load_queued",
+            SampleLoadStrategy::CacheThenDecode,
         );
     }
 
@@ -424,6 +390,13 @@ impl NativeAppState {
         } else {
             super::cache_start::InstantAuditionOutcome::Unavailable
         };
+        if transient_navigation
+            && (existing_early_playback == Some(EarlySamplePlaybackKind::PreviewSlice)
+                || self
+                    .fast_audition_needs_settled_promotion(path.as_str(), instant_audition_outcome))
+        {
+            self.schedule_settled_sample_promotion(path.as_str(), context);
+        }
         let instant_audition_started = existing_early_playback.is_some()
             || instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started
             || (transient_navigation && instant_audition_outcome.uses_ready_source());
@@ -687,20 +660,6 @@ impl NativeAppState {
             None,
         );
         true
-    }
-
-    fn start_selection_fast_audition(
-        &mut self,
-        path: &str,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-        started_at: Instant,
-    ) -> super::cache_start::InstantAuditionOutcome {
-        self.start_fast_path_audition(
-            path,
-            context,
-            started_at,
-            super::cache_start::FastAuditionOptions::instant_navigation(),
-        )
     }
 
     fn early_sample_playback_kind_for_path(&self, path: &str) -> Option<EarlySamplePlaybackKind> {
