@@ -392,7 +392,7 @@ fn sample_browser_similarity_anchor_resolves_production_scores() {
 }
 
 #[test]
-fn sample_browser_similarity_anchor_prepares_missing_artifacts_before_scoring() {
+fn sample_browser_similarity_anchor_queues_missing_artifacts_before_scoring() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
     let drums = source_root.path().join("drums");
@@ -437,10 +437,19 @@ fn sample_browser_similarity_anchor_prepares_missing_artifacts_before_scoring() 
     super::super::run_command_for_tests(&mut state, context.into_command());
 
     assert!(!state.library.similarity_prep.running);
-    assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 2);
+    assert_eq!(
+        source_jobs_by_status(source_root.path(), "wav_metadata_v1", "pending"),
+        2,
+        "automatic anchor prep should queue waveform metadata work without draining it inline"
+    );
+    assert!(
+        source_jobs_by_status(source_root.path(), "embedding_backfill_v1", "pending") >= 1,
+        "automatic anchor prep should queue embedding work without blocking the UI path"
+    );
+    assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 0);
     assert_eq!(
         source_artifact_rows(source_root.path(), "similarity_aspect_descriptors"),
-        2
+        0
     );
     assert_eq!(
         state
@@ -449,13 +458,13 @@ fn sample_browser_similarity_anchor_prepares_missing_artifacts_before_scoring() 
             .similarity_display_strength_for_file(anchor_id.as_str()),
         Some(1.0)
     );
-    assert!(
+    assert_eq!(
         state
             .library
             .folder_browser
-            .similarity_display_strength_for_file(near_id.as_str())
-            .is_some(),
-        "anchor activation should resolve similarity after preparing missing artifacts"
+            .similarity_display_strength_for_file(near_id.as_str()),
+        None,
+        "anchor activation must wait for background prep before resolving missing similarity artifacts"
     );
 }
 
