@@ -8,17 +8,11 @@ use crate::native_app::waveform::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH,
     audio_file::{
         WaveformFile, WaveformPlaybackReady,
-        construction::{
-            waveform_file_from_file_backed_wav_metadata,
-            waveform_file_from_mono_samples_with_progress_and_cancel,
-        },
-        diagnostics::log_audio_load_timing,
-        downmix::downmix_to_mono_with_progress_and_cancel,
-        file_io::read_audio_file_with_progress,
-        wav_decode,
+        construction::waveform_file_from_mono_samples_with_progress_and_cancel,
+        diagnostics::log_audio_load_timing, downmix::downmix_to_mono_with_progress_and_cancel,
+        file_io::read_audio_file_with_progress, wav_decode,
         wav_decode::load_wav_waveform_file_with_progress,
-        wav_summary::load_wav_waveform_summary_from_path_with_progress,
-        waveform_cache,
+        wav_summary::load_wav_waveform_summary_from_path_with_progress, waveform_cache,
     },
 };
 
@@ -33,6 +27,7 @@ pub(in crate::native_app) struct FileBackedWavPlaybackDescriptor {
     pub duration: f32,
     pub sample_rate: u32,
     pub channels: usize,
+    #[cfg(test)]
     pub frames: usize,
 }
 
@@ -108,7 +103,7 @@ pub(in crate::native_app::waveform) fn load_waveform_file_for_instant_audition_d
         true,
         true,
         PlaybackReadyCachePolicy::Skip,
-        FileBackedWavPolicy::MetadataOnly,
+        FileBackedWavPolicy::AllowSummary,
     )
 }
 
@@ -139,7 +134,6 @@ enum PlaybackReadyCachePolicy {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FileBackedWavPolicy {
     AllowSummary,
-    MetadataOnly,
     RequireDecodedPlayback,
 }
 
@@ -161,24 +155,6 @@ fn load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
         matches!(file_backed_wav_policy, FileBackedWavPolicy::AllowSummary);
     let prefer_file_backed_wav_summary =
         allow_file_backed_wav_summary && should_use_file_backed_wav_decode(&path);
-    if matches!(file_backed_wav_policy, FileBackedWavPolicy::MetadataOnly) {
-        let metadata_started_at = Instant::now();
-        if let Some(descriptor) = file_backed_wav_playback_descriptor(&path) {
-            let file = waveform_file_from_file_backed_wav_metadata(
-                descriptor.path,
-                descriptor.sample_rate,
-                descriptor.channels,
-                descriptor.frames,
-            )?;
-            log_audio_load_timing(
-                "browser.audio_file.load.file_backed_wav_metadata",
-                &path,
-                metadata_started_at.elapsed(),
-            );
-            progress(0.99);
-            return Ok(file);
-        }
-    }
     let skip_playback_ready_cache =
         matches!(playback_ready_cache_policy, PlaybackReadyCachePolicy::Skip);
     if read_cache
@@ -347,6 +323,7 @@ pub(in crate::native_app) fn file_backed_wav_playback_descriptor(
         duration: frames as f32 / sample_rate as f32,
         sample_rate,
         channels,
+        #[cfg(test)]
         frames,
     })
 }
@@ -467,14 +444,14 @@ mod tests {
     }
 
     #[test]
-    fn instant_audition_display_uses_metadata_only_for_large_wav() {
+    fn instant_audition_display_uses_file_backed_summary_for_large_wav() {
         let source_root = tempfile::tempdir().expect("source root");
         let sample_path = source_root.path().join("large-instant-display.wav");
         write_test_wav_i16(&sample_path, 700);
 
         let file =
             load_waveform_file_for_instant_audition_display(sample_path.clone(), |_| {}, || false)
-                .expect("metadata-only display state");
+                .expect("summary display state");
 
         assert_eq!(file.path, sample_path);
         assert!(file.audio_bytes.is_empty());
@@ -485,9 +462,21 @@ mod tests {
         assert_eq!(file.frames, 700);
         assert_eq!(file.gpu_signal_summary.frames, 700);
         assert_eq!(file.gpu_signal_summary.band_count, BAND_COUNT);
-        assert_eq!(file.gpu_signal_summary.levels.len(), 1);
-        assert_eq!(file.gpu_signal_summary.levels[0].bucket_frames, 700);
-        assert_eq!(file.gpu_signal_summary.levels[0].buckets.len(), BAND_COUNT);
+        assert!(file.gpu_signal_summary.levels.len() > 1);
+        assert!(
+            signal_summary_peak(&file) > 0.0,
+            "large display summary should retain visible signal data"
+        );
+    }
+
+    fn signal_summary_peak(file: &WaveformFile) -> f32 {
+        file.gpu_signal_summary
+            .levels
+            .iter()
+            .flat_map(|level| level.buckets.iter())
+            .fold(0.0_f32, |peak, bucket| {
+                peak.max(bucket.min.abs()).max(bucket.max.abs())
+            })
     }
 
     fn write_test_wav_i16(path: &Path, frames: usize) {

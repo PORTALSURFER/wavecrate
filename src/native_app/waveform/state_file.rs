@@ -58,6 +58,18 @@ impl WaveformState {
         self.file.has_loaded_sample_metadata()
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn signal_summary_peak_for_tests(&self) -> f32 {
+        self.file
+            .gpu_signal_summary
+            .levels
+            .iter()
+            .flat_map(|level| level.buckets.iter())
+            .fold(0.0_f32, |peak, bucket| {
+                peak.max(bucket.min.abs()).max(bucket.max.abs())
+            })
+    }
+
     pub(in crate::native_app) fn audio_bytes(&self) -> Arc<[u8]> {
         Arc::clone(&self.file.audio_bytes)
     }
