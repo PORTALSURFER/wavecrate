@@ -4,7 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::app::{
+    emit_gui_action, sample_path_label, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
+};
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
@@ -73,7 +75,7 @@ impl NativeAppState {
         }
         self.audio.pending_sample_playback = None;
         let fast_audition = self.start_selection_fast_audition(path.as_str(), context, started_at);
-        if fast_audition.uses_ready_source() {
+        if self.fast_audition_needs_settled_promotion(path.as_str(), fast_audition) {
             self.schedule_settled_sample_promotion(path.as_str(), context);
         }
         self.queue_sample_load_path_validation(
@@ -109,7 +111,7 @@ impl NativeAppState {
         }
         self.audio.pending_sample_playback = None;
         let fast_audition = self.start_selection_fast_audition(path.as_str(), context, started_at);
-        if fast_audition.uses_ready_source() {
+        if self.fast_audition_needs_settled_promotion(path.as_str(), fast_audition) {
             self.schedule_settled_sample_promotion(path.as_str(), context);
         }
         self.queue_sample_load_path_validation(
@@ -346,7 +348,8 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
-        let instant_audition_outcome = if autoplay {
+        let existing_early_playback = self.early_sample_playback_kind_for_path(path.as_str());
+        let instant_audition_outcome = if autoplay && existing_early_playback.is_none() {
             self.start_fast_path_audition(
                 path.as_str(),
                 context,
@@ -357,7 +360,8 @@ impl NativeAppState {
             super::cache_start::InstantAuditionOutcome::Unavailable
         };
         let instant_audition_started = autoplay
-            && instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started;
+            && (existing_early_playback.is_some()
+                || instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started);
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             autoplay,
@@ -409,15 +413,20 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        let instant_audition_outcome = self.start_fast_path_audition(
-            path.as_str(),
-            context,
-            started_at,
-            super::cache_start::FastAuditionOptions::instant_navigation(),
-        );
-        let instant_audition_started =
-            instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started
-                || (transient_navigation && instant_audition_outcome.uses_ready_source());
+        let existing_early_playback = self.early_sample_playback_kind_for_path(path.as_str());
+        let instant_audition_outcome = if existing_early_playback.is_none() {
+            self.start_fast_path_audition(
+                path.as_str(),
+                context,
+                started_at,
+                super::cache_start::FastAuditionOptions::instant_navigation(),
+            )
+        } else {
+            super::cache_start::InstantAuditionOutcome::Unavailable
+        };
+        let instant_audition_started = existing_early_playback.is_some()
+            || instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started
+            || (transient_navigation && instant_audition_outcome.uses_ready_source());
         self.start_foreground_sample_load_with_priority(
             path.as_str(),
             true,
@@ -682,6 +691,27 @@ impl NativeAppState {
             super::cache_start::FastAuditionOptions::instant_navigation(),
         )
     }
+
+    fn early_sample_playback_kind_for_path(&self, path: &str) -> Option<EarlySamplePlaybackKind> {
+        (self.audio.early_sample_playback_path.as_deref() == Some(path))
+            .then_some(self.audio.early_sample_playback_kind)
+            .flatten()
+    }
+
+    fn fast_audition_needs_settled_promotion(
+        &self,
+        path: &str,
+        outcome: super::cache_start::InstantAuditionOutcome,
+    ) -> bool {
+        match outcome {
+            super::cache_start::InstantAuditionOutcome::Started => {
+                self.early_sample_playback_kind_for_path(path)
+                    == Some(EarlySamplePlaybackKind::PreviewSlice)
+            }
+            super::cache_start::InstantAuditionOutcome::AudioPending => true,
+            super::cache_start::InstantAuditionOutcome::Unavailable => false,
+        }
+    }
 }
 
 fn log_settled_promotion_timing(path: &str, elapsed: Duration) {
@@ -692,4 +722,36 @@ fn log_settled_promotion_timing(path: &str, elapsed: Duration) {
         delay_ms = elapsed.as_secs_f64() * 1000.0,
         "Promoting settled preview audition to full sample playback"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::test_support::state::NativeAppStateFixture;
+
+    #[test]
+    fn full_sample_fast_audition_does_not_schedule_settled_replay() {
+        let mut state = NativeAppStateFixture::default().build();
+        let path = "full-ready.wav";
+        state.audio.early_sample_playback_path = Some(path.to_owned());
+        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
+
+        assert!(!state.fast_audition_needs_settled_promotion(
+            path,
+            super::super::cache_start::InstantAuditionOutcome::Started,
+        ));
+    }
+
+    #[test]
+    fn preview_fast_audition_schedules_settled_promotion() {
+        let mut state = NativeAppStateFixture::default().build();
+        let path = "preview-ready.wav";
+        state.audio.early_sample_playback_path = Some(path.to_owned());
+        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+
+        assert!(state.fast_audition_needs_settled_promotion(
+            path,
+            super::super::cache_start::InstantAuditionOutcome::Started,
+        ));
+    }
 }
