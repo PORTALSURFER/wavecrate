@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::{dense_row_palette_from_style, IntoView, ThemeTokens, WidgetStyle, WidgetTone},
+    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
@@ -198,10 +198,11 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
     let message = run_first_perform(context.into_command()).expect("last played persist command");
     state.apply_message(message, &mut radiant::prelude::UiUpdateContext::default());
 
-    assert!(db
-        .last_played_at_for_path(std::path::Path::new("played.wav"))
-        .expect("read last played")
-        .is_some());
+    assert!(
+        db.last_played_at_for_path(std::path::Path::new("played.wav"))
+            .expect("read last played")
+            .is_some()
+    );
 }
 
 #[test]
@@ -1243,6 +1244,17 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
         )
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    crate::native_app::test_support::sample_browser::complete_starmap_layout(
+        &mut state,
+        HashMap::from([(
+            sample.display().to_string(),
+            wavecrate::sample_sources::StarmapLayoutPoint {
+                x: 0.50,
+                y: 0.50,
+                cluster_id: None,
+            },
+        )]),
+    );
     prepare_sample_browser_view(&mut state);
     let sample_id = sample.display().to_string();
     assert!(
@@ -1308,6 +1320,17 @@ fn starmap_drag_begin_cancels_active_preview_audition_warm() {
         )
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    crate::native_app::test_support::sample_browser::complete_starmap_layout(
+        &mut state,
+        HashMap::from([(
+            sample_id.clone(),
+            wavecrate::sample_sources::StarmapLayoutPoint {
+                x: 0.50,
+                y: 0.50,
+                cluster_id: None,
+            },
+        )]),
+    );
     prepare_sample_browser_view(&mut state);
     let mut context = radiant::prelude::UiUpdateContext::default();
     state.apply_message(
@@ -2213,12 +2236,14 @@ fn starmap_drag_update_selects_next_hit_immediately() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(state
-        .ui
-        .chrome
-        .starmap_audition_queue
-        .queued_file_ids
-        .is_empty());
+    assert!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
     let command = context.into_command();
     assert!(
         command.requests_paint_only(),
@@ -2332,12 +2357,14 @@ fn starmap_drag_latest_hit_advances_without_zero_delay_message() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(state
-        .ui
-        .chrome
-        .starmap_audition_queue
-        .queued_file_ids
-        .is_empty());
+    assert!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
     assert!(
         delayed.iter().all(|message| !matches!(
             message,

@@ -2043,6 +2043,9 @@ mod tests {
             )
             .build();
         state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
+            &mut state,
+        );
         crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
         state
     }

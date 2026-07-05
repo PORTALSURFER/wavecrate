@@ -343,6 +343,9 @@ mod tests {
             .with_synthetic_waveform()
             .build();
         state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
+            &mut state,
+        );
         prepare_sample_browser_view(&mut state);
         let before_drag_ids = {
             let before_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
@@ -409,6 +412,9 @@ mod tests {
             .with_folder_browser(FolderBrowserState::from_root(source.clone()))
             .build();
         state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
+            &mut state,
+        );
         prepare_sample_browser_view(&mut state);
         let before_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
         let before_drag_items = before_drag.map_items.clone();
@@ -480,6 +486,9 @@ mod tests {
             .with_folder_browser(FolderBrowserState::from_root(source))
             .build();
         state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
+            &mut state,
+        );
 
         prepare_sample_browser_view(&mut state);
         let cached = state
