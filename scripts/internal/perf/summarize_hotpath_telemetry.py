@@ -223,6 +223,8 @@ def canonical_event(fields: dict[str, str], line: str) -> str:
     event = fields.get("event", "")
     if event.endswith("preview_audition.warm_plan"):
         return "preview_audition.warm_plan"
+    if event.endswith("preview_audition.warm_phase_profile"):
+        return "preview_audition.warm_phase_profile"
     if event.endswith("preview_audition.warm_finished"):
         return "preview_audition.warm_finished"
     if event == "fast_audition.decision":
@@ -239,6 +241,10 @@ def canonical_event(fields: dict[str, str], line: str) -> str:
         return "preview_audition.warm_finished"
     if "Preview audition warm plan" in line:
         return "preview_audition.warm_plan"
+    if "Preview audition warm phase profile" in line:
+        return "preview_audition.warm_phase_profile"
+    if "Slow preview audition warm phase" in line:
+        return "preview_audition.warm_phase_profile"
     return event or "unknown"
 
 
@@ -369,9 +375,41 @@ def diagnostics(groups: dict[str, EventGroup]) -> list[str]:
         warnings.append(
             f"preview warm reported {warm_finished.totals['errors']} decode errors"
         )
+    warm_phase = groups.get("preview_audition.warm_phase_profile")
+    if warm_phase:
+        warnings.extend(warm_phase_diagnostics(warm_phase))
     frame_dispatch = groups.get("ui.frame.dispatch_profile")
     if frame_dispatch:
         warnings.extend(frame_dispatch_diagnostics(frame_dispatch))
+    return warnings
+
+
+def warm_phase_diagnostics(group: EventGroup) -> list[str]:
+    warnings: list[str] = []
+    total_values = group.timings.get("total_elapsed_ms", [])
+    if total_values:
+        total_p95 = percentile(total_values, 0.95)
+        total_max = max(total_values)
+        if total_max > UI_FRAME_PHASE_BUDGET_MS:
+            warnings.append(
+                f"preview warm phase exceeded {UI_FRAME_PHASE_BUDGET_MS:.1f}ms budget: "
+                f"p95={total_p95:.1f}ms max={total_max:.1f}ms"
+            )
+
+    slow_parts: list[tuple[float, str, float]] = []
+    for key in ("plan_elapsed_ms", "reservation_elapsed_ms", "task_schedule_elapsed_ms"):
+        values = group.timings.get(key, [])
+        if not values:
+            continue
+        phase_max = max(values)
+        if phase_max > UI_FRAME_PHASE_BUDGET_MS:
+            slow_parts.append((phase_max, key, percentile(values, 0.95)))
+    if slow_parts:
+        formatted = ", ".join(
+            f"{key} p95={phase_p95:.1f}ms max={phase_max:.1f}ms"
+            for phase_max, key, phase_p95 in sorted(slow_parts, reverse=True)
+        )
+        warnings.append(f"slow preview warm subphases: {formatted}")
     return warnings
 
 

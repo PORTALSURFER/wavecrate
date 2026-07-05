@@ -69,6 +69,7 @@ const PREVIEW_AUDITION_LIST_VIEW_BUDGET: usize = PREVIEW_AUDITION_WARM_BATCH * 2
 const PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD: usize = 96;
 const PREVIEW_AUDITION_STARMAP_VIEW_BUDGET: usize = PREVIEW_AUDITION_WARM_BATCH * 2;
 const PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD: f32 = 0.08;
+const PREVIEW_AUDITION_WARM_PHASE_PROFILE_THRESHOLD: Duration = Duration::from_millis(8);
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct FastAuditionOptions {
@@ -150,6 +151,33 @@ struct PreviewAuditionWarmPlan {
     starmap_visited_cell_count: usize,
     starmap_remaining_budget: Option<usize>,
     list_remaining_budget: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct PreviewAuditionWarmPhaseSummary {
+    scheduled: usize,
+    inspected: usize,
+    candidates: usize,
+    eligible: usize,
+    starmap_cells: usize,
+    starmap_visited_cells: usize,
+    starmap_remaining_budget: usize,
+    list_remaining_budget: usize,
+}
+
+impl PreviewAuditionWarmPhaseSummary {
+    fn from_plan(plan: &PreviewAuditionWarmPlan) -> Self {
+        Self {
+            scheduled: plan.paths.len(),
+            inspected: plan.inspected_count,
+            candidates: plan.candidate_count,
+            eligible: plan.eligible_count,
+            starmap_cells: plan.starmap_cell_count,
+            starmap_visited_cells: plan.starmap_visited_cell_count,
+            starmap_remaining_budget: plan.starmap_remaining_budget.unwrap_or_default(),
+            list_remaining_budget: plan.list_remaining_budget.unwrap_or_default(),
+        }
+    }
 }
 
 fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe; 4] {
@@ -283,6 +311,68 @@ fn record_preview_audition_warm_finished(
         commit_elapsed_ms = commit_elapsed.as_secs_f64() * 1000.0,
         "Preview audition warm finished"
     );
+}
+
+fn record_preview_audition_warm_phase_profile(
+    display_mode: SampleBrowserDisplayMode,
+    outcome: &'static str,
+    reason: Option<&'static str>,
+    summary: PreviewAuditionWarmPhaseSummary,
+    total_elapsed: Duration,
+    plan_elapsed: Duration,
+    reservation_elapsed: Duration,
+    task_schedule_elapsed: Duration,
+) {
+    let telemetry_enabled = starmap_telemetry::enabled();
+    let slow = total_elapsed >= PREVIEW_AUDITION_WARM_PHASE_PROFILE_THRESHOLD;
+    if !slow && !telemetry_enabled {
+        return;
+    }
+    if slow {
+        tracing::warn!(
+            target: "wavecrate::debug::ui_frame",
+            module = "preview_audition_warm",
+            event = "preview_audition.warm_phase_profile",
+            display_mode = sample_browser_display_mode_str(display_mode),
+            outcome,
+            reason = reason.unwrap_or(""),
+            scheduled = summary.scheduled,
+            inspected = summary.inspected,
+            candidates = summary.candidates,
+            eligible = summary.eligible,
+            starmap_cells = summary.starmap_cells,
+            starmap_visited_cells = summary.starmap_visited_cells,
+            starmap_remaining_budget = summary.starmap_remaining_budget,
+            list_remaining_budget = summary.list_remaining_budget,
+            total_elapsed_ms = total_elapsed.as_secs_f64() * 1000.0,
+            plan_elapsed_ms = plan_elapsed.as_secs_f64() * 1000.0,
+            reservation_elapsed_ms = reservation_elapsed.as_secs_f64() * 1000.0,
+            task_schedule_elapsed_ms = task_schedule_elapsed.as_secs_f64() * 1000.0,
+            "Slow preview audition warm phase"
+        );
+    } else {
+        tracing::info!(
+            target: "perf::audio_start",
+            module = "preview_audition_warm",
+            event = "preview_audition.warm_phase_profile",
+            display_mode = sample_browser_display_mode_str(display_mode),
+            outcome,
+            reason = reason.unwrap_or(""),
+            scheduled = summary.scheduled,
+            inspected = summary.inspected,
+            candidates = summary.candidates,
+            eligible = summary.eligible,
+            starmap_cells = summary.starmap_cells,
+            starmap_visited_cells = summary.starmap_visited_cells,
+            starmap_remaining_budget = summary.starmap_remaining_budget,
+            list_remaining_budget = summary.list_remaining_budget,
+            total_elapsed_ms = total_elapsed.as_secs_f64() * 1000.0,
+            plan_elapsed_ms = plan_elapsed.as_secs_f64() * 1000.0,
+            reservation_elapsed_ms = reservation_elapsed.as_secs_f64() * 1000.0,
+            task_schedule_elapsed_ms = task_schedule_elapsed.as_secs_f64() * 1000.0,
+            "Preview audition warm phase profile"
+        );
+    }
 }
 
 impl NativeAppState {
@@ -991,16 +1081,22 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let phase_started_at = Instant::now();
         let display_mode = self.ui.chrome.sample_browser_display;
         if self.preview_audition_warm_should_yield() {
             self.background.preview_audition_warm_task.cancel();
             self.waveform.cache.cancel_preview_audition_warm_schedule();
-            record_preview_audition_warm_plan(
+            let reason = self.preview_audition_warm_yield_reason();
+            record_preview_audition_warm_plan(display_mode, "yield", Some(reason), None, None);
+            record_preview_audition_warm_phase_profile(
                 display_mode,
                 "yield",
-                Some(self.preview_audition_warm_yield_reason()),
-                None,
-                None,
+                Some(reason),
+                PreviewAuditionWarmPhaseSummary::default(),
+                phase_started_at.elapsed(),
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
             );
             return;
         }
@@ -1010,18 +1106,38 @@ impl NativeAppState {
             .active()
             .is_some()
         {
+            record_preview_audition_warm_phase_profile(
+                display_mode,
+                "active",
+                None,
+                PreviewAuditionWarmPhaseSummary::default(),
+                phase_started_at.elapsed(),
+                Duration::ZERO,
+                Duration::ZERO,
+                Duration::ZERO,
+            );
             return;
         }
-        let plan_started_at = starmap_telemetry::stage_timer();
+        let plan_started_at = Instant::now();
         let plan = self.preview_audition_warm_candidates();
-        let plan_elapsed = starmap_telemetry::elapsed_since(plan_started_at);
+        let plan_elapsed = plan_started_at.elapsed();
         if plan.paths.is_empty() {
             record_preview_audition_warm_plan(
                 display_mode,
                 "empty",
                 None,
                 Some(&plan),
+                Some(plan_elapsed),
+            );
+            record_preview_audition_warm_phase_profile(
+                display_mode,
+                "empty",
+                None,
+                PreviewAuditionWarmPhaseSummary::from_plan(&plan),
+                phase_started_at.elapsed(),
                 plan_elapsed,
+                Duration::ZERO,
+                Duration::ZERO,
             );
             return;
         }
@@ -1030,8 +1146,10 @@ impl NativeAppState {
             "scheduled",
             None,
             Some(&plan),
-            plan_elapsed,
+            Some(plan_elapsed),
         );
+        let summary = PreviewAuditionWarmPhaseSummary::from_plan(&plan);
+        let reservation_started_at = Instant::now();
         let paths = plan.paths;
         self.waveform
             .cache
@@ -1046,7 +1164,9 @@ impl NativeAppState {
                 .cache
                 .reserve_list_preview_warm_batch(signature, paths.len());
         }
+        let reservation_elapsed = reservation_started_at.elapsed();
         let started_at = Instant::now();
+        let task_schedule_started_at = Instant::now();
         context
             .business()
             .background(PREVIEW_AUDITION_WARM_TASK_NAME)
@@ -1087,6 +1207,16 @@ impl NativeAppState {
                     started_at,
                 },
             );
+        record_preview_audition_warm_phase_profile(
+            display_mode,
+            "scheduled",
+            None,
+            summary,
+            phase_started_at.elapsed(),
+            plan_elapsed,
+            reservation_elapsed,
+            task_schedule_started_at.elapsed(),
+        );
     }
 
     fn preview_audition_warm_should_yield(&self) -> bool {
