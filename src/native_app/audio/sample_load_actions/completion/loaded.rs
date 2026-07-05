@@ -2,8 +2,8 @@ use std::{path::Path, time::Instant};
 
 use crate::native_app::{
     app::{
-        EarlySamplePlaybackKind, GuiMessage, NativeAppState, PendingSamplePlayback, WaveformState,
-        emit_gui_action,
+        emit_gui_action, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
+        PendingSamplePlayback, WaveformState,
     },
     audio::{playback::RandomAuditionUnits, sample_load_actions::log_slow_sample_load_phase},
 };
@@ -70,6 +70,7 @@ impl NativeAppState {
             );
             return;
         }
+        let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(&path);
         if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
@@ -88,7 +89,13 @@ impl NativeAppState {
             );
             return;
         }
-        self.start_current_sample_autoplay(&path, &file_name, started_at, context);
+        self.start_current_sample_autoplay_from_ratio(
+            &path,
+            &file_name,
+            preview_handoff_start_ratio.unwrap_or(0.0),
+            started_at,
+            context,
+        );
     }
 
     fn continue_early_sample_playback(

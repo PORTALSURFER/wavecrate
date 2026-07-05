@@ -199,7 +199,7 @@ fn display_after_preview_waits_for_settled_full_playback_promotion() {
 fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("settled-full.wav");
-    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    write_sparse_test_wav_i16(&sample_path, 1, 48_000);
     let sample_path_string = sample_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
@@ -216,6 +216,7 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
             .expect("sample loads");
     state.audio.early_sample_playback_path = Some(sample_path_string.clone());
     state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+    state.audio.playback_progress.elapsed = Some(std::time::Duration::from_millis(110));
     let ticket = state.background.settled_sample_promotion_task.begin();
     let mut context = ui::UiUpdateContext::default();
 
@@ -242,6 +243,15 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
             || state.audio.current_playback_span == Some((0.0, 1.0)),
         "settled promotion should hand the current loaded sample to full playback"
     );
+    let pending = state
+        .audio
+        .pending_playback_start
+        .expect("no-runtime test should queue the promoted full playback start");
+    assert!(
+        (pending.intent.start_ratio - 0.11).abs() < 0.01,
+        "settled preview handoff should continue past the heard preview instead of replaying from the top"
+    );
+    assert_eq!(pending.intent.end_ratio, 1.0);
 }
 
 #[test]
