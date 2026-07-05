@@ -481,6 +481,11 @@ investigations, inspect `stage`, `outcome`, `hits_queued`, `hits_started`,
 `origin` and `source_kind`, which distinguish starmap drag handoffs from
 ordinary browser or waveform playback. Accepted values: `1`, `true`, `on`,
 `yes`.
+After a dense starmap/list/keyboard smoke run, summarize the latest log with:
+`bash scripts/run.sh logs > /tmp/wavecrate-latest.log && python3 scripts/internal/perf/summarize_hotpath_telemetry.py /tmp/wavecrate-latest.log`.
+The summary groups fast-audition decisions, starmap queue/hit/playback
+counters, preview warm batches, slow UI frame dispatches, and missing telemetry
+diagnostics so remaining missed plays can be tied to a specific stage.
 
 - `RESON_PLAYBACK_TELEMETRY`
 Enables only Reson playback-engine hot-path logs, including decoder setup,

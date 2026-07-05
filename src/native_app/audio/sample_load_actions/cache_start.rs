@@ -9,9 +9,9 @@ use std::{
 
 use crate::native_app::{
     app::{
-        emit_gui_action, sample_path_label, GuiMessage, NativeAppState, PendingPlaybackStart,
-        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
-        SampleBrowserDisplayMode, WaveformState,
+        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
+        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
+        emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
@@ -19,8 +19,8 @@ use crate::native_app::{
     },
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
-        PreviewAuditionClip, WaveformPlaybackReady,
+        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
+        load_cached_waveform_playback_descriptor_sidecar,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -1104,7 +1104,9 @@ impl NativeAppState {
                 starmap_remaining_budget: Some(0),
             };
         }
-        let mut candidates = Vec::new();
+        let mut selected_candidate = None;
+        let mut nearby_candidates = Vec::with_capacity(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD);
+        let mut candidate_count = 0;
         for item in items.iter() {
             if item.missing || !preview_audition_can_decode(&item.file_id) {
                 continue;
@@ -1115,24 +1117,34 @@ impl NativeAppState {
             {
                 continue;
             }
-            let score = if selected_item {
-                -1.0
-            } else {
-                let dx = item.x - center_x;
-                let dy = item.y - center_y;
-                dx * dx + dy * dy
-            };
-            candidates.push((score, item.file_id.clone()));
+            candidate_count += 1;
+            if selected_item {
+                selected_candidate = Some(item.file_id.clone());
+                continue;
+            }
+            let dx = item.x - center_x;
+            let dy = item.y - center_y;
+            push_bounded_starmap_warm_candidate(
+                &mut nearby_candidates,
+                (dx * dx + dy * dy, item.file_id.clone()),
+                PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD,
+            );
         }
-        candidates.sort_by(|left, right| {
-            left.0
-                .total_cmp(&right.0)
-                .then_with(|| left.1.cmp(&right.1))
-        });
-        let candidate_count = candidates.len();
-        let eligible_paths = candidates
+        nearby_candidates.sort_by(starmap_warm_candidate_order);
+        let mut candidate_paths = Vec::with_capacity(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD);
+        if let Some(path) = selected_candidate {
+            candidate_paths.push(path);
+        }
+        let remaining_slots =
+            PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD.saturating_sub(candidate_paths.len());
+        candidate_paths.extend(
+            nearby_candidates
+                .into_iter()
+                .map(|(_, path)| path)
+                .take(remaining_slots),
+        );
+        let eligible_paths = candidate_paths
             .into_iter()
-            .map(|(_, path)| path)
             .filter(|path| {
                 self.waveform
                     .cache
@@ -1157,17 +1169,12 @@ impl NativeAppState {
 
     fn preview_audition_warm_list_candidates(&mut self) -> PreviewAuditionWarmPlan {
         let ordered_paths: Vec<String> = {
-            use crate::native_app::sample_library::folder_browser::projection::VisibleSampleQuery;
-
-            let visible = self
+            let visible_paths = self
                 .library
                 .folder_browser
-                .visible_samples(VisibleSampleQuery {
-                    tags_by_file: &self.metadata.tags_by_file,
-                    cached_sample_paths: &self.waveform.cache.cached_sample_paths,
-                });
+                .visible_sample_file_ids_matching_tags(&self.metadata.tags_by_file);
             Self::preview_audition_list_warm_ordered_paths(
-                &visible.rows,
+                &visible_paths,
                 self.library.folder_browser.selected_file_id(),
                 PREVIEW_AUDITION_LIST_VIEW_BUDGET,
             )
@@ -1201,38 +1208,30 @@ impl NativeAppState {
     }
 
     fn preview_audition_list_warm_ordered_paths(
-        rows: &[crate::native_app::sample_library::folder_browser::projection::VisibleSampleRow<
-            '_,
-        >],
+        rows: &[String],
         selected_file_id: Option<&str>,
         limit: usize,
     ) -> Vec<String> {
         if limit == 0 {
             return Vec::new();
         }
-        let selected_index = selected_file_id
-            .and_then(|selected| rows.iter().position(|row| row.file.id == selected));
+        let selected_index =
+            selected_file_id.and_then(|selected| rows.iter().position(|row| row == selected));
         let Some(selected_index) = selected_index else {
-            return rows
-                .iter()
-                .filter(|row| !row.missing)
-                .take(limit)
-                .map(|row| row.file.id.clone())
-                .collect();
+            return rows.iter().take(limit).cloned().collect();
         };
         let mut ordered = Vec::with_capacity(limit.min(rows.len()));
         for offset in 0..rows.len() {
             if offset == 0 {
-                if let Some(row) = rows.get(selected_index).filter(|row| !row.missing) {
-                    ordered.push(row.file.id.clone());
+                if let Some(row) = rows.get(selected_index) {
+                    ordered.push(row.clone());
                 }
             } else {
                 if let Some(row) = selected_index
                     .checked_add(offset)
                     .and_then(|index| rows.get(index))
-                    .filter(|row| !row.missing)
                 {
-                    ordered.push(row.file.id.clone());
+                    ordered.push(row.clone());
                 }
                 if ordered.len() >= limit {
                     break;
@@ -1240,9 +1239,8 @@ impl NativeAppState {
                 if let Some(row) = selected_index
                     .checked_sub(offset)
                     .and_then(|index| rows.get(index))
-                    .filter(|row| !row.missing)
                 {
-                    ordered.push(row.file.id.clone());
+                    ordered.push(row.clone());
                 }
             }
             if ordered.len() >= limit {
@@ -1749,6 +1747,36 @@ fn preview_audition_can_decode(path: &str) -> bool {
         })
 }
 
+fn push_bounded_starmap_warm_candidate(
+    candidates: &mut Vec<(f32, String)>,
+    candidate: (f32, String),
+    limit: usize,
+) {
+    if limit == 0 {
+        return;
+    }
+    if candidates.len() < limit {
+        candidates.push(candidate);
+        return;
+    }
+    let Some((worst_index, worst)) = candidates
+        .iter()
+        .enumerate()
+        .max_by(|(_, left), (_, right)| starmap_warm_candidate_order(left, right))
+    else {
+        return;
+    };
+    if starmap_warm_candidate_order(&candidate, worst).is_lt() {
+        candidates[worst_index] = candidate;
+    }
+}
+
+fn starmap_warm_candidate_order(left: &(f32, String), right: &(f32, String)) -> std::cmp::Ordering {
+    left.0
+        .total_cmp(&right.0)
+        .then_with(|| left.1.cmp(&right.1))
+}
+
 fn preview_clip_playback_gain(
     clip: &PreviewAuditionClip,
     normalized_audition_enabled: bool,
@@ -2209,10 +2237,12 @@ mod tests {
             PREVIEW_AUDITION_WARM_BATCH,
             "a meaningful starmap viewport change should open a fresh warm budget"
         );
-        assert!(changed_view_plan
-            .paths
-            .iter()
-            .all(|path| !warmed.contains(path)));
+        assert!(
+            changed_view_plan
+                .paths
+                .iter()
+                .all(|path| !warmed.contains(path))
+        );
     }
 
     #[test]

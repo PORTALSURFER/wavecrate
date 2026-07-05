@@ -583,29 +583,7 @@ impl FolderBrowserState {
         &'a self,
         query: VisibleSampleQuery<'a>,
     ) -> VisibleSampleList<'a> {
-        let prepared_window = self.sample_list.prepared_window;
-        let mut window_files =
-            self.selected_audio_file_window_matching_tags(prepared_window, query.tags_by_file);
-        let mut window = prepared_window.reconcile_total_items(window_files.total_count);
-        if window != prepared_window {
-            window_files =
-                self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
-        }
-        if !window_files_complete(window, &window_files) {
-            self.sample_list.projection_cache.clear();
-            window_files =
-                self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
-        }
-        if !window_files_complete(window, &window_files) {
-            window_files =
-                self.uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
-            let repaired_window = window.reconcile_total_items(window_files.total_count);
-            if repaired_window != window {
-                window = repaired_window;
-                window_files = self
-                    .uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
-            }
-        }
+        let (window, window_files) = self.visible_sample_window_files(query.tags_by_file);
         let harvest_lookup =
             super::harvest_filter::HarvestFileFactsLookup::load(self, &window_files.rows);
         let show_new_harvest_badges = self.filters.harvest.is_some();
@@ -632,6 +610,47 @@ impl FolderBrowserState {
             similarity_mode_active: self.similarity_mode_active(),
             similarity_controls: self.similarity_controls(),
         }
+    }
+
+    pub(in crate::native_app) fn visible_sample_file_ids_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> Vec<String> {
+        self.visible_sample_window_files(tags_by_file)
+            .1
+            .rows
+            .into_iter()
+            .filter(|file| !file.is_missing())
+            .map(|file| file.id.clone())
+            .collect()
+    }
+
+    fn visible_sample_window_files(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> (ui::VirtualListWindow, VisibleSampleWindowFiles<'_>) {
+        let prepared_window = self.sample_list.prepared_window;
+        let mut window_files =
+            self.selected_audio_file_window_matching_tags(prepared_window, tags_by_file);
+        let mut window = prepared_window.reconcile_total_items(window_files.total_count);
+        if window != prepared_window {
+            window_files = self.selected_audio_file_window_matching_tags(window, tags_by_file);
+        }
+        if !window_files_complete(window, &window_files) {
+            self.sample_list.projection_cache.clear();
+            window_files = self.selected_audio_file_window_matching_tags(window, tags_by_file);
+        }
+        if !window_files_complete(window, &window_files) {
+            window_files =
+                self.uncached_selected_audio_file_window_matching_tags(window, tags_by_file);
+            let repaired_window = window.reconcile_total_items(window_files.total_count);
+            if repaired_window != window {
+                window = repaired_window;
+                window_files =
+                    self.uncached_selected_audio_file_window_matching_tags(window, tags_by_file);
+            }
+        }
+        (window, window_files)
     }
 
     fn visible_sample_row_for_file<'a>(
