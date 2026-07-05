@@ -786,10 +786,10 @@ fn repeat_sample_selection_uses_memory_waveform_cache_without_worker() {
 }
 
 #[test]
-fn long_summary_sample_load_completion_shows_loaded_waveform_panel() {
+fn long_display_after_instant_audition_completion_shows_nonblank_waveform_panel() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("long-summary-miss.wav");
-    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    write_pulsed_long_test_wav_i16(&sample_path, 1, 700);
     let sample_path_string = sample_path.display().to_string();
 
     let mut state = gui_state_for_span_tests();
@@ -810,19 +810,22 @@ fn long_summary_sample_load_completion_shows_loaded_waveform_panel() {
     let ticket = active_sample_load_ticket(&state).expect("long sample load queued");
 
     let loaded =
-        crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
+        crate::native_app::test_support::state::WaveformState::load_path_for_instant_audition_display(
             sample_path.clone(),
             |_| {},
             || false,
-            |_| {},
         )
-        .expect("long foreground summary load");
+        .expect("long display summary load");
     assert_eq!(
         loaded.playback_source_file().as_deref(),
         Some(sample_path.as_path()),
         "long non-looped samples should be displayable from a file-backed summary"
     );
     assert!(loaded.playback_samples().is_none());
+    assert!(
+        loaded.signal_summary_peak_for_tests() > 0.0,
+        "post-audition display loads must retain drawable waveform signal data"
+    );
 
     let mut context = ui::UiUpdateContext::default();
     state.apply_message(
@@ -834,6 +837,10 @@ fn long_summary_sample_load_completion_shows_loaded_waveform_panel() {
 
     assert_eq!(state.waveform.current.path(), sample_path);
     assert!(state.waveform.current.has_loaded_sample());
+    assert!(
+        state.waveform.current.signal_summary_peak_for_tests() > 0.0,
+        "loaded long sample should not leave the retained waveform surface blank"
+    );
     assert_eq!(state.waveform.load.label, None);
     let frame = crate::native_app::app_chrome::waveform_panel::waveform_panel(
         crate::native_app::app_chrome::view_models::waveform_panel::WaveformPanelViewModel::from_app_state(&state),
@@ -853,7 +860,7 @@ fn long_summary_sample_load_completion_shows_loaded_waveform_panel() {
 fn long_summary_memory_cache_hit_shows_loaded_waveform_without_worker() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("long-summary-hit.wav");
-    write_sparse_test_wav_i16(&sample_path, 1, 700);
+    write_pulsed_long_test_wav_i16(&sample_path, 1, 700);
     let sample_path_string = sample_path.display().to_string();
 
     let loaded =
@@ -867,6 +874,10 @@ fn long_summary_memory_cache_hit_shows_loaded_waveform_without_worker() {
     assert_eq!(
         loaded.playback_source_file().as_deref(),
         Some(sample_path.as_path())
+    );
+    assert!(
+        loaded.signal_summary_peak_for_tests() > 0.0,
+        "summary cache seed should contain drawable waveform signal data"
     );
 
     let mut state = gui_state_for_span_tests();
@@ -888,6 +899,10 @@ fn long_summary_memory_cache_hit_shows_loaded_waveform_without_worker() {
 
     assert_eq!(state.waveform.current.path(), sample_path);
     assert!(state.waveform.current.has_loaded_sample());
+    assert!(
+        state.waveform.current.signal_summary_peak_for_tests() > 0.0,
+        "memory-cached long summary should keep drawable waveform signal data"
+    );
     assert_eq!(state.waveform.load.label, None);
     assert!(
         active_sample_load_ticket(&state).is_none(),
@@ -904,6 +919,30 @@ fn long_summary_memory_cache_hit_shows_loaded_waveform_without_worker() {
             .any(|run| run.text.starts_with("long-summary-hit.wav |"))
     );
     assert!(!frame.paint_plan.contains_text("No sample loaded"));
+}
+
+fn write_pulsed_long_test_wav_i16(path: &std::path::Path, channels: u16, frames: usize) {
+    let channels = channels.max(1);
+    let spec = hound::WavSpec {
+        channels,
+        sample_rate: 48_000,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+    for frame in 0..frames {
+        let pulse = if frame % 97 == 0 {
+            10_000
+        } else if frame % 53 == 0 {
+            -8_000
+        } else {
+            0
+        };
+        for _ in 0..channels {
+            writer.write_sample::<i16>(pulse).expect("write sample");
+        }
+    }
+    writer.finalize().expect("finalize wav");
 }
 
 #[test]
