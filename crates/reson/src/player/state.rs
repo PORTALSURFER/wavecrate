@@ -10,7 +10,9 @@ use super::super::output::{AudioOutputConfig, ResolvedOutput, open_output_stream
 use super::super::routing::duration_from_secs_f32;
 use super::super::timebase::seconds_to_frames_round;
 
-use super::{AudioPlaybackSource, AudioPlayer, EditFadeHandle, EditFadeRange};
+use super::{
+    AudioPlaybackSource, AudioPlayer, EditFadeHandle, EditFadeRange, PlaybackRuntimeReplacePolicy,
+};
 
 impl AudioPlayer {
     /// Create a new audio player using the default output device.
@@ -352,7 +354,9 @@ impl AudioPlayer {
             pos: 0.0,
             step: 220.0 * 2.0 * std::f32::consts::PI / 44100.0,
         };
-        player.build_sink_with_fade(source).ok()?;
+        player
+            .build_sink_with_fade(source, PlaybackRuntimeReplacePolicy::FadeOutPrevious)
+            .ok()?;
         player.started_at = Some(Instant::now());
         Some(player)
     }

@@ -15,8 +15,9 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
-    SampleLoadPathValidation, SampleLoadResult, SamplePlaybackReady, StarmapViewportChange,
-    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
+    PreviewAuditionResult, PreviewAuditionWarmResult, SampleLoadPathValidation, SampleLoadResult,
+    SamplePlaybackReady, StarmapViewportChange, WaveformCacheIndicatorRefreshResult,
+    WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -116,6 +117,14 @@ pub(in crate::native_app) enum GuiMessage {
     },
     SampleLoadProgress(ui::ResourceKey, ui::TaskTicket, f32),
     SamplePlaybackReady(ui::KeyedTaskCompletion<ui::ResourceKey, SamplePlaybackReady>),
+    PreviewAuditionDecoded {
+        completion: ui::TaskCompletion<PreviewAuditionResult>,
+        started_at: Instant,
+    },
+    PreviewAuditionWarmFinished {
+        completion: ui::TaskCompletion<PreviewAuditionWarmResult>,
+        started_at: Instant,
+    },
     SampleLoadFinished(ui::KeyedTaskCompletion<ui::ResourceKey, SampleLoadResult>),
     WaveformCacheIndicatorRefreshFinished(ui::TaskCompletion<WaveformCacheIndicatorRefreshResult>),
     WaveformCacheWarmFinished(ui::KeyedTaskCompletion<ui::ResourceKey, WaveformCacheWarmResult>),
@@ -336,6 +345,10 @@ pub(in crate::native_app) enum GuiMessage {
     },
     AdvanceStarmapAudition {
         ticket: ui::TaskTicket,
+    },
+    PromoteStarmapAudition {
+        ticket: ui::TaskTicket,
+        path: String,
     },
     FinishStarmapAuditionDrag,
     SampleBrowserWindowChanged(ui::VirtualListWindowChange),

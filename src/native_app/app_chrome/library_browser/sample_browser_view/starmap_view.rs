@@ -15,6 +15,7 @@ use radiant::{
 use std::{
     collections::{hash_map::DefaultHasher, BTreeMap, HashMap, HashSet},
     hash::{Hash, Hasher},
+    sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
 
 use crate::native_app::app::{
@@ -26,6 +27,9 @@ use crate::native_app::sample_library::context_menu_target::{
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
     starmap_cluster_palette_color, StarmapItem, StarmapStatus,
+};
+use crate::native_app::starmap_audition_telemetry::{
+    self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
 use crate::native_app::ui::ids as widget_ids;
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -49,8 +53,14 @@ const MAP_HOVER_SIZE: f32 = 8.0;
 const MAP_HOVER_GLOW_SIZE: f32 = 16.0;
 const MAP_HIT_RADIUS: f32 = 8.0;
 const MAP_HIT_GRID_CELL_SIZE: f32 = MAP_HIT_RADIUS * 2.0;
+const MAP_SEGMENT_HIT_HANDOFF_LIMIT: usize = 16;
 const MAP_DENSE_ITEM_COUNT: usize = 1_000;
 const MAP_VERY_DENSE_ITEM_COUNT: usize = 4_000;
+const MAP_DENSE_OVERVIEW_ITEM_COUNT: usize = 3_000;
+const MAP_DENSE_OVERVIEW_MAX_ZOOM: f32 = 1.35;
+const MAP_DENSE_OVERVIEW_GRID_SIZE: i32 = 72;
+const MAP_DENSE_OVERVIEW_NODE_SIZE: f32 = 3.6;
+const MAP_DENSE_OVERVIEW_NODE_SIZE_MAX: f32 = 6.8;
 const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
 const MAP_CONTROL_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
 const MAP_CONTROL_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
@@ -63,7 +73,7 @@ const MAP_CONTROL_ANCHOR: Vector2 = Vector2 { x: 0.5, y: 0.5 };
 const MAP_LEGEND_SWATCH_SIZE: u8 = 7;
 
 pub(super) fn starmap_view(
-    items: Vec<StarmapItem>,
+    items: impl Into<Arc<[StarmapItem]>>,
     viewport: StarmapViewport,
     name_filter: String,
     similarity_controls: &SimilarityAspectSettings,
@@ -71,7 +81,9 @@ pub(super) fn starmap_view(
     prep_running: bool,
     curation_mode_enabled: bool,
     active_drag: Option<StarmapAuditionDragState>,
+    active_audition_file_id: Option<String>,
 ) -> ui::View<GuiMessage> {
+    let items = items.into();
     let map = if items.is_empty() {
         ui::column([
             ui::text_line(starmap_empty_message(curation_mode_enabled), 23.0).muted_text(),
@@ -80,10 +92,13 @@ pub(super) fn starmap_view(
         .spacing(0.0)
         .fill()
     } else {
-        ui::custom_widget_direct(StarmapWidget::new(items, viewport, active_drag))
-            .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
-            .height(MAP_MIN_HEIGHT)
-            .fill()
+        ui::custom_widget_direct(
+            StarmapWidget::new(items, viewport, active_drag)
+                .with_active_audition_file_id(active_audition_file_id),
+        )
+        .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
+        .height(MAP_MIN_HEIGHT)
+        .fill()
     };
     ui::stack([
         map,
@@ -94,6 +109,27 @@ pub(super) fn starmap_view(
     ])
     .fill()
     .height(MAP_MIN_HEIGHT)
+}
+
+pub(in crate::native_app) fn paint_active_starmap_audition_overlay(
+    primitives: &mut Vec<PaintPrimitive>,
+    bounds: Rect,
+    items: &[StarmapItem],
+    viewport: StarmapViewport,
+    active_file_id: &str,
+) {
+    let Some(item) = items.iter().find(|item| item.file_id == active_file_id) else {
+        return;
+    };
+    let center = item_center(bounds, item, viewport);
+    if paint_bounds(bounds).contains(center) {
+        paint_active_audition_item(
+            primitives,
+            widget_ids::SAMPLE_BROWSER_MAP_ID,
+            center,
+            starmap_item_color(item),
+        );
+    }
 }
 
 fn starmap_empty_message(curation_mode_enabled: bool) -> &'static str {
@@ -301,23 +337,29 @@ fn starmap_status_overlay(status: StarmapStatus, prep_running: bool) -> ui::View
 struct StarmapWidget {
     common: WidgetCommon,
     gesture: CanvasGestureState,
-    items: Vec<StarmapItem>,
+    items: Arc<[StarmapItem]>,
     viewport: StarmapViewport,
     last_hit_file_id: Option<String>,
+    last_hit_index: Option<usize>,
+    active_audition_file_id: Option<String>,
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
     active_drag: Option<StarmapAuditionDragState>,
-    item_signature: u64,
+    item_metadata: Arc<OnceLock<StarmapItemMetadata>>,
     hit_index: StarmapHitIndex,
+    hit_scratch: Arc<Mutex<StarmapHitScratch>>,
+    paint_cache: Arc<Mutex<StarmapPaintCache>>,
     hovered_file_id: Option<String>,
+    hovered_item_index: Option<usize>,
 }
 
 impl StarmapWidget {
     fn new(
-        items: Vec<StarmapItem>,
+        items: impl Into<Arc<[StarmapItem]>>,
         viewport: StarmapViewport,
         active_drag: Option<StarmapAuditionDragState>,
     ) -> Self {
+        let items = items.into();
         let common = WidgetCommon::new(
             widget_ids::SAMPLE_BROWSER_MAP_ID,
             WidgetSizing::new(
@@ -327,25 +369,29 @@ impl StarmapWidget {
         )
         .with_pointer_focus()
         .without_default_chrome();
-        let item_signature = starmap_items_signature(&items);
         Self {
             common,
             gesture: CanvasGestureState::new(),
             items,
             viewport,
             last_hit_file_id: None,
+            last_hit_index: None,
+            active_audition_file_id: None,
             last_primary_position: None,
             last_pan_position: None,
             active_drag,
-            item_signature,
+            item_metadata: Arc::new(OnceLock::new()),
             hit_index: StarmapHitIndex::default(),
+            hit_scratch: Arc::new(Mutex::new(StarmapHitScratch::default())),
+            paint_cache: Arc::new(Mutex::new(StarmapPaintCache::default())),
             hovered_file_id: None,
+            hovered_item_index: None,
         }
     }
 
-    fn hit_file_id(&mut self, bounds: Rect, point: Point) -> Option<String> {
-        self.hit_test(bounds, point)
-            .map(|item| item.file_id.clone())
+    fn with_active_audition_file_id(mut self, file_id: Option<String>) -> Self {
+        self.active_audition_file_id = file_id;
+        self
     }
 
     fn begin_audition_drag_message(
@@ -354,8 +400,29 @@ impl StarmapWidget {
         point: Point,
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
-        let hit_file_id = self.hit_file_id(bounds, point);
+        let hit_started_at = starmap_telemetry::stage_timer();
+        let hit_index = self.hit_item_index(bounds, point);
+        let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
+        if let Some(elapsed) = hit_elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
+        }
+        let hit_file_id = hit_index.map(|index| self.items[index].file_id.clone());
+        starmap_telemetry::record_event(
+            Some(if hit_file_id.is_some() {
+                StarmapAuditionCounter::WidgetPointHit
+            } else {
+                StarmapAuditionCounter::WidgetPointMiss
+            }),
+            "widget.point_hit_test",
+            if hit_file_id.is_some() { "hit" } else { "miss" },
+            hit_file_id.as_deref(),
+            usize::from(hit_file_id.is_some()),
+            0,
+            false,
+            hit_elapsed,
+        );
         self.last_hit_file_id = hit_file_id.clone();
+        self.last_hit_index = hit_index;
         self.last_primary_position = Some(point);
         Some(WidgetOutput::typed(GuiMessage::BeginStarmapAuditionDrag {
             path: hit_file_id,
@@ -383,24 +450,80 @@ impl StarmapWidget {
             .or(self.last_hit_file_id.as_deref())
             .map(str::to_owned);
         self.last_primary_position = Some(point);
-        let Some(hit_file_id) = self.hit_file_id_between(bounds, previous, point) else {
+        let hit_started_at = starmap_telemetry::stage_timer();
+        let hits = self.hits_between(bounds, previous, point, last_hit_file_id.as_deref());
+        let hit_elapsed = starmap_telemetry::elapsed_since(hit_started_at);
+        if let Some(elapsed) = hit_elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetHitTest, elapsed);
+        }
+        if hits.is_empty() {
+            starmap_telemetry::record_event(
+                Some(StarmapAuditionCounter::WidgetSegmentMiss),
+                "widget.segment_hit_test",
+                "miss",
+                None,
+                0,
+                0,
+                last_hit_file_id.is_some(),
+                hit_elapsed,
+            );
+            return None;
+        }
+        let Some(last_hit) = hits.last() else {
             return None;
         };
+        let hit_file_id = self.items[last_hit.item_index].file_id.clone();
+        let hit_item_index = last_hit.item_index;
+        let hit_file_ids = hits
+            .iter()
+            .map(|hit| self.items[hit.item_index].file_id.clone())
+            .collect::<Vec<_>>();
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::WidgetSegmentHit),
+            "widget.segment_hit_test",
+            if hits.raw_count > MAP_SEGMENT_HIT_HANDOFF_LIMIT {
+                "hit_capped"
+            } else {
+                "hit"
+            },
+            Some(hit_file_id.as_str()),
+            hits.raw_count,
+            hit_file_ids.len(),
+            last_hit_file_id.is_some(),
+            hit_elapsed,
+        );
         if Some(&hit_file_id) == last_hit_file_id.as_ref() {
             return None;
         }
         self.last_hit_file_id = Some(hit_file_id.clone());
+        self.last_hit_index = Some(hit_item_index);
+        starmap_telemetry::record_event(
+            None,
+            "widget.drag_update",
+            "hit_changed",
+            Some(hit_file_id.as_str()),
+            hit_file_ids.len(),
+            0,
+            true,
+            None,
+        );
         Some(WidgetOutput::typed(GuiMessage::UpdateStarmapAuditionDrag {
-            paths: vec![hit_file_id],
+            paths: hit_file_ids,
             position: point,
             modifiers,
         }))
     }
 
-    fn hit_test(&mut self, bounds: Rect, point: Point) -> Option<&StarmapItem> {
+    fn hit_item_index(&mut self, bounds: Rect, point: Point) -> Option<usize> {
         self.ensure_hit_index(bounds);
-        let mut best: Option<(&StarmapItem, f32)> = None;
-        for index in self.hit_index.item_indices_near_point(point) {
+        let mut best: Option<(usize, f32)> = None;
+        let mut hit_scratch = lock_starmap_mutex(&self.hit_scratch);
+        let candidates = self.hit_index.collect_item_indices_near_point(
+            point,
+            self.items.len(),
+            &mut hit_scratch,
+        );
+        for &index in candidates {
             let item = &self.items[index];
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = distance_squared(center, point);
@@ -408,52 +531,63 @@ impl StarmapWidget {
                 continue;
             }
             if best.is_none_or(|(_, best_distance)| distance_sq < best_distance) {
-                best = Some((item, distance_sq));
+                best = Some((index, distance_sq));
             }
         }
-        best.map(|(item, _)| item)
+        best.map(|(index, _)| index)
     }
 
-    fn hit_file_id_between(&mut self, bounds: Rect, from: Point, to: Point) -> Option<String> {
+    fn hits_between(
+        &mut self,
+        bounds: Rect,
+        from: Point,
+        to: Point,
+        last_hit_file_id: Option<&str>,
+    ) -> StarmapSegmentHits {
         self.ensure_hit_index(bounds);
-        let mut best: Option<StarmapSegmentHit> = None;
-        for index in self.hit_index.item_indices_near_segment(from, to) {
+        let mut hits = StarmapSegmentHits::default();
+        let mut hit_scratch = lock_starmap_mutex(&self.hit_scratch);
+        let candidates = self.hit_index.collect_item_indices_near_segment(
+            from,
+            to,
+            self.items.len(),
+            &mut hit_scratch,
+        );
+        for &index in candidates {
             let item = &self.items[index];
+            if last_hit_file_id == Some(item.file_id.as_str()) {
+                continue;
+            }
             let center = item_center(bounds, item, self.viewport);
             let distance_sq = point_segment_distance_squared(center, from, to);
             if distance_sq > MAP_HIT_RADIUS * MAP_HIT_RADIUS {
                 continue;
             }
-            let hit = StarmapSegmentHit {
-                file_id: item.file_id.clone(),
+            hits.retain(StarmapSegmentHit {
+                item_index: index,
                 segment_t: point_segment_t(center, from, to),
                 distance_sq,
-            };
-            if best.as_ref().is_none_or(|best| {
-                hit.segment_t
-                    .total_cmp(&best.segment_t)
-                    .then_with(|| best.distance_sq.total_cmp(&hit.distance_sq))
-                    .is_gt()
-            }) {
-                best = Some(hit);
-            }
+            });
         }
-        best.map(|hit| hit.file_id)
+        hits.sort();
+        hits
     }
 
     fn ensure_hit_index(&mut self, bounds: Rect) {
+        let item_signature = self.item_signature();
         if self
             .hit_index
-            .matches(bounds, self.viewport, self.item_signature)
+            .matches(bounds, self.viewport, item_signature)
         {
             return;
         }
-        self.hit_index =
-            StarmapHitIndex::build(bounds, self.viewport, self.item_signature, &self.items);
+        self.hit_index = StarmapHitIndex::build(bounds, self.viewport, item_signature, &self.items);
     }
 
     fn set_hovered_file_at(&mut self, bounds: Rect, point: Point) {
-        self.hovered_file_id = self.hit_file_id(bounds, point);
+        let index = self.hit_item_index(bounds, point);
+        self.hovered_item_index = index;
+        self.hovered_file_id = index.map(|index| self.items[index].file_id.clone());
     }
 
     fn remember_hovered_context_menu_anchor(&self, point: Point) -> Option<WidgetOutput> {
@@ -469,28 +603,155 @@ impl StarmapWidget {
 
     fn hovered_item(&self) -> Option<&StarmapItem> {
         let hovered_file_id = self.hovered_file_id.as_deref()?;
-        self.items
-            .iter()
-            .find(|item| item.file_id.as_str() == hovered_file_id)
+        self.item_for_cached_index(self.hovered_item_index, hovered_file_id)
+            .or_else(|| self.item_for_file_id(hovered_file_id))
     }
 
     fn active_drag_item(&self) -> Option<&StarmapItem> {
-        let active_file_id = self.active_drag.as_ref()?.last_hit_file_id.as_deref()?;
-        self.items
-            .iter()
-            .find(|item| item.file_id.as_str() == active_file_id)
+        let active_file_id = self
+            .last_hit_file_id
+            .as_deref()
+            .or_else(|| self.active_drag.as_ref()?.last_hit_file_id.as_deref())?;
+        self.item_for_cached_index(self.last_hit_index, active_file_id)
+            .or_else(|| self.item_for_file_id(active_file_id))
+    }
+
+    fn active_audition_item(&self) -> Option<&StarmapItem> {
+        if self.active_drag.is_some() || self.last_primary_position.is_some() {
+            return self.active_drag_item();
+        }
+        let active_file_id = self.active_audition_file_id.as_deref()?;
+        self.item_for_file_id(active_file_id)
     }
 
     fn focused_item(&self) -> Option<&StarmapItem> {
-        self.items.iter().find(|item| item.focused)
+        self.items.get(self.item_metadata().focused_item_index?)
+    }
+
+    fn item_for_cached_index(
+        &self,
+        index: Option<usize>,
+        expected_file_id: &str,
+    ) -> Option<&StarmapItem> {
+        let item = self.items.get(index?)?;
+        (item.file_id == expected_file_id).then_some(item)
+    }
+
+    fn item_for_file_id(&self, file_id: &str) -> Option<&StarmapItem> {
+        let index = self.item_metadata().item_indices.get(file_id).copied();
+        self.item_for_cached_index(index, file_id)
+    }
+
+    fn item_signature(&self) -> u64 {
+        self.item_metadata().signatures.hit
+    }
+
+    fn paint_signature(&self) -> u64 {
+        self.item_metadata().signatures.paint
+    }
+
+    fn item_metadata(&self) -> &StarmapItemMetadata {
+        self.item_metadata
+            .get_or_init(|| starmap_item_metadata(&self.items))
+    }
+
+    fn sync_drag_hit_from_previous(&mut self, previous: &Self) {
+        let previous_model_hit = previous
+            .active_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.clone());
+        let current_model_hit = self
+            .active_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.clone());
+        let previous_local_hit = previous.last_hit_file_id.clone();
+        let previous_local_is_newer = previous_local_hit.is_some()
+            && previous_local_hit.as_deref() != previous_model_hit.as_deref();
+
+        if previous_local_is_newer && current_model_hit.as_deref() == previous_model_hit.as_deref()
+        {
+            self.last_hit_file_id = previous.last_hit_file_id.clone();
+            self.last_hit_index = previous.last_hit_index;
+            return;
+        }
+
+        if let Some(current_hit) = current_model_hit {
+            self.last_hit_index = self.item_metadata().item_indices.get(&current_hit).copied();
+            self.last_hit_file_id = Some(current_hit);
+            return;
+        }
+
+        self.last_hit_file_id = previous.last_hit_file_id.clone();
+        self.last_hit_index = previous.last_hit_index;
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct StarmapSegmentHit {
-    file_id: String,
+    item_index: usize,
     segment_t: f32,
     distance_sq: f32,
+}
+
+#[derive(Debug, Default)]
+struct StarmapSegmentHits {
+    raw_count: usize,
+    retained: Vec<StarmapSegmentHit>,
+}
+
+impl StarmapSegmentHits {
+    fn is_empty(&self) -> bool {
+        self.retained.is_empty()
+    }
+
+    fn last(&self) -> Option<&StarmapSegmentHit> {
+        self.retained.last()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &StarmapSegmentHit> {
+        self.retained.iter()
+    }
+
+    fn retain(&mut self, hit: StarmapSegmentHit) {
+        self.raw_count += 1;
+        if self.retained.len() < MAP_SEGMENT_HIT_HANDOFF_LIMIT {
+            self.retained.push(hit);
+            return;
+        }
+        let Some((worst_index, worst)) = self
+            .retained
+            .iter()
+            .enumerate()
+            .min_by(|(_, left), (_, right)| segment_hit_handoff_priority_order(left, right))
+        else {
+            return;
+        };
+        if segment_hit_handoff_priority_order(&hit, worst).is_gt() {
+            self.retained[worst_index] = hit;
+        }
+    }
+
+    fn sort(&mut self) {
+        self.retained.sort_by(segment_hit_display_order);
+    }
+}
+
+fn segment_hit_display_order(
+    left: &StarmapSegmentHit,
+    right: &StarmapSegmentHit,
+) -> std::cmp::Ordering {
+    left.segment_t
+        .total_cmp(&right.segment_t)
+        .then_with(|| left.distance_sq.total_cmp(&right.distance_sq))
+}
+
+fn segment_hit_handoff_priority_order(
+    left: &StarmapSegmentHit,
+    right: &StarmapSegmentHit,
+) -> std::cmp::Ordering {
+    left.segment_t
+        .total_cmp(&right.segment_t)
+        .then_with(|| right.distance_sq.total_cmp(&left.distance_sq))
 }
 
 #[derive(Clone, Debug, Default)]
@@ -498,7 +759,7 @@ struct StarmapHitIndex {
     bounds: Option<Rect>,
     viewport: Option<StarmapViewport>,
     item_signature: u64,
-    cells: HashMap<StarmapGridCell, Vec<usize>>,
+    cells: Arc<HashMap<StarmapGridCell, Vec<usize>>>,
 }
 
 impl StarmapHitIndex {
@@ -524,7 +785,7 @@ impl StarmapHitIndex {
             bounds: Some(bounds),
             viewport: Some(viewport),
             item_signature,
-            cells,
+            cells: Arc::new(cells),
         }
     }
 
@@ -540,32 +801,137 @@ impl StarmapHitIndex {
             && self.item_signature == item_signature
     }
 
-    fn item_indices_near_point(&self, point: Point) -> Vec<usize> {
-        self.item_indices_for_rect(centered_rect(point, MAP_HIT_RADIUS * 2.0))
+    fn collect_item_indices_near_point<'a>(
+        &'a self,
+        point: Point,
+        item_count: usize,
+        scratch: &'a mut StarmapHitScratch,
+    ) -> &'a [usize] {
+        self.collect_item_indices_for_rect(
+            centered_rect(point, MAP_HIT_RADIUS * 2.0),
+            item_count,
+            scratch,
+        )
     }
 
-    fn item_indices_near_segment(&self, from: Point, to: Point) -> Vec<usize> {
-        self.item_indices_for_rect(segment_bounds(from, to).expanded(MAP_HIT_RADIUS))
+    fn collect_item_indices_near_segment<'a>(
+        &'a self,
+        from: Point,
+        to: Point,
+        item_count: usize,
+        scratch: &'a mut StarmapHitScratch,
+    ) -> &'a [usize] {
+        scratch.begin(item_count);
+        let from = StarmapGridCell::from_point(from);
+        let to = StarmapGridCell::from_point(to);
+        let dx = to.x - from.x;
+        let dy = to.y - from.y;
+        let steps = dx.abs().max(dy.abs());
+        if steps == 0 {
+            self.collect_item_indices_near_cell(from, scratch);
+            return scratch.indices.as_slice();
+        }
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let cell = StarmapGridCell {
+                x: (from.x as f32 + dx as f32 * t).round() as i32,
+                y: (from.y as f32 + dy as f32 * t).round() as i32,
+            };
+            self.collect_item_indices_near_cell(cell, scratch);
+        }
+        scratch.indices.as_slice()
     }
 
-    fn item_indices_for_rect(&self, rect: Rect) -> Vec<usize> {
+    fn collect_item_indices_for_rect<'a>(
+        &'a self,
+        rect: Rect,
+        item_count: usize,
+        scratch: &'a mut StarmapHitScratch,
+    ) -> &'a [usize] {
+        scratch.begin(item_count);
         let min = StarmapGridCell::from_point(rect.min);
         let max = StarmapGridCell::from_point(rect.max);
-        let mut indices = Vec::new();
-        let mut seen = HashSet::new();
         for y in min.y..=max.y {
             for x in min.x..=max.x {
                 let Some(cell_indices) = self.cells.get(&StarmapGridCell { x, y }) else {
                     continue;
                 };
                 for &index in cell_indices {
-                    if seen.insert(index) {
-                        indices.push(index);
+                    if scratch.mark_seen(index) {
+                        scratch.indices.push(index);
                     }
                 }
             }
         }
-        indices
+        scratch.indices.as_slice()
+    }
+
+    fn collect_item_indices_near_cell(
+        &self,
+        cell: StarmapGridCell,
+        scratch: &mut StarmapHitScratch,
+    ) {
+        for y in cell.y - 1..=cell.y + 1 {
+            for x in cell.x - 1..=cell.x + 1 {
+                let cell = StarmapGridCell { x, y };
+                if !scratch.mark_cell_seen(cell) {
+                    continue;
+                }
+                let Some(cell_indices) = self.cells.get(&cell) else {
+                    continue;
+                };
+                for &index in cell_indices {
+                    if scratch.mark_seen(index) {
+                        scratch.indices.push(index);
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn item_indices_near_segment(&self, from: Point, to: Point, item_count: usize) -> Vec<usize> {
+        let mut scratch = StarmapHitScratch::default();
+        self.collect_item_indices_near_segment(from, to, item_count, &mut scratch)
+            .to_vec()
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct StarmapHitScratch {
+    generation: u32,
+    seen_generation: Vec<u32>,
+    seen_cells: HashSet<StarmapGridCell>,
+    indices: Vec<usize>,
+}
+
+impl StarmapHitScratch {
+    fn begin(&mut self, item_count: usize) {
+        self.indices.clear();
+        self.seen_cells.clear();
+        if self.seen_generation.len() < item_count {
+            self.seen_generation.resize(item_count, 0);
+        }
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            self.seen_generation.fill(0);
+            self.generation = 1;
+        }
+    }
+
+    fn mark_seen(&mut self, index: usize) -> bool {
+        let Some(seen_generation) = self.seen_generation.get_mut(index) else {
+            return false;
+        };
+        if *seen_generation == self.generation {
+            return false;
+        }
+        *seen_generation = self.generation;
+        true
+    }
+
+    fn mark_cell_seen(&mut self, cell: StarmapGridCell) -> bool {
+        self.seen_cells.insert(cell)
     }
 }
 
@@ -588,22 +954,63 @@ fn grid_coordinate(value: f32) -> i32 {
     (value / MAP_HIT_GRID_CELL_SIZE).floor() as i32
 }
 
-fn segment_bounds(from: Point, to: Point) -> Rect {
-    Rect::from_min_max(
-        Point::new(from.x.min(to.x), from.y.min(to.y)),
-        Point::new(from.x.max(to.x), from.y.max(to.y)),
-    )
+#[cfg(test)]
+fn starmap_items_signature(items: &[StarmapItem]) -> u64 {
+    starmap_item_metadata(items).signatures.hit
 }
 
-fn starmap_items_signature(items: &[StarmapItem]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    items.len().hash(&mut hasher);
-    for item in items {
-        item.file_id.hash(&mut hasher);
-        item.x.to_bits().hash(&mut hasher);
-        item.y.to_bits().hash(&mut hasher);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct StarmapItemSignatures {
+    hit: u64,
+    paint: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StarmapItemMetadata {
+    signatures: StarmapItemSignatures,
+    focused_item_index: Option<usize>,
+    item_indices: HashMap<String, usize>,
+}
+
+fn starmap_item_metadata(items: &[StarmapItem]) -> StarmapItemMetadata {
+    let mut hit_hasher = DefaultHasher::new();
+    let mut paint_hasher = DefaultHasher::new();
+    let mut item_indices = HashMap::with_capacity(items.len());
+    items.len().hash(&mut hit_hasher);
+    items.len().hash(&mut paint_hasher);
+    let mut focused_item_index = None;
+    for (index, item) in items.iter().enumerate() {
+        item_indices.entry(item.file_id.clone()).or_insert(index);
+        item.file_id.hash(&mut hit_hasher);
+        item.x.to_bits().hash(&mut hit_hasher);
+        item.y.to_bits().hash(&mut hit_hasher);
+
+        item.file_id.hash(&mut paint_hasher);
+        item.x.to_bits().hash(&mut paint_hasher);
+        item.y.to_bits().hash(&mut paint_hasher);
+        item.color.r.hash(&mut paint_hasher);
+        item.color.g.hash(&mut paint_hasher);
+        item.color.b.hash(&mut paint_hasher);
+        item.color.a.hash(&mut paint_hasher);
+        item.selected.hash(&mut paint_hasher);
+        item.copy_flash.hash(&mut paint_hasher);
+        item.similarity_anchor.hash(&mut paint_hasher);
+        item.instant_audition_ready.hash(&mut paint_hasher);
+        item.preview_audition_ready.hash(&mut paint_hasher);
+        item.preview_audition_candidate.hash(&mut paint_hasher);
+        item.missing.hash(&mut paint_hasher);
+        if item.focused && focused_item_index.is_none() {
+            focused_item_index = Some(index);
+        }
     }
-    hasher.finish()
+    StarmapItemMetadata {
+        signatures: StarmapItemSignatures {
+            hit: hit_hasher.finish(),
+            paint: paint_hasher.finish(),
+        },
+        focused_item_index,
+        item_indices,
+    }
 }
 
 fn point_segment_t(point: Point, start: Point, end: Point) -> f32 {
@@ -737,13 +1144,20 @@ impl Widget for StarmapWidget {
         };
         self.common.state = previous.common.state;
         self.gesture = previous.gesture.clone();
-        self.last_hit_file_id = previous.last_hit_file_id.clone();
+        if Arc::ptr_eq(&previous.items, &self.items) {
+            self.item_metadata = previous.item_metadata.clone();
+        }
+        self.sync_drag_hit_from_previous(previous);
         self.last_primary_position = previous.last_primary_position;
         self.last_pan_position = previous.last_pan_position;
         self.hovered_file_id = previous.hovered_file_id.clone();
+        self.hovered_item_index = previous.hovered_item_index;
+        self.hit_scratch = previous.hit_scratch.clone();
+        self.paint_cache = previous.paint_cache.clone();
+        let item_signature = self.item_signature();
         if previous
             .hit_index
-            .matches_current(self.viewport, self.item_signature)
+            .matches_current(self.viewport, item_signature)
         {
             self.hit_index = previous.hit_index.clone();
         }
@@ -774,13 +1188,16 @@ impl Widget for StarmapWidget {
             bounds,
             ui::Rgba8::new(8, 9, 10, 255),
         );
-        paint_items(
+        append_cached_items_paint(
             primitives,
             self.common.id,
             bounds,
             &self.items,
             self.viewport,
+            self.paint_signature(),
+            &self.paint_cache,
         );
+        self.append_active_audition_paint(primitives, bounds);
     }
 
     fn append_runtime_overlay_paint(
@@ -790,18 +1207,8 @@ impl Widget for StarmapWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        if self.active_drag.is_some() {
-            if let Some(item) = self.active_drag_item() {
-                let center = item_center(bounds, item, self.viewport);
-                if paint_bounds(bounds).contains(center) {
-                    paint_active_audition_item(
-                        primitives,
-                        self.common.id,
-                        center,
-                        starmap_item_color(item),
-                    );
-                }
-            }
+        if self.active_audition_item().is_some() {
+            self.append_active_audition_paint(primitives, bounds);
             return;
         }
         let Some(item) = self.hovered_item() else {
@@ -821,6 +1228,203 @@ impl Widget for StarmapWidget {
         }
         paint_hover_item(primitives, self.common.id, center, starmap_item_color(item));
     }
+}
+
+impl StarmapWidget {
+    fn append_active_audition_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        let Some(item) = self.active_audition_item() else {
+            return;
+        };
+        let center = item_center(bounds, item, self.viewport);
+        if paint_bounds(bounds).contains(center) {
+            paint_active_audition_item(
+                primitives,
+                self.common.id,
+                center,
+                starmap_item_color(item),
+            );
+        }
+    }
+}
+
+fn append_cached_items_paint(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    items: &[StarmapItem],
+    viewport: StarmapViewport,
+    paint_signature: u64,
+    cache: &Mutex<StarmapPaintCache>,
+) {
+    let started_at = starmap_telemetry::stage_timer();
+    if should_use_dense_overview(items.len(), viewport) {
+        let (cells, exact_items) = dense_overview_paint(cache, items, paint_signature);
+        paint_dense_overview_items(primitives, widget_id, bounds, viewport, &cells, &exact_items);
+        let elapsed = starmap_telemetry::elapsed_since(started_at);
+        if let Some(elapsed) = elapsed {
+            starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetPaintBuild, elapsed);
+        }
+        starmap_telemetry::record_event(
+            None,
+            "widget.paint_dense_overview",
+            "painted",
+            None,
+            items.len(),
+            cells.len() + exact_items.len(),
+            false,
+            elapsed,
+        );
+        return;
+    }
+    if let Some(cached) = cached_item_paint(cache, bounds, viewport, paint_signature) {
+        starmap_telemetry::record_event(
+            Some(StarmapAuditionCounter::WidgetPaintCacheHit),
+            "widget.paint_cache",
+            "hit",
+            None,
+            items.len(),
+            cached.len(),
+            false,
+            starmap_telemetry::elapsed_since(started_at),
+        );
+        primitives.extend(cached.iter().cloned());
+        return;
+    }
+
+    let mut item_primitives = Vec::new();
+    paint_items(&mut item_primitives, widget_id, bounds, items, viewport);
+    let elapsed = starmap_telemetry::elapsed_since(started_at);
+    if let Some(elapsed) = elapsed {
+        starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetPaintBuild, elapsed);
+    }
+    let item_primitives = Arc::<[PaintPrimitive]>::from(item_primitives);
+    store_cached_item_paint(
+        cache,
+        bounds,
+        viewport,
+        paint_signature,
+        item_primitives.clone(),
+    );
+    starmap_telemetry::record_event(
+        Some(StarmapAuditionCounter::WidgetPaintCacheMiss),
+        "widget.paint_cache",
+        "miss",
+        None,
+        items.len(),
+        item_primitives.len(),
+        false,
+        elapsed,
+    );
+    primitives.extend(item_primitives.iter().cloned());
+}
+
+fn cached_item_paint(
+    cache: &Mutex<StarmapPaintCache>,
+    bounds: Rect,
+    viewport: StarmapViewport,
+    paint_signature: u64,
+) -> Option<Arc<[PaintPrimitive]>> {
+    lock_starmap_mutex(cache)
+        .entry
+        .as_ref()
+        .filter(|entry| entry.matches(bounds, viewport, paint_signature))
+        .map(|entry| entry.primitives.clone())
+}
+
+fn store_cached_item_paint(
+    cache: &Mutex<StarmapPaintCache>,
+    bounds: Rect,
+    viewport: StarmapViewport,
+    paint_signature: u64,
+    primitives: Arc<[PaintPrimitive]>,
+) {
+    lock_starmap_mutex(cache).entry = Some(StarmapPaintCacheEntry {
+        bounds,
+        viewport,
+        paint_signature,
+        primitives,
+    });
+}
+
+fn dense_overview_paint(
+    cache: &Mutex<StarmapPaintCache>,
+    items: &[StarmapItem],
+    paint_signature: u64,
+) -> (
+    Arc<[StarmapDenseOverviewCell]>,
+    Arc<[StarmapDenseOverviewExactItem]>,
+) {
+    if let Some((cells, exact_items)) = lock_starmap_mutex(cache)
+        .dense_overview
+        .as_ref()
+        .filter(|entry| entry.paint_signature == paint_signature)
+        .map(|entry| (entry.cells.clone(), entry.exact_items.clone()))
+    {
+        return (cells, exact_items);
+    }
+
+    let (cells, exact_items) = build_dense_overview_paint(items);
+    let cells = Arc::<[StarmapDenseOverviewCell]>::from(cells);
+    let exact_items = Arc::<[StarmapDenseOverviewExactItem]>::from(exact_items);
+    lock_starmap_mutex(cache).dense_overview = Some(StarmapDenseOverviewCacheEntry {
+        paint_signature,
+        cells: cells.clone(),
+        exact_items: exact_items.clone(),
+    });
+    (cells, exact_items)
+}
+
+fn lock_starmap_mutex<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+#[derive(Clone, Debug, Default)]
+struct StarmapPaintCache {
+    entry: Option<StarmapPaintCacheEntry>,
+    dense_overview: Option<StarmapDenseOverviewCacheEntry>,
+}
+
+#[derive(Clone, Debug)]
+struct StarmapPaintCacheEntry {
+    bounds: Rect,
+    viewport: StarmapViewport,
+    paint_signature: u64,
+    primitives: Arc<[PaintPrimitive]>,
+}
+
+impl StarmapPaintCacheEntry {
+    fn matches(&self, bounds: Rect, viewport: StarmapViewport, paint_signature: u64) -> bool {
+        self.bounds == bounds
+            && self.viewport == viewport
+            && self.paint_signature == paint_signature
+    }
+}
+
+#[derive(Clone, Debug)]
+struct StarmapDenseOverviewCacheEntry {
+    paint_signature: u64,
+    cells: Arc<[StarmapDenseOverviewCell]>,
+    exact_items: Arc<[StarmapDenseOverviewExactItem]>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct StarmapDenseOverviewCell {
+    x: f32,
+    y: f32,
+    color: ui::Rgba8,
+    side: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct StarmapDenseOverviewExactItem {
+    x: f32,
+    y: f32,
+    color: ui::Rgba8,
+    selected: bool,
+    copy_flash: bool,
+    similarity_anchor: bool,
 }
 
 fn paint_items(
@@ -845,6 +1449,84 @@ fn paint_items(
     }
     for (color, rects) in batches {
         push_fill_rect_batch(primitives, widget_id, rects, color.rgba());
+    }
+}
+
+fn should_use_dense_overview(item_count: usize, viewport: StarmapViewport) -> bool {
+    item_count >= MAP_DENSE_OVERVIEW_ITEM_COUNT && viewport.zoom <= MAP_DENSE_OVERVIEW_MAX_ZOOM
+}
+
+fn build_dense_overview_paint(
+    items: &[StarmapItem],
+) -> (Vec<StarmapDenseOverviewCell>, Vec<StarmapDenseOverviewExactItem>) {
+    let mut cells = BTreeMap::<StarmapDenseOverviewCellKey, StarmapDenseOverviewAccumulator>::new();
+    let mut exact_items = Vec::new();
+    for item in items {
+        if item.selected || item.copy_flash || item.similarity_anchor {
+            exact_items.push(StarmapDenseOverviewExactItem::from_item(item));
+            continue;
+        }
+        let key = StarmapDenseOverviewCellKey::from_item(item);
+        cells.entry(key).or_default().add(starmap_item_color(item));
+    }
+    let cells = cells
+        .into_iter()
+        .filter_map(|(key, accumulator)| accumulator.into_cell(key))
+        .collect();
+    (cells, exact_items)
+}
+
+fn paint_dense_overview_items(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    viewport: StarmapViewport,
+    cells: &[StarmapDenseOverviewCell],
+    exact_items: &[StarmapDenseOverviewExactItem],
+) {
+    let mut batches = BTreeMap::<ColorKey, Vec<Rect>>::new();
+    for cell in cells {
+        let center = dense_overview_cell_center(bounds, *cell, viewport);
+        if !paint_bounds(bounds).contains(center) {
+            continue;
+        }
+        batches
+            .entry(ColorKey::from(cell.color))
+            .or_default()
+            .push(centered_rect(center, cell.side));
+    }
+    for (color, rects) in batches {
+        push_fill_rect_batch(primitives, widget_id, rects, color.rgba());
+    }
+    for item in exact_items {
+        paint_dense_overview_exact_item(primitives, widget_id, bounds, item, viewport);
+    }
+}
+
+fn paint_dense_overview_exact_item(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: u64,
+    bounds: Rect,
+    item: &StarmapDenseOverviewExactItem,
+    viewport: StarmapViewport,
+) {
+    if !item.selected && !item.copy_flash && !item.similarity_anchor {
+        return;
+    }
+    let center = dense_overview_exact_item_center(bounds, *item, viewport);
+    if !paint_bounds(bounds).contains(center) {
+        return;
+    }
+    let color = item.color;
+    if item.copy_flash {
+        paint_copy_flash_item(primitives, widget_id, center, color);
+    }
+    if item.selected {
+        paint_selected_item(primitives, widget_id, center, color);
+        return;
+    }
+    if item.similarity_anchor {
+        paint_similarity_anchor_item(primitives, widget_id, center, color);
     }
 }
 
@@ -873,7 +1555,7 @@ fn queue_or_paint_item(
         paint_similarity_anchor_item(primitives, widget_id, center, color);
         return;
     }
-    if !item.instant_audition_ready {
+    if !item.audition_candidate() {
         paint_cold_audition_item(primitives, widget_id, center, node_size, color);
         return;
     }
@@ -1050,23 +1732,38 @@ fn paint_active_audition_item(
         primitives,
         widget_id,
         center,
-        MAP_ACTIVE_AUDITION_GLOW_SIZE,
-        color.with_alpha(70),
+        MAP_ACTIVE_AUDITION_GLOW_SIZE + 6.0,
+        color.with_alpha(72),
     );
     paint_diamond(
         primitives,
         widget_id,
         center,
-        MAP_ACTIVE_AUDITION_SIZE,
-        color.with_alpha(245),
+        MAP_ACTIVE_AUDITION_GLOW_SIZE,
+        color.with_alpha(132),
+    );
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_ACTIVE_AUDITION_SIZE + 2.0,
+        color.with_alpha(255),
     );
     stroke_diamond(
         primitives,
         widget_id,
         center,
-        MAP_ACTIVE_AUDITION_SIZE + 5.0,
+        MAP_ACTIVE_AUDITION_SIZE + 7.0,
         ui::Rgba8::new(255, 250, 224, 245),
-        1.25,
+        1.45,
+    );
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_ACTIVE_AUDITION_SIZE + 2.0,
+        ui::Rgba8::new(255, 255, 255, 210),
+        0.9,
     );
 }
 
@@ -1100,8 +1797,10 @@ fn stroke_diamond(
 fn starmap_item_color(item: &StarmapItem) -> ui::Rgba8 {
     if item.missing {
         ui::Rgba8::new(120, 120, 120, 180)
-    } else if !item.instant_audition_ready {
+    } else if !item.audition_candidate() {
         item.color.with_alpha(item.color.a.min(150))
+    } else if !item.fast_audition_ready() {
+        item.color.with_alpha(item.color.a.min(205))
     } else {
         item.color
     }
@@ -1134,6 +1833,123 @@ fn paint_bounds(bounds: Rect) -> Rect {
 
 fn centered_rect(center: Point, side: f32) -> Rect {
     Rect::from_xy_size(center.x - side * 0.5, center.y - side * 0.5, side, side)
+}
+
+fn dense_overview_cell_center(
+    bounds: Rect,
+    cell: StarmapDenseOverviewCell,
+    viewport: StarmapViewport,
+) -> Point {
+    Point::new(
+        bounds.x_for_ratio_unclamped((cell.x - viewport.center_x) * viewport.zoom + 0.5),
+        bounds.y_for_ratio_unclamped((cell.y - viewport.center_y) * viewport.zoom + 0.5),
+    )
+}
+
+fn dense_overview_exact_item_center(
+    bounds: Rect,
+    item: StarmapDenseOverviewExactItem,
+    viewport: StarmapViewport,
+) -> Point {
+    Point::new(
+        bounds.x_for_ratio_unclamped((item.x - viewport.center_x) * viewport.zoom + 0.5),
+        bounds.y_for_ratio_unclamped((item.y - viewport.center_y) * viewport.zoom + 0.5),
+    )
+}
+
+impl StarmapDenseOverviewExactItem {
+    fn from_item(item: &StarmapItem) -> Self {
+        Self {
+            x: item.x,
+            y: item.y,
+            color: starmap_item_color(item),
+            selected: item.selected,
+            copy_flash: item.copy_flash,
+            similarity_anchor: item.similarity_anchor,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct StarmapDenseOverviewCellKey {
+    x: i32,
+    y: i32,
+}
+
+impl StarmapDenseOverviewCellKey {
+    fn from_item(item: &StarmapItem) -> Self {
+        Self {
+            x: dense_overview_coordinate(item.x),
+            y: dense_overview_coordinate(item.y),
+        }
+    }
+
+    fn center(self) -> (f32, f32) {
+        let grid = MAP_DENSE_OVERVIEW_GRID_SIZE as f32;
+        ((self.x as f32 + 0.5) / grid, (self.y as f32 + 0.5) / grid)
+    }
+}
+
+fn dense_overview_coordinate(value: f32) -> i32 {
+    let max = MAP_DENSE_OVERVIEW_GRID_SIZE - 1;
+    ((value.clamp(0.0, 0.999_999) * MAP_DENSE_OVERVIEW_GRID_SIZE as f32).floor() as i32)
+        .clamp(0, max)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct StarmapDenseOverviewAccumulator {
+    count: u32,
+    r_sum: u32,
+    g_sum: u32,
+    b_sum: u32,
+    a_sum: u32,
+}
+
+impl StarmapDenseOverviewAccumulator {
+    fn add(&mut self, color: ui::Rgba8) {
+        self.count += 1;
+        self.r_sum += u32::from(color.r);
+        self.g_sum += u32::from(color.g);
+        self.b_sum += u32::from(color.b);
+        self.a_sum += u32::from(color.a);
+    }
+
+    fn into_cell(self, key: StarmapDenseOverviewCellKey) -> Option<StarmapDenseOverviewCell> {
+        if self.count == 0 {
+            return None;
+        }
+        let (x, y) = key.center();
+        Some(StarmapDenseOverviewCell {
+            x,
+            y,
+            color: self.quantized_color(),
+            side: self.side(),
+        })
+    }
+
+    fn quantized_color(self) -> ui::Rgba8 {
+        ui::Rgba8::new(
+            quantized_average_channel(self.r_sum, self.count),
+            quantized_average_channel(self.g_sum, self.count),
+            quantized_average_channel(self.b_sum, self.count),
+            quantized_average_alpha(self.a_sum, self.count),
+        )
+    }
+
+    fn side(self) -> f32 {
+        let density = (self.count as f32).log2().max(0.0);
+        (MAP_DENSE_OVERVIEW_NODE_SIZE + density * 0.55).min(MAP_DENSE_OVERVIEW_NODE_SIZE_MAX)
+    }
+}
+
+fn quantized_average_channel(sum: u32, count: u32) -> u8 {
+    let average = ((sum + count / 2) / count).min(u32::from(u8::MAX)) as u8;
+    ((((u32::from(average) + 6) / 12) * 12).min(u32::from(u8::MAX))) as u8
+}
+
+fn quantized_average_alpha(sum: u32, count: u32) -> u8 {
+    let average = ((sum + count / 2) / count).min(u32::from(u8::MAX)) as u8;
+    ((((u32::from(average) + 6) / 12) * 12).min(u32::from(u8::MAX)) as u8).max(96)
 }
 
 fn diamond_points(center: Point, side: f32) -> [Point; 4] {
@@ -1346,9 +2162,9 @@ mod tests {
     }
 
     #[test]
-    fn cold_audition_nodes_paint_as_hollow_markers() {
+    fn non_previewable_cold_audition_nodes_paint_as_hollow_markers() {
         let color = ui::Rgba8::new(255, 160, 80, 220);
-        let mut cold = starmap_item("/samples/long.wav", 0.50, 0.50, color);
+        let mut cold = starmap_item("/samples/unsupported.aiff", 0.50, 0.50, color);
         cold.instant_audition_ready = false;
         let widget = StarmapWidget::new(vec![cold], StarmapViewport::default(), None);
         let mut primitives = Vec::new();
@@ -1370,6 +2186,59 @@ mod tests {
                 if stroke.color == ui::Rgba8::new(232, 236, 238, 165)
         )));
         assert!(primitives.iter().all(|primitive| !matches!(
+            primitive,
+            PaintPrimitive::FillRectBatch(batch) if batch.color == color
+        )));
+    }
+
+    #[test]
+    fn cold_long_wav_nodes_paint_as_preview_decode_candidates() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let mut cold = starmap_item("/samples/long.wav", 0.50, 0.50, color);
+        cold.instant_audition_ready = false;
+        let widget = StarmapWidget::new(vec![cold], StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(232, 236, 238, 165)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRectBatch(batch) if batch.color == color.with_alpha(205)
+        )));
+    }
+
+    #[test]
+    fn preview_ready_nodes_do_not_paint_as_cold_audition_markers() {
+        let color = ui::Rgba8::new(255, 160, 80, 220);
+        let mut preview_ready = starmap_item("/samples/preview-ready.wav", 0.50, 0.50, color);
+        preview_ready.instant_audition_ready = false;
+        preview_ready.preview_audition_ready = true;
+        let widget = StarmapWidget::new(vec![preview_ready], StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_size(200.0, 100.0),
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(232, 236, 238, 165)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillRectBatch(batch) if batch.color == color
         )));
@@ -1582,14 +2451,29 @@ mod tests {
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillPolygon(fill)
-                if fill.color == color.with_alpha(70)
+                if fill.color == color.with_alpha(72)
                     && fill.points.len() == 4
-                    && fill.points[0] == Point::new(50.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
+                    && fill.points[0] == Point::new(50.0, 50.0 - (MAP_ACTIVE_AUDITION_GLOW_SIZE + 6.0) * 0.5)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(50.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
         )));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::StrokePolyline(stroke)
                 if stroke.color == ui::Rgba8::new(255, 250, 224, 245)
+                    && stroke.width == 1.45
+                    && stroke.points.len() == 5
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(255, 255, 255, 210)
+                    && stroke.width == 0.9
                     && stroke.points.len() == 5
         )));
         assert!(
@@ -1599,6 +2483,202 @@ mod tests {
             )),
             "dragging should highlight the active hit without painting hover labels"
         );
+    }
+
+    #[test]
+    fn active_starmap_drag_overlay_tracks_local_pointer_hit_before_controller_refresh() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut widget = StarmapWidget::new(
+            vec![
+                starmap_item("/samples/kick.wav", 0.25, 0.5, color),
+                starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/kick.wav")),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+
+        let output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)))
+            .and_then(|output| output.typed_cloned::<GuiMessage>());
+        let mut primitives = Vec::new();
+        widget.append_runtime_overlay_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert_eq!(
+            output,
+            Some(GuiMessage::UpdateStarmapAuditionDrag {
+                paths: vec![String::from("/samples/snare.wav")],
+                position: Point::new(150.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            })
+        );
+        assert_eq!(
+            widget.active_drag_item().map(|item| item.file_id.as_str()),
+            Some("/samples/snare.wav"),
+            "runtime overlay should follow the widget-local hit before app state refreshes"
+        );
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
+    fn active_starmap_drag_paints_local_hit_in_rebuilt_base_scene() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let left_id = String::from("/samples/kick.wav");
+        let right_id = String::from("/samples/snare.wav");
+        let mut previous = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        previous
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)))
+            .expect("pointer move should emit drag update");
+
+        let mut next = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+        let mut primitives = Vec::new();
+
+        next.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
+    fn stale_local_drag_hit_does_not_paint_after_drag_clears() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        widget.last_hit_file_id = Some(String::from("/samples/kick.wav"));
+        widget.last_hit_index = Some(0);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(50.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
+    fn app_transient_drag_overlay_paints_current_controller_target() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let items = vec![
+            starmap_item("/samples/kick.wav", 0.25, 0.5, color),
+            starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+        ];
+        let mut primitives = Vec::new();
+
+        paint_active_starmap_audition_overlay(
+            &mut primitives,
+            bounds,
+            &items,
+            StarmapViewport::default(),
+            "/samples/snare.wav",
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(255, 250, 224, 245)
+                    && stroke.points.len() == 5
+        )));
+    }
+
+    #[test]
+    fn controller_active_audition_target_paints_over_cached_starmap_geometry() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let widget = StarmapWidget::new(
+            vec![
+                starmap_item("/samples/kick.wav", 0.25, 0.5, color),
+                starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            None,
+        )
+        .with_active_audition_file_id(Some(String::from("/samples/snare.wav")));
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
     }
 
     #[test]
@@ -1634,7 +2714,417 @@ mod tests {
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
         assert!(next
             .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature));
+            .matches(bounds, StarmapViewport::default(), next.item_signature()));
+    }
+
+    #[test]
+    fn starmap_widget_reuses_dense_base_paint_cache_from_previous_instance() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(640.0, 360.0);
+        let items = (0..MAP_DENSE_ITEM_COUNT)
+            .map(|index| {
+                starmap_item(
+                    &format!("/samples/dense-{index}.wav"),
+                    (index % 100) as f32 / 100.0,
+                    (index / 100) as f32 / 10.0,
+                    color,
+                )
+            })
+            .collect::<Vec<_>>();
+        let previous = StarmapWidget::new(items.clone(), StarmapViewport::default(), None);
+        let mut previous_primitives = Vec::new();
+        previous.append_paint(
+            &mut previous_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        let previous_cached = lock_starmap_mutex(&previous.paint_cache)
+            .entry
+            .as_ref()
+            .expect("initial paint should populate base paint cache")
+            .primitives
+            .clone();
+
+        let mut next = StarmapWidget::new(
+            items,
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/dense-42.wav")),
+                last_position: Point::new(100.0, 100.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+        let mut next_primitives = Vec::new();
+        next.append_paint(
+            &mut next_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let next_cached = lock_starmap_mutex(&next.paint_cache)
+            .entry
+            .as_ref()
+            .expect("synchronized widget should retain base paint cache")
+            .primitives
+            .clone();
+        assert!(
+            Arc::ptr_eq(&previous_cached, &next_cached),
+            "active drag refreshes should replay cached dense node paint instead of rebuilding it"
+        );
+        assert!(next_primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRectBatch(batch) if batch.rects.len() == MAP_DENSE_ITEM_COUNT
+        )));
+    }
+
+    #[test]
+    fn zoomed_out_dense_starmap_paints_bounded_overview_cells() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(1_000.0, 600.0);
+        let items = dense_overview_test_items(MAP_DENSE_OVERVIEW_ITEM_COUNT + 900, color);
+        let item_count = items.len();
+        let widget = StarmapWidget::new(items, StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let overview_rect_count = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRectBatch(batch) => Some(batch.rects.len()),
+                _ => None,
+            })
+            .sum::<usize>();
+        let cache = lock_starmap_mutex(&widget.paint_cache);
+        let cached_cell_count = cache
+            .dense_overview
+            .as_ref()
+            .map(|entry| entry.cells.len())
+            .unwrap_or_default();
+
+        assert!(
+            overview_rect_count < item_count / 2,
+            "fully zoomed-out dense maps should aggregate ordinary nodes instead of painting one rect per sample"
+        );
+        assert_eq!(overview_rect_count, cached_cell_count);
+        assert!(
+            cache.entry.is_none(),
+            "dense overview paint should not churn exact-viewport primitive caches while panning"
+        );
+    }
+
+    #[test]
+    fn zoomed_out_dense_starmap_reuses_overview_cache_while_panning() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(1_000.0, 600.0);
+        let items = Arc::<[StarmapItem]>::from(dense_overview_test_items(
+            MAP_DENSE_OVERVIEW_ITEM_COUNT + 900,
+            color,
+        ));
+        let previous = StarmapWidget::new(items.clone(), StarmapViewport::default(), None);
+        let mut previous_primitives = Vec::new();
+        previous.append_paint(
+            &mut previous_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        let previous_cells = lock_starmap_mutex(&previous.paint_cache)
+            .dense_overview
+            .as_ref()
+            .expect("initial dense paint should cache overview cells")
+            .cells
+            .clone();
+        let mut panned_viewport = StarmapViewport::default();
+        panned_viewport.center_x = 0.58;
+        panned_viewport.center_y = 0.42;
+        let mut next = StarmapWidget::new(items, panned_viewport, None);
+        next.synchronize_from_previous(&previous);
+        let mut next_primitives = Vec::new();
+
+        next.append_paint(
+            &mut next_primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        let next_cells = lock_starmap_mutex(&next.paint_cache)
+            .dense_overview
+            .as_ref()
+            .expect("panned dense paint should retain overview cells")
+            .cells
+            .clone();
+        assert!(
+            Arc::ptr_eq(&previous_cells, &next_cells),
+            "panning a fully zoomed-out dense map should transform cached map-space overview cells instead of rebuilding from every item"
+        );
+        assert!(lock_starmap_mutex(&next.paint_cache).entry.is_none());
+    }
+
+    #[test]
+    fn zoomed_out_dense_starmap_keeps_selected_node_exact() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(1_000.0, 600.0);
+        let mut items = dense_overview_test_items(MAP_DENSE_OVERVIEW_ITEM_COUNT + 900, color);
+        items.push({
+            let mut selected = starmap_item("/samples/selected.wav", 0.5, 0.5, color);
+            selected.selected = true;
+            selected
+        });
+        let widget = StarmapWidget::new(items, StarmapViewport::default(), None);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(500.0, 300.0 - (MAP_SELECTED_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
+    fn starmap_widget_synchronizes_hit_scratch_from_previous_instance() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut previous = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(50.0, 50.0)));
+
+        let mut next = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert!(
+            Arc::ptr_eq(&previous.hit_scratch, &next.hit_scratch),
+            "hit-test scratch should survive widget refreshes during dense drag playback"
+        );
+    }
+
+    #[test]
+    fn starmap_widget_reuses_item_metadata_for_shared_item_arc() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let mut focused = starmap_item("/samples/focused.wav", 0.25, 0.5, color);
+        focused.focused = true;
+        let items = Arc::<[StarmapItem]>::from(vec![
+            starmap_item("/samples/kick.wav", 0.10, 0.5, color),
+            focused,
+            starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+        ]);
+        let previous = StarmapWidget::new(items.clone(), StarmapViewport::default(), None);
+        assert_eq!(
+            previous.focused_item().map(|item| item.file_id.as_str()),
+            Some("/samples/focused.wav")
+        );
+
+        let mut next = StarmapWidget::new(
+            items,
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(String::from("/samples/snare.wav")),
+                last_position: Point::new(150.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert!(
+            Arc::ptr_eq(&previous.item_metadata, &next.item_metadata),
+            "active drag widget refreshes should reuse starmap signature/focus metadata for the same prepared item Arc"
+        );
+        assert_eq!(next.item_signature(), previous.item_signature());
+    }
+
+    #[test]
+    fn starmap_widget_synchronizes_drag_hit_index_for_runtime_overlay() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let file_id = String::from("/samples/kick.wav");
+        let mut previous = StarmapWidget::new(
+            vec![starmap_item(file_id.as_str(), 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        previous.handle_input(bounds, WidgetInput::primary_press(Point::new(50.0, 50.0)));
+        assert_eq!(previous.last_hit_index, Some(0));
+
+        let mut next = StarmapWidget::new(
+            vec![starmap_item(file_id.as_str(), 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(file_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(next.last_hit_index, Some(0));
+        assert_eq!(
+            next.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(file_id.as_str()),
+            "runtime overlay paint should reuse the synchronized hit index for active drag nodes"
+        );
+    }
+
+    #[test]
+    fn starmap_widget_sync_prefers_new_controller_drag_hit_over_stale_local_hit() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let left_id = String::from("/samples/kick.wav");
+        let right_id = String::from("/samples/snare.wav");
+        let mut previous = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        previous.last_hit_file_id = Some(left_id.clone());
+        previous.last_hit_index = Some(0);
+
+        let mut next = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(right_id.clone()),
+                last_position: Point::new(150.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(
+            next.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(right_id.as_str()),
+            "a fresh controller drag target must not be overwritten by the previous widget-local hit"
+        );
+    }
+
+    #[test]
+    fn starmap_widget_sync_preserves_local_hit_ahead_of_controller_refresh() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let left_id = String::from("/samples/kick.wav");
+        let right_id = String::from("/samples/snare.wav");
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut previous = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        previous
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)))
+            .expect("pointer move should emit drag update");
+
+        let mut next = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+
+        assert_eq!(
+            next.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(right_id.as_str()),
+            "widget-local hit testing should still drive live overlay paint before controller refresh catches up"
+        );
+    }
+
+    #[test]
+    fn active_starmap_drag_lookup_recovers_from_stale_cached_index() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let target = String::from("/samples/target.wav");
+        let mut items = vec![starmap_item("/samples/wrong.wav", 0.10, 0.10, color)];
+        items.extend((0..MAP_DENSE_ITEM_COUNT).map(|index| {
+            starmap_item(
+                &format!("/samples/filler-{index}.wav"),
+                0.15 + (index % 100) as f32 * 0.001,
+                0.20 + (index / 100) as f32 * 0.001,
+                color,
+            )
+        }));
+        items.push(starmap_item(target.as_str(), 0.80, 0.80, color));
+        let mut widget = StarmapWidget::new(
+            items,
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(target.clone()),
+                last_position: Point::new(160.0, 80.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        widget.last_hit_index = Some(0);
+
+        assert_eq!(
+            widget.active_drag_item().map(|item| item.file_id.as_str()),
+            Some(target.as_str()),
+            "active drag overlay lookup should use metadata when synchronized hit index is stale"
+        );
+    }
+
+    #[test]
+    fn hovered_starmap_lookup_recovers_from_stale_cached_index() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let target = String::from("/samples/hovered.wav");
+        let mut widget = StarmapWidget::new(
+            vec![
+                starmap_item("/samples/wrong.wav", 0.10, 0.10, color),
+                starmap_item(target.as_str(), 0.80, 0.80, color),
+            ],
+            StarmapViewport::default(),
+            None,
+        );
+        widget.hovered_file_id = Some(target.clone());
+        widget.hovered_item_index = Some(0);
+
+        assert_eq!(
+            widget.hovered_item().map(|item| item.file_id.as_str()),
+            Some(target.as_str()),
+            "hover overlay lookup should use metadata when synchronized hover index is stale"
+        );
     }
 
     #[test]
@@ -1657,7 +3147,7 @@ mod tests {
         assert!(
             !next
                 .hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature),
+                .matches(bounds, StarmapViewport::default(), next.item_signature()),
             "same-count filtered listings must not reuse stale node cells"
         );
 
@@ -1666,7 +3156,7 @@ mod tests {
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
         assert!(next
             .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature));
+            .matches(bounds, StarmapViewport::default(), next.item_signature()));
     }
 
     #[test]
@@ -1719,7 +3209,7 @@ mod tests {
     }
 
     #[test]
-    fn primary_drag_auditions_latest_node_crossed_between_pointer_samples() {
+    fn primary_drag_auditions_nodes_crossed_between_pointer_samples_in_order() {
         let mut widget = StarmapWidget::new(
             vec![
                 starmap_item(
@@ -1756,10 +3246,78 @@ mod tests {
         assert_eq!(
             output.typed_cloned::<GuiMessage>(),
             Some(GuiMessage::UpdateStarmapAuditionDrag {
-                paths: vec![String::from("/samples/hat.wav")],
+                paths: vec![
+                    String::from("/samples/kick.wav"),
+                    String::from("/samples/snare.wav"),
+                    String::from("/samples/hat.wav")
+                ],
                 position: Point::new(195.0, 50.0),
                 modifiers: PointerModifiers::default(),
             })
+        );
+    }
+
+    #[test]
+    fn primary_drag_caps_dense_segment_handoff_to_latest_nodes() {
+        let total = MAP_SEGMENT_HIT_HANDOFF_LIMIT + 8;
+        let items = (0..total)
+            .map(|index| {
+                starmap_item(
+                    &format!("/samples/dense-{index}.wav"),
+                    (index + 1) as f32 / (total + 1) as f32,
+                    0.5,
+                    ui::Rgba8::new(57, 187, 245, 220),
+                )
+            })
+            .collect::<Vec<_>>();
+        let mut widget = StarmapWidget::new(items, StarmapViewport::default(), None);
+        let bounds = Rect::from_size(1_000.0, 100.0);
+        let hits = widget.hits_between(
+            bounds,
+            Point::new(0.0, 50.0),
+            Point::new(1_000.0, 50.0),
+            None,
+        );
+        assert_eq!(
+            hits.raw_count, total,
+            "test setup should cross every dense node"
+        );
+        assert_eq!(
+            hits.retained.len(),
+            MAP_SEGMENT_HIT_HANDOFF_LIMIT,
+            "hit testing itself should retain only a bounded latest-node payload"
+        );
+
+        widget
+            .handle_input(bounds, WidgetInput::primary_press(Point::new(0.0, 50.0)))
+            .expect("press starts audition drag");
+        let output = widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(1_000.0, 50.0)))
+            .expect("swept drag should catch the crossed nodes");
+        let Some(GuiMessage::UpdateStarmapAuditionDrag { paths, .. }) =
+            output.typed_cloned::<GuiMessage>()
+        else {
+            panic!("expected starmap audition update");
+        };
+
+        assert_eq!(
+            paths.len(),
+            MAP_SEGMENT_HIT_HANDOFF_LIMIT,
+            "dense segment handoff should stay bounded on the UI path"
+        );
+        let expected_first = format!(
+            "/samples/dense-{}.wav",
+            total - MAP_SEGMENT_HIT_HANDOFF_LIMIT
+        );
+        let expected_last = format!("/samples/dense-{}.wav", total - 1);
+        assert_eq!(
+            paths.first().map(String::as_str),
+            Some(expected_first.as_str())
+        );
+        assert_eq!(
+            paths.last().map(String::as_str),
+            Some(expected_last.as_str()),
+            "the latest crossed node must always survive handoff capping"
         );
     }
 
@@ -2084,10 +3642,61 @@ mod tests {
 
         let index =
             StarmapHitIndex::build(bounds, viewport, starmap_items_signature(&items), &items);
-        let candidates =
-            index.item_indices_near_segment(Point::new(720.0, 750.0), Point::new(780.0, 750.0));
+        let candidates = index.item_indices_near_segment(
+            Point::new(720.0, 750.0),
+            Point::new(780.0, 750.0),
+            items.len(),
+        );
 
         assert_eq!(candidates, vec![2_000]);
+    }
+
+    #[test]
+    fn starmap_hit_index_walks_diagonal_segments_without_scanning_bounding_box() {
+        let bounds = Rect::from_size(1_000.0, 1_000.0);
+        let viewport = StarmapViewport::default();
+        let mut items = Vec::new();
+        for index in 0..2_000 {
+            items.push(starmap_item(
+                &format!("/samples/off-diagonal-{index}.wav"),
+                0.20 + (index % 40) as f32 * 0.002,
+                0.80 + (index / 40) as f32 * 0.002,
+                ui::Rgba8::new(255, 160, 80, 220),
+            ));
+        }
+        items.push(starmap_item(
+            "/samples/crossed.wav",
+            0.50,
+            0.50,
+            ui::Rgba8::new(57, 187, 245, 220),
+        ));
+
+        let index =
+            StarmapHitIndex::build(bounds, viewport, starmap_items_signature(&items), &items);
+        let candidates = index.item_indices_near_segment(
+            Point::new(100.0, 100.0),
+            Point::new(900.0, 900.0),
+            items.len(),
+        );
+
+        assert_eq!(
+            candidates,
+            vec![2_000],
+            "diagonal drag sweeps should visit cells along the pointer path instead of every populated cell inside the path bounding box"
+        );
+    }
+
+    fn dense_overview_test_items(count: usize, color: ui::Rgba8) -> Vec<StarmapItem> {
+        (0..count)
+            .map(|index| {
+                starmap_item(
+                    &format!("/samples/dense-overview-{index}.wav"),
+                    ((index % 36) as f32 + 0.5) / 36.0,
+                    (((index / 36) % 36) as f32 + 0.5) / 36.0,
+                    color,
+                )
+            })
+            .collect()
     }
 
     fn starmap_item(file_id: &str, x: f32, y: f32, color: ui::Rgba8) -> StarmapItem {
@@ -2102,6 +3711,10 @@ mod tests {
             copy_flash: false,
             similarity_anchor: false,
             instant_audition_ready: true,
+            preview_audition_ready: false,
+            preview_audition_candidate: file_id.rsplit_once('.').is_some_and(|(_, extension)| {
+                extension.eq_ignore_ascii_case("wav") || extension.eq_ignore_ascii_case("wave")
+            }),
             missing: false,
         }
     }

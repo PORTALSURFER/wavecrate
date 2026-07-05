@@ -277,6 +277,21 @@ impl VisibleSampleProjectionCache {
         })
     }
 
+    pub(super) fn cached_audio_indices(
+        &self,
+        request: VisibleSampleProjectionRequest<'_>,
+    ) -> Option<Ref<'_, Vec<usize>>> {
+        let key = request.key();
+        if !self.entries.borrow().contains_key(&key) {
+            return None;
+        }
+        Some(Ref::map(self.entries.borrow(), |entries| {
+            entries
+                .get(&key)
+                .expect("visible sample projection cache should contain computed key")
+        }))
+    }
+
     pub(super) fn audio_ids(
         &self,
         request: VisibleSampleProjectionRequest<'_>,
@@ -294,6 +309,21 @@ impl VisibleSampleProjectionCache {
                 .get(&key)
                 .expect("visible sample id projection cache should contain computed key")
         })
+    }
+
+    pub(super) fn cached_audio_ids(
+        &self,
+        request: VisibleSampleProjectionRequest<'_>,
+    ) -> Option<Ref<'_, Vec<String>>> {
+        let key = request.key();
+        if !self.id_entries.borrow().contains_key(&key) {
+            return None;
+        }
+        Some(Ref::map(self.id_entries.borrow(), |entries| {
+            entries
+                .get(&key)
+                .expect("visible sample id projection cache should contain computed key")
+        }))
     }
 
     pub(super) fn invalidate_for_content_revision(&mut self, content_revision: u64) {
@@ -583,29 +613,7 @@ impl FolderBrowserState {
         &'a self,
         query: VisibleSampleQuery<'a>,
     ) -> VisibleSampleList<'a> {
-        let prepared_window = self.sample_list.prepared_window;
-        let mut window_files =
-            self.selected_audio_file_window_matching_tags(prepared_window, query.tags_by_file);
-        let mut window = prepared_window.reconcile_total_items(window_files.total_count);
-        if window != prepared_window {
-            window_files =
-                self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
-        }
-        if !window_files_complete(window, &window_files) {
-            self.sample_list.projection_cache.clear();
-            window_files =
-                self.selected_audio_file_window_matching_tags(window, query.tags_by_file);
-        }
-        if !window_files_complete(window, &window_files) {
-            window_files =
-                self.uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
-            let repaired_window = window.reconcile_total_items(window_files.total_count);
-            if repaired_window != window {
-                window = repaired_window;
-                window_files = self
-                    .uncached_selected_audio_file_window_matching_tags(window, query.tags_by_file);
-            }
-        }
+        let (window, window_files) = self.visible_sample_window_files(query.tags_by_file);
         let harvest_lookup =
             super::harvest_filter::HarvestFileFactsLookup::load(self, &window_files.rows);
         let show_new_harvest_badges = self.filters.harvest.is_some();
@@ -632,6 +640,55 @@ impl FolderBrowserState {
             similarity_mode_active: self.similarity_mode_active(),
             similarity_controls: self.similarity_controls(),
         }
+    }
+
+    pub(in crate::native_app) fn prepared_visible_sample_file_ids_matching_tags(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+        max_window_len: usize,
+    ) -> Option<Vec<String>> {
+        if self.sample_list.prepared_content_revision != self.sample_list.content_revision {
+            return None;
+        }
+        let window = preview_warm_window(self.sample_list.prepared_window, max_window_len);
+        let window_files =
+            self.selected_audio_file_window_matching_tags_if_cached(window, tags_by_file)?;
+        window_files_complete(window, &window_files).then(|| {
+            window_files
+                .rows
+                .into_iter()
+                .filter(|file| !file.is_missing())
+                .map(|file| file.id.clone())
+                .collect()
+        })
+    }
+
+    fn visible_sample_window_files(
+        &self,
+        tags_by_file: &HashMap<String, Vec<String>>,
+    ) -> (ui::VirtualListWindow, VisibleSampleWindowFiles<'_>) {
+        let prepared_window = self.sample_list.prepared_window;
+        let mut window_files =
+            self.selected_audio_file_window_matching_tags(prepared_window, tags_by_file);
+        let mut window = prepared_window.reconcile_total_items(window_files.total_count);
+        if window != prepared_window {
+            window_files = self.selected_audio_file_window_matching_tags(window, tags_by_file);
+        }
+        if !window_files_complete(window, &window_files) {
+            self.sample_list.projection_cache.clear();
+            window_files = self.selected_audio_file_window_matching_tags(window, tags_by_file);
+        }
+        if !window_files_complete(window, &window_files) {
+            window_files =
+                self.uncached_selected_audio_file_window_matching_tags(window, tags_by_file);
+            let repaired_window = window.reconcile_total_items(window_files.total_count);
+            if repaired_window != window {
+                window = repaired_window;
+                window_files =
+                    self.uncached_selected_audio_file_window_matching_tags(window, tags_by_file);
+            }
+        }
+        (window, window_files)
     }
 
     fn visible_sample_row_for_file<'a>(
@@ -736,6 +793,49 @@ fn copy_flash_file_id(path: impl AsRef<std::path::Path>) -> Option<String> {
         .map(str::to_owned)
 }
 
+fn preview_warm_window(
+    window: ui::VirtualListWindow,
+    max_window_len: usize,
+) -> ui::VirtualListWindow {
+    if max_window_len == 0 || window.window_len() <= max_window_len {
+        return window;
+    }
+
+    let viewport_start = window
+        .viewport_start
+        .clamp(window.window_start, window.window_end);
+    let viewport_end = window.viewport_end.clamp(viewport_start, window.window_end);
+    let viewport_len = viewport_end.saturating_sub(viewport_start);
+    let center = if viewport_len == 0 {
+        window.window_start
+    } else {
+        viewport_start.saturating_add(viewport_len / 2)
+    };
+
+    let half = max_window_len / 2;
+    let mut window_start = center
+        .saturating_sub(half)
+        .clamp(window.window_start, window.window_end);
+    let window_end = window_start
+        .saturating_add(max_window_len)
+        .min(window.window_end);
+    if window_end.saturating_sub(window_start) < max_window_len {
+        window_start = window_end
+            .saturating_sub(max_window_len)
+            .max(window.window_start);
+    }
+
+    let viewport_start = viewport_start.clamp(window_start, window_end);
+    let viewport_end = viewport_end.clamp(viewport_start, window_end);
+    ui::VirtualListWindow {
+        total_items: window.total_items,
+        viewport_start,
+        viewport_end,
+        window_start,
+        window_end,
+    }
+}
+
 fn window_files_complete(
     window: ui::VirtualListWindow,
     window_files: &VisibleSampleWindowFiles<'_>,
@@ -746,6 +846,38 @@ fn window_files_complete(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preview_warm_window_limits_large_materialized_ranges_around_viewport() {
+        let window = ui::VirtualListWindow {
+            total_items: 1_000,
+            viewport_start: 500,
+            viewport_end: 520,
+            window_start: 0,
+            window_end: 1_000,
+        };
+
+        let limited = preview_warm_window(window, 48);
+
+        assert_eq!(limited.window_len(), 48);
+        assert!(limited.window_start > 0);
+        assert!(limited.window_end < 1_000);
+        assert!(limited.contains(500));
+        assert!(limited.contains(519));
+    }
+
+    #[test]
+    fn preview_warm_window_keeps_small_materialized_ranges_unchanged() {
+        let window = ui::VirtualListWindow {
+            total_items: 32,
+            viewport_start: 0,
+            viewport_end: 16,
+            window_start: 0,
+            window_end: 32,
+        };
+
+        assert_eq!(preview_warm_window(window, 48), window);
+    }
 
     #[test]
     fn projection_request_key_tracks_query_and_revision_inputs() {

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+use std::sync::Arc;
 
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
@@ -10,7 +11,7 @@ use wavecrate::sample_sources::{
 };
 use wavecrate_analysis::aspects::SimilarityAspect;
 
-use crate::native_app::waveform::should_use_file_backed_wav_decode;
+use crate::native_app::waveform::should_use_file_backed_wav_decode_for_entry;
 
 use super::{FileEntry, FolderBrowserState, SimilarityAspectStrengths};
 
@@ -21,11 +22,13 @@ const GROUP_CENTERS: [(f32, f32); wavecrate_analysis::aspects::ASPECT_COUNT] = [
     (0.66, 0.36),
     (0.78, 0.62),
 ];
+const STARMAP_PROJECTION_INDEX_GRID: i32 = 48;
 
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct StarmapProjection<'a> {
     pub(in crate::native_app) tags_by_file: &'a HashMap<String, Vec<String>>,
     pub(in crate::native_app) instant_audition_sample_paths: &'a HashSet<String>,
+    pub(in crate::native_app) preview_audition_sample_paths: &'a HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -62,11 +65,32 @@ impl StarmapStatus {
 pub(super) struct StarmapLayoutCache {
     signature: Option<u64>,
     pub(super) points_by_file: HashMap<String, StarmapLayoutPoint>,
-    pub(super) projection_items: Vec<StarmapItem>,
-    projection_prepared: bool,
+    pub(super) projection_items: Option<Arc<[StarmapItem]>>,
+    projection_index: StarmapProjectionIndex,
     listed_count: usize,
     pending_load_signature: Option<u64>,
     loaded_signature: Option<u64>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct StarmapProjectionIndex {
+    cells: HashMap<StarmapProjectionCell, Vec<usize>>,
+    file_indices: HashMap<String, usize>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct StarmapProjectionCell {
+    x: i32,
+    y: i32,
+}
+
+#[derive(Debug)]
+pub(in crate::native_app) struct StarmapWarmCandidateSet {
+    pub(in crate::native_app) items: Arc<[StarmapItem]>,
+    pub(in crate::native_app) indices: Vec<usize>,
+    pub(in crate::native_app) inspected_count: usize,
+    pub(in crate::native_app) cell_count: usize,
+    pub(in crate::native_app) visited_cell_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -88,7 +112,193 @@ pub(in crate::native_app) struct StarmapItem {
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) similarity_anchor: bool,
     pub(in crate::native_app) instant_audition_ready: bool,
+    pub(in crate::native_app) preview_audition_ready: bool,
+    pub(in crate::native_app) preview_audition_candidate: bool,
     pub(in crate::native_app) missing: bool,
+}
+
+impl StarmapItem {
+    pub(in crate::native_app) fn fast_audition_ready(&self) -> bool {
+        self.instant_audition_ready || self.preview_audition_ready
+    }
+
+    pub(in crate::native_app) fn audition_candidate(&self) -> bool {
+        self.fast_audition_ready() || self.preview_audition_candidate
+    }
+}
+
+impl StarmapProjectionIndex {
+    fn build(items: &[StarmapItem]) -> Self {
+        let mut index = Self::default();
+        for (item_index, item) in items.iter().enumerate() {
+            if item.missing || !item.preview_audition_candidate {
+                continue;
+            }
+            index.file_indices.insert(item.file_id.clone(), item_index);
+            index
+                .cells
+                .entry(StarmapProjectionCell::for_point(item.x, item.y))
+                .or_default()
+                .push(item_index);
+        }
+        index
+    }
+
+    fn preview_warm_indices(
+        &self,
+        items: &[StarmapItem],
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        viewport_pad: f32,
+        selected_file_id: Option<&str>,
+        limit: usize,
+    ) -> StarmapPreviewWarmScan {
+        if limit == 0 {
+            return StarmapPreviewWarmScan::default();
+        }
+        let mut indices = Vec::with_capacity(limit);
+        let mut inspected_count = 0;
+        let mut visited_cell_count = 0;
+        let selected_index = selected_file_id.and_then(|file_id| self.file_indices.get(file_id));
+        if let Some(&selected_index) = selected_index {
+            indices.push(selected_index);
+            inspected_count += 1;
+        }
+
+        let cells = self.viewport_cells(center_x, center_y, zoom, viewport_pad);
+        let cell_count = cells.len();
+        for cell in cells {
+            visited_cell_count += 1;
+            let Some(cell_indices) = self.cells.get(&cell) else {
+                continue;
+            };
+            for &item_index in cell_indices {
+                if Some(&item_index) == selected_index {
+                    continue;
+                }
+                inspected_count += 1;
+                let item = &items[item_index];
+                if !starmap_item_in_preview_warm_viewport(
+                    item.x,
+                    item.y,
+                    center_x,
+                    center_y,
+                    zoom,
+                    viewport_pad,
+                ) {
+                    continue;
+                }
+                indices.push(item_index);
+                if indices.len() >= limit {
+                    return StarmapPreviewWarmScan {
+                        indices,
+                        inspected_count,
+                        cell_count,
+                        visited_cell_count,
+                    };
+                }
+            }
+        }
+        StarmapPreviewWarmScan {
+            indices,
+            inspected_count,
+            cell_count,
+            visited_cell_count,
+        }
+    }
+
+    fn viewport_cells(
+        &self,
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        pad: f32,
+    ) -> Vec<StarmapProjectionCell> {
+        let (min_x, max_x, min_y, max_y) =
+            StarmapProjectionCell::viewport_cell_range(center_x, center_y, zoom, pad);
+        let mut cells = self
+            .cells
+            .keys()
+            .copied()
+            .filter(|cell| (min_x..=max_x).contains(&cell.x) && (min_y..=max_y).contains(&cell.y))
+            .collect::<Vec<_>>();
+        cells.sort_by(|left, right| {
+            starmap_projection_cell_distance_sq(*left, center_x, center_y)
+                .total_cmp(&starmap_projection_cell_distance_sq(
+                    *right, center_x, center_y,
+                ))
+                .then_with(|| left.y.cmp(&right.y))
+                .then_with(|| left.x.cmp(&right.x))
+        });
+        cells
+    }
+}
+
+impl StarmapProjectionCell {
+    fn for_point(x: f32, y: f32) -> Self {
+        Self {
+            x: starmap_projection_grid_coordinate(x),
+            y: starmap_projection_grid_coordinate(y),
+        }
+    }
+
+    fn viewport_cell_range(
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        pad: f32,
+    ) -> (i32, i32, i32, i32) {
+        let zoom = zoom.max(f32::EPSILON);
+        let extent = (0.5 + pad.max(0.0)) / zoom;
+        let min_x = starmap_projection_grid_coordinate(center_x - extent);
+        let max_x = starmap_projection_grid_coordinate(center_x + extent);
+        let min_y = starmap_projection_grid_coordinate(center_y - extent);
+        let max_y = starmap_projection_grid_coordinate(center_y + extent);
+        (min_x, max_x, min_y, max_y)
+    }
+}
+
+#[derive(Debug, Default)]
+struct StarmapPreviewWarmScan {
+    indices: Vec<usize>,
+    inspected_count: usize,
+    cell_count: usize,
+    visited_cell_count: usize,
+}
+
+fn starmap_projection_grid_coordinate(value: f32) -> i32 {
+    (value * STARMAP_PROJECTION_INDEX_GRID as f32)
+        .floor()
+        .clamp(0.0, (STARMAP_PROJECTION_INDEX_GRID - 1) as f32) as i32
+}
+
+fn starmap_projection_cell_distance_sq(
+    cell: StarmapProjectionCell,
+    center_x: f32,
+    center_y: f32,
+) -> f32 {
+    let cell_size = 1.0 / STARMAP_PROJECTION_INDEX_GRID as f32;
+    let cell_x = (cell.x as f32 + 0.5) * cell_size;
+    let cell_y = (cell.y as f32 + 0.5) * cell_size;
+    let dx = cell_x - center_x;
+    let dy = cell_y - center_y;
+    dx * dx + dy * dy
+}
+
+fn starmap_item_in_preview_warm_viewport(
+    item_x: f32,
+    item_y: f32,
+    center_x: f32,
+    center_y: f32,
+    zoom: f32,
+    pad: f32,
+) -> bool {
+    let normalized_x = (item_x - center_x) * zoom + 0.5;
+    let normalized_y = (item_y - center_y) * zoom + 0.5;
+    let min = -pad;
+    let max = 1.0 + pad;
+    (min..=max).contains(&normalized_x) && (min..=max).contains(&normalized_y)
 }
 
 impl FolderBrowserState {
@@ -104,11 +314,7 @@ impl FolderBrowserState {
         self.sample_list.starmap_layout = StarmapLayoutCache {
             signature: Some(signature),
             listed_count: snapshot.rows().len(),
-            points_by_file: HashMap::new(),
-            projection_items: Vec::new(),
-            projection_prepared: false,
-            pending_load_signature: None,
-            loaded_signature: None,
+            ..StarmapLayoutCache::default()
         };
     }
 
@@ -129,11 +335,7 @@ impl FolderBrowserState {
             self.sample_list.starmap_layout = StarmapLayoutCache {
                 signature: Some(signature),
                 listed_count,
-                points_by_file: HashMap::new(),
-                projection_items: Vec::new(),
-                projection_prepared: false,
-                pending_load_signature: None,
-                loaded_signature: None,
+                ..StarmapLayoutCache::default()
             };
         }
         let cache = &mut self.sample_list.starmap_layout;
@@ -202,16 +404,50 @@ impl FolderBrowserState {
         &mut self,
         projection: StarmapProjection<'_>,
     ) {
-        let items = self.build_starmap_projection(projection);
-        self.sample_list.starmap_layout.projection_items = items;
-        self.sample_list.starmap_layout.projection_prepared = true;
+        let items = Arc::<[StarmapItem]>::from(self.build_starmap_projection(projection));
+        self.sample_list.starmap_layout.projection_index = StarmapProjectionIndex::build(&items);
+        self.sample_list.starmap_layout.projection_items = Some(items);
     }
 
-    pub(in crate::native_app) fn cached_starmap_projection(&self) -> Option<&[StarmapItem]> {
+    pub(in crate::native_app) fn cached_starmap_projection(&self) -> Option<Arc<[StarmapItem]>> {
+        self.sample_list.starmap_layout.projection_items.clone()
+    }
+
+    pub(in crate::native_app) fn cached_starmap_projection_len(&self) -> usize {
         self.sample_list
             .starmap_layout
-            .projection_prepared
-            .then_some(self.sample_list.starmap_layout.projection_items.as_slice())
+            .projection_items
+            .as_ref()
+            .map_or(0, |items| items.len())
+    }
+
+    pub(in crate::native_app) fn cached_starmap_preview_warm_candidates(
+        &self,
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        viewport_pad: f32,
+        selected_file_id: Option<&str>,
+        limit: usize,
+    ) -> Option<StarmapWarmCandidateSet> {
+        let cache = &self.sample_list.starmap_layout;
+        let items = cache.projection_items.clone()?;
+        let scan = cache.projection_index.preview_warm_indices(
+            &items,
+            center_x,
+            center_y,
+            zoom,
+            viewport_pad,
+            selected_file_id,
+            limit,
+        );
+        Some(StarmapWarmCandidateSet {
+            items,
+            indices: scan.indices,
+            inspected_count: scan.inspected_count,
+            cell_count: scan.cell_count,
+            visited_cell_count: scan.visited_cell_count,
+        })
     }
 
     fn build_starmap_projection(&self, projection: StarmapProjection<'_>) -> Vec<StarmapItem> {
@@ -225,6 +461,8 @@ impl FolderBrowserState {
                     file,
                     projection.instant_audition_sample_paths,
                 );
+                let preview_audition_ready =
+                    projection.preview_audition_sample_paths.contains(&file.id);
                 let aspects = self.similarity_aspect_display_strengths_for_file(&file.id);
                 let strength = self.similarity_display_strength_for_file(&file.id);
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
@@ -251,6 +489,8 @@ impl FolderBrowserState {
                     copy_flash: self.copied_file_flash_active(&file.id),
                     similarity_anchor: self.file_is_similarity_anchor(&file.id),
                     instant_audition_ready,
+                    preview_audition_ready,
+                    preview_audition_candidate: preview_audition_candidate_for_starmap(file),
                     missing: file.is_missing(),
                 }
             })
@@ -262,6 +502,11 @@ impl FolderBrowserState {
         projection: StarmapProjection<'_>,
     ) -> Option<(f32, f32)> {
         let selected_file = self.selected_file_id()?;
+        if let Some(items) = self.cached_starmap_projection()
+            && let Some(item) = find_starmap_item_by_file_id(&items, selected_file)
+        {
+            return Some((item.x, item.y));
+        }
         self.starmap_projection(projection)
             .into_iter()
             .find(|item| item.file_id == selected_file)
@@ -279,14 +524,20 @@ impl FolderBrowserState {
             return None;
         }
         self.prepare_starmap_layout(tags_by_file);
-        let target = starmap_navigation_target(
-            &self.starmap_projection(StarmapProjection {
+        let cached_projection = self.cached_starmap_projection();
+        let built_projection;
+        let projection_items = if let Some(items) = cached_projection.as_deref() {
+            items
+        } else {
+            built_projection = self.starmap_projection(StarmapProjection {
                 tags_by_file,
                 instant_audition_sample_paths,
-            }),
-            self.selection.selected_file_id()?,
-            delta,
-        )?;
+                preview_audition_sample_paths: &HashSet::new(),
+            });
+            &built_projection
+        };
+        let target =
+            starmap_navigation_target(projection_items, self.selection.selected_file_id()?, delta)?;
         let visible_ids = self.browser_listing_snapshot(tags_by_file).ids().to_vec();
         if extend {
             self.selection.select_file_with_modifiers(
@@ -331,9 +582,7 @@ fn starmap_navigation_target(
     selected_file_id: &str,
     delta: i32,
 ) -> Option<String> {
-    let current = items
-        .iter()
-        .find(|item| item.file_id.as_str() == selected_file_id)?;
+    let current = find_starmap_item_by_file_id(items, selected_file_id)?;
     let direction = delta.signum() as f32;
     items
         .iter()
@@ -347,6 +596,13 @@ fn starmap_navigation_target(
         .map(|item| item.file_id.clone())
 }
 
+fn find_starmap_item_by_file_id<'a>(
+    items: &'a [StarmapItem],
+    file_id: &str,
+) -> Option<&'a StarmapItem> {
+    items.iter().find(|item| item.file_id.as_str() == file_id)
+}
+
 fn starmap_navigation_rank(current: &StarmapItem, candidate: &StarmapItem) -> f32 {
     let dx = candidate.x - current.x;
     let dy = candidate.y - current.y;
@@ -357,8 +613,12 @@ fn instant_audition_ready_for_starmap(
     file: &FileEntry,
     instant_audition_sample_paths: &HashSet<String>,
 ) -> bool {
-    !should_use_file_backed_wav_decode(Path::new(&file.id))
+    !should_use_file_backed_wav_decode_for_entry(&file.extension, file.size_bytes)
         || instant_audition_sample_paths.contains(&file.id)
+}
+
+fn preview_audition_candidate_for_starmap(file: &FileEntry) -> bool {
+    file.extension.eq_ignore_ascii_case("wav") || file.extension.eq_ignore_ascii_case("wave")
 }
 
 impl FolderBrowserState {
@@ -585,6 +845,144 @@ mod tests {
     use super::*;
     use wavecrate::sample_sources::SampleSource;
 
+    fn test_starmap_item(file_id: &str, x: f32, y: f32) -> StarmapItem {
+        StarmapItem {
+            file_id: file_id.to_string(),
+            label: file_id.to_string(),
+            x,
+            y,
+            color: ui::Rgba8::new(57, 187, 245, 220),
+            selected: false,
+            focused: false,
+            copy_flash: false,
+            similarity_anchor: false,
+            instant_audition_ready: true,
+            preview_audition_ready: false,
+            preview_audition_candidate: true,
+            missing: false,
+        }
+    }
+
+    #[test]
+    fn starmap_projection_index_returns_nearby_preview_warm_candidates_without_full_scan() {
+        let mut items = Vec::new();
+        for index in 0..2_000 {
+            items.push(test_starmap_item(
+                &format!("far-{index:04}.wav"),
+                0.94,
+                0.94,
+            ));
+        }
+        for index in 0..96 {
+            let offset = (index as f32 % 12.0) * 0.0007;
+            items.push(test_starmap_item(
+                &format!("near-{index:03}.wav"),
+                0.498 + offset,
+                0.502 + offset,
+            ));
+        }
+        let items = Arc::<[StarmapItem]>::from(items);
+        let index = StarmapProjectionIndex::build(&items);
+
+        let scan = index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, None, 24);
+
+        assert_eq!(scan.indices.len(), 24);
+        assert!(
+            scan.inspected_count < 128,
+            "zoomed dense warm planning should visit nearby cells, not all {} items",
+            items.len()
+        );
+        assert!(
+            scan.indices
+                .iter()
+                .all(|&item_index| items[item_index].file_id.starts_with("near-"))
+        );
+        assert!(
+            scan.visited_cell_count <= scan.cell_count,
+            "visited cells should be bounded by occupied viewport cells"
+        );
+        assert!(
+            scan.cell_count < STARMAP_PROJECTION_INDEX_GRID as usize,
+            "zoomed warm planning should not sort the whole projection grid"
+        );
+    }
+
+    #[test]
+    fn starmap_projection_index_skips_empty_preview_warm_cells() {
+        let items = Arc::<[StarmapItem]>::from(vec![
+            test_starmap_item("center.wav", 0.50, 0.50),
+            test_starmap_item("top-left.wav", 0.05, 0.05),
+            test_starmap_item("bottom-right.wav", 0.95, 0.95),
+        ]);
+        let index = StarmapProjectionIndex::build(&items);
+
+        let scan = index.preview_warm_indices(&items, 0.5, 0.5, 1.0, 0.0, None, 1);
+
+        assert_eq!(scan.indices.len(), 1);
+        assert_eq!(
+            scan.cell_count,
+            index.cells.len(),
+            "full-map warm planning should sort occupied cells, not every empty grid cell"
+        );
+        assert_eq!(
+            scan.visited_cell_count, 1,
+            "warm planning should stop walking cells once the requested candidates are found"
+        );
+    }
+
+    #[test]
+    fn starmap_projection_index_keeps_selected_preview_warm_candidate_first() {
+        let items = Arc::<[StarmapItem]>::from(vec![
+            test_starmap_item("selected.wav", 0.95, 0.95),
+            test_starmap_item("near.wav", 0.5, 0.5),
+        ]);
+        let index = StarmapProjectionIndex::build(&items);
+
+        let scan =
+            index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, Some("selected.wav"), 2);
+
+        assert_eq!(scan.indices, vec![0, 1]);
+        assert_eq!(scan.inspected_count, 2);
+    }
+
+    fn write_sparse_wav_i16(path: &Path, channels: u16, frames: u32) {
+        let channels = channels.max(1);
+        let sample_rate = 48_000_u32;
+        let bits_per_sample = 16_u16;
+        let block_align = channels * (bits_per_sample / 8);
+        let byte_rate = sample_rate * u32::from(block_align);
+        let data_bytes = frames
+            .checked_mul(u32::from(block_align))
+            .expect("test wav data size");
+        let riff_size = 36_u32.checked_add(data_bytes).expect("test wav riff size");
+        let mut file = std::fs::File::create(path).expect("create sparse wav");
+        use std::io::Write;
+        file.write_all(b"RIFF").expect("write riff");
+        file.write_all(&riff_size.to_le_bytes())
+            .expect("write riff size");
+        file.write_all(b"WAVE").expect("write wave");
+        file.write_all(b"fmt ").expect("write fmt");
+        file.write_all(&16_u32.to_le_bytes())
+            .expect("write fmt size");
+        file.write_all(&1_u16.to_le_bytes())
+            .expect("write pcm format");
+        file.write_all(&channels.to_le_bytes())
+            .expect("write channels");
+        file.write_all(&sample_rate.to_le_bytes())
+            .expect("write sample rate");
+        file.write_all(&byte_rate.to_le_bytes())
+            .expect("write byte rate");
+        file.write_all(&block_align.to_le_bytes())
+            .expect("write block align");
+        file.write_all(&bits_per_sample.to_le_bytes())
+            .expect("write bits");
+        file.write_all(b"data").expect("write data chunk");
+        file.write_all(&data_bytes.to_le_bytes())
+            .expect("write data size");
+        file.set_len(44_u64 + u64::from(data_bytes))
+            .expect("extend sparse wav");
+    }
+
     #[test]
     fn starmap_position_is_stable_and_bounded() {
         let first = starmap_position("kick.wav", SimilarityAspect::Spectrum, Some(0.8), None);
@@ -691,12 +1089,14 @@ mod tests {
         let position = browser.selected_starmap_position(StarmapProjection {
             tags_by_file: &tags_by_file,
             instant_audition_sample_paths: &HashSet::new(),
+            preview_audition_sample_paths: &HashSet::new(),
         });
 
         assert!(position.is_some());
         let projection = browser.starmap_projection(StarmapProjection {
             tags_by_file: &tags_by_file,
             instant_audition_sample_paths: &HashSet::new(),
+            preview_audition_sample_paths: &HashSet::new(),
         });
         let selected = projection
             .iter()
@@ -704,6 +1104,29 @@ mod tests {
             .expect("selected map item");
         assert_eq!(position, Some((selected.x, selected.y)));
         assert!(selected.focused);
+    }
+
+    #[test]
+    fn selected_starmap_position_reuses_cached_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let kick = root.path().join("kick.wav");
+        std::fs::write(&kick, []).expect("write sample");
+        let kick_id = kick.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        browser.select_file(kick_id.clone());
+        browser.sample_list.starmap_layout.projection_items =
+            Some(Arc::from(vec![test_starmap_item(&kick_id, 0.18, 0.82)]));
+        let tags_by_file = HashMap::new();
+
+        let position = browser.selected_starmap_position(StarmapProjection {
+            tags_by_file: &tags_by_file,
+            instant_audition_sample_paths: &HashSet::new(),
+            preview_audition_sample_paths: &HashSet::new(),
+        });
+
+        assert_eq!(position, Some((0.18, 0.82)));
     }
 
     #[test]
@@ -802,6 +1225,65 @@ mod tests {
     }
 
     #[test]
+    fn starmap_keyboard_navigation_reuses_cached_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let alpha = root.path().join("alpha.wav");
+        let beta = root.path().join("beta.wav");
+        let close_below = root.path().join("close_below.wav");
+        std::fs::write(&alpha, []).expect("write alpha");
+        std::fs::write(&beta, []).expect("write beta");
+        std::fs::write(&close_below, []).expect("write close");
+        let alpha_id = alpha.to_string_lossy().to_string();
+        let beta_id = beta.to_string_lossy().to_string();
+        let close_below_id = close_below.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+        browser.prepare_starmap_layout(&tags_by_file);
+        browser.sample_list.starmap_layout.points_by_file = HashMap::from([
+            (
+                alpha_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.50,
+                    y: 0.50,
+                    cluster_id: None,
+                },
+            ),
+            (
+                beta_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.51,
+                    y: 0.58,
+                    cluster_id: None,
+                },
+            ),
+            (
+                close_below_id.clone(),
+                StarmapLayoutPoint {
+                    x: 0.50,
+                    y: 0.92,
+                    cluster_id: None,
+                },
+            ),
+        ]);
+        browser.sample_list.starmap_layout.projection_items = Some(Arc::from(vec![
+            test_starmap_item(&alpha_id, 0.50, 0.50),
+            test_starmap_item(&beta_id, 0.50, 0.92),
+            test_starmap_item(&close_below_id, 0.52, 0.58),
+        ]));
+        browser.select_file(alpha_id);
+
+        let down = browser.navigate_starmap_matching_tags(1, false, &tags_by_file, &HashSet::new());
+
+        assert_eq!(
+            down,
+            Some(close_below_id),
+            "keyboard navigation should use the already prepared map projection instead of rebuilding dense items"
+        );
+    }
+
+    #[test]
     fn starmap_projection_matches_filtered_browser_listing() {
         let root = tempfile::tempdir().expect("source root");
         let kick = root.path().join("deep_kick.wav");
@@ -838,6 +1320,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| item.file_id)
@@ -886,6 +1369,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .map(|item| item.file_id)
@@ -905,12 +1389,12 @@ mod tests {
     }
 
     #[test]
-    fn starmap_projection_marks_cold_long_wavs_as_not_audition_ready() {
+    fn starmap_projection_marks_cold_long_wavs_as_preview_candidates() {
         let root = tempfile::tempdir().expect("source root");
         let short = root.path().join("short.wav");
         let long = root.path().join("long.wav");
         std::fs::write(&short, []).expect("write short sample");
-        std::fs::write(&long, vec![0_u8; 2048]).expect("write long sample");
+        write_sparse_wav_i16(&long, 1, 1_024);
         let short_id = short.to_string_lossy().to_string();
         let long_id = long.to_string_lossy().to_string();
         let browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
@@ -922,24 +1406,74 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
-            .map(|item| (item.file_id, item.instant_audition_ready))
+            .map(|item| {
+                let audition_candidate = item.audition_candidate();
+                (
+                    item.file_id,
+                    item.instant_audition_ready,
+                    item.preview_audition_candidate,
+                    audition_candidate,
+                )
+            })
             .collect::<Vec<_>>();
         let ready_items = browser
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::from([long_id.clone()]),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
-            .map(|item| (item.file_id, item.instant_audition_ready))
+            .map(|item| {
+                let audition_candidate = item.audition_candidate();
+                (
+                    item.file_id,
+                    item.instant_audition_ready,
+                    item.preview_audition_candidate,
+                    audition_candidate,
+                )
+            })
             .collect::<Vec<_>>();
 
         assert_eq!(
             cold_items,
-            vec![(long_id.clone(), false), (short_id.clone(), true)]
+            vec![
+                (long_id.clone(), false, true, true),
+                (short_id.clone(), true, true, true)
+            ]
         );
-        assert_eq!(ready_items, vec![(long_id, true), (short_id, true)]);
+        assert_eq!(
+            ready_items,
+            vec![(long_id, true, true, true), (short_id, true, true, true)]
+        );
+    }
+
+    #[test]
+    fn starmap_projection_marks_preview_heads_fast_ready_without_full_cache() {
+        let root = tempfile::tempdir().expect("source root");
+        let long = root.path().join("long.wav");
+        write_sparse_wav_i16(&long, 1, 1_024);
+        let long_id = long.to_string_lossy().to_string();
+        let browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+
+        let item = browser
+            .starmap_projection(StarmapProjection {
+                tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::from([long_id.clone()]),
+            })
+            .into_iter()
+            .find(|item| item.file_id == long_id)
+            .expect("long map item");
+
+        assert!(!item.instant_audition_ready);
+        assert!(item.preview_audition_ready);
+        assert!(item.fast_audition_ready());
     }
 
     #[test]
@@ -968,6 +1502,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .find(|item| item.file_id == snare_id.as_str())
@@ -981,6 +1516,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .find(|item| item.file_id == snare_id.as_str())
@@ -1027,6 +1563,7 @@ mod tests {
             .starmap_projection(StarmapProjection {
                 tags_by_file: &tags_by_file,
                 instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
             })
             .into_iter()
             .filter(|item| item.selected)

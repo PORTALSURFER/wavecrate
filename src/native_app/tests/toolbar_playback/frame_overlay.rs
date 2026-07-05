@@ -28,6 +28,42 @@ fn early_runtime_playback_handoff_keeps_transient_overlay_active() {
 }
 
 #[test]
+fn active_starmap_drag_keeps_app_transient_overlay_active_without_waveform_overlay() {
+    let mut state = gui_state_for_span_tests();
+    assert!(!state.should_paint_waveform_transient_overlay());
+    assert!(!state.should_paint_app_transient_overlay());
+
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+
+    assert!(
+        state.should_paint_app_transient_overlay(),
+        "starmap drag feedback should stay on the 60Hz paint-only overlay even before audio playback starts"
+    );
+    assert!(
+        !state.should_paint_waveform_transient_overlay(),
+        "waveform overlay predicates should remain waveform/playback-specific"
+    );
+}
+
+#[test]
+fn active_starmap_queue_keeps_app_transient_overlay_active_between_pointer_events() {
+    let mut state = gui_state_for_span_tests();
+    assert!(!state.should_paint_app_transient_overlay());
+
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(String::from("/samples/kick.wav"));
+
+    assert!(
+        state.should_paint_app_transient_overlay(),
+        "starmap active audition feedback should repaint even when the next pointer event has not arrived yet"
+    );
+}
+
+#[test]
 fn early_runtime_playback_handoff_still_uses_paint_only_frames() {
     let mut state = gui_state_for_span_tests();
     state.audio.early_sample_playback_path = Some(String::from("kick.wav"));

@@ -1,14 +1,14 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
+    prelude::{dense_row_palette_from_style, IntoView, ThemeTokens, WidgetStyle, WidgetTone},
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
-use std::{fs, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use super::{
     native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
-    write_test_wav_i16,
+    write_sparse_test_wav_i16, write_test_wav_i16,
 };
 
 fn sample_hit_target(
@@ -198,11 +198,10 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
     let message = run_first_perform(context.into_command()).expect("last played persist command");
     state.apply_message(message, &mut radiant::prelude::UiUpdateContext::default());
 
-    assert!(
-        db.last_played_at_for_path(std::path::Path::new("played.wav"))
-            .expect("read last played")
-            .is_some()
-    );
+    assert!(db
+        .last_played_at_for_path(std::path::Path::new("played.wav"))
+        .expect("read last played")
+        .is_some());
 }
 
 #[test]
@@ -287,6 +286,367 @@ fn selecting_missing_sample_prunes_row_without_queueing_load() {
 }
 
 #[test]
+fn list_selection_cold_wav_queues_preview_audition_before_validation_finishes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-row-selection.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_id.as_str()),
+        "row selection should update visible focus before validation or decoding finishes"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "cold row selection should start the tiny preview-head decode immediately"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "row selection should still validate the path for missing-file recovery"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "preview audition decode should be active before validation completes"
+    );
+    assert!(
+        state
+            .background
+            .sample_load_validation_task
+            .active()
+            .is_some(),
+        "validation should remain active after fast preview scheduling"
+    );
+}
+
+#[test]
+fn list_selection_ignores_stale_preview_audition_decode_after_rapid_navigation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first-large-selection.wav");
+    let second = source_root.path().join("second-large-selection.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: first_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let stale_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("first cold row selection should queue preview decode");
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: second_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let latest_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("second cold row selection should replace preview decode");
+    assert_ne!(
+        stale_ticket, latest_ticket,
+        "rapid row navigation should replace the active preview decode ticket"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::PreviewAuditionDecoded {
+            completion: radiant::prelude::TaskCompletion {
+                ticket: stale_ticket,
+                output: crate::native_app::app::PreviewAuditionResult {
+                    path: first_id.clone(),
+                    clip: Ok(crate::native_app::waveform::PreviewAuditionClip {
+                        path: PathBuf::from(&first_id),
+                        source_len: 2048,
+                        source_modified: Some(std::time::SystemTime::UNIX_EPOCH),
+                        samples: Arc::from([0.25_f32, -0.25, 0.0, 0.125]),
+                        sample_rate: 44_100,
+                        channels: 1,
+                        frames: 4,
+                        normalized_gain: 1.0,
+                    }),
+                },
+            },
+            started_at: std::time::Instant::now(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "stale preview decode completion must not move selection back"
+    );
+    assert_eq!(
+        state.background.preview_audition_task.active(),
+        Some(latest_ticket),
+        "stale preview decode completion must not consume the latest decode ticket"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_clip(std::path::Path::new(&first_id))
+            .is_none(),
+        "stale preview decode completion must not populate the preview cache for an old target"
+    );
+    assert_ne!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(first_id.as_str()),
+        "stale preview decode completion must not start early playback for the old target"
+    );
+}
+
+#[test]
+fn keyboard_navigation_cold_wav_queues_preview_audition_before_full_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-first-keyboard.wav");
+    let second = source_root.path().join("b-second-keyboard.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "keyboard navigation should update selection immediately"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "keyboard navigation should start the tiny preview-head decode immediately"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "full waveform display should stay behind the fast preview path"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "preview audition decode should be active after keyboard navigation"
+    );
+    assert!(
+        state.active_sample_load_task().is_some(),
+        "keyboard navigation should still queue a background display load"
+    );
+}
+
+#[test]
+fn keyboard_navigation_stops_previous_preview_tail_before_cold_target_is_ready() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-first-keyboard.wav");
+    let second = source_root.path().join("b-second-keyboard.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id.clone());
+    state.audio.early_sample_playback_path = Some(first_id);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "keyboard navigation should update selection immediately"
+    );
+    assert_eq!(
+        state.audio.early_sample_playback_path, None,
+        "rapid keyboard/list navigation should stop the previous preview before the cold target is ready"
+    );
+    assert_eq!(state.audio.current_playback_span, None);
+    assert_eq!(
+        state.audio.playback_progress,
+        wavecrate::audio::PlaybackRuntimeProgress::default(),
+        "previous preview playback should not remain visually active while the next preview decodes"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "the next cold target should still use the shared preview-decode path"
+    );
+}
+
+#[test]
+fn keyboard_navigation_ignores_stale_preview_audition_decode_after_rapid_navigation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-first-keyboard.wav");
+    let second = source_root.path().join("b-second-keyboard.wav");
+    let third = source_root.path().join("c-third-keyboard.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    write_sparse_test_wav_i16(&third, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id);
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let stale_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("first keyboard navigation should queue preview decode");
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let latest_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("second keyboard navigation should replace preview decode");
+    assert_ne!(
+        stale_ticket, latest_ticket,
+        "rapid keyboard navigation should replace the active preview decode ticket"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::PreviewAuditionDecoded {
+            completion: radiant::prelude::TaskCompletion {
+                ticket: stale_ticket,
+                output: crate::native_app::app::PreviewAuditionResult {
+                    path: second_id.clone(),
+                    clip: Ok(crate::native_app::waveform::PreviewAuditionClip {
+                        path: PathBuf::from(&second_id),
+                        source_len: 2048,
+                        source_modified: Some(std::time::SystemTime::UNIX_EPOCH),
+                        samples: Arc::from([0.25_f32, -0.25, 0.0, 0.125]),
+                        sample_rate: 44_100,
+                        channels: 1,
+                        frames: 4,
+                        normalized_gain: 1.0,
+                    }),
+                },
+            },
+            started_at: std::time::Instant::now(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(third_id.as_str()),
+        "stale keyboard preview decode completion must not move selection back"
+    );
+    assert_eq!(
+        state.background.preview_audition_task.active(),
+        Some(latest_ticket),
+        "stale keyboard preview decode completion must not consume the latest decode ticket"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_clip(std::path::Path::new(&second_id))
+            .is_none(),
+        "stale keyboard preview decode completion must not cache an old target"
+    );
+    assert_ne!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(second_id.as_str()),
+        "stale keyboard preview decode completion must not start early playback for the old target"
+    );
+}
+
+#[test]
 fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
@@ -302,9 +662,42 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
             ]),
         )
         .build();
-    state.library.folder_browser.select_file(first_id);
+    state.library.folder_browser.select_file(first_id.clone());
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     state.ui.chrome.starmap_viewport.zoom = 4.0;
+    state
+        .library
+        .folder_browser
+        .prepare_starmap_layout(&state.metadata.tags_by_file);
+    let layout_request = state
+        .library
+        .folder_browser
+        .take_starmap_layout_load_request(&state.metadata.tags_by_file)
+        .expect("starmap layout request");
+    state
+        .library
+        .folder_browser
+        .apply_starmap_layout_load_result(wavecrate::sample_sources::StarmapLayoutLoadResult {
+            signature: layout_request.signature,
+            result: Ok(HashMap::from([
+                (
+                    first_id,
+                    wavecrate::sample_sources::StarmapLayoutPoint {
+                        x: 0.50,
+                        y: 0.35,
+                        cluster_id: None,
+                    },
+                ),
+                (
+                    second_id.clone(),
+                    wavecrate::sample_sources::StarmapLayoutPoint {
+                        x: 0.50,
+                        y: 0.70,
+                        cluster_id: None,
+                    },
+                ),
+            ])),
+        });
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
@@ -326,6 +719,7 @@ fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
             crate::native_app::sample_library::folder_browser::starmap::StarmapProjection {
                 tags_by_file: &state.metadata.tags_by_file,
                 instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+                preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
             },
         )
         .expect("selected sample should have a map position");
@@ -517,6 +911,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
         crate::native_app::sample_library::folder_browser::starmap::StarmapProjection {
             tags_by_file: &state.metadata.tags_by_file,
             instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+            preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
         },
     );
     assert!(
@@ -528,7 +923,7 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
 }
 
 #[test]
-fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
+fn starmap_drag_sweep_retargets_to_latest_hit_without_backlog() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -568,7 +963,7 @@ fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(third_id.as_str()),
-        "the latest drag hit should become the selected playback target immediately"
+        "the latest crossed drag hit should become the immediate playback target"
     );
     assert_eq!(
         state
@@ -589,7 +984,671 @@ fn starmap_drag_immediately_replaces_active_hit_with_latest_target() {
             .cloned()
             .collect::<Vec<_>>(),
         Vec::<String>::new(),
-        "drag audition should replace active playback intent instead of building a delayed backlog"
+        "drag sweeps should not create a delayed playback backlog"
+    );
+}
+
+#[test]
+fn starmap_drag_hot_sweep_starts_latest_without_ready_tail() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.waveform.cache.store_preview_audition_clip(
+        crate::native_app::waveform::PreviewAuditionClip {
+            path: PathBuf::from(&second_id),
+            source_len: 128,
+            source_modified: Some(std::time::SystemTime::UNIX_EPOCH),
+            samples: Arc::from([0.25_f32, -0.25, 0.0, 0.125]),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 4,
+            normalized_gain: 1.0,
+        },
+    );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone(), third_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(third_id.as_str()),
+        "hot intermediate drag hits must not delay the latest pointer target"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(third_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        Vec::<String>::new(),
+        "hot intermediate hits should not leave a ready-tail backlog"
+    );
+}
+
+#[test]
+fn starmap_drag_ready_descriptor_skips_foreground_sample_load_validation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-ready.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let cache_file = crate::native_app::waveform::PersistedPlaybackCacheFile::new(
+        sample.with_extension("f32"),
+        700,
+    )
+    .expect("playback cache file");
+    let descriptor = crate::native_app::waveform::PersistedPlaybackDescriptor::new(
+        sample.clone(),
+        cache_file,
+        48_000,
+        1,
+        700,
+    )
+    .expect("persisted playback descriptor");
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state
+        .waveform
+        .cache
+        .mark_sample_playback_descriptor_ready(descriptor);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load-validate"),
+        None,
+        "playback-ready starmap drag targets should not enter the foreground sample-load path"
+    );
+}
+
+#[test]
+fn starmap_drag_cold_wav_queues_preview_audition_not_sample_load_validation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load-validate"),
+        None,
+        "cold starmap drag audition should not need the normal foreground load path"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "cold starmap drag WAV targets should decode only a tiny preview head"
+    );
+}
+
+#[test]
+fn starmap_fast_audition_cancels_replaced_foreground_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.library.folder_browser.select_file(first_id.clone());
+    state.load_navigation_sample(first_id.clone(), &mut context);
+    assert!(
+        state.active_sample_load_task().is_some(),
+        "initial cold navigation should have a foreground sample load to cancel"
+    );
+    assert_eq!(
+        state.waveform.load.selection.selected_path.as_deref(),
+        Some(first_id.as_str())
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "initial cold navigation should have a stale preview decode to cancel"
+    );
+
+    state.library.folder_browser.select_file(second_id.clone());
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(second_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.cancel_replaced_starmap_foreground_load_for_fast_audition(
+        second_id.as_str(),
+        "starmap_drag",
+    );
+
+    assert_eq!(
+        state.active_sample_load_task(),
+        None,
+        "starmap fast audition should cancel the replaced full-load worker"
+    );
+    assert_eq!(
+        state.background.preview_audition_task.active(),
+        None,
+        "starmap fast audition should cancel stale preview-decode work"
+    );
+    assert_eq!(
+        state.waveform.load.selection.selected_path.as_deref(),
+        None,
+        "replaced foreground load selection must not be able to complete later"
+    );
+}
+
+#[test]
+fn starmap_mode_frame_warms_preview_audition_heads() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    let sample_id = sample.display().to_string();
+    assert!(
+        crate::native_app::waveform::should_use_file_backed_wav_decode(&sample),
+        "fixture should exercise the large/long WAV path instead of the ordinary in-memory cache path"
+    );
+    let item = state
+        .library
+        .folder_browser
+        .cached_starmap_projection()
+        .and_then(|items| items.iter().find(|item| item.file_id == sample_id).cloned())
+        .expect("long wav should remain present in starmap projection");
+    assert!(
+        !item.instant_audition_ready,
+        "long WAVs should not be treated as full-cache instant-ready before cache warm"
+    );
+    assert!(
+        item.preview_audition_candidate,
+        "long WAVs should still use the tiny preview-head audition path"
+    );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "starmap mode should warm tiny preview heads before drag playback needs them"
+    );
+    assert!(
+        state
+            .background
+            .preview_audition_warm_task
+            .active()
+            .is_some(),
+        "preview audition warm should be tracked as cancellable background work"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_scheduled_paths()
+            .contains(&sample_id),
+        "starmap preview warm should schedule long WAVs instead of filtering them out"
+    );
+}
+
+#[test]
+fn starmap_drag_begin_cancels_active_preview_audition_warm() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    assert!(
+        state
+            .background
+            .preview_audition_warm_task
+            .active()
+            .is_some(),
+        "test setup should start preview warming"
+    );
+    assert!(
+        !state
+            .waveform
+            .cache
+            .preview_audition_scheduled_paths()
+            .is_empty(),
+        "test setup should mark preview-warm paths scheduled"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.background.preview_audition_warm_task.active(),
+        None,
+        "drag playback should immediately cancel background preview warming"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_scheduled_paths()
+            .is_empty(),
+        "cancelled preview warming must release scheduled paths instead of sparkling forever"
+    );
+}
+
+#[test]
+fn list_mode_frame_warms_preview_audition_heads_near_selected_sample() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let mut paths = Vec::new();
+    for index in 0..36 {
+        let path = source_root.path().join(format!("{index:02}.wav"));
+        fs::write(&path, []).expect("write sample");
+        paths.push(path.display().to_string());
+    }
+    let selected = paths[30].clone();
+    let first_visible = paths[0].clone();
+    let next_selected_neighbor = paths[31].clone();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::List;
+    state.library.folder_browser.select_file(selected.clone());
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+    let scheduled = state.waveform.cache.preview_audition_scheduled_paths();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "list mode should warm tiny preview heads for rapid navigation"
+    );
+    assert!(
+        scheduled.contains(&selected),
+        "list preview warming should prioritize the selected sample"
+    );
+    assert!(
+        scheduled.contains(&next_selected_neighbor),
+        "list preview warming should include the next keyboard-navigation target"
+    );
+    assert!(
+        !scheduled.contains(&first_visible),
+        "list preview warming should not spend the first batch on far-away visible rows"
+    );
+}
+
+#[test]
+fn starmap_mode_frame_does_not_duplicate_scheduled_preview_audition_heads() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    state
+        .waveform
+        .cache
+        .mark_preview_audition_warm_scheduled(std::slice::from_ref(&sample_id));
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        None,
+        "preview warming should not rediscover a path already queued by a prior frame"
+    );
+}
+
+#[test]
+fn starmap_mode_frame_does_not_warm_preview_audition_heads_while_playback_active() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    state.audio.early_sample_playback_path = Some(sample_id);
+    prepare_sample_browser_view(&mut state);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::Frame,
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-warm"),
+        None,
+        "preview warming should yield while playback is active"
+    );
+    assert_eq!(
+        state.background.preview_audition_warm_task.active(),
+        None,
+        "preview warming should not leave a tracked background task while playback is active"
+    );
+}
+
+#[test]
+fn starmap_drag_finish_cancels_cold_preview_audition_decode() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "cold drag targets should start preview decode while the drag is active"
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![sample.display().to_string()],
+            position: Point::new(12.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(state.background.preview_audition_task.active(), None);
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_click_finish_preserves_cold_preview_audition_decode() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold-click.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "cold click targets should start preview decode on press"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "click release should not cancel the pending preview decode before it can start playback"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_audition_promotion_only_loads_latest_stable_target() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(second_id.clone());
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.schedule_starmap_audition_promotion(first_id, &mut context);
+    state.schedule_starmap_audition_promotion(second_id.clone(), &mut context);
+    let delayed = run_after_commands(context.into_command());
+    assert_eq!(delayed.len(), 2);
+
+    let mut stale_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[0].clone(), &mut stale_context);
+    assert_eq!(
+        stale_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        None,
+        "stale starmap promotion tickets must not start full sample loads"
+    );
+
+    let mut latest_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[1].clone(), &mut latest_context);
+    assert_eq!(
+        latest_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "latest stable starmap target should promote to the normal full load path"
+    );
+}
+
+#[test]
+fn starmap_drag_duplicate_active_hit_preserves_pending_promotion() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("same-node.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(sample_id.clone());
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(sample_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(sample_id.clone());
+    let mut schedule_context = radiant::prelude::UiUpdateContext::default();
+
+    state.schedule_starmap_audition_promotion(sample_id.clone(), &mut schedule_context);
+    let delayed = run_after_commands(schedule_context.into_command());
+    assert_eq!(delayed.len(), 1);
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![sample_id],
+            position: Point::new(12.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    let mut promote_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[0].clone(), &mut promote_context);
+    assert_eq!(
+        promote_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "same-node drag updates should not cancel the pending full-quality promotion"
     );
 }
 
@@ -695,7 +1754,7 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
     );
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
-            paths: vec![second_id, third_id.clone()],
+            paths: vec![second_id.clone(), third_id.clone()],
             position: Point::new(90.0, 10.0),
             modifiers: PointerModifiers::default(),
         },
@@ -711,14 +1770,17 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
             .as_deref(),
         Some(third_id.as_str())
     );
-    assert!(
+    assert_eq!(
         state
             .ui
             .chrome
             .starmap_audition_queue
             .queued_file_ids
-            .is_empty(),
-        "drag updates should replace active playback intent without leaving a backlog"
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        Vec::<String>::new(),
+        "drag updates should not leave swept follow-up targets queued behind the current pointer"
     );
 
     state.apply_message(
@@ -731,6 +1793,238 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
         state.ui.chrome.starmap_audition_queue,
         Default::default(),
         "releasing the drag should not leave active or queued audition state behind"
+    );
+}
+
+#[test]
+fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.audio.early_sample_playback_path = Some(second_id);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.current_playback_span, None);
+    assert_eq!(
+        state.audio.playback_progress,
+        wavecrate::audio::PlaybackRuntimeProgress::default(),
+        "drag release after motion should not leave preview playback visually active"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_drag_replacement_stops_previous_drag_playback_tail() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.audio.early_sample_playback_path = Some(first_id);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert_eq!(
+        state.audio.early_sample_playback_path, None,
+        "replacing an active drag target should stop the previous preview immediately"
+    );
+    assert_eq!(state.audio.current_playback_span, None);
+    assert_eq!(
+        state.audio.playback_progress,
+        wavecrate::audio::PlaybackRuntimeProgress::default(),
+        "drag replacement should not leave the previous target visually playing while the next preview decodes"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "the next cold target should still begin the shared preview-decode path"
+    );
+}
+
+#[test]
+fn starmap_click_finish_preserves_started_audition_playback_state() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("click.wav");
+    write_test_wav_i16(&sample, &[0, 100, -100]);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.audio.early_sample_playback_path = Some(sample_id.clone());
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        state.audio.playback_progress.active,
+        "click audition should keep playing after the release; only real drag sweeps stop on release"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_drag_finish_cancels_pending_promotion() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("late-promotion.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let mut schedule_context = radiant::prelude::UiUpdateContext::default();
+    state.schedule_starmap_audition_promotion(sample_id.clone(), &mut schedule_context);
+    let delayed = run_after_commands(schedule_context.into_command());
+    assert_eq!(delayed.len(), 1);
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![sample_id],
+            position: Point::new(12.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    let mut stale_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed[0].clone(), &mut stale_context);
+
+    assert_eq!(
+        stale_context
+            .into_command()
+            .business_task_priority("gui-sample-load-validate"),
+        None,
+        "promotion tickets scheduled before drag finish must not restart full sample loading"
     );
 }
 
@@ -925,6 +2219,11 @@ fn starmap_drag_update_selects_next_hit_immediately() {
         .starmap_audition_queue
         .queued_file_ids
         .is_empty());
+    let command = context.into_command();
+    assert!(
+        command.requests_paint_only(),
+        "live starmap drag updates should repaint the active node overlay without waiting for release"
+    );
 }
 
 #[test]
@@ -982,6 +2281,144 @@ fn starmap_drag_replacement_ignores_stale_advance_ticket() {
             .active_file_id
             .as_deref(),
         Some(second_id.as_str())
+    );
+}
+
+#[test]
+fn starmap_drag_latest_hit_advances_without_zero_delay_message() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(first_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(first_id);
+    state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .push_back(second_id.clone());
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.advance_starmap_drag_audition_latest_immediately(&mut context);
+    let delayed = run_after_commands(context.into_command());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "latest drag target progression should start the next target in the same update"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert!(state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .is_empty());
+    assert!(
+        delayed.iter().all(|message| !matches!(
+            message,
+            crate::native_app::test_support::state::GuiMessage::AdvanceStarmapAudition { .. }
+        )),
+        "latest drag target progression should not depend on a zero-delay advance message"
+    );
+}
+
+#[test]
+fn starmap_preview_decode_error_advances_to_queued_latest_hit() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id.clone());
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(first_id.clone()),
+            last_position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        });
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(first_id.clone());
+    state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .push_back(second_id.clone());
+    let failed_preview_ticket = state.background.preview_audition_task.begin();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::PreviewAuditionDecoded {
+            completion: radiant::prelude::TaskCompletion {
+                ticket: failed_preview_ticket,
+                output: crate::native_app::app::PreviewAuditionResult {
+                    path: first_id.clone(),
+                    clip: Err(String::from("synthetic preview decode failed")),
+                },
+            },
+            started_at: std::time::Instant::now(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "a failed preview head must not strand a newer starmap drag target behind it"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert!(
+        !state
+            .waveform
+            .cache
+            .preview_audition_decode_needed(std::path::Path::new(&first_id)),
+        "known failed preview heads should not be retried on the next hover"
+    );
+    assert!(
+        command.requests_paint_only(),
+        "preview failure recovery should repaint the live active node immediately"
     );
 }
 

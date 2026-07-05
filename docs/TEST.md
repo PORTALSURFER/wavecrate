@@ -334,7 +334,8 @@ per-launch diagnostics trail.
    with `--log` enabled.
 6. Extra-verbose hot-path traces are separate:
    default `--log` keeps routine loop-cycle and similar hot-path chatter out of
-   the file; only enable `WAVECRATE_HOTPATH_TELEMETRY=1` when you deliberately need
+   the file, but it still records warning-level slow starmap audition hot phases.
+   Only enable `WAVECRATE_HOTPATH_TELEMETRY=1` when you deliberately need
    developer-level loop/hot-path tracing during a focused repro.
 
 ### Benchmarks and perf checks

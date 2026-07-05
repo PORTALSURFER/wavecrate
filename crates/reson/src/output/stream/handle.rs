@@ -67,6 +67,36 @@ impl CpalAudioStream {
         result
     }
 
+    /// Replace queued sources with a new source using one callback command.
+    ///
+    /// This is cheaper than sending a clear command followed by an append when
+    /// callers need immediate replacement, such as rapid preview audition.
+    pub fn append_source_replacing_previous<S: crate::Source + Send + 'static>(
+        &self,
+        source: S,
+        volume: f32,
+    ) -> Result<(), String> {
+        let started_at = telemetry::playback_telemetry_enabled().then(Instant::now);
+        let generation = self.command_generation.fetch_add(1, Ordering::AcqRel) + 1;
+        let result = self
+            .command_sender
+            .try_send(StreamCommand::Append {
+                generation,
+                source: Box::new(source),
+                volume,
+            })
+            .map_err(|err| match err {
+                TrySendError::Full(_) => {
+                    self.clear_pending.store(true, Ordering::Release);
+                    "Audio command queue full; dropping replacement source with clear pending"
+                        .to_string()
+                }
+                TrySendError::Disconnected(_) => "Audio output stream is unavailable".to_string(),
+            });
+        log_stream_command_timing("replace_append", started_at, result.is_ok());
+        result
+    }
+
     /// Clear all queued sources on the audio thread.
     ///
     /// If the command queue is full, a pending clear is still recorded so the

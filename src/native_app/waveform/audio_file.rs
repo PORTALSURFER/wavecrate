@@ -8,6 +8,7 @@ mod extraction_tests;
 mod file_io;
 mod loader;
 mod model;
+mod preview;
 mod progress;
 mod signal_summary;
 mod visual_bands;
@@ -58,6 +59,7 @@ pub(super) use loader::load_waveform_file;
 pub(super) use loader::load_waveform_file_with_progress_cancel_and_playback_ready;
 pub(in crate::native_app) use loader::{
     file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode,
+    should_use_file_backed_wav_decode_for_entry,
 };
 pub(super) use loader::{
     is_wav_path, load_waveform_file_for_foreground_audition,
@@ -67,6 +69,7 @@ pub(super) use loader::{
 pub(in crate::native_app) use model::{
     PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformFile, WaveformPlaybackReady,
 };
+pub(in crate::native_app) use preview::{PreviewAuditionClip, decode_wav_preview_clip};
 pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
 #[cfg(test)]
 pub(super) use visual_bands::split_frequency_bands;

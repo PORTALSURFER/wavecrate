@@ -469,10 +469,27 @@ support.
 Enables opt-in structured hot-path telemetry logs for latency-sensitive paths.
 Current coverage includes browser search workers, audio loader stages, cached
 playback startup, persistent waveform-cache reads, Reson decoder open/probe/seek,
-async decode prefill, and audio stream append handoff. Use with `--log` or an
-`--log` or an equivalent `RUST_LOG` filter so `perf::audio_start` and
-`perf::hotpath` events are written to the launch log. Accepted values: `1`,
-`true`, `on`, `yes`.
+async decode prefill, audio stream append handoff, and starmap drag-audition
+hit testing/queue/playback routing. Use with `--log` or an equivalent
+`RUST_LOG` filter so `perf::audio_start`, `perf::starmap_drag`, and
+`perf::hotpath` events are written to the launch log. Normal `--log` runs also
+emit warning-level `starmap_audition.slow_event` and
+`starmap_audition.slow_duration` records when a starmap audition hot phase
+crosses the slow-path threshold, so obvious drag stalls are still visible
+without full event telemetry. For starmap playback
+investigations, inspect `stage`, `outcome`, `hits_queued`, `hits_started`,
+`ready_started`, `ready_unavailable`, `validation_queued`,
+`runtime_started`, `runtime_failed`, `runtime_cancelled`,
+`avg_widget_hit_test_ms`, `avg_ready_source_ms`, `avg_runtime_start_ms`, and
+`avg_start_total_ms`. `perf::audio_start` runtime events also include
+`origin` and `source_kind`, which distinguish starmap drag handoffs from
+ordinary browser or waveform playback. Accepted values: `1`, `true`, `on`,
+`yes`.
+After a dense starmap/list/keyboard smoke run, summarize the latest log with:
+`bash scripts/run.sh logs > /tmp/wavecrate-latest.log && python3 scripts/internal/perf/summarize_hotpath_telemetry.py /tmp/wavecrate-latest.log`.
+The summary groups fast-audition decisions, starmap queue/hit/playback
+counters, preview warm batches, slow UI frame dispatches, and missing telemetry
+diagnostics so remaining missed plays can be tied to a specific stage.
 
 - `RESON_PLAYBACK_TELEMETRY`
 Enables only Reson playback-engine hot-path logs, including decoder setup,

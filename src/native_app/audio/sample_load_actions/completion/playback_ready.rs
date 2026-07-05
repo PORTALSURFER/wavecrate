@@ -3,10 +3,13 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{
-        NativeAppState, SampleLoadTaskCompletion, SamplePlaybackReady, emit_gui_action,
-        sample_path_label,
+        emit_gui_action, sample_path_label, NativeAppState, SampleLoadTaskCompletion,
+        SamplePlaybackReady,
     },
     audio::sample_load_actions::log_sample_load_timing,
+    starmap_audition_telemetry::{
+        self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
+    },
 };
 
 impl NativeAppState {
@@ -20,6 +23,20 @@ impl NativeAppState {
         let key = ready.key.clone();
         let ready = ready.output;
         let label = sample_path_label(ready.path.as_str());
+        let starmap_audition_active = self.ui.chrome.starmap_audition_drag.is_some()
+            || self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .as_deref()
+                == Some(ready.path.as_str())
+            || !self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .queued_file_ids
+                .is_empty();
         let stale_gate_started_at = Instant::now();
         if !self
             .background
@@ -27,6 +44,22 @@ impl NativeAppState {
             .is_active_key(&key, ticket)
             || self.library.folder_browser.selected_file_id() != Some(ready.path.as_str())
         {
+            if starmap_audition_active {
+                starmap_telemetry::record_event(
+                    None,
+                    "sample_load.playback_ready",
+                    "stale",
+                    Some(ready.path.as_str()),
+                    0,
+                    self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+                    self.ui
+                        .chrome
+                        .starmap_audition_queue
+                        .active_file_id
+                        .is_some(),
+                    None,
+                );
+            }
             emit_gui_action(
                 "browser.sample_load.playback_ready",
                 Some("browser"),
@@ -65,6 +98,40 @@ impl NativeAppState {
         } else {
             "ready"
         };
+        if starmap_audition_active {
+            starmap_telemetry::record_event(
+                Some(if outcome == "playback_ready_playing" {
+                    StarmapAuditionCounter::ReadyStarted
+                } else {
+                    StarmapAuditionCounter::ReadyPending
+                }),
+                "sample_load.playback_ready",
+                outcome,
+                Some(ready.path.as_str()),
+                0,
+                self.ui.chrome.starmap_audition_queue.queued_file_ids.len(),
+                self.ui
+                    .chrome
+                    .starmap_audition_queue
+                    .active_file_id
+                    .is_some(),
+                Some(started_at.elapsed()),
+            );
+            starmap_telemetry::record_duration(
+                StarmapAuditionDuration::ReadySource,
+                started_at.elapsed(),
+            );
+            if outcome == "playback_ready_playing"
+                && !self
+                    .ui
+                    .chrome
+                    .starmap_audition_queue
+                    .queued_file_ids
+                    .is_empty()
+            {
+                self.schedule_next_starmap_audition_hit(context);
+            }
+        }
         emit_gui_action(
             "browser.sample_load.playback_ready",
             Some("browser"),

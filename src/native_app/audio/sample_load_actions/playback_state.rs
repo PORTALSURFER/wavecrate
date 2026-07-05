@@ -88,14 +88,31 @@ impl NativeAppState {
     }
 
     pub(super) fn cancel_inflight_sample_load(&mut self) {
+        self.cancel_inflight_sample_load_preserving_early_playback(None);
+    }
+
+    pub(super) fn cancel_inflight_sample_load_preserving_early_playback_for(&mut self, path: &str) {
+        self.cancel_inflight_sample_load_preserving_early_playback(Some(path));
+    }
+
+    fn cancel_inflight_sample_load_preserving_early_playback(
+        &mut self,
+        preserved_early_path: Option<&str>,
+    ) {
         self.background.deferred_sample_load_task.cancel();
         self.cancel_active_sample_load_worker();
         self.waveform.load.selection.cancel();
-        if self.audio.early_sample_playback_path.is_some() {
+        let preserve_early_playback = preserved_early_path
+            .is_some_and(|path| self.audio.early_sample_playback_path.as_deref() == Some(path));
+        if self.audio.early_sample_playback_path.is_some() && !preserve_early_playback {
             self.stop_audio_output_playback();
+            self.audio.pending_runtime_start = None;
             self.audio.current_playback_span = None;
+            self.audio.playback_progress = Default::default();
         }
-        self.audio.early_sample_playback_path = None;
+        if !preserve_early_playback {
+            self.audio.early_sample_playback_path = None;
+        }
     }
 
     pub(super) fn cancel_active_sample_load_worker(&mut self) {

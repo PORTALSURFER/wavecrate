@@ -5,8 +5,8 @@ use super::{
 use crate::native_app::app::{NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart};
 use std::time::Instant;
 use wavecrate::audio::{
-    PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
-    edit_fade_range_from_selection,
+    PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, edit_fade_range_from_selection,
 };
 
 impl NativeAppState {
@@ -135,12 +135,14 @@ impl NativeAppState {
         self.audio.playback_progress = Default::default();
         self.audio.current_playback_span =
             Some((command.resolved.start_ratio, command.resolved.end_ratio));
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart {
-            id: request_id,
-            path: self.waveform.current.path().display().to_string(),
-            span: (command.resolved.start_ratio, command.resolved.end_ratio),
-            show_start_marker: command.intent.show_start_marker,
-        });
+        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
+            request_id,
+            self.waveform.current.path().display().to_string(),
+            (command.resolved.start_ratio, command.resolved.end_ratio),
+            command.intent.show_start_marker,
+            "waveform",
+            self.current_waveform_runtime_source_kind(),
+        ));
         if record_history {
             self.record_current_playback_history(
                 command.resolved.start_ratio,
@@ -220,6 +222,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
             edit_fade: edit_fade_range_from_selection(waveform.edit_selection()),
             metronome: self.playback_metronome_config_for_span(
                 command.resolved.start_ratio,

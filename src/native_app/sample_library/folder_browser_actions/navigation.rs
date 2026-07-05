@@ -554,6 +554,10 @@ impl NativeAppState {
                         .waveform
                         .cache
                         .instant_audition_sample_paths,
+                    preview_audition_sample_paths: self
+                        .waveform
+                        .cache
+                        .preview_audition_sample_paths(),
                 })
         else {
             return;

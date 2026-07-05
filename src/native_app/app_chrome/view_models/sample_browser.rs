@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::native_app::app::{
     NativeAppState, SampleBrowserDisplayMode, SampleNameViewMode, StarmapAuditionDragState,
@@ -17,10 +17,11 @@ use crate::native_app::sample_library::sample_list::{
 
 pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) visible_samples: VisibleSampleList<'a>,
-    pub(in crate::native_app) map_items: Vec<StarmapItem>,
+    pub(in crate::native_app) map_items: Arc<[StarmapItem]>,
     pub(in crate::native_app) map_status: StarmapStatus,
     pub(in crate::native_app) map_prep_running: bool,
     pub(in crate::native_app) map_audition_drag: Option<StarmapAuditionDragState>,
+    pub(in crate::native_app) map_active_audition_file_id: Option<String>,
     pub(in crate::native_app) map_viewport: StarmapViewport,
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) display_mode: SampleBrowserDisplayMode,
@@ -38,10 +39,11 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
 
 pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     visible_samples: VisibleSampleList<'a>,
-    map_items: Vec<StarmapItem>,
+    map_items: Arc<[StarmapItem]>,
     map_status: StarmapStatus,
     map_prep_running: bool,
     map_audition_drag: Option<StarmapAuditionDragState>,
+    map_active_audition_file_id: Option<String>,
     map_viewport: StarmapViewport,
     name_filter: String,
     display_mode: SampleBrowserDisplayMode,
@@ -69,6 +71,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
         let drag_feedback = state.library.folder_browser.file_column_drag_feedback();
         let display_mode = state.ui.chrome.sample_browser_display;
         let waveform_drag_active = state.waveform.current.active_drag_kind().is_some();
+        let starmap_audition_drag_active = state.ui.chrome.starmap_audition_drag.is_some();
         let visible_samples = state
             .library
             .folder_browser
@@ -76,7 +79,11 @@ impl<'a> SampleBrowserViewProjection<'a> {
                 tags_by_file: &state.metadata.tags_by_file,
                 cached_sample_paths: &state.waveform.cache.cached_sample_paths,
             });
-        let map_items = starmap_items_for_display(state, display_mode, waveform_drag_active);
+        let map_items = starmap_items_for_display(
+            state,
+            display_mode,
+            waveform_drag_active || starmap_audition_drag_active,
+        );
 
         Self {
             visible_samples,
@@ -84,6 +91,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             map_status: state.library.folder_browser.starmap_status(),
             map_prep_running: state.library.similarity_prep.running,
             map_audition_drag: state.ui.chrome.starmap_audition_drag.clone(),
+            map_active_audition_file_id: active_starmap_audition_file_id(state),
             map_viewport: state.ui.chrome.starmap_viewport,
             name_filter: state.library.folder_browser.name_filter().to_owned(),
             display_mode,
@@ -116,6 +124,7 @@ impl<'a> SampleBrowserViewModel<'a> {
             map_status: projection.map_status,
             map_prep_running: projection.map_prep_running,
             map_audition_drag: projection.map_audition_drag,
+            map_active_audition_file_id: projection.map_active_audition_file_id,
             map_viewport: projection.map_viewport,
             name_filter: projection.name_filter,
             display_mode: projection.display_mode,
@@ -133,8 +142,33 @@ impl<'a> SampleBrowserViewModel<'a> {
     }
 }
 
+fn active_starmap_audition_file_id(state: &NativeAppState) -> Option<String> {
+    state
+        .ui
+        .chrome
+        .starmap_audition_drag
+        .as_ref()
+        .and_then(|drag| drag.last_hit_file_id.clone())
+        .or_else(|| {
+            state
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .clone()
+        })
+        .or_else(|| {
+            state
+                .audio
+                .pending_runtime_start
+                .as_ref()
+                .filter(|pending| pending.origin == "starmap_drag")
+                .map(|pending| pending.path.clone())
+        })
+}
+
 pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppState) {
-    if waveform_drag_defers_sample_browser_preparation(state) {
+    if live_drag_defers_sample_browser_preparation(state) {
         return;
     }
     state
@@ -157,6 +191,7 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
             .prepare_starmap_projection(StarmapProjection {
                 tags_by_file: &state.metadata.tags_by_file,
                 instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+                preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
             });
     }
 }
@@ -165,16 +200,16 @@ fn starmap_items_for_display(
     state: &NativeAppState,
     display_mode: SampleBrowserDisplayMode,
     waveform_drag_active: bool,
-) -> Vec<StarmapItem> {
+) -> Arc<[StarmapItem]> {
     if display_mode != SampleBrowserDisplayMode::Map {
-        return Vec::new();
+        return empty_starmap_items();
     }
     let cached = state.library.folder_browser.cached_starmap_projection();
     if let Some(cached) = cached {
-        return cached.to_vec();
+        return cached;
     }
     if waveform_drag_active {
-        return Vec::new();
+        return empty_starmap_items();
     }
     state
         .library
@@ -182,7 +217,13 @@ fn starmap_items_for_display(
         .starmap_projection(StarmapProjection {
             tags_by_file: &state.metadata.tags_by_file,
             instant_audition_sample_paths: &state.waveform.cache.instant_audition_sample_paths,
+            preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
         })
+        .into()
+}
+
+fn empty_starmap_items() -> Arc<[StarmapItem]> {
+    Arc::from(Vec::<StarmapItem>::new())
 }
 
 fn waveform_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bool {
@@ -193,6 +234,19 @@ fn waveform_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bo
             .visible_sample_window_needs_content_refresh()
 }
 
+fn starmap_audition_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bool {
+    state.ui.chrome.starmap_audition_drag.is_some()
+        && !state
+            .library
+            .folder_browser
+            .visible_sample_window_needs_content_refresh()
+}
+
+fn live_drag_defers_sample_browser_preparation(state: &NativeAppState) -> bool {
+    waveform_drag_defers_sample_browser_preparation(state)
+        || starmap_audition_drag_defers_sample_browser_preparation(state)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,7 +255,10 @@ mod tests {
     use crate::native_app::{
         app::SampleBrowserDisplayMode, sample_library::folder_browser::FolderBrowserState,
     };
-    use radiant::widgets::TextInputMessage;
+    use radiant::{
+        gui::types::Point,
+        widgets::{PointerModifiers, TextInputMessage},
+    };
     use std::fs;
 
     #[test]
@@ -339,11 +396,100 @@ mod tests {
     }
 
     #[test]
+    fn active_starmap_audition_drag_reuses_cached_starmap_projection() {
+        let root = tempfile::tempdir().expect("source root");
+        let source = root.path().join("source");
+        fs::create_dir_all(&source).expect("create source folder");
+        let kick = source.join("kick.wav");
+        let snare = source.join("snare.wav");
+        fs::write(&kick, [0_u8; 8]).expect("write kick");
+        fs::write(&snare, [1_u8; 8]).expect("write snare");
+        let snare_id = snare.to_string_lossy().into_owned();
+        let mut state = NativeAppStateFixture::default()
+            .with_folder_browser(FolderBrowserState::from_root(source.clone()))
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+        prepare_sample_browser_view(&mut state);
+        let before_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
+        let before_drag_items = before_drag.map_items.clone();
+        let before_drag_ids = before_drag
+            .map_items
+            .iter()
+            .map(|item| item.file_id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(before_drag_items.len(), 2);
+
+        state.ui.chrome.starmap_audition_drag = Some(StarmapAuditionDragState {
+            last_hit_file_id: Some(snare_id.clone()),
+            last_position: Point::new(90.0, 50.0),
+            modifiers: PointerModifiers::default(),
+        });
+        state
+            .library
+            .folder_browser
+            .select_known_starmap_file_for_audition(snare_id);
+        state
+            .library
+            .folder_browser
+            .apply_name_filter_input(TextInputMessage::Changed {
+                value: String::from("does-not-match"),
+            });
+        assert!(starmap_audition_drag_defers_sample_browser_preparation(
+            &state
+        ));
+        prepare_sample_browser_view(&mut state);
+        let during_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
+
+        assert!(Arc::ptr_eq(&during_drag.map_items, &before_drag_items));
+        assert_eq!(
+            during_drag
+                .map_items
+                .iter()
+                .map(|item| item.file_id.clone())
+                .collect::<Vec<_>>(),
+            before_drag_ids,
+            "starmap audition drags should reuse the prepared projection instead of rebuilding it for live focus churn"
+        );
+
+        state.ui.chrome.starmap_audition_drag = None;
+        prepare_sample_browser_view(&mut state);
+        let after_drag = SampleBrowserViewProjection::from_prepared_app_state(&state);
+        assert!(
+            after_drag.map_items.is_empty(),
+            "starmap projection should refresh normally after the audition drag ends"
+        );
+    }
+
+    #[test]
     fn idle_waveform_allows_sample_browser_preparation() {
         let state = NativeAppStateFixture::default()
             .with_synthetic_waveform()
             .build();
 
         assert!(!waveform_drag_defers_sample_browser_preparation(&state));
+    }
+
+    #[test]
+    fn map_mode_projection_reuses_prepared_starmap_items() {
+        let root = tempfile::tempdir().expect("source root");
+        let source = root.path().join("source");
+        fs::create_dir_all(&source).expect("create source folder");
+        fs::write(source.join("kick.wav"), [0_u8; 8]).expect("write kick");
+        fs::write(source.join("snare.wav"), [1_u8; 8]).expect("write snare");
+        let mut state = NativeAppStateFixture::default()
+            .with_folder_browser(FolderBrowserState::from_root(source))
+            .build();
+        state.ui.chrome.sample_browser_display = SampleBrowserDisplayMode::Map;
+
+        prepare_sample_browser_view(&mut state);
+        let cached = state
+            .library
+            .folder_browser
+            .cached_starmap_projection()
+            .expect("prepared starmap projection");
+        let projection = SampleBrowserViewProjection::from_prepared_app_state(&state);
+
+        assert!(Arc::ptr_eq(&projection.map_items, &cached));
+        assert_eq!(projection.map_items.len(), 2);
     }
 }

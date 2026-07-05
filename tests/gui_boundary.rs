@@ -115,11 +115,78 @@ fn sample_identity_fingerprints_require_wavecrate_debug_mode() {
     );
     assert!(
         source.contains("wavecrate::logging::debug_logging_enabled()")
+            && source.contains("WAVECRATE_SAMPLE_IDENTITY_DIAGNOSTICS")
+            && source.contains("sample_identity_diagnostics_enabled()")
             && source.contains(
                 "tracing::enabled!(target: \"wavecrate::debug::sample_identity\", tracing::Level::INFO)",
             ),
-        "sample identity diagnostics compute file/waveform fingerprints and must require Wavecrate-owned debug mode, not plain info logging"
+        "sample identity diagnostics compute file/waveform fingerprints and must require explicit diagnostic opt-in, not plain info logging"
     );
+}
+
+#[test]
+fn starmap_drag_hot_path_does_not_fingerprint_sample_identity() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!(
+        "{manifest_dir}/src/native_app/audio/sample_load_actions/entrypoints.rs"
+    ))
+    .expect("sample-load entrypoints should be readable");
+    let body = source_between(
+        &source,
+        "pub(in crate::native_app) fn start_starmap_drag_audition_sample",
+        "pub(in crate::native_app) fn promote_starmap_audition_sample",
+    );
+
+    assert!(
+        !body.contains("log_sample_identity_checkpoint"),
+        "starmap drag audition is a pointer hot path; use perf::starmap_drag telemetry instead of sample identity fingerprint diagnostics"
+    );
+}
+
+#[test]
+fn selection_navigation_hot_paths_do_not_fingerprint_sample_identity() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!(
+        "{manifest_dir}/src/native_app/audio/sample_load_actions/entrypoints.rs"
+    ))
+    .expect("sample-load entrypoints should be readable");
+
+    for (name, start, end) in [
+        (
+            "select_sample",
+            "pub(in crate::native_app) fn select_sample",
+            "pub(in crate::native_app) fn select_sample_with_modifiers",
+        ),
+        (
+            "select_sample_with_modifiers",
+            "pub(in crate::native_app) fn select_sample_with_modifiers",
+            "pub(in crate::native_app) fn start_starmap_drag_audition_sample",
+        ),
+        (
+            "load_navigation_sample_validated",
+            "pub(in crate::native_app) fn load_navigation_sample_validated",
+            "fn queue_sample_load_path_validation",
+        ),
+        (
+            "queue_sample_load_path_validation",
+            "fn queue_sample_load_path_validation",
+            "pub(in crate::native_app) fn finish_sample_load_path_validation",
+        ),
+    ] {
+        let body = source_between(&source, start, end);
+        assert!(
+            !body.contains("log_sample_identity"),
+            "{name} is a fast navigation path; sample identity diagnostics fingerprint files and must stay out of the UI-path handoff"
+        );
+    }
+}
+
+fn source_between<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
+    source
+        .split(start)
+        .nth(1)
+        .and_then(|tail| tail.split(end).next())
+        .unwrap_or_else(|| panic!("expected source range {start:?}..{end:?}"))
 }
 
 #[test]

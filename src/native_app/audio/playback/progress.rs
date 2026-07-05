@@ -4,7 +4,14 @@ use std::{
 };
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
-use crate::native_app::app::{NativeAppState, emit_gui_action, sample_path_label};
+use crate::native_app::app::{
+    NativeAppState, PendingRuntimePlaybackStart, emit_gui_action, sample_path_label,
+};
+use crate::native_app::app_chrome::library_browser::sample_browser_view;
+use crate::native_app::starmap_audition_telemetry::{
+    self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
+};
+use crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID;
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
     gui::types::{Rect, Rgba8},
@@ -57,6 +64,39 @@ pub(in crate::native_app) struct FrameRepaintScopeSnapshot {
 }
 
 impl NativeAppState {
+    pub(in crate::native_app) fn runtime_playback_origin_for_path(
+        &self,
+        path: &str,
+    ) -> &'static str {
+        if self.ui.chrome.starmap_audition_drag.is_some()
+            || self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .as_deref()
+                == Some(path)
+        {
+            "starmap_drag"
+        } else if self.audio.early_sample_playback_path.as_deref() == Some(path) {
+            "instant_audition"
+        } else {
+            "browser"
+        }
+    }
+
+    pub(in crate::native_app) fn current_waveform_runtime_source_kind(&self) -> &'static str {
+        if self.waveform.current.playback_samples().is_some() {
+            "decoded_samples"
+        } else if self.waveform.current.playback_cache_file().is_some() {
+            "interleaved_f32_file"
+        } else if self.waveform.current.playback_source_file().is_some() {
+            "audio_file"
+        } else {
+            "audio_bytes"
+        }
+    }
+
     pub(in crate::native_app) fn frame_repaint_scope_before_update(
         &self,
     ) -> FrameRepaintScopeSnapshot {
@@ -112,9 +152,26 @@ impl NativeAppState {
             return;
         };
         if pending.id != started.id {
+            log_runtime_playback_event(
+                "runtime.started",
+                "id_mismatch",
+                Some(StarmapAuditionCounter::RuntimeStale),
+                &pending,
+                None,
+                None,
+            );
             self.audio.pending_runtime_start = Some(pending);
             return;
         }
+        let submit_elapsed = pending.submitted_at.elapsed();
+        log_runtime_playback_event(
+            "runtime.started",
+            "started",
+            Some(StarmapAuditionCounter::RuntimeStarted),
+            &pending,
+            Some(submit_elapsed),
+            None,
+        );
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = Some(pending.span);
         self.audio.playback_progress.active = true;
@@ -143,9 +200,26 @@ impl NativeAppState {
             return;
         };
         if pending.id != id {
+            log_runtime_playback_event(
+                "runtime.failed",
+                "id_mismatch",
+                Some(StarmapAuditionCounter::RuntimeStale),
+                &pending,
+                None,
+                Some(&error),
+            );
             self.audio.pending_runtime_start = Some(pending);
             return;
         }
+        let submit_elapsed = pending.submitted_at.elapsed();
+        log_runtime_playback_event(
+            "runtime.failed",
+            "failed",
+            Some(StarmapAuditionCounter::RuntimeFailed),
+            &pending,
+            Some(submit_elapsed),
+            Some(&error),
+        );
         if playback_error_indicates_output_unavailable(&error) {
             self.mark_audio_output_unavailable(error);
             return;
@@ -168,9 +242,30 @@ impl NativeAppState {
             return;
         };
         if pending.id != id {
+            log_runtime_playback_event(
+                "runtime.cancelled",
+                "id_mismatch",
+                Some(StarmapAuditionCounter::RuntimeStale),
+                &pending,
+                None,
+                None,
+            );
             self.audio.pending_runtime_start = Some(pending);
             return;
         }
+        let submit_elapsed = pending.submitted_at.elapsed();
+        log_runtime_playback_event(
+            "runtime.cancelled",
+            match reason {
+                PlaybackRuntimeCancellation::Superseded => "superseded",
+                PlaybackRuntimeCancellation::Stopped => "stopped",
+                PlaybackRuntimeCancellation::Shutdown => "shutdown",
+            },
+            Some(StarmapAuditionCounter::RuntimeCancelled),
+            &pending,
+            Some(submit_elapsed),
+            None,
+        );
         if reason != PlaybackRuntimeCancellation::Superseded {
             self.audio.early_sample_playback_path = None;
             self.audio.current_playback_span = None;
@@ -283,6 +378,7 @@ impl NativeAppState {
         push_playback_cursor(primitives, bounds, visible_ratio);
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn paint_waveform_transient_overlay(
         &mut self,
         context: TransientOverlayContext<'_>,
@@ -295,6 +391,27 @@ impl NativeAppState {
         self.paint_playback_overlay(context, primitives);
     }
 
+    pub(in crate::native_app) fn paint_app_transient_overlay(
+        &mut self,
+        context: TransientOverlayContext<'_>,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        if self.chrome_overlay_suppresses_waveform_transient_overlay() {
+            return;
+        }
+        self.paint_loading_overlay(context, primitives);
+        self.paint_playback_overlay(context, primitives);
+        self.paint_starmap_active_audition_overlay(context, primitives);
+    }
+
+    pub(in crate::native_app) fn should_paint_app_transient_overlay(&self) -> bool {
+        !self.chrome_overlay_suppresses_waveform_transient_overlay()
+            && (self.playback_visual_activity_active()
+                || self.waveform.load.label.is_some()
+                || self.active_starmap_audition_file_id().is_some())
+    }
+
+    #[cfg(test)]
     pub(in crate::native_app) fn should_paint_waveform_transient_overlay(&self) -> bool {
         !self.chrome_overlay_suppresses_waveform_transient_overlay()
             && (self.playback_visual_activity_active() || self.waveform.load.label.is_some())
@@ -346,6 +463,53 @@ impl NativeAppState {
             self.waveform.load.progress,
             LOADING_PROGRESS_COLOR,
         );
+    }
+
+    fn paint_starmap_active_audition_overlay(
+        &mut self,
+        context: TransientOverlayContext<'_>,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        let Some(active_file_id) = self.active_starmap_audition_file_id() else {
+            return;
+        };
+        let Some(bounds) = context
+            .plan
+            .first_widget_rect_by_priority([SAMPLE_BROWSER_MAP_ID])
+        else {
+            return;
+        };
+        let Some(items) = self.library.folder_browser.cached_starmap_projection() else {
+            return;
+        };
+        sample_browser_view::paint_active_starmap_audition_overlay(
+            primitives,
+            bounds,
+            &items,
+            self.ui.chrome.starmap_viewport,
+            active_file_id,
+        );
+    }
+
+    fn active_starmap_audition_file_id(&self) -> Option<&str> {
+        self.ui
+            .chrome
+            .starmap_audition_drag
+            .as_ref()
+            .and_then(|drag| drag.last_hit_file_id.as_deref())
+            .or(self
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .as_deref())
+            .or_else(|| {
+                self.audio
+                    .pending_runtime_start
+                    .as_ref()
+                    .filter(|pending| pending.origin == "starmap_drag")
+                    .map(|pending| pending.path.as_str())
+            })
     }
 
     fn stop_playback_after_progress_error(&mut self, error: String) {
@@ -438,6 +602,53 @@ impl NativeAppState {
             None,
         );
     }
+}
+
+fn log_runtime_playback_event(
+    stage: &'static str,
+    outcome: &'static str,
+    starmap_counter: Option<StarmapAuditionCounter>,
+    pending: &PendingRuntimePlaybackStart,
+    elapsed: Option<Duration>,
+    error: Option<&str>,
+) {
+    if !starmap_telemetry::enabled() {
+        return;
+    }
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "wavecrate_native_playback",
+        stage,
+        outcome,
+        origin = pending.origin,
+        source_kind = pending.source_kind,
+        path = %pending.path,
+        start_ratio = pending.span.0,
+        end_ratio = pending.span.1,
+        elapsed_ms = elapsed.map(duration_ms).unwrap_or(0.0),
+        error = error.unwrap_or_default(),
+        "Native playback runtime event"
+    );
+    if pending.origin != "starmap_drag" {
+        return;
+    }
+    if let Some(elapsed) = elapsed {
+        starmap_telemetry::record_duration(StarmapAuditionDuration::RuntimeStart, elapsed);
+    }
+    starmap_telemetry::record_event(
+        starmap_counter,
+        stage,
+        outcome,
+        Some(pending.path.as_str()),
+        0,
+        0,
+        true,
+        elapsed,
+    );
+}
+
+fn duration_ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
 }
 
 impl FrameRepaintScopeSnapshot {
