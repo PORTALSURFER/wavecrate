@@ -100,6 +100,9 @@ METRIC_FIELDS = (
     "max_queue_len",
 )
 
+UI_FRAME_BUDGET_MS = 16.7
+UI_FRAME_PHASE_BUDGET_MS = 8.0
+
 
 @dataclass
 class ParsedEvent:
@@ -366,6 +369,37 @@ def diagnostics(groups: dict[str, EventGroup]) -> list[str]:
         warnings.append(
             f"preview warm reported {warm_finished.totals['errors']} decode errors"
         )
+    frame_dispatch = groups.get("ui.frame.dispatch_profile")
+    if frame_dispatch:
+        warnings.extend(frame_dispatch_diagnostics(frame_dispatch))
+    return warnings
+
+
+def frame_dispatch_diagnostics(group: EventGroup) -> list[str]:
+    warnings: list[str] = []
+    elapsed_values = group.timings.get("elapsed_ms", [])
+    if elapsed_values:
+        elapsed_p95 = percentile(elapsed_values, 0.95)
+        elapsed_max = max(elapsed_values)
+        if elapsed_max > UI_FRAME_BUDGET_MS:
+            warnings.append(
+                f"ui frame dispatch exceeded {UI_FRAME_BUDGET_MS:.1f}ms budget: "
+                f"p95={elapsed_p95:.1f}ms max={elapsed_max:.1f}ms"
+            )
+
+    slow_phases: list[tuple[float, str, float]] = []
+    for key, values in group.timings.items():
+        if key == "elapsed_ms" or not values:
+            continue
+        phase_max = max(values)
+        if phase_max > UI_FRAME_PHASE_BUDGET_MS:
+            slow_phases.append((phase_max, key, percentile(values, 0.95)))
+    if slow_phases:
+        formatted = ", ".join(
+            f"{key} p95={phase_p95:.1f}ms max={phase_max:.1f}ms"
+            for phase_max, key, phase_p95 in sorted(slow_phases, reverse=True)[:3]
+        )
+        warnings.append(f"slow ui frame phases: {formatted}")
     return warnings
 
 
