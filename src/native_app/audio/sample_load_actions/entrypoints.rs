@@ -71,6 +71,7 @@ impl NativeAppState {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
+        context.clear_focus();
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,
@@ -103,6 +104,7 @@ impl NativeAppState {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
+        context.clear_focus();
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,

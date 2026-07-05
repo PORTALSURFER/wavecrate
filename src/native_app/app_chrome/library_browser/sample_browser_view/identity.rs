@@ -58,6 +58,11 @@ pub(super) fn retained_sample_row_key(file_id: &str) -> String {
     format!("sample-row-{file_id}")
 }
 
+/// Retained visual key for one sample row projection.
+pub(super) fn retained_sample_row_visual_key(file_id: &str, visual_signature: &str) -> String {
+    format!("{}-{visual_signature}", retained_sample_row_key(file_id))
+}
+
 fn similarity_aspect_control_key(aspect: SimilarityAspect) -> &'static str {
     match aspect {
         SimilarityAspect::Overall => "overall",

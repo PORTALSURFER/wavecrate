@@ -437,6 +437,93 @@ fn full_gui_starmap_to_list_switch_paints_rows_before_scroll_input() {
 }
 
 #[test]
+fn full_gui_selecting_sample_clears_stale_metadata_text_focus() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("focused_rating_sample.wav");
+    write_test_wav_i16(&sample, &[0, 256, -256, 512]);
+    let sample_id = sample.display().to_string();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.select_file(sample_id.clone());
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    runtime.dispatch_message(focus_metadata_tag_input());
+    assert_eq!(
+        runtime.focused_widget(),
+        Some(crate::native_app::ui::ids::METADATA_TAG_INPUT_ID),
+        "metadata tag input should own keyboard focus before selecting the sample"
+    );
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_id,
+            modifiers: PointerModifiers::default(),
+        },
+    );
+
+    assert_eq!(
+        runtime.focused_widget(),
+        None,
+        "selecting even the already-selected sample should release stale text focus"
+    );
+}
+
+#[test]
+fn full_gui_rating_hotkey_adjustment_paints_updated_rating_marker() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("painted_rating_sample.wav");
+    write_test_wav_i16(&sample, &[0, 256, -256, 512]);
+    let sample_id = sample.display().to_string();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state.library.folder_browser.select_file(sample_id);
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out");
+    let keep_rating_color = Rgba8 {
+        r: 122,
+        g: 226,
+        b: 96,
+        a: 235,
+    };
+    let before = runtime.frame_with_default_theme();
+    assert!(
+        fill_rects_with_color(&before, keep_rating_color)
+            .into_iter()
+            .all(|rect| !list_rect.contains(Point::new(rect.center().x, rect.center().y))),
+        "neutral sample should not paint a keep marker in the list before rating"
+    );
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::AdjustSelectedRatingWithoutAdvance(1),
+    );
+
+    let after = runtime.frame_with_default_theme();
+    let keep_markers = fill_rects_with_color(&after, keep_rating_color)
+        .into_iter()
+        .filter(|rect| list_rect.contains(Point::new(rect.center().x, rect.center().y)))
+        .collect::<Vec<_>>();
+    assert!(
+        !keep_markers.is_empty(),
+        "rating hotkey update should paint visible keep markers before any further input; painted labels were {:?}",
+        after.paint_plan.text_label_strings()
+    );
+}
+
+#[test]
 fn full_gui_random_navigation_to_row_above_keeps_recursive_rows_rendered() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");

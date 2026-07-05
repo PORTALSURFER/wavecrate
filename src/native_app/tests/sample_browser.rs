@@ -1,14 +1,14 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
-    runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
+    runtime::{Command, Event, PaintPrimitive, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use super::{
-    native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
-    write_sparse_test_wav_i16, write_test_wav_i16,
+    focus_metadata_tag_input, native_app_state_with_temp_sample, native_runtime_for_tests,
+    run_command_for_tests, write_sparse_test_wav_i16, write_test_wav_i16,
 };
 
 fn sample_hit_target(
@@ -89,6 +89,22 @@ fn sync_sample_hit_target_from_previous(
         .expect("current sample hit-target widget")
         .widget_mut();
     current.synchronize_from_previous(previous);
+}
+
+fn fill_rects_with_color(frame: &SurfaceFrame, color: Rgba8) -> Vec<Rect> {
+    let mut rects = frame
+        .paint_plan
+        .fill_rects()
+        .filter_map(|fill| (fill.color == color).then_some(fill.rect))
+        .collect::<Vec<_>>();
+    for primitive in &frame.paint_plan.primitives {
+        if let PaintPrimitive::FillRectBatch(batch) = primitive
+            && batch.color == color
+        {
+            rects.extend(batch.rects.iter().copied());
+        }
+    }
+    rects
 }
 
 fn folder_drop_target_fill() -> Rgba8 {

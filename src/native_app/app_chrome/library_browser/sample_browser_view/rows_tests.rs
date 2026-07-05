@@ -5,6 +5,7 @@ use super::super::cells::{
     sample_harvest_badge_cell, sample_playback_type_cell, sample_rating_cell,
     sample_similarity_cell,
 };
+use super::super::row_projection::{SampleColumnDisplay, SampleRowDisplay};
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
 use super::*;
@@ -60,6 +61,27 @@ fn fill_rects(frame: &radiant::runtime::SurfaceFrame) -> Vec<radiant::prelude::R
         .collect()
 }
 
+fn row_display_with_rating(rating: Rating, locked: bool) -> SampleRowDisplay<'static> {
+    SampleRowDisplay {
+        file_id: "sample.wav",
+        explicitly_selected: false,
+        focused: false,
+        copy_flash: false,
+        protected_source_error_flash: false,
+        cut_pending: false,
+        drag_active: false,
+        drag_source: false,
+        cached: false,
+        missing: false,
+        similarity_anchor: false,
+        similarity_strength: None,
+        columns: vec![SampleColumnDisplay {
+            width: 68.0,
+            content: SampleColumnContent::Rating(RatingIndicator::new(rating, locked)),
+        }],
+    }
+}
+
 #[test]
 /// Verifies rating strength maps to the visible indicator count.
 fn rating_indicator_count_reflects_rating_strength() {
@@ -68,6 +90,23 @@ fn rating_indicator_count_reflects_rating_strength() {
     assert_eq!(RatingIndicator::new(Rating::new(2), false).count(), 2);
     assert_eq!(RatingIndicator::new(Rating::TRASH_3, false).count(), 3);
     assert_eq!(RatingIndicator::new(Rating::KEEP_3, true).count(), 3);
+}
+
+#[test]
+/// Verifies rating changes invalidate the retained row visual subtree.
+fn rating_state_changes_retained_sample_row_visual_key() {
+    let neutral = row_display_with_rating(Rating::NEUTRAL, false);
+    let keep = row_display_with_rating(Rating::KEEP_1, false);
+    let locked = row_display_with_rating(Rating::KEEP_3, true);
+
+    assert_ne!(
+        retained_sample_row_visual_key(&neutral),
+        retained_sample_row_visual_key(&keep)
+    );
+    assert_ne!(
+        retained_sample_row_visual_key(&keep),
+        retained_sample_row_visual_key(&locked)
+    );
 }
 
 #[test]
