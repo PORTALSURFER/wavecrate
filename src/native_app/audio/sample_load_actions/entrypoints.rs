@@ -194,6 +194,7 @@ impl NativeAppState {
             started_at,
             super::cache_start::FastAuditionOptions::starmap_drag(),
         );
+        self.start_starmap_waveform_preview(path.as_str());
         let ready_elapsed = starmap_telemetry::elapsed_since(ready_started_at);
         if let Some(elapsed) = ready_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::ReadySource, elapsed);

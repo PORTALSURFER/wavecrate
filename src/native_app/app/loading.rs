@@ -1,7 +1,9 @@
 use radiant::prelude as ui;
 use std::path::Path;
 
-use crate::native_app::waveform::{PreviewAuditionClip, WaveformPlaybackReady, WaveformState};
+use crate::native_app::waveform::{
+    InstantWaveformPreview, PreviewAuditionClip, WaveformPlaybackReady, WaveformState,
+};
 
 pub(in crate::native_app) type SampleLoadTaskCompletion<T> =
     ui::KeyedTaskCompletion<ui::ResourceKey, T>;
@@ -33,6 +35,7 @@ pub(in crate::native_app) struct PreviewAuditionWarmResult {
     pub(in crate::native_app) attempted_paths: Vec<String>,
     pub(in crate::native_app) failed_paths: Vec<String>,
     pub(in crate::native_app) clips: Vec<PreviewAuditionClip>,
+    pub(in crate::native_app) waveform_previews: Vec<InstantWaveformPreview>,
     pub(in crate::native_app) errors: usize,
 }
 

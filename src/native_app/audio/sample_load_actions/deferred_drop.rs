@@ -26,6 +26,7 @@ impl NativeAppState {
             Some("before_replace"),
         );
         let previous = std::mem::replace(&mut self.waveform.current, waveform);
+        self.waveform.mark_current_authoritative();
         defer_large_drop(previous);
         self.log_sample_identity_checkpoint(
             "browser.sample_load.replace_waveform_deferred_done",

@@ -21,7 +21,7 @@ use crate::native_app::{
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
         PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
-        load_cached_waveform_playback_descriptor_sidecar,
+        instant_waveform_head_preview_from_clip, load_cached_waveform_playback_descriptor_sidecar,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -1197,6 +1197,7 @@ impl NativeAppState {
                     let mut attempted_paths = Vec::new();
                     let mut failed_paths = Vec::new();
                     let mut clips = Vec::new();
+                    let mut waveform_previews = Vec::new();
                     let mut errors = 0;
                     for path in paths {
                         if worker_context.is_cancelled() {
@@ -1207,7 +1208,16 @@ impl NativeAppState {
                             PathBuf::from(path.as_str()),
                             PREVIEW_AUDITION_DURATION,
                         ) {
-                            Ok(clip) => clips.push(clip),
+                            Ok(clip) => {
+                                if let Ok(preview) = instant_waveform_head_preview_from_clip(
+                                    clip.clone(),
+                                    &|_| {},
+                                    &|| worker_context.is_cancelled(),
+                                ) {
+                                    waveform_previews.push(preview);
+                                }
+                                clips.push(clip);
+                            }
                             Err(_) => {
                                 errors += 1;
                                 failed_paths.push(path);
@@ -1219,6 +1229,7 @@ impl NativeAppState {
                         attempted_paths,
                         failed_paths,
                         clips,
+                        waveform_previews,
                         errors,
                     }
                 },
@@ -1660,9 +1671,13 @@ impl NativeAppState {
         let scheduled_count = result.scheduled_paths.len();
         let attempted_count = result.attempted_paths.len();
         let clip_count = result.clips.len();
+        let waveform_preview_count = result.waveform_previews.len();
         let error_count = result.errors;
         for clip in result.clips {
             self.waveform.cache.store_preview_audition_clip(clip);
+        }
+        for preview in result.waveform_previews {
+            self.waveform.cache.store_instant_waveform_preview(preview);
         }
         let worker_elapsed = started_at.elapsed();
         let commit_elapsed = finish_started_at.elapsed();
@@ -1686,6 +1701,7 @@ impl NativeAppState {
             scheduled = scheduled_count,
             attempted = attempted_count,
             decoded = clip_count,
+            waveform_previews = waveform_preview_count,
             errors = error_count,
             worker_elapsed_ms = worker_elapsed.as_secs_f64() * 1000.0,
             commit_elapsed_ms = commit_elapsed.as_secs_f64() * 1000.0,

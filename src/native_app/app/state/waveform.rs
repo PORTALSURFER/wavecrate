@@ -10,12 +10,14 @@ use crate::native_app::app::{
     SampleSelectionLoadState, WaveformCacheEntry,
 };
 use crate::native_app::waveform::{
-    PersistedPlaybackDescriptor, PreviewAuditionClip, WaveformState,
+    InstantWaveformPreview, InstantWaveformPreviewTier, PersistedPlaybackDescriptor,
+    PreviewAuditionClip, WaveformState,
 };
 use wavecrate::selection::SelectionRange;
 
 pub(in crate::native_app) struct WaveformAppState {
     pub(in crate::native_app) current: WaveformState,
+    pub(in crate::native_app) display: WaveformDisplayState,
     pub(in crate::native_app) load: WaveformLoadState,
     pub(in crate::native_app) cache: WaveformCacheState,
     pub(in crate::native_app) pending_play_selection_transaction:
@@ -32,6 +34,7 @@ impl WaveformAppState {
     pub(in crate::native_app) fn new(current: WaveformState) -> Self {
         Self {
             current,
+            display: WaveformDisplayState::Authoritative,
             load: WaveformLoadState::default(),
             cache: WaveformCacheState::default(),
             pending_play_selection_transaction: None,
@@ -41,6 +44,69 @@ impl WaveformAppState {
             pending_play_selection_retarget_cycle: None,
         }
     }
+
+    pub(in crate::native_app) fn mark_current_authoritative(&mut self) {
+        self.display = WaveformDisplayState::Authoritative;
+    }
+
+    pub(in crate::native_app) fn replace_current_with_instant_waveform_preview(
+        &mut self,
+        preview: InstantWaveformPreview,
+    ) -> WaveformState {
+        let path = preview.path().to_path_buf();
+        let tier = preview.tier;
+        let previous = std::mem::replace(
+            &mut self.current,
+            WaveformState::from_cached_file(preview.file),
+        );
+        self.display = WaveformDisplayState::InstantPreview { path, tier };
+        previous
+    }
+
+    pub(in crate::native_app) fn replace_current_with_instant_waveform_preview_loading(
+        &mut self,
+        path: PathBuf,
+    ) -> WaveformState {
+        let previous = std::mem::replace(&mut self.current, WaveformState::empty());
+        self.display = WaveformDisplayState::InstantPreviewLoading { path };
+        previous
+    }
+
+    pub(in crate::native_app) fn instant_preview_active(&self) -> bool {
+        matches!(
+            self.display,
+            WaveformDisplayState::InstantPreview { .. }
+                | WaveformDisplayState::InstantPreviewLoading { .. }
+        )
+    }
+
+    pub(in crate::native_app) fn instant_preview_tier(&self) -> Option<InstantWaveformPreviewTier> {
+        match self.display {
+            WaveformDisplayState::InstantPreview { tier, .. } => Some(tier),
+            WaveformDisplayState::Authoritative
+            | WaveformDisplayState::InstantPreviewLoading { .. } => None,
+        }
+    }
+
+    pub(in crate::native_app) fn instant_preview_path(&self) -> Option<&Path> {
+        match &self.display {
+            WaveformDisplayState::InstantPreview { path, .. }
+            | WaveformDisplayState::InstantPreviewLoading { path } => Some(path.as_path()),
+            WaveformDisplayState::Authoritative => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum WaveformDisplayState {
+    Authoritative,
+    InstantPreview {
+        path: PathBuf,
+        tier: InstantWaveformPreviewTier,
+    },
+    InstantPreviewLoading {
+        path: PathBuf,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -138,9 +204,12 @@ pub(in crate::native_app) struct WaveformCacheState {
     pub(in crate::native_app) instant_audition_descriptors:
         HashMap<PathBuf, PersistedPlaybackDescriptor>,
     preview_audition_clips: HashMap<PathBuf, PreviewAuditionCacheEntry>,
+    instant_waveform_previews: HashMap<PathBuf, InstantWaveformPreviewCacheEntry>,
     preview_audition_sample_paths: HashSet<String>,
     preview_audition_bytes: usize,
     preview_audition_tick: u64,
+    instant_waveform_preview_bytes: usize,
+    instant_waveform_preview_tick: u64,
     preview_audition_attempted_paths: HashSet<String>,
     preview_audition_scheduled_paths: HashSet<String>,
     preview_audition_failed_paths: HashSet<String>,
@@ -159,6 +228,13 @@ struct PreviewAuditionCacheEntry {
     last_used: u64,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct InstantWaveformPreviewCacheEntry {
+    preview: InstantWaveformPreview,
+    byte_len: usize,
+    last_used: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct PreviewAuditionWarmReservation {
     signature: u64,
@@ -166,6 +242,10 @@ struct PreviewAuditionWarmReservation {
 }
 
 const PREVIEW_AUDITION_CACHE_MAX_BYTES: usize = 96 * 1024 * 1024;
+#[cfg(not(test))]
+const INSTANT_WAVEFORM_PREVIEW_CACHE_MAX_BYTES: usize = 64 * 1024 * 1024;
+#[cfg(test)]
+const INSTANT_WAVEFORM_PREVIEW_CACHE_MAX_BYTES: usize = 1_024;
 
 impl Default for WaveformCacheState {
     fn default() -> Self {
@@ -196,9 +276,12 @@ impl Default for WaveformCacheState {
             instant_audition_sample_paths: Default::default(),
             instant_audition_descriptors: Default::default(),
             preview_audition_clips: Default::default(),
+            instant_waveform_previews: Default::default(),
             preview_audition_sample_paths: Default::default(),
             preview_audition_bytes: 0,
             preview_audition_tick: 0,
+            instant_waveform_preview_bytes: 0,
+            instant_waveform_preview_tick: 0,
             preview_audition_attempted_paths: Default::default(),
             preview_audition_scheduled_paths: Default::default(),
             preview_audition_failed_paths: Default::default(),
@@ -336,6 +419,11 @@ impl WaveformCacheState {
             self.preview_audition_bytes =
                 self.preview_audition_bytes.saturating_sub(entry.byte_len);
         }
+        if let Some(entry) = self.instant_waveform_previews.remove(path) {
+            self.instant_waveform_preview_bytes = self
+                .instant_waveform_preview_bytes
+                .saturating_sub(entry.byte_len);
+        }
         self.preview_audition_sample_paths.remove(&file_id);
         self.preview_audition_attempted_paths.remove(&file_id);
         self.preview_audition_scheduled_paths.remove(&file_id);
@@ -352,6 +440,16 @@ impl WaveformCacheState {
         let entry = self.preview_audition_clips.get_mut(path)?;
         entry.last_used = tick;
         Some(entry.clip.clone())
+    }
+
+    pub(in crate::native_app) fn instant_waveform_preview(
+        &mut self,
+        path: &Path,
+    ) -> Option<InstantWaveformPreview> {
+        let tick = self.next_instant_waveform_preview_tick();
+        let entry = self.instant_waveform_previews.get_mut(path)?;
+        entry.last_used = tick;
+        Some(entry.preview.clone())
     }
 
     pub(in crate::native_app) fn preview_audition_warm_needed(&self, path: &Path) -> bool {
@@ -549,6 +647,30 @@ impl WaveformCacheState {
         self.prune_preview_audition_cache();
     }
 
+    pub(in crate::native_app) fn store_instant_waveform_preview(
+        &mut self,
+        preview: InstantWaveformPreview,
+    ) {
+        let path = preview.path().to_path_buf();
+        let byte_len = preview.byte_len();
+        let last_used = self.next_instant_waveform_preview_tick();
+        if let Some(previous) = self.instant_waveform_previews.insert(
+            path,
+            InstantWaveformPreviewCacheEntry {
+                preview,
+                byte_len,
+                last_used,
+            },
+        ) {
+            self.instant_waveform_preview_bytes = self
+                .instant_waveform_preview_bytes
+                .saturating_sub(previous.byte_len);
+        }
+        self.instant_waveform_preview_bytes =
+            self.instant_waveform_preview_bytes.saturating_add(byte_len);
+        self.prune_instant_waveform_preview_cache();
+    }
+
     fn evict_preview_audition_clip(&mut self, path: &Path) {
         let file_id = path.display().to_string();
         self.remove_preview_audition_clip_entry(path, &file_id);
@@ -572,6 +694,11 @@ impl WaveformCacheState {
         self.preview_audition_tick
     }
 
+    fn next_instant_waveform_preview_tick(&mut self) -> u64 {
+        self.instant_waveform_preview_tick = self.instant_waveform_preview_tick.saturating_add(1);
+        self.instant_waveform_preview_tick
+    }
+
     fn prune_preview_audition_cache(&mut self) {
         while self.preview_audition_bytes > PREVIEW_AUDITION_CACHE_MAX_BYTES {
             let Some(oldest_path) = self
@@ -584,6 +711,25 @@ impl WaveformCacheState {
                 return;
             };
             self.evict_preview_audition_clip(&oldest_path);
+        }
+    }
+
+    fn prune_instant_waveform_preview_cache(&mut self) {
+        while self.instant_waveform_preview_bytes > INSTANT_WAVEFORM_PREVIEW_CACHE_MAX_BYTES {
+            let Some(oldest_path) = self
+                .instant_waveform_previews
+                .iter()
+                .min_by_key(|(_, entry)| entry.last_used)
+                .map(|(path, _)| path.clone())
+            else {
+                self.instant_waveform_preview_bytes = 0;
+                return;
+            };
+            if let Some(entry) = self.instant_waveform_previews.remove(&oldest_path) {
+                self.instant_waveform_preview_bytes = self
+                    .instant_waveform_preview_bytes
+                    .saturating_sub(entry.byte_len);
+            }
         }
     }
 }
@@ -603,6 +749,19 @@ mod tests {
             channels: 1,
             frames: 1,
             normalized_gain: 1.0,
+        }
+    }
+
+    fn instant_preview(path: PathBuf, bucket_count: usize) -> InstantWaveformPreview {
+        let file = crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+            path,
+            vec![0.25; bucket_count.max(1)],
+        );
+        InstantWaveformPreview {
+            file: Arc::new(file),
+            tier: InstantWaveformPreviewTier::Head,
+            source_len: 0,
+            source_modified: Some(SystemTime::UNIX_EPOCH),
         }
     }
 
@@ -641,6 +800,66 @@ mod tests {
         assert!(
             cache.preview_audition_clips.contains_key(&path),
             "hot lookup should not evict a cached preview head just because the source file is unavailable during the UI update"
+        );
+    }
+
+    #[test]
+    fn instant_waveform_preview_lookup_trusts_cache_without_file_metadata_probe() {
+        let path = PathBuf::from("/tmp/wavecrate-missing-instant-waveform-preview.wav");
+        let mut cache = WaveformCacheState::default();
+        cache.store_instant_waveform_preview(instant_preview(path.clone(), 4));
+
+        let preview = cache.instant_waveform_preview(&path);
+
+        assert!(
+            preview.is_some(),
+            "hot starmap visual lookup should not probe source metadata"
+        );
+        assert!(
+            cache.instant_waveform_previews.contains_key(&path),
+            "hot lookup should not evict a cached visual preview just because the source path is unavailable"
+        );
+    }
+
+    #[test]
+    fn instant_waveform_preview_cache_prunes_oldest_entries() {
+        let first = PathBuf::from("/tmp/wavecrate-preview-first.wav");
+        let second = PathBuf::from("/tmp/wavecrate-preview-second.wav");
+        let third = PathBuf::from("/tmp/wavecrate-preview-third.wav");
+        let mut cache = WaveformCacheState::default();
+
+        cache.store_instant_waveform_preview(instant_preview(first.clone(), 8));
+        cache.store_instant_waveform_preview(instant_preview(second.clone(), 8));
+        let _ = cache.instant_waveform_preview(&second);
+        cache.store_instant_waveform_preview(instant_preview(third.clone(), 8));
+
+        assert!(
+            !cache.instant_waveform_previews.contains_key(&first),
+            "oldest visual preview should be pruned first"
+        );
+        assert!(
+            cache.instant_waveform_previews.contains_key(&third),
+            "newest visual preview should be retained"
+        );
+    }
+
+    #[test]
+    fn instant_waveform_preview_loading_replaces_stale_waveform() {
+        let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
+            crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+                PathBuf::from("/tmp/old.wav"),
+                vec![0.0, 0.2, -0.2],
+            ),
+        )));
+
+        let previous = app_state
+            .replace_current_with_instant_waveform_preview_loading(PathBuf::from("/tmp/new.wav"));
+
+        assert_eq!(previous.path(), PathBuf::from("/tmp/old.wav"));
+        assert!(!app_state.current.has_loaded_sample());
+        assert_eq!(
+            app_state.instant_preview_path(),
+            Some(Path::new("/tmp/new.wav"))
         );
     }
 

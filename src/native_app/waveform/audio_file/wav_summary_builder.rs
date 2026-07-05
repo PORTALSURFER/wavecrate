@@ -17,9 +17,14 @@ pub(super) const MAX_STREAMING_WAV_SUMMARY_BUCKETS: usize = 128;
 pub(super) const MAX_STREAMING_WAV_SUMMARY_BUCKETS: usize = 65_536;
 
 pub(super) fn streaming_summary_bucket_frames(total_frames: usize) -> usize {
-    total_frames
-        .div_ceil(MAX_STREAMING_WAV_SUMMARY_BUCKETS)
-        .max(1)
+    streaming_summary_bucket_frames_for_limit(total_frames, MAX_STREAMING_WAV_SUMMARY_BUCKETS)
+}
+
+pub(super) fn streaming_summary_bucket_frames_for_limit(
+    total_frames: usize,
+    max_buckets: usize,
+) -> usize {
+    total_frames.div_ceil(max_buckets.max(1)).max(1)
 }
 
 pub(super) struct StreamingWavSummaryBuilder {
