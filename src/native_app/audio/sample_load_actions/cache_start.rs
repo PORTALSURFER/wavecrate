@@ -142,10 +142,12 @@ impl FastAuditionProbe {
 struct PreviewAuditionWarmPlan {
     paths: Vec<String>,
     starmap_signature: Option<u64>,
+    list_signature: Option<u64>,
     inspected_count: usize,
     candidate_count: usize,
     eligible_count: usize,
     starmap_remaining_budget: Option<usize>,
+    list_remaining_budget: Option<usize>,
 }
 
 fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe; 4] {
@@ -228,8 +230,14 @@ fn record_preview_audition_warm_plan(
         starmap_signature = plan
             .and_then(|plan| plan.starmap_signature)
             .unwrap_or_default(),
+        list_signature = plan
+            .and_then(|plan| plan.list_signature)
+            .unwrap_or_default(),
         starmap_remaining_budget = plan
             .and_then(|plan| plan.starmap_remaining_budget)
+            .unwrap_or_default(),
+        list_remaining_budget = plan
+            .and_then(|plan| plan.list_remaining_budget)
             .unwrap_or_default(),
         elapsed_ms = elapsed
             .map(|elapsed| elapsed.as_secs_f64() * 1000.0)
@@ -1027,6 +1035,11 @@ impl NativeAppState {
                 .cache
                 .reserve_starmap_preview_warm_budget(signature, paths.len());
         }
+        if let Some(signature) = plan.list_signature {
+            self.waveform
+                .cache
+                .reserve_list_preview_warm_budget(signature, paths.len());
+        }
         let started_at = Instant::now();
         context
             .business()
@@ -1118,6 +1131,7 @@ impl NativeAppState {
                 candidate_count: 0,
                 eligible_count: 0,
                 starmap_remaining_budget: Some(0),
+                ..PreviewAuditionWarmPlan::default()
             };
         }
         let Some(candidates) = self
@@ -1164,6 +1178,7 @@ impl NativeAppState {
             candidate_count,
             eligible_count,
             starmap_remaining_budget: Some(remaining_budget),
+            ..PreviewAuditionWarmPlan::default()
         }
     }
 
@@ -1179,6 +1194,25 @@ impl NativeAppState {
                 PREVIEW_AUDITION_LIST_VIEW_BUDGET,
             )
         };
+        let signature = list_preview_warm_view_signature(
+            self.library.folder_browser.selected_source_id(),
+            &ordered_paths,
+        );
+        let mut remaining_budget = self
+            .waveform
+            .cache
+            .remaining_list_preview_warm_budget(signature, PREVIEW_AUDITION_LIST_VIEW_BUDGET);
+        if remaining_budget == 0 {
+            return PreviewAuditionWarmPlan {
+                paths: Vec::new(),
+                list_signature: Some(signature),
+                inspected_count: 0,
+                candidate_count: 0,
+                eligible_count: 0,
+                list_remaining_budget: Some(0),
+                ..PreviewAuditionWarmPlan::default()
+            };
+        }
         let inspected_count = ordered_paths.len();
         let candidate_paths = ordered_paths
             .into_iter()
@@ -1194,15 +1228,23 @@ impl NativeAppState {
             })
             .collect::<Vec<_>>();
         let eligible_count = eligible_paths.len();
+        if eligible_count == 0 && remaining_budget > 0 {
+            self.waveform
+                .cache
+                .reserve_list_preview_warm_budget(signature, remaining_budget);
+            remaining_budget = 0;
+        }
         let paths = eligible_paths
             .into_iter()
-            .take(PREVIEW_AUDITION_WARM_BATCH)
+            .take(PREVIEW_AUDITION_WARM_BATCH.min(remaining_budget))
             .collect();
         PreviewAuditionWarmPlan {
             paths,
+            list_signature: Some(signature),
             inspected_count,
             candidate_count,
             eligible_count,
+            list_remaining_budget: Some(remaining_budget),
             ..PreviewAuditionWarmPlan::default()
         }
     }
@@ -1775,6 +1817,13 @@ fn starmap_preview_warm_view_signature(
     hasher.finish()
 }
 
+fn list_preview_warm_view_signature(source_id: &str, ordered_paths: &[String]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    source_id.hash(&mut hasher);
+    ordered_paths.hash(&mut hasher);
+    hasher.finish()
+}
+
 fn quantized_starmap_preview_warm_coordinate(value: f32) -> i32 {
     (value * 64.0).round() as i32
 }
@@ -2025,10 +2074,7 @@ mod tests {
                 assert_eq!(plan.eligible_count, PREVIEW_AUDITION_LIST_VIEW_BUDGET);
             }
             warmed.extend(plan.paths.iter().cloned());
-            state
-                .waveform
-                .cache
-                .mark_preview_audition_warm_scheduled(&plan.paths);
+            reserve_preview_warm_plan(&mut state, &plan);
         }
 
         assert_eq!(warmed.len(), PREVIEW_AUDITION_LIST_VIEW_BUDGET);
@@ -2052,15 +2098,44 @@ mod tests {
             0,
             "list preview warming should stop after the selected-row neighborhood budget"
         );
-        assert_eq!(
-            exhausted_plan.inspected_count,
-            PREVIEW_AUDITION_LIST_VIEW_BUDGET
-        );
-        assert_eq!(
-            exhausted_plan.candidate_count,
-            PREVIEW_AUDITION_LIST_VIEW_BUDGET
-        );
+        assert_eq!(exhausted_plan.inspected_count, 0);
+        assert_eq!(exhausted_plan.candidate_count, 0);
         assert_eq!(exhausted_plan.eligible_count, 0);
+    }
+
+    #[test]
+    fn list_preview_warm_exhausts_sparse_view_after_attempted_candidates() {
+        let (mut state, _) = list_state_with_wav_files(PREVIEW_AUDITION_WARM_BATCH / 2, 0);
+        let first_plan = state.preview_audition_warm_list_candidates();
+        assert!(
+            !first_plan.paths.is_empty(),
+            "sparse list fixture should still have warmable candidates"
+        );
+        assert!(
+            first_plan.paths.len() < PREVIEW_AUDITION_LIST_VIEW_BUDGET,
+            "fixture must leave budget remaining after the first sparse warm"
+        );
+        reserve_preview_warm_plan(&mut state, &first_plan);
+        state.waveform.cache.finish_preview_audition_warm_schedule(
+            &first_plan.paths,
+            &first_plan.paths,
+        );
+
+        let exhausted_plan = state.preview_audition_warm_list_candidates();
+
+        assert_eq!(exhausted_plan.paths.len(), 0);
+        assert_eq!(
+            exhausted_plan.list_remaining_budget,
+            Some(0),
+            "already-attempted sparse list views should not be re-planned forever"
+        );
+
+        let repeated_plan = state.preview_audition_warm_list_candidates();
+
+        assert_eq!(
+            repeated_plan.inspected_count, 0,
+            "exhausted list warm views should skip candidate inspection"
+        );
     }
 
     #[test]
@@ -2140,7 +2215,7 @@ mod tests {
         );
     }
 
-    fn reserve_starmap_preview_warm_plan(
+    fn reserve_preview_warm_plan(
         state: &mut crate::native_app::test_support::state::NativeAppState,
         plan: &PreviewAuditionWarmPlan,
     ) {
@@ -2153,6 +2228,12 @@ mod tests {
                 .waveform
                 .cache
                 .reserve_starmap_preview_warm_budget(signature, plan.paths.len());
+        }
+        if let Some(signature) = plan.list_signature {
+            state
+                .waveform
+                .cache
+                .reserve_list_preview_warm_budget(signature, plan.paths.len());
         }
     }
 
@@ -2172,7 +2253,7 @@ mod tests {
                 assert!(plan.eligible_count >= PREVIEW_AUDITION_WARM_BATCH);
             }
             warmed.extend(plan.paths.iter().cloned());
-            reserve_starmap_preview_warm_plan(&mut state, &plan);
+            reserve_preview_warm_plan(&mut state, &plan);
         }
         assert_eq!(warmed.len(), PREVIEW_AUDITION_STARMAP_VIEW_BUDGET);
 
@@ -2215,7 +2296,7 @@ mod tests {
         for _ in 0..(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET / PREVIEW_AUDITION_WARM_BATCH) {
             let plan = state.preview_audition_warm_starmap_candidates();
             assert_eq!(plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
-            reserve_starmap_preview_warm_plan(&mut state, &plan);
+            reserve_preview_warm_plan(&mut state, &plan);
         }
 
         for selected in files.iter().take(6) {
@@ -2241,7 +2322,7 @@ mod tests {
             first_plan.paths.len() < PREVIEW_AUDITION_STARMAP_VIEW_BUDGET,
             "fixture must leave budget remaining after the first sparse warm"
         );
-        reserve_starmap_preview_warm_plan(&mut state, &first_plan);
+        reserve_preview_warm_plan(&mut state, &first_plan);
         state.waveform.cache.finish_preview_audition_warm_schedule(
             &first_plan.paths,
             &first_plan.paths,

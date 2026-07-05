@@ -145,6 +145,8 @@ pub(in crate::native_app) struct WaveformCacheState {
     preview_audition_scheduled_paths: HashSet<String>,
     preview_audition_starmap_warm_signature: Option<u64>,
     preview_audition_starmap_warm_scheduled: usize,
+    preview_audition_list_warm_signature: Option<u64>,
+    preview_audition_list_warm_scheduled: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -192,6 +194,8 @@ impl Default for WaveformCacheState {
             preview_audition_scheduled_paths: Default::default(),
             preview_audition_starmap_warm_signature: None,
             preview_audition_starmap_warm_scheduled: 0,
+            preview_audition_list_warm_signature: None,
+            preview_audition_list_warm_scheduled: 0,
         }
     }
 }
@@ -395,6 +399,32 @@ impl WaveformCacheState {
         }
         self.preview_audition_starmap_warm_scheduled = self
             .preview_audition_starmap_warm_scheduled
+            .saturating_add(scheduled);
+    }
+
+    pub(in crate::native_app) fn remaining_list_preview_warm_budget(
+        &mut self,
+        signature: u64,
+        budget: usize,
+    ) -> usize {
+        if self.preview_audition_list_warm_signature != Some(signature) {
+            self.preview_audition_list_warm_signature = Some(signature);
+            self.preview_audition_list_warm_scheduled = 0;
+        }
+        budget.saturating_sub(self.preview_audition_list_warm_scheduled)
+    }
+
+    pub(in crate::native_app) fn reserve_list_preview_warm_budget(
+        &mut self,
+        signature: u64,
+        scheduled: usize,
+    ) {
+        if self.preview_audition_list_warm_signature != Some(signature) {
+            self.preview_audition_list_warm_signature = Some(signature);
+            self.preview_audition_list_warm_scheduled = 0;
+        }
+        self.preview_audition_list_warm_scheduled = self
+            .preview_audition_list_warm_scheduled
             .saturating_add(scheduled);
     }
 
