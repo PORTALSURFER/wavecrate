@@ -1072,9 +1072,6 @@ impl NativeAppState {
     }
 
     fn preview_audition_warm_starmap_candidates(&mut self) -> PreviewAuditionWarmPlan {
-        let Some(items) = self.library.folder_browser.cached_starmap_projection() else {
-            return PreviewAuditionWarmPlan::default();
-        };
         let selected = self
             .library
             .folder_browser
@@ -1085,12 +1082,12 @@ impl NativeAppState {
         let zoom = self.ui.chrome.starmap_viewport.zoom.max(f32::EPSILON);
         let signature = starmap_preview_warm_view_signature(
             self.library.folder_browser.selected_source_id(),
-            items.len(),
+            self.library.folder_browser.cached_starmap_projection_len(),
             center_x,
             center_y,
             zoom,
         );
-        let remaining_budget = self
+        let mut remaining_budget = self
             .waveform
             .cache
             .remaining_starmap_preview_warm_budget(signature, PREVIEW_AUDITION_STARMAP_VIEW_BUDGET);
@@ -1098,53 +1095,31 @@ impl NativeAppState {
             return PreviewAuditionWarmPlan {
                 paths: Vec::new(),
                 starmap_signature: Some(signature),
-                inspected_count: items.len(),
+                inspected_count: 0,
                 candidate_count: 0,
                 eligible_count: 0,
                 starmap_remaining_budget: Some(0),
             };
         }
-        let mut selected_candidate = None;
-        let mut nearby_candidates = Vec::with_capacity(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD);
-        let mut candidate_count = 0;
-        for item in items.iter() {
-            if item.missing || !preview_audition_can_decode(&item.file_id) {
-                continue;
-            }
-            let selected_item = selected.as_deref() == Some(item.file_id.as_str());
-            if !selected_item
-                && !starmap_item_in_preview_warm_viewport(item.x, item.y, center_x, center_y, zoom)
-            {
-                continue;
-            }
-            candidate_count += 1;
-            if selected_item {
-                selected_candidate = Some(item.file_id.clone());
-                continue;
-            }
-            let dx = item.x - center_x;
-            let dy = item.y - center_y;
-            push_bounded_starmap_warm_candidate(
-                &mut nearby_candidates,
-                (dx * dx + dy * dy, item.file_id.clone()),
+        let Some(candidates) = self
+            .library
+            .folder_browser
+            .cached_starmap_preview_warm_candidates(
+                center_x,
+                center_y,
+                zoom,
+                PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD,
+                selected.as_deref(),
                 PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD,
-            );
-        }
-        nearby_candidates.sort_by(starmap_warm_candidate_order);
-        let mut candidate_paths = Vec::with_capacity(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD);
-        if let Some(path) = selected_candidate {
-            candidate_paths.push(path);
-        }
-        let remaining_slots =
-            PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD.saturating_sub(candidate_paths.len());
-        candidate_paths.extend(
-            nearby_candidates
-                .into_iter()
-                .map(|(_, path)| path)
-                .take(remaining_slots),
-        );
-        let eligible_paths = candidate_paths
-            .into_iter()
+            )
+        else {
+            return PreviewAuditionWarmPlan::default();
+        };
+        let candidate_count = candidates.indices.len();
+        let eligible_paths = candidates
+            .indices
+            .iter()
+            .map(|&index| candidates.items[index].file_id.clone())
             .filter(|path| {
                 self.waveform
                     .cache
@@ -1153,6 +1128,12 @@ impl NativeAppState {
             .take(PREVIEW_AUDITION_STARMAP_NEIGHBORHOOD)
             .collect::<Vec<_>>();
         let eligible_count = eligible_paths.len();
+        if eligible_count == 0 && remaining_budget > 0 {
+            self.waveform
+                .cache
+                .reserve_starmap_preview_warm_budget(signature, remaining_budget);
+            remaining_budget = 0;
+        }
         let paths = eligible_paths
             .into_iter()
             .take(PREVIEW_AUDITION_WARM_BATCH.min(remaining_budget))
@@ -1160,7 +1141,7 @@ impl NativeAppState {
         PreviewAuditionWarmPlan {
             paths,
             starmap_signature: Some(signature),
-            inspected_count: items.len(),
+            inspected_count: candidates.inspected_count,
             candidate_count,
             eligible_count,
             starmap_remaining_budget: Some(remaining_budget),
@@ -1747,36 +1728,6 @@ fn preview_audition_can_decode(path: &str) -> bool {
         })
 }
 
-fn push_bounded_starmap_warm_candidate(
-    candidates: &mut Vec<(f32, String)>,
-    candidate: (f32, String),
-    limit: usize,
-) {
-    if limit == 0 {
-        return;
-    }
-    if candidates.len() < limit {
-        candidates.push(candidate);
-        return;
-    }
-    let Some((worst_index, worst)) = candidates
-        .iter()
-        .enumerate()
-        .max_by(|(_, left), (_, right)| starmap_warm_candidate_order(left, right))
-    else {
-        return;
-    };
-    if starmap_warm_candidate_order(&candidate, worst).is_lt() {
-        candidates[worst_index] = candidate;
-    }
-}
-
-fn starmap_warm_candidate_order(left: &(f32, String), right: &(f32, String)) -> std::cmp::Ordering {
-    left.0
-        .total_cmp(&right.0)
-        .then_with(|| left.1.cmp(&right.1))
-}
-
 fn preview_clip_playback_gain(
     clip: &PreviewAuditionClip,
     normalized_audition_enabled: bool,
@@ -1787,20 +1738,6 @@ fn preview_clip_playback_gain(
     } else {
         1.0
     }
-}
-
-fn starmap_item_in_preview_warm_viewport(
-    item_x: f32,
-    item_y: f32,
-    center_x: f32,
-    center_y: f32,
-    zoom: f32,
-) -> bool {
-    let normalized_x = (item_x - center_x) * zoom + 0.5;
-    let normalized_y = (item_y - center_y) * zoom + 0.5;
-    let min = -PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD;
-    let max = 1.0 + PREVIEW_AUDITION_STARMAP_VIEWPORT_PAD;
-    (min..=max).contains(&normalized_x) && (min..=max).contains(&normalized_y)
 }
 
 fn starmap_preview_warm_view_signature(
@@ -2274,13 +2211,38 @@ mod tests {
     }
 
     #[test]
-    fn starmap_preview_warm_ignores_offscreen_zoomed_nodes() {
-        assert!(starmap_item_in_preview_warm_viewport(
-            0.5, 0.5, 0.5, 0.5, 4.0
-        ));
-        assert!(!starmap_item_in_preview_warm_viewport(
-            0.95, 0.95, 0.5, 0.5, 4.0
-        ));
+    fn starmap_preview_warm_exhausts_sparse_view_after_attempted_candidates() {
+        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_WARM_BATCH / 2);
+        let first_plan = state.preview_audition_warm_starmap_candidates();
+        assert!(
+            !first_plan.paths.is_empty(),
+            "sparse starmap fixture should still have warmable candidates"
+        );
+        assert!(
+            first_plan.paths.len() < PREVIEW_AUDITION_STARMAP_VIEW_BUDGET,
+            "fixture must leave budget remaining after the first sparse warm"
+        );
+        reserve_starmap_preview_warm_plan(&mut state, &first_plan);
+        state.waveform.cache.finish_preview_audition_warm_schedule(
+            &first_plan.paths,
+            &first_plan.paths,
+        );
+
+        let exhausted_plan = state.preview_audition_warm_starmap_candidates();
+
+        assert_eq!(exhausted_plan.paths.len(), 0);
+        assert_eq!(
+            exhausted_plan.starmap_remaining_budget,
+            Some(0),
+            "already-attempted sparse starmap views should not be re-planned forever"
+        );
+
+        let repeated_plan = state.preview_audition_warm_starmap_candidates();
+
+        assert_eq!(
+            repeated_plan.inspected_count, 0,
+            "exhausted starmap warm views should skip candidate inspection"
+        );
     }
 
     #[test]

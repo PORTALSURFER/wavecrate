@@ -22,6 +22,7 @@ const GROUP_CENTERS: [(f32, f32); wavecrate_analysis::aspects::ASPECT_COUNT] = [
     (0.66, 0.36),
     (0.78, 0.62),
 ];
+const STARMAP_PROJECTION_INDEX_GRID: i32 = 48;
 
 #[derive(Clone, Copy)]
 pub(in crate::native_app) struct StarmapProjection<'a> {
@@ -65,9 +66,29 @@ pub(super) struct StarmapLayoutCache {
     signature: Option<u64>,
     pub(super) points_by_file: HashMap<String, StarmapLayoutPoint>,
     pub(super) projection_items: Option<Arc<[StarmapItem]>>,
+    projection_index: StarmapProjectionIndex,
     listed_count: usize,
     pending_load_signature: Option<u64>,
     loaded_signature: Option<u64>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct StarmapProjectionIndex {
+    cells: HashMap<StarmapProjectionCell, Vec<usize>>,
+    file_indices: HashMap<String, usize>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct StarmapProjectionCell {
+    x: i32,
+    y: i32,
+}
+
+#[derive(Debug)]
+pub(in crate::native_app) struct StarmapWarmCandidateSet {
+    pub(in crate::native_app) items: Arc<[StarmapItem]>,
+    pub(in crate::native_app) indices: Vec<usize>,
+    pub(in crate::native_app) inspected_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -104,6 +125,141 @@ impl StarmapItem {
     }
 }
 
+impl StarmapProjectionIndex {
+    fn build(items: &[StarmapItem]) -> Self {
+        let mut index = Self::default();
+        for (item_index, item) in items.iter().enumerate() {
+            if item.missing || !item.preview_audition_candidate {
+                continue;
+            }
+            index.file_indices.insert(item.file_id.clone(), item_index);
+            index
+                .cells
+                .entry(StarmapProjectionCell::for_point(item.x, item.y))
+                .or_default()
+                .push(item_index);
+        }
+        index
+    }
+
+    fn preview_warm_indices(
+        &self,
+        items: &[StarmapItem],
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        viewport_pad: f32,
+        selected_file_id: Option<&str>,
+        limit: usize,
+    ) -> (Vec<usize>, usize) {
+        if limit == 0 {
+            return (Vec::new(), 0);
+        }
+        let mut indices = Vec::with_capacity(limit);
+        let mut inspected_count = 0;
+        let selected_index = selected_file_id.and_then(|file_id| self.file_indices.get(file_id));
+        if let Some(&selected_index) = selected_index {
+            indices.push(selected_index);
+            inspected_count += 1;
+        }
+
+        for cell in StarmapProjectionCell::viewport_cells(center_x, center_y, zoom, viewport_pad) {
+            let Some(cell_indices) = self.cells.get(&cell) else {
+                continue;
+            };
+            for &item_index in cell_indices {
+                if Some(&item_index) == selected_index {
+                    continue;
+                }
+                inspected_count += 1;
+                let item = &items[item_index];
+                if !starmap_item_in_preview_warm_viewport(
+                    item.x,
+                    item.y,
+                    center_x,
+                    center_y,
+                    zoom,
+                    viewport_pad,
+                ) {
+                    continue;
+                }
+                indices.push(item_index);
+                if indices.len() >= limit {
+                    return (indices, inspected_count);
+                }
+            }
+        }
+        (indices, inspected_count)
+    }
+}
+
+impl StarmapProjectionCell {
+    fn for_point(x: f32, y: f32) -> Self {
+        Self {
+            x: starmap_projection_grid_coordinate(x),
+            y: starmap_projection_grid_coordinate(y),
+        }
+    }
+
+    fn viewport_cells(center_x: f32, center_y: f32, zoom: f32, pad: f32) -> Vec<Self> {
+        let zoom = zoom.max(f32::EPSILON);
+        let extent = (0.5 + pad.max(0.0)) / zoom;
+        let min_x = starmap_projection_grid_coordinate(center_x - extent);
+        let max_x = starmap_projection_grid_coordinate(center_x + extent);
+        let min_y = starmap_projection_grid_coordinate(center_y - extent);
+        let max_y = starmap_projection_grid_coordinate(center_y + extent);
+        let mut cells = Vec::with_capacity(((max_x - min_x + 1) * (max_y - min_y + 1)) as usize);
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                cells.push(Self { x, y });
+            }
+        }
+        cells.sort_by(|left, right| {
+            starmap_projection_cell_distance_sq(*left, center_x, center_y)
+                .total_cmp(&starmap_projection_cell_distance_sq(
+                    *right, center_x, center_y,
+                ))
+                .then_with(|| left.y.cmp(&right.y))
+                .then_with(|| left.x.cmp(&right.x))
+        });
+        cells
+    }
+}
+
+fn starmap_projection_grid_coordinate(value: f32) -> i32 {
+    (value * STARMAP_PROJECTION_INDEX_GRID as f32)
+        .floor()
+        .clamp(0.0, (STARMAP_PROJECTION_INDEX_GRID - 1) as f32) as i32
+}
+
+fn starmap_projection_cell_distance_sq(
+    cell: StarmapProjectionCell,
+    center_x: f32,
+    center_y: f32,
+) -> f32 {
+    let cell_size = 1.0 / STARMAP_PROJECTION_INDEX_GRID as f32;
+    let cell_x = (cell.x as f32 + 0.5) * cell_size;
+    let cell_y = (cell.y as f32 + 0.5) * cell_size;
+    let dx = cell_x - center_x;
+    let dy = cell_y - center_y;
+    dx * dx + dy * dy
+}
+
+fn starmap_item_in_preview_warm_viewport(
+    item_x: f32,
+    item_y: f32,
+    center_x: f32,
+    center_y: f32,
+    zoom: f32,
+    pad: f32,
+) -> bool {
+    let normalized_x = (item_x - center_x) * zoom + 0.5;
+    let normalized_y = (item_y - center_y) * zoom + 0.5;
+    let min = -pad;
+    let max = 1.0 + pad;
+    (min..=max).contains(&normalized_x) && (min..=max).contains(&normalized_y)
+}
+
 impl FolderBrowserState {
     pub(in crate::native_app) fn prepare_starmap_layout(
         &mut self,
@@ -117,10 +273,7 @@ impl FolderBrowserState {
         self.sample_list.starmap_layout = StarmapLayoutCache {
             signature: Some(signature),
             listed_count: snapshot.rows().len(),
-            points_by_file: HashMap::new(),
-            projection_items: None,
-            pending_load_signature: None,
-            loaded_signature: None,
+            ..StarmapLayoutCache::default()
         };
     }
 
@@ -141,10 +294,7 @@ impl FolderBrowserState {
             self.sample_list.starmap_layout = StarmapLayoutCache {
                 signature: Some(signature),
                 listed_count,
-                points_by_file: HashMap::new(),
-                projection_items: None,
-                pending_load_signature: None,
-                loaded_signature: None,
+                ..StarmapLayoutCache::default()
             };
         }
         let cache = &mut self.sample_list.starmap_layout;
@@ -213,12 +363,48 @@ impl FolderBrowserState {
         &mut self,
         projection: StarmapProjection<'_>,
     ) {
-        let items = self.build_starmap_projection(projection);
-        self.sample_list.starmap_layout.projection_items = Some(Arc::from(items));
+        let items = Arc::<[StarmapItem]>::from(self.build_starmap_projection(projection));
+        self.sample_list.starmap_layout.projection_index = StarmapProjectionIndex::build(&items);
+        self.sample_list.starmap_layout.projection_items = Some(items);
     }
 
     pub(in crate::native_app) fn cached_starmap_projection(&self) -> Option<Arc<[StarmapItem]>> {
         self.sample_list.starmap_layout.projection_items.clone()
+    }
+
+    pub(in crate::native_app) fn cached_starmap_projection_len(&self) -> usize {
+        self.sample_list
+            .starmap_layout
+            .projection_items
+            .as_ref()
+            .map_or(0, |items| items.len())
+    }
+
+    pub(in crate::native_app) fn cached_starmap_preview_warm_candidates(
+        &self,
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        viewport_pad: f32,
+        selected_file_id: Option<&str>,
+        limit: usize,
+    ) -> Option<StarmapWarmCandidateSet> {
+        let cache = &self.sample_list.starmap_layout;
+        let items = cache.projection_items.clone()?;
+        let (indices, inspected_count) = cache.projection_index.preview_warm_indices(
+            &items,
+            center_x,
+            center_y,
+            zoom,
+            viewport_pad,
+            selected_file_id,
+            limit,
+        );
+        Some(StarmapWarmCandidateSet {
+            items,
+            indices,
+            inspected_count,
+        })
     }
 
     fn build_starmap_projection(&self, projection: StarmapProjection<'_>) -> Vec<StarmapItem> {
@@ -632,6 +818,58 @@ mod tests {
             preview_audition_candidate: true,
             missing: false,
         }
+    }
+
+    #[test]
+    fn starmap_projection_index_returns_nearby_preview_warm_candidates_without_full_scan() {
+        let mut items = Vec::new();
+        for index in 0..2_000 {
+            items.push(test_starmap_item(
+                &format!("far-{index:04}.wav"),
+                0.94,
+                0.94,
+            ));
+        }
+        for index in 0..96 {
+            let offset = (index as f32 % 12.0) * 0.0007;
+            items.push(test_starmap_item(
+                &format!("near-{index:03}.wav"),
+                0.498 + offset,
+                0.502 + offset,
+            ));
+        }
+        let items = Arc::<[StarmapItem]>::from(items);
+        let index = StarmapProjectionIndex::build(&items);
+
+        let (indices, inspected_count) =
+            index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, None, 24);
+
+        assert_eq!(indices.len(), 24);
+        assert!(
+            inspected_count < 128,
+            "zoomed dense warm planning should visit nearby cells, not all {} items",
+            items.len()
+        );
+        assert!(
+            indices
+                .iter()
+                .all(|&item_index| items[item_index].file_id.starts_with("near-"))
+        );
+    }
+
+    #[test]
+    fn starmap_projection_index_keeps_selected_preview_warm_candidate_first() {
+        let items = Arc::<[StarmapItem]>::from(vec![
+            test_starmap_item("selected.wav", 0.95, 0.95),
+            test_starmap_item("near.wav", 0.5, 0.5),
+        ]);
+        let index = StarmapProjectionIndex::build(&items);
+
+        let (indices, inspected_count) =
+            index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, Some("selected.wav"), 2);
+
+        assert_eq!(indices, vec![0, 1]);
+        assert_eq!(inspected_count, 2);
     }
 
     fn write_sparse_wav_i16(path: &Path, channels: u16, frames: u32) {
