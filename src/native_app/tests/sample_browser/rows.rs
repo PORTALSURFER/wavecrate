@@ -353,6 +353,90 @@ fn full_gui_fast_sample_browser_scroll_keeps_rows_rendered() {
 }
 
 #[test]
+fn full_gui_starmap_to_list_switch_paints_rows_before_scroll_input() {
+    let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
+        .expect("default state loads");
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_paths = (0..140)
+        .map(|index| {
+            let path = source_root
+                .path()
+                .join(format!("starmap_return_sample_{index:03}.wav"));
+            std::fs::write(&path, []).expect("sample file");
+            path
+        })
+        .collect::<Vec<_>>();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let selected_index = 96;
+    let selected_id = sample_paths[selected_index].display().to_string();
+    let selected_stem = sample_paths[selected_index]
+        .file_stem()
+        .expect("selected sample stem")
+        .to_string_lossy()
+        .to_string();
+    state
+        .library
+        .folder_browser
+        .select_file(selected_id.clone());
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
+        &mut state,
+    );
+
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+
+    runtime.dispatch_message(
+        crate::native_app::test_support::state::GuiMessage::ToggleSampleBrowserMapView,
+    );
+
+    assert_eq!(
+        runtime.bridge().state().ui.chrome.sample_browser_display,
+        crate::native_app::app::SampleBrowserDisplayMode::List
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .selected_file_id(),
+        Some(selected_id.as_str())
+    );
+    let list_rect = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample browser list should be laid out after returning to list mode");
+    let frame = runtime.frame_with_default_theme();
+    let rendered_selected = frame.paint_plan.text_runs().any(|text| {
+        text.text.as_str() == selected_stem
+            && list_rect.contains(Point::new(text.rect.center().x, text.rect.center().y))
+    });
+    let projection =
+        crate::native_app::test_support::sample_browser::sample_browser_window_projection(
+            runtime.bridge().state(),
+            8,
+        );
+
+    assert!(
+        rendered_selected,
+        "Starmap -> list should paint the selected row before any scroll input; file_view_start={} projection={:?}; painted labels were {:?}",
+        runtime
+            .bridge()
+            .state()
+            .library
+            .folder_browser
+            .file_view_start(),
+        projection,
+        frame.paint_plan.text_label_strings()
+    );
+}
+
+#[test]
 fn full_gui_random_navigation_to_row_above_keeps_recursive_rows_rendered() {
     let mut state = crate::native_app::test_support::state::NativeAppState::load_default()
         .expect("default state loads");
