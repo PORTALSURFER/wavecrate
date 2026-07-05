@@ -1798,6 +1798,76 @@ fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
 }
 
 #[test]
+fn starmap_drag_replacement_stops_previous_drag_playback_tail() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.audio.early_sample_playback_path = Some(first_id);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(second_id.as_str())
+    );
+    assert_eq!(
+        state.audio.early_sample_playback_path, None,
+        "replacing an active drag target should stop the previous preview immediately"
+    );
+    assert_eq!(state.audio.current_playback_span, None);
+    assert_eq!(
+        state.audio.playback_progress,
+        wavecrate::audio::PlaybackRuntimeProgress::default(),
+        "drag replacement should not leave the previous target visually playing while the next preview decodes"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "the next cold target should still begin the shared preview-decode path"
+    );
+}
+
+#[test]
 fn starmap_click_finish_preserves_started_audition_playback_state() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("click.wav");

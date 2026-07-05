@@ -226,7 +226,7 @@ impl NativeAppState {
             self.waveform.load.target_progress = 0.0;
             self.waveform.load.selection.cancel();
             self.audio.pending_sample_playback = None;
-            self.stop_starmap_drag_playback(active_target.as_deref());
+            self.stop_starmap_drag_audio(active_target.as_deref(), "finish_after_motion");
         }
         self.ui.chrome.starmap_audition_drag = None;
         self.ui.chrome.starmap_audition_queue = Default::default();
@@ -247,7 +247,7 @@ impl NativeAppState {
         );
     }
 
-    fn stop_starmap_drag_playback(&mut self, active_target: Option<&str>) {
+    fn stop_starmap_drag_audio(&mut self, active_target: Option<&str>, reason: &'static str) {
         let had_pending_runtime = self.audio.pending_runtime_start.is_some();
         let had_early_playback = self.audio.early_sample_playback_path.is_some();
         let had_playback_progress = self.audio.playback_progress.active;
@@ -259,8 +259,8 @@ impl NativeAppState {
         self.audio.playback_progress = Default::default();
         starmap_telemetry::record_event(
             None,
-            "controller.drag_finish_playback",
-            "stopped_after_motion",
+            "controller.drag_audio_stop",
+            reason,
             active_target,
             usize::from(had_pending_runtime),
             usize::from(had_early_playback),
@@ -366,9 +366,17 @@ impl NativeAppState {
         } else {
             admitted_paths.clone()
         };
+        let replaced_active_target = if drag_active {
+            self.ui.chrome.starmap_audition_queue.active_file_id.clone()
+        } else {
+            None
+        };
+        if let Some(active_target) = replaced_active_target.as_deref() {
+            self.stop_starmap_drag_audio(Some(active_target), "replace_active_drag");
+        }
         let queue = &mut self.ui.chrome.starmap_audition_queue;
         if drag_active {
-            if queue.active_file_id.is_some() {
+            if replaced_active_target.is_some() {
                 starmap_telemetry::record_event(
                     Some(StarmapAuditionCounter::ActiveReplaced),
                     "controller.enqueue",
