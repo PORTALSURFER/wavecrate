@@ -965,12 +965,12 @@ impl NativeAppState {
         };
         self.audio.early_sample_playback_path = Some(path.clone());
         self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
-        self.audio.current_playback_span = Some((0.0, 1.0));
+        self.audio.current_playback_span = None;
         self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
             request_id,
             path.clone(),
             (0.0, 1.0),
-            true,
+            false,
             options.origin,
             "preview_samples",
         ));

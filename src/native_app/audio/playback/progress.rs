@@ -5,7 +5,7 @@ use std::{
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{
-    NativeAppState, PendingRuntimePlaybackStart, emit_gui_action, sample_path_label,
+    emit_gui_action, sample_path_label, NativeAppState, PendingRuntimePlaybackStart,
 };
 use crate::native_app::app_chrome::library_browser::sample_browser_view;
 use crate::native_app::starmap_audition_telemetry::{
@@ -172,14 +172,15 @@ impl NativeAppState {
             Some(submit_elapsed),
             None,
         );
+        let source_updates_waveform = runtime_source_updates_waveform_playhead(pending.source_kind);
         self.audio.output_resolved = Some(started.output);
-        self.audio.current_playback_span = Some(pending.span);
+        self.audio.current_playback_span = source_updates_waveform.then_some(pending.span);
         self.audio.playback_progress.active = true;
         self.audio.playback_progress.elapsed = Some(Duration::ZERO);
         self.audio.playback_progress.looping = self.audio.loop_playback;
         self.audio.playback_progress.progress = Some(started.playback_start);
         self.audio.playback_progress.error = None;
-        if self.waveform.current.path() == Path::new(&pending.path) {
+        if source_updates_waveform && self.waveform.current.path() == Path::new(&pending.path) {
             if pending.show_start_marker {
                 self.waveform.current.start_playback(started.playback_start);
             } else {
@@ -323,9 +324,11 @@ impl NativeAppState {
             self.stop_playback_after_progress_error(error);
             return;
         }
-        if self.audio.pending_runtime_start.is_some() {
+        if let Some(pending) = self.audio.pending_runtime_start.as_ref() {
             if let Some(progress) = self.audio.playback_progress.progress {
-                self.waveform.current.set_playhead_ratio(progress);
+                if runtime_source_updates_waveform_playhead(pending.source_kind) {
+                    self.waveform.current.set_playhead_ratio(progress);
+                }
             }
             return;
         }
@@ -337,6 +340,11 @@ impl NativeAppState {
         let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
+        if self.audio.early_sample_playback_kind
+            == Some(crate::native_app::app::EarlySamplePlaybackKind::PreviewSlice)
+        {
+            return;
+        }
 
         if self.loop_recovery_needed(
             should_be_looping,
@@ -744,7 +752,54 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
     );
 }
 
+fn runtime_source_updates_waveform_playhead(source_kind: &str) -> bool {
+    source_kind != "preview_samples"
+}
+
 fn playback_error_indicates_output_unavailable(error: &str) -> bool {
     error.starts_with(AUDIO_OUTPUT_STREAM_ERROR_PREFIX)
         || error.contains(AUDIO_OUTPUT_UNAVAILABLE_ERROR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::{
+        app::EarlySamplePlaybackKind,
+        test_support::state::{NativeAppStateFixture, WaveformState},
+        waveform::test_decoded_waveform_file_from_mono_samples,
+    };
+    use std::{path::PathBuf, sync::Arc};
+
+    #[test]
+    fn preview_slice_runtime_progress_does_not_move_full_waveform_playhead() {
+        let path = PathBuf::from("preview-visual.wav");
+        let file =
+            test_decoded_waveform_file_from_mono_samples(path.clone(), vec![0.0, 0.5, -0.5, 0.0]);
+        let mut state = NativeAppStateFixture::default().build();
+        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
+        state.audio.early_sample_playback_path = Some(path.display().to_string());
+        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+        state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(80)),
+            looping: false,
+            progress: Some(0.5),
+            error: None,
+        };
+
+        state.refresh_runtime_playback_progress();
+
+        assert!(
+            !state.waveform.current.is_playing(),
+            "preview-slice playback should not mark the full waveform as playing"
+        );
+        assert_eq!(
+            state.waveform.current.playhead_ratio(),
+            None,
+            "preview-slice progress is normalized to the tiny cache slice, not the full waveform"
+        );
+        assert_eq!(state.audio.current_playback_span, None);
+        assert_eq!(state.audio.playback_progress.progress, Some(0.5));
+    }
 }
