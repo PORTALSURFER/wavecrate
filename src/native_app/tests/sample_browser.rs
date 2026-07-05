@@ -434,6 +434,161 @@ fn list_selection_ignores_stale_preview_audition_decode_after_rapid_navigation()
 }
 
 #[test]
+fn keyboard_navigation_cold_wav_queues_preview_audition_before_full_load() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-first-keyboard.wav");
+    let second = source_root.path().join("b-second-keyboard.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(second_id.as_str()),
+        "keyboard navigation should update selection immediately"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "keyboard navigation should start the tiny preview-head decode immediately"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load"),
+        Some(radiant::prelude::TaskPriority::Background),
+        "full waveform display should stay behind the fast preview path"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "preview audition decode should be active after keyboard navigation"
+    );
+    assert!(
+        state.active_sample_load_task().is_some(),
+        "keyboard navigation should still queue a background display load"
+    );
+}
+
+#[test]
+fn keyboard_navigation_ignores_stale_preview_audition_decode_after_rapid_navigation() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a-first-keyboard.wav");
+    let second = source_root.path().join("b-second-keyboard.wav");
+    let third = source_root.path().join("c-third-keyboard.wav");
+    write_sparse_test_wav_i16(&first, 1, 700);
+    write_sparse_test_wav_i16(&second, 1, 700);
+    write_sparse_test_wav_i16(&third, 1, 700);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.library.folder_browser.select_file(first_id);
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let stale_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("first keyboard navigation should queue preview decode");
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: false,
+            preserve_selection: false,
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+    let latest_ticket = state
+        .background
+        .preview_audition_task
+        .active()
+        .expect("second keyboard navigation should replace preview decode");
+    assert_ne!(
+        stale_ticket, latest_ticket,
+        "rapid keyboard navigation should replace the active preview decode ticket"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::PreviewAuditionDecoded {
+            completion: radiant::prelude::TaskCompletion {
+                ticket: stale_ticket,
+                output: crate::native_app::app::PreviewAuditionResult {
+                    path: second_id.clone(),
+                    clip: Ok(crate::native_app::waveform::PreviewAuditionClip {
+                        path: PathBuf::from(&second_id),
+                        source_len: 2048,
+                        source_modified: Some(std::time::SystemTime::UNIX_EPOCH),
+                        samples: Arc::from([0.25_f32, -0.25, 0.0, 0.125]),
+                        sample_rate: 44_100,
+                        channels: 1,
+                        frames: 4,
+                        normalized_gain: 1.0,
+                    }),
+                },
+            },
+            started_at: std::time::Instant::now(),
+        },
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(third_id.as_str()),
+        "stale keyboard preview decode completion must not move selection back"
+    );
+    assert_eq!(
+        state.background.preview_audition_task.active(),
+        Some(latest_ticket),
+        "stale keyboard preview decode completion must not consume the latest decode ticket"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_clip(std::path::Path::new(&second_id))
+            .is_none(),
+        "stale keyboard preview decode completion must not cache an old target"
+    );
+    assert_ne!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(second_id.as_str()),
+        "stale keyboard preview decode completion must not start early playback for the old target"
+    );
+}
+
+#[test]
 fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
