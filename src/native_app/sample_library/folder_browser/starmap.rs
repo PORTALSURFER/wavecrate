@@ -89,6 +89,8 @@ pub(in crate::native_app) struct StarmapWarmCandidateSet {
     pub(in crate::native_app) items: Arc<[StarmapItem]>,
     pub(in crate::native_app) indices: Vec<usize>,
     pub(in crate::native_app) inspected_count: usize,
+    pub(in crate::native_app) cell_count: usize,
+    pub(in crate::native_app) visited_cell_count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -151,19 +153,23 @@ impl StarmapProjectionIndex {
         viewport_pad: f32,
         selected_file_id: Option<&str>,
         limit: usize,
-    ) -> (Vec<usize>, usize) {
+    ) -> StarmapPreviewWarmScan {
         if limit == 0 {
-            return (Vec::new(), 0);
+            return StarmapPreviewWarmScan::default();
         }
         let mut indices = Vec::with_capacity(limit);
         let mut inspected_count = 0;
+        let mut visited_cell_count = 0;
         let selected_index = selected_file_id.and_then(|file_id| self.file_indices.get(file_id));
         if let Some(&selected_index) = selected_index {
             indices.push(selected_index);
             inspected_count += 1;
         }
 
-        for cell in StarmapProjectionCell::viewport_cells(center_x, center_y, zoom, viewport_pad) {
+        let cells = self.viewport_cells(center_x, center_y, zoom, viewport_pad);
+        let cell_count = cells.len();
+        for cell in cells {
+            visited_cell_count += 1;
             let Some(cell_indices) = self.cells.get(&cell) else {
                 continue;
             };
@@ -185,11 +191,47 @@ impl StarmapProjectionIndex {
                 }
                 indices.push(item_index);
                 if indices.len() >= limit {
-                    return (indices, inspected_count);
+                    return StarmapPreviewWarmScan {
+                        indices,
+                        inspected_count,
+                        cell_count,
+                        visited_cell_count,
+                    };
                 }
             }
         }
-        (indices, inspected_count)
+        StarmapPreviewWarmScan {
+            indices,
+            inspected_count,
+            cell_count,
+            visited_cell_count,
+        }
+    }
+
+    fn viewport_cells(
+        &self,
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        pad: f32,
+    ) -> Vec<StarmapProjectionCell> {
+        let (min_x, max_x, min_y, max_y) =
+            StarmapProjectionCell::viewport_cell_range(center_x, center_y, zoom, pad);
+        let mut cells = self
+            .cells
+            .keys()
+            .copied()
+            .filter(|cell| (min_x..=max_x).contains(&cell.x) && (min_y..=max_y).contains(&cell.y))
+            .collect::<Vec<_>>();
+        cells.sort_by(|left, right| {
+            starmap_projection_cell_distance_sq(*left, center_x, center_y)
+                .total_cmp(&starmap_projection_cell_distance_sq(
+                    *right, center_x, center_y,
+                ))
+                .then_with(|| left.y.cmp(&right.y))
+                .then_with(|| left.x.cmp(&right.x))
+        });
+        cells
     }
 }
 
@@ -201,29 +243,28 @@ impl StarmapProjectionCell {
         }
     }
 
-    fn viewport_cells(center_x: f32, center_y: f32, zoom: f32, pad: f32) -> Vec<Self> {
+    fn viewport_cell_range(
+        center_x: f32,
+        center_y: f32,
+        zoom: f32,
+        pad: f32,
+    ) -> (i32, i32, i32, i32) {
         let zoom = zoom.max(f32::EPSILON);
         let extent = (0.5 + pad.max(0.0)) / zoom;
         let min_x = starmap_projection_grid_coordinate(center_x - extent);
         let max_x = starmap_projection_grid_coordinate(center_x + extent);
         let min_y = starmap_projection_grid_coordinate(center_y - extent);
         let max_y = starmap_projection_grid_coordinate(center_y + extent);
-        let mut cells = Vec::with_capacity(((max_x - min_x + 1) * (max_y - min_y + 1)) as usize);
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                cells.push(Self { x, y });
-            }
-        }
-        cells.sort_by(|left, right| {
-            starmap_projection_cell_distance_sq(*left, center_x, center_y)
-                .total_cmp(&starmap_projection_cell_distance_sq(
-                    *right, center_x, center_y,
-                ))
-                .then_with(|| left.y.cmp(&right.y))
-                .then_with(|| left.x.cmp(&right.x))
-        });
-        cells
+        (min_x, max_x, min_y, max_y)
     }
+}
+
+#[derive(Debug, Default)]
+struct StarmapPreviewWarmScan {
+    indices: Vec<usize>,
+    inspected_count: usize,
+    cell_count: usize,
+    visited_cell_count: usize,
 }
 
 fn starmap_projection_grid_coordinate(value: f32) -> i32 {
@@ -391,7 +432,7 @@ impl FolderBrowserState {
     ) -> Option<StarmapWarmCandidateSet> {
         let cache = &self.sample_list.starmap_layout;
         let items = cache.projection_items.clone()?;
-        let (indices, inspected_count) = cache.projection_index.preview_warm_indices(
+        let scan = cache.projection_index.preview_warm_indices(
             &items,
             center_x,
             center_y,
@@ -402,8 +443,10 @@ impl FolderBrowserState {
         );
         Some(StarmapWarmCandidateSet {
             items,
-            indices,
-            inspected_count,
+            indices: scan.indices,
+            inspected_count: scan.inspected_count,
+            cell_count: scan.cell_count,
+            visited_cell_count: scan.visited_cell_count,
         })
     }
 
@@ -841,19 +884,49 @@ mod tests {
         let items = Arc::<[StarmapItem]>::from(items);
         let index = StarmapProjectionIndex::build(&items);
 
-        let (indices, inspected_count) =
-            index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, None, 24);
+        let scan = index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, None, 24);
 
-        assert_eq!(indices.len(), 24);
+        assert_eq!(scan.indices.len(), 24);
         assert!(
-            inspected_count < 128,
+            scan.inspected_count < 128,
             "zoomed dense warm planning should visit nearby cells, not all {} items",
             items.len()
         );
         assert!(
-            indices
+            scan.indices
                 .iter()
                 .all(|&item_index| items[item_index].file_id.starts_with("near-"))
+        );
+        assert!(
+            scan.visited_cell_count <= scan.cell_count,
+            "visited cells should be bounded by occupied viewport cells"
+        );
+        assert!(
+            scan.cell_count < STARMAP_PROJECTION_INDEX_GRID as usize,
+            "zoomed warm planning should not sort the whole projection grid"
+        );
+    }
+
+    #[test]
+    fn starmap_projection_index_skips_empty_preview_warm_cells() {
+        let items = Arc::<[StarmapItem]>::from(vec![
+            test_starmap_item("center.wav", 0.50, 0.50),
+            test_starmap_item("top-left.wav", 0.05, 0.05),
+            test_starmap_item("bottom-right.wav", 0.95, 0.95),
+        ]);
+        let index = StarmapProjectionIndex::build(&items);
+
+        let scan = index.preview_warm_indices(&items, 0.5, 0.5, 1.0, 0.0, None, 1);
+
+        assert_eq!(scan.indices.len(), 1);
+        assert_eq!(
+            scan.cell_count,
+            index.cells.len(),
+            "full-map warm planning should sort occupied cells, not every empty grid cell"
+        );
+        assert_eq!(
+            scan.visited_cell_count, 1,
+            "warm planning should stop walking cells once the requested candidates are found"
         );
     }
 
@@ -865,11 +938,11 @@ mod tests {
         ]);
         let index = StarmapProjectionIndex::build(&items);
 
-        let (indices, inspected_count) =
+        let scan =
             index.preview_warm_indices(&items, 0.5, 0.5, 32.0, 0.08, Some("selected.wav"), 2);
 
-        assert_eq!(indices, vec![0, 1]);
-        assert_eq!(inspected_count, 2);
+        assert_eq!(scan.indices, vec![0, 1]);
+        assert_eq!(scan.inspected_count, 2);
     }
 
     fn write_sparse_wav_i16(path: &Path, channels: u16, frames: u32) {

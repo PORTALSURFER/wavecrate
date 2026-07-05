@@ -146,6 +146,8 @@ struct PreviewAuditionWarmPlan {
     inspected_count: usize,
     candidate_count: usize,
     eligible_count: usize,
+    starmap_cell_count: usize,
+    starmap_visited_cell_count: usize,
     starmap_remaining_budget: Option<usize>,
     list_remaining_budget: Option<usize>,
 }
@@ -227,6 +229,10 @@ fn record_preview_audition_warm_plan(
         inspected = plan.map(|plan| plan.inspected_count).unwrap_or(0),
         candidates = plan.map(|plan| plan.candidate_count).unwrap_or(0),
         eligible = plan.map(|plan| plan.eligible_count).unwrap_or(0),
+        starmap_cells = plan.map(|plan| plan.starmap_cell_count).unwrap_or(0),
+        starmap_visited_cells = plan
+            .map(|plan| plan.starmap_visited_cell_count)
+            .unwrap_or(0),
         starmap_signature = plan
             .and_then(|plan| plan.starmap_signature)
             .unwrap_or_default(),
@@ -1177,6 +1183,8 @@ impl NativeAppState {
             inspected_count: candidates.inspected_count,
             candidate_count,
             eligible_count,
+            starmap_cell_count: candidates.cell_count,
+            starmap_visited_cell_count: candidates.visited_cell_count,
             starmap_remaining_budget: Some(remaining_budget),
             ..PreviewAuditionWarmPlan::default()
         }

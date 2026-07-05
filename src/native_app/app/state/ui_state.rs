@@ -113,7 +113,7 @@ impl Default for StarmapViewport {
 
 impl StarmapViewport {
     const MIN_ZOOM: f32 = 0.65;
-    const MAX_ZOOM: f32 = 64.0;
+    const MAX_ZOOM: f32 = 256.0;
     const MIN_CENTER: f32 = -1.0;
     const MAX_CENTER: f32 = 2.0;
 
@@ -503,10 +503,10 @@ mod tests {
 
         viewport.apply_change(StarmapViewportChange::Zoom {
             anchor: ui::Vector2::new(0.5, 0.5),
-            factor: 100.0,
+            factor: 1_000.0,
         });
 
-        assert_eq!(viewport.zoom, 64.0);
+        assert_eq!(viewport.zoom, 256.0);
         assert_eq!(viewport.center_x, 0.5);
         assert_eq!(viewport.center_y, 0.5);
     }
