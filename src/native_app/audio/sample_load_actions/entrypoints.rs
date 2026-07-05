@@ -6,6 +6,7 @@ use std::{
 
 use crate::native_app::app::{
     emit_gui_action, sample_path_label, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
+    SamplePlaybackVisibility,
 };
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
@@ -493,6 +494,27 @@ impl NativeAppState {
             );
             return;
         }
+        if self
+            .audio
+            .promote_sample_playback_session_to_waveform(path.as_str())
+        {
+            self.audio.current_playback_span = Some((0.0, 1.0));
+            if self.waveform.current.has_loaded_sample()
+                && self.waveform.current.path() == Path::new(path.as_str())
+            {
+                let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
+                self.waveform.current.start_playback_without_marker(progress);
+            }
+            emit_gui_action(
+                "browser.select_sample.settled_promotion",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "session_promoted",
+                started_at,
+                None,
+            );
+            return;
+        }
         if self.full_sample_playback_already_promoted_for_path(path.as_str()) {
             emit_gui_action(
                 "browser.select_sample.settled_promotion",
@@ -637,6 +659,7 @@ impl NativeAppState {
             self.audio.current_playback_span = None;
             self.audio.early_sample_playback_path = None;
             self.audio.early_sample_playback_kind = None;
+            self.audio.clear_sample_playback_session();
         }
         self.ui.status.sample = format!("Removed missing {}", sample_path_label(path));
         if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
@@ -684,6 +707,11 @@ impl NativeAppState {
     }
 
     fn full_sample_playback_already_promoted_for_path(&self, path: &str) -> bool {
+        if let Some(session) = self.audio.sample_playback_session.as_ref()
+            && session.request.path == path
+        {
+            return session.request.visibility == SamplePlaybackVisibility::Waveform;
+        }
         if self.audio.early_sample_playback_path.as_deref() == Some(path) {
             return self.audio.early_sample_playback_kind
                 == Some(EarlySamplePlaybackKind::FullSample);
@@ -692,7 +720,7 @@ impl NativeAppState {
             .audio
             .pending_runtime_start
             .as_ref()
-            .is_some_and(|pending| pending.path == path && pending.source_kind != "preview_samples")
+            .is_some_and(|pending| pending.path == path && pending.visibility == SamplePlaybackVisibility::Waveform)
         {
             return true;
         }

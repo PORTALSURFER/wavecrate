@@ -151,7 +151,7 @@ impl NativeAppState {
         let Some(pending) = self.audio.pending_runtime_start.take() else {
             return;
         };
-        if pending.id != started.id {
+        if pending.id != started.id || !self.runtime_start_matches_active_session(&pending) {
             log_runtime_playback_event(
                 "runtime.started",
                 "id_mismatch",
@@ -172,7 +172,7 @@ impl NativeAppState {
             Some(submit_elapsed),
             None,
         );
-        let source_updates_waveform = runtime_source_updates_waveform_playhead(pending.source_kind);
+        let source_updates_waveform = pending.visibility.updates_waveform_playhead();
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = source_updates_waveform.then_some(pending.span);
         self.audio.playback_progress.active = true;
@@ -200,7 +200,7 @@ impl NativeAppState {
         let Some(pending) = self.audio.pending_runtime_start.take() else {
             return;
         };
-        if pending.id != id {
+        if pending.id != id || !self.runtime_start_matches_active_session(&pending) {
             log_runtime_playback_event(
                 "runtime.failed",
                 "id_mismatch",
@@ -227,12 +227,24 @@ impl NativeAppState {
         }
         self.audio.early_sample_playback_path = None;
         self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
         self.audio.current_playback_span = None;
         self.waveform.current.stop_playback();
         self.ui.status.sample = format!(
             "Loaded {} | playback unavailable: {error}",
             sample_path_label(&pending.path)
         );
+    }
+
+    fn runtime_start_matches_active_session(&self, pending: &PendingRuntimePlaybackStart) -> bool {
+        self.audio
+            .sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                session.generation == pending.session_generation
+                    && session.runtime_request_id == Some(pending.id)
+                    && session.request.path == pending.path
+            })
     }
 
     fn finish_runtime_playback_cancelled(
@@ -326,7 +338,7 @@ impl NativeAppState {
         }
         if let Some(pending) = self.audio.pending_runtime_start.as_ref() {
             if let Some(progress) = self.audio.playback_progress.progress {
-                if runtime_source_updates_waveform_playhead(pending.source_kind) {
+                if pending.visibility.updates_waveform_playhead() {
                     self.waveform.current.set_playhead_ratio(progress);
                 }
             }
@@ -548,6 +560,7 @@ impl NativeAppState {
         self.audio.pending_runtime_start = None;
         self.audio.early_sample_playback_path = None;
         self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
         if let Some(runtime) = self.audio.playback_runtime.take() {
             let _ = runtime.try_shutdown();
         }
@@ -587,6 +600,7 @@ impl NativeAppState {
             self.audio.loop_playback = false;
             self.waveform.current.stop_playback();
             self.audio.current_playback_span = None;
+            self.audio.clear_sample_playback_session();
             self.ui.status.sample = format!("Loop playback stopped: {err}");
             emit_gui_action(
                 "playback.loop.recover",
@@ -750,10 +764,6 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
         PLAYBACK_CURSOR_WIDTH,
         PLAYBACK_CURSOR_COLOR,
     );
-}
-
-fn runtime_source_updates_waveform_playhead(source_kind: &str) -> bool {
-    source_kind != "preview_samples"
 }
 
 fn playback_error_indicates_output_unavailable(error: &str) -> bool {

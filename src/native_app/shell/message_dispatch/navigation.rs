@@ -256,6 +256,7 @@ impl NativeAppState {
         self.audio.pending_runtime_start = None;
         self.audio.early_sample_playback_path = None;
         self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
         self.audio.current_playback_span = None;
         self.audio.playback_progress = Default::default();
         starmap_telemetry::record_event(

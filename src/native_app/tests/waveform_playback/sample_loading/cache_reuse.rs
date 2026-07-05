@@ -479,6 +479,20 @@ fn large_navigation_sample_starts_source_file_audition_before_background_wavefor
             state.audio.pending_runtime_start.is_some(),
             "source-file playback should be submitted before waveform completion"
         );
+        let session = state
+            .audio
+            .sample_playback_session
+            .as_ref()
+            .expect("source-file navigation should create a playback session");
+        assert_eq!(session.request.path, sample_path_string);
+        assert_eq!(
+            session.request.visibility,
+            crate::native_app::app::SamplePlaybackVisibility::Transient
+        );
+        assert_eq!(
+            session.request.stream_policy,
+            wavecrate::audio::PlaybackRuntimeStreamPolicy::transient_navigation()
+        );
     } else {
         assert_eq!(
             command.business_task_priority("gui-sample-load"),
