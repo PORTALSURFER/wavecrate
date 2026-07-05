@@ -170,6 +170,7 @@ impl NativeAppState {
         };
         drag.last_position = position;
         drag.modifiers = modifiers;
+        self.ui.chrome.starmap_audition_queue.gesture_moved = true;
         if let Some(path) = paths.last() {
             drag.last_hit_file_id = Some(path.clone());
         }
@@ -193,34 +194,78 @@ impl NativeAppState {
 
     fn finish_starmap_audition_drag(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
         let started_at = starmap_telemetry::stage_timer();
+        let gesture_moved = self.ui.chrome.starmap_audition_queue.gesture_moved;
+        let active_target = self
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref()
+            .or_else(|| {
+                self.ui
+                    .chrome
+                    .starmap_audition_drag
+                    .as_ref()
+                    .and_then(|drag| drag.last_hit_file_id.as_deref())
+            })
+            .map(str::to_owned);
         self.background.starmap_audition_advance_task.cancel();
-        self.background.starmap_audition_promotion_task.cancel();
-        self.background.preview_audition_task.cancel();
-        self.background.sample_load_validation_task.cancel();
-        self.background.deferred_sample_load_task.cancel();
-        if let Some(token) = self.background.sample_load_cancel.take() {
-            token.cancel();
+        if gesture_moved {
+            self.background.starmap_audition_promotion_task.cancel();
+            self.background.preview_audition_task.cancel();
+            self.background.sample_load_validation_task.cancel();
+            self.background.deferred_sample_load_task.cancel();
+            if let Some(token) = self.background.sample_load_cancel.take() {
+                token.cancel();
+            }
+            if let Some(key) = self.background.active_sample_load_key.take() {
+                self.background.sample_load_tasks.cancel(&key);
+            }
+            self.waveform.load.label = None;
+            self.waveform.load.progress = 0.0;
+            self.waveform.load.target_progress = 0.0;
+            self.waveform.load.selection.cancel();
+            self.audio.pending_sample_playback = None;
+            self.stop_starmap_drag_playback(active_target.as_deref());
         }
-        if let Some(key) = self.background.active_sample_load_key.take() {
-            self.background.sample_load_tasks.cancel(&key);
-        }
-        self.waveform.load.label = None;
-        self.waveform.load.progress = 0.0;
-        self.waveform.load.target_progress = 0.0;
-        self.waveform.load.selection.cancel();
-        self.audio.pending_sample_playback = None;
         self.ui.chrome.starmap_audition_drag = None;
         self.ui.chrome.starmap_audition_queue = Default::default();
         context.request_paint_only();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::DragFinish),
             "controller.drag_finish",
-            "cleared",
+            if gesture_moved {
+                "cleared_after_motion"
+            } else {
+                "cleared_click"
+            },
             None,
             0,
             0,
             false,
             starmap_telemetry::elapsed_since(started_at),
+        );
+    }
+
+    fn stop_starmap_drag_playback(&mut self, active_target: Option<&str>) {
+        let had_pending_runtime = self.audio.pending_runtime_start.is_some();
+        let had_early_playback = self.audio.early_sample_playback_path.is_some();
+        let had_playback_progress = self.audio.playback_progress.active;
+        self.stop_audio_output_playback();
+        self.waveform.current.stop_playback();
+        self.audio.pending_runtime_start = None;
+        self.audio.early_sample_playback_path = None;
+        self.audio.current_playback_span = None;
+        self.audio.playback_progress = Default::default();
+        starmap_telemetry::record_event(
+            None,
+            "controller.drag_finish_playback",
+            "stopped_after_motion",
+            active_target,
+            usize::from(had_pending_runtime),
+            usize::from(had_early_playback),
+            had_playback_progress,
+            None,
         );
     }
 

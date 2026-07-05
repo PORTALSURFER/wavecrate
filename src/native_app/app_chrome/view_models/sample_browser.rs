@@ -21,6 +21,7 @@ pub(in crate::native_app) struct SampleBrowserViewModel<'a> {
     pub(in crate::native_app) map_status: StarmapStatus,
     pub(in crate::native_app) map_prep_running: bool,
     pub(in crate::native_app) map_audition_drag: Option<StarmapAuditionDragState>,
+    pub(in crate::native_app) map_active_audition_file_id: Option<String>,
     pub(in crate::native_app) map_viewport: StarmapViewport,
     pub(in crate::native_app) name_filter: String,
     pub(in crate::native_app) display_mode: SampleBrowserDisplayMode,
@@ -42,6 +43,7 @@ pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     map_status: StarmapStatus,
     map_prep_running: bool,
     map_audition_drag: Option<StarmapAuditionDragState>,
+    map_active_audition_file_id: Option<String>,
     map_viewport: StarmapViewport,
     name_filter: String,
     display_mode: SampleBrowserDisplayMode,
@@ -89,6 +91,7 @@ impl<'a> SampleBrowserViewProjection<'a> {
             map_status: state.library.folder_browser.starmap_status(),
             map_prep_running: state.library.similarity_prep.running,
             map_audition_drag: state.ui.chrome.starmap_audition_drag.clone(),
+            map_active_audition_file_id: active_starmap_audition_file_id(state),
             map_viewport: state.ui.chrome.starmap_viewport,
             name_filter: state.library.folder_browser.name_filter().to_owned(),
             display_mode,
@@ -121,6 +124,7 @@ impl<'a> SampleBrowserViewModel<'a> {
             map_status: projection.map_status,
             map_prep_running: projection.map_prep_running,
             map_audition_drag: projection.map_audition_drag,
+            map_active_audition_file_id: projection.map_active_audition_file_id,
             map_viewport: projection.map_viewport,
             name_filter: projection.name_filter,
             display_mode: projection.display_mode,
@@ -136,6 +140,31 @@ impl<'a> SampleBrowserViewModel<'a> {
             help_tooltips_enabled: projection.help_tooltips_enabled,
         }
     }
+}
+
+fn active_starmap_audition_file_id(state: &NativeAppState) -> Option<String> {
+    state
+        .ui
+        .chrome
+        .starmap_audition_drag
+        .as_ref()
+        .and_then(|drag| drag.last_hit_file_id.clone())
+        .or_else(|| {
+            state
+                .ui
+                .chrome
+                .starmap_audition_queue
+                .active_file_id
+                .clone()
+        })
+        .or_else(|| {
+            state
+                .audio
+                .pending_runtime_start
+                .as_ref()
+                .filter(|pending| pending.origin == "starmap_drag")
+                .map(|pending| pending.path.clone())
+        })
 }
 
 pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppState) {

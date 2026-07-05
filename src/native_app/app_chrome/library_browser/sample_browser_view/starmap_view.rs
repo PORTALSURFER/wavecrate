@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
-        push_stroke_polyline,
+        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
+        PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,7 +13,7 @@ use radiant::{
     },
 };
 use std::{
-    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
+    collections::{hash_map::DefaultHasher, BTreeMap, HashMap, HashSet},
     hash::{Hash, Hasher},
     sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
@@ -26,7 +26,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
+    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
 };
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
@@ -76,6 +76,7 @@ pub(super) fn starmap_view(
     prep_running: bool,
     curation_mode_enabled: bool,
     active_drag: Option<StarmapAuditionDragState>,
+    active_audition_file_id: Option<String>,
 ) -> ui::View<GuiMessage> {
     let items = items.into();
     let map = if items.is_empty() {
@@ -86,10 +87,13 @@ pub(super) fn starmap_view(
         .spacing(0.0)
         .fill()
     } else {
-        ui::custom_widget_direct(StarmapWidget::new(items, viewport, active_drag))
-            .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
-            .height(MAP_MIN_HEIGHT)
-            .fill()
+        ui::custom_widget_direct(
+            StarmapWidget::new(items, viewport, active_drag)
+                .with_active_audition_file_id(active_audition_file_id),
+        )
+        .id(widget_ids::SAMPLE_BROWSER_MAP_ID)
+        .height(MAP_MIN_HEIGHT)
+        .fill()
     };
     ui::stack([
         map,
@@ -332,6 +336,7 @@ struct StarmapWidget {
     viewport: StarmapViewport,
     last_hit_file_id: Option<String>,
     last_hit_index: Option<usize>,
+    active_audition_file_id: Option<String>,
     last_primary_position: Option<Point>,
     last_pan_position: Option<Point>,
     active_drag: Option<StarmapAuditionDragState>,
@@ -366,6 +371,7 @@ impl StarmapWidget {
             viewport,
             last_hit_file_id: None,
             last_hit_index: None,
+            active_audition_file_id: None,
             last_primary_position: None,
             last_pan_position: None,
             active_drag,
@@ -376,6 +382,11 @@ impl StarmapWidget {
             hovered_file_id: None,
             hovered_item_index: None,
         }
+    }
+
+    fn with_active_audition_file_id(mut self, file_id: Option<String>) -> Self {
+        self.active_audition_file_id = file_id;
+        self
     }
 
     fn begin_audition_drag_message(
@@ -598,6 +609,14 @@ impl StarmapWidget {
             .or_else(|| self.active_drag.as_ref()?.last_hit_file_id.as_deref())?;
         self.item_for_cached_index(self.last_hit_index, active_file_id)
             .or_else(|| self.item_for_file_id(active_file_id))
+    }
+
+    fn active_audition_item(&self) -> Option<&StarmapItem> {
+        if self.active_drag.is_some() || self.last_primary_position.is_some() {
+            return self.active_drag_item();
+        }
+        let active_file_id = self.active_audition_file_id.as_deref()?;
+        self.item_for_file_id(active_file_id)
     }
 
     fn focused_item(&self) -> Option<&StarmapItem> {
@@ -1173,7 +1192,7 @@ impl Widget for StarmapWidget {
             self.paint_signature(),
             &self.paint_cache,
         );
-        self.append_active_drag_paint(primitives, bounds);
+        self.append_active_audition_paint(primitives, bounds);
     }
 
     fn append_runtime_overlay_paint(
@@ -1183,8 +1202,8 @@ impl Widget for StarmapWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        if self.active_drag.is_some() || self.last_primary_position.is_some() {
-            self.append_active_drag_paint(primitives, bounds);
+        if self.active_audition_item().is_some() {
+            self.append_active_audition_paint(primitives, bounds);
             return;
         }
         let Some(item) = self.hovered_item() else {
@@ -1207,11 +1226,8 @@ impl Widget for StarmapWidget {
 }
 
 impl StarmapWidget {
-    fn append_active_drag_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if self.active_drag.is_none() && self.last_primary_position.is_none() {
-            return;
-        }
-        let Some(item) = self.active_drag_item() else {
+    fn append_active_audition_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        let Some(item) = self.active_audition_item() else {
             return;
         };
         let center = item_center(bounds, item, self.viewport);
@@ -2362,6 +2378,37 @@ mod tests {
     }
 
     #[test]
+    fn controller_active_audition_target_paints_over_cached_starmap_geometry() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let widget = StarmapWidget::new(
+            vec![
+                starmap_item("/samples/kick.wav", 0.25, 0.5, color),
+                starmap_item("/samples/snare.wav", 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            None,
+        )
+        .with_active_audition_file_id(Some(String::from("/samples/snare.wav")));
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
     fn starmap_widget_synchronizes_hover_and_hit_index_from_previous_instance() {
         let color = ui::Rgba8::new(57, 187, 245, 220);
         let bounds = Rect::from_size(200.0, 100.0);
@@ -2392,10 +2439,9 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature())
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature()));
     }
 
     #[test]
@@ -2716,10 +2762,9 @@ mod tests {
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(
-            next.hit_index
-                .matches(bounds, StarmapViewport::default(), next.item_signature())
-        );
+        assert!(next
+            .hit_index
+            .matches(bounds, StarmapViewport::default(), next.item_signature()));
     }
 
     #[test]

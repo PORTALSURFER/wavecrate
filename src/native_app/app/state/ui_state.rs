@@ -6,8 +6,8 @@ use std::{
 
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use wavecrate::sample_sources::SampleSource;
 use wavecrate::sample_sources::config::AppSettingsCore;
+use wavecrate::sample_sources::SampleSource;
 use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover};
@@ -83,6 +83,7 @@ pub(in crate::native_app) struct StarmapAuditionQueueState {
     pub(in crate::native_app) active_file_id: Option<String>,
     pub(in crate::native_app) queued_file_ids: VecDeque<String>,
     pub(in crate::native_app) modifiers: PointerModifiers,
+    pub(in crate::native_app) gesture_moved: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -112,7 +113,7 @@ impl Default for StarmapViewport {
 
 impl StarmapViewport {
     const MIN_ZOOM: f32 = 0.65;
-    const MAX_ZOOM: f32 = 8.0;
+    const MAX_ZOOM: f32 = 24.0;
     const MIN_CENTER: f32 = -1.0;
     const MAX_CENTER: f32 = 2.0;
 
@@ -492,6 +493,20 @@ mod tests {
         });
 
         assert_eq!(viewport.zoom, 0.65);
+        assert_eq!(viewport.center_x, 0.5);
+        assert_eq!(viewport.center_y, 0.5);
+    }
+
+    #[test]
+    fn starmap_viewport_zoom_allows_dense_cluster_inspection() {
+        let mut viewport = StarmapViewport::default();
+
+        viewport.apply_change(StarmapViewportChange::Zoom {
+            anchor: ui::Vector2::new(0.5, 0.5),
+            factor: 100.0,
+        });
+
+        assert_eq!(viewport.zoom, 24.0);
         assert_eq!(viewport.center_x, 0.5);
         assert_eq!(viewport.center_y, 0.5);
     }

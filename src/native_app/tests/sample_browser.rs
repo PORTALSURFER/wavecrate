@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
+    prelude::{dense_row_palette_from_style, IntoView, ThemeTokens, WidgetStyle, WidgetTone},
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
@@ -198,11 +198,10 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
     let message = run_first_perform(context.into_command()).expect("last played persist command");
     state.apply_message(message, &mut radiant::prelude::UiUpdateContext::default());
 
-    assert!(
-        db.last_played_at_for_path(std::path::Path::new("played.wav"))
-            .expect("read last played")
-            .is_some()
-    );
+    assert!(db
+        .last_played_at_for_path(std::path::Path::new("played.wav"))
+        .expect("read last played")
+        .is_some());
 }
 
 #[test]
@@ -1290,6 +1289,14 @@ fn starmap_drag_finish_cancels_cold_preview_audition_decode() {
         state.background.preview_audition_task.active().is_some(),
         "cold drag targets should start preview decode while the drag is active"
     );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![sample.display().to_string()],
+            position: Point::new(12.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
@@ -1297,6 +1304,46 @@ fn starmap_drag_finish_cancels_cold_preview_audition_decode() {
     );
 
     assert_eq!(state.background.preview_audition_task.active(), None);
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_click_finish_preserves_cold_preview_audition_decode() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-cold-click.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "cold click targets should start preview decode on press"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "click release should not cancel the pending preview decode before it can start playback"
+    );
     assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
 }
 
@@ -1537,6 +1584,115 @@ fn starmap_drag_finish_clears_active_drag_audition_state() {
 }
 
 #[test]
+fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.audio.early_sample_playback_path = Some(second_id);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.current_playback_span, None);
+    assert_eq!(
+        state.audio.playback_progress,
+        wavecrate::audio::PlaybackRuntimeProgress::default(),
+        "drag release after motion should not leave preview playback visually active"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
+fn starmap_click_finish_preserves_started_audition_playback_state() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("click.wav");
+    write_test_wav_i16(&sample, &[0, 100, -100]);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(sample_id.clone()),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.audio.early_sample_playback_path = Some(sample_id.clone());
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
+        &mut context,
+    );
+
+    assert_eq!(
+        state.audio.early_sample_playback_path.as_deref(),
+        Some(sample_id.as_str())
+    );
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+    assert!(
+        state.audio.playback_progress.active,
+        "click audition should keep playing after the release; only real drag sweeps stop on release"
+    );
+    assert_eq!(state.ui.chrome.starmap_audition_queue, Default::default());
+}
+
+#[test]
 fn starmap_drag_finish_cancels_pending_promotion() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("late-promotion.wav");
@@ -1560,9 +1716,17 @@ fn starmap_drag_finish_cancels_pending_promotion() {
         &mut context,
     );
     let mut schedule_context = radiant::prelude::UiUpdateContext::default();
-    state.schedule_starmap_audition_promotion(sample_id, &mut schedule_context);
+    state.schedule_starmap_audition_promotion(sample_id.clone(), &mut schedule_context);
     let delayed = run_after_commands(schedule_context.into_command());
     assert_eq!(delayed.len(), 1);
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![sample_id],
+            position: Point::new(12.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::FinishStarmapAuditionDrag,
@@ -1766,14 +1930,12 @@ fn starmap_drag_update_selects_next_hit_immediately() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(
-        state
-            .ui
-            .chrome
-            .starmap_audition_queue
-            .queued_file_ids
-            .is_empty()
-    );
+    assert!(state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .is_empty());
     let command = context.into_command();
     assert!(
         command.requests_paint_only(),
@@ -1887,14 +2049,12 @@ fn starmap_drag_latest_hit_advances_without_zero_delay_message() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(
-        state
-            .ui
-            .chrome
-            .starmap_audition_queue
-            .queued_file_ids
-            .is_empty()
-    );
+    assert!(state
+        .ui
+        .chrome
+        .starmap_audition_queue
+        .queued_file_ids
+        .is_empty());
     assert!(
         delayed.iter().all(|message| !matches!(
             message,
