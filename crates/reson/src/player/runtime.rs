@@ -140,19 +140,42 @@ impl PlaybackRuntimeMode {
     fn start_player(
         self,
         player: &mut AudioPlayer,
+        replace_policy: PlaybackRuntimeReplacePolicy,
         metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<f32, String> {
         match self {
             Self::OneShot { start, end } => {
-                player.play_range_with_metronome(start, end, false, metronome)?;
+                player.play_range_with_metronome_and_replace_policy(
+                    start,
+                    end,
+                    false,
+                    replace_policy,
+                    metronome,
+                )?;
                 Ok(start.clamp(0.0, 1.0) as f32)
             }
             Self::Looped { start, end, offset } => {
-                player.play_looped_range_from_with_metronome(start, end, offset, metronome)?;
+                player.play_looped_range_from_with_metronome_and_replace_policy(
+                    start,
+                    end,
+                    offset,
+                    replace_policy,
+                    metronome,
+                )?;
                 Ok(offset.clamp(start.min(end), start.max(end)).clamp(0.0, 1.0) as f32)
             }
         }
     }
+}
+
+/// How a new runtime playback request handles the previous active source.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PlaybackRuntimeReplacePolicy {
+    /// Fade out the previous source before it naturally leaves the mixer.
+    #[default]
+    FadeOutPrevious,
+    /// Clear the previous source immediately before appending the new source.
+    ClearPrevious,
 }
 
 /// In-place span-bound update for already running playback.
@@ -189,6 +212,7 @@ pub struct PlaybackRuntimeRequest {
     pub volume: f32,
     pub playback_gain: f32,
     pub playback_gain_normalization: Option<PlaybackRuntimeGainNormalization>,
+    pub replace_policy: PlaybackRuntimeReplacePolicy,
     pub edit_fade: Option<EditFadeRange>,
     pub metronome: Option<PlaybackMetronomeConfig>,
 }
@@ -419,9 +443,11 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
         let output = self.player.output_details().clone();
         request.source.apply_to_player(&mut self.player);
         self.player.set_edit_fade_state(request.edit_fade);
-        let playback_start = request
-            .mode
-            .start_player(&mut self.player, request.metronome)?;
+        let playback_start = request.mode.start_player(
+            &mut self.player,
+            request.replace_policy,
+            request.metronome,
+        )?;
         Ok(PlaybackRuntimeStartedData {
             output,
             playback_start,
@@ -1423,6 +1449,7 @@ mod tests {
             volume: 1.0,
             playback_gain: 1.0,
             playback_gain_normalization: None,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
             edit_fade: None,
             metronome: None,
         }

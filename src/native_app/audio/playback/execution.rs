@@ -5,8 +5,8 @@ use super::{
 use crate::native_app::app::{NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart};
 use std::time::Instant;
 use wavecrate::audio::{
-    PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeRequest, PlaybackRuntimeSource,
-    edit_fade_range_from_selection,
+    PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, edit_fade_range_from_selection,
 };
 
 impl NativeAppState {
@@ -222,6 +222,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
             edit_fade: edit_fade_range_from_selection(waveform.edit_selection()),
             metronome: self.playback_metronome_config_for_span(
                 command.resolved.start_ratio,

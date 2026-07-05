@@ -25,8 +25,9 @@ pub use playback_span_plan::{
 pub use runtime::{
     PlaybackRequestId, PlaybackRuntime, PlaybackRuntimeCancellation, PlaybackRuntimeConfig,
     PlaybackRuntimeEvent, PlaybackRuntimeGainNormalization, PlaybackRuntimeHandle,
-    PlaybackRuntimeMode, PlaybackRuntimeProgress, PlaybackRuntimeRequest, PlaybackRuntimeSource,
-    PlaybackRuntimeSpanUpdate, PlaybackRuntimeStarted, PlaybackRuntimeSubmitError,
+    PlaybackRuntimeMode, PlaybackRuntimeProgress, PlaybackRuntimeReplacePolicy,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource, PlaybackRuntimeSpanUpdate,
+    PlaybackRuntimeStarted, PlaybackRuntimeSubmitError,
 };
 
 #[derive(Clone)]

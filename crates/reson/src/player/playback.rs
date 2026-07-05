@@ -6,8 +6,8 @@ use crate::{AsyncSource, Source};
 use super::metronome::MetronomeSource;
 use super::{
     AudioPlaybackSource, AudioPlayer, EditFadeSource, PlaybackChannelLayout,
-    PlaybackMetronomeConfig, PlaybackSeekBehavior, PlaybackSpanHandle, PlaybackSpanPlan,
-    PlaybackSpanRequest,
+    PlaybackMetronomeConfig, PlaybackRuntimeReplacePolicy, PlaybackSeekBehavior,
+    PlaybackSpanHandle, PlaybackSpanPlan, PlaybackSpanRequest,
 };
 
 use lazy_sources::{
@@ -46,10 +46,34 @@ impl AudioPlayer {
         looped: bool,
         metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
+        self.play_range_with_metronome_and_replace_policy(
+            start,
+            end,
+            looped,
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+            metronome,
+        )
+    }
+
+    pub(super) fn play_range_with_metronome_and_replace_policy(
+        &mut self,
+        start: f64,
+        end: f64,
+        looped: bool,
+        replace_policy: PlaybackRuntimeReplacePolicy,
+        metronome: Option<PlaybackMetronomeConfig>,
+    ) -> Result<(), String> {
         let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
         self.loop_offset = None;
         self.loop_offset_frames = None;
-        self.start_with_span(bounded_start, bounded_end, duration, looped, metronome)
+        self.start_with_span(
+            bounded_start,
+            bounded_end,
+            duration,
+            looped,
+            replace_policy,
+            metronome,
+        )
     }
 
     /// Loop a selection while starting playback at an offset within the selection.
@@ -71,6 +95,23 @@ impl AudioPlayer {
         offset: f64,
         metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
+        self.play_looped_range_from_with_metronome_and_replace_policy(
+            start,
+            end,
+            offset,
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+            metronome,
+        )
+    }
+
+    pub(super) fn play_looped_range_from_with_metronome_and_replace_policy(
+        &mut self,
+        start: f64,
+        end: f64,
+        offset: f64,
+        replace_policy: PlaybackRuntimeReplacePolicy,
+        metronome: Option<PlaybackMetronomeConfig>,
+    ) -> Result<(), String> {
         let (bounded_start, bounded_end, duration) = self.normalized_span(start, end)?;
         let clamped_offset = offset.clamp(start.min(end), start.max(end));
         let offset_seconds =
@@ -80,6 +121,7 @@ impl AudioPlayer {
             bounded_end,
             duration,
             offset_seconds,
+            replace_policy,
             metronome,
         )
     }
@@ -154,6 +196,7 @@ impl AudioPlayer {
                     bounded_end,
                     duration,
                     offset_seconds,
+                    PlaybackRuntimeReplacePolicy::FadeOutPrevious,
                     metronome,
                 )
             } else {
@@ -174,6 +217,7 @@ impl AudioPlayer {
                     bounded_end,
                     duration,
                     offset_seconds,
+                    PlaybackRuntimeReplacePolicy::FadeOutPrevious,
                     metronome,
                 )
             } else {
@@ -263,6 +307,7 @@ impl AudioPlayer {
         end_seconds: f32,
         duration: f32,
         looped: bool,
+        replace_policy: PlaybackRuntimeReplacePolicy,
         metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
         let total_started_at = playback_stage_started();
@@ -272,7 +317,7 @@ impl AudioPlayer {
         }
 
         let clear_started_at = playback_stage_started();
-        self.fade_out_current_sink(self.anti_clip_fade());
+        self.fade_out_current_sink(previous_source_fade(self.anti_clip_fade(), replace_policy));
         log_playback_stage(
             "clear_or_fade_current",
             clear_started_at,
@@ -397,7 +442,14 @@ impl AudioPlayer {
         metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
         let playback_start = (start_seconds + offset_seconds).min(end_seconds);
-        self.start_with_span(playback_start, end_seconds, duration, false, metronome)
+        self.start_with_span(
+            playback_start,
+            end_seconds,
+            duration,
+            false,
+            PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+            metronome,
+        )
     }
 
     fn start_with_looped_span_offset(
@@ -406,6 +458,7 @@ impl AudioPlayer {
         end_seconds: f32,
         duration: f32,
         offset_seconds: f32,
+        replace_policy: PlaybackRuntimeReplacePolicy,
         metronome: Option<PlaybackMetronomeConfig>,
     ) -> Result<(), String> {
         let total_started_at = playback_stage_started();
@@ -415,7 +468,7 @@ impl AudioPlayer {
         }
 
         let clear_started_at = playback_stage_started();
-        self.fade_out_current_sink(self.anti_clip_fade());
+        self.fade_out_current_sink(previous_source_fade(self.anti_clip_fade(), replace_policy));
         log_playback_stage("clear_or_fade_current", clear_started_at, source_kind, true);
 
         let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
@@ -558,6 +611,16 @@ fn source_with_metronome(
     }
 }
 
+fn previous_source_fade(
+    anti_clip_fade: std::time::Duration,
+    replace_policy: PlaybackRuntimeReplacePolicy,
+) -> std::time::Duration {
+    match replace_policy {
+        PlaybackRuntimeReplacePolicy::FadeOutPrevious => anti_clip_fade,
+        PlaybackRuntimeReplacePolicy::ClearPrevious => std::time::Duration::ZERO,
+    }
+}
+
 fn playback_stage_started() -> Option<std::time::Instant> {
     telemetry::playback_telemetry_enabled().then(std::time::Instant::now)
 }
@@ -621,5 +684,24 @@ fn repeating_source_for_audio_source(
             }
         }
         source => Ok(Box::new(LazyRepeatingSpanSource::new(source, plan))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn previous_source_fade_honors_replace_policy() {
+        let fade = std::time::Duration::from_millis(2);
+
+        assert_eq!(
+            previous_source_fade(fade, PlaybackRuntimeReplacePolicy::FadeOutPrevious),
+            fade
+        );
+        assert_eq!(
+            previous_source_fade(fade, PlaybackRuntimeReplacePolicy::ClearPrevious),
+            std::time::Duration::ZERO
+        );
     }
 }

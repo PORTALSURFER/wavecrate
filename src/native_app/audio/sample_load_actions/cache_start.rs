@@ -25,8 +25,8 @@ use crate::native_app::{
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
 use wavecrate::audio::{
-    PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeRequest,
-    PlaybackRuntimeSource,
+    PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
+    PlaybackRuntimeRequest, PlaybackRuntimeSource,
 };
 
 struct CachedPlaybackOutcomes {
@@ -77,6 +77,7 @@ pub(super) struct FastAuditionOptions {
     pub(super) queue_preview_decode: bool,
     pub(super) prefer_preview_decode: bool,
     pub(super) allow_file_backed_probe: bool,
+    pub(super) replace_policy: PlaybackRuntimeReplacePolicy,
 }
 
 impl FastAuditionOptions {
@@ -88,6 +89,7 @@ impl FastAuditionOptions {
             queue_preview_decode: true,
             prefer_preview_decode: true,
             allow_file_backed_probe: false,
+            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         }
     }
 
@@ -99,6 +101,7 @@ impl FastAuditionOptions {
             queue_preview_decode: true,
             prefer_preview_decode: true,
             allow_file_backed_probe: false,
+            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         }
     }
 
@@ -110,6 +113,7 @@ impl FastAuditionOptions {
             queue_preview_decode: false,
             prefer_preview_decode: false,
             allow_file_backed_probe: false,
+            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         }
     }
 }
@@ -170,6 +174,7 @@ impl NativeAppState {
                         options.allow_sidecar_lookup,
                         options.record_history,
                         options.origin,
+                        options.replace_policy,
                     );
                     if persisted.uses_ready_source() {
                         return persisted;
@@ -183,6 +188,7 @@ impl NativeAppState {
                             started_at,
                             options.record_history,
                             options.origin,
+                            options.replace_policy,
                         )
                     {
                         return InstantAuditionOutcome::Started;
@@ -374,6 +380,7 @@ impl NativeAppState {
         allow_sidecar_lookup: bool,
         record_history: bool,
         origin: &'static str,
+        replace_policy: PlaybackRuntimeReplacePolicy,
     ) -> InstantAuditionOutcome {
         let lookup_started_at = Instant::now();
         let descriptor = if let Some(descriptor) = self
@@ -451,6 +458,7 @@ impl NativeAppState {
                 .audio
                 .normalized_audition_enabled
                 .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            replace_policy,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
@@ -508,6 +516,7 @@ impl NativeAppState {
         started_at: Instant,
         record_history: bool,
         origin: &'static str,
+        replace_policy: PlaybackRuntimeReplacePolicy,
     ) -> bool {
         if self.loop_playback_for_path_after_policy(path) {
             return false;
@@ -554,6 +563,7 @@ impl NativeAppState {
                 .audio
                 .normalized_audition_enabled
                 .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            replace_policy,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
@@ -668,6 +678,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization: None,
+            replace_policy: options.replace_policy,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
@@ -1238,6 +1249,7 @@ impl NativeAppState {
                 .audio
                 .normalized_audition_enabled
                 .then(|| PlaybackRuntimeGainNormalization::new(0.0, 1.0)),
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
@@ -1429,6 +1441,7 @@ impl NativeAppState {
             volume: self.audio.volume,
             playback_gain,
             playback_gain_normalization,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
@@ -1622,6 +1635,20 @@ mod tests {
     }
 
     #[test]
+    fn hot_fast_audition_options_clear_previous_runtime_source() {
+        assert_eq!(
+            FastAuditionOptions::instant_navigation().replace_policy,
+            PlaybackRuntimeReplacePolicy::ClearPrevious,
+            "list and keyboard navigation should not keep old preview sources fading in the mixer"
+        );
+        assert_eq!(
+            FastAuditionOptions::starmap_drag().replace_policy,
+            PlaybackRuntimeReplacePolicy::ClearPrevious,
+            "starmap drag playback should replace the prior preview source immediately"
+        );
+    }
+
+    #[test]
     fn preview_clip_playback_uses_precomputed_normalized_gain() {
         let clip = preview_clip_with_gain(2.5);
 
@@ -1646,6 +1673,7 @@ mod tests {
             queue_preview_decode: true,
             prefer_preview_decode: true,
             allow_file_backed_probe: false,
+            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         };
 
         assert_eq!(
