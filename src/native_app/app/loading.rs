@@ -36,13 +36,6 @@ pub(in crate::native_app) struct PreviewAuditionWarmResult {
     pub(in crate::native_app) errors: usize,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::native_app) enum PendingSamplePlayback {
-    RandomAudition { start_unit: f32, length_unit: f32 },
-    ResumeNormalized { start: f32, end: f32 },
-    ReplayHistory { start: f32, end: f32 },
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) struct SampleSelectionLoadState {
     pub(in crate::native_app) selected_path: Option<String>,

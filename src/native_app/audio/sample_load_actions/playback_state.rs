@@ -34,7 +34,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn sample_cache_warm_should_pause_active(&self) -> bool {
         self.waveform_sample_load_active()
             || self.audio.pending_playback_start.is_some()
-            || self.audio.early_sample_playback_path.is_some()
+            || self.audio.sample_playback_session.is_some()
             || self.normalization_work_active()
     }
 
@@ -78,14 +78,12 @@ impl NativeAppState {
     }
 
     pub(super) fn stop_current_sample_playback_for_load(&mut self) {
-        if !self.waveform.current.is_playing() && self.audio.early_sample_playback_path.is_none() {
+        if !self.waveform.current.is_playing() && self.audio.sample_playback_session.is_none() {
             return;
         }
         self.stop_audio_output_playback();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
-        self.audio.early_sample_playback_path = None;
-        self.audio.early_sample_playback_kind = None;
         self.audio.clear_sample_playback_session();
     }
 
@@ -105,17 +103,14 @@ impl NativeAppState {
         self.cancel_active_sample_load_worker();
         self.waveform.load.selection.cancel();
         let preserve_early_playback = preserved_early_path
-            .is_some_and(|path| self.audio.early_sample_playback_path.as_deref() == Some(path));
-        if self.audio.early_sample_playback_path.is_some() && !preserve_early_playback {
+            .is_some_and(|path| self.audio.active_sample_playback_matches(path));
+        if self.audio.sample_playback_session.is_some() && !preserve_early_playback {
             self.stop_audio_output_playback();
-            self.audio.pending_runtime_start = None;
             self.audio.current_playback_span = None;
             self.audio.playback_progress = Default::default();
             self.audio.clear_sample_playback_session();
         }
         if !preserve_early_playback {
-            self.audio.early_sample_playback_path = None;
-            self.audio.early_sample_playback_kind = None;
             self.audio.clear_sample_playback_session();
         }
     }

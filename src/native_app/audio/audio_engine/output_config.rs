@@ -47,7 +47,7 @@ impl NativeAppState {
         self.background.audio_open.cancel();
         self.audio.player = None;
         self.audio.playback_events = None;
-        self.audio.pending_runtime_start = None;
+        self.audio.clear_sample_playback_session();
         self.audio.output_resolved = None;
         self.refresh_audio_options();
 

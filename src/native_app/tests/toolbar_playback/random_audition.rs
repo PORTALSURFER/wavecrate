@@ -102,9 +102,9 @@ fn random_toolbar_click_queues_random_audition_for_unselected_browser_sample() {
     assert!(
         matches!(
             runtime.bridge().state().audio.pending_sample_playback,
-            Some(
-                crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { .. }
-            )
+            Some(ref request)
+                if request.intent
+                    == crate::native_app::test_support::state::SamplePlaybackIntent::RandomAudition
         ),
         "random toolbar click should preserve random-audition intent while the browser sample loads"
     );
@@ -238,9 +238,9 @@ fn shift_clicking_random_toolbar_button_selects_random_listed_sample_before_audi
     assert!(
         matches!(
             runtime.bridge().state().audio.pending_sample_playback,
-            Some(
-                crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { .. }
-            )
+            Some(ref request)
+                if request.intent
+                    == crate::native_app::test_support::state::SamplePlaybackIntent::RandomAudition
         ),
         "Shift-random should preserve random-audition intent while the listed sample loads"
     );
@@ -324,9 +324,9 @@ fn random_toolbar_click_queues_random_audition_for_selected_unloaded_sample() {
     assert!(
         matches!(
             runtime.bridge().state().audio.pending_sample_playback,
-            Some(
-                crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition { .. }
-            )
+            Some(ref request)
+                if request.intent
+                    == crate::native_app::test_support::state::SamplePlaybackIntent::RandomAudition
         ),
         "random toolbar click should preserve random-audition intent while the selected sample loads"
     );

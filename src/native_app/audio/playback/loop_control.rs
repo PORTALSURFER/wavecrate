@@ -69,9 +69,7 @@ impl NativeAppState {
                 false,
             )?;
             self.audio.current_playback_span = Some((start, end));
-            if let Some(pending) = self.audio.pending_runtime_start.as_mut() {
-                pending.span = (start, end);
-            }
+            self.audio.set_active_sample_playback_span((start, end));
             Ok(())
         } else {
             self.retarget_active_playback_mode(start, end, current)

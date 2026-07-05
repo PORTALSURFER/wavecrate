@@ -5,7 +5,8 @@ use std::{
 
 use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
 use crate::native_app::app::{
-    emit_gui_action, sample_path_label, NativeAppState, PendingRuntimePlaybackStart,
+    NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState, emit_gui_action,
+    sample_path_label,
 };
 use crate::native_app::app_chrome::library_browser::sample_browser_view;
 use crate::native_app::starmap_audition_telemetry::{
@@ -78,7 +79,7 @@ impl NativeAppState {
                 == Some(path)
         {
             "starmap_drag"
-        } else if self.audio.early_sample_playback_path.as_deref() == Some(path) {
+        } else if self.audio.active_sample_playback_matches(path) {
             "instant_audition"
         } else {
             "browser"
@@ -148,40 +149,47 @@ impl NativeAppState {
     }
 
     fn finish_runtime_playback_started(&mut self, started: PlaybackRuntimeStarted) {
-        let Some(pending) = self.audio.pending_runtime_start.take() else {
+        let Some(session) = self.audio.sample_playback_session.as_mut() else {
             return;
         };
-        if pending.id != started.id || !self.runtime_start_matches_active_session(&pending) {
+        if session.runtime_request_id != Some(started.id) {
             log_runtime_playback_event(
                 "runtime.started",
                 "id_mismatch",
                 Some(StarmapAuditionCounter::RuntimeStale),
-                &pending,
+                session,
                 None,
                 None,
             );
-            self.audio.pending_runtime_start = Some(pending);
             return;
         }
-        let submit_elapsed = pending.submitted_at.elapsed();
+        let submit_elapsed = session.submitted_at.elapsed();
         log_runtime_playback_event(
             "runtime.started",
             "started",
             Some(StarmapAuditionCounter::RuntimeStarted),
-            &pending,
+            session,
             Some(submit_elapsed),
             None,
         );
-        let source_updates_waveform = pending.visibility.updates_waveform_playhead();
+        let source_updates_waveform = session.request.visibility.updates_waveform_playhead();
+        session.state = if source_updates_waveform {
+            SamplePlaybackSessionState::WaveformVisible
+        } else {
+            SamplePlaybackSessionState::AudibleTransient
+        };
+        let path = session.request.path.clone();
+        let span = session.request.span;
+        let show_start_marker = session.request.show_start_marker;
         self.audio.output_resolved = Some(started.output);
-        self.audio.current_playback_span = source_updates_waveform.then_some(pending.span);
+        self.audio.current_playback_span = source_updates_waveform.then_some(span);
         self.audio.playback_progress.active = true;
         self.audio.playback_progress.elapsed = Some(Duration::ZERO);
         self.audio.playback_progress.looping = self.audio.loop_playback;
         self.audio.playback_progress.progress = Some(started.playback_start);
         self.audio.playback_progress.error = None;
-        if source_updates_waveform && self.waveform.current.path() == Path::new(&pending.path) {
-            if pending.show_start_marker {
+        if source_updates_waveform && self.waveform.current.path() == Path::new(&path) {
+            if show_start_marker {
                 self.waveform.current.start_playback(started.playback_start);
             } else {
                 self.waveform
@@ -189,7 +197,7 @@ impl NativeAppState {
                     .start_playback_without_marker(started.playback_start);
             }
         }
-        self.ui.status.sample = format!("Playing {}", sample_path_label(&pending.path));
+        self.ui.status.sample = format!("Playing {}", sample_path_label(&path));
     }
 
     fn finish_runtime_playback_failed(
@@ -197,27 +205,26 @@ impl NativeAppState {
         id: wavecrate::audio::PlaybackRequestId,
         error: String,
     ) {
-        let Some(pending) = self.audio.pending_runtime_start.take() else {
+        let Some(session) = self.audio.sample_playback_session.as_mut() else {
             return;
         };
-        if pending.id != id || !self.runtime_start_matches_active_session(&pending) {
+        if session.runtime_request_id != Some(id) {
             log_runtime_playback_event(
                 "runtime.failed",
                 "id_mismatch",
                 Some(StarmapAuditionCounter::RuntimeStale),
-                &pending,
+                session,
                 None,
                 Some(&error),
             );
-            self.audio.pending_runtime_start = Some(pending);
             return;
         }
-        let submit_elapsed = pending.submitted_at.elapsed();
+        let submit_elapsed = session.submitted_at.elapsed();
         log_runtime_playback_event(
             "runtime.failed",
             "failed",
             Some(StarmapAuditionCounter::RuntimeFailed),
-            &pending,
+            session,
             Some(submit_elapsed),
             Some(&error),
         );
@@ -225,26 +232,15 @@ impl NativeAppState {
             self.mark_audio_output_unavailable(error);
             return;
         }
-        self.audio.early_sample_playback_path = None;
-        self.audio.early_sample_playback_kind = None;
+        let path = session.request.path.clone();
+        session.state = SamplePlaybackSessionState::Failed(error.clone());
         self.audio.clear_sample_playback_session();
         self.audio.current_playback_span = None;
         self.waveform.current.stop_playback();
         self.ui.status.sample = format!(
             "Loaded {} | playback unavailable: {error}",
-            sample_path_label(&pending.path)
+            sample_path_label(&path)
         );
-    }
-
-    fn runtime_start_matches_active_session(&self, pending: &PendingRuntimePlaybackStart) -> bool {
-        self.audio
-            .sample_playback_session
-            .as_ref()
-            .is_some_and(|session| {
-                session.generation == pending.session_generation
-                    && session.runtime_request_id == Some(pending.id)
-                    && session.request.path == pending.path
-            })
     }
 
     fn finish_runtime_playback_cancelled(
@@ -252,22 +248,21 @@ impl NativeAppState {
         id: wavecrate::audio::PlaybackRequestId,
         reason: PlaybackRuntimeCancellation,
     ) {
-        let Some(pending) = self.audio.pending_runtime_start.take() else {
+        let Some(session) = self.audio.sample_playback_session.as_ref() else {
             return;
         };
-        if pending.id != id {
+        if session.runtime_request_id != Some(id) {
             log_runtime_playback_event(
                 "runtime.cancelled",
                 "id_mismatch",
                 Some(StarmapAuditionCounter::RuntimeStale),
-                &pending,
+                session,
                 None,
                 None,
             );
-            self.audio.pending_runtime_start = Some(pending);
             return;
         }
-        let submit_elapsed = pending.submitted_at.elapsed();
+        let submit_elapsed = session.submitted_at.elapsed();
         log_runtime_playback_event(
             "runtime.cancelled",
             match reason {
@@ -276,13 +271,12 @@ impl NativeAppState {
                 PlaybackRuntimeCancellation::Shutdown => "shutdown",
             },
             Some(StarmapAuditionCounter::RuntimeCancelled),
-            &pending,
+            session,
             Some(submit_elapsed),
             None,
         );
         if reason != PlaybackRuntimeCancellation::Superseded {
-            self.audio.early_sample_playback_path = None;
-            self.audio.early_sample_playback_kind = None;
+            self.audio.clear_sample_playback_session();
             self.audio.current_playback_span = None;
             self.waveform.current.stop_playback();
         }
@@ -336,9 +330,14 @@ impl NativeAppState {
             self.stop_playback_after_progress_error(error);
             return;
         }
-        if let Some(pending) = self.audio.pending_runtime_start.as_ref() {
+        if self.audio.active_sample_playback_pending_runtime() {
             if let Some(progress) = self.audio.playback_progress.progress {
-                if pending.visibility.updates_waveform_playhead() {
+                if self
+                    .audio
+                    .sample_playback_session
+                    .as_ref()
+                    .is_some_and(|session| session.request.visibility.updates_waveform_playhead())
+                {
                     self.waveform.current.set_playhead_ratio(progress);
                 }
             }
@@ -352,8 +351,14 @@ impl NativeAppState {
         let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
-        if self.audio.early_sample_playback_kind
-            == Some(crate::native_app::app::EarlySamplePlaybackKind::PreviewSlice)
+        if self
+            .audio
+            .sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                session.source_kind == "preview_samples"
+                    && !session.request.visibility.updates_waveform_playhead()
+            })
         {
             return;
         }
@@ -441,8 +446,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn playback_visual_activity_active(&self) -> bool {
         self.waveform.current.is_playing()
-            || self.audio.early_sample_playback_path.is_some()
-            || self.audio.pending_runtime_start.is_some()
+            || self.audio.sample_playback_session.is_some()
             || self.audio.playback_progress.active
     }
 
@@ -527,10 +531,10 @@ impl NativeAppState {
                 .as_deref())
             .or_else(|| {
                 self.audio
-                    .pending_runtime_start
+                    .sample_playback_session
                     .as_ref()
-                    .filter(|pending| pending.origin == "starmap_drag")
-                    .map(|pending| pending.path.as_str())
+                    .filter(|session| session.request.origin == "starmap_drag")
+                    .map(|session| session.request.path.as_str())
             })
     }
 
@@ -557,9 +561,6 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.pending_playback_start = None;
-        self.audio.pending_runtime_start = None;
-        self.audio.early_sample_playback_path = None;
-        self.audio.early_sample_playback_kind = None;
         self.audio.clear_sample_playback_session();
         if let Some(runtime) = self.audio.playback_runtime.take() {
             let _ = runtime.try_shutdown();
@@ -618,8 +619,7 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
         self.audio.playback_progress = Default::default();
-        self.audio.early_sample_playback_path = None;
-        self.audio.early_sample_playback_kind = None;
+        self.audio.clear_sample_playback_session();
         emit_gui_action(
             "playback.progress",
             Some("transport"),
@@ -635,7 +635,7 @@ fn log_runtime_playback_event(
     stage: &'static str,
     outcome: &'static str,
     starmap_counter: Option<StarmapAuditionCounter>,
-    pending: &PendingRuntimePlaybackStart,
+    session: &SamplePlaybackSession,
     elapsed: Option<Duration>,
     error: Option<&str>,
 ) {
@@ -647,16 +647,16 @@ fn log_runtime_playback_event(
         module = "wavecrate_native_playback",
         stage,
         outcome,
-        origin = pending.origin,
-        source_kind = pending.source_kind,
-        path = %pending.path,
-        start_ratio = pending.span.0,
-        end_ratio = pending.span.1,
+        origin = session.request.origin,
+        source_kind = session.source_kind,
+        path = %session.request.path,
+        start_ratio = session.request.span.0,
+        end_ratio = session.request.span.1,
         elapsed_ms = elapsed.map(duration_ms).unwrap_or(0.0),
         error = error.unwrap_or_default(),
         "Native playback runtime event"
     );
-    if pending.origin != "starmap_drag" {
+    if session.request.origin != "starmap_drag" {
         return;
     }
     if let Some(elapsed) = elapsed {
@@ -666,7 +666,7 @@ fn log_runtime_playback_event(
         starmap_counter,
         stage,
         outcome,
-        Some(pending.path.as_str()),
+        Some(session.request.path.as_str()),
         0,
         0,
         true,
@@ -775,7 +775,7 @@ fn playback_error_indicates_output_unavailable(error: &str) -> bool {
 mod tests {
     use super::*;
     use crate::native_app::{
-        app::EarlySamplePlaybackKind,
+        app::{SamplePlaybackIntent, SamplePlaybackRequest, SamplePlaybackSourceProbe},
         test_support::state::{NativeAppStateFixture, WaveformState},
         waveform::test_decoded_waveform_file_from_mono_samples,
     };
@@ -788,8 +788,15 @@ mod tests {
             test_decoded_waveform_file_from_mono_samples(path.clone(), vec![0.0, 0.5, -0.5, 0.0]);
         let mut state = NativeAppStateFixture::default().build();
         state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
-        state.audio.early_sample_playback_path = Some(path.display().to_string());
-        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+        let request = SamplePlaybackRequest::transient(
+            path.display().to_string(),
+            SamplePlaybackIntent::TransientNavigation,
+            "browser",
+        )
+        .with_source_probe(SamplePlaybackSourceProbe::CachedOnly);
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "preview_samples");
         state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
             active: true,
             elapsed: Some(Duration::from_millis(80)),

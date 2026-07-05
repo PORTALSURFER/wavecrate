@@ -3,7 +3,8 @@ use std::{path::Path, time::Instant};
 use radiant::prelude as ui;
 
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, PendingSamplePlayback, emit_gui_action, sample_path_label,
+    GuiMessage, NativeAppState, SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackRequest,
+    emit_gui_action, sample_path_label,
 };
 
 const PLAYBACK_NAVIGATION_HISTORY_LIMIT: usize = 50;
@@ -159,10 +160,13 @@ impl NativeAppState {
             return;
         }
 
-        self.audio.pending_sample_playback = Some(PendingSamplePlayback::ReplayHistory {
-            start: entry.start_ratio,
-            end: entry.end_ratio,
-        });
+        self.audio.pending_sample_playback = Some(SamplePlaybackRequest::waveform(
+            entry.path.clone(),
+            (entry.start_ratio, entry.end_ratio),
+            SamplePlaybackIntent::HistoryReplay,
+            "playback_history",
+            SamplePlaybackHistory::Skip,
+        ));
         self.load_sample_without_autoplay(entry.path, context);
         self.ui.status.sample = format!("Loading {label} from playback history");
         emit_gui_action(
@@ -185,8 +189,15 @@ impl NativeAppState {
     ) {
         let start_ratio = entry.start_ratio;
         let end_ratio = entry.end_ratio;
-        match self.start_playback_fixed_span_without_history(entry.start_ratio, entry.end_ratio) {
-            Ok(()) => {
+        let request = SamplePlaybackRequest::waveform(
+            entry.path.clone(),
+            (entry.start_ratio, entry.end_ratio),
+            SamplePlaybackIntent::HistoryReplay,
+            "playback_history",
+            SamplePlaybackHistory::Skip,
+        );
+        match self.request_sample_playback(request, context) {
+            Ok(_) => {
                 self.waveform
                     .current
                     .restore_play_selection_range_in_focus(start_ratio, end_ratio);

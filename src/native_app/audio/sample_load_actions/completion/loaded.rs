@@ -1,10 +1,7 @@
 use std::{path::Path, time::Instant};
 
 use crate::native_app::{
-    app::{
-        emit_gui_action, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
-        PendingSamplePlayback, WaveformState,
-    },
+    app::{GuiMessage, NativeAppState, SamplePlaybackIntent, WaveformState, emit_gui_action},
     audio::{playback::RandomAuditionUnits, sample_load_actions::log_slow_sample_load_phase},
 };
 use wavecrate::audio::PlaybackRuntimeReplacePolicy;
@@ -56,10 +53,7 @@ impl NativeAppState {
             replace_started_at,
         );
         self.schedule_harvest_seen_for_path(Path::new(&path), context);
-        if display_after_instant_audition
-            && self.audio.early_sample_playback_path.as_deref() == Some(path.as_str())
-            && self.audio.early_sample_playback_kind == Some(EarlySamplePlaybackKind::PreviewSlice)
-        {
+        if display_after_instant_audition && self.audio.active_sample_playback_is_preview(&path) {
             self.ui.status.sample = format!("Preparing {file_name}");
             emit_gui_action(
                 "browser.sample_load.finish",
@@ -72,7 +66,7 @@ impl NativeAppState {
             return;
         }
         let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(&path);
-        if self.continue_early_sample_playback(&path, &file_name, started_at, context) {
+        if self.continue_streamable_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
         if self.start_pending_sample_playback(&path, &file_name, started_at, context) {
@@ -104,27 +98,20 @@ impl NativeAppState {
         );
     }
 
-    fn continue_early_sample_playback(
+    fn continue_streamable_sample_playback(
         &mut self,
         path: &str,
         file_name: &str,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) -> bool {
-        if self.audio.early_sample_playback_path.as_deref() != Some(path) {
-            return false;
-        }
-        if self.audio.early_sample_playback_kind != Some(EarlySamplePlaybackKind::FullSample) {
-            self.audio.early_sample_playback_path = None;
-            self.audio.early_sample_playback_kind = None;
+        if !self.audio.active_sample_playback_is_streamable(path) {
             return false;
         }
         let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
         self.waveform.current.start_playback(progress);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.record_current_playback_history(0.0, 1.0);
-        self.audio.early_sample_playback_path = None;
-        self.audio.early_sample_playback_kind = None;
         self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
         emit_gui_action(
@@ -148,18 +135,21 @@ impl NativeAppState {
         let Some(playback) = self.audio.pending_sample_playback.take() else {
             return false;
         };
+        if playback.path != path {
+            return false;
+        }
         self.maybe_open_audio_player(context);
-        match playback {
-            PendingSamplePlayback::RandomAudition {
-                start_unit,
-                length_unit,
-            } => {
+        match playback.intent {
+            SamplePlaybackIntent::RandomAudition => {
+                let Some((start_unit, length_unit)) = playback.random_units else {
+                    return false;
+                };
                 let span = self.random_audition_span_for_loaded_waveform(RandomAuditionUnits::new(
                     start_unit,
                     length_unit,
                 ));
-                match self.start_random_audition_span(span) {
-                    Ok(()) => {
+                match self.request_sample_playback(playback, context) {
+                    Ok(_) => {
                         self.record_selected_sample_last_played(context);
                         self.ui.status.sample = span.status_message(file_name);
                         emit_gui_action(
@@ -185,9 +175,9 @@ impl NativeAppState {
                 }
                 true
             }
-            PendingSamplePlayback::ResumeNormalized { start, end } => {
-                match self.start_playback_current_span(start, end) {
-                    Ok(()) => {
+            SamplePlaybackIntent::NormalizedResume => {
+                match self.request_sample_playback(playback, context) {
+                    Ok(_) => {
                         self.record_selected_sample_last_played(context);
                         self.ui.status.sample = format!("Playing {file_name}");
                         emit_gui_action(
@@ -214,10 +204,12 @@ impl NativeAppState {
                 }
                 true
             }
-            PendingSamplePlayback::ReplayHistory { start, end } => {
+            SamplePlaybackIntent::HistoryReplay => {
                 self.focus_browser_file_for_playback_navigation(Path::new(path), context);
-                match self.start_playback_fixed_span_without_history(start, end) {
-                    Ok(()) => {
+                let start = playback.span.0;
+                let end = playback.span.1;
+                match self.request_sample_playback(playback, context) {
+                    Ok(_) => {
                         self.waveform
                             .current
                             .restore_play_selection_range_in_focus(start, end);
@@ -247,6 +239,7 @@ impl NativeAppState {
                 }
                 true
             }
+            _ => false,
         }
     }
 }

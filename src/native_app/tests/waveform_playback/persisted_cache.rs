@@ -216,15 +216,11 @@ fn playback_ready_persisted_cache_marks_row_without_memory_warm_after_restart() 
     );
     assert!(active_sample_load_ticket(&state).is_some());
     if playback_runtime_installed {
-        assert_eq!(
-            state.audio.early_sample_playback_path.as_deref(),
-            Some(sample_path_string.as_str()),
-            "selection should submit descriptor playback before waveform completion"
+        let session = state.audio.sample_playback_session.as_ref().expect(
+            "selection should create descriptor playback session before waveform completion",
         );
-        assert!(
-            state.audio.pending_runtime_start.is_some(),
-            "descriptor playback should be handed to the runtime immediately"
-        );
+        assert_eq!(session.request.path, sample_path_string);
+        assert_eq!(session.source_kind, "interleaved_f32_file");
     }
     assert_ne!(state.waveform.current.path(), sample_path);
 

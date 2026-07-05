@@ -142,11 +142,8 @@ impl NativeAppState {
         if self.audio.pending_playback_start.is_some() {
             return Some("pending_playback");
         }
-        if self.audio.early_sample_playback_path.is_some() {
-            return Some("early_playback");
-        }
-        if self.audio.pending_runtime_start.is_some() {
-            return Some("pending_runtime_start");
+        if self.audio.sample_playback_session.is_some() {
+            return Some("sample_playback_session");
         }
         if self.waveform.current.is_playing() {
             return Some("playback");

@@ -221,14 +221,13 @@ fn random_audition_for_unloaded_selection_resumes_after_sample_load() {
 
     assert!(matches!(
         scenario.state.audio.pending_sample_playback,
-        Some(
-            crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition {
-                start_unit,
-                length_unit,
-            }
-        )
-            if (start_unit - 0.5).abs() < f32::EPSILON
-                && (length_unit - 0.25).abs() < f32::EPSILON
+        Some(ref request)
+            if request.intent
+                == crate::native_app::test_support::state::SamplePlaybackIntent::RandomAudition
+                && request.random_units.is_some_and(|(start_unit, length_unit)| {
+                    (start_unit - 0.5).abs() < f32::EPSILON
+                        && (length_unit - 0.25).abs() < f32::EPSILON
+                })
     ));
 
     scenario.start_deferred_load(false);

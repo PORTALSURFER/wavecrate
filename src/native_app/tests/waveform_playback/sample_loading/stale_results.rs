@@ -52,7 +52,7 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
         &mut context,
     );
 
-    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.sample_playback_session, None);
     assert_eq!(state.audio.current_playback_span, None);
     assert!(
         !state.ui.status.sample.contains("Playing"),
@@ -177,10 +177,14 @@ fn stale_loaded_sample_result_does_not_clear_newer_pending_playback() {
         "second foreground load should replace the first worker ticket"
     );
     state.audio.pending_sample_playback = Some(
-        crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition {
-            start_unit: 0.25,
-            length_unit: 0.5,
-        },
+        crate::native_app::test_support::state::SamplePlaybackRequest::waveform(
+            second_path_string.clone(),
+            (0.0, 1.0),
+            crate::native_app::test_support::state::SamplePlaybackIntent::RandomAudition,
+            "random_audition",
+            crate::native_app::test_support::state::SamplePlaybackHistory::Record,
+        )
+        .with_random_units(0.25, 0.5),
     );
 
     state.apply_message(
@@ -200,10 +204,14 @@ fn stale_loaded_sample_result_does_not_clear_newer_pending_playback() {
     assert_eq!(
         state.audio.pending_sample_playback,
         Some(
-            crate::native_app::test_support::state::PendingSamplePlayback::RandomAudition {
-                start_unit: 0.25,
-                length_unit: 0.5,
-            }
+            crate::native_app::test_support::state::SamplePlaybackRequest::waveform(
+                second_path_string,
+                (0.0, 1.0),
+                crate::native_app::test_support::state::SamplePlaybackIntent::RandomAudition,
+                "random_audition",
+                crate::native_app::test_support::state::SamplePlaybackHistory::Record,
+            )
+            .with_random_units(0.25, 0.5)
         ),
         "stale completion must not cancel playback requested by the newer selection"
     );

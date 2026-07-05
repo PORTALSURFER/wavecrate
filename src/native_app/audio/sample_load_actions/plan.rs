@@ -106,12 +106,10 @@ impl NativeAppState {
         outcome: &'static str,
         started_at: Instant,
     ) {
-        let early_playback_matches_load =
-            self.audio.early_sample_playback_path.as_deref() == Some(path);
+        let early_playback_matches_load = self.audio.active_sample_playback_matches(path);
         let keep_audible_waveform_visible = self.waveform.current.is_playing()
             || self.audio.current_playback_span.is_some()
-            || self.audio.pending_runtime_start.is_some()
-            || self.audio.early_sample_playback_path.is_some();
+            || self.audio.sample_playback_session.is_some();
         if !early_playback_matches_load {
             self.stop_current_sample_playback_for_load();
         }

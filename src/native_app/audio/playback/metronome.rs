@@ -57,8 +57,6 @@ impl NativeAppState {
 
     fn restore_active_span_after_metronome_restart(&mut self, start: f32, end: f32) {
         self.audio.current_playback_span = Some((start, end));
-        if let Some(pending) = self.audio.pending_runtime_start.as_mut() {
-            pending.span = (start, end);
-        }
+        self.audio.set_active_sample_playback_span((start, end));
     }
 }
