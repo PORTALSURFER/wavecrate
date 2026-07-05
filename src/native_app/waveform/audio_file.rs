@@ -76,6 +76,5 @@ pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
 pub(super) use visual_bands::split_frequency_bands;
 pub(in crate::native_app) use visual_preview::{
     InstantWaveformPreview, InstantWaveformPreviewTier, instant_waveform_head_preview_from_clip,
-    load_instant_waveform_coarse_preview,
 };
 pub(in crate::native_app::waveform) use wav_decode::read_wav_playback_samples;

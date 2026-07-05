@@ -14,10 +14,10 @@ use crate::native_app::app::ExtractedFilePlaybackType;
 use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmPlanResult,
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
-    AudioOpenTaskCompletion, FileMoveProgress, InstantWaveformPreviewResult, NormalizationProgress,
-    NormalizationResult, PreviewAuditionResult, PreviewAuditionWarmResult,
-    SampleLoadPathValidation, SampleLoadResult, SamplePlaybackReady, StarmapViewportChange,
-    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
+    AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
+    PreviewAuditionResult, PreviewAuditionWarmResult, SampleLoadPathValidation, SampleLoadResult,
+    SamplePlaybackReady, StarmapViewportChange, WaveformCacheIndicatorRefreshResult,
+    WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -128,10 +128,6 @@ pub(in crate::native_app) enum GuiMessage {
     },
     PreviewAuditionWarmFinished {
         completion: ui::TaskCompletion<PreviewAuditionWarmResult>,
-        started_at: Instant,
-    },
-    InstantWaveformPreviewFinished {
-        completion: ui::TaskCompletion<InstantWaveformPreviewResult>,
         started_at: Instant,
     },
     SampleLoadFinished(ui::KeyedTaskCompletion<ui::ResourceKey, SampleLoadResult>),

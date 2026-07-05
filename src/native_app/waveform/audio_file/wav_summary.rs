@@ -14,7 +14,7 @@ use super::{
     wav_summary_builder::{
         MAX_STREAMING_WAV_SUMMARY_BUCKETS, STREAMING_WAV_SUMMARY_BUILD_END,
         STREAMING_WAV_SUMMARY_READ_END, StreamingWavSummaryBuilder,
-        streaming_summary_bucket_frames, streaming_summary_bucket_frames_for_limit,
+        streaming_summary_bucket_frames,
     },
     wav_summary_hound::read_wav_summary_with_progress,
 };
@@ -24,7 +24,7 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_summary_from_path_with_
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<WaveformFile, String> {
-    match load_wav_waveform_summary_with_hound(path.clone(), None, progress, cancelled) {
+    match load_wav_waveform_summary_with_hound(path.clone(), progress, cancelled) {
         Ok(file) => Ok(file),
         Err(error) if error == "cancelled" || cancelled() => Err(error),
         Err(hound_error) => {
@@ -34,7 +34,7 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_summary_from_path_with_
                 error = %hound_error,
                 "Falling back to Symphonia for file-backed WAV summary"
             );
-            load_wav_waveform_summary_with_symphonia(path, None, progress, cancelled).map_err(
+            load_wav_waveform_summary_with_symphonia(path, progress, cancelled).map_err(
                 |fallback_error| {
                     format!(
                         "failed to summarize WAV with hound: {hound_error}; fallback decoder failed: {fallback_error}"
@@ -45,33 +45,8 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_summary_from_path_with_
     }
 }
 
-pub(in crate::native_app::waveform) fn load_wav_waveform_coarse_summary_from_path_with_progress(
-    path: PathBuf,
-    max_buckets: usize,
-    progress: &impl Fn(f32),
-    cancelled: &impl Fn() -> bool,
-) -> Result<WaveformFile, String> {
-    match load_wav_waveform_summary_with_hound(path.clone(), Some(max_buckets), progress, cancelled)
-    {
-        Ok(file) => Ok(file),
-        Err(error) if error == "cancelled" || cancelled() => Err(error),
-        Err(hound_error) => load_wav_waveform_summary_with_symphonia(
-            path,
-            Some(max_buckets),
-            progress,
-            cancelled,
-        )
-        .map_err(|fallback_error| {
-            format!(
-                "failed to summarize coarse WAV with hound: {hound_error}; fallback decoder failed: {fallback_error}"
-            )
-        }),
-    }
-}
-
 fn load_wav_waveform_summary_with_hound(
     path: PathBuf,
-    max_buckets: Option<usize>,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<WaveformFile, String> {
@@ -80,9 +55,7 @@ fn load_wav_waveform_summary_with_hound(
     let spec = reader.spec();
     let channels = usize::from(spec.channels).max(1);
     let total_frames = reader.duration() as usize;
-    let bucket_frames = max_buckets
-        .map(|max_buckets| streaming_summary_bucket_frames_for_limit(total_frames, max_buckets))
-        .unwrap_or_else(|| streaming_summary_bucket_frames(total_frames));
+    let bucket_frames = streaming_summary_bucket_frames(total_frames);
     let mut builder = StreamingWavSummaryBuilder::new(spec.sample_rate, bucket_frames);
     let read_started_at = Instant::now();
     read_wav_summary_with_progress(
@@ -111,7 +84,6 @@ fn load_wav_waveform_summary_with_hound(
 
 fn load_wav_waveform_summary_with_symphonia(
     path: PathBuf,
-    max_buckets: Option<usize>,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<WaveformFile, String> {
@@ -120,11 +92,7 @@ fn load_wav_waveform_summary_with_symphonia(
     let channels = usize::from(decoder.channels()).max(1);
     let total_frames_estimate =
         estimate_decoder_total_frames(&path, decoder.total_duration(), sample_rate, channels);
-    let bucket_frames = max_buckets
-        .map(|max_buckets| {
-            streaming_summary_bucket_frames_for_limit(total_frames_estimate, max_buckets)
-        })
-        .unwrap_or_else(|| streaming_summary_bucket_frames(total_frames_estimate));
+    let bucket_frames = streaming_summary_bucket_frames(total_frames_estimate);
     let mut builder = StreamingWavSummaryBuilder::new(sample_rate, bucket_frames);
     let read_started_at = Instant::now();
     read_decoder_summary_with_progress(

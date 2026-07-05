@@ -187,7 +187,6 @@ impl NativeAppState {
             }
             return;
         }
-        self.start_starmap_waveform_preview(path.as_str(), context, started_at);
         let ready_started_at = starmap_telemetry::stage_timer();
         let ready_outcome = self.start_fast_path_audition(
             path.as_str(),
@@ -195,6 +194,7 @@ impl NativeAppState {
             started_at,
             super::cache_start::FastAuditionOptions::starmap_drag(),
         );
+        self.start_starmap_waveform_preview(path.as_str());
         let ready_elapsed = starmap_telemetry::elapsed_since(ready_started_at);
         if let Some(elapsed) = ready_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::ReadySource, elapsed);

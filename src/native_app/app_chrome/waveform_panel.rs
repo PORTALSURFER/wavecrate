@@ -151,8 +151,7 @@ fn waveform_title(
 ) -> String {
     if let Some(label) = instant_preview_label {
         return match instant_preview_tier {
-            Some(InstantWaveformPreviewTier::Head) => format!("Previewing {label} | head"),
-            Some(InstantWaveformPreviewTier::Coarse) => format!("Previewing {label} | coarse"),
+            Some(InstantWaveformPreviewTier::Head) => format!("Previewing {label} | preview"),
             None => format!("Loading preview {label}"),
         };
     }

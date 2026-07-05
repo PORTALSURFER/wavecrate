@@ -39,12 +39,6 @@ pub(in crate::native_app) struct PreviewAuditionWarmResult {
     pub(in crate::native_app) errors: usize,
 }
 
-#[derive(Clone, Debug)]
-pub(in crate::native_app) struct InstantWaveformPreviewResult {
-    pub(in crate::native_app) path: String,
-    pub(in crate::native_app) preview: Result<InstantWaveformPreview, String>,
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) struct SampleSelectionLoadState {
     pub(in crate::native_app) selected_path: Option<String>,
@@ -131,12 +125,6 @@ pub(in crate::native_app) enum CacheLoadState {
 impl PartialEq for SampleLoadResult {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.result.as_ref().err() == other.result.as_ref().err()
-    }
-}
-
-impl PartialEq for InstantWaveformPreviewResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path && self.preview.as_ref().err() == other.preview.as_ref().err()
     }
 }
 

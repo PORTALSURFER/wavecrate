@@ -2,7 +2,7 @@ use radiant::runtime::GpuSignalSummary;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
     time::SystemTime,
 };
@@ -11,15 +11,11 @@ use super::{
     PreviewAuditionClip, WaveformFile,
     construction::waveform_file_from_mono_samples_with_progress_and_cancel,
     downmix::downmix_to_mono_with_progress_and_cancel,
-    wav_summary::load_wav_waveform_coarse_summary_from_path_with_progress,
 };
-
-pub(in crate::native_app) const INSTANT_WAVEFORM_PREVIEW_MAX_BUCKETS: usize = 2_048;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::native_app) enum InstantWaveformPreviewTier {
     Head,
-    Coarse,
 }
 
 #[derive(Clone, Debug)]
@@ -95,41 +91,8 @@ pub(in crate::native_app) fn instant_waveform_head_preview_from_clip(
     })
 }
 
-pub(in crate::native_app) fn load_instant_waveform_coarse_preview(
-    path: PathBuf,
-    progress: &impl Fn(f32),
-    cancelled: &impl Fn() -> bool,
-) -> Result<InstantWaveformPreview, String> {
-    let (source_len, source_modified) = source_identity(&path).ok_or_else(|| {
-        format!(
-            "Could not read audio file metadata for waveform preview: {}",
-            path.display()
-        )
-    })?;
-    let mut file = load_wav_waveform_coarse_summary_from_path_with_progress(
-        path.clone(),
-        INSTANT_WAVEFORM_PREVIEW_MAX_BUCKETS,
-        progress,
-        cancelled,
-    )?;
-    file.content_revision = instant_preview_content_revision(
-        &path,
-        source_len,
-        source_modified,
-        file.sample_rate,
-        file.channels,
-        file.frames,
-        InstantWaveformPreviewTier::Coarse,
-    );
-    Ok(InstantWaveformPreview {
-        file: Arc::new(file),
-        tier: InstantWaveformPreviewTier::Coarse,
-        source_len,
-        source_modified,
-    })
-}
-
-pub(in crate::native_app) fn source_identity(path: &Path) -> Option<(u64, Option<SystemTime>)> {
+#[cfg(test)]
+fn source_identity(path: &Path) -> Option<(u64, Option<SystemTime>)> {
     let metadata = path.metadata().ok()?;
     Some((metadata.len(), metadata.modified().ok()))
 }
