@@ -66,12 +66,6 @@ impl NativeAppState {
                 path.clone(),
                 &self.metadata.tags_by_file,
             );
-        self.log_sample_identity_checkpoint(
-            "browser.select_sample.after_focus",
-            "select_sample",
-            Some(Path::new(&path)),
-            None,
-        );
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
@@ -105,12 +99,6 @@ impl NativeAppState {
                 modifiers,
                 &self.metadata.tags_by_file,
             );
-        self.log_sample_identity_checkpoint(
-            "browser.select_sample.after_focus",
-            "select_sample_with_modifiers",
-            Some(Path::new(&path)),
-            None,
-        );
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
             self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
@@ -389,12 +377,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        self.log_sample_identity_checkpoint(
-            "browser.sample_load.navigation_validated",
-            "load_navigation_sample_validated",
-            Some(Path::new(&path)),
-            None,
-        );
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         self.audio.pending_sample_playback = None;
@@ -445,16 +427,6 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let trigger = match &intent {
-            SampleLoadPathValidationIntent::Foreground { .. } => "foreground",
-            SampleLoadPathValidationIntent::Selection { .. } => "selection",
-        };
-        self.log_sample_identity_checkpoint(
-            "browser.sample_load.validation_queued",
-            trigger,
-            Some(Path::new(&path)),
-            None,
-        );
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         let request = SampleLoadPathValidationRequest::new(path, intent);

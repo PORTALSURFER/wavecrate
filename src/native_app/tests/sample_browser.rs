@@ -1033,6 +1033,10 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     prepare_sample_browser_view(&mut state);
     let sample_id = sample.display().to_string();
+    assert!(
+        crate::native_app::waveform::should_use_file_backed_wav_decode(&sample),
+        "fixture should exercise the large/long WAV path instead of the ordinary in-memory cache path"
+    );
     let item = state
         .library
         .folder_browser

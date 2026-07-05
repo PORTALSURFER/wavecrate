@@ -1176,6 +1176,7 @@ impl Widget for StarmapWidget {
             self.paint_signature(),
             &self.paint_cache,
         );
+        self.append_active_drag_paint(primitives, bounds);
     }
 
     fn append_runtime_overlay_paint(
@@ -1186,17 +1187,7 @@ impl Widget for StarmapWidget {
         _theme: &ThemeTokens,
     ) {
         if self.active_drag.is_some() || self.last_primary_position.is_some() {
-            if let Some(item) = self.active_drag_item() {
-                let center = item_center(bounds, item, self.viewport);
-                if paint_bounds(bounds).contains(center) {
-                    paint_active_audition_item(
-                        primitives,
-                        self.common.id,
-                        center,
-                        starmap_item_color(item),
-                    );
-                }
-            }
+            self.append_active_drag_paint(primitives, bounds);
             return;
         }
         let Some(item) = self.hovered_item() else {
@@ -1215,6 +1206,26 @@ impl Widget for StarmapWidget {
             return;
         }
         paint_hover_item(primitives, self.common.id, center, starmap_item_color(item));
+    }
+}
+
+impl StarmapWidget {
+    fn append_active_drag_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        if self.active_drag.is_none() && self.last_primary_position.is_none() {
+            return;
+        }
+        let Some(item) = self.active_drag_item() else {
+            return;
+        };
+        let center = item_center(bounds, item, self.viewport);
+        if paint_bounds(bounds).contains(center) {
+            paint_active_audition_item(
+                primitives,
+                self.common.id,
+                center,
+                starmap_item_color(item),
+            );
+        }
     }
 }
 
@@ -2235,6 +2246,88 @@ mod tests {
                 if fill.color == color.with_alpha(255)
                     && fill.points.len() == 4
                     && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
+    fn active_starmap_drag_paints_local_hit_in_rebuilt_base_scene() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let left_id = String::from("/samples/kick.wav");
+        let right_id = String::from("/samples/snare.wav");
+        let mut previous = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id.clone()),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        previous
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)))
+            .expect("pointer move should emit drag update");
+
+        let mut next = StarmapWidget::new(
+            vec![
+                starmap_item(left_id.as_str(), 0.25, 0.5, color),
+                starmap_item(right_id.as_str(), 0.75, 0.5, color),
+            ],
+            StarmapViewport::default(),
+            Some(StarmapAuditionDragState {
+                last_hit_file_id: Some(left_id),
+                last_position: Point::new(50.0, 50.0),
+                modifiers: PointerModifiers::default(),
+            }),
+        );
+        next.synchronize_from_previous(&previous);
+        let mut primitives = Vec::new();
+
+        next.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
+        )));
+    }
+
+    #[test]
+    fn stale_local_drag_hit_does_not_paint_after_drag_clears() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let bounds = Rect::from_size(200.0, 100.0);
+        let mut widget = StarmapWidget::new(
+            vec![starmap_item("/samples/kick.wav", 0.25, 0.5, color)],
+            StarmapViewport::default(),
+            None,
+        );
+        widget.last_hit_file_id = Some(String::from("/samples/kick.wav"));
+        widget.last_hit_index = Some(0);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(!primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(50.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
         )));
     }
 
