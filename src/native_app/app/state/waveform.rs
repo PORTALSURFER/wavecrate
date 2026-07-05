@@ -351,11 +351,6 @@ impl WaveformCacheState {
         !self.preview_audition_clips.contains_key(path)
     }
 
-    pub(in crate::native_app) fn hot_audition_ready(&self, path: &Path) -> bool {
-        self.preview_audition_clips.contains_key(path)
-            || self.instant_audition_descriptors.contains_key(path)
-    }
-
     pub(in crate::native_app) fn preview_audition_sample_paths(&self) -> &HashSet<String> {
         &self.preview_audition_sample_paths
     }

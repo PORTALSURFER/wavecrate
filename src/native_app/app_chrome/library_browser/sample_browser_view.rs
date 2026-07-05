@@ -937,7 +937,7 @@ mod tests {
             overlay.iter().any(|primitive| matches!(
                 primitive,
                 radiant::runtime::PaintPrimitive::FillPolygon(fill)
-                    if fill.color == right_color.with_alpha(70)
+                    if fill.color == right_color.with_alpha(255)
                         && (fill.points.iter().map(|point| point.x).sum::<f32>()
                             / fill.points.len() as f32
                             - expected_right_center_x)

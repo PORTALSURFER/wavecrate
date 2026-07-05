@@ -1552,23 +1552,38 @@ fn paint_active_audition_item(
         primitives,
         widget_id,
         center,
-        MAP_ACTIVE_AUDITION_GLOW_SIZE,
-        color.with_alpha(70),
+        MAP_ACTIVE_AUDITION_GLOW_SIZE + 6.0,
+        color.with_alpha(72),
     );
     paint_diamond(
         primitives,
         widget_id,
         center,
-        MAP_ACTIVE_AUDITION_SIZE,
-        color.with_alpha(245),
+        MAP_ACTIVE_AUDITION_GLOW_SIZE,
+        color.with_alpha(132),
+    );
+    paint_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_ACTIVE_AUDITION_SIZE + 2.0,
+        color.with_alpha(255),
     );
     stroke_diamond(
         primitives,
         widget_id,
         center,
-        MAP_ACTIVE_AUDITION_SIZE + 5.0,
+        MAP_ACTIVE_AUDITION_SIZE + 7.0,
         ui::Rgba8::new(255, 250, 224, 245),
-        1.25,
+        1.45,
+    );
+    stroke_diamond(
+        primitives,
+        widget_id,
+        center,
+        MAP_ACTIVE_AUDITION_SIZE + 2.0,
+        ui::Rgba8::new(255, 255, 255, 210),
+        0.9,
     );
 }
 
@@ -2139,14 +2154,29 @@ mod tests {
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillPolygon(fill)
-                if fill.color == color.with_alpha(70)
+                if fill.color == color.with_alpha(72)
                     && fill.points.len() == 4
-                    && fill.points[0] == Point::new(50.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
+                    && fill.points[0] == Point::new(50.0, 50.0 - (MAP_ACTIVE_AUDITION_GLOW_SIZE + 6.0) * 0.5)
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillPolygon(fill)
+                if fill.color == color.with_alpha(255)
+                    && fill.points.len() == 4
+                    && fill.points[0] == Point::new(50.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
         )));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::StrokePolyline(stroke)
                 if stroke.color == ui::Rgba8::new(255, 250, 224, 245)
+                    && stroke.width == 1.45
+                    && stroke.points.len() == 5
+        )));
+        assert!(primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::StrokePolyline(stroke)
+                if stroke.color == ui::Rgba8::new(255, 255, 255, 210)
+                    && stroke.width == 0.9
                     && stroke.points.len() == 5
         )));
         assert!(
@@ -2202,9 +2232,9 @@ mod tests {
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillPolygon(fill)
-                if fill.color == color.with_alpha(70)
+                if fill.color == color.with_alpha(255)
                     && fill.points.len() == 4
-                    && fill.points[0] == Point::new(150.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
         )));
     }
 
@@ -2234,9 +2264,9 @@ mod tests {
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,
             PaintPrimitive::FillPolygon(fill)
-                if fill.color == color.with_alpha(70)
+                if fill.color == color.with_alpha(255)
                     && fill.points.len() == 4
-                    && fill.points[0] == Point::new(150.0, 50.0 - MAP_ACTIVE_AUDITION_GLOW_SIZE * 0.5)
+                    && fill.points[0] == Point::new(150.0, 50.0 - (MAP_ACTIVE_AUDITION_SIZE + 2.0) * 0.5)
         )));
         assert!(primitives.iter().any(|primitive| matches!(
             primitive,

@@ -777,6 +777,84 @@ fn starmap_drag_sweep_retargets_to_latest_hit_without_backlog() {
 }
 
 #[test]
+fn starmap_drag_hot_sweep_starts_latest_without_ready_tail() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("a.wav");
+    let second = source_root.path().join("b.wav");
+    let third = source_root.path().join("c.wav");
+    write_test_wav_i16(&first, &[0, 100, -100]);
+    write_test_wav_i16(&second, &[0, 120, -120]);
+    write_test_wav_i16(&third, &[0, 140, -140]);
+    let first_id = first.display().to_string();
+    let second_id = second.display().to_string();
+    let third_id = third.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    state.waveform.cache.store_preview_audition_clip(
+        crate::native_app::waveform::PreviewAuditionClip {
+            path: PathBuf::from(&second_id),
+            source_len: 128,
+            source_modified: Some(std::time::SystemTime::UNIX_EPOCH),
+            samples: Arc::from([0.25_f32, -0.25, 0.0, 0.125]),
+            sample_rate: 44_100,
+            channels: 1,
+            frames: 4,
+            normalized_gain: 1.0,
+        },
+    );
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
+            path: Some(first_id),
+            position: Point::new(10.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::UpdateStarmapAuditionDrag {
+            paths: vec![second_id.clone(), third_id.clone()],
+            position: Point::new(90.0, 10.0),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(third_id.as_str()),
+        "hot intermediate drag hits must not delay the latest pointer target"
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .active_file_id
+            .as_deref(),
+        Some(third_id.as_str())
+    );
+    assert_eq!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>(),
+        Vec::<String>::new(),
+        "hot intermediate hits should not leave a ready-tail backlog"
+    );
+}
+
+#[test]
 fn starmap_drag_ready_descriptor_skips_foreground_sample_load_validation() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("large-ready.wav");
@@ -1758,7 +1836,7 @@ fn starmap_drag_replacement_ignores_stale_advance_ticket() {
 }
 
 #[test]
-fn starmap_drag_ready_tail_advances_without_zero_delay_message() {
+fn starmap_drag_latest_hit_advances_without_zero_delay_message() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
     let second = source_root.path().join("b.wav");
@@ -1788,13 +1866,13 @@ fn starmap_drag_ready_tail_advances_without_zero_delay_message() {
         .push_back(second_id.clone());
     let mut context = radiant::prelude::UiUpdateContext::default();
 
-    state.advance_starmap_drag_audition_tail_immediately(&mut context);
+    state.advance_starmap_drag_audition_latest_immediately(&mut context);
     let delayed = run_after_commands(context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(second_id.as_str()),
-        "ready drag tail progression should start the next target in the same update"
+        "latest drag target progression should start the next target in the same update"
     );
     assert_eq!(
         state
@@ -1818,7 +1896,7 @@ fn starmap_drag_ready_tail_advances_without_zero_delay_message() {
             message,
             crate::native_app::test_support::state::GuiMessage::AdvanceStarmapAudition { .. }
         )),
-        "ready drag tail progression should not depend on a zero-delay advance message"
+        "latest drag target progression should not depend on a zero-delay advance message"
     );
 }
 

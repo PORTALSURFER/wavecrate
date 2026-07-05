@@ -1149,7 +1149,7 @@ impl NativeAppState {
                 .queued_file_ids
                 .is_empty()
         {
-            self.advance_starmap_drag_audition_tail_immediately(context);
+            self.advance_starmap_drag_audition_latest_immediately(context);
         }
     }
 
