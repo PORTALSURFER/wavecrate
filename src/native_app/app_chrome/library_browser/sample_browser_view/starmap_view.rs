@@ -3,8 +3,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        push_fill_polygon, push_fill_rect, push_fill_rect_batch, push_stroke_polyline,
-        PaintPrimitive,
+        PaintPrimitive, push_fill_polygon, push_fill_rect, push_fill_rect_batch,
+        push_stroke_polyline,
     },
     theme::ThemeTokens,
     widgets::{
@@ -13,7 +13,7 @@ use radiant::{
     },
 };
 use std::{
-    collections::{hash_map::DefaultHasher, BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
     sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
@@ -26,7 +26,7 @@ use crate::native_app::sample_library::context_menu_target::{
 };
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
-    starmap_cluster_palette_color, StarmapItem, StarmapStatus,
+    StarmapItem, StarmapStatus, starmap_cluster_palette_color,
 };
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
@@ -1259,7 +1259,14 @@ fn append_cached_items_paint(
     let started_at = starmap_telemetry::stage_timer();
     if should_use_dense_overview(items.len(), viewport) {
         let (cells, exact_items) = dense_overview_paint(cache, items, paint_signature);
-        paint_dense_overview_items(primitives, widget_id, bounds, viewport, &cells, &exact_items);
+        paint_dense_overview_items(
+            primitives,
+            widget_id,
+            bounds,
+            viewport,
+            &cells,
+            &exact_items,
+        );
         let elapsed = starmap_telemetry::elapsed_since(started_at);
         if let Some(elapsed) = elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::WidgetPaintBuild, elapsed);
@@ -1458,7 +1465,10 @@ fn should_use_dense_overview(item_count: usize, viewport: StarmapViewport) -> bo
 
 fn build_dense_overview_paint(
     items: &[StarmapItem],
-) -> (Vec<StarmapDenseOverviewCell>, Vec<StarmapDenseOverviewExactItem>) {
+) -> (
+    Vec<StarmapDenseOverviewCell>,
+    Vec<StarmapDenseOverviewExactItem>,
+) {
     let mut cells = BTreeMap::<StarmapDenseOverviewCellKey, StarmapDenseOverviewAccumulator>::new();
     let mut exact_items = Vec::new();
     for item in items {
@@ -1467,7 +1477,10 @@ fn build_dense_overview_paint(
             continue;
         }
         let key = StarmapDenseOverviewCellKey::from_item(item);
-        cells.entry(key).or_default().add(starmap_item_color(item));
+        cells
+            .entry(key)
+            .or_default()
+            .add(item, starmap_item_color(item));
     }
     let cells = cells
         .into_iter()
@@ -1899,6 +1912,8 @@ fn dense_overview_coordinate(value: f32) -> i32 {
 #[derive(Clone, Copy, Debug, Default)]
 struct StarmapDenseOverviewAccumulator {
     count: u32,
+    x_sum: f32,
+    y_sum: f32,
     r_sum: u32,
     g_sum: u32,
     b_sum: u32,
@@ -1906,8 +1921,10 @@ struct StarmapDenseOverviewAccumulator {
 }
 
 impl StarmapDenseOverviewAccumulator {
-    fn add(&mut self, color: ui::Rgba8) {
+    fn add(&mut self, item: &StarmapItem, color: ui::Rgba8) {
         self.count += 1;
+        self.x_sum += item.x;
+        self.y_sum += item.y;
         self.r_sum += u32::from(color.r);
         self.g_sum += u32::from(color.g);
         self.b_sum += u32::from(color.b);
@@ -1918,13 +1935,20 @@ impl StarmapDenseOverviewAccumulator {
         if self.count == 0 {
             return None;
         }
-        let (x, y) = key.center();
+        let (fallback_x, fallback_y) = key.center();
         Some(StarmapDenseOverviewCell {
-            x,
-            y,
+            x: self.average_coordinate(self.x_sum, fallback_x),
+            y: self.average_coordinate(self.y_sum, fallback_y),
             color: self.quantized_color(),
             side: self.side(),
         })
+    }
+
+    fn average_coordinate(self, sum: f32, fallback: f32) -> f32 {
+        if !sum.is_finite() {
+            return fallback;
+        }
+        (sum / self.count as f32).clamp(0.0, 1.0)
     }
 
     fn quantized_color(self) -> ui::Rgba8 {
@@ -2712,9 +2736,10 @@ mod tests {
         next.synchronize_from_previous(&previous);
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/kick.wav"));
-        assert!(next
-            .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature()));
+        assert!(
+            next.hit_index
+                .matches(bounds, StarmapViewport::default(), next.item_signature())
+        );
     }
 
     #[test]
@@ -2818,6 +2843,26 @@ mod tests {
         assert!(
             cache.entry.is_none(),
             "dense overview paint should not churn exact-viewport primitive caches while panning"
+        );
+    }
+
+    #[test]
+    fn dense_overview_cells_use_actual_item_centroids_not_grid_centers() {
+        let color = ui::Rgba8::new(57, 187, 245, 220);
+        let items = vec![
+            starmap_item("/samples/a.wav", 0.0973, 0.1947, color),
+            starmap_item("/samples/b.wav", 0.0981, 0.1955, color),
+        ];
+
+        let (cells, exact_items) = build_dense_overview_paint(&items);
+
+        assert!(exact_items.is_empty());
+        assert_eq!(cells.len(), 1);
+        assert!((cells[0].x - 0.0977).abs() < 0.0001);
+        assert!((cells[0].y - 0.1951).abs() < 0.0001);
+        assert!(
+            (cells[0].x - (7.5 / MAP_DENSE_OVERVIEW_GRID_SIZE as f32)).abs() > 0.005,
+            "dense overview should aggregate at the real local centroid instead of snapping to the grid center"
         );
     }
 
@@ -3154,9 +3199,10 @@ mod tests {
         next.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 50.0)));
 
         assert_eq!(next.hovered_file_id.as_deref(), Some("/samples/snare.wav"));
-        assert!(next
-            .hit_index
-            .matches(bounds, StarmapViewport::default(), next.item_signature()));
+        assert!(
+            next.hit_index
+                .matches(bounds, StarmapViewport::default(), next.item_signature())
+        );
     }
 
     #[test]

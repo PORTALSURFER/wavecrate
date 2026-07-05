@@ -712,27 +712,31 @@ fn starmap_position(
     if let Some(position) = layout_position {
         return position;
     }
-    let (jx, jy) = stable_jitter(file_id);
+    let (offset_x, offset_y) = stable_cluster_offset(file_id);
     let (gx, gy) = GROUP_CENTERS[group.index()];
     let strength = similarity_strength.unwrap_or(0.0);
-    let spread = 0.31 - strength.clamp(0.0, 1.0) * 0.13;
+    let spread = fallback_starmap_spread(strength);
     (
-        (gx + (jx - 0.5) * spread).clamp(0.04, 0.96),
-        (gy + (jy - 0.5) * spread).clamp(0.06, 0.94),
+        (gx + offset_x * spread).clamp(0.04, 0.96),
+        (gy + offset_y * spread).clamp(0.06, 0.94),
     )
 }
 
-fn stable_jitter(file_id: &str) -> (f32, f32) {
-    let mut first = std::collections::hash_map::DefaultHasher::new();
-    file_id.hash(&mut first);
-    let mut second = std::collections::hash_map::DefaultHasher::new();
-    // Preserve the historical salt so fallback Starmap placement does not shift.
-    "sample-map-y".hash(&mut second);
-    file_id.hash(&mut second);
-    (
-        unit_from_hash(first.finish()),
-        unit_from_hash(second.finish()),
-    )
+fn fallback_starmap_spread(strength: f32) -> f32 {
+    0.31 - strength.clamp(0.0, 1.0) * 0.13
+}
+
+fn stable_cluster_offset(file_id: &str) -> (f32, f32) {
+    let angle = unit_hash_with_salt(file_id, "sample-map-angle") * std::f32::consts::TAU;
+    let radius = unit_hash_with_salt(file_id, "sample-map-radius").sqrt() * 0.5;
+    (angle.cos() * radius, angle.sin() * radius)
+}
+
+fn unit_hash_with_salt(file_id: &str, salt: &str) -> f32 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    salt.hash(&mut hasher);
+    file_id.hash(&mut hasher);
+    unit_from_hash(hasher.finish())
 }
 
 fn unit_from_hash(hash: u64) -> f32 {
@@ -1018,6 +1022,29 @@ mod tests {
         assert_ne!(fallback, layout);
         assert!((0.0..=1.0).contains(&fallback.0));
         assert!((0.0..=1.0).contains(&fallback.1));
+    }
+
+    #[test]
+    fn starmap_missing_layout_fallback_uses_radial_cluster_not_square_jitter() {
+        let group = SimilarityAspect::Amplitude;
+        let (center_x, center_y) = GROUP_CENTERS[group.index()];
+        let max_radius = fallback_starmap_spread(0.0) * 0.5 + 0.0001;
+
+        for index in 0..512 {
+            let position = starmap_position(
+                &format!("missing-layout-{index}.wav"),
+                group,
+                Some(0.0),
+                None,
+            );
+            let dx = position.0 - center_x;
+            let dy = position.1 - center_y;
+
+            assert!(
+                dx * dx + dy * dy <= max_radius * max_radius,
+                "fallback point should stay inside the radial aspect cluster"
+            );
+        }
     }
 
     #[test]
