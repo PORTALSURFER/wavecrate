@@ -6,8 +6,8 @@ use std::{
 
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use wavecrate::sample_sources::config::AppSettingsCore;
 use wavecrate::sample_sources::SampleSource;
+use wavecrate::sample_sources::config::AppSettingsCore;
 use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover};
@@ -113,7 +113,7 @@ impl Default for StarmapViewport {
 
 impl StarmapViewport {
     const MIN_ZOOM: f32 = 0.65;
-    const MAX_ZOOM: f32 = 256.0;
+    const MAX_ZOOM: f32 = 1024.0;
     const MIN_CENTER: f32 = -1.0;
     const MAX_CENTER: f32 = 2.0;
 
@@ -503,10 +503,10 @@ mod tests {
 
         viewport.apply_change(StarmapViewportChange::Zoom {
             anchor: ui::Vector2::new(0.5, 0.5),
-            factor: 1_000.0,
+            factor: 10_000.0,
         });
 
-        assert_eq!(viewport.zoom, 256.0);
+        assert_eq!(viewport.zoom, 1024.0);
         assert_eq!(viewport.center_x, 0.5);
         assert_eq!(viewport.center_y, 0.5);
     }

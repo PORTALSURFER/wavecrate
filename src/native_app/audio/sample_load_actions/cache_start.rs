@@ -9,9 +9,9 @@ use std::{
 
 use crate::native_app::{
     app::{
-        emit_gui_action, sample_path_label, GuiMessage, NativeAppState, PendingPlaybackStart,
-        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
-        SampleBrowserDisplayMode, WaveformState,
+        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
+        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
+        emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
@@ -19,8 +19,8 @@ use crate::native_app::{
     },
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
-        PreviewAuditionClip, WaveformPlaybackReady,
+        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
+        load_cached_waveform_playback_descriptor_sidecar,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -1330,7 +1330,10 @@ impl NativeAppState {
             let Some(visible_paths) = self
                 .library
                 .folder_browser
-                .prepared_visible_sample_file_ids_matching_tags(&self.metadata.tags_by_file)
+                .prepared_visible_sample_file_ids_matching_tags(
+                    &self.metadata.tags_by_file,
+                    PREVIEW_AUDITION_LIST_VIEW_BUDGET,
+                )
             else {
                 return PreviewAuditionWarmPlan::default();
             };
@@ -2522,10 +2525,12 @@ mod tests {
             PREVIEW_AUDITION_WARM_BATCH,
             "a meaningful starmap viewport change should open a fresh warm budget"
         );
-        assert!(changed_view_plan
-            .paths
-            .iter()
-            .all(|path| !warmed.contains(path)));
+        assert!(
+            changed_view_plan
+                .paths
+                .iter()
+                .all(|path| !warmed.contains(path))
+        );
     }
 
     #[test]
