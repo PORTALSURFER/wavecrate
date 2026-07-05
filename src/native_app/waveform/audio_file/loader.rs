@@ -27,6 +27,7 @@ pub(in crate::native_app) struct FileBackedWavPlaybackDescriptor {
     pub duration: f32,
     pub sample_rate: u32,
     pub channels: usize,
+    #[cfg(test)]
     pub frames: usize,
 }
 
@@ -322,6 +323,7 @@ pub(in crate::native_app) fn file_backed_wav_playback_descriptor(
         duration: frames as f32 / sample_rate as f32,
         sample_rate,
         channels,
+        #[cfg(test)]
         frames,
     })
 }
