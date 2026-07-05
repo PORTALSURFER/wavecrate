@@ -17,7 +17,9 @@ use std::time::{Duration, Instant};
 use crate::native_app::app::{GuiMessage, NativeAppState, WaveformInteraction, sample_path_label};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
-const SLOW_UI_MESSAGE_THRESHOLD: Duration = Duration::from_millis(4);
+const FRAME_MESSAGE_PROFILE_LABEL: &str = "Frame";
+const SLOW_UI_INTERACTION_MESSAGE_THRESHOLD: Duration = Duration::from_millis(4);
+const SLOW_UI_FRAME_MESSAGE_THRESHOLD: Duration = Duration::from_micros(16_667);
 
 impl NativeAppState {
     pub(in crate::native_app) fn handle_message(
@@ -239,7 +241,7 @@ impl NativeAppState {
 
     fn log_slow_ui_message(&self, message_label: &'static str, started_at: Instant) {
         let elapsed = started_at.elapsed();
-        if elapsed < SLOW_UI_MESSAGE_THRESHOLD {
+        if elapsed < slow_ui_message_threshold(message_label) {
             return;
         }
         let selected = self
@@ -265,7 +267,7 @@ impl NativeAppState {
 
 fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
     match message {
-        GuiMessage::Frame => "Frame",
+        GuiMessage::Frame => FRAME_MESSAGE_PROFILE_LABEL,
         GuiMessage::NavigateBrowser { .. } => "NavigateBrowser",
         GuiMessage::SelectSampleWithModifiers { .. } => "SelectSampleWithModifiers",
         GuiMessage::DeferredSampleLoad { .. } => "DeferredSampleLoad",
@@ -313,6 +315,14 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::Settings(_) => "Settings",
         GuiMessage::Metadata(_) => "Metadata",
         _ => "Other",
+    }
+}
+
+fn slow_ui_message_threshold(message_label: &'static str) -> Duration {
+    if message_label == FRAME_MESSAGE_PROFILE_LABEL {
+        SLOW_UI_FRAME_MESSAGE_THRESHOLD
+    } else {
+        SLOW_UI_INTERACTION_MESSAGE_THRESHOLD
     }
 }
 
