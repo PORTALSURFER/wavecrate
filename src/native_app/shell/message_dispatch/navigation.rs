@@ -130,6 +130,7 @@ impl NativeAppState {
             last_position: position,
             modifiers,
         });
+        context.request_paint_only();
         self.background.starmap_audition_advance_task.cancel();
         self.background.preview_audition_warm_task.cancel();
         self.waveform.cache.cancel_preview_audition_warm_schedule();
@@ -173,6 +174,7 @@ impl NativeAppState {
         if let Some(path) = paths.last() {
             drag.last_hit_file_id = Some(path.clone());
         }
+        context.request_paint_only();
         starmap_telemetry::record_event(
             Some(StarmapAuditionCounter::DragUpdate),
             "controller.drag_update",

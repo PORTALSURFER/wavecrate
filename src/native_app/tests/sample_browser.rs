@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::{dense_row_palette_from_style, IntoView, ThemeTokens, WidgetStyle, WidgetTone},
+    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
     runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
@@ -859,6 +859,21 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
     prepare_sample_browser_view(&mut state);
+    let sample_id = sample.display().to_string();
+    let item = state
+        .library
+        .folder_browser
+        .cached_starmap_projection()
+        .and_then(|items| items.iter().find(|item| item.file_id == sample_id).cloned())
+        .expect("long wav should remain present in starmap projection");
+    assert!(
+        !item.instant_audition_ready,
+        "long WAVs should not be treated as full-cache instant-ready before cache warm"
+    );
+    assert!(
+        item.preview_audition_candidate,
+        "long WAVs should still use the tiny preview-head audition path"
+    );
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.apply_message(
@@ -879,6 +894,14 @@ fn starmap_mode_frame_warms_preview_audition_heads() {
             .active()
             .is_some(),
         "preview audition warm should be tracked as cancellable background work"
+    );
+    assert!(
+        state
+            .waveform
+            .cache
+            .preview_audition_scheduled_paths()
+            .contains(&sample_id),
+        "starmap preview warm should schedule long WAVs instead of filtering them out"
     );
 }
 
@@ -1574,6 +1597,11 @@ fn starmap_drag_update_selects_next_hit_immediately() {
             .queued_file_ids
             .is_empty()
     );
+    let command = context.into_command();
+    assert!(
+        command.requests_paint_only(),
+        "live starmap drag updates should repaint the active node overlay without waiting for release"
+    );
 }
 
 #[test]
@@ -1682,12 +1710,14 @@ fn starmap_drag_ready_tail_advances_without_zero_delay_message() {
             .as_deref(),
         Some(second_id.as_str())
     );
-    assert!(state
-        .ui
-        .chrome
-        .starmap_audition_queue
-        .queued_file_ids
-        .is_empty());
+    assert!(
+        state
+            .ui
+            .chrome
+            .starmap_audition_queue
+            .queued_file_ids
+            .is_empty()
+    );
     assert!(
         delayed.iter().all(|message| !matches!(
             message,

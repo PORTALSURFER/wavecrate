@@ -1099,14 +1099,14 @@ impl Widget for StarmapWidget {
         };
         self.common.state = previous.common.state;
         self.gesture = previous.gesture.clone();
+        if Arc::ptr_eq(&previous.items, &self.items) {
+            self.item_metadata = previous.item_metadata.clone();
+        }
         self.sync_drag_hit_from_previous(previous);
         self.last_primary_position = previous.last_primary_position;
         self.last_pan_position = previous.last_pan_position;
         self.hovered_file_id = previous.hovered_file_id.clone();
         self.hovered_item_index = previous.hovered_item_index;
-        if Arc::ptr_eq(&previous.items, &self.items) {
-            self.item_metadata = previous.item_metadata.clone();
-        }
         self.hit_scratch = previous.hit_scratch.clone();
         self.paint_cache = previous.paint_cache.clone();
         let item_signature = self.item_signature();
