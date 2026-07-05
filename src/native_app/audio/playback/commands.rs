@@ -7,7 +7,8 @@ use super::random_audition::{
     RandomAuditionSource, RandomAuditionSpan, RandomAuditionUnits, random_audition_span_for_units,
 };
 use crate::native_app::app::{
-    GuiMessage, NativeAppState, PendingSamplePlayback, emit_gui_action, sample_path_label,
+    GuiMessage, NativeAppState, SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackRequest,
+    emit_gui_action, sample_path_label,
 };
 
 impl NativeAppState {
@@ -44,8 +45,15 @@ impl NativeAppState {
             .filter(|selection| selection.width() > 0.0)
             .map(|selection| (selection.start(), selection.end()))
             .unwrap_or((0.0, 1.0));
-        match self.start_playback_current_span(start, end) {
-            Ok(()) => {
+        let request = SamplePlaybackRequest::waveform(
+            self.waveform.current.path().display().to_string(),
+            (start, end),
+            SamplePlaybackIntent::ExplicitPlayback,
+            "transport",
+            SamplePlaybackHistory::Record,
+        );
+        match self.request_sample_playback(request, context) {
+            Ok(_) => {
                 let file_name = self.waveform.current.file_name();
                 self.record_selected_sample_last_played(context);
                 self.ui.status.sample = format!("Playing {file_name}");
@@ -78,8 +86,15 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        match self.start_playback_intent(PlaybackIntent::new(start_ratio, 1.0)) {
-            Ok(()) => {
+        let request = SamplePlaybackRequest::waveform(
+            self.waveform.current.path().display().to_string(),
+            (start_ratio, 1.0),
+            SamplePlaybackIntent::WaveformSpan,
+            "waveform",
+            SamplePlaybackHistory::Record,
+        );
+        match self.request_sample_playback(request, context) {
+            Ok(_) => {
                 let file_name = self.waveform.current.file_name();
                 self.record_selected_sample_last_played(context);
                 self.ui.status.sample =
@@ -198,10 +213,16 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.audio.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition {
-                start_unit: units.start,
-                length_unit: units.length,
-            });
+            self.audio.pending_sample_playback = Some(
+                SamplePlaybackRequest::waveform(
+                    path.clone(),
+                    (0.0, 1.0),
+                    SamplePlaybackIntent::RandomAudition,
+                    "random_audition",
+                    SamplePlaybackHistory::Record,
+                )
+                .with_random_units(units.start, units.length),
+            );
             self.load_sample_without_autoplay(path, context);
             return;
         }
@@ -221,19 +242,33 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.audio.pending_sample_playback = Some(PendingSamplePlayback::RandomAudition {
-                start_unit: units.start,
-                length_unit: units.length,
-            });
+            self.audio.pending_sample_playback = Some(
+                SamplePlaybackRequest::waveform(
+                    path.clone(),
+                    (0.0, 1.0),
+                    SamplePlaybackIntent::RandomAudition,
+                    "random_audition",
+                    SamplePlaybackHistory::Record,
+                )
+                .with_random_units(units.start, units.length),
+            );
             self.focus_browser_file_for_playback_navigation(Path::new(&path), context);
             self.load_sample_without_autoplay(path, context);
             return;
         }
         let file_name = self.waveform.current.file_name();
         let span = self.random_audition_span_for_loaded_waveform(units);
+        let request = SamplePlaybackRequest::waveform(
+            self.waveform.current.path().display().to_string(),
+            (span.start, span.end),
+            SamplePlaybackIntent::RandomAudition,
+            "random_audition",
+            SamplePlaybackHistory::Record,
+        )
+        .with_random_units(units.start, units.length);
 
-        match self.start_random_audition_span(span) {
-            Ok(()) => {
+        match self.request_sample_playback(request, context) {
+            Ok(_) => {
                 self.record_selected_sample_last_played(context);
                 self.ui.status.sample = span.status_message(&file_name);
                 emit_gui_action(
@@ -320,7 +355,6 @@ impl NativeAppState {
     pub(in crate::native_app) fn stop_audio_output_playback(&mut self) {
         if let Some(runtime) = self.audio.playback_runtime.as_ref() {
             let _ = runtime.try_stop();
-            self.audio.pending_runtime_start = None;
         } else if let Some(player) = self.audio.player.as_mut() {
             player.stop();
         }

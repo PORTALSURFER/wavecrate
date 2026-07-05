@@ -9,10 +9,10 @@ use std::{
 
 use crate::native_app::{
     app::{
-        emit_gui_action, sample_path_label, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
-        PendingPlaybackStart, PendingRuntimePlaybackStart, PreviewAuditionResult,
-        PreviewAuditionWarmResult, SampleBrowserDisplayMode, SamplePlaybackIntent,
-        SamplePlaybackRequest, SamplePlaybackVisibility, WaveformState,
+        GuiMessage, NativeAppState, PendingPlaybackStart, PreviewAuditionResult,
+        PreviewAuditionWarmResult, SampleBrowserDisplayMode, SamplePlaybackHistory,
+        SamplePlaybackIntent, SamplePlaybackRequest, SamplePlaybackVisibility, WaveformState,
+        emit_gui_action, sample_path_label,
     },
     audio::{
         playback::PlaybackIntent,
@@ -20,8 +20,8 @@ use crate::native_app::{
     },
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
-        PreviewAuditionClip, WaveformPlaybackReady,
+        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
+        load_cached_waveform_playback_descriptor_sidecar,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -755,34 +755,20 @@ impl NativeAppState {
                 return InstantAuditionOutcome::Unavailable;
             }
         };
-        self.audio.early_sample_playback_path = Some(path.to_owned());
-        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
         let visibility = fast_audition_session_visibility();
         self.audio.current_playback_span =
             visibility.updates_waveform_playhead().then_some((0.0, 1.0));
-        let session_request = SamplePlaybackRequest {
-            path: path.to_owned(),
-            span: (0.0, 1.0),
-            intent: fast_audition_session_intent_for_origin(origin),
-            visibility,
-            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
-            show_start_marker: visibility.updates_waveform_playhead(),
-        };
-        let session_generation = self.audio.start_sample_playback_session(
-            session_request.clone(),
+        let session_request = SamplePlaybackRequest::transient(
+            path.to_owned(),
+            fast_audition_session_intent_for_origin(origin),
+            origin,
+        )
+        .with_start_marker(visibility.updates_waveform_playhead());
+        self.audio.start_sample_playback_session(
+            session_request,
             request_id,
             "interleaved_f32_file",
         );
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
-            request_id,
-            session_generation,
-            session_request.path,
-            session_request.span,
-            session_request.show_start_marker,
-            visibility,
-            origin,
-            "interleaved_f32_file",
-        ));
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
         if record_history {
             self.record_sample_last_played(path.to_owned(), context);
@@ -879,33 +865,15 @@ impl NativeAppState {
                 return false;
             }
         };
-        self.audio.early_sample_playback_path = Some(path.to_owned());
-        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
-        let visibility = SamplePlaybackVisibility::Transient;
         self.audio.current_playback_span = None;
-        let session_request = SamplePlaybackRequest {
-            path: path.to_owned(),
-            span: (0.0, 1.0),
-            intent: SamplePlaybackIntent::TransientNavigation,
-            visibility,
-            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
-            show_start_marker: false,
-        };
-        let session_generation = self.audio.start_sample_playback_session(
-            session_request.clone(),
-            request_id,
-            "audio_file",
-        );
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
-            request_id,
-            session_generation,
-            session_request.path,
-            session_request.span,
-            session_request.show_start_marker,
-            visibility,
+        let session_request = SamplePlaybackRequest::transient(
+            path.to_owned(),
+            SamplePlaybackIntent::TransientNavigation,
             origin,
-            "audio_file",
-        ));
+        )
+        .with_start_marker(false);
+        self.audio
+            .start_sample_playback_session(session_request, request_id, "audio_file");
         self.ui.status.sample = format!("Playing {}", sample_path_label(path));
         if record_history {
             self.record_sample_last_played(path.to_owned(), context);
@@ -1015,33 +983,14 @@ impl NativeAppState {
                 return false;
             }
         };
-        self.audio.early_sample_playback_path = Some(path.clone());
-        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
         self.audio.current_playback_span = None;
-        let visibility = fast_audition_session_visibility();
-        let session_request = SamplePlaybackRequest {
-            path: path.clone(),
-            span: (0.0, 1.0),
-            intent: fast_audition_session_intent(options),
-            visibility,
-            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
-            show_start_marker: false,
-        };
-        let session_generation = self.audio.start_sample_playback_session(
-            session_request.clone(),
-            request_id,
-            "preview_samples",
-        );
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
-            request_id,
-            session_generation,
-            session_request.path,
-            session_request.span,
-            session_request.show_start_marker,
-            visibility,
+        let session_request = SamplePlaybackRequest::transient(
+            path.clone(),
+            fast_audition_session_intent(options),
             options.origin,
-            "preview_samples",
-        ));
+        );
+        self.audio
+            .start_sample_playback_session(session_request, request_id, "preview_samples");
         self.ui.status.sample = format!("Playing {}", sample_path_label(path.as_str()));
         if options.record_history {
             self.record_sample_last_played(path.clone(), context);
@@ -1813,33 +1762,17 @@ impl NativeAppState {
                 return false;
             }
         };
-        self.audio.early_sample_playback_path = Some(path.clone());
-        self.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
         self.audio.current_playback_span = Some((0.0, 1.0));
         let origin = self.runtime_playback_origin_for_path(path.as_str());
-        let session_request = SamplePlaybackRequest {
+        let session_request = SamplePlaybackRequest::waveform(
             path,
-            span: (0.0, 1.0),
-            intent: SamplePlaybackIntent::ExplicitPlayback,
-            visibility: SamplePlaybackVisibility::Waveform,
-            stream_policy: PlaybackRuntimeStreamPolicy::full(),
-            show_start_marker: true,
-        };
-        let session_generation = self.audio.start_sample_playback_session(
-            session_request.clone(),
-            request_id,
-            "decoded_samples",
-        );
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
-            request_id,
-            session_generation,
-            session_request.path,
-            session_request.span,
-            session_request.show_start_marker,
-            session_request.visibility,
+            (0.0, 1.0),
+            SamplePlaybackIntent::ExplicitPlayback,
             origin,
-            "decoded_samples",
-        ));
+            SamplePlaybackHistory::Record,
+        );
+        self.audio
+            .start_sample_playback_session(session_request, request_id, "decoded_samples");
         self.ui.status.sample = format!("Playing {label}");
         log_sample_load_timing(
             "browser.sample_load.playback_ready.playback_submit",
@@ -1982,10 +1915,6 @@ impl NativeAppState {
         }
         let current_path = self.waveform.current.path().display().to_string();
         let start_ratio = start_ratio.clamp(0.0, 0.999);
-        if self.audio.early_sample_playback_path.as_deref() == Some(current_path.as_str()) {
-            self.audio.early_sample_playback_path = None;
-            self.audio.early_sample_playback_kind = None;
-        }
         self.prepare_playback_mode_for_loaded_sample();
         if self.audio.playback_runtime.is_none() {
             self.audio.pending_playback_start = Some(PendingPlaybackStart::record(
@@ -2074,29 +2003,15 @@ impl NativeAppState {
         self.audio.current_playback_span = Some((0.0, 1.0));
         let origin = self.runtime_playback_origin_for_path(current_path.as_str());
         let source_kind = self.current_waveform_runtime_source_kind();
-        let session_request = SamplePlaybackRequest {
-            path: current_path.clone(),
-            span: (0.0, 1.0),
-            intent: SamplePlaybackIntent::ExplicitPlayback,
-            visibility: SamplePlaybackVisibility::Waveform,
-            stream_policy: PlaybackRuntimeStreamPolicy::full(),
-            show_start_marker: true,
-        };
-        let session_generation = self.audio.start_sample_playback_session(
-            session_request.clone(),
-            request_id,
-            source_kind,
-        );
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
-            request_id,
-            session_generation,
-            session_request.path,
-            session_request.span,
-            session_request.show_start_marker,
-            session_request.visibility,
+        let session_request = SamplePlaybackRequest::waveform(
+            current_path.clone(),
+            (0.0, 1.0),
+            SamplePlaybackIntent::ExplicitPlayback,
             origin,
-            source_kind,
-        ));
+            SamplePlaybackHistory::Record,
+        );
+        self.audio
+            .start_sample_playback_session(session_request, request_id, source_kind);
         self.record_current_playback_history(0.0, 1.0);
         Ok(())
     }
@@ -2105,8 +2020,7 @@ impl NativeAppState {
         &self,
         path: &str,
     ) -> Option<f32> {
-        if self.audio.early_sample_playback_path.as_deref() != Some(path)
-            || self.audio.early_sample_playback_kind != Some(EarlySamplePlaybackKind::PreviewSlice)
+        if !self.audio.active_sample_playback_is_preview(path)
             || !self.waveform.current.has_loaded_sample()
             || self.waveform.current.path() != Path::new(path)
         {
@@ -2428,7 +2342,7 @@ mod tests {
             "preview-head decode should be tracked as the active cancellable task"
         );
         assert!(
-            state.audio.pending_runtime_start.is_none(),
+            state.audio.sample_playback_session.is_none(),
             "the long WAV path should not synchronously probe or submit file-backed playback on the UI path"
         );
     }

@@ -471,14 +471,6 @@ fn large_navigation_sample_starts_source_file_audition_before_background_wavefor
             Some(ui::TaskPriority::Background),
             "waveform loading should move behind immediate source-file playback"
         );
-        assert_eq!(
-            state.audio.early_sample_playback_path.as_deref(),
-            Some(sample_path_string.as_str())
-        );
-        assert!(
-            state.audio.pending_runtime_start.is_some(),
-            "source-file playback should be submitted before waveform completion"
-        );
         let session = state
             .audio
             .sample_playback_session
@@ -556,7 +548,7 @@ fn large_navigation_sample_skips_sidecar_lookup_when_source_file_can_play() {
             "visual waveform loading should move behind source-file playback even when a sidecar exists"
         );
         assert_eq!(
-            state.audio.early_sample_playback_path.as_deref(),
+            state.audio.active_sample_playback_path(),
             Some(sample_path_string.as_str())
         );
     } else {

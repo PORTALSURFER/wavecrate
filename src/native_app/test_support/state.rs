@@ -2,10 +2,11 @@ pub(in crate::native_app) use crate::native_app::app::{
     ActiveFolderCacheWarmPlanProgress, ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmStage,
     AppSettingsTab, AudioAppState, AudioSettingsDropdown, BackgroundTaskState, ChromeUiState,
     DEFAULT_VOLUME, FileMoveProgress, GuiMessage, LibraryAppState, MetadataAppState,
-    MetadataMessage, NativeAppState, NativeFileDropHover, NormalizationProgress,
-    PendingSamplePlayback, SampleLoadResult, SamplePlaybackReady, SettingsAppState, StartupState,
-    StatusState, UiAppState, WaveformAppState, default_gui_shortcuts, format_sample_rate_label,
-    shortcut_help_bindings, shortcut_help_sections, view,
+    MetadataMessage, NativeAppState, NativeFileDropHover, NormalizationProgress, SampleLoadResult,
+    SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackReady, SamplePlaybackRequest,
+    SettingsAppState, StartupState, StatusState, UiAppState, WaveformAppState,
+    default_gui_shortcuts, format_sample_rate_label, shortcut_help_bindings,
+    shortcut_help_sections, view,
 };
 use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
 pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
@@ -79,4 +80,16 @@ impl NativeAppStateFixture {
             metadata: MetadataAppState::from_settings(&self.persisted_settings),
         }
     }
+}
+
+pub(in crate::native_app) fn seed_sample_playback_session(
+    state: &mut NativeAppState,
+    path: String,
+    source_kind: &'static str,
+) {
+    let request =
+        SamplePlaybackRequest::transient(path, SamplePlaybackIntent::TransientNavigation, "test");
+    state
+        .audio
+        .start_resolving_sample_playback_session(request, source_kind);
 }

@@ -474,7 +474,11 @@ fn keyboard_navigation_stops_previous_preview_tail_before_cold_target_is_ready()
         )
         .build();
     state.library.folder_browser.select_file(first_id.clone());
-    state.audio.early_sample_playback_path = Some(first_id);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        first_id,
+        "preview_samples",
+    );
     state.audio.current_playback_span = Some((0.0, 1.0));
     state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
         active: true,
@@ -500,7 +504,7 @@ fn keyboard_navigation_stops_previous_preview_tail_before_cold_target_is_ready()
         "keyboard navigation should update selection immediately"
     );
     assert_eq!(
-        state.audio.early_sample_playback_path, None,
+        state.audio.sample_playback_session, None,
         "rapid keyboard/list navigation should stop the previous preview before the cold target is ready"
     );
     assert_eq!(state.audio.current_playback_span, None);
@@ -624,7 +628,7 @@ fn keyboard_navigation_ignores_stale_preview_audition_decode_after_rapid_navigat
         "stale keyboard preview decode completion must not cache an old target"
     );
     assert_ne!(
-        state.audio.early_sample_playback_path.as_deref(),
+        state.audio.active_sample_playback_path(),
         Some(second_id.as_str()),
         "stale keyboard preview decode completion must not start early playback for the old target"
     );
@@ -1459,7 +1463,11 @@ fn starmap_mode_frame_does_not_warm_preview_audition_heads_while_playback_active
         )
         .build();
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
-    state.audio.early_sample_playback_path = Some(sample_id);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_id,
+        "preview_samples",
+    );
     prepare_sample_browser_view(&mut state);
     let mut context = radiant::prelude::UiUpdateContext::default();
 
@@ -1836,7 +1844,11 @@ fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
         },
         &mut context,
     );
-    state.audio.early_sample_playback_path = Some(second_id);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        second_id,
+        "preview_samples",
+    );
     state.audio.current_playback_span = Some((0.0, 1.0));
     state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
         active: true,
@@ -1851,7 +1863,7 @@ fn starmap_drag_finish_after_motion_stops_drag_playback_state() {
         &mut context,
     );
 
-    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert_eq!(state.audio.sample_playback_session, None);
     assert_eq!(state.audio.current_playback_span, None);
     assert_eq!(
         state.audio.playback_progress,
@@ -1887,7 +1899,11 @@ fn starmap_drag_replacement_stops_previous_drag_playback_tail() {
         },
         &mut context,
     );
-    state.audio.early_sample_playback_path = Some(first_id);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        first_id,
+        "preview_samples",
+    );
     state.audio.current_playback_span = Some((0.0, 1.0));
     state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
         active: true,
@@ -1916,7 +1932,7 @@ fn starmap_drag_replacement_stops_previous_drag_playback_tail() {
         Some(second_id.as_str())
     );
     assert_eq!(
-        state.audio.early_sample_playback_path, None,
+        state.audio.sample_playback_session, None,
         "replacing an active drag target should stop the previous preview immediately"
     );
     assert_eq!(state.audio.current_playback_span, None);
@@ -1954,7 +1970,11 @@ fn starmap_click_finish_preserves_started_audition_playback_state() {
         },
         &mut context,
     );
-    state.audio.early_sample_playback_path = Some(sample_id.clone());
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_id.clone(),
+        "preview_samples",
+    );
     state.audio.current_playback_span = Some((0.0, 1.0));
     state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
         active: true,
@@ -1970,7 +1990,7 @@ fn starmap_click_finish_preserves_started_audition_playback_state() {
     );
 
     assert_eq!(
-        state.audio.early_sample_playback_path.as_deref(),
+        state.audio.active_sample_playback_path(),
         Some(sample_id.as_str())
     );
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));

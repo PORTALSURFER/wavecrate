@@ -3,7 +3,10 @@ use std::time::Instant;
 use radiant::prelude as ui;
 
 use crate::native_app::{
-    app::{GuiMessage, NativeAppState, PendingSamplePlayback},
+    app::{
+        GuiMessage, NativeAppState, SamplePlaybackHistory, SamplePlaybackIntent,
+        SamplePlaybackNormalization, SamplePlaybackRequest,
+    },
     audio::sample_load_actions::{foreground_sample_load_priority, types::SampleLoadStrategy},
 };
 
@@ -18,8 +21,16 @@ impl NativeAppState {
             let (_, previous_end) = playback.span.unwrap_or((0.0, 1.0));
             let start = playback.start_ratio.clamp(0.0, 1.0);
             let end = previous_end.max(start).clamp(start, 1.0);
-            self.audio.pending_sample_playback =
-                Some(PendingSamplePlayback::ResumeNormalized { start, end });
+            self.audio.pending_sample_playback = Some(
+                SamplePlaybackRequest::waveform(
+                    reload.path.display().to_string(),
+                    (start, end),
+                    SamplePlaybackIntent::NormalizedResume,
+                    "normalization",
+                    SamplePlaybackHistory::Record,
+                )
+                .with_normalization(SamplePlaybackNormalization::Required),
+            );
         }
         self.library
             .folder_browser

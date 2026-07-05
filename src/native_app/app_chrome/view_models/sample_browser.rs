@@ -160,10 +160,10 @@ fn active_starmap_audition_file_id(state: &NativeAppState) -> Option<String> {
         .or_else(|| {
             state
                 .audio
-                .pending_runtime_start
+                .sample_playback_session
                 .as_ref()
-                .filter(|pending| pending.origin == "starmap_drag")
-                .map(|pending| pending.path.clone())
+                .filter(|session| session.request.origin == "starmap_drag")
+                .map(|session| session.request.path.clone())
         })
 }
 

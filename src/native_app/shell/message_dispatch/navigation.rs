@@ -248,14 +248,11 @@ impl NativeAppState {
     }
 
     fn stop_starmap_drag_audio(&mut self, active_target: Option<&str>, reason: &'static str) {
-        let had_pending_runtime = self.audio.pending_runtime_start.is_some();
-        let had_early_playback = self.audio.early_sample_playback_path.is_some();
+        let had_pending_runtime = self.audio.active_sample_playback_pending_runtime();
+        let had_early_playback = self.audio.sample_playback_session.is_some();
         let had_playback_progress = self.audio.playback_progress.active;
         self.stop_audio_output_playback();
         self.waveform.current.stop_playback();
-        self.audio.pending_runtime_start = None;
-        self.audio.early_sample_playback_path = None;
-        self.audio.early_sample_playback_kind = None;
         self.audio.clear_sample_playback_session();
         self.audio.current_playback_span = None;
         self.audio.playback_progress = Default::default();

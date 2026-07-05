@@ -7,9 +7,8 @@ use wavecrate::audio::{
 };
 use wavecrate::sample_sources::config::AppSettingsCore;
 
-use crate::native_app::{
-    app::PendingSamplePlayback,
-    audio::{playback::PlaybackIntent, playback_history::PlaybackNavigationHistory},
+use crate::native_app::audio::{
+    playback::PlaybackIntent, playback_history::PlaybackNavigationHistory,
 };
 
 pub(in crate::native_app) struct AudioAppState {
@@ -30,25 +29,16 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) settings_error: Option<String>,
     pub(in crate::native_app) current_playback_span: Option<(f32, f32)>,
     pub(in crate::native_app) pending_playback_start: Option<PendingPlaybackStart>,
-    pub(in crate::native_app) pending_sample_playback: Option<PendingSamplePlayback>,
+    pub(in crate::native_app) pending_sample_playback: Option<SamplePlaybackRequest>,
     pub(in crate::native_app) playback_history: PlaybackNavigationHistory,
-    pub(in crate::native_app) early_sample_playback_path: Option<String>,
-    pub(in crate::native_app) early_sample_playback_kind: Option<EarlySamplePlaybackKind>,
     pub(in crate::native_app) sample_playback_session: Option<SamplePlaybackSession>,
     pub(in crate::native_app) next_sample_playback_generation: u64,
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
-    pub(in crate::native_app) pending_runtime_start: Option<PendingRuntimePlaybackStart>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::native_app) enum EarlySamplePlaybackKind {
-    PreviewSlice,
-    FullSample,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(dead_code)]
 pub(in crate::native_app) enum SamplePlaybackIntent {
     TransientNavigation,
@@ -58,7 +48,8 @@ pub(in crate::native_app) enum SamplePlaybackIntent {
     StarmapDrag,
     RandomAudition,
     Playmark,
-    Normalized,
+    NormalizedResume,
+    HistoryReplay,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,14 +64,142 @@ impl SamplePlaybackVisibility {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum SamplePlaybackHistory {
+    Record,
+    Skip,
+}
+
+impl SamplePlaybackHistory {
+    #[allow(dead_code)]
+    pub(in crate::native_app) fn records(self) -> bool {
+        matches!(self, Self::Record)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
+pub(in crate::native_app) enum SamplePlaybackLoopMode {
+    FollowApp { offset: Option<f32> },
+    OneShot,
+    Looped { offset: f32 },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(dead_code)]
+pub(in crate::native_app) enum SamplePlaybackNormalization {
+    FollowSetting,
+    Required,
+    Disabled,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(dead_code)]
+pub(in crate::native_app) enum SamplePlaybackSourceProbe {
+    LoadedOnly,
+    CachedOnly,
+    AllowFileProbe,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct SamplePlaybackRequest {
     pub(in crate::native_app) path: String,
     pub(in crate::native_app) span: (f32, f32),
     pub(in crate::native_app) intent: SamplePlaybackIntent,
     pub(in crate::native_app) visibility: SamplePlaybackVisibility,
+    pub(in crate::native_app) loop_mode: SamplePlaybackLoopMode,
+    pub(in crate::native_app) history: SamplePlaybackHistory,
+    pub(in crate::native_app) normalization: SamplePlaybackNormalization,
+    pub(in crate::native_app) origin: &'static str,
+    pub(in crate::native_app) source_probe: SamplePlaybackSourceProbe,
+    pub(in crate::native_app) random_units: Option<(f32, f32)>,
     pub(in crate::native_app) stream_policy: PlaybackRuntimeStreamPolicy,
     pub(in crate::native_app) show_start_marker: bool,
+}
+
+impl SamplePlaybackRequest {
+    pub(in crate::native_app) fn transient(
+        path: String,
+        intent: SamplePlaybackIntent,
+        origin: &'static str,
+    ) -> Self {
+        Self {
+            path,
+            span: (0.0, 1.0),
+            intent,
+            visibility: SamplePlaybackVisibility::Transient,
+            loop_mode: SamplePlaybackLoopMode::FollowApp { offset: None },
+            history: SamplePlaybackHistory::Record,
+            normalization: SamplePlaybackNormalization::FollowSetting,
+            origin,
+            source_probe: SamplePlaybackSourceProbe::CachedOnly,
+            random_units: None,
+            stream_policy: PlaybackRuntimeStreamPolicy::transient_navigation(),
+            show_start_marker: false,
+        }
+    }
+
+    pub(in crate::native_app) fn waveform(
+        path: String,
+        span: (f32, f32),
+        intent: SamplePlaybackIntent,
+        origin: &'static str,
+        history: SamplePlaybackHistory,
+    ) -> Self {
+        Self {
+            path,
+            span,
+            intent,
+            visibility: SamplePlaybackVisibility::Waveform,
+            loop_mode: SamplePlaybackLoopMode::FollowApp {
+                offset: Some(span.0),
+            },
+            history,
+            normalization: SamplePlaybackNormalization::FollowSetting,
+            origin,
+            source_probe: SamplePlaybackSourceProbe::LoadedOnly,
+            random_units: None,
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
+            show_start_marker: true,
+        }
+    }
+
+    pub(in crate::native_app) fn with_start_marker(mut self, show_start_marker: bool) -> Self {
+        self.show_start_marker = show_start_marker;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub(in crate::native_app) fn with_source_probe(
+        mut self,
+        source_probe: SamplePlaybackSourceProbe,
+    ) -> Self {
+        self.source_probe = source_probe;
+        self
+    }
+
+    pub(in crate::native_app) fn with_random_units(mut self, start: f32, length: f32) -> Self {
+        self.random_units = Some((start, length));
+        self
+    }
+
+    pub(in crate::native_app) fn with_normalization(
+        mut self,
+        normalization: SamplePlaybackNormalization,
+    ) -> Self {
+        self.normalization = normalization;
+        self
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
+pub(in crate::native_app) enum SamplePlaybackSessionState {
+    ResolvingSource,
+    RuntimePending,
+    AudibleTransient,
+    WaveformVisible,
+    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,43 +209,7 @@ pub(in crate::native_app) struct SamplePlaybackSession {
     pub(in crate::native_app) runtime_request_id: Option<PlaybackRequestId>,
     pub(in crate::native_app) source_kind: &'static str,
     pub(in crate::native_app) submitted_at: Instant,
-}
-
-pub(in crate::native_app) struct PendingRuntimePlaybackStart {
-    pub(in crate::native_app) id: PlaybackRequestId,
-    pub(in crate::native_app) session_generation: u64,
-    pub(in crate::native_app) path: String,
-    pub(in crate::native_app) span: (f32, f32),
-    pub(in crate::native_app) show_start_marker: bool,
-    pub(in crate::native_app) visibility: SamplePlaybackVisibility,
-    pub(in crate::native_app) submitted_at: Instant,
-    pub(in crate::native_app) origin: &'static str,
-    pub(in crate::native_app) source_kind: &'static str,
-}
-
-impl PendingRuntimePlaybackStart {
-    pub(in crate::native_app) fn new(
-        id: PlaybackRequestId,
-        session_generation: u64,
-        path: String,
-        span: (f32, f32),
-        show_start_marker: bool,
-        visibility: SamplePlaybackVisibility,
-        origin: &'static str,
-        source_kind: &'static str,
-    ) -> Self {
-        Self {
-            id,
-            session_generation,
-            path,
-            span,
-            show_start_marker,
-            visibility,
-            submitted_at: Instant::now(),
-            origin,
-            source_kind,
-        }
-    }
+    pub(in crate::native_app) state: SamplePlaybackSessionState,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -173,14 +256,11 @@ impl AudioAppState {
             pending_playback_start: None,
             pending_sample_playback: None,
             playback_history: PlaybackNavigationHistory::default(),
-            early_sample_playback_path: None,
-            early_sample_playback_kind: None,
             sample_playback_session: None,
             next_sample_playback_generation: 1,
             playback_runtime: None,
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),
-            pending_runtime_start: None,
         }
     }
 
@@ -206,6 +286,29 @@ impl AudioAppState {
             runtime_request_id: Some(runtime_request_id),
             source_kind,
             submitted_at: Instant::now(),
+            state: SamplePlaybackSessionState::RuntimePending,
+        });
+        generation
+    }
+
+    #[allow(dead_code)]
+    pub(in crate::native_app) fn start_resolving_sample_playback_session(
+        &mut self,
+        request: SamplePlaybackRequest,
+        source_kind: &'static str,
+    ) -> u64 {
+        let generation = self.next_sample_playback_generation;
+        self.next_sample_playback_generation = self
+            .next_sample_playback_generation
+            .saturating_add(1)
+            .max(1);
+        self.sample_playback_session = Some(SamplePlaybackSession {
+            generation,
+            request,
+            runtime_request_id: None,
+            source_kind,
+            submitted_at: Instant::now(),
+            state: SamplePlaybackSessionState::ResolvingSource,
         });
         generation
     }
@@ -221,13 +324,70 @@ impl AudioAppState {
         let Some(session) = self.sample_playback_session.as_mut() else {
             return false;
         };
-        if session.request.path != path
-            || session.request.visibility == SamplePlaybackVisibility::Waveform
-            || session.source_kind == "preview_samples"
-        {
+        if session.request.path != path || session.source_kind == "preview_samples" {
             return false;
         }
         session.request.visibility = SamplePlaybackVisibility::Waveform;
+        session.state = SamplePlaybackSessionState::WaveformVisible;
         true
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_path(&self) -> Option<&str> {
+        self.sample_playback_session
+            .as_ref()
+            .map(|session| session.request.path.as_str())
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_matches(&self, path: &str) -> bool {
+        self.active_sample_playback_path() == Some(path)
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_is_preview(&self, path: &str) -> bool {
+        self.sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                session.request.path == path && session.source_kind == "preview_samples"
+            })
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_is_streamable(&self, path: &str) -> bool {
+        self.sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                session.request.path == path && session.source_kind != "preview_samples"
+            })
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_updates_waveform(
+        &self,
+        path: &str,
+    ) -> bool {
+        self.sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                session.request.path == path
+                    && session.request.visibility.updates_waveform_playhead()
+            })
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_pending_runtime(&self) -> bool {
+        self.sample_playback_session
+            .as_ref()
+            .is_some_and(|session| {
+                matches!(session.state, SamplePlaybackSessionState::RuntimePending)
+            })
+    }
+
+    #[allow(dead_code)]
+    pub(in crate::native_app) fn active_starmap_audition_path(&self) -> Option<String> {
+        self.sample_playback_session.as_ref().and_then(|session| {
+            (session.request.origin == "starmap_drag").then(|| session.request.path.clone())
+        })
+    }
+
+    pub(in crate::native_app) fn set_active_sample_playback_span(&mut self, span: (f32, f32)) {
+        if let Some(session) = self.sample_playback_session.as_mut() {
+            session.request.span = span;
+        }
     }
 }

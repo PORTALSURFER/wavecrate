@@ -1,11 +1,14 @@
 use super::{
+    ActiveSamplePlaybackPlanState, SamplePlaybackAvailableSources, SamplePlaybackPlan,
     diagnostics::log_slow_playback_phase,
     intent::{PlaybackCommand, PlaybackIntent, PlaybackMode},
+    plan_sample_playback,
 };
 use crate::native_app::app::{
-    NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart, SamplePlaybackIntent,
-    SamplePlaybackRequest, SamplePlaybackVisibility,
+    GuiMessage, NativeAppState, PendingPlaybackStart, SamplePlaybackHistory, SamplePlaybackIntent,
+    SamplePlaybackRequest,
 };
+use radiant::prelude as ui;
 use std::time::Instant;
 use wavecrate::audio::{
     PlaybackMetronomeConfig, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
@@ -13,7 +16,111 @@ use wavecrate::audio::{
     edit_fade_range_from_selection,
 };
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::native_app) enum SamplePlaybackOutcome {
+    Started,
+    QueuedLoad,
+    Promoted,
+    Unavailable,
+}
+
 impl NativeAppState {
+    pub(in crate::native_app) fn request_sample_playback(
+        &mut self,
+        request: SamplePlaybackRequest,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) -> Result<SamplePlaybackOutcome, String> {
+        let active = self.active_sample_playback_plan_state(request.path.as_str());
+        let sources = self.sample_playback_available_sources(request.path.as_str());
+        match plan_sample_playback(&request, sources, active) {
+            SamplePlaybackPlan::PromoteActiveSession => {
+                if self
+                    .audio
+                    .promote_sample_playback_session_to_waveform(request.path.as_str())
+                {
+                    return Ok(SamplePlaybackOutcome::Promoted);
+                }
+            }
+            SamplePlaybackPlan::Unavailable => return Ok(SamplePlaybackOutcome::Unavailable),
+            SamplePlaybackPlan::QueueLoad | SamplePlaybackPlan::QueuePreviewDecode => {
+                self.audio.pending_sample_playback = Some(request.clone());
+                self.load_sample_without_autoplay(request.path, context);
+                return Ok(SamplePlaybackOutcome::QueuedLoad);
+            }
+            SamplePlaybackPlan::HandOffPreviewToFullSource
+            | SamplePlaybackPlan::SubmitRuntime { .. } => {}
+        }
+
+        if !self.waveform.current.has_loaded_sample()
+            || self.waveform.current.path() != std::path::Path::new(request.path.as_str())
+        {
+            self.audio.pending_sample_playback = Some(request.clone());
+            self.load_sample_without_autoplay(request.path, context);
+            return Ok(SamplePlaybackOutcome::QueuedLoad);
+        }
+
+        match request.intent {
+            SamplePlaybackIntent::RandomAudition => {
+                let Some((start_unit, length_unit)) = request.random_units else {
+                    return Ok(SamplePlaybackOutcome::Unavailable);
+                };
+                let span = self.random_audition_span_for_loaded_waveform(
+                    super::random_audition::RandomAuditionUnits::new(start_unit, length_unit),
+                );
+                self.start_random_audition_span(span)?;
+            }
+            SamplePlaybackIntent::HistoryReplay => {
+                self.start_playback_intent_with_history(
+                    PlaybackIntent::fixed_region(request.span.0, request.span.1),
+                    false,
+                )?;
+            }
+            _ => {
+                self.start_playback_intent_with_history(
+                    PlaybackIntent::new(request.span.0, request.span.1),
+                    request.history.records(),
+                )?;
+            }
+        }
+        Ok(SamplePlaybackOutcome::Started)
+    }
+
+    fn active_sample_playback_plan_state(&self, path: &str) -> ActiveSamplePlaybackPlanState {
+        self.audio
+            .sample_playback_session
+            .as_ref()
+            .map(|session| ActiveSamplePlaybackPlanState {
+                same_path: session.request.path == path,
+                preview_source: session.source_kind == "preview_samples",
+                streamable_source: session.source_kind != "preview_samples",
+                waveform_visible: session.request.visibility.updates_waveform_playhead(),
+            })
+            .unwrap_or_default()
+    }
+
+    fn sample_playback_available_sources(&mut self, path: &str) -> SamplePlaybackAvailableSources {
+        let loaded_current = self.waveform.current.has_loaded_sample()
+            && self.waveform.current.path() == std::path::Path::new(path);
+        SamplePlaybackAvailableSources {
+            loaded_decoded_samples: loaded_current
+                && self.waveform.current.playback_samples().is_some(),
+            loaded_f32_cache: loaded_current
+                && self.waveform.current.playback_cache_file().is_some(),
+            loaded_audio_bytes: loaded_current,
+            persisted_f32_descriptor: self
+                .waveform
+                .cache
+                .instant_audition_descriptors
+                .contains_key(std::path::Path::new(path)),
+            file_backed_audio_descriptor: false,
+            preview_clip: self
+                .waveform
+                .cache
+                .preview_audition_clip(std::path::Path::new(path))
+                .is_some(),
+        }
+    }
+
     pub(in crate::native_app) fn start_playback_current_span(
         &mut self,
         start_ratio: f32,
@@ -22,6 +129,7 @@ impl NativeAppState {
         self.start_playback_intent(PlaybackIntent::new(start_ratio, end_ratio))
     }
 
+    #[allow(dead_code)]
     pub(in crate::native_app) fn start_playback_fixed_span_without_history(
         &mut self,
         start_ratio: f32,
@@ -139,28 +247,21 @@ impl NativeAppState {
         self.audio.playback_progress = Default::default();
         self.audio.current_playback_span =
             Some((command.resolved.start_ratio, command.resolved.end_ratio));
-        let session_request = SamplePlaybackRequest {
-            path: self.waveform.current.path().display().to_string(),
-            span: (command.resolved.start_ratio, command.resolved.end_ratio),
-            intent: SamplePlaybackIntent::WaveformSpan,
-            visibility: SamplePlaybackVisibility::Waveform,
-            stream_policy: PlaybackRuntimeStreamPolicy::full(),
-            show_start_marker: command.intent.show_start_marker,
-        };
-        let source_kind = self.current_waveform_runtime_source_kind();
-        let session_generation =
-            self.audio
-                .start_sample_playback_session(session_request.clone(), request_id, source_kind);
-        self.audio.pending_runtime_start = Some(PendingRuntimePlaybackStart::new(
-            request_id,
-            session_generation,
-            session_request.path,
-            session_request.span,
-            command.intent.show_start_marker,
-            SamplePlaybackVisibility::Waveform,
+        let session_request = SamplePlaybackRequest::waveform(
+            self.waveform.current.path().display().to_string(),
+            (command.resolved.start_ratio, command.resolved.end_ratio),
+            SamplePlaybackIntent::WaveformSpan,
             "waveform",
-            source_kind,
-        ));
+            if record_history {
+                SamplePlaybackHistory::Record
+            } else {
+                SamplePlaybackHistory::Skip
+            },
+        )
+        .with_start_marker(command.intent.show_start_marker);
+        let source_kind = self.current_waveform_runtime_source_kind();
+        self.audio
+            .start_sample_playback_session(session_request, request_id, source_kind);
         if record_history {
             self.record_current_playback_history(
                 command.resolved.start_ratio,

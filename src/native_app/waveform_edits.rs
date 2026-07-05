@@ -640,7 +640,7 @@ impl NativeAppState {
         self.audio.current_playback_span = None;
         self.audio.pending_playback_start = None;
         self.audio.pending_sample_playback = None;
-        self.audio.pending_runtime_start = None;
+        self.audio.clear_sample_playback_session();
 
         let preserved_marks = self.preserved_marks_after_destructive_edit(&request);
         let mut worker_request =

@@ -4,10 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::native_app::app::{
-    emit_gui_action, sample_path_label, EarlySamplePlaybackKind, GuiMessage, NativeAppState,
-    SamplePlaybackVisibility,
-};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, sample_path_label};
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
@@ -380,8 +377,8 @@ impl NativeAppState {
         if self.start_memory_cached_sample(path.as_str(), true, context, started_at) {
             return;
         }
-        let existing_early_playback = self.early_sample_playback_kind_for_path(path.as_str());
-        let instant_audition_outcome = if existing_early_playback.is_none() {
+        let existing_session_for_path = self.audio.active_sample_playback_matches(path.as_str());
+        let instant_audition_outcome = if !existing_session_for_path {
             self.start_fast_path_audition(
                 path.as_str(),
                 context,
@@ -392,13 +389,13 @@ impl NativeAppState {
             super::cache_start::InstantAuditionOutcome::Unavailable
         };
         if transient_navigation
-            && (existing_early_playback == Some(EarlySamplePlaybackKind::PreviewSlice)
+            && (self.audio.active_sample_playback_is_preview(path.as_str())
                 || self
                     .fast_audition_needs_settled_promotion(path.as_str(), instant_audition_outcome))
         {
             self.schedule_settled_sample_promotion(path.as_str(), context);
         }
-        let instant_audition_started = existing_early_playback.is_some()
+        let instant_audition_started = existing_session_for_path
             || instant_audition_outcome == super::cache_start::InstantAuditionOutcome::Started
             || (transient_navigation && instant_audition_outcome.uses_ready_source());
         self.start_foreground_sample_load_with_priority(
@@ -503,7 +500,9 @@ impl NativeAppState {
                 && self.waveform.current.path() == Path::new(path.as_str())
             {
                 let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
-                self.waveform.current.start_playback_without_marker(progress);
+                self.waveform
+                    .current
+                    .start_playback_without_marker(progress);
             }
             emit_gui_action(
                 "browser.select_sample.settled_promotion",
@@ -654,11 +653,9 @@ impl NativeAppState {
         }
 
         self.audio.pending_sample_playback = None;
-        if self.audio.early_sample_playback_path.as_deref() == Some(path) {
+        if self.audio.active_sample_playback_matches(path) {
             self.stop_audio_output_playback();
             self.audio.current_playback_span = None;
-            self.audio.early_sample_playback_path = None;
-            self.audio.early_sample_playback_kind = None;
             self.audio.clear_sample_playback_session();
         }
         self.ui.status.sample = format!("Removed missing {}", sample_path_label(path));
@@ -685,12 +682,6 @@ impl NativeAppState {
         true
     }
 
-    fn early_sample_playback_kind_for_path(&self, path: &str) -> Option<EarlySamplePlaybackKind> {
-        (self.audio.early_sample_playback_path.as_deref() == Some(path))
-            .then_some(self.audio.early_sample_playback_kind)
-            .flatten()
-    }
-
     fn fast_audition_needs_settled_promotion(
         &self,
         path: &str,
@@ -698,8 +689,7 @@ impl NativeAppState {
     ) -> bool {
         match outcome {
             super::cache_start::InstantAuditionOutcome::Started => {
-                self.early_sample_playback_kind_for_path(path)
-                    == Some(EarlySamplePlaybackKind::PreviewSlice)
+                self.audio.active_sample_playback_is_preview(path)
             }
             super::cache_start::InstantAuditionOutcome::AudioPending => true,
             super::cache_start::InstantAuditionOutcome::Unavailable => false,
@@ -707,21 +697,7 @@ impl NativeAppState {
     }
 
     fn full_sample_playback_already_promoted_for_path(&self, path: &str) -> bool {
-        if let Some(session) = self.audio.sample_playback_session.as_ref()
-            && session.request.path == path
-        {
-            return session.request.visibility == SamplePlaybackVisibility::Waveform;
-        }
-        if self.audio.early_sample_playback_path.as_deref() == Some(path) {
-            return self.audio.early_sample_playback_kind
-                == Some(EarlySamplePlaybackKind::FullSample);
-        }
-        if self
-            .audio
-            .pending_runtime_start
-            .as_ref()
-            .is_some_and(|pending| pending.path == path && pending.visibility == SamplePlaybackVisibility::Waveform)
-        {
+        if self.audio.active_sample_playback_updates_waveform(path) {
             return true;
         }
         if !self.waveform.current.has_loaded_sample()
@@ -747,15 +723,23 @@ fn log_settled_promotion_timing(path: &str, elapsed: Duration) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::native_app::test_support::state::NativeAppStateFixture;
+    use crate::native_app::{
+        app::{SamplePlaybackIntent, SamplePlaybackRequest},
+        test_support::state::NativeAppStateFixture,
+    };
 
     #[test]
     fn full_sample_fast_audition_does_not_schedule_settled_replay() {
         let mut state = NativeAppStateFixture::default().build();
         let path = "full-ready.wav";
-        state.audio.early_sample_playback_path = Some(path.to_owned());
-        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::FullSample);
+        let request = SamplePlaybackRequest::transient(
+            path.to_owned(),
+            SamplePlaybackIntent::TransientNavigation,
+            "browser",
+        );
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "audio_file");
 
         assert!(!state.fast_audition_needs_settled_promotion(
             path,
@@ -767,8 +751,14 @@ mod tests {
     fn preview_fast_audition_schedules_settled_promotion() {
         let mut state = NativeAppStateFixture::default().build();
         let path = "preview-ready.wav";
-        state.audio.early_sample_playback_path = Some(path.to_owned());
-        state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+        let request = SamplePlaybackRequest::transient(
+            path.to_owned(),
+            SamplePlaybackIntent::TransientNavigation,
+            "browser",
+        );
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "preview_samples");
 
         assert!(state.fast_audition_needs_settled_promotion(
             path,

@@ -608,7 +608,7 @@ fn loop_toggle_after_spacebar_keeps_runtime_looping_past_original_end() {
 }
 
 #[test]
-fn loop_toggle_waits_for_pending_runtime_start_before_recovering() {
+fn loop_toggle_waits_for_pending_session_start_before_recovering() {
     let Some(mut scenario) =
         WaveformPlaybackScenario::loaded_with_player("loop-toggle-pending-start.wav", &[0; 4800])
     else {
@@ -2910,9 +2910,10 @@ fn looped_playback_retarget_restarts_when_playhead_is_already_beyond_new_end() {
 fn pending_runtime_playback_start_id(state: &NativeAppState) -> Option<u64> {
     state
         .audio
-        .pending_runtime_start
+        .sample_playback_session
         .as_ref()
-        .map(|pending| pending.id.get())
+        .and_then(|session| session.runtime_request_id)
+        .map(|id| id.get())
 }
 
 fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expected_end: f32) {

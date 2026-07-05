@@ -1,5 +1,4 @@
 use super::*;
-use crate::native_app::app::EarlySamplePlaybackKind;
 
 #[test]
 fn wav_load_reports_playback_ready_before_waveform_summary_completion() {
@@ -103,12 +102,14 @@ fn playback_ready_message_starts_audio_before_waveform_completion() {
         &mut context,
     );
 
-    assert_eq!(
-        state.audio.early_sample_playback_path.as_deref(),
-        Some(sample_path_string.as_str())
-    );
+    let session = state
+        .audio
+        .sample_playback_session
+        .as_ref()
+        .expect("playback-ready audio should create a session");
+    assert_eq!(session.request.path, sample_path_string);
+    assert_eq!(session.source_kind, "decoded_samples");
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
-    assert!(state.audio.pending_runtime_start.is_some());
     assert!(!state.waveform.current.has_loaded_sample());
     assert!(
         !state.waveform.current.is_playing(),
@@ -130,7 +131,11 @@ fn playback_ready_message_starts_audio_before_waveform_completion() {
         &mut context,
     );
 
-    assert_eq!(state.audio.early_sample_playback_path, None);
+    assert!(
+        state
+            .audio
+            .active_sample_playback_updates_waveform(&sample_path_string)
+    );
     assert!(state.waveform.current.is_playing());
     assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
 }
@@ -151,8 +156,11 @@ fn display_after_preview_waits_for_settled_full_playback_promotion() {
         .library
         .folder_browser
         .select_file(sample_path_string.clone());
-    state.audio.early_sample_playback_path = Some(sample_path_string.clone());
-    state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_path_string.clone(),
+        "preview_samples",
+    );
 
     let mut context = ui::UiUpdateContext::default();
     state.load_navigation_sample_validated(
@@ -177,13 +185,14 @@ fn display_after_preview_waits_for_settled_full_playback_promotion() {
     );
 
     assert_eq!(
-        state.audio.early_sample_playback_path.as_deref(),
+        state.audio.active_sample_playback_path(),
         Some(sample_path_string.as_str()),
         "display-only completion should keep the preview marker for the settle handoff"
     );
-    assert_eq!(
-        state.audio.early_sample_playback_kind,
-        Some(EarlySamplePlaybackKind::PreviewSlice)
+    assert!(
+        state
+            .audio
+            .active_sample_playback_is_preview(&sample_path_string)
     );
     assert!(
         state.ui.status.sample.contains("Preparing"),
@@ -214,8 +223,11 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
             .expect("sample loads");
-    state.audio.early_sample_playback_path = Some(sample_path_string.clone());
-    state.audio.early_sample_playback_kind = Some(EarlySamplePlaybackKind::PreviewSlice);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_path_string.clone(),
+        "preview_samples",
+    );
     state.audio.playback_progress.elapsed = Some(std::time::Duration::from_millis(110));
     let ticket = state.background.settled_sample_promotion_task.begin();
     let mut context = ui::UiUpdateContext::default();
@@ -229,8 +241,6 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
         &mut context,
     );
 
-    assert_eq!(state.audio.early_sample_playback_path, None);
-    assert_eq!(state.audio.early_sample_playback_kind, None);
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(sample_path_string.as_str())
@@ -239,7 +249,7 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
     assert!(
         state.waveform.current.is_playing()
             || state.audio.pending_playback_start.is_some()
-            || state.audio.pending_runtime_start.is_some()
+            || state.audio.sample_playback_session.is_some()
             || state.audio.current_playback_span == Some((0.0, 1.0)),
         "settled promotion should hand the current loaded sample to full playback"
     );

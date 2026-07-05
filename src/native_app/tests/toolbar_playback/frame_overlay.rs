@@ -17,7 +17,11 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
 #[test]
 fn early_runtime_playback_handoff_keeps_transient_overlay_active() {
     let mut state = gui_state_for_span_tests();
-    state.audio.early_sample_playback_path = Some(String::from("kick.wav"));
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        String::from("kick.wav"),
+        "audio_file",
+    );
     state.audio.playback_progress.active = true;
     state.audio.playback_progress.progress = Some(0.25);
 
@@ -66,7 +70,11 @@ fn active_starmap_queue_keeps_app_transient_overlay_active_between_pointer_event
 #[test]
 fn early_runtime_playback_handoff_still_uses_paint_only_frames() {
     let mut state = gui_state_for_span_tests();
-    state.audio.early_sample_playback_path = Some(String::from("kick.wav"));
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        String::from("kick.wav"),
+        "audio_file",
+    );
     state.audio.playback_progress.active = true;
     state.audio.playback_progress.progress = Some(0.25);
 
