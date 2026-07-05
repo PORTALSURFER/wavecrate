@@ -1379,6 +1379,7 @@ impl NativeAppState {
                 );
             }
             Err(err) if self.audio.pending_playback_start.is_some() => {
+                self.record_selected_sample_last_played(context);
                 self.ui.status.sample = format!("Playing {file_name} when audio output is ready");
                 emit_gui_action(
                     "browser.select_sample",

@@ -77,6 +77,7 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
+        self.start_selection_fast_audition(path.as_str(), context, started_at);
         self.queue_sample_load_path_validation(
             path,
             SampleLoadPathValidationIntent::Selection { autoplay: true },
@@ -115,6 +116,7 @@ impl NativeAppState {
             self.metadata.selected_tag = None;
         }
         self.audio.pending_sample_playback = None;
+        self.start_selection_fast_audition(path.as_str(), context, started_at);
         self.queue_sample_load_path_validation(
             path,
             SampleLoadPathValidationIntent::Selection { autoplay: true },
@@ -345,7 +347,7 @@ impl NativeAppState {
         started_at: Instant,
     ) {
         self.yield_sample_cache_warm_for_foreground_load(context);
-        self.cancel_inflight_sample_load();
+        self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
             return;
         }
@@ -394,7 +396,7 @@ impl NativeAppState {
             None,
         );
         self.yield_sample_cache_warm_for_foreground_load(context);
-        self.cancel_inflight_sample_load();
+        self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         self.audio.pending_sample_playback = None;
         self.waveform.load.label = None;
         self.waveform.load.progress = 0.0;
@@ -454,7 +456,7 @@ impl NativeAppState {
             None,
         );
         self.yield_sample_cache_warm_for_foreground_load(context);
-        self.cancel_inflight_sample_load();
+        self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         let request = SampleLoadPathValidationRequest::new(path, intent);
         context
             .business()
@@ -559,6 +561,11 @@ impl NativeAppState {
         }
 
         self.audio.pending_sample_playback = None;
+        if self.audio.early_sample_playback_path.as_deref() == Some(path) {
+            self.stop_audio_output_playback();
+            self.audio.current_playback_span = None;
+            self.audio.early_sample_playback_path = None;
+        }
         self.ui.status.sample = format!("Removed missing {}", sample_path_label(path));
         if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
             self.ui.status.sample =
@@ -581,5 +588,19 @@ impl NativeAppState {
             None,
         );
         true
+    }
+
+    fn start_selection_fast_audition(
+        &mut self,
+        path: &str,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
+        self.start_fast_path_audition(
+            path,
+            context,
+            started_at,
+            super::cache_start::FastAuditionOptions::instant_navigation(),
+        );
     }
 }

@@ -287,6 +287,59 @@ fn selecting_missing_sample_prunes_row_without_queueing_load() {
 }
 
 #[test]
+fn list_selection_cold_wav_queues_preview_audition_before_validation_finishes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample = source_root.path().join("large-row-selection.wav");
+    write_sparse_test_wav_i16(&sample, 1, 700);
+    let sample_id = sample.display().to_string();
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SelectSampleWithModifiers {
+            path: sample_id.clone(),
+            modifiers: PointerModifiers::default(),
+        },
+        &mut context,
+    );
+    let command = context.into_command();
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(sample_id.as_str()),
+        "row selection should update visible focus before validation or decoding finishes"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-preview-audition-decode"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "cold row selection should start the tiny preview-head decode immediately"
+    );
+    assert_eq!(
+        command.business_task_priority("gui-sample-load-validate"),
+        Some(radiant::prelude::TaskPriority::Interactive),
+        "row selection should still validate the path for missing-file recovery"
+    );
+    assert!(
+        state.background.preview_audition_task.active().is_some(),
+        "preview audition decode should be active before validation completes"
+    );
+    assert!(
+        state
+            .background
+            .sample_load_validation_task
+            .active()
+            .is_some(),
+        "validation should remain active after fast preview scheduling"
+    );
+}
+
+#[test]
 fn map_mode_keyboard_navigation_centers_newly_selected_sample_node() {
     let source_root = tempfile::tempdir().expect("source root");
     let first = source_root.path().join("a.wav");
