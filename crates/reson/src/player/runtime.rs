@@ -336,6 +336,17 @@ impl PlaybackRuntimeHandle {
             .map_err(map_send_error)
     }
 
+    /// Cancel queued playback without stopping the currently audible source.
+    pub fn try_cancel_pending_playback(
+        &self,
+    ) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
+        let id = self.next_request_id();
+        self.commands
+            .send(PlaybackRuntimeCommand::CancelPendingPlayback)
+            .map(|()| id)
+            .map_err(map_send_error)
+    }
+
     /// Submit a playback-progress snapshot request without waiting for the runtime thread.
     pub fn try_poll_progress(&self) -> Result<PlaybackRequestId, PlaybackRuntimeSubmitError> {
         let id = self.next_request_id();
@@ -419,6 +430,7 @@ enum PlaybackRuntimeCommand {
     Stop {
         id: PlaybackRequestId,
     },
+    CancelPendingPlayback,
     RetargetSpan {
         id: PlaybackRequestId,
         update: PlaybackRuntimeSpanUpdate,
@@ -597,6 +609,7 @@ fn run_playback_runtime(
                 };
                 let _ = events.send(event);
             }
+            CoalescedCommand::CancelPendingPlayback => {}
             CoalescedCommand::RetargetSpan { id, update } => {
                 let event = match executor.retarget_span(update) {
                     Ok(_) => PlaybackRuntimeEvent::Progress {
@@ -642,6 +655,7 @@ enum CoalescedCommand {
     Stop {
         id: PlaybackRequestId,
     },
+    CancelPendingPlayback,
     RetargetSpan {
         id: PlaybackRequestId,
         update: PlaybackRuntimeSpanUpdate,
@@ -705,6 +719,10 @@ fn coalesce_pending_command(
             cancel_pending_commands(pending, PlaybackRuntimeCancellation::Shutdown, events);
             PlaybackRuntimeCommand::Shutdown
         }
+        current @ PlaybackRuntimeCommand::CancelPendingPlayback => {
+            cancel_pending_play_commands(pending, events);
+            current
+        }
         // Stop is an ordering barrier: dropping it lets an old loop keep running
         // while the host app is still loading the replacement sample.
         current @ PlaybackRuntimeCommand::Stop { .. } => current,
@@ -727,6 +745,13 @@ fn coalesce_play_command(
                 let stop = pending.pop_front().expect("pending stop command");
                 cancel_command(current, PlaybackRuntimeCancellation::Stopped, events);
                 return stop;
+            }
+            Some(PlaybackRuntimeCommand::CancelPendingPlayback) => {
+                let cancel = pending
+                    .pop_front()
+                    .expect("pending cancel-playback command");
+                cancel_command(current, PlaybackRuntimeCancellation::Stopped, events);
+                return cancel;
             }
             Some(PlaybackRuntimeCommand::Shutdown) => {
                 let shutdown = pending.pop_front().expect("pending shutdown command");
@@ -759,6 +784,11 @@ fn coalesce_span_retarget_command(
             }
             Some(PlaybackRuntimeCommand::Stop { .. }) => {
                 return pending.pop_front().expect("pending stop command");
+            }
+            Some(PlaybackRuntimeCommand::CancelPendingPlayback) => {
+                return pending
+                    .pop_front()
+                    .expect("pending cancel-playback command");
             }
             Some(PlaybackRuntimeCommand::Shutdown) => {
                 return pending.pop_front().expect("pending shutdown command");
@@ -815,6 +845,7 @@ fn command_to_coalesced(command: PlaybackRuntimeCommand) -> CoalescedCommand {
     match command {
         PlaybackRuntimeCommand::Play { id, request } => CoalescedCommand::Play { id, request },
         PlaybackRuntimeCommand::Stop { id } => CoalescedCommand::Stop { id },
+        PlaybackRuntimeCommand::CancelPendingPlayback => CoalescedCommand::CancelPendingPlayback,
         PlaybackRuntimeCommand::RetargetSpan { id, update } => {
             CoalescedCommand::RetargetSpan { id, update }
         }
@@ -849,6 +880,22 @@ fn cancel_pending_commands(
     while let Some(command) = pending.pop_front() {
         cancel_command(command, reason, events);
     }
+}
+
+fn cancel_pending_play_commands(
+    pending: &mut VecDeque<PlaybackRuntimeCommand>,
+    events: &mpsc::Sender<PlaybackRuntimeEvent>,
+) {
+    let mut retained = VecDeque::new();
+    while let Some(command) = pending.pop_front() {
+        match command {
+            PlaybackRuntimeCommand::Play { id, .. } => {
+                send_cancelled(id, PlaybackRuntimeCancellation::Stopped, events);
+            }
+            other => retained.push_back(other),
+        }
+    }
+    *pending = retained;
 }
 
 fn send_cancelled(
@@ -1243,6 +1290,23 @@ mod tests {
             events.as_slice(),
             [PlaybackRuntimeEvent::Cancelled { id, reason }]
                 if *id == first_play && *reason == PlaybackRuntimeCancellation::Stopped
+        ));
+    }
+
+    #[test]
+    fn coalescing_play_then_cancel_pending_drops_play_without_stop() {
+        let play_id = PlaybackRequestId(1);
+        let (coalesced, pending, events) = coalesce_for_test(
+            play_command(play_id, 0.25),
+            vec![PlaybackRuntimeCommand::CancelPendingPlayback],
+        );
+
+        assert!(matches!(coalesced, CoalescedCommand::CancelPendingPlayback));
+        assert!(pending.is_empty());
+        assert!(matches!(
+            events.as_slice(),
+            [PlaybackRuntimeEvent::Cancelled { id, reason }]
+                if *id == play_id && *reason == PlaybackRuntimeCancellation::Stopped
         ));
     }
 

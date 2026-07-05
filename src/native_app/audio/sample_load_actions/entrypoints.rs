@@ -159,6 +159,7 @@ impl NativeAppState {
         }
         self.audio.pending_sample_playback = None;
         if self.start_loaded_navigation_sample(path.as_str(), context, started_at) {
+            self.remember_starmap_last_played_sample(path.as_str());
             starmap_telemetry::record_event(
                 Some(StarmapAuditionCounter::LoadedCurrent),
                 "sample_start.loaded_current",
@@ -195,6 +196,9 @@ impl NativeAppState {
             super::cache_start::FastAuditionOptions::starmap_drag(),
         );
         self.start_starmap_waveform_preview(path.as_str());
+        if ready_outcome == super::cache_start::InstantAuditionOutcome::Started {
+            self.remember_starmap_last_played_sample(path.as_str());
+        }
         let ready_elapsed = starmap_telemetry::elapsed_since(ready_started_at);
         if let Some(elapsed) = ready_elapsed {
             starmap_telemetry::record_duration(StarmapAuditionDuration::ReadySource, elapsed);

@@ -18,6 +18,7 @@ use wavecrate::selection::SelectionRange;
 pub(in crate::native_app) struct WaveformAppState {
     pub(in crate::native_app) current: WaveformState,
     pub(in crate::native_app) display: WaveformDisplayState,
+    pub(in crate::native_app) starmap_drag_restore: Option<WaveformState>,
     pub(in crate::native_app) load: WaveformLoadState,
     pub(in crate::native_app) cache: WaveformCacheState,
     pub(in crate::native_app) pending_play_selection_transaction:
@@ -35,6 +36,7 @@ impl WaveformAppState {
         Self {
             current,
             display: WaveformDisplayState::Authoritative,
+            starmap_drag_restore: None,
             load: WaveformLoadState::default(),
             cache: WaveformCacheState::default(),
             pending_play_selection_transaction: None,
@@ -47,6 +49,30 @@ impl WaveformAppState {
 
     pub(in crate::native_app) fn mark_current_authoritative(&mut self) {
         self.display = WaveformDisplayState::Authoritative;
+        self.starmap_drag_restore = None;
+    }
+
+    pub(in crate::native_app) fn capture_starmap_drag_restore(&mut self) {
+        if self.starmap_drag_restore.is_some()
+            || self.instant_preview_active()
+            || !self.current.has_loaded_sample()
+        {
+            return;
+        }
+        let mut snapshot = self.current.clone();
+        snapshot.stop_playback();
+        self.starmap_drag_restore = Some(snapshot);
+    }
+
+    pub(in crate::native_app) fn restore_starmap_drag_snapshot(&mut self) -> Option<WaveformState> {
+        let Some(snapshot) = self.starmap_drag_restore.take() else {
+            return None;
+        };
+        if !self.instant_preview_active() {
+            return None;
+        }
+        self.display = WaveformDisplayState::Authoritative;
+        Some(std::mem::replace(&mut self.current, snapshot))
     }
 
     pub(in crate::native_app) fn replace_current_with_instant_waveform_preview(
