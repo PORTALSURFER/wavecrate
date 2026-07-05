@@ -453,10 +453,22 @@ impl FolderBrowserState {
     fn build_starmap_projection(&self, projection: StarmapProjection<'_>) -> Vec<StarmapItem> {
         let snapshot = self.browser_listing_snapshot(projection.tags_by_file);
         let focused_file_id = self.selected_file_id();
+        let layout_cache = &self.sample_list.starmap_layout;
+        let layout_load_completed = layout_cache.signature.is_some()
+            && layout_cache.loaded_signature == layout_cache.signature;
         snapshot
             .rows()
             .iter()
-            .map(|file| {
+            .filter_map(|file| {
+                let layout_point = self
+                    .sample_list
+                    .starmap_layout
+                    .points_by_file
+                    .get(&file.id)
+                    .copied();
+                if layout_point.is_none() && layout_load_completed {
+                    return None;
+                }
                 let instant_audition_ready = instant_audition_ready_for_starmap(
                     file,
                     projection.instant_audition_sample_paths,
@@ -466,19 +478,13 @@ impl FolderBrowserState {
                 let aspects = self.similarity_aspect_display_strengths_for_file(&file.id);
                 let strength = self.similarity_display_strength_for_file(&file.id);
                 let group = strongest_enabled_aspect(&aspects, self.similarity_controls());
-                let layout_point = self
-                    .sample_list
-                    .starmap_layout
-                    .points_by_file
-                    .get(&file.id)
-                    .copied();
                 let (x, y) = starmap_position(
                     &file.id,
                     group,
                     strength,
                     layout_point.map(|point| (point.x, point.y)),
                 );
-                StarmapItem {
+                Some(StarmapItem {
                     file_id: file.id.clone(),
                     label: file.stem.clone(),
                     x,
@@ -492,7 +498,7 @@ impl FolderBrowserState {
                     preview_audition_ready,
                     preview_audition_candidate: preview_audition_candidate_for_starmap(file),
                     missing: file.is_missing(),
-                }
+                })
             })
             .collect()
     }
@@ -1045,6 +1051,51 @@ mod tests {
                 "fallback point should stay inside the radial aspect cluster"
             );
         }
+    }
+
+    #[test]
+    fn starmap_projection_omits_missing_layout_rows_after_load_completes() {
+        let root = tempfile::tempdir().expect("source root");
+        let positioned = root.path().join("positioned.wav");
+        let missing = root.path().join("missing.wav");
+        std::fs::write(&positioned, []).expect("write positioned");
+        std::fs::write(&missing, []).expect("write missing");
+        let positioned_id = positioned.to_string_lossy().to_string();
+        let missing_id = missing.to_string_lossy().to_string();
+        let mut browser = FolderBrowserState::from_sample_sources(&[SampleSource::new(
+            root.path().to_path_buf(),
+        )]);
+        let tags_by_file = HashMap::new();
+        let request = browser
+            .take_starmap_layout_load_request(&tags_by_file)
+            .expect("layout request");
+        browser.apply_starmap_layout_load_result(StarmapLayoutLoadResult {
+            signature: request.signature,
+            result: Ok(HashMap::from([(
+                positioned_id.clone(),
+                wavecrate::sample_sources::StarmapLayoutPoint {
+                    x: 0.25,
+                    y: 0.75,
+                    cluster_id: None,
+                },
+            )])),
+        });
+
+        let map_ids = browser
+            .starmap_projection(StarmapProjection {
+                tags_by_file: &tags_by_file,
+                instant_audition_sample_paths: &HashSet::new(),
+                preview_audition_sample_paths: &HashSet::new(),
+            })
+            .into_iter()
+            .map(|item| item.file_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(map_ids, vec![positioned_id]);
+        assert!(
+            !map_ids.contains(&missing_id),
+            "completed Starmap loads should not draw synthetic fallback positions for missing layout rows"
+        );
     }
 
     #[test]

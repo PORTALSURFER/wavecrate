@@ -86,7 +86,7 @@ pub(super) fn starmap_view(
     let items = items.into();
     let map = if items.is_empty() {
         ui::column([
-            ui::text_line(starmap_empty_message(curation_mode_enabled), 23.0).muted_text(),
+            ui::text_line(starmap_empty_message(curation_mode_enabled, status), 23.0).muted_text(),
             ui::spacer().fill_height(),
         ])
         .spacing(0.0)
@@ -132,7 +132,10 @@ pub(in crate::native_app) fn paint_active_starmap_audition_overlay(
     }
 }
 
-fn starmap_empty_message(curation_mode_enabled: bool) -> &'static str {
+fn starmap_empty_message(curation_mode_enabled: bool, status: StarmapStatus) -> &'static str {
+    if status.listed_count > 0 {
+        return "No Starmap positions yet";
+    }
     if curation_mode_enabled {
         "No files left to curate"
     } else {
