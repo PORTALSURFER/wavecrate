@@ -146,8 +146,10 @@ pub(in crate::native_app) struct WaveformCacheState {
     preview_audition_failed_paths: HashSet<String>,
     preview_audition_starmap_warm_signature: Option<u64>,
     preview_audition_starmap_warm_scheduled: usize,
+    preview_audition_pending_starmap_warm_reservation: Option<PreviewAuditionWarmReservation>,
     preview_audition_list_warm_signature: Option<u64>,
     preview_audition_list_warm_scheduled: usize,
+    preview_audition_pending_list_warm_reservation: Option<PreviewAuditionWarmReservation>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -155,6 +157,12 @@ struct PreviewAuditionCacheEntry {
     clip: PreviewAuditionClip,
     byte_len: usize,
     last_used: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PreviewAuditionWarmReservation {
+    signature: u64,
+    count: usize,
 }
 
 const PREVIEW_AUDITION_CACHE_MAX_BYTES: usize = 96 * 1024 * 1024;
@@ -196,8 +204,10 @@ impl Default for WaveformCacheState {
             preview_audition_failed_paths: Default::default(),
             preview_audition_starmap_warm_signature: None,
             preview_audition_starmap_warm_scheduled: 0,
+            preview_audition_pending_starmap_warm_reservation: None,
             preview_audition_list_warm_signature: None,
             preview_audition_list_warm_scheduled: 0,
+            preview_audition_pending_list_warm_reservation: None,
         }
     }
 }
@@ -381,7 +391,6 @@ impl WaveformCacheState {
     pub(in crate::native_app) fn mark_preview_audition_warm_scheduled(&mut self, paths: &[String]) {
         for path in paths {
             self.preview_audition_scheduled_paths.insert(path.clone());
-            self.preview_audition_attempted_paths.insert(path.clone());
         }
     }
 
@@ -411,6 +420,19 @@ impl WaveformCacheState {
             .saturating_add(scheduled);
     }
 
+    pub(in crate::native_app) fn reserve_starmap_preview_warm_batch(
+        &mut self,
+        signature: u64,
+        scheduled: usize,
+    ) {
+        self.reserve_starmap_preview_warm_budget(signature, scheduled);
+        self.preview_audition_pending_starmap_warm_reservation =
+            Some(PreviewAuditionWarmReservation {
+                signature,
+                count: scheduled,
+            });
+    }
+
     pub(in crate::native_app) fn remaining_list_preview_warm_budget(
         &mut self,
         signature: u64,
@@ -437,12 +459,27 @@ impl WaveformCacheState {
             .saturating_add(scheduled);
     }
 
+    pub(in crate::native_app) fn reserve_list_preview_warm_batch(
+        &mut self,
+        signature: u64,
+        scheduled: usize,
+    ) {
+        self.reserve_list_preview_warm_budget(signature, scheduled);
+        self.preview_audition_pending_list_warm_reservation =
+            Some(PreviewAuditionWarmReservation {
+                signature,
+                count: scheduled,
+            });
+    }
+
     pub(in crate::native_app) fn finish_preview_audition_warm_schedule(
         &mut self,
         scheduled_paths: &[String],
         attempted_paths: &[String],
         failed_paths: &[String],
     ) {
+        let attempted_count = attempted_paths.len().min(scheduled_paths.len());
+        let unattempted_count = scheduled_paths.len().saturating_sub(attempted_count);
         for path in scheduled_paths {
             self.preview_audition_scheduled_paths.remove(path);
         }
@@ -453,10 +490,37 @@ impl WaveformCacheState {
             self.preview_audition_attempted_paths.insert(path.clone());
             self.preview_audition_failed_paths.insert(path.clone());
         }
+        self.release_pending_preview_warm_reservation(unattempted_count);
     }
 
     pub(in crate::native_app) fn cancel_preview_audition_warm_schedule(&mut self) {
+        self.release_pending_preview_warm_reservation(self.preview_audition_scheduled_paths.len());
         self.preview_audition_scheduled_paths.clear();
+    }
+
+    fn release_pending_preview_warm_reservation(&mut self, count: usize) {
+        if count == 0 {
+            self.preview_audition_pending_starmap_warm_reservation = None;
+            self.preview_audition_pending_list_warm_reservation = None;
+            return;
+        }
+        if let Some(reservation) = self
+            .preview_audition_pending_starmap_warm_reservation
+            .take()
+        {
+            if self.preview_audition_starmap_warm_signature == Some(reservation.signature) {
+                self.preview_audition_starmap_warm_scheduled = self
+                    .preview_audition_starmap_warm_scheduled
+                    .saturating_sub(count.min(reservation.count));
+            }
+        }
+        if let Some(reservation) = self.preview_audition_pending_list_warm_reservation.take() {
+            if self.preview_audition_list_warm_signature == Some(reservation.signature) {
+                self.preview_audition_list_warm_scheduled = self
+                    .preview_audition_list_warm_scheduled
+                    .saturating_sub(count.min(reservation.count));
+            }
+        }
     }
 
     pub(in crate::native_app) fn store_preview_audition_clip(&mut self, clip: PreviewAuditionClip) {
@@ -605,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn preview_warm_cancel_does_not_requeue_scheduled_paths() {
+    fn preview_warm_cancel_releases_scheduled_paths_for_later_warm() {
         let path = PathBuf::from("/tmp/wavecrate-preview-cancelled.wav");
         let path_id = path.display().to_string();
         let mut cache = WaveformCacheState::default();
@@ -615,13 +679,13 @@ mod tests {
         cache.cancel_preview_audition_warm_schedule();
 
         assert!(
-            !cache.preview_audition_warm_needed(&path),
-            "cancelled background warm work must not churn on the same visible path"
+            cache.preview_audition_warm_needed(&path),
+            "cancelled background warm work should be eligible once the UI is idle again"
         );
     }
 
     #[test]
-    fn preview_warm_partial_finish_does_not_requeue_unattempted_tail() {
+    fn preview_warm_partial_finish_releases_unattempted_tail_for_later_warm() {
         let attempted = PathBuf::from("/tmp/wavecrate-preview-attempted.wav");
         let skipped = PathBuf::from("/tmp/wavecrate-preview-skipped.wav");
         let attempted_id = attempted.display().to_string();
@@ -637,8 +701,8 @@ mod tests {
 
         assert!(!cache.preview_audition_warm_needed(&attempted));
         assert!(
-            !cache.preview_audition_warm_needed(&skipped),
-            "scheduled-but-unattempted warm tails should not be rediscovered every frame"
+            cache.preview_audition_warm_needed(&skipped),
+            "scheduled-but-unattempted warm tails should be retried after the partial worker exits"
         );
         assert!(
             cache.preview_audition_decode_needed(&skipped),

@@ -9,9 +9,9 @@ use std::{
 
 use crate::native_app::{
     app::{
-        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
-        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
-        emit_gui_action, sample_path_label,
+        emit_gui_action, sample_path_label, GuiMessage, NativeAppState, PendingPlaybackStart,
+        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
+        SampleBrowserDisplayMode, WaveformState,
     },
     audio::{
         playback::PlaybackIntent,
@@ -19,8 +19,8 @@ use crate::native_app::{
     },
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
-        load_cached_waveform_playback_descriptor_sidecar,
+        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
+        PreviewAuditionClip, WaveformPlaybackReady,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -1039,12 +1039,12 @@ impl NativeAppState {
         if let Some(signature) = plan.starmap_signature {
             self.waveform
                 .cache
-                .reserve_starmap_preview_warm_budget(signature, paths.len());
+                .reserve_starmap_preview_warm_batch(signature, paths.len());
         }
         if let Some(signature) = plan.list_signature {
             self.waveform
                 .cache
-                .reserve_list_preview_warm_budget(signature, paths.len());
+                .reserve_list_preview_warm_batch(signature, paths.len());
         }
         let started_at = Instant::now();
         context
@@ -2178,6 +2178,27 @@ mod tests {
     }
 
     #[test]
+    fn list_preview_warm_cancel_releases_view_budget_for_retry() {
+        let (mut state, _) = list_state_with_wav_files(PREVIEW_AUDITION_LIST_VIEW_BUDGET + 8, 0);
+        let first_plan = state.preview_audition_warm_list_candidates();
+        assert_eq!(first_plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+        reserve_preview_warm_plan(&mut state, &first_plan);
+
+        state.waveform.cache.cancel_preview_audition_warm_schedule();
+        let retry_plan = state.preview_audition_warm_list_candidates();
+
+        assert_eq!(
+            retry_plan.list_remaining_budget,
+            Some(PREVIEW_AUDITION_LIST_VIEW_BUDGET),
+            "cancelled list warm work should not consume the finite viewport budget"
+        );
+        assert_eq!(
+            retry_plan.paths, first_plan.paths,
+            "cancelled list warm work should retry the same nearest candidates once idle"
+        );
+    }
+
+    #[test]
     fn legacy_preview_preference_keeps_preview_decode_before_file_backed_wav() {
         let options = FastAuditionOptions {
             origin: "test",
@@ -2266,13 +2287,13 @@ mod tests {
             state
                 .waveform
                 .cache
-                .reserve_starmap_preview_warm_budget(signature, plan.paths.len());
+                .reserve_starmap_preview_warm_batch(signature, plan.paths.len());
         }
         if let Some(signature) = plan.list_signature {
             state
                 .waveform
                 .cache
-                .reserve_list_preview_warm_budget(signature, plan.paths.len());
+                .reserve_list_preview_warm_batch(signature, plan.paths.len());
         }
     }
 
@@ -2313,12 +2334,10 @@ mod tests {
             PREVIEW_AUDITION_WARM_BATCH,
             "a meaningful starmap viewport change should open a fresh warm budget"
         );
-        assert!(
-            changed_view_plan
-                .paths
-                .iter()
-                .all(|path| !warmed.contains(path))
-        );
+        assert!(changed_view_plan
+            .paths
+            .iter()
+            .all(|path| !warmed.contains(path)));
     }
 
     #[test]
@@ -2382,6 +2401,53 @@ mod tests {
         assert_eq!(
             repeated_plan.inspected_count, 0,
             "exhausted starmap warm views should skip candidate inspection"
+        );
+    }
+
+    #[test]
+    fn starmap_preview_warm_cancel_releases_view_budget_for_retry() {
+        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET + 48);
+        let first_plan = state.preview_audition_warm_starmap_candidates();
+        assert_eq!(first_plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+        reserve_preview_warm_plan(&mut state, &first_plan);
+
+        state.waveform.cache.cancel_preview_audition_warm_schedule();
+        let retry_plan = state.preview_audition_warm_starmap_candidates();
+
+        assert_eq!(
+            retry_plan.starmap_remaining_budget,
+            Some(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET),
+            "cancelled starmap warm work should not consume the finite viewport budget"
+        );
+        assert_eq!(
+            retry_plan.paths, first_plan.paths,
+            "cancelled starmap warm work should retry the same viewport candidates once idle"
+        );
+    }
+
+    #[test]
+    fn starmap_preview_warm_partial_finish_consumes_only_attempted_budget() {
+        let mut state = starmap_state_with_wav_files(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET + 48);
+        let first_plan = state.preview_audition_warm_starmap_candidates();
+        assert_eq!(first_plan.paths.len(), PREVIEW_AUDITION_WARM_BATCH);
+        let attempted = first_plan.paths[0].clone();
+        reserve_preview_warm_plan(&mut state, &first_plan);
+        state.waveform.cache.finish_preview_audition_warm_schedule(
+            &first_plan.paths,
+            std::slice::from_ref(&attempted),
+            &[],
+        );
+
+        let next_plan = state.preview_audition_warm_starmap_candidates();
+
+        assert_eq!(
+            next_plan.starmap_remaining_budget,
+            Some(PREVIEW_AUDITION_STARMAP_VIEW_BUDGET - 1),
+            "unattempted starmap warm tails should not be charged against the viewport budget"
+        );
+        assert!(
+            next_plan.paths.iter().any(|path| path != &attempted),
+            "partial completion should leave later candidates available for warming"
         );
     }
 
