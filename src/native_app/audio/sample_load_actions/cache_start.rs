@@ -9,9 +9,9 @@ use std::{
 
 use crate::native_app::{
     app::{
-        GuiMessage, NativeAppState, PendingPlaybackStart, PendingRuntimePlaybackStart,
-        PreviewAuditionResult, PreviewAuditionWarmResult, SampleBrowserDisplayMode, WaveformState,
-        emit_gui_action, sample_path_label,
+        emit_gui_action, sample_path_label, GuiMessage, NativeAppState, PendingPlaybackStart,
+        PendingRuntimePlaybackStart, PreviewAuditionResult, PreviewAuditionWarmResult,
+        SampleBrowserDisplayMode, WaveformState,
     },
     audio::{
         playback::PlaybackIntent,
@@ -19,8 +19,8 @@ use crate::native_app::{
     },
     starmap_audition_telemetry as starmap_telemetry,
     waveform::{
-        PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
-        load_cached_waveform_playback_descriptor_sidecar,
+        decode_wav_preview_clip, load_cached_waveform_playback_descriptor_sidecar,
+        PreviewAuditionClip, WaveformPlaybackReady,
     },
     waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
@@ -127,6 +127,17 @@ enum FastAuditionProbe {
     PreviewDecode,
 }
 
+impl FastAuditionProbe {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::PreviewCache => "preview_cache",
+            Self::PersistedCache => "persisted_cache",
+            Self::FileBackedWav => "file_backed_wav",
+            Self::PreviewDecode => "preview_decode",
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct PreviewAuditionWarmPlan {
     paths: Vec<String>,
@@ -151,6 +162,37 @@ fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe
     }
 }
 
+fn record_fast_audition_decision(
+    path: &str,
+    options: FastAuditionOptions,
+    probe: Option<FastAuditionProbe>,
+    outcome: InstantAuditionOutcome,
+    started_at: Option<Instant>,
+) {
+    if !starmap_telemetry::enabled() {
+        return;
+    }
+    tracing::info!(
+        target: "perf::audio_start",
+        module = "fast_audition",
+        event = "fast_audition.decision",
+        path,
+        origin = options.origin,
+        probe = probe.map(FastAuditionProbe::as_str).unwrap_or("none"),
+        outcome = outcome.as_str(),
+        record_history = options.record_history,
+        allow_sidecar_lookup = options.allow_sidecar_lookup,
+        queue_preview_decode = options.queue_preview_decode,
+        prefer_preview_decode = options.prefer_preview_decode,
+        allow_file_backed_probe = options.allow_file_backed_probe,
+        replace_policy = ?options.replace_policy,
+        elapsed_ms = starmap_telemetry::elapsed_since(started_at)
+            .map(|elapsed| elapsed.as_secs_f64() * 1000.0)
+            .unwrap_or(0.0),
+        "Fast audition decision"
+    );
+}
+
 impl NativeAppState {
     pub(super) fn start_fast_path_audition(
         &mut self,
@@ -159,11 +201,19 @@ impl NativeAppState {
         started_at: Instant,
         options: FastAuditionOptions,
     ) -> InstantAuditionOutcome {
+        let decision_started_at = starmap_telemetry::stage_timer();
         for probe in fast_audition_probe_order(options) {
             match probe {
                 FastAuditionProbe::PreviewCache => {
                     if self.start_preview_cache_instant_audition(path, context, started_at, options)
                     {
+                        record_fast_audition_decision(
+                            path,
+                            options,
+                            Some(probe),
+                            InstantAuditionOutcome::Started,
+                            decision_started_at,
+                        );
                         return InstantAuditionOutcome::Started;
                     }
                 }
@@ -178,6 +228,13 @@ impl NativeAppState {
                         options.replace_policy,
                     );
                     if persisted.uses_ready_source() {
+                        record_fast_audition_decision(
+                            path,
+                            options,
+                            Some(probe),
+                            persisted,
+                            decision_started_at,
+                        );
                         return persisted;
                     }
                 }
@@ -192,17 +249,38 @@ impl NativeAppState {
                             options.replace_policy,
                         )
                     {
+                        record_fast_audition_decision(
+                            path,
+                            options,
+                            Some(probe),
+                            InstantAuditionOutcome::Started,
+                            decision_started_at,
+                        );
                         return InstantAuditionOutcome::Started;
                     }
                 }
                 FastAuditionProbe::PreviewDecode => {
                     if self.preview_audition_decode_needed(path, options) {
                         self.queue_preview_audition_decode(path.to_owned(), started_at, context);
+                        record_fast_audition_decision(
+                            path,
+                            options,
+                            Some(probe),
+                            InstantAuditionOutcome::AudioPending,
+                            decision_started_at,
+                        );
                         return InstantAuditionOutcome::AudioPending;
                     }
                 }
             }
         }
+        record_fast_audition_decision(
+            path,
+            options,
+            None,
+            InstantAuditionOutcome::Unavailable,
+            decision_started_at,
+        );
         InstantAuditionOutcome::Unavailable
     }
 
@@ -1977,12 +2055,10 @@ mod tests {
             PREVIEW_AUDITION_WARM_BATCH,
             "a meaningful starmap viewport change should open a fresh warm budget"
         );
-        assert!(
-            changed_view_plan
-                .paths
-                .iter()
-                .all(|path| !warmed.contains(path))
-        );
+        assert!(changed_view_plan
+            .paths
+            .iter()
+            .all(|path| !warmed.contains(path)));
     }
 
     #[test]
