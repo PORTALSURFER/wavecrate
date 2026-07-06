@@ -90,28 +90,26 @@ impl NativeAppState {
         if !self.waveform.current.is_playing() || self.audio.current_playback_span.is_none() {
             return None;
         }
-        let progress = &self.audio.playback_progress;
-        if !progress.active {
+        if !self.audio.playback_progress.active {
             return None;
         }
-        let anchor = progress.progress?;
-        let updated_at = self.audio.playback_progress_updated_at?;
+        let visual_progress = self.audio.playback_visual_progress?;
         let duration_seconds = self.waveform.current.duration_seconds();
         if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
             return None;
         }
-        let elapsed_seconds = updated_at.elapsed().as_secs_f32();
+        let elapsed_seconds = visual_progress.anchor_at.elapsed().as_secs_f32();
         if !elapsed_seconds.is_finite() || elapsed_seconds <= 0.0 {
-            return Some(anchor.clamp(0.0, 1.0));
+            return Some(visual_progress.anchor_ratio.clamp(0.0, 1.0));
         }
         let delta_ratio = elapsed_seconds / duration_seconds;
-        let (start, end) = normalized_playback_progress_span(self.audio.current_playback_span)?;
+        let (start, end) = normalized_playback_progress_span(visual_progress.span)?;
         Some(interpolate_runtime_progress_ratio(
-            anchor,
+            visual_progress.anchor_ratio,
             delta_ratio,
             start,
             end,
-            progress.looping,
+            visual_progress.looping,
         ))
     }
 
@@ -333,6 +331,11 @@ impl NativeAppState {
         seek_to_offset: bool,
         looped: bool,
     ) -> Result<(), String> {
+        let visual_anchor = if seek_to_offset {
+            offset
+        } else {
+            self.current_audio_progress_ratio().unwrap_or(offset)
+        };
         let metronome = self.playback_metronome_config_for_span(start, end, offset);
         let (playback_gain, playback_gain_normalization) =
             self.runtime_playback_gain_for_span(start, end);
@@ -376,6 +379,8 @@ impl NativeAppState {
         }
 
         self.audio.current_playback_span = Some((start, end));
+        self.audio
+            .reset_playback_visual_progress(visual_anchor, looped);
         if seek_to_offset {
             self.waveform.current.start_playback(offset);
         }
@@ -440,8 +445,13 @@ mod tests {
             error: None,
         };
         let sample_duration = state.waveform.current.duration_seconds();
-        state.audio.playback_progress_updated_at =
-            Some(Instant::now() - Duration::from_secs_f32(sample_duration * 0.1));
+        state.audio.reset_playback_visual_progress(0.25, false);
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress")
+            .anchor_at = Instant::now() - Duration::from_secs_f32(sample_duration * 0.1);
 
         let progress = state
             .current_audio_progress_ratio()
@@ -473,8 +483,13 @@ mod tests {
             error: None,
         };
         let sample_duration = state.waveform.current.duration_seconds();
-        state.audio.playback_progress_updated_at =
-            Some(Instant::now() - Duration::from_secs_f32(sample_duration * 0.08));
+        state.audio.reset_playback_visual_progress(0.72, true);
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress")
+            .anchor_at = Instant::now() - Duration::from_secs_f32(sample_duration * 0.08);
 
         let progress = state
             .current_audio_progress_ratio()
@@ -483,6 +498,48 @@ mod tests {
         assert!(
             progress > 0.28 && progress < 0.33,
             "looping runtime progress should wrap within the active span, got {progress}"
+        );
+    }
+
+    #[test]
+    fn runtime_waveform_progress_ignores_smaller_queued_snapshots() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.start_playback(0.25);
+        state.audio.current_playback_span = Some((0.25, 0.75));
+        state.audio.set_playback_progress(PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::ZERO),
+            looping: false,
+            progress: Some(0.25),
+            error: None,
+        });
+        let sample_duration = state.waveform.current.duration_seconds();
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress")
+            .anchor_at = Instant::now() - Duration::from_secs_f32(sample_duration * 0.12);
+        let before_snapshot = state
+            .current_audio_progress_ratio()
+            .expect("visual progress before queued snapshot");
+
+        state.audio.set_playback_progress(PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(40)),
+            looping: false,
+            progress: Some(0.26),
+            error: None,
+        });
+        let after_snapshot = state
+            .current_audio_progress_ratio()
+            .expect("visual progress after queued snapshot");
+
+        assert!(
+            after_snapshot >= before_snapshot,
+            "stale runtime snapshots should not pull the visual cursor backward: {before_snapshot} -> {after_snapshot}"
         );
     }
 }

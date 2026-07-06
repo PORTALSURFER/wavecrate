@@ -36,7 +36,15 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
-    pub(in crate::native_app) playback_progress_updated_at: Option<Instant>,
+    pub(in crate::native_app) playback_visual_progress: Option<PlaybackVisualProgress>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) struct PlaybackVisualProgress {
+    pub(in crate::native_app) anchor_ratio: f32,
+    pub(in crate::native_app) anchor_at: Instant,
+    pub(in crate::native_app) span: Option<(f32, f32)>,
+    pub(in crate::native_app) looping: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -262,7 +270,7 @@ impl AudioAppState {
             playback_runtime: None,
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),
-            playback_progress_updated_at: None,
+            playback_visual_progress: None,
         }
     }
 
@@ -324,12 +332,43 @@ impl AudioAppState {
         progress: PlaybackRuntimeProgress,
     ) {
         self.playback_progress = progress;
-        self.playback_progress_updated_at = Some(Instant::now());
+        self.sync_playback_visual_progress(false);
     }
 
     pub(in crate::native_app) fn clear_playback_progress(&mut self) {
         self.playback_progress = PlaybackRuntimeProgress::default();
-        self.playback_progress_updated_at = None;
+        self.playback_visual_progress = None;
+    }
+
+    pub(in crate::native_app) fn reset_playback_visual_progress(
+        &mut self,
+        anchor_ratio: f32,
+        looping: bool,
+    ) {
+        self.playback_visual_progress = Some(PlaybackVisualProgress {
+            anchor_ratio: anchor_ratio.clamp(0.0, 1.0),
+            anchor_at: Instant::now(),
+            span: self.current_playback_span,
+            looping,
+        });
+    }
+
+    fn sync_playback_visual_progress(&mut self, force: bool) {
+        if !self.playback_progress.active {
+            self.playback_visual_progress = None;
+            return;
+        }
+        let Some(progress) = self.playback_progress.progress else {
+            return;
+        };
+        let span = self.current_playback_span;
+        let looping = self.playback_progress.looping;
+        let clock_mismatch = self
+            .playback_visual_progress
+            .is_some_and(|clock| clock.span != span || clock.looping != looping);
+        if force || self.playback_visual_progress.is_none() || clock_mismatch {
+            self.reset_playback_visual_progress(progress, looping);
+        }
     }
 
     pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(
