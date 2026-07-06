@@ -439,20 +439,21 @@ impl FolderBrowserState {
             return false;
         };
         let file_id = path_id(path);
-        let changed = self.source.sources[source_index]
+        let source_changed = self.source.sources[source_index]
             .root_folder
             .as_mut()
             .is_some_and(|root| root.set_file_rating(&file_id, rating, locked));
-        if !changed {
+        let visible_changed =
+            self.update_visible_tree_file_rating(&file_id, source_index, rating, locked);
+        if !(source_changed || visible_changed) {
             return false;
         }
-        self.update_visible_tree_file_rating(&file_id, source_index, rating, locked);
         let curated_at = super::curation::now_epoch_seconds();
         let _ = self.source.sources[source_index]
             .root_folder
             .as_mut()
             .is_some_and(|root| root.set_file_last_curated_at(&file_id, curated_at));
-        self.update_visible_tree_file_last_curated_at(&file_id, source_index, curated_at);
+        let _ = self.update_visible_tree_file_last_curated_at(&file_id, source_index, curated_at);
         self.bump_file_content_revision();
         true
     }
@@ -559,15 +560,16 @@ impl FolderBrowserState {
         source_index: usize,
         rating: Rating,
         locked: bool,
-    ) {
+    ) -> bool {
         if !self.source_is_visible(source_index) {
-            return;
+            return false;
         }
         for root in &mut self.tree.folders {
             if root.set_file_rating(file_id, rating, locked) {
-                break;
+                return true;
             }
         }
+        false
     }
 
     fn update_visible_tree_file_last_played_at(
@@ -596,15 +598,16 @@ impl FolderBrowserState {
         file_id: &str,
         source_index: usize,
         last_curated_at: i64,
-    ) {
+    ) -> bool {
         if !self.source_is_visible(source_index) {
-            return;
+            return false;
         }
         for root in &mut self.tree.folders {
             if root.set_file_last_curated_at(file_id, last_curated_at) {
-                break;
+                return true;
             }
         }
+        false
     }
 }
 

@@ -130,6 +130,20 @@ impl FolderBrowserState {
         self.selection.selected_file_id()
     }
 
+    #[cfg(test)]
+    pub(in crate::native_app) fn remove_loaded_source_folder_for_tests(
+        &mut self,
+        folder_id: &str,
+    ) -> bool {
+        self.source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.source.selected_source)
+            .and_then(|source| source.root_folder.as_mut())
+            .and_then(|root| root.take_child_by_id(folder_id))
+            .is_some()
+    }
+
     pub(in crate::native_app) fn toggle_focused_folder_selection(
         &mut self,
     ) -> Option<FolderSelectionToggleResult> {
