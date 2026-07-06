@@ -12,7 +12,7 @@ use radiant::{
     prelude::IntoView,
     runtime::{GpuSurfaceContent, PaintFillRect, PaintStrokePolyline, SurfacePaintPlan},
     theme::ThemeTokens,
-    widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
+    widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
 };
 use std::{fs, sync::Arc};
 
@@ -45,13 +45,6 @@ fn fill_rects(plan: &SurfacePaintPlan) -> Vec<&PaintFillRect> {
 
 fn stroke_polylines(plan: &SurfacePaintPlan) -> Vec<&PaintStrokePolyline> {
     plan.stroke_polylines().collect()
-}
-
-fn assert_pointer_location_output(output: Option<WidgetOutput>) {
-    assert!(matches!(
-        output.and_then(|output| output.typed_copied::<WaveformInteraction>()),
-        Some(WaveformInteraction::RememberPointerLocation { .. })
-    ));
 }
 
 fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
