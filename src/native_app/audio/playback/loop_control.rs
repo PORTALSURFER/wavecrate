@@ -9,6 +9,7 @@ use wavecrate::audio::{AudioPlayer, PlaybackRuntimeSpanUpdate};
 
 const LIVE_LOOP_BOUNDARY_EPSILON: f32 = 0.01;
 const LIVE_LOOP_WRAP_EPSILON: f32 = 0.02;
+const PLAYBACK_PROGRESS_EPSILON: f32 = 0.000_001;
 
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {
@@ -81,7 +82,37 @@ impl NativeAppState {
             .player
             .as_ref()
             .and_then(AudioPlayer::progress)
+            .or_else(|| self.interpolated_runtime_waveform_progress_ratio())
             .or_else(|| self.waveform.current.playhead_ratio())
+    }
+
+    fn interpolated_runtime_waveform_progress_ratio(&self) -> Option<f32> {
+        if !self.waveform.current.is_playing() || self.audio.current_playback_span.is_none() {
+            return None;
+        }
+        let progress = &self.audio.playback_progress;
+        if !progress.active {
+            return None;
+        }
+        let anchor = progress.progress?;
+        let updated_at = self.audio.playback_progress_updated_at?;
+        let duration_seconds = self.waveform.current.duration_seconds();
+        if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
+            return None;
+        }
+        let elapsed_seconds = updated_at.elapsed().as_secs_f32();
+        if !elapsed_seconds.is_finite() || elapsed_seconds <= 0.0 {
+            return Some(anchor.clamp(0.0, 1.0));
+        }
+        let delta_ratio = elapsed_seconds / duration_seconds;
+        let (start, end) = normalized_playback_progress_span(self.audio.current_playback_span)?;
+        Some(interpolate_runtime_progress_ratio(
+            anchor,
+            delta_ratio,
+            start,
+            end,
+            progress.looping,
+        ))
     }
 
     pub(super) fn recover_loop_playback(&mut self, reason: &'static str) -> Result<(), String> {
@@ -349,5 +380,109 @@ impl NativeAppState {
             self.waveform.current.start_playback(offset);
         }
         Ok(())
+    }
+}
+
+fn normalized_playback_progress_span(span: Option<(f32, f32)>) -> Option<(f32, f32)> {
+    let (start, end) = span.unwrap_or((0.0, 1.0));
+    let start = start.clamp(0.0, 1.0);
+    let end = end.clamp(0.0, 1.0);
+    if !start.is_finite() || !end.is_finite() {
+        return None;
+    }
+    let (start, end) = if start <= end {
+        (start, end)
+    } else {
+        (end, start)
+    };
+    (end - start > PLAYBACK_PROGRESS_EPSILON).then_some((start, end))
+}
+
+fn interpolate_runtime_progress_ratio(
+    anchor: f32,
+    delta_ratio: f32,
+    start: f32,
+    end: f32,
+    looping: bool,
+) -> f32 {
+    let anchor = anchor.clamp(start, end);
+    if !delta_ratio.is_finite() || delta_ratio <= 0.0 {
+        return anchor;
+    }
+    if !looping {
+        return (anchor + delta_ratio).clamp(start, end);
+    }
+    let width = end - start;
+    if width <= PLAYBACK_PROGRESS_EPSILON {
+        return start;
+    }
+    start + ((anchor - start + delta_ratio).rem_euclid(width))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::native_app::test_support::state::NativeAppStateFixture;
+    use std::time::{Duration, Instant};
+    use wavecrate::audio::PlaybackRuntimeProgress;
+
+    #[test]
+    fn runtime_waveform_progress_interpolates_between_snapshots() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.start_playback(0.25);
+        state.audio.current_playback_span = Some((0.25, 0.75));
+        state.audio.playback_progress = PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::ZERO),
+            looping: false,
+            progress: Some(0.25),
+            error: None,
+        };
+        let sample_duration = state.waveform.current.duration_seconds();
+        state.audio.playback_progress_updated_at =
+            Some(Instant::now() - Duration::from_secs_f32(sample_duration * 0.1));
+
+        let progress = state
+            .current_audio_progress_ratio()
+            .expect("interpolated runtime progress");
+
+        assert!(
+            progress > 0.33 && progress < 0.38,
+            "runtime waveform progress should advance smoothly between snapshots, got {progress}"
+        );
+        assert_eq!(
+            state.waveform.current.playhead_ratio(),
+            Some(0.25),
+            "interpolation should not require mutating the retained waveform playhead"
+        );
+    }
+
+    #[test]
+    fn runtime_waveform_progress_wraps_inside_loop_span() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.start_playback(0.72);
+        state.audio.current_playback_span = Some((0.25, 0.75));
+        state.audio.playback_progress = PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::ZERO),
+            looping: true,
+            progress: Some(0.72),
+            error: None,
+        };
+        let sample_duration = state.waveform.current.duration_seconds();
+        state.audio.playback_progress_updated_at =
+            Some(Instant::now() - Duration::from_secs_f32(sample_duration * 0.08));
+
+        let progress = state
+            .current_audio_progress_ratio()
+            .expect("looping runtime progress");
+
+        assert!(
+            progress > 0.28 && progress < 0.33,
+            "looping runtime progress should wrap within the active span, got {progress}"
+        );
     }
 }

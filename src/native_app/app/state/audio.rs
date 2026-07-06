@@ -36,6 +36,7 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
+    pub(in crate::native_app) playback_progress_updated_at: Option<Instant>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -261,6 +262,7 @@ impl AudioAppState {
             playback_runtime: None,
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),
+            playback_progress_updated_at: None,
         }
     }
 
@@ -315,6 +317,19 @@ impl AudioAppState {
 
     pub(in crate::native_app) fn clear_sample_playback_session(&mut self) {
         self.sample_playback_session = None;
+    }
+
+    pub(in crate::native_app) fn set_playback_progress(
+        &mut self,
+        progress: PlaybackRuntimeProgress,
+    ) {
+        self.playback_progress = progress;
+        self.playback_progress_updated_at = Some(Instant::now());
+    }
+
+    pub(in crate::native_app) fn clear_playback_progress(&mut self) {
+        self.playback_progress = PlaybackRuntimeProgress::default();
+        self.playback_progress_updated_at = None;
     }
 
     pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(

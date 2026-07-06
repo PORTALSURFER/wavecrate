@@ -143,7 +143,7 @@ impl NativeAppState {
             }
             PlaybackRuntimeEvent::Stopped { .. } => {}
             PlaybackRuntimeEvent::Progress { progress, .. } => {
-                self.audio.playback_progress = progress;
+                self.audio.set_playback_progress(progress)
             }
         }
     }
@@ -183,11 +183,14 @@ impl NativeAppState {
         let show_start_marker = session.request.show_start_marker;
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = source_updates_waveform.then_some(span);
-        self.audio.playback_progress.active = true;
-        self.audio.playback_progress.elapsed = Some(Duration::ZERO);
-        self.audio.playback_progress.looping = self.audio.loop_playback;
-        self.audio.playback_progress.progress = Some(started.playback_start);
-        self.audio.playback_progress.error = None;
+        self.audio
+            .set_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+                active: true,
+                elapsed: Some(Duration::ZERO),
+                looping: self.audio.loop_playback,
+                progress: Some(started.playback_start),
+                error: None,
+            });
         if source_updates_waveform && self.waveform.current.path() == Path::new(&path) {
             if show_start_marker {
                 self.waveform.current.start_playback(started.playback_start);
@@ -567,7 +570,7 @@ impl NativeAppState {
         }
         self.audio.player = None;
         self.audio.playback_events = None;
-        self.audio.playback_progress = Default::default();
+        self.audio.clear_playback_progress();
         self.audio.output_resolved = None;
         self.audio.settings_error = Some(error.clone());
         self.ui.status.sample = format!("Audio output OFF: {error}");
@@ -618,7 +621,7 @@ impl NativeAppState {
         let started_at = Instant::now();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
-        self.audio.playback_progress = Default::default();
+        self.audio.clear_playback_progress();
         self.audio.clear_sample_playback_session();
         emit_gui_action(
             "playback.progress",
