@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use super::cells::{sample_column_cell, similarity_anchor_toggle};
 use super::hit_target::{SampleFileHitTargetModel, sample_file_hit_target};
-use super::identity;
 use super::row_projection::{SampleRowDisplay, sample_row_display};
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
