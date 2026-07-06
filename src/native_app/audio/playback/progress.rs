@@ -15,7 +15,7 @@ use crate::native_app::starmap_audition_telemetry::{
 use crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID;
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
-    gui::types::{Rect, Rgba8},
+    gui::types::{Point, Rect, Rgba8},
     runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
 use wavecrate::audio::{PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeStarted};
@@ -761,10 +761,21 @@ impl FrameRepaintScopeSnapshot {
 }
 
 fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, ratio: f32) {
-    WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID).push_horizontal_value_cursor_fill(
-        bounds,
-        ratio,
-        PLAYBACK_CURSOR_WIDTH,
+    let width = PLAYBACK_CURSOR_WIDTH
+        .ceil()
+        .clamp(1.0, bounds.width().max(1.0));
+    let center_x = bounds.x_for_ratio(ratio.clamp(0.0, 1.0));
+    let left =
+        (center_x - width * 0.5).clamp(bounds.min.x, (bounds.max.x - width).max(bounds.min.x));
+    let right = (left + width).min(bounds.max.x);
+    if right <= left {
+        return;
+    }
+    WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID).push_visible_fill_rect(
+        Rect::from_min_max(
+            Point::new(left, bounds.min.y),
+            Point::new(right, bounds.max.y),
+        ),
         PLAYBACK_CURSOR_COLOR,
     );
 }

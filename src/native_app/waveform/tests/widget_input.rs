@@ -341,6 +341,25 @@ fn pointer_move_updates_hover_cursor_and_remembers_context_menu_position() {
 }
 
 #[test]
+fn hover_cursor_survives_widget_synchronization() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+    widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 40.0)));
+    assert_eq!(widget.hover_cursor_ratio, Some(0.25));
+
+    let mut rebuilt = waveform_widget_for_state(&state);
+    rebuilt.synchronize_from_previous(&widget);
+
+    assert!(rebuilt.common.is_hovered());
+    assert_eq!(
+        rebuilt.hover_cursor_ratio,
+        Some(0.25),
+        "paint-only hover cursor state should survive frame-clock widget synchronization"
+    );
+}
+
+#[test]
 fn pointer_move_over_similar_section_uses_region_hover_instead_of_cursor() {
     let mut state = WaveformState::synthetic_for_tests();
     let similar = wavecrate::selection::SelectionRange::new(0.2, 0.6);

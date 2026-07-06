@@ -511,6 +511,40 @@ fn playback_cursor_paints_as_transient_overlay() {
 }
 
 #[test]
+fn playback_cursor_transient_overlay_keeps_subpixel_position() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.12345);
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let mut primitives = Vec::new();
+
+    runtime.bridge_mut().state_mut().paint_playback_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+
+    let cursor = primitives
+        .iter()
+        .filter_map(|primitive| primitive.fill_rect())
+        .find(|fill| {
+            fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+                && fill.color.r == 71
+                && fill.color.g == 220
+                && fill.color.b == 255
+        })
+        .expect("paint-only playback overlay should append the live cursor");
+    assert!(
+        cursor.rect.min.x.fract().abs() > 0.001,
+        "live playback cursor should keep subpixel positioning instead of snapping to whole pixels"
+    );
+}
+
+#[test]
 fn loading_progress_paints_as_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.load.label = Some(String::from("kick.wav"));
