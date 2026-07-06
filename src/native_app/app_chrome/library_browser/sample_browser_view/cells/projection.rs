@@ -123,6 +123,22 @@ impl SampleCellProjection {
 }
 
 impl RatingCellProjection {
+    pub(super) fn retained_visual_key(&self) -> String {
+        match self {
+            Self::LockedKeepMarker => String::from("sample-rating-locked-keep"),
+            Self::MarkerRun {
+                color: Some(color),
+                count,
+            } => format!(
+                "sample-rating-marker-{count}-{}-{}-{}-{}",
+                color.r, color.g, color.b, color.a
+            ),
+            Self::MarkerRun { color: None, count } => {
+                format!("sample-rating-marker-{count}-none")
+            }
+        }
+    }
+
     pub(super) fn from_indicator(indicator: RatingIndicator) -> Self {
         if indicator.shows_locked_keep_marker() {
             Self::LockedKeepMarker
@@ -211,6 +227,19 @@ mod tests {
                 color: Some(_)
             }
         ));
+    }
+
+    #[test]
+    fn rating_projection_visual_key_tracks_marker_state() {
+        let neutral =
+            RatingCellProjection::from_indicator(RatingIndicator::new(Rating::NEUTRAL, false));
+        let keep =
+            RatingCellProjection::from_indicator(RatingIndicator::new(Rating::KEEP_1, false));
+        let locked =
+            RatingCellProjection::from_indicator(RatingIndicator::new(Rating::KEEP_3, true));
+
+        assert_ne!(neutral.retained_visual_key(), keep.retained_visual_key());
+        assert_ne!(keep.retained_visual_key(), locked.retained_visual_key());
     }
 
     #[test]

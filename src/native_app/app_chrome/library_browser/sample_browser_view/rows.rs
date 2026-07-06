@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use super::cells::{sample_column_cell, similarity_anchor_toggle};
 use super::hit_target::{SampleFileHitTargetModel, sample_file_hit_target};
 use super::identity;
-use super::row_projection::{SampleColumnContent, SampleRowDisplay, sample_row_display};
+use super::row_projection::{SampleRowDisplay, sample_row_display};
 use crate::native_app::app::{GuiMessage, SampleNameViewMode};
 use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
 use crate::native_app::sample_library::sample_list::{
@@ -69,7 +69,6 @@ fn sample_browser_row(
 ) -> ui::View<GuiMessage> {
     let file_id = row.file_id.to_string();
     let file_id_for_toggle = row.file_id.to_string();
-    let visual_key = retained_sample_row_visual_key(&row);
     let row_content = ui::row([
         similarity_anchor_toggle(
             file_id_for_toggle,
@@ -101,25 +100,7 @@ fn sample_browser_row(
     )
     .fill_width()
     .height(SAMPLE_BROWSER_ROW_HEIGHT);
-    row.style(ui::WidgetStyle::default()).key(visual_key)
-}
-
-fn retained_sample_row_visual_key(row: &SampleRowDisplay<'_>) -> String {
-    let rating_signature = row.columns.iter().find_map(|column| {
-        let SampleColumnContent::Rating(indicator) = &column.content else {
-            return None;
-        };
-        Some(format!(
-            "rating-{}-{:?}-{}",
-            indicator.count(),
-            indicator.color(),
-            indicator.shows_locked_keep_marker()
-        ))
-    });
-    identity::retained_sample_row_visual_key(
-        row.file_id,
-        rating_signature.as_deref().unwrap_or("rating-none"),
-    )
+    row.style(ui::WidgetStyle::default())
 }
 
 #[cfg(test)]
