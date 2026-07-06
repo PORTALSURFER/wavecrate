@@ -269,6 +269,9 @@ impl WaveformWidget {
         }
         self.last_live_selection_update_visible_ratio = Some(visible_ratio);
         self.update_live_selection_preview_for_active_drag(visible_ratio);
+        if self.active_selection_drag_can_paint_live_preview() {
+            return None;
+        }
         Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
             visible_ratio,
         }))
@@ -530,6 +533,17 @@ impl WaveformWidget {
         matches!(
             self.active_drag_kind,
             Some(WaveformActiveDragKind::Selection(_))
+        )
+    }
+
+    fn active_selection_drag_can_paint_live_preview(&self) -> bool {
+        matches!(
+            self.active_drag_kind,
+            Some(
+                WaveformActiveDragKind::Selection(_)
+                    | WaveformActiveDragKind::SelectionResize(_, _)
+                    | WaveformActiveDragKind::SelectionMove(_)
+            )
         )
     }
 
