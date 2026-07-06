@@ -5,7 +5,6 @@ use super::super::cells::{
     sample_harvest_badge_cell, sample_playback_type_cell, sample_rating_cell,
     sample_similarity_cell,
 };
-use super::super::row_projection::SampleColumnDisplay;
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
 use super::*;
