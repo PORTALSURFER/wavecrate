@@ -183,6 +183,31 @@ fn rc_dispatch_requires_gh_cli_before_workflow_run() {
 }
 
 #[test]
+fn rc_dry_run_preserves_release_notes_input() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.2.0");
+    repo.commit_all("seed workspace");
+    repo.create_release_branch("release/19.2");
+
+    let output = repo.run_release(&[
+        "rc",
+        "--version",
+        "19.2.0",
+        "--rc-number",
+        "1",
+        "--branch",
+        "release/19.2",
+        "--release-notes",
+        "RC notes with spaces",
+    ]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("Dry command: gh workflow run release-rc.yml"));
+    assert!(stdout.contains("-f release_notes=RC\\ notes\\ with\\ spaces"));
+}
+
+#[test]
 fn rc_rejects_release_branch_with_mismatched_manifest_version() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.1.0");
@@ -231,12 +256,21 @@ fn stable_dry_run_accepts_matching_latest_rc_tag_and_prints_dispatch_command() {
     repo.git(&["tag", "v19.2.0-rc.1"]);
     repo.git(&["push", "origin", "v19.2.0-rc.1"]);
 
-    let output = repo.run_release(&["stable", "--version", "19.2.0", "--branch", "release/19.2"]);
+    let output = repo.run_release(&[
+        "stable",
+        "--version",
+        "19.2.0",
+        "--branch",
+        "release/19.2",
+        "--release-notes",
+        "Stable notes with spaces",
+    ]);
 
     assert_success(&output);
     let stdout = stdout(&output);
     assert!(stdout.contains("Promoted RC tag: v19.2.0-rc.1"));
     assert!(stdout.contains("Dry command: gh workflow run release-stable.yml"));
+    assert!(stdout.contains("-f release_notes=Stable\\ notes\\ with\\ spaces"));
     assert!(stdout.contains("release-stable.yml"));
 }
 

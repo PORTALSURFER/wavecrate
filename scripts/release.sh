@@ -30,6 +30,12 @@ run() {
   "$@"
 }
 
+print_dry_gh_command() {
+  printf 'Dry command:'
+  printf ' %q' gh "$@"
+  printf '\n'
+}
+
 repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || die "not inside a git repository"
 }
@@ -259,14 +265,16 @@ rc() {
   print_resolved "$version" "$branch" "$target_sha"
   echo "RC tag: v${version}-rc.${rc_number}"
 
+  local args
+  args=(workflow run release-rc.yml --ref "$branch" -f "version=$version" -f "rc_number=$rc_number" -f "branch=$branch")
+  [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
+
   if (( dispatch )); then
-    local gh_bin args
+    local gh_bin
     gh_bin="$(require_gh)"
-    args=(workflow run release-rc.yml --ref "$branch" -f "version=$version" -f "rc_number=$rc_number" -f "branch=$branch")
-    [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
     run "$gh_bin" "${args[@]}"
   else
-    echo "Dry command: gh workflow run release-rc.yml --ref $branch -f version=$version -f rc_number=$rc_number -f branch=$branch"
+    print_dry_gh_command "${args[@]}"
   fi
   print_followups "release-rc.yml" "$branch"
 }
@@ -306,14 +314,16 @@ stable() {
   print_resolved "$version" "$branch" "$target_sha"
   echo "Promoted RC tag: $latest_rc_tag"
 
+  local args
+  args=(workflow run release-stable.yml --ref "$branch" -f "version=$version" -f "branch=$branch")
+  [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
+
   if (( dispatch )); then
-    local gh_bin args
+    local gh_bin
     gh_bin="$(require_gh)"
-    args=(workflow run release-stable.yml --ref "$branch" -f "version=$version" -f "branch=$branch")
-    [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
     run "$gh_bin" "${args[@]}"
   else
-    echo "Dry command: gh workflow run release-stable.yml --ref $branch -f version=$version -f branch=$branch"
+    print_dry_gh_command "${args[@]}"
   fi
   print_followups "release-stable.yml" "$branch"
 }
