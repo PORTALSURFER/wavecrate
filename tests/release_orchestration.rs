@@ -50,6 +50,7 @@ fn prepare_major_bump_derives_next_major_train() {
 fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.1.0");
+    repo.add_radiant_submodule();
     repo.commit_all("seed workspace");
     repo.push_branch("main");
     repo.git(&["switch", "-c", "stale-local"]);
@@ -63,14 +64,18 @@ fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
         "fixture checkout should stay on the stale package version"
     );
 
-    let output = repo.run_release(&[
-        "prepare",
-        "--bump",
-        "minor",
-        "--source-ref",
-        "main",
-        "--dry-run",
-    ]);
+    let output = repo
+        .release_command(&[
+            "prepare",
+            "--bump",
+            "minor",
+            "--source-ref",
+            "main",
+            "--dry-run",
+        ])
+        .env("GIT_ALLOW_PROTOCOL", "file")
+        .output()
+        .expect("run release wrapper");
 
     assert_success(&output);
     let stdout = stdout(&output);
@@ -78,6 +83,7 @@ fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
     assert!(stdout.contains("Release branch: release/20.6"));
     assert!(stdout.contains("prepare-helper [--version] [20.6.0]"));
     assert!(stdout.contains("[cwd-version=20.5.0]"));
+    assert!(stdout.contains("[radiant-submodule=present]"));
 }
 
 #[test]
@@ -398,12 +404,48 @@ edition = "2024"
         self.write(".github/workflows/release-stable.yml", "");
         self.write(
             "scripts/internal/release/prepare_release_train.py",
-            "#!/usr/bin/env bash\nversion=\"$(awk '/^\\[package\\]$/ { in_package = 1; next } in_package && /^\\[/ { exit } in_package && /^[[:space:]]*version[[:space:]]*=/ { gsub(/\\\"/, \"\", $3); print $3; exit }' Cargo.toml)\"\nprintf 'prepare-helper'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf ' [cwd-version=%s]\\n' \"$version\"\n",
+            "#!/usr/bin/env bash\nversion=\"$(awk '/^\\[package\\]$/ { in_package = 1; next } in_package && /^\\[/ { exit } in_package && /^[[:space:]]*version[[:space:]]*=/ { gsub(/\\\"/, \"\", $3); print $3; exit }' Cargo.toml)\"\nradiant_status=\"\"\nif [[ -f .gitmodules ]]; then\n  if [[ ! -f vendor/radiant/radiant.marker ]]; then\n    echo 'missing vendor/radiant submodule contents' >&2\n    exit 42\n  fi\n  radiant_status=' [radiant-submodule=present]'\nfi\nprintf 'prepare-helper'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf ' [cwd-version=%s]%s\\n' \"$version\" \"$radiant_status\"\n",
         );
         make_executable(
             self.path()
                 .join("scripts/internal/release/prepare_release_train.py"),
         );
+    }
+
+    fn add_radiant_submodule(&self) {
+        let submodule_path = self
+            .path()
+            .parent()
+            .expect("fixture temp dir")
+            .join("radiant-src");
+        fs::create_dir_all(&submodule_path).expect("create radiant fixture repo");
+        assert_success(&run_git(Some(&submodule_path), &["init", "-b", "main"]));
+        assert_success(&run_git(
+            Some(&submodule_path),
+            &["config", "user.email", "release-tests@example.invalid"],
+        ));
+        assert_success(&run_git(
+            Some(&submodule_path),
+            &["config", "user.name", "Release Tests"],
+        ));
+        fs::write(
+            submodule_path.join("radiant.marker"),
+            "fixture radiant submodule\n",
+        )
+        .expect("write radiant marker");
+        assert_success(&run_git(Some(&submodule_path), &["add", "."]));
+        assert_success(&run_git(
+            Some(&submodule_path),
+            &["commit", "-m", "seed radiant fixture"],
+        ));
+        self.git(&[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            submodule_path.to_str().expect("radiant fixture path"),
+            "vendor/radiant",
+        ]);
     }
 
     fn create_release_branch(&self, branch: &str) {
