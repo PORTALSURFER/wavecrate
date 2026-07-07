@@ -354,6 +354,9 @@ impl NativeAppState {
         let should_be_looping = self.audio.loop_playback && self.waveform.current.is_playing();
         let within_start_grace =
             elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
+        if self.finish_inactive_transient_sample_playback(active, within_start_grace) {
+            return;
+        }
         if self
             .audio
             .sample_playback_session
@@ -383,6 +386,29 @@ impl NativeAppState {
         } else if self.waveform.current.is_playing() {
             self.finish_playback_progress();
         }
+    }
+
+    fn finish_inactive_transient_sample_playback(
+        &mut self,
+        active: bool,
+        within_start_grace: bool,
+    ) -> bool {
+        if active || within_start_grace {
+            return false;
+        }
+        let Some(session) = self.audio.sample_playback_session.as_ref() else {
+            return false;
+        };
+        if session.request.visibility.updates_waveform_playhead() {
+            return false;
+        }
+        if !matches!(session.state, SamplePlaybackSessionState::AudibleTransient) {
+            return false;
+        }
+        self.audio.clear_sample_playback_session();
+        self.audio.current_playback_span = None;
+        self.audio.clear_playback_progress();
+        true
     }
 
     pub(in crate::native_app) fn paint_playback_overlay(
@@ -450,8 +476,12 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn playback_visual_activity_active(&self) -> bool {
         self.waveform.current.is_playing()
-            || self.audio.sample_playback_session.is_some()
             || self.audio.playback_progress.active
+            || self
+                .audio
+                .sample_playback_session
+                .as_ref()
+                .is_some_and(sample_playback_session_pending_start)
     }
 
     fn chrome_overlay_suppresses_waveform_transient_overlay(&self) -> bool {
@@ -786,6 +816,13 @@ fn playback_error_indicates_output_unavailable(error: &str) -> bool {
         || error.contains(AUDIO_OUTPUT_UNAVAILABLE_ERROR)
 }
 
+fn sample_playback_session_pending_start(session: &SamplePlaybackSession) -> bool {
+    matches!(
+        session.state,
+        SamplePlaybackSessionState::ResolvingSource | SamplePlaybackSessionState::RuntimePending
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -836,6 +873,82 @@ mod tests {
         );
         assert_eq!(state.audio.current_playback_span, None);
         assert_eq!(state.audio.playback_progress.progress, Some(0.5));
+    }
+
+    #[test]
+    fn active_transient_runtime_progress_counts_as_visual_activity() {
+        let mut state = NativeAppStateFixture::default().build();
+        let request = SamplePlaybackRequest::transient(
+            String::from("active-transient.wav"),
+            SamplePlaybackIntent::TransientNavigation,
+            "browser",
+        );
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "preview_samples");
+        state
+            .audio
+            .sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .state = SamplePlaybackSessionState::AudibleTransient;
+        state.audio.playback_progress = PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(90)),
+            looping: false,
+            progress: Some(0.5),
+            error: None,
+        };
+
+        assert!(
+            state.playback_visual_activity_active(),
+            "active transient runtime progress should keep paint-only playback frames active"
+        );
+    }
+
+    #[test]
+    fn ended_transient_runtime_progress_clears_visual_activity() {
+        let mut state = NativeAppStateFixture::default().build();
+        let request = SamplePlaybackRequest::transient(
+            String::from("ended-transient.wav"),
+            SamplePlaybackIntent::TransientNavigation,
+            "browser",
+        );
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "preview_samples");
+        state
+            .audio
+            .sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .state = SamplePlaybackSessionState::AudibleTransient;
+        state.audio.current_playback_span = Some((0.0, 1.0));
+        state.audio.playback_progress = PlaybackRuntimeProgress {
+            active: false,
+            elapsed: Some(Duration::from_millis(500)),
+            looping: false,
+            progress: Some(1.0),
+            error: None,
+        };
+
+        assert!(
+            !state.playback_visual_activity_active(),
+            "an inactive transient session should not keep frame work suppressed before cleanup"
+        );
+
+        state.refresh_runtime_playback_progress();
+
+        assert_eq!(
+            state.audio.sample_playback_session, None,
+            "inactive transient sessions should be cleared once runtime progress reports completion"
+        );
+        assert_eq!(state.audio.current_playback_span, None);
+        assert_eq!(
+            state.audio.playback_progress,
+            PlaybackRuntimeProgress::default()
+        );
+        assert!(!state.playback_visual_activity_active());
     }
 
     #[test]
