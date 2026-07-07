@@ -142,8 +142,11 @@ impl NativeAppState {
         let anchor_animation_time = match visual_progress.anchor_animation_time {
             Some(anchor_animation_time) => anchor_animation_time,
             None => {
-                visual_progress.anchor_animation_time = Some(animation_time);
-                animation_time
+                let anchor_animation_time = animation_time
+                    .checked_sub(visual_progress.anchor_at.elapsed())
+                    .unwrap_or(animation_time);
+                visual_progress.anchor_animation_time = Some(anchor_animation_time);
+                anchor_animation_time
             }
         };
         let elapsed_seconds = animation_time
@@ -520,7 +523,7 @@ mod tests {
     }
 
     #[test]
-    fn runtime_waveform_progress_for_frame_starts_at_anchor_frame_time() {
+    fn runtime_waveform_progress_for_frame_accounts_for_unpainted_elapsed_time() {
         let mut state = NativeAppStateFixture::default()
             .with_synthetic_waveform()
             .build();
@@ -550,12 +553,12 @@ mod tests {
             )
             .expect("later frame progress");
 
-        assert_eq!(
-            first_frame, 0.25,
-            "first paint after a restart should begin at the playback anchor, not include wall-clock setup delay"
+        assert!(
+            first_frame > 0.43 && first_frame < 0.48,
+            "first paint after a delayed overlay should include unpainted elapsed time, got {first_frame}"
         );
         assert!(
-            later_frame > 0.33 && later_frame < 0.38,
+            later_frame > 0.53 && later_frame < 0.58,
             "subsequent paint frames should advance from the frame-time anchor, got {later_frame}"
         );
     }
@@ -595,9 +598,9 @@ mod tests {
         let progress = state
             .current_audio_progress_ratio_for_frame(Duration::from_secs(30))
             .expect("restarted progress");
-        assert_eq!(
-            progress, 0.0,
-            "a new runtime start for the same span should re-anchor the cursor at the restart"
+        assert!(
+            progress >= 0.0 && progress < 0.001,
+            "a new runtime start for the same span should re-anchor the cursor at the restart, got {progress}"
         );
     }
 
@@ -630,13 +633,19 @@ mod tests {
             progress: Some(0.32),
             error: None,
         });
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("latest visual progress")
+            .anchor_at = Instant::now() - Duration::from_secs_f32(sample_duration * 0.08);
 
         let first_visible_frame = state
             .current_audio_progress_ratio_for_frame(Duration::from_secs(30))
             .expect("first visible frame progress");
         assert!(
-            first_visible_frame > 0.31 && first_visible_frame < 0.33,
-            "first paint after a delayed overlay should start from the latest runtime snapshot, got {first_visible_frame}"
+            first_visible_frame > 0.39 && first_visible_frame < 0.42,
+            "first paint after a delayed overlay should advance from the latest runtime snapshot, got {first_visible_frame}"
         );
     }
 
