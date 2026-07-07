@@ -173,6 +173,31 @@ print_followups() {
   printf '\n'
 }
 
+run_prepare_train_dry_run_at_ref() {
+  local target_sha="$1"
+  shift
+  local temp_root worktree status
+  temp_root="$(mktemp -d "${TMPDIR:-/tmp}/wavecrate-release-dry-run.XXXXXX")" \
+    || die "failed to create temporary dry-run worktree"
+  worktree="$temp_root/source"
+
+  set +e
+  run git worktree add --detach "$worktree" "$target_sha"
+  status=$?
+  set -e
+
+  if (( status == 0 )); then
+    set +e
+    (cd "$worktree" && run scripts/internal/release/prepare_release_train.py "$@")
+    status=$?
+    set -e
+  fi
+
+  git worktree remove --force "$worktree" >/dev/null 2>&1 || true
+  rm -rf "$temp_root"
+  return "$status"
+}
+
 prepare() {
   local bump=""
   local source_ref="main"
@@ -231,7 +256,11 @@ prepare() {
   else
     args+=(--dry-run)
   fi
-  run scripts/internal/release/prepare_release_train.py "${args[@]}"
+  if (( dry_run )); then
+    run_prepare_train_dry_run_at_ref "$target_sha" "${args[@]}"
+  else
+    run scripts/internal/release/prepare_release_train.py "${args[@]}"
+  fi
   print_followups "release-train-prepare.yml" "$branch"
 }
 

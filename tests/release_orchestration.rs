@@ -77,6 +77,7 @@ fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
     assert!(stdout.contains("Resolved version: 20.6.0"));
     assert!(stdout.contains("Release branch: release/20.6"));
     assert!(stdout.contains("prepare-helper [--version] [20.6.0]"));
+    assert!(stdout.contains("[cwd-version=20.5.0]"));
 }
 
 #[test]
@@ -372,7 +373,7 @@ edition = "2024"
         self.write(".github/workflows/release-stable.yml", "");
         self.write(
             "scripts/internal/release/prepare_release_train.py",
-            "#!/usr/bin/env bash\nprintf 'prepare-helper'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf '\\n'\n",
+            "#!/usr/bin/env bash\nversion=\"$(awk '/^\\[package\\]$/ { in_package = 1; next } in_package && /^\\[/ { exit } in_package && /^[[:space:]]*version[[:space:]]*=/ { gsub(/\\\"/, \"\", $3); print $3; exit }' Cargo.toml)\"\nprintf 'prepare-helper'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf ' [cwd-version=%s]\\n' \"$version\"\n",
         );
         make_executable(
             self.path()
