@@ -46,13 +46,22 @@ pub(super) fn audio_settings_dropdown_overlay(
     let Some((row_index, options)) = audio_settings_open_dropdown_options(snapshot) else {
         return ui::empty().fill_width();
     };
-    ui::dropdown_menu_overlay_below_stacked_labeled_control(
+    let cursor = audio_settings_dropdown_cursor(snapshot, row_index);
+    let trigger_y =
+        AUDIO_SETTINGS_PANEL_PADDING + cursor.offset() + ui::labeled_control_control_offset();
+    let anchor = ui::AnchoredPopoverAnchor::trigger(
         SETTINGS_CONTENT_X,
-        AUDIO_SETTINGS_PANEL_PADDING,
-        audio_settings_dropdown_cursor(snapshot, row_index),
-        AUDIO_SETTINGS_DROPDOWN_GAP,
-        Some(SETTINGS_CONTENT_WIDTH),
-        options,
+        trigger_y,
+        SETTINGS_CONTENT_WIDTH,
+        ui::dropdown_trigger_height(),
+    );
+    let size = ui::Vector2::new(
+        SETTINGS_CONTENT_WIDTH,
+        ui::dropdown_menu_height(options.len()),
+    );
+    ui::anchored_popover_from_parts(
+        ui::AnchoredPopoverParts::below(ui::dropdown_menu(options), anchor, size)
+            .gap(AUDIO_SETTINGS_DROPDOWN_GAP),
     )
 }
 
