@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
     sync::{Arc, Condvar, LazyLock, Mutex},
     thread,
@@ -7,10 +7,10 @@ use std::{
 };
 
 use super::{
-    BACKGROUND_STORE_SHUTDOWN_WAIT,
-    identity::{CacheIdentity, cache_path_for_identity},
+    identity::{cache_path_for_identity, CacheIdentity},
     invalidation::current_path_generation,
     write::store_cached_waveform_file_now,
+    BACKGROUND_STORE_SHUTDOWN_WAIT,
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
 use diagnostics::{log_slow_cache_shutdown_flush, log_store_completion};
@@ -40,13 +40,22 @@ pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in
     let cache_path = job.cache_path.clone();
     match BACKGROUND_STORE_QUEUE.enqueue(job) {
         StoreEnqueueOutcome::Enqueued => {}
-        StoreEnqueueOutcome::Coalesced => {
+        StoreEnqueueOutcome::ReplacedQueued => {
             tracing::debug!(
                 target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.store_coalesced",
+                event = "browser.sample_cache.store_replaced_queued",
                 path = %path.display(),
                 cache_path = %cache_path.display(),
-                "Coalesced duplicate waveform cache persistence"
+                "Replaced queued waveform cache persistence"
+            );
+        }
+        StoreEnqueueOutcome::DeferredForActive => {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.store_deferred_for_active",
+                path = %path.display(),
+                cache_path = %cache_path.display(),
+                "Deferred waveform cache persistence until active write finishes"
             );
         }
         StoreEnqueueOutcome::QueueFull => {
@@ -79,7 +88,8 @@ pub(in crate::native_app) fn flush_background_waveform_cache_stores_for_shutdown
 #[cfg_attr(test, allow(dead_code))]
 pub(super) enum StoreEnqueueOutcome {
     Enqueued,
-    Coalesced,
+    ReplacedQueued,
+    DeferredForActive,
     QueueFull,
     WorkerUnavailable,
 }
@@ -137,10 +147,11 @@ impl BackgroundStoreQueue {
         }
         if state.queued_paths.contains(&job.cache_path) {
             replace_queued_job(&mut state.queued, job);
-            return StoreEnqueueOutcome::Coalesced;
+            return StoreEnqueueOutcome::ReplacedQueued;
         }
         if state.active_paths.contains(&job.cache_path) {
-            return StoreEnqueueOutcome::Coalesced;
+            state.active_successors.insert(job.cache_path.clone(), job);
+            return StoreEnqueueOutcome::DeferredForActive;
         }
         if state.queued.len() >= self.capacity {
             return StoreEnqueueOutcome::QueueFull;
@@ -179,6 +190,16 @@ impl BackgroundStoreQueue {
     pub(super) fn finish_job(&self, cache_path: &Path) {
         if let Ok(mut state) = self.state.lock() {
             state.active_paths.remove(cache_path);
+            if let Some(successor) = state.active_successors.remove(cache_path) {
+                let successor_cache_path = successor.cache_path.clone();
+                if state.queued_paths.contains(&successor_cache_path) {
+                    replace_queued_job(&mut state.queued, successor);
+                } else {
+                    state.queued_paths.insert(successor_cache_path);
+                    state.queued.push_front(successor);
+                }
+                self.available.notify_one();
+            }
             if state.is_drained() {
                 self.drained.notify_all();
             }
@@ -209,6 +230,7 @@ impl BackgroundStoreQueue {
                 event = "browser.sample_cache.shutdown_flush_timeout",
                 queued = state.queued.len(),
                 active = state.active_paths.len(),
+                active_successors = state.active_successors.len(),
                 elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
                 "Timed out waiting for waveform cache persistence during shutdown"
             );
@@ -229,7 +251,7 @@ impl BackgroundStoreQueue {
     #[cfg(test)]
     pub(super) fn pending_for_test(&self) -> usize {
         let state = self.state.lock().expect("waveform cache queue lock");
-        state.queued.len() + state.active_paths.len()
+        state.queued.len() + state.active_paths.len() + state.active_successors.len()
     }
 }
 
@@ -239,11 +261,12 @@ struct StoreQueueState {
     queued: VecDeque<CachedWaveformStoreJob>,
     queued_paths: HashSet<PathBuf>,
     active_paths: HashSet<PathBuf>,
+    active_successors: HashMap<PathBuf, CachedWaveformStoreJob>,
 }
 
 impl StoreQueueState {
     fn is_drained(&self) -> bool {
-        self.queued.is_empty() && self.active_paths.is_empty()
+        self.queued.is_empty() && self.active_paths.is_empty() && self.active_successors.is_empty()
     }
 }
 

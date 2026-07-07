@@ -28,12 +28,76 @@ fn background_store_queue_coalesces_duplicate_cache_paths() {
     );
     assert_eq!(
         queue.enqueue(CachedWaveformStoreJob::new(&replacement).expect("replacement job")),
-        StoreEnqueueOutcome::Coalesced
+        StoreEnqueueOutcome::ReplacedQueued
     );
 
     let queued = queue.pop_next_for_test().expect("queued job");
     assert_eq!(queued.file.sample_rate, 96_000);
     queue.finish_job(&queued.cache_path);
+    assert_eq!(queue.pending_for_test(), 0);
+}
+
+#[test]
+fn background_store_queue_retains_latest_successor_for_active_cache_path() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("active-successor.wav");
+    fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+    let first = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        48_000,
+        1,
+        vec![0.0, 0.25],
+    );
+    let replacement = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        96_000,
+        1,
+        vec![0.0, 0.5],
+    );
+    let latest_replacement = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        192_000,
+        1,
+        vec![0.0, 0.75],
+    );
+    let queue = test_store_queue(4);
+
+    assert_eq!(
+        queue.enqueue(CachedWaveformStoreJob::new(&first).expect("first job")),
+        StoreEnqueueOutcome::Enqueued
+    );
+    let active = queue.pop_next_for_test().expect("active job");
+    invalidate_persisted_waveform_cache_path(&path);
+    assert_eq!(
+        queue.enqueue(CachedWaveformStoreJob::new(&replacement).expect("replacement job")),
+        StoreEnqueueOutcome::DeferredForActive
+    );
+    assert_eq!(
+        queue.enqueue(CachedWaveformStoreJob::new(&latest_replacement).expect("latest job")),
+        StoreEnqueueOutcome::DeferredForActive
+    );
+    assert_eq!(
+        queue.pending_for_test(),
+        2,
+        "active writes retain only the latest successor per cache path"
+    );
+    assert_eq!(
+        store_cached_waveform_file_now(active.clone()),
+        StoreWriteOutcome::StaleInput(Default::default())
+    );
+
+    queue.finish_job(&active.cache_path);
+    let successor = queue.pop_next_for_test().expect("successor job");
+    assert_eq!(successor.file.sample_rate, 192_000);
+    assert!(matches!(
+        store_cached_waveform_file_now(successor.clone()),
+        StoreWriteOutcome::Completed(_)
+    ));
+    queue.finish_job(&successor.cache_path);
     assert_eq!(queue.pending_for_test(), 0);
 }
 
