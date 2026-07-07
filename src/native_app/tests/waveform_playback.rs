@@ -505,6 +505,53 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
 }
 
 #[test]
+fn selecting_same_sample_cancels_metadata_tag_entry_when_focus_clears() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("same.wav");
+    fs::write(&sample_path, []).expect("sample");
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let file = sample_path.display().to_string();
+    state.library.folder_browser.select_file(file.clone());
+    state.metadata.tag_draft = String::from("sound");
+    state.metadata.tag_tokens = vec![String::from("warm")];
+    state.metadata.tag_input_mode =
+        crate::native_app::test_support::waveform::MetadataTagInputMode::Category {
+            pending_tag: String::from("new-tag"),
+        };
+    state.metadata.tag_completion_cycle.select("sound", 0, 4);
+    assert!(
+        state.metadata_tag_completion_active(),
+        "test setup should activate metadata completion shortcuts"
+    );
+
+    state.select_sample_with_modifiers(
+        file.clone(),
+        PointerModifiers::default(),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(file.as_str())
+    );
+    assert!(state.metadata.tag_draft.is_empty());
+    assert!(state.metadata.tag_tokens.is_empty());
+    assert_eq!(
+        state.metadata.tag_input_mode,
+        crate::native_app::test_support::waveform::MetadataTagInputMode::Tag
+    );
+    assert_eq!(state.metadata.tag_completion_cycle.query_key(), None);
+    assert_eq!(state.metadata.tag_completion_cycle.stored_index(), 0);
+    assert_eq!(state.pending_metadata_tag_category_tag(), None);
+    assert!(!state.metadata_tag_completion_active());
+}
+
+#[test]
 fn play_selected_sample_uses_active_playmark_selection_span() {
     let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
         return;

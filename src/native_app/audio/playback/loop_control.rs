@@ -561,6 +561,86 @@ mod tests {
     }
 
     #[test]
+    fn runtime_waveform_progress_restart_snapshot_resets_visual_clock() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.start_playback(0.0);
+        state.audio.current_playback_span = Some((0.0, 1.0));
+        state.audio.set_playback_progress(PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::ZERO),
+            looping: false,
+            progress: Some(0.0),
+            error: None,
+        });
+        let sample_duration = state.waveform.current.duration_seconds();
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress")
+            .anchor_at = Instant::now() - Duration::from_secs_f32(sample_duration * 0.5);
+
+        state
+            .audio
+            .set_started_playback_progress(PlaybackRuntimeProgress {
+                active: true,
+                elapsed: Some(Duration::ZERO),
+                looping: false,
+                progress: Some(0.0),
+                error: None,
+            });
+
+        let progress = state
+            .current_audio_progress_ratio_for_frame(Duration::from_secs(30))
+            .expect("restarted progress");
+        assert_eq!(
+            progress, 0.0,
+            "a new runtime start for the same span should re-anchor the cursor at the restart"
+        );
+    }
+
+    #[test]
+    fn delayed_first_paint_uses_latest_runtime_progress_anchor() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.start_playback(0.0);
+        state.audio.current_playback_span = Some((0.0, 1.0));
+        state.audio.set_playback_progress(PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::ZERO),
+            looping: false,
+            progress: Some(0.0),
+            error: None,
+        });
+        let sample_duration = state.waveform.current.duration_seconds();
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress")
+            .anchor_at = Instant::now() - Duration::from_secs_f32(sample_duration * 0.30);
+
+        state.audio.set_playback_progress(PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_secs_f32(sample_duration * 0.32)),
+            looping: false,
+            progress: Some(0.32),
+            error: None,
+        });
+
+        let first_visible_frame = state
+            .current_audio_progress_ratio_for_frame(Duration::from_secs(30))
+            .expect("first visible frame progress");
+        assert!(
+            first_visible_frame > 0.31 && first_visible_frame < 0.33,
+            "first paint after a delayed overlay should start from the latest runtime snapshot, got {first_visible_frame}"
+        );
+    }
+
+    #[test]
     fn runtime_waveform_progress_wraps_inside_loop_span() {
         let mut state = NativeAppStateFixture::default()
             .with_synthetic_waveform()

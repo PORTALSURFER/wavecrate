@@ -15,6 +15,8 @@ use crate::native_app::audio::{
     playback_history::{LastPlayedPersistRequest, PlaybackNavigationHistory},
 };
 
+const PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE: Duration = Duration::from_millis(8);
+
 pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) player: Option<AudioPlayer>,
     pub(in crate::native_app) loop_playback: bool,
@@ -342,6 +344,14 @@ impl AudioAppState {
         self.sync_playback_visual_progress(false);
     }
 
+    pub(in crate::native_app) fn set_started_playback_progress(
+        &mut self,
+        progress: PlaybackRuntimeProgress,
+    ) {
+        self.playback_progress = progress;
+        self.sync_playback_visual_progress(true);
+    }
+
     pub(in crate::native_app) fn clear_playback_progress(&mut self) {
         self.playback_progress = PlaybackRuntimeProgress::default();
         self.playback_visual_progress = None;
@@ -374,9 +384,28 @@ impl AudioAppState {
         let clock_mismatch = self
             .playback_visual_progress
             .is_some_and(|clock| clock.span != span || clock.looping != looping);
-        if force || self.playback_visual_progress.is_none() || clock_mismatch {
+        let delayed_unpainted_anchor = self.delayed_unpainted_playback_anchor_needs_refresh();
+        if force
+            || self.playback_visual_progress.is_none()
+            || clock_mismatch
+            || delayed_unpainted_anchor
+        {
             self.reset_playback_visual_progress(progress, looping);
         }
+    }
+
+    fn delayed_unpainted_playback_anchor_needs_refresh(&self) -> bool {
+        let Some(clock) = self.playback_visual_progress else {
+            return false;
+        };
+        if clock.anchor_animation_time.is_some() {
+            return false;
+        }
+        let Some(runtime_elapsed) = self.playback_progress.elapsed else {
+            return false;
+        };
+        runtime_elapsed.saturating_add(PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE)
+            >= clock.anchor_at.elapsed()
     }
 
     pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(

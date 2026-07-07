@@ -194,7 +194,7 @@ impl NativeAppState {
         self.audio.output_resolved = Some(started.output);
         self.audio.current_playback_span = source_updates_waveform.then_some(span);
         self.audio
-            .set_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+            .set_started_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
                 active: true,
                 elapsed: Some(Duration::ZERO),
                 looping: self.audio.loop_playback,
