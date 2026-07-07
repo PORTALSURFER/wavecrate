@@ -253,6 +253,32 @@ fn scene_frame_clock_runs_at_60hz_even_when_idle() {
 }
 
 #[test]
+fn scene_playback_overlay_paints_uncapped_while_frame_messages_stay_60hz() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+
+    let activity = runtime.bridge_mut().animation_activity();
+
+    assert!(activity.needs_frame_message());
+    assert_eq!(
+        activity.target_fps(),
+        None,
+        "playback overlay paint should use the native window cadence"
+    );
+    assert_eq!(
+        activity.frame_message_target_fps(),
+        Some(60),
+        "host frame updates should remain capped while paint-only cursor frames run faster"
+    );
+}
+
+#[test]
 fn scene_frame_clock_queues_gui_frame_message() {
     let mut state = gui_state_for_span_tests();
     state.ui.startup.source_scan_pending = true;
