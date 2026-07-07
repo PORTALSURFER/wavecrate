@@ -151,9 +151,7 @@ impl NativeAppState {
                 }
             }
             self.flush_pending_volume_persist(context);
-            if !self.playback_visual_activity_active() {
-                self.flush_pending_similarity_settings_persist(context);
-            }
+            self.flush_pending_similarity_settings_persist(context);
             return;
         }
         let frame_update_started_at = Instant::now();
@@ -194,9 +192,7 @@ impl NativeAppState {
         }
         let persist_started_at = Instant::now();
         self.flush_pending_volume_persist(context);
-        if !self.playback_visual_activity_active() {
-            self.flush_pending_similarity_settings_persist(context);
-        }
+        self.flush_pending_similarity_settings_persist(context);
         log_slow_frame_phase("ui.frame.update.persist_settings", persist_started_at);
         log_slow_frame_phase("ui.frame.update.total", frame_update_started_at);
     }

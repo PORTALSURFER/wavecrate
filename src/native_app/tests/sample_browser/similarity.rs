@@ -331,6 +331,54 @@ fn sample_browser_similarity_controls_persist_after_debounce() {
 }
 
 #[test]
+fn sample_browser_similarity_controls_persist_after_debounce_while_playback_is_active() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.2);
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SetSimilarityAspectEnabled {
+            aspect: SimilarityAspect::Spectrum,
+            enabled: false,
+        },
+        &mut context,
+    );
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("load config");
+    assert!(
+        loaded
+            .core
+            .similarity
+            .aspect_enabled(SimilarityAspect::Spectrum)
+    );
+    assert!(state.ui.settings.similarity_persist_deadline.is_some());
+
+    state.ui.settings.similarity_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
+    state.advance_frame(&mut context);
+
+    assert!(
+        state.playback_visual_activity_active(),
+        "test setup should keep playback visually active during the persist frame"
+    );
+    let radiant::runtime::Command::Perform { priority, work, .. } = context.into_command() else {
+        panic!("expected similarity settings persist background command during playback");
+    };
+    assert_eq!(priority, radiant::prelude::TaskPriority::BlockingIo);
+    state.apply_message(work(), &mut radiant::prelude::UiUpdateContext::default());
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!(
+        !loaded
+            .core
+            .similarity
+            .aspect_enabled(SimilarityAspect::Spectrum)
+    );
+    assert!(!state.ui.settings.similarity_persist_inflight);
+}
+
+#[test]
 fn sample_browser_similarity_anchor_resolves_production_scores() {
     let (mut state, _source_root, anchor_id, near_id, far_id, missing_id) =
         similarity_state_with_embeddings();
