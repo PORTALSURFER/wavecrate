@@ -23,6 +23,12 @@ struct FrameDispatchProfile {
 
 impl NativeAppState {
     pub(super) fn apply_frame_message(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        if self.playback_visual_activity_active() {
+            self.pause_background_work_for_playback_frame();
+            self.flush_pending_play_selection_playback_retarget();
+            self.advance_frame(context);
+            return;
+        }
         if !super::ui_message_diagnostics_enabled() {
             self.maybe_install_application_icon();
             self.maybe_open_audio_player(context);
@@ -105,6 +111,12 @@ impl NativeAppState {
             selected = selected.as_str(),
             "Slow UI frame dispatch profile"
         );
+    }
+
+    fn pause_background_work_for_playback_frame(&mut self) {
+        self.cancel_waveform_cache_warm();
+        self.pause_active_folder_cache_warm_for_playback();
+        self.cancel_preview_audition_warm_for_playback();
     }
 }
 
