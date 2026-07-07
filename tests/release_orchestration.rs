@@ -250,6 +250,37 @@ fn rc_rejects_local_only_release_branch_before_printing_workflow_command() {
 }
 
 #[test]
+fn rc_rejects_existing_tag_that_points_at_different_commit() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.2.0");
+    repo.commit_all("seed workspace");
+    let release_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
+    repo.create_release_branch("release/19.2");
+    repo.write("src/lib.rs", "// later commit with reused rc tag\n");
+    repo.commit_all("advance main after release branch");
+    let tag_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
+    repo.git(&["tag", "v19.2.0-rc.1"]);
+    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
+    assert_ne!(release_sha, tag_sha);
+
+    let output = repo.run_release(&[
+        "rc",
+        "--version",
+        "19.2.0",
+        "--rc-number",
+        "1",
+        "--branch",
+        "release/19.2",
+    ]);
+
+    assert_failure(&output);
+    assert!(stderr(&output).contains(&format!(
+        "RC tag v19.2.0-rc.1 already points at {tag_sha}, not {release_sha}"
+    )));
+    assert!(!stdout(&output).contains("Dry command: gh workflow run"));
+}
+
+#[test]
 fn rc_dispatch_requires_gh_cli_before_workflow_run() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.2.0");

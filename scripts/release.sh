@@ -161,6 +161,15 @@ validate_manifest_version_at_ref() {
   [[ "$actual" == "$version" ]] || die "Cargo.toml version $actual at $sha does not match $version"
 }
 
+validate_rc_tag_available() {
+  local tag="$1"
+  local target_sha="$2"
+  local existing
+  existing="$(git rev-parse -q --verify "refs/tags/${tag}^{commit}" 2>/dev/null || true)"
+  [[ -z "$existing" || "$existing" == "$target_sha" ]] \
+    || die "RC tag $tag already points at $existing, not $target_sha"
+}
+
 resolve_ref_sha() {
   local ref="$1"
   local candidate="$ref"
@@ -355,7 +364,9 @@ rc() {
   ensure_origin_branch_for_workflow "$branch"
   validate_manifest_version_at_ref "$target_sha" "$version"
   print_resolved "$version" "$branch" "$target_sha"
-  echo "RC tag: v${version}-rc.${rc_number}"
+  local rc_tag="v${version}-rc.${rc_number}"
+  validate_rc_tag_available "$rc_tag" "$target_sha"
+  echo "RC tag: $rc_tag"
 
   local args
   args=(workflow run release-rc.yml --repo "$repo_slug" --ref "$branch" -f "version=$version" -f "rc_number=$rc_number" -f "branch=$branch")
