@@ -425,6 +425,7 @@ fn stable_rejects_existing_tag_that_points_at_different_commit() {
     assert!(stderr(&output).contains(&format!(
         "stable tag v19.2.0 already points at {tag_sha}, not {release_sha}"
     )));
+    assert!(!stdout(&output).contains("Promoted RC tag: v19.2.0-rc.1"));
     assert!(!stdout(&output).contains("Dry command: gh workflow run"));
 }
 

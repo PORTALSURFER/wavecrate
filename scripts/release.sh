@@ -423,10 +423,10 @@ stable() {
   rc_sha="$(git rev-list -n 1 "$latest_rc_tag")"
   [[ "$rc_sha" == "$target_sha" ]] \
     || die "latest RC $latest_rc_tag points at $rc_sha; stable target is $target_sha"
+  validate_stable_tag_available "v${version}" "$target_sha"
 
   print_resolved "$version" "$branch" "$target_sha"
   echo "Promoted RC tag: $latest_rc_tag"
-  validate_stable_tag_available "v${version}" "$target_sha"
 
   local args
   args=(workflow run release-stable.yml --repo "$repo_slug" --ref "$branch" -f "version=$version" -f "branch=$branch")
