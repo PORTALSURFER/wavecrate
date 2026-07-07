@@ -315,6 +315,10 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn pause_active_folder_cache_warm_for_playback(&mut self) {
+        self.waveform.cache.active_folder_warm_plan_task.cancel();
+        if let Some(token) = self.waveform.cache.active_folder_warm_plan_cancel.take() {
+            token.cancel();
+        }
         self.waveform.cache.active_folder_warm_delay_task.cancel();
         let running = self
             .waveform
@@ -332,6 +336,7 @@ impl NativeAppState {
         if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
             self.waveform.cache.active_folder_warm_tasks.cancel(&key);
         }
+        self.waveform.cache.clear_active_folder_warm_job();
     }
 
     fn reschedule_active_folder_cache_warm_delay(

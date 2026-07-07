@@ -165,6 +165,36 @@ fn source_cache_progress_frame_repaints_surface_for_status_bar_animation() {
 }
 
 #[test]
+fn paused_source_cache_progress_does_not_force_playback_surface_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.waveform.cache.start_active_folder_warm_decode_queue(
+        String::from("source"),
+        vec![std::path::PathBuf::from("kick.wav")],
+    );
+
+    state.pause_active_folder_cache_warm_for_playback();
+
+    assert!(
+        state.waveform.cache.active_folder_warm_folder_id.is_none(),
+        "playback pause should clear dormant source-cache progress"
+    );
+    assert!(
+        state.waveform.cache.active_folder_warm_pending.is_empty(),
+        "playback pause should clear pending source-cache work"
+    );
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 0);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "paused source-cache progress should not force full surface frames during playback"
+    );
+}
+
+#[test]
 fn copy_flash_frame_repaints_surface_while_countdown_changes() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("copy-flash.wav");
