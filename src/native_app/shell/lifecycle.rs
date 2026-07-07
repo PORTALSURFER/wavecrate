@@ -124,6 +124,35 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if !ui_frame_diagnostics_enabled() {
+            self.waveform
+                .current
+                .apply_interaction(WaveformInteraction::Frame);
+            self.library.folder_browser.advance_copy_flash_frame();
+            self.library
+                .folder_browser
+                .advance_protected_source_error_flash_frame();
+            self.library
+                .folder_browser
+                .advance_drag_hover_folder_auto_expand();
+            self.drain_playback_runtime_events();
+            self.refresh_playback_progress();
+            if self.library.folder_scan_active()
+                || self.background.file_move_progress.is_some()
+                || self.waveform.cache.active_folder_warm_folder_id.is_some()
+            {
+                self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
+            }
+            if self.waveform.load.label.is_some() {
+                let remaining = self.waveform.load.target_progress - self.waveform.load.progress;
+                if remaining > 0.0 {
+                    self.waveform.load.progress += remaining.min(0.03);
+                }
+            }
+            self.flush_pending_volume_persist(context);
+            self.flush_pending_similarity_settings_persist(context);
+            return;
+        }
         let frame_update_started_at = Instant::now();
         self.record_frame_timing();
         let waveform_started_at = Instant::now();
@@ -316,4 +345,8 @@ fn log_slow_frame_phase(event: &'static str, started_at: Instant) {
         elapsed_ms = duration_ms(elapsed),
         "Slow UI frame update phase"
     );
+}
+
+fn ui_frame_diagnostics_enabled() -> bool {
+    cfg!(debug_assertions)
 }

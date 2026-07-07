@@ -23,6 +23,21 @@ struct FrameDispatchProfile {
 
 impl NativeAppState {
     pub(super) fn apply_frame_message(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        if !super::ui_message_diagnostics_enabled() {
+            self.maybe_install_application_icon();
+            self.maybe_open_audio_player(context);
+            self.maybe_startup_source_scan(context);
+            self.maybe_run_pending_source_refresh(context);
+            self.maybe_auto_load_startup_sample(context);
+            self.maybe_start_release_update_check(context);
+            self.maybe_start_waveform_cache_warm(context);
+            self.maybe_start_active_folder_cache_warm(context);
+            self.maybe_start_starmap_layout_load(context);
+            self.maybe_start_preview_audition_warm(context);
+            self.flush_pending_play_selection_playback_retarget();
+            self.advance_frame(context);
+            return;
+        }
         let total_started_at = Instant::now();
         let mut profile = FrameDispatchProfile::default();
         profile.app_icon_ms = measure_frame_phase(|| self.maybe_install_application_icon());

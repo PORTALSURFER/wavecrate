@@ -35,6 +35,10 @@ impl NativeAppState {
         message: GuiMessage,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        if !ui_message_diagnostics_enabled() {
+            self.apply_message_inner(message, context);
+            return;
+        }
         let started_at = Instant::now();
         let message_label = gui_message_profile_label(&message);
         self.apply_message_inner(message, context);
@@ -326,6 +330,10 @@ fn slow_ui_message_threshold(message_label: &'static str) -> Duration {
     } else {
         SLOW_UI_INTERACTION_MESSAGE_THRESHOLD
     }
+}
+
+fn ui_message_diagnostics_enabled() -> bool {
+    cfg!(debug_assertions)
 }
 
 fn folder_browser_profile_label(message: &FolderBrowserMessage) -> &'static str {
