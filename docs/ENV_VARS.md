@@ -79,8 +79,8 @@ validation. The workflow defaults to dry-run mode; it only pushes or updates the
 The repo-root Bash orchestrator is the preferred operator entrypoint on
 macOS/Linux. It must be run from a clean Wavecrate repo root, fetches/prunes
 release refs before resolving commits, derives the target stable version from
-the current release package version, and keeps public publishing behind explicit
-operator intent:
+the package version at the resolved source ref, and keeps public publishing
+behind explicit operator intent:
 
 ```bash
 scripts/release.sh prepare --bump minor --source-ref main --dry-run
@@ -93,9 +93,11 @@ scripts/release.sh stable --version 19.2.0 --branch release/19.2 --dispatch
 bumps to `X.(Y+1).0`. Without `--dispatch`, `rc` and `stable` validate inputs
 and print the exact `gh workflow run ...` command instead of publishing. With
 `--dispatch`, the script requires an authenticated GitHub CLI (`gh`) and invokes
-the existing workflows with their native input names. Stable dispatch also
-preflights the safety invariant locally: the latest `vX.Y.Z-rc.N` tag must point
-at the same commit as the release branch.
+the existing workflows with their native input names. `prepare --dispatch`
+dispatches the workflow file from `--workflow-ref` (default `main`) while passing
+the resolved source commit SHA as the workflow `source_ref` input. Stable
+dispatch also preflights the safety invariant locally: the latest `vX.Y.Z-rc.N`
+tag must point at the same commit as the release branch.
 
 Local equivalent:
 

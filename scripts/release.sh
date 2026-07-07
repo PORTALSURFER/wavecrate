@@ -7,11 +7,11 @@ repo_slug="${WAVECRATE_GITHUB_REPO:-PORTALSURFER/wavecrate}"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/release.sh prepare --bump <major|minor> [--source-ref <ref>] [--dry-run|--push] [--dispatch]
+  scripts/release.sh prepare --bump <major|minor> [--source-ref <ref>] [--workflow-ref <branch-or-tag>] [--dry-run|--push] [--dispatch]
   scripts/release.sh rc --version <X.Y.Z> --rc-number <N> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
   scripts/release.sh stable --version <X.Y.Z> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
 
-Prepare derives the target version from the current Cargo.toml package version.
+Prepare derives the target version from Cargo.toml at the resolved source ref.
 Without --dispatch, prepare runs scripts/internal/release/prepare_release_train.py locally.
 Without --dispatch, rc/stable validate inputs and print the exact gh workflow command.
 Public publishing workflow dispatch requires --dispatch.
@@ -168,6 +168,7 @@ print_followups() {
 prepare() {
   local bump=""
   local source_ref="main"
+  local workflow_ref="${WAVECRATE_RELEASE_WORKFLOW_REF:-main}"
   local dry_run=1
   local explicit_dry_run=0
   local push=0
@@ -176,6 +177,7 @@ prepare() {
     case "$1" in
       --bump) bump="${2:-}"; shift 2 ;;
       --source-ref) source_ref="${2:-}"; shift 2 ;;
+      --workflow-ref) workflow_ref="${2:-}"; shift 2 ;;
       --dry-run) explicit_dry_run=1; dry_run=1; shift ;;
       --push) push=1; dry_run=0; shift ;;
       --dispatch) dispatch=1; shift ;;
@@ -185,6 +187,7 @@ prepare() {
   done
   [[ -n "$bump" ]] || die "prepare requires --bump <major|minor>"
   validate_bump "$bump"
+  [[ -n "$workflow_ref" ]] || die "--workflow-ref must not be empty"
   (( push == 0 || explicit_dry_run == 0 )) || die "--dry-run and --push cannot be combined"
 
   ensure_repo_root
@@ -205,7 +208,7 @@ prepare() {
     push_branch=false
     (( push )) && push_branch=true
     run "$gh_bin" workflow run release-train-prepare.yml \
-      --ref "$source_ref" \
+      --ref "$workflow_ref" \
       -f "version=$target_version" \
       -f "source_ref=$target_sha" \
       -f "push_branch=$push_branch"

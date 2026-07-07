@@ -80,6 +80,35 @@ fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
 }
 
 #[test]
+fn prepare_dispatch_uses_workflow_ref_for_gh_ref_and_source_sha_input() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.1.0");
+    repo.commit_all("seed workspace");
+    repo.push_branch("main");
+    let source_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
+    let fake_gh = repo.write_fake_gh();
+
+    let output = repo
+        .release_command(&[
+            "prepare",
+            "--bump",
+            "minor",
+            "--source-ref",
+            &source_sha,
+            "--dispatch",
+        ])
+        .env("WAVECRATE_RELEASE_GH_BIN", fake_gh)
+        .output()
+        .expect("run release wrapper");
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("fake-gh [workflow] [run] [release-train-prepare.yml] [--ref] [main]"));
+    assert!(stdout.contains(&format!("[-f] [source_ref={source_sha}]")));
+    assert!(!stdout.contains(&format!("[--ref] [{source_sha}]")));
+}
+
+#[test]
 fn prepare_rejects_invalid_bump_argument() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.1.0");
@@ -316,6 +345,21 @@ edition = "2024"
 
     fn read(&self, relative: &str) -> String {
         fs::read_to_string(self.path().join(relative)).expect("read fixture file")
+    }
+
+    fn write_fake_gh(&self) -> PathBuf {
+        let path = self
+            .path()
+            .parent()
+            .expect("fixture temp dir")
+            .join("fake-gh");
+        fs::write(
+            &path,
+            "#!/usr/bin/env bash\nif [[ \"$1\" == \"auth\" && \"$2\" == \"status\" ]]; then exit 0; fi\nprintf 'fake-gh'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf '\\n'\n",
+        )
+        .expect("write fake gh");
+        make_executable(path.clone());
+        path
     }
 
     fn git(&self, args: &[&str]) {
