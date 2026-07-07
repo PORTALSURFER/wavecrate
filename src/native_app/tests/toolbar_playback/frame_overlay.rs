@@ -253,7 +253,7 @@ fn scene_frame_clock_runs_at_60hz_even_when_idle() {
 }
 
 #[test]
-fn scene_playback_overlay_paints_uncapped_while_frame_messages_stay_60hz() {
+fn scene_playback_overlay_and_frame_messages_share_native_cadence() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
     let bridge = radiant::app(state)
@@ -273,8 +273,8 @@ fn scene_playback_overlay_paints_uncapped_while_frame_messages_stay_60hz() {
     );
     assert_eq!(
         activity.frame_message_target_fps(),
-        Some(60),
-        "host frame updates should remain capped while paint-only cursor frames run faster"
+        None,
+        "playback frame updates should align with the native cursor paint cadence"
     );
 }
 
