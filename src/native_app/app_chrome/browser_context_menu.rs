@@ -72,7 +72,7 @@ pub(in crate::native_app) fn overlay(
     menu: &BrowserContextMenu,
     harvest_active: bool,
 ) -> ui::View<GuiMessage> {
-    ui::message_context_menu_overlay_auto_width(
+    ui::anchored_message_menu_overlay_auto_width(
         menu.anchor,
         menu.title.clone(),
         context_menu_commands(menu, harvest_active),
