@@ -69,3 +69,36 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
     assert!(state.audio.volume_persist_deadline.is_none());
     assert!(!state.audio.volume_persist_inflight);
 }
+
+#[test]
+fn volume_drag_persists_after_debounce_while_playback_is_active() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut state = super::gui_state_for_span_tests();
+    state.persist_user_configuration("test.seed", Instant::now());
+    state.waveform.current.start_playback(0.1);
+
+    state.set_volume(0.35);
+    state.audio.volume_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.advance_frame(&mut context);
+
+    assert!(
+        state.playback_visual_activity_active(),
+        "test setup should keep playback visually active during the persist frame"
+    );
+    assert!(state.audio.volume_persist_deadline.is_none());
+    assert!(state.audio.volume_persist_inflight);
+
+    let command = context.into_command();
+    let radiant::runtime::Command::Perform { priority, work, .. } = command else {
+        panic!("expected volume settings persist background command during playback");
+    };
+    assert_eq!(priority, radiant::prelude::TaskPriority::BlockingIo);
+    let message = work();
+    state.apply_message(message, &mut radiant::prelude::UiUpdateContext::default());
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!((loaded.core.volume - 0.35).abs() < f32::EPSILON);
+    assert!(!state.audio.volume_persist_inflight);
+}
