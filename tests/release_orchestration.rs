@@ -250,6 +250,37 @@ fn rc_rejects_local_only_release_branch_before_printing_workflow_command() {
 }
 
 #[test]
+fn rc_fetches_release_branch_even_when_origin_refspec_only_tracks_main() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.2.0");
+    repo.commit_all("seed workspace");
+    repo.create_release_branch("release/19.2");
+    repo.git(&["config", "--unset-all", "remote.origin.fetch"]);
+    repo.git(&[
+        "config",
+        "--add",
+        "remote.origin.fetch",
+        "+refs/heads/main:refs/remotes/origin/main",
+    ]);
+    repo.git(&["update-ref", "-d", "refs/remotes/origin/release/19.2"]);
+
+    let output = repo.run_release(&[
+        "rc",
+        "--version",
+        "19.2.0",
+        "--rc-number",
+        "1",
+        "--branch",
+        "release/19.2",
+    ]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("RC tag: v19.2.0-rc.1"));
+    assert!(stdout.contains("Dry command: gh workflow run release-rc.yml"));
+}
+
+#[test]
 fn rc_rejects_existing_tag_that_points_at_different_commit() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.2.0");

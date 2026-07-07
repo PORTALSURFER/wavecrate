@@ -88,8 +88,8 @@ ensure_origin_matches_repo_slug() {
 fetch_release_refs() {
   git remote get-url origin >/dev/null 2>&1 || die "git remote 'origin' is required"
   ensure_origin_matches_repo_slug
-  run git fetch --prune origin
-  run git fetch --prune --prune-tags --tags --force origin
+  run git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+  run git fetch --prune --prune-tags --force origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
 }
 
 stable_version_re='^[0-9]+\.[0-9]+\.[0-9]+$'
