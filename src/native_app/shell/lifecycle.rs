@@ -15,7 +15,7 @@ use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 const UI_FRAME_TARGET_FPS: u32 = 60;
 const UI_FRAME_TARGET: Duration = Duration::from_micros(16_667);
 const UI_FRAME_CADENCE: ui::FrameCadenceConfig =
-    ui::FrameCadenceConfig::new(Duration::from_millis(25), Duration::from_millis(100), 60);
+    ui::FrameCadenceConfig::new(Duration::from_millis(25), Duration::from_millis(100), 0);
 
 impl NativeAppState {
     pub(in crate::native_app) fn load_default() -> Result<Self, String> {
@@ -177,6 +177,12 @@ impl NativeAppState {
             );
             return;
         };
+        if !matches!(
+            report.kind,
+            ui::FrameCadenceKind::ErrorSpike | ui::FrameCadenceKind::WarnSpike
+        ) {
+            return;
+        }
         let delta_ms = duration_ms(delta);
         let max_delta_ms = duration_ms(report.max_delta);
         let sample_loading = self.active_sample_load_task().is_some();
@@ -208,52 +214,26 @@ impl NativeAppState {
             .map(sample_path_label)
             .unwrap_or_default();
 
-        match report.kind {
-            ui::FrameCadenceKind::ErrorSpike | ui::FrameCadenceKind::WarnSpike => {
-                tracing::warn!(
-                    target: "wavecrate::debug::ui_frame",
-                    event = "ui.frame.deviation",
-                    severity = report.kind.severity().unwrap_or("warn"),
-                    frame = report.frame_index,
-                    target_fps = UI_FRAME_TARGET_FPS,
-                    target_ms = duration_ms(UI_FRAME_TARGET),
-                    delta_ms,
-                    max_delta_ms,
-                    sample_loading,
-                    audio_opening,
-                    folder_scanning,
-                    normalizing,
-                    waveform_loading,
-                    playing,
-                    pending_playback,
-                    cadence_context,
-                    selected = selected.as_str(),
-                    "UI frame cadence deviated from 60Hz target"
-                );
-            }
-            ui::FrameCadenceKind::Periodic => {
-                tracing::debug!(
-                    target: "wavecrate::debug::ui_frame",
-                    event = "ui.frame",
-                    frame = report.frame_index,
-                    target_fps = UI_FRAME_TARGET_FPS,
-                    target_ms = duration_ms(UI_FRAME_TARGET),
-                    delta_ms,
-                    max_delta_ms,
-                    sample_loading,
-                    audio_opening,
-                    folder_scanning,
-                    normalizing,
-                    waveform_loading,
-                    playing,
-                    pending_playback,
-                    cadence_context,
-                    selected = selected.as_str(),
-                    "UI frame timing"
-                );
-            }
-            ui::FrameCadenceKind::Started | ui::FrameCadenceKind::Normal => {}
-        }
+        tracing::warn!(
+            target: "wavecrate::debug::ui_frame",
+            event = "ui.frame.deviation",
+            severity = report.kind.severity().unwrap_or("warn"),
+            frame = report.frame_index,
+            target_fps = UI_FRAME_TARGET_FPS,
+            target_ms = duration_ms(UI_FRAME_TARGET),
+            delta_ms,
+            max_delta_ms,
+            sample_loading,
+            audio_opening,
+            folder_scanning,
+            normalizing,
+            waveform_loading,
+            playing,
+            pending_playback,
+            cadence_context,
+            selected = selected.as_str(),
+            "UI frame cadence deviated from 60Hz target"
+        );
     }
 
     pub(in crate::native_app) fn maybe_auto_load_startup_sample(
