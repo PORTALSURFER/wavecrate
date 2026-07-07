@@ -248,6 +248,37 @@ fn stable_requires_latest_rc_tag_to_match_release_branch_commit() {
 }
 
 #[test]
+fn stable_prunes_stale_local_rc_tags_before_selecting_promoted_rc() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.2.0");
+    repo.commit_all("seed workspace");
+    repo.create_release_branch("release/19.2");
+    repo.git(&["tag", "v19.2.0-rc.1"]);
+    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
+    repo.write("src/lib.rs", "// stale local rc tag only\n");
+    repo.commit_all("advance main after remote rc");
+    repo.git(&["tag", "v19.2.0-rc.2"]);
+    assert_eq!(
+        repo.git_stdout(&["tag", "-l", "v19.2.0-rc.*", "--sort=-v:refname"])
+            .lines()
+            .next(),
+        Some("v19.2.0-rc.2"),
+        "stale local rc tag should sort ahead before the wrapper fetches"
+    );
+
+    let output = repo.run_release(&["stable", "--version", "19.2.0", "--branch", "release/19.2"]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("Promoted RC tag: v19.2.0-rc.1"));
+    assert!(
+        !repo
+            .git_stdout(&["tag", "-l", "v19.2.0-rc.2"])
+            .contains("v19.2.0-rc.2")
+    );
+}
+
+#[test]
 fn stable_dry_run_accepts_matching_latest_rc_tag_and_prints_dispatch_command() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.2.0");

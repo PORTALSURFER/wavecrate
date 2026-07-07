@@ -57,7 +57,7 @@ ensure_clean_worktree() {
 fetch_release_refs() {
   git remote get-url origin >/dev/null 2>&1 || die "git remote 'origin' is required"
   run git fetch --prune origin
-  run git fetch --tags --force origin
+  run git fetch --prune --prune-tags --tags --force origin
 }
 
 stable_version_re='^[0-9]+\.[0-9]+\.[0-9]+$'
