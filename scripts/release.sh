@@ -171,6 +171,25 @@ resolve_ref_sha() {
     || die "could not resolve source ref '$ref' to a commit"
 }
 
+commit_reachable_from_origin() {
+  local sha="$1"
+  git branch -r --contains "$sha" --format='%(refname:short)' | grep -q '^origin/' \
+    || git tag --contains "$sha" | grep -q .
+}
+
+ensure_ref_dispatchable_from_origin() {
+  local ref="$1"
+  local sha="$2"
+  commit_reachable_from_origin "$sha" \
+    || die "source ref '$ref' resolves to local-only commit $sha; push it to origin or use a ref from $repo_slug before workflow dispatch"
+}
+
+ensure_origin_branch_for_workflow() {
+  local branch="$1"
+  git rev-parse --verify --quiet "origin/${branch}^{commit}" >/dev/null \
+    || die "release branch '$branch' is not present on origin; push it before dispatching or copying workflow commands"
+}
+
 workflow_url() {
   local workflow="$1"
   printf 'https://github.com/%s/actions/workflows/%s\n' "$repo_slug" "$workflow"
@@ -276,6 +295,7 @@ prepare() {
 
   if (( dispatch )); then
     local gh_bin push_branch
+    ensure_ref_dispatchable_from_origin "$source_ref" "$target_sha"
     gh_bin="$(require_gh)"
     push_branch=false
     (( push )) && push_branch=true
@@ -332,6 +352,7 @@ rc() {
 
   local target_sha
   target_sha="$(resolve_ref_sha "$branch")"
+  ensure_origin_branch_for_workflow "$branch"
   validate_manifest_version_at_ref "$target_sha" "$version"
   print_resolved "$version" "$branch" "$target_sha"
   echo "RC tag: v${version}-rc.${rc_number}"
@@ -375,6 +396,7 @@ stable() {
 
   local target_sha latest_rc_tag rc_sha
   target_sha="$(resolve_ref_sha "$branch")"
+  ensure_origin_branch_for_workflow "$branch"
   validate_manifest_version_at_ref "$target_sha" "$version"
   latest_rc_tag="$(git tag -l "v${version}-rc.*" --sort=-v:refname | head -n 1)"
   [[ -n "$latest_rc_tag" ]] || die "stable release $version requires at least one RC tag v${version}-rc.N"

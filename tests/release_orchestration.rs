@@ -123,6 +123,37 @@ fn prepare_dispatch_uses_workflow_ref_for_gh_ref_and_source_sha_input() {
 }
 
 #[test]
+fn prepare_dispatch_rejects_local_only_source_ref() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.1.0");
+    repo.commit_all("seed workspace");
+    repo.push_branch("main");
+    repo.write_workspace("19.2.0");
+    repo.commit_all("local release source only");
+    let local_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
+    let fake_gh = repo.write_fake_gh();
+
+    let output = repo
+        .release_command(&[
+            "prepare",
+            "--bump",
+            "minor",
+            "--source-ref",
+            "HEAD",
+            "--dispatch",
+        ])
+        .env("WAVECRATE_RELEASE_GH_BIN", fake_gh)
+        .output()
+        .expect("run release wrapper");
+
+    assert_failure(&output);
+    assert!(stderr(&output).contains(&format!(
+        "source ref 'HEAD' resolves to local-only commit {local_sha}"
+    )));
+    assert!(!stdout(&output).contains("fake-gh [workflow] [run]"));
+}
+
+#[test]
 fn prepare_rejects_invalid_bump_argument() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.1.0");
@@ -193,6 +224,29 @@ fn rc_rejects_wrong_branch_for_version() {
 
     assert_failure(&output);
     assert!(stderr(&output).contains("branch must be release/19.2"));
+}
+
+#[test]
+fn rc_rejects_local_only_release_branch_before_printing_workflow_command() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.2.0");
+    repo.commit_all("seed workspace");
+    repo.git(&["switch", "-c", "release/19.2"]);
+    repo.git(&["switch", "main"]);
+
+    let output = repo.run_release(&[
+        "rc",
+        "--version",
+        "19.2.0",
+        "--rc-number",
+        "1",
+        "--branch",
+        "release/19.2",
+    ]);
+
+    assert_failure(&output);
+    assert!(stderr(&output).contains("release branch 'release/19.2' is not present on origin"));
+    assert!(!stdout(&output).contains("Dry command: gh workflow run"));
 }
 
 #[test]
