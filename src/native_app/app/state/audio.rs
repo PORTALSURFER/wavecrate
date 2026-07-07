@@ -1,4 +1,7 @@
-use std::{sync::mpsc::Receiver, time::Instant};
+use std::{
+    sync::mpsc::Receiver,
+    time::{Duration, Instant},
+};
 
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
@@ -43,6 +46,7 @@ pub(in crate::native_app) struct AudioAppState {
 pub(in crate::native_app) struct PlaybackVisualProgress {
     pub(in crate::native_app) anchor_ratio: f32,
     pub(in crate::native_app) anchor_at: Instant,
+    pub(in crate::native_app) anchor_animation_time: Option<Duration>,
     pub(in crate::native_app) span: Option<(f32, f32)>,
     pub(in crate::native_app) looping: bool,
 }
@@ -348,6 +352,7 @@ impl AudioAppState {
         self.playback_visual_progress = Some(PlaybackVisualProgress {
             anchor_ratio: anchor_ratio.clamp(0.0, 1.0),
             anchor_at: Instant::now(),
+            anchor_animation_time: None,
             span: self.current_playback_span,
             looping,
         });

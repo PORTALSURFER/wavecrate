@@ -18,7 +18,10 @@ use radiant::{
     gui::types::{Point, Rect, Rgba8},
     runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
-use wavecrate::audio::{PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeStarted};
+use wavecrate::audio::{
+    PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeProgress,
+    PlaybackRuntimeStarted,
+};
 
 const PLAYBACK_CURSOR_COLOR: Rgba8 = Rgba8 {
     r: 71,
@@ -143,9 +146,16 @@ impl NativeAppState {
             }
             PlaybackRuntimeEvent::Stopped { .. } => {}
             PlaybackRuntimeEvent::Progress { progress, .. } => {
-                self.audio.set_playback_progress(progress)
+                self.apply_runtime_playback_progress(progress)
             }
         }
+    }
+
+    fn apply_runtime_playback_progress(&mut self, progress: PlaybackRuntimeProgress) {
+        if self.audio.active_sample_playback_pending_runtime() {
+            return;
+        }
+        self.audio.set_playback_progress(progress);
     }
 
     fn finish_runtime_playback_started(&mut self, started: PlaybackRuntimeStarted) {
@@ -334,16 +344,6 @@ impl NativeAppState {
             return;
         }
         if self.audio.active_sample_playback_pending_runtime() {
-            if let Some(progress) = self.audio.playback_progress.progress {
-                if self
-                    .audio
-                    .sample_playback_session
-                    .as_ref()
-                    .is_some_and(|session| session.request.visibility.updates_waveform_playhead())
-                {
-                    self.waveform.current.set_playhead_ratio(progress);
-                }
-            }
             return;
         }
 
@@ -393,7 +393,8 @@ impl NativeAppState {
         if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
-        let Some(progress) = self.current_audio_progress_ratio() else {
+        let Some(progress) = self.current_audio_progress_ratio_for_frame(context.animation_time)
+        else {
             return;
         };
         let Some(visible_ratio) = self.waveform.current.visible_ratio_for_absolute(progress) else {
@@ -789,7 +790,10 @@ fn playback_error_indicates_output_unavailable(error: &str) -> bool {
 mod tests {
     use super::*;
     use crate::native_app::{
-        app::{SamplePlaybackIntent, SamplePlaybackRequest, SamplePlaybackSourceProbe},
+        app::{
+            SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackRequest,
+            SamplePlaybackSessionState, SamplePlaybackSourceProbe,
+        },
         test_support::state::{NativeAppStateFixture, WaveformState},
         waveform::test_decoded_waveform_file_from_mono_samples,
     };
@@ -832,5 +836,68 @@ mod tests {
         );
         assert_eq!(state.audio.current_playback_span, None);
         assert_eq!(state.audio.playback_progress.progress, Some(0.5));
+    }
+
+    #[test]
+    fn pending_runtime_restart_ignores_progress_until_started_event() {
+        let path = PathBuf::from("restart-visual.wav");
+        let file = test_decoded_waveform_file_from_mono_samples(
+            path.clone(),
+            vec![0.0, 0.5, -0.5, 0.0, 0.25, -0.25],
+        );
+        let mut state = NativeAppStateFixture::default().build();
+        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
+        state.waveform.current.start_playback(0.1);
+        state.audio.current_playback_span = Some((0.1, 0.9));
+        let request = SamplePlaybackRequest::waveform(
+            path.display().to_string(),
+            (0.1, 0.9),
+            SamplePlaybackIntent::WaveformSpan,
+            "waveform",
+            SamplePlaybackHistory::Record,
+        );
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "decoded_samples");
+        state
+            .audio
+            .sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .state = SamplePlaybackSessionState::RuntimePending;
+
+        state.apply_runtime_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(90)),
+            looping: false,
+            progress: Some(0.7),
+            error: None,
+        });
+
+        assert_eq!(
+            state.waveform.current.playhead_ratio(),
+            Some(0.1),
+            "a pending restart should keep the visual cursor at the requested start"
+        );
+        assert!(
+            !state.audio.playback_progress.active,
+            "stale runtime progress should not become the active visual clock while the new start is pending"
+        );
+        assert_eq!(state.audio.playback_visual_progress, None);
+
+        state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(90)),
+            looping: false,
+            progress: Some(0.7),
+            error: None,
+        };
+        state.refresh_runtime_playback_progress();
+
+        assert_eq!(
+            state.waveform.current.playhead_ratio(),
+            Some(0.1),
+            "frame refresh should also ignore progress snapshots until the runtime confirms the new start"
+        );
     }
 }
