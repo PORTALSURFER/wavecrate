@@ -51,6 +51,14 @@ development and release-risk checks:
 | RC release | `Wavecrate RC release` manual dispatch | release workflow dispatch | Builds Windows/macOS RC assets from `release/X.Y`, validates the requested package version and branch, runs `scripts/internal/release/run_release_validation.sh`, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z-rc.N` as a GitHub pre-release |
 | Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs `scripts/internal/release/run_release_validation.sh`, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z` as the normal GitHub release |
 
+Use `scripts/release.sh` from a clean repo root for macOS/Linux release
+orchestration. It derives major/minor target versions from the current release
+package version, delegates release-train prep to
+`scripts/internal/release/prepare_release_train.py`, and dispatches the RC and
+stable GitHub workflows only when `--dispatch` is passed. The script requires
+`gh` only for explicit workflow dispatch; dry RC/stable runs print the exact
+workflow command and follow-up run-list command without publishing.
+
 The nextest policy is:
 
 - `ci-required` is the merge-blocking test subset and excludes known timing,

@@ -1,0 +1,334 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+repo_slug="${WAVECRATE_GITHUB_REPO:-PORTALSURFER/wavecrate}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/release.sh prepare --bump <major|minor> [--source-ref <ref>] [--dry-run|--push] [--dispatch]
+  scripts/release.sh rc --version <X.Y.Z> --rc-number <N> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
+  scripts/release.sh stable --version <X.Y.Z> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
+
+Prepare derives the target version from the current Cargo.toml package version.
+Without --dispatch, prepare runs scripts/internal/release/prepare_release_train.py locally.
+Without --dispatch, rc/stable validate inputs and print the exact gh workflow command.
+Public publishing workflow dispatch requires --dispatch.
+EOF
+}
+
+die() {
+  echo "release: $*" >&2
+  exit 2
+}
+
+run() {
+  printf '+'
+  printf ' %q' "$@"
+  printf '\n'
+  "$@"
+}
+
+repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || die "not inside a git repository"
+}
+
+ensure_repo_root() {
+  local root
+  root="$(repo_root)"
+  [[ "$PWD" == "$root" ]] || die "run from the Wavecrate repo root: $root"
+  [[ -f Cargo.toml && -d scripts/internal/release && -d .github/workflows ]] \
+    || die "current directory does not look like the Wavecrate repo root"
+}
+
+ensure_clean_worktree() {
+  local status
+  status="$(git status --short)"
+  [[ -z "$status" ]] || die "release orchestration requires a clean working tree"
+}
+
+fetch_release_refs() {
+  git remote get-url origin >/dev/null 2>&1 || die "git remote 'origin' is required"
+  run git fetch --prune origin
+  run git fetch --tags --force origin
+}
+
+stable_version_re='^[0-9]+\.[0-9]+\.[0-9]+$'
+rc_number_re='^[1-9][0-9]*$'
+
+validate_version() {
+  local version="$1"
+  [[ "$version" =~ $stable_version_re ]] || die "version must be MAJOR.MINOR.PATCH"
+}
+
+validate_bump() {
+  local bump="$1"
+  [[ "$bump" == "major" || "$bump" == "minor" ]] || die "bump must be major or minor"
+}
+
+package_version_from_stdin() {
+  awk '
+    /^\[package\][[:space:]]*$/ { in_package = 1; next }
+    in_package && /^\[/ { exit }
+    in_package && /^[[:space:]]*version[[:space:]]*=/ {
+      gsub(/"/, "", $3)
+      print $3
+      exit
+    }
+  '
+}
+
+current_package_version() {
+  package_version_from_stdin < Cargo.toml
+}
+
+package_version_at_ref() {
+  local sha="$1"
+  git show "${sha}:Cargo.toml" 2>/dev/null | package_version_from_stdin
+}
+
+bump_version() {
+  local version="$1"
+  local bump="$2"
+  validate_version "$version"
+  validate_bump "$bump"
+  IFS=. read -r major minor _patch <<<"$version"
+  case "$bump" in
+    major) printf '%s.0.0\n' "$((major + 1))" ;;
+    minor) printf '%s.%s.0\n' "$major" "$((minor + 1))" ;;
+  esac
+}
+
+release_branch_for_version() {
+  local version="$1"
+  validate_version "$version"
+  IFS=. read -r major minor _patch <<<"$version"
+  printf 'release/%s.%s\n' "$major" "$minor"
+}
+
+validate_branch_for_version() {
+  local branch="$1"
+  local version="$2"
+  local expected
+  expected="$(release_branch_for_version "$version")"
+  [[ "$branch" == "$expected" ]] || die "branch must be $expected for version $version"
+}
+
+validate_manifest_version_at_ref() {
+  local sha="$1"
+  local version="$2"
+  local actual
+  actual="$(package_version_at_ref "$sha")"
+  [[ "$actual" == "$version" ]] || die "Cargo.toml version $actual at $sha does not match $version"
+}
+
+resolve_ref_sha() {
+  local ref="$1"
+  local candidate="$ref"
+  if git rev-parse --verify --quiet "origin/${ref}^{commit}" >/dev/null; then
+    candidate="origin/${ref}"
+  fi
+  git rev-parse --verify "${candidate}^{commit}" 2>/dev/null \
+    || die "could not resolve source ref '$ref' to a commit"
+}
+
+workflow_url() {
+  local workflow="$1"
+  printf 'https://github.com/%s/actions/workflows/%s\n' "$repo_slug" "$workflow"
+}
+
+require_gh() {
+  local gh_bin="${WAVECRATE_RELEASE_GH_BIN:-gh}"
+  if [[ "$gh_bin" == */* ]]; then
+    [[ -x "$gh_bin" ]] || die "gh CLI not found or not executable: $gh_bin"
+  else
+    command -v "$gh_bin" >/dev/null 2>&1 || die "gh CLI not found; install gh or set WAVECRATE_RELEASE_GH_BIN"
+  fi
+  "$gh_bin" auth status >/dev/null 2>&1 || die "gh CLI is not authenticated; run gh auth login"
+  printf '%s\n' "$gh_bin"
+}
+
+print_resolved() {
+  local version="$1"
+  local branch="$2"
+  local sha="$3"
+  echo "Resolved version: $version"
+  echo "Release branch: $branch"
+  echo "Target SHA: $sha"
+}
+
+print_followups() {
+  local workflow="$1"
+  local branch="$2"
+  echo "Workflow: $(workflow_url "$workflow")"
+  echo "Run lookup: gh run list --workflow $workflow --branch $branch --limit 5"
+}
+
+prepare() {
+  local bump=""
+  local source_ref="main"
+  local dry_run=1
+  local explicit_dry_run=0
+  local push=0
+  local dispatch=0
+  while (( $# > 0 )); do
+    case "$1" in
+      --bump) bump="${2:-}"; shift 2 ;;
+      --source-ref) source_ref="${2:-}"; shift 2 ;;
+      --dry-run) explicit_dry_run=1; dry_run=1; shift ;;
+      --push) push=1; dry_run=0; shift ;;
+      --dispatch) dispatch=1; shift ;;
+      -h|--help) usage; return 0 ;;
+      *) die "unknown prepare argument: $1" ;;
+    esac
+  done
+  [[ -n "$bump" ]] || die "prepare requires --bump <major|minor>"
+  validate_bump "$bump"
+  (( push == 0 || explicit_dry_run == 0 )) || die "--dry-run and --push cannot be combined"
+
+  ensure_repo_root
+  ensure_clean_worktree
+  fetch_release_refs
+
+  local current_version target_version branch target_sha
+  current_version="$(current_package_version)"
+  validate_version "$current_version"
+  target_version="$(bump_version "$current_version" "$bump")"
+  branch="$(release_branch_for_version "$target_version")"
+  target_sha="$(resolve_ref_sha "$source_ref")"
+  print_resolved "$target_version" "$branch" "$target_sha"
+
+  if (( dispatch )); then
+    local gh_bin push_branch
+    gh_bin="$(require_gh)"
+    push_branch=false
+    (( push )) && push_branch=true
+    run "$gh_bin" workflow run release-train-prepare.yml \
+      --ref "$source_ref" \
+      -f "version=$target_version" \
+      -f "source_ref=$target_sha" \
+      -f "push_branch=$push_branch"
+    print_followups "release-train-prepare.yml" "$branch"
+    return 0
+  fi
+
+  local args=(--version "$target_version" --source-ref "$target_sha")
+  if (( push )); then
+    args+=(--push)
+  else
+    args+=(--dry-run)
+  fi
+  run scripts/internal/release/prepare_release_train.py "${args[@]}"
+  print_followups "release-train-prepare.yml" "$branch"
+}
+
+rc() {
+  local version=""
+  local rc_number=""
+  local branch=""
+  local release_notes=""
+  local dispatch=0
+  while (( $# > 0 )); do
+    case "$1" in
+      --version) version="${2:-}"; shift 2 ;;
+      --rc-number) rc_number="${2:-}"; shift 2 ;;
+      --branch) branch="${2:-}"; shift 2 ;;
+      --release-notes) release_notes="${2:-}"; shift 2 ;;
+      --dispatch) dispatch=1; shift ;;
+      -h|--help) usage; return 0 ;;
+      *) die "unknown rc argument: $1" ;;
+    esac
+  done
+  [[ -n "$version" && -n "$rc_number" && -n "$branch" ]] \
+    || die "rc requires --version, --rc-number, and --branch"
+  validate_version "$version"
+  [[ "$rc_number" =~ $rc_number_re ]] || die "rc_number must be a positive integer"
+  validate_branch_for_version "$branch" "$version"
+
+  ensure_repo_root
+  ensure_clean_worktree
+  fetch_release_refs
+
+  local target_sha
+  target_sha="$(resolve_ref_sha "$branch")"
+  validate_manifest_version_at_ref "$target_sha" "$version"
+  print_resolved "$version" "$branch" "$target_sha"
+  echo "RC tag: v${version}-rc.${rc_number}"
+
+  if (( dispatch )); then
+    local gh_bin args
+    gh_bin="$(require_gh)"
+    args=(workflow run release-rc.yml --ref "$branch" -f "version=$version" -f "rc_number=$rc_number" -f "branch=$branch")
+    [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
+    run "$gh_bin" "${args[@]}"
+  else
+    echo "Dry command: gh workflow run release-rc.yml --ref $branch -f version=$version -f rc_number=$rc_number -f branch=$branch"
+  fi
+  print_followups "release-rc.yml" "$branch"
+}
+
+stable() {
+  local version=""
+  local branch=""
+  local release_notes=""
+  local dispatch=0
+  while (( $# > 0 )); do
+    case "$1" in
+      --version) version="${2:-}"; shift 2 ;;
+      --branch) branch="${2:-}"; shift 2 ;;
+      --release-notes) release_notes="${2:-}"; shift 2 ;;
+      --dispatch) dispatch=1; shift ;;
+      -h|--help) usage; return 0 ;;
+      *) die "unknown stable argument: $1" ;;
+    esac
+  done
+  [[ -n "$version" && -n "$branch" ]] || die "stable requires --version and --branch"
+  validate_version "$version"
+  validate_branch_for_version "$branch" "$version"
+
+  ensure_repo_root
+  ensure_clean_worktree
+  fetch_release_refs
+
+  local target_sha latest_rc_tag rc_sha
+  target_sha="$(resolve_ref_sha "$branch")"
+  validate_manifest_version_at_ref "$target_sha" "$version"
+  latest_rc_tag="$(git tag -l "v${version}-rc.*" --sort=-v:refname | head -n 1)"
+  [[ -n "$latest_rc_tag" ]] || die "stable release $version requires at least one RC tag v${version}-rc.N"
+  rc_sha="$(git rev-list -n 1 "$latest_rc_tag")"
+  [[ "$rc_sha" == "$target_sha" ]] \
+    || die "latest RC $latest_rc_tag points at $rc_sha; stable target is $target_sha"
+
+  print_resolved "$version" "$branch" "$target_sha"
+  echo "Promoted RC tag: $latest_rc_tag"
+
+  if (( dispatch )); then
+    local gh_bin args
+    gh_bin="$(require_gh)"
+    args=(workflow run release-stable.yml --ref "$branch" -f "version=$version" -f "branch=$branch")
+    [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
+    run "$gh_bin" "${args[@]}"
+  else
+    echo "Dry command: gh workflow run release-stable.yml --ref $branch -f version=$version -f branch=$branch"
+  fi
+  print_followups "release-stable.yml" "$branch"
+}
+
+main() {
+  if (( $# == 0 )); then
+    usage
+    exit 0
+  fi
+  local command="$1"
+  shift
+  case "$command" in
+    prepare) prepare "$@" ;;
+    rc) rc "$@" ;;
+    stable) stable "$@" ;;
+    -h|--help) usage ;;
+    *) die "unknown release command: $command" ;;
+  esac
+}
+
+main "$@"

@@ -42,6 +42,7 @@
       "scripts/internal/perf/run_perf_guard.sh",
       "scripts/internal/perf/calibrate_startup_thresholds.sh",
       "scripts/internal/perf/run_perf_wheel_stability.sh",
+      "scripts/release.sh",
       "scripts/run.sh"
     ],
     "required_fragments": [

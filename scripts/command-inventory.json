@@ -66,6 +66,11 @@
       "windows_supported": false
     },
     {
+      "path": "scripts/release.sh",
+      "role": "Repo-root release orchestration for release-train prep plus RC/stable workflow dispatch.",
+      "windows_supported": false
+    },
+    {
       "path": "scripts/run.ps1",
       "role": "Sandbox, cleanup, log, and bug-bundle helpers.",
       "windows_supported": true
