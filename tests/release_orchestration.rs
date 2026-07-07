@@ -1,4 +1,5 @@
 //! Checks for the repo-root release orchestration wrapper.
+#![cfg(unix)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
