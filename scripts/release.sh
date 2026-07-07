@@ -191,12 +191,12 @@ prepare() {
   ensure_clean_worktree
   fetch_release_refs
 
-  local current_version target_version branch target_sha
-  current_version="$(current_package_version)"
-  validate_version "$current_version"
-  target_version="$(bump_version "$current_version" "$bump")"
-  branch="$(release_branch_for_version "$target_version")"
+  local source_version target_version branch target_sha
   target_sha="$(resolve_ref_sha "$source_ref")"
+  source_version="$(package_version_at_ref "$target_sha")"
+  validate_version "$source_version"
+  target_version="$(bump_version "$source_version" "$bump")"
+  branch="$(release_branch_for_version "$target_version")"
   print_resolved "$target_version" "$branch" "$target_sha"
 
   if (( dispatch )); then

@@ -47,6 +47,39 @@ fn prepare_major_bump_derives_next_major_train() {
 }
 
 #[test]
+fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.1.0");
+    repo.commit_all("seed workspace");
+    repo.push_branch("main");
+    repo.git(&["switch", "-c", "stale-local"]);
+    repo.git(&["switch", "main"]);
+    repo.write_workspace("20.5.0");
+    repo.commit_all("advance main release version");
+    repo.push_branch("main");
+    repo.git(&["switch", "stale-local"]);
+    assert!(
+        repo.read("Cargo.toml").contains("version = \"19.1.0\""),
+        "fixture checkout should stay on the stale package version"
+    );
+
+    let output = repo.run_release(&[
+        "prepare",
+        "--bump",
+        "minor",
+        "--source-ref",
+        "main",
+        "--dry-run",
+    ]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("Resolved version: 20.6.0"));
+    assert!(stdout.contains("Release branch: release/20.6"));
+    assert!(stdout.contains("prepare-helper [--version] [20.6.0]"));
+}
+
+#[test]
 fn prepare_rejects_invalid_bump_argument() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.1.0");
@@ -279,6 +312,10 @@ edition = "2024"
             fs::create_dir_all(parent).expect("create fixture parent");
         }
         fs::write(path, contents).expect("write fixture file");
+    }
+
+    fn read(&self, relative: &str) -> String {
+        fs::read_to_string(self.path().join(relative)).expect("read fixture file")
     }
 
     fn git(&self, args: &[&str]) {
