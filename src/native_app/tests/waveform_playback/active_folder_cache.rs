@@ -935,6 +935,98 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
 }
 
 #[test]
+fn running_active_folder_cache_warm_pause_for_playback_clears_progress_immediately() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let folder = source_root.path().join("large-folder");
+    fs::create_dir_all(&folder).expect("create folder");
+    let first = folder.join("first.wav");
+    let second = folder.join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+            crate::native_app::test_support::state::FolderBrowserMessage::ActivateFolder(
+                folder.display().to_string(),
+                Default::default(),
+            ),
+        ),
+        &mut context,
+    );
+    assert!(state.schedule_active_folder_cache_warm(&mut context));
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first, second.clone()],
+    );
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("folder warm delay");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut context,
+    );
+    let running_ticket = active_folder_cache_warm_ticket(&state).expect("folder warm task");
+
+    state.waveform.current.start_playback(0.0);
+    state.pause_active_folder_cache_warm_for_playback();
+
+    assert!(
+        active_folder_cache_warm_ticket(&state).is_some(),
+        "running warm task should stay tracked until its cancellation completion arrives"
+    );
+    assert!(
+        state.waveform.cache.active_folder_warm_folder_id.is_none(),
+        "playback pause should clear source-cache progress immediately"
+    );
+    assert!(
+        state.waveform.cache.active_folder_warm_pending.is_empty(),
+        "playback pause should abandon deferred source-cache work immediately"
+    );
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut ui::UiUpdateContext::default());
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "a cancelled running source-cache warm must not force playback surface frames"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmFinished(
+            active_folder_cache_warm_completion_with_deferred(
+                running_ticket,
+                source_root.path().display().to_string(),
+                Vec::new(),
+                vec![second],
+                1,
+                true,
+                true,
+            ),
+        ),
+        &mut context,
+    );
+    assert!(
+        active_folder_cache_warm_ticket(&state).is_none(),
+        "cancelled warm completion should retire the tracked running task"
+    );
+    assert!(
+        state.waveform.cache.active_folder_warm_pending.is_empty(),
+        "cancelled warm completion should not repopulate abandoned playback-time work"
+    );
+}
+
+#[test]
 fn active_folder_cache_warm_delay_does_not_retry_while_playing() {
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");

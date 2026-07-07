@@ -330,13 +330,13 @@ impl NativeAppState {
         if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
         }
+        self.waveform.cache.clear_active_folder_warm_job();
         if running {
             return;
         }
         if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
             self.waveform.cache.active_folder_warm_tasks.cancel(&key);
         }
-        self.waveform.cache.clear_active_folder_warm_job();
     }
 
     fn reschedule_active_folder_cache_warm_delay(
