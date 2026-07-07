@@ -143,6 +143,31 @@ fn release_wrapper_rejects_dirty_worktree_before_release_actions() {
 }
 
 #[test]
+fn release_wrapper_rejects_github_origin_that_differs_from_target_repo() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.1.0");
+    repo.commit_all("seed workspace");
+    repo.push_branch("main");
+    repo.git(&[
+        "remote",
+        "set-url",
+        "origin",
+        "https://github.com/PORTALSURFER/wavecrate.git",
+    ]);
+
+    let output = repo
+        .release_command(&["prepare", "--bump", "minor", "--source-ref", "main"])
+        .env("WAVECRATE_GITHUB_REPO", "PORTALSURFER/wavecrate-fork")
+        .output()
+        .expect("run release wrapper");
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert!(stderr.contains("origin remote resolves release refs from portalsurfer/wavecrate"));
+    assert!(stderr.contains("workflows target portalsurfer/wavecrate-fork"));
+}
+
+#[test]
 fn rc_rejects_wrong_branch_for_version() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.2.0");

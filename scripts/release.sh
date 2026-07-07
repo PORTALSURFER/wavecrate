@@ -54,8 +54,40 @@ ensure_clean_worktree() {
   [[ -z "$status" ]] || die "release orchestration requires a clean working tree"
 }
 
+normalize_repo_slug() {
+  local slug="$1"
+  slug="${slug%/}"
+  slug="${slug%.git}"
+  [[ "$slug" == */* ]] || return 1
+  printf '%s\n' "$slug" | tr '[:upper:]' '[:lower:]'
+}
+
+origin_github_repo_slug() {
+  local url slug
+  url="$(git remote get-url origin)"
+  case "$url" in
+    https://github.com/*) slug="${url#https://github.com/}" ;;
+    http://github.com/*) slug="${url#http://github.com/}" ;;
+    git@github.com:*) slug="${url#git@github.com:}" ;;
+    ssh://git@github.com/*) slug="${url#ssh://git@github.com/}" ;;
+    *) return 1 ;;
+  esac
+  normalize_repo_slug "$slug"
+}
+
+ensure_origin_matches_repo_slug() {
+  local target_slug origin_slug
+  target_slug="$(normalize_repo_slug "$repo_slug")" \
+    || die "WAVECRATE_GITHUB_REPO must be an owner/repo slug"
+  if origin_slug="$(origin_github_repo_slug)"; then
+    [[ "$origin_slug" == "$target_slug" ]] \
+      || die "origin remote resolves release refs from $origin_slug, but workflows target $target_slug; set WAVECRATE_GITHUB_REPO to $origin_slug or update origin before release orchestration"
+  fi
+}
+
 fetch_release_refs() {
   git remote get-url origin >/dev/null 2>&1 || die "git remote 'origin' is required"
+  ensure_origin_matches_repo_slug
   run git fetch --prune origin
   run git fetch --prune --prune-tags --tags --force origin
 }

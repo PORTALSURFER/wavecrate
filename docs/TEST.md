@@ -58,8 +58,10 @@ at the resolved source ref, delegates release-train prep to
 stable GitHub workflows only when `--dispatch` is passed. Prepare dispatch uses
 `--workflow-ref` (default `main`) for the workflow file ref and sends the
 resolved source commit SHA through the `source_ref` workflow input. The script
-requires `gh` only for explicit workflow dispatch; dry RC/stable runs print the
-exact workflow command and follow-up run-list command without publishing.
+requires `gh` only for explicit workflow dispatch. When `origin` is a GitHub
+remote, it must match `WAVECRATE_GITHUB_REPO` before release refs are fetched or
+resolved. Dry RC/stable runs print the exact workflow command and follow-up
+run-list command without publishing.
 
 The nextest policy is:
 

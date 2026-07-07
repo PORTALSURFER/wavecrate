@@ -93,11 +93,13 @@ scripts/release.sh stable --version 19.2.0 --branch release/19.2 --dispatch
 bumps to `X.(Y+1).0`. Without `--dispatch`, `rc` and `stable` validate inputs
 and print the exact `gh workflow run ...` command instead of publishing. With
 `--dispatch`, the script requires an authenticated GitHub CLI (`gh`) and invokes
-the existing workflows with their native input names. `prepare --dispatch`
-dispatches the workflow file from `--workflow-ref` (default `main`) while passing
-the resolved source commit SHA as the workflow `source_ref` input. Stable
-dispatch also preflights the safety invariant locally: the latest `vX.Y.Z-rc.N`
-tag must point at the same commit as the release branch.
+the existing workflows with their native input names. When `origin` is a GitHub
+remote, it must match `WAVECRATE_GITHUB_REPO` so local ref resolution and
+workflow dispatch target the same repository. `prepare --dispatch` dispatches
+the workflow file from `--workflow-ref` (default `main`) while passing the
+resolved source commit SHA as the workflow `source_ref` input. Stable dispatch
+also preflights the safety invariant locally: the latest `vX.Y.Z-rc.N` tag must
+point at the same commit as the release branch.
 
 Local equivalent:
 
