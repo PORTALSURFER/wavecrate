@@ -168,7 +168,9 @@ print_followups() {
   local workflow="$1"
   local branch="$2"
   echo "Workflow: $(workflow_url "$workflow")"
-  echo "Run lookup: gh run list --workflow $workflow --branch $branch --limit 5"
+  printf 'Run lookup:'
+  printf ' %q' gh run list --repo "$repo_slug" --workflow "$workflow" --branch "$branch" --limit 5
+  printf '\n'
 }
 
 prepare() {
@@ -214,6 +216,7 @@ prepare() {
     push_branch=false
     (( push )) && push_branch=true
     run "$gh_bin" workflow run release-train-prepare.yml \
+      --repo "$repo_slug" \
       --ref "$workflow_ref" \
       -f "version=$target_version" \
       -f "source_ref=$target_sha" \
@@ -266,7 +269,7 @@ rc() {
   echo "RC tag: v${version}-rc.${rc_number}"
 
   local args
-  args=(workflow run release-rc.yml --ref "$branch" -f "version=$version" -f "rc_number=$rc_number" -f "branch=$branch")
+  args=(workflow run release-rc.yml --repo "$repo_slug" --ref "$branch" -f "version=$version" -f "rc_number=$rc_number" -f "branch=$branch")
   [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
 
   if (( dispatch )); then
@@ -315,7 +318,7 @@ stable() {
   echo "Promoted RC tag: $latest_rc_tag"
 
   local args
-  args=(workflow run release-stable.yml --ref "$branch" -f "version=$version" -f "branch=$branch")
+  args=(workflow run release-stable.yml --repo "$repo_slug" --ref "$branch" -f "version=$version" -f "branch=$branch")
   [[ -z "$release_notes" ]] || args+=(-f "release_notes=$release_notes")
 
   if (( dispatch )); then

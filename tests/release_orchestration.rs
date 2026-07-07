@@ -85,6 +85,7 @@ fn prepare_dispatch_uses_workflow_ref_for_gh_ref_and_source_sha_input() {
     repo.write_workspace("19.1.0");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
+    let configured_repo = "PORTALSURFER/wavecrate-fork";
     let source_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
     let fake_gh = repo.write_fake_gh();
 
@@ -98,14 +99,19 @@ fn prepare_dispatch_uses_workflow_ref_for_gh_ref_and_source_sha_input() {
             "--dispatch",
         ])
         .env("WAVECRATE_RELEASE_GH_BIN", fake_gh)
+        .env("WAVECRATE_GITHUB_REPO", configured_repo)
         .output()
         .expect("run release wrapper");
 
     assert_success(&output);
     let stdout = stdout(&output);
-    assert!(stdout.contains("fake-gh [workflow] [run] [release-train-prepare.yml] [--ref] [main]"));
+    assert!(stdout.contains(
+        "fake-gh [workflow] [run] [release-train-prepare.yml] [--repo] [PORTALSURFER/wavecrate-fork] [--ref] [main]"
+    ));
     assert!(stdout.contains(&format!("[-f] [source_ref={source_sha}]")));
     assert!(!stdout.contains(&format!("[--ref] [{source_sha}]")));
+    assert!(stdout.contains("Workflow: https://github.com/PORTALSURFER/wavecrate-fork/actions/workflows/release-train-prepare.yml"));
+    assert!(stdout.contains("Run lookup: gh run list --repo PORTALSURFER/wavecrate-fork"));
 }
 
 #[test]
@@ -204,6 +210,7 @@ fn rc_dry_run_preserves_release_notes_input() {
     assert_success(&output);
     let stdout = stdout(&output);
     assert!(stdout.contains("Dry command: gh workflow run release-rc.yml"));
+    assert!(stdout.contains("--repo PORTALSURFER/wavecrate"));
     assert!(stdout.contains("-f release_notes=RC\\ notes\\ with\\ spaces"));
 }
 
@@ -301,6 +308,7 @@ fn stable_dry_run_accepts_matching_latest_rc_tag_and_prints_dispatch_command() {
     let stdout = stdout(&output);
     assert!(stdout.contains("Promoted RC tag: v19.2.0-rc.1"));
     assert!(stdout.contains("Dry command: gh workflow run release-stable.yml"));
+    assert!(stdout.contains("--repo PORTALSURFER/wavecrate"));
     assert!(stdout.contains("-f release_notes=Stable\\ notes\\ with\\ spaces"));
     assert!(stdout.contains("release-stable.yml"));
 }
