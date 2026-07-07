@@ -340,6 +340,9 @@ impl NativeAppState {
         self.stop_audio_output_playback();
         self.waveform.current.stop_playback();
         self.audio.current_playback_span = None;
+        self.audio.pending_playback_start = None;
+        self.audio.clear_sample_playback_session();
+        self.audio.clear_playback_progress();
         let file_name = self.waveform.current.file_name();
         self.ui.status.sample = format!("Stopped {file_name}");
         emit_gui_action(
