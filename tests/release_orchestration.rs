@@ -404,6 +404,31 @@ fn stable_prunes_stale_local_rc_tags_before_selecting_promoted_rc() {
 }
 
 #[test]
+fn stable_rejects_existing_tag_that_points_at_different_commit() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.2.0");
+    repo.commit_all("seed workspace");
+    let release_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
+    repo.create_release_branch("release/19.2");
+    repo.git(&["tag", "v19.2.0-rc.1"]);
+    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
+    repo.write("src/lib.rs", "// later commit with reused stable tag\n");
+    repo.commit_all("advance main after release branch");
+    let tag_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
+    repo.git(&["tag", "v19.2.0"]);
+    repo.git(&["push", "origin", "v19.2.0"]);
+    assert_ne!(release_sha, tag_sha);
+
+    let output = repo.run_release(&["stable", "--version", "19.2.0", "--branch", "release/19.2"]);
+
+    assert_failure(&output);
+    assert!(stderr(&output).contains(&format!(
+        "stable tag v19.2.0 already points at {tag_sha}, not {release_sha}"
+    )));
+    assert!(!stdout(&output).contains("Dry command: gh workflow run"));
+}
+
+#[test]
 fn stable_dry_run_accepts_matching_latest_rc_tag_and_prints_dispatch_command() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.2.0");

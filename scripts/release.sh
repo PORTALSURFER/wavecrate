@@ -170,6 +170,15 @@ validate_rc_tag_available() {
     || die "RC tag $tag already points at $existing, not $target_sha"
 }
 
+validate_stable_tag_available() {
+  local tag="$1"
+  local target_sha="$2"
+  local existing
+  existing="$(git rev-parse -q --verify "refs/tags/${tag}^{commit}" 2>/dev/null || true)"
+  [[ -z "$existing" || "$existing" == "$target_sha" ]] \
+    || die "stable tag $tag already points at $existing, not $target_sha"
+}
+
 resolve_ref_sha() {
   local ref="$1"
   local candidate="$ref"
@@ -417,6 +426,7 @@ stable() {
 
   print_resolved "$version" "$branch" "$target_sha"
   echo "Promoted RC tag: $latest_rc_tag"
+  validate_stable_tag_available "v${version}" "$target_sha"
 
   local args
   args=(workflow run release-stable.yml --repo "$repo_slug" --ref "$branch" -f "version=$version" -f "branch=$branch")
