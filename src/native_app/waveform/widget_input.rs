@@ -539,11 +539,7 @@ impl WaveformWidget {
     fn active_selection_drag_can_paint_live_preview(&self) -> bool {
         matches!(
             self.active_drag_kind,
-            Some(
-                WaveformActiveDragKind::Selection(_)
-                    | WaveformActiveDragKind::SelectionResize(_, _)
-                    | WaveformActiveDragKind::SelectionMove(_)
-            )
+            Some(WaveformActiveDragKind::Selection(_))
         )
     }
 
