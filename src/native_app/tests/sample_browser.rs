@@ -2833,17 +2833,13 @@ fn active_playback_defers_last_played_disk_persist_until_idle() {
     );
     assert_eq!(
         retry_messages.len(),
-        1,
-        "active playback should reschedule last-played persistence"
+        0,
+        "active playback should not schedule recurring last-played retry messages"
     );
 
     state.waveform.current.stop_playback();
-    let retry = retry_messages
-        .into_iter()
-        .next()
-        .expect("retry last played persist");
     let mut idle_context = radiant::prelude::UiUpdateContext::default();
-    state.apply_message(retry, &mut idle_context);
+    state.advance_frame(&mut idle_context);
     let message = run_first_perform(idle_context.into_command())
         .expect("idle last played should persist to disk");
 

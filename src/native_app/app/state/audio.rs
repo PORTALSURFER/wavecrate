@@ -11,7 +11,8 @@ use wavecrate::audio::{
 use wavecrate::sample_sources::config::AppSettingsCore;
 
 use crate::native_app::audio::{
-    playback::PlaybackIntent, playback_history::PlaybackNavigationHistory,
+    playback::PlaybackIntent,
+    playback_history::{LastPlayedPersistRequest, PlaybackNavigationHistory},
 };
 
 pub(in crate::native_app) struct AudioAppState {
@@ -24,6 +25,7 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) volume_persist_deadline: Option<Instant>,
     pub(in crate::native_app) volume_persist_inflight: bool,
     pub(in crate::native_app) last_played_persist_task: radiant::prelude::LatestTask,
+    pub(in crate::native_app) pending_last_played_persist: Option<LastPlayedPersistRequest>,
     pub(in crate::native_app) output_config: AudioOutputConfig,
     pub(in crate::native_app) output_resolved: Option<ResolvedOutput>,
     pub(in crate::native_app) hosts: Vec<AudioHostSummary>,
@@ -259,6 +261,7 @@ impl AudioAppState {
             volume_persist_deadline: None,
             volume_persist_inflight: false,
             last_played_persist_task: radiant::prelude::LatestTask::new(),
+            pending_last_played_persist: None,
             output_config: settings.audio_output.clone(),
             output_resolved: None,
             hosts: Vec::new(),

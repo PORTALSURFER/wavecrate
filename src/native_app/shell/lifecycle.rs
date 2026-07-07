@@ -137,6 +137,7 @@ impl NativeAppState {
                 .advance_drag_hover_folder_auto_expand();
             self.drain_playback_runtime_events();
             self.refresh_playback_progress();
+            self.flush_deferred_last_played_persist_if_idle(context);
             if self.library.folder_scan_active()
                 || self.background.file_move_progress.is_some()
                 || self.waveform.cache.active_folder_warm_folder_id.is_some()
@@ -175,6 +176,7 @@ impl NativeAppState {
         );
         let playback_started_at = Instant::now();
         self.refresh_playback_progress();
+        self.flush_deferred_last_played_persist_if_idle(context);
         log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
         if self.library.folder_scan_active()
             || self.background.file_move_progress.is_some()

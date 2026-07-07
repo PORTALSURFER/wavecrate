@@ -32,7 +32,10 @@ impl NativeAppState {
             GuiMessage::VolumeSettingsPersisted(result) => {
                 self.finish_volume_settings_persist(result)
             }
-            GuiMessage::StopPlayback => self.stop_playback(),
+            GuiMessage::StopPlayback => {
+                self.stop_playback();
+                self.flush_deferred_last_played_persist_if_idle(context);
+            }
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
             GuiMessage::ToggleMetronome => self.toggle_metronome(),
             _ => unreachable!("playback dispatcher received a non-playback message"),
