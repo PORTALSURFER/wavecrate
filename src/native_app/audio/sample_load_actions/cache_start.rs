@@ -1271,6 +1271,11 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn cancel_preview_audition_warm_for_playback(&mut self) {
+        self.background.preview_audition_warm_task.cancel();
+        self.waveform.cache.cancel_preview_audition_warm_schedule();
+    }
+
     fn preview_audition_warm_should_yield(&self) -> bool {
         self.ui.chrome.starmap_audition_drag.is_some()
             || self.sample_cache_warm_should_pause_active()

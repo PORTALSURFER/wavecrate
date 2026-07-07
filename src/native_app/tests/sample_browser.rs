@@ -1,14 +1,14 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
-    runtime::{Command, Event, SurfaceFrame, SurfacePaintPlan, UiSurface},
+    runtime::{Command, Event, PaintPrimitive, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use super::{
-    native_app_state_with_temp_sample, native_runtime_for_tests, run_command_for_tests,
-    write_sparse_test_wav_i16, write_test_wav_i16,
+    focus_metadata_tag_input, native_app_state_with_temp_sample, native_runtime_for_tests,
+    run_command_for_tests, write_sparse_test_wav_i16, write_test_wav_i16,
 };
 
 fn sample_hit_target(
@@ -89,6 +89,22 @@ fn sync_sample_hit_target_from_previous(
         .expect("current sample hit-target widget")
         .widget_mut();
     current.synchronize_from_previous(previous);
+}
+
+fn fill_rects_with_color(frame: &SurfaceFrame, color: Rgba8) -> Vec<Rect> {
+    let mut rects = frame
+        .paint_plan
+        .fill_rects()
+        .filter_map(|fill| (fill.color == color).then_some(fill.rect))
+        .collect::<Vec<_>>();
+    for primitive in &frame.paint_plan.primitives {
+        if let PaintPrimitive::FillRectBatch(batch) = primitive
+            && batch.color == color
+        {
+            rects.extend(batch.rects.iter().copied());
+        }
+    }
+    rects
 }
 
 fn folder_drop_target_fill() -> Rgba8 {
@@ -2817,19 +2833,83 @@ fn active_playback_defers_last_played_disk_persist_until_idle() {
     );
     assert_eq!(
         retry_messages.len(),
-        1,
-        "active playback should reschedule last-played persistence"
+        0,
+        "active playback should not schedule recurring last-played retry messages"
     );
 
     state.waveform.current.stop_playback();
-    let retry = retry_messages
-        .into_iter()
-        .next()
-        .expect("retry last played persist");
     let mut idle_context = radiant::prelude::UiUpdateContext::default();
-    state.apply_message(retry, &mut idle_context);
+    state.advance_frame(&mut idle_context);
     let message = run_first_perform(idle_context.into_command())
         .expect("idle last played should persist to disk");
+
+    assert!(matches!(
+        message,
+        crate::native_app::test_support::state::GuiMessage::LastPlayedPersisted(result)
+            if result.file_id == sample_path_string
+    ));
+}
+
+#[test]
+fn stop_playback_flushes_deferred_last_played_after_clearing_runtime_state() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("sample.wav");
+    fs::write(&sample_path, [1_u8, 2, 3, 4]).expect("write sample");
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(
+            crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+                wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+            ]),
+        )
+        .build();
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    state.record_sample_last_played(sample_path_string.clone(), &mut context);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_path_string.clone(),
+        "audio_file",
+    );
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::from_millis(90)),
+        looping: false,
+        progress: Some(0.25),
+        error: None,
+    };
+
+    let delayed = run_first_after(context.into_command()).expect("last played delayed command");
+    let mut active_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(delayed, &mut active_context);
+    assert!(
+        matches!(active_context.into_command(), Command::None),
+        "active runtime state should defer last-played persistence"
+    );
+    assert!(
+        state.audio.pending_last_played_persist.is_some(),
+        "deferred last-played request should remain pending while playback is active"
+    );
+
+    let mut stop_context = radiant::prelude::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::StopPlayback,
+        &mut stop_context,
+    );
+
+    assert!(state.audio.sample_playback_session.is_none());
+    assert!(!state.audio.playback_progress.active);
+    assert!(
+        state.audio.pending_last_played_persist.is_none(),
+        "stopping playback should flush deferred last-played persistence immediately"
+    );
+    let message = run_first_perform(stop_context.into_command())
+        .expect("stop should queue idle last-played persist");
 
     assert!(matches!(
         message,

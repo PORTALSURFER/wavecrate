@@ -16,6 +16,22 @@ fn set_widget_input_test_config_base(
     (lock, guard)
 }
 
+fn expect_update_selection(
+    output: Option<radiant::widgets::WidgetOutput>,
+    visible_ratio: f32,
+    context: &str,
+) {
+    let interaction = output
+        .unwrap_or_else(|| panic!("{context} should emit a reducer update"))
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        interaction,
+        WaveformInteraction::UpdateSelection { visible_ratio },
+        "{context}"
+    );
+}
+
 #[test]
 fn auxiliary_drag_pans_zoomed_waveform_viewport() {
     let mut state = WaveformState::synthetic_for_tests();
@@ -64,7 +80,14 @@ fn playback_cache_backed_waveform_accepts_primary_click() {
     let sample_path = source_root.path().join("cached-widget-input.wav");
     write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
 
-    let full_waveform = WaveformState::load_path(sample_path.clone()).expect("cache sample");
+    let full_waveform = WaveformState::load_path_for_looped_foreground_audition(
+        sample_path.clone(),
+        |_| {},
+        || false,
+        |_| {},
+    )
+    .expect("cache sample");
+    super::super::flush_background_waveform_cache_stores_for_shutdown();
     let file = full_waveform.file();
     super::super::store_cached_waveform_file_for_tests(&file);
     let cached_waveform =
@@ -110,12 +133,7 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
         .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
-    assert_eq!(
-        hover.and_then(|output| output.typed_copied::<WaveformInteraction>()),
-        Some(WaveformInteraction::RememberPointerLocation {
-            position: Point::new(60.0, 40.0)
-        })
-    );
+    assert!(hover.is_none());
     assert_eq!(hover_cursor_ratio, Some(0.25));
     assert_eq!(widget.hover_cursor_ratio, None);
     assert_eq!(
@@ -229,7 +247,7 @@ fn pointer_move_outside_loaded_waveform_clears_hover_cursor() {
 }
 
 #[test]
-fn active_selection_pointer_move_outside_waveform_updates_to_nearest_edge() {
+fn active_selection_pointer_move_outside_waveform_stays_paint_only() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
@@ -238,30 +256,20 @@ fn active_selection_pointer_move_outside_waveform_updates_to_nearest_edge() {
     ));
     widget.hover_cursor_ratio = Some(0.25);
 
-    let left_output = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 40.0)))
-        .expect("active drag should continue outside the left edge");
-    let left_interaction = left_output
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-
-    assert_eq!(
-        left_interaction,
-        WaveformInteraction::UpdateSelection { visible_ratio: 0.0 }
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 40.0)))
+            .is_none(),
+        "active selection drag motion should repaint locally without reducer output"
     );
     assert_eq!(widget.hover_cursor_ratio, None);
     assert!(!widget.common.is_hovered());
 
-    let right_output = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
-        .expect("active drag should continue outside the right edge");
-    let right_interaction = right_output
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-
-    assert_eq!(
-        right_interaction,
-        WaveformInteraction::UpdateSelection { visible_ratio: 1.0 }
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
+            .is_none(),
+        "active selection drag motion should remain paint-only at the right edge"
     );
     assert!(!widget.common.is_hovered());
 }
@@ -296,61 +304,65 @@ fn captured_selection_drag_outside_waveform_updates_to_nearest_edge() {
         state.apply_interaction(begin_interaction);
         widget.active_drag_kind = state.active_drag_kind();
 
-        let left_update = widget
-            .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 40.0)))
-            .expect("captured creation drag should update live outside the left edge")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            left_update,
-            WaveformInteraction::UpdateSelection { visible_ratio: 0.0 }
+        assert!(
+            widget
+                .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 40.0)))
+                .is_none(),
+            "captured creation drag should update its local preview without reducer output"
         );
-        state.apply_interaction(left_update);
-        let left_selection = match kind {
-            WaveformSelectionKind::Play => state.play_selection(),
-            WaveformSelectionKind::Edit => state.edit_selection(),
-        }
-        .expect("left-edge live selection");
+        let left_selection = widget
+            .live_selection_preview
+            .expect("left-edge live preview")
+            .selection;
         assert!((left_selection.start() - 0.0).abs() < f32::EPSILON);
         assert!((left_selection.end() - 0.75).abs() < f32::EPSILON);
 
-        let right_update = widget
-            .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
-            .expect("captured creation drag should update live outside the right edge")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            right_update,
-            WaveformInteraction::UpdateSelection { visible_ratio: 1.0 }
+        assert!(
+            widget
+                .handle_input(bounds, WidgetInput::pointer_move(Point::new(240.0, 40.0)))
+                .is_none(),
+            "captured creation drag should keep using local preview at the right edge"
         );
-        state.apply_interaction(right_update);
-        let right_selection = match kind {
-            WaveformSelectionKind::Play => state.play_selection(),
-            WaveformSelectionKind::Edit => state.edit_selection(),
-        }
-        .expect("right-edge live selection");
+        let right_selection = widget
+            .live_selection_preview
+            .expect("right-edge live preview")
+            .selection;
         assert!((right_selection.start() - 0.75).abs() < f32::EPSILON);
         assert!((right_selection.end() - 1.0).abs() < f32::EPSILON);
     }
 }
 
 #[test]
-fn pointer_move_updates_hover_cursor_and_remembers_context_menu_position() {
+fn pointer_move_updates_hover_cursor_without_emitting_output() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 40.0)));
 
-    assert_eq!(
-        output.and_then(|output| output.typed_copied::<WaveformInteraction>()),
-        Some(WaveformInteraction::RememberPointerLocation {
-            position: Point::new(60.0, 40.0)
-        })
-    );
+    assert!(output.is_none());
     assert!(widget.common.is_hovered());
     assert_eq!(widget.hover_cursor_ratio, Some(0.25));
     assert!(widget.prefers_pointer_move_paint_only());
+}
+
+#[test]
+fn hover_cursor_survives_widget_synchronization() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
+    widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(60.0, 40.0)));
+    assert_eq!(widget.hover_cursor_ratio, Some(0.25));
+
+    let mut rebuilt = waveform_widget_for_state(&state);
+    rebuilt.synchronize_from_previous(&widget);
+
+    assert!(rebuilt.common.is_hovered());
+    assert_eq!(
+        rebuilt.hover_cursor_ratio,
+        Some(0.25),
+        "paint-only hover cursor state should survive frame-clock widget synchronization"
+    );
 }
 
 #[test]
@@ -364,12 +376,7 @@ fn pointer_move_over_similar_section_uses_region_hover_instead_of_cursor() {
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(80.0, 40.0)));
 
-    assert_eq!(
-        output.and_then(|output| output.typed_copied::<WaveformInteraction>()),
-        Some(WaveformInteraction::RememberPointerLocation {
-            position: Point::new(80.0, 40.0)
-        })
-    );
+    assert!(output.is_none());
     assert!(widget.common.is_hovered());
     assert_eq!(widget.hovered_similar_section, Some(similar));
     assert_eq!(widget.hover_cursor_ratio, None);
@@ -391,7 +398,7 @@ fn pointer_move_hits_clipped_similar_section_in_zoomed_viewport() {
 
     let output = widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 40.0)));
 
-    assert_pointer_location_output(output);
+    assert!(output.is_none());
     assert_eq!(widget.hovered_similar_section, Some(similar));
     assert_eq!(widget.hover_cursor_ratio, None);
 }
@@ -528,7 +535,7 @@ fn primary_click_with_tiny_motion_clears_play_selection_without_micro_range() {
 }
 
 #[test]
-fn primary_drag_three_pixels_updates_playmark_selection_live() {
+fn primary_drag_three_pixels_paints_playmark_selection_preview() {
     let mut state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
     let bounds = Rect::from_size(200.0, 80.0);
@@ -543,20 +550,17 @@ fn primary_drag_three_pixels_updates_playmark_selection_live() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let update = widget
-        .handle_input(bounds, WidgetInput::pointer_move(drag))
-        .expect("creation drag should emit a live selection update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        update,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.215
-        }
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(drag))
+            .is_none(),
+        "creation drag should paint a live selection preview"
     );
-    state.apply_interaction(update);
 
-    let live_selection = state.play_selection().expect("live playmark selection");
+    let live_selection = widget
+        .live_selection_preview
+        .expect("live playmark selection preview")
+        .selection;
     assert!((live_selection.start() - 0.2).abs() < f32::EPSILON);
     assert!((live_selection.end() - 0.215).abs() < f32::EPSILON);
 
@@ -599,14 +603,11 @@ fn created_selection_drag_preview_survives_widget_rebuild_after_press() {
 
         let mut current = waveform_widget_for_state(&state);
         Widget::synchronize_from_previous(&mut current, &previous);
-        let update = current
-            .handle_input(bounds, WidgetInput::pointer_move(drag))
-            .expect("rebuilt widget should retain the selection anchor")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            update,
-            WaveformInteraction::UpdateSelection { visible_ratio: 0.4 }
+        assert!(
+            current
+                .handle_input(bounds, WidgetInput::pointer_move(drag))
+                .is_none(),
+            "rebuilt widget should retain the selection anchor without reducer output"
         );
 
         let preview = current
@@ -668,19 +669,16 @@ fn playmark_drag_suppresses_duplicate_live_updates_inside_same_step() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let first_update = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.0, 40.0)))
-        .expect("first crossed step should emit a live selection update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        first_update,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.215
-        }
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(43.0, 40.0)))
+            .is_none(),
+        "first crossed step should paint a local live selection preview"
     );
-    state.apply_interaction(first_update);
-    let first_selection = state.play_selection().expect("first live selection");
+    let first_selection = widget
+        .live_selection_preview
+        .expect("first live selection preview")
+        .selection;
 
     assert!(
         widget
@@ -689,9 +687,11 @@ fn playmark_drag_suppresses_duplicate_live_updates_inside_same_step() {
         "moves that quantize to the same visible step should not churn updates"
     );
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(first_selection),
-        "sub-step motion should not churn live selection geometry"
+        "sub-step motion should not churn live selection preview geometry"
     );
 
     assert!(
@@ -701,21 +701,25 @@ fn playmark_drag_suppresses_duplicate_live_updates_inside_same_step() {
         "same one-pixel preview step should still avoid reducer work"
     );
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(first_selection),
-        "same preview step should not churn live selection geometry"
+        "same preview step should not churn live selection preview geometry"
     );
 
-    let next_update = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(44.0, 40.0)))
-        .expect("next crossed pixel should emit a live selection update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    state.apply_interaction(next_update);
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(44.0, 40.0)))
+            .is_none(),
+        "next crossed pixel should still paint locally"
+    );
     assert_ne!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(first_selection),
-        "crossing a preview step should update the live geometry"
+        "crossing a preview step should update the live preview geometry"
     );
 }
 
@@ -777,19 +781,13 @@ fn moved_selection_drag_preview_survives_widget_rebuild_after_press() {
 
         let mut current = waveform_widget_for_state(&state);
         Widget::synchronize_from_previous(&mut current, &previous);
-        let update = current
-            .handle_input(bounds, WidgetInput::pointer_move(drag))
-            .expect("rebuilt widget should retain the move anchor")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            update,
-            WaveformInteraction::UpdateSelection {
-                visible_ratio: match kind {
-                    WaveformSelectionKind::Play => 0.5,
-                    WaveformSelectionKind::Edit => 0.4,
-                }
-            }
+        expect_update_selection(
+            current.handle_input(bounds, WidgetInput::pointer_move(drag)),
+            match kind {
+                WaveformSelectionKind::Play => 0.5,
+                WaveformSelectionKind::Edit => 0.4,
+            },
+            "rebuilt widget should retain the move anchor and emit reducer output",
         );
 
         let preview = current
@@ -848,29 +846,17 @@ fn moved_selection_drag_preview_uses_original_baseline_after_live_update() {
 
         let mut first = waveform_widget_for_state(&state);
         Widget::synchronize_from_previous(&mut first, &initial);
-        let first_update = first
-            .handle_input(bounds, WidgetInput::pointer_move(first_drag))
-            .expect("first drag should emit live update")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            first_update,
-            WaveformInteraction::UpdateSelection { visible_ratio: 0.4 }
+        expect_update_selection(
+            first.handle_input(bounds, WidgetInput::pointer_move(first_drag)),
+            0.4,
+            "first drag should paint the move preview locally and emit reducer output",
         );
-        state.apply_interaction(first_update);
 
-        let mut second = waveform_widget_for_state(&state);
-        Widget::synchronize_from_previous(&mut second, &first);
-        let second_update = second
-            .handle_input(bounds, WidgetInput::pointer_move(second_drag))
-            .expect("second drag should emit live update")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            second_update,
-            WaveformInteraction::UpdateSelection {
-                visible_ratio: 0.45
-            }
+        let mut second = first;
+        expect_update_selection(
+            second.handle_input(bounds, WidgetInput::pointer_move(second_drag)),
+            0.45,
+            "second drag should keep previewing from the original baseline and emit reducer output",
         );
 
         let preview = second
@@ -885,15 +871,6 @@ fn moved_selection_drag_preview_uses_original_baseline_after_live_update() {
             (preview.selection.end() - 0.625).abs() < 0.0001,
             "{kind:?} preview should apply the total drag delta once"
         );
-
-        state.apply_interaction(second_update);
-        let live_selection = match kind {
-            WaveformSelectionKind::Play => state.play_selection(),
-            WaveformSelectionKind::Edit => state.edit_selection(),
-        }
-        .expect("live selection should update");
-        assert!((live_selection.start() - preview.selection.start()).abs() < 0.0001);
-        assert!((live_selection.end() - preview.selection.end()).abs() < 0.0001);
 
         let finish = second
             .handle_input(
@@ -949,21 +926,16 @@ fn three_pixel_drag_starts_play_and_edit_selections_while_zoomed_in() {
         state.apply_interaction(begin);
         widget.active_drag_kind = state.active_drag_kind();
 
-        let update = widget
-            .handle_input(bounds, WidgetInput::pointer_move(drag))
-            .expect("three-pixel creation drag should update the selection live")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert!(matches!(
-            update,
-            WaveformInteraction::UpdateSelection { .. }
-        ));
-        state.apply_interaction(update);
-        let live_selection = match kind {
-            WaveformSelectionKind::Play => state.play_selection(),
-            WaveformSelectionKind::Edit => state.edit_selection(),
-        }
-        .expect("selection should update immediately after click slop");
+        assert!(
+            widget
+                .handle_input(bounds, WidgetInput::pointer_move(drag))
+                .is_none(),
+            "three-pixel creation drag should paint live without reducer output"
+        );
+        let live_selection = widget
+            .live_selection_preview
+            .expect("selection preview should update immediately after click slop")
+            .selection;
         assert!(
             live_selection.width() > 0.0,
             "{kind:?} live selection should have non-zero width"
@@ -1115,20 +1087,17 @@ fn playmark_resize_motion_updates_live_until_release() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let update = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0)))
-        .expect("resize motion should emit a live selection update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        update,
-        WaveformInteraction::UpdateSelection { visible_ratio: 0.8 }
+    expect_update_selection(
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0))),
+        0.8,
+        "resize motion should paint live preview and emit reducer output",
     );
-    state.apply_interaction(update);
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.8)),
-        "drag motion should mutate app playmark state live"
+        "drag motion should paint app playmark geometry live"
     );
 
     let finish = widget
@@ -1175,31 +1144,27 @@ fn playmark_right_resize_updates_when_returning_through_original_handle() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let away = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0)))
-        .expect("dragging away should update the right edge")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    state.apply_interaction(away);
+    expect_update_selection(
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(160.0, 8.0))),
+        0.8,
+        "dragging away should update the right edge preview and emit reducer output",
+    );
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.8))
     );
 
-    let near_origin = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(121.0, 8.0)))
-        .expect("returning through the original handle must still update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        near_origin,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.605
-        }
+    expect_update_selection(
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(121.0, 8.0))),
+        0.605,
+        "returning through the original handle must still update the preview and reducer",
     );
-    state.apply_interaction(near_origin);
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.605))
     );
 
@@ -1246,31 +1211,27 @@ fn playmark_left_resize_updates_when_returning_through_original_handle() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let away = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 8.0)))
-        .expect("dragging away should update the left edge")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    state.apply_interaction(away);
+    expect_update_selection(
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(0.0, 8.0))),
+        0.0,
+        "dragging away should update the left edge preview and emit reducer output",
+    );
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(wavecrate::selection::SelectionRange::new(0.0, 0.6))
     );
 
-    let near_origin = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(41.0, 8.0)))
-        .expect("returning through the original handle must still update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        near_origin,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.205
-        }
+    expect_update_selection(
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(41.0, 8.0))),
+        0.205,
+        "returning through the original handle must still update the preview and reducer",
     );
-    state.apply_interaction(near_origin);
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(wavecrate::selection::SelectionRange::new(0.205, 0.6))
     );
 
@@ -1333,19 +1294,22 @@ fn playmark_resize_crosses_opposite_edge_without_dead_zone() {
         state.apply_interaction(begin);
         widget.active_drag_kind = state.active_drag_kind();
 
-        let update = widget
-            .handle_input(bounds, WidgetInput::pointer_move(drag))
-            .expect("crossing the opposite edge should emit a live update")
-            .typed_copied::<WaveformInteraction>()
-            .expect("waveform interaction");
-        assert_eq!(
-            update,
-            WaveformInteraction::UpdateSelection {
-                visible_ratio: expected_visible_ratio,
-            }
+        expect_update_selection(
+            widget.handle_input(bounds, WidgetInput::pointer_move(drag)),
+            expected_visible_ratio,
+            "crossing the opposite edge should paint a live preview and emit reducer output",
         );
-        state.apply_interaction(update);
-        assert_eq!(state.play_selection(), Some(expected_selection));
+        assert_eq!(
+            expected_visible_ratio,
+            drag.x / bounds.width(),
+            "test expectation should match the pointer ratio"
+        );
+        assert_eq!(
+            widget
+                .live_selection_preview
+                .map(|preview| preview.selection),
+            Some(expected_selection)
+        );
 
         let finish = widget
             .handle_input(
@@ -1387,16 +1351,10 @@ fn zoomed_playmark_resize_preview_matches_committed_transform() {
     let mut current = waveform_widget_for_state(&state);
     Widget::synchronize_from_previous(&mut current, &previous);
 
-    let update = current
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 8.0)))
-        .expect("resize motion should update preview")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        update,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.75
-        }
+    expect_update_selection(
+        current.handle_input(bounds, WidgetInput::pointer_move(Point::new(150.0, 8.0))),
+        0.75,
+        "resize motion should update preview and emit reducer output",
     );
     let preview = current
         .live_selection_preview
@@ -1406,7 +1364,6 @@ fn zoomed_playmark_resize_preview_matches_committed_transform() {
         wavecrate::selection::SelectionRange::new(fixed, released)
     );
 
-    state.apply_interaction(update);
     let finish = current
         .handle_input(
             bounds,
@@ -1443,22 +1400,17 @@ fn playmark_move_motion_updates_live_until_release() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let update = widget
-        .handle_input(bounds, WidgetInput::pointer_move(Point::new(110.0, 3.0)))
-        .expect("move motion should emit a live selection update")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        update,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.55
-        }
+    expect_update_selection(
+        widget.handle_input(bounds, WidgetInput::pointer_move(Point::new(110.0, 3.0))),
+        0.55,
+        "move motion should update the live preview and emit reducer output",
     );
-    state.apply_interaction(update);
     assert_eq!(
-        state.play_selection(),
+        widget
+            .live_selection_preview
+            .map(|preview| preview.selection),
         Some(wavecrate::selection::SelectionRange::new(0.35, 0.75)),
-        "drag motion should mutate app playmark state live"
+        "drag motion should paint the moved playmark live"
     );
 
     let finish = widget
@@ -1568,20 +1520,17 @@ fn secondary_drag_from_playmark_body_paints_edit_selection() {
     state.apply_interaction(begin);
     widget.active_drag_kind = state.active_drag_kind();
 
-    let update = widget
-        .handle_input(bounds, WidgetInput::pointer_move(drag))
-        .expect("secondary creation drag should update edit selection live")
-        .typed_copied::<WaveformInteraction>()
-        .expect("waveform interaction");
-    assert_eq!(
-        update,
-        WaveformInteraction::UpdateSelection {
-            visible_ratio: 0.75
-        }
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(drag))
+            .is_none(),
+        "secondary creation drag should update edit selection preview"
     );
-    state.apply_interaction(update);
 
-    let live_selection = state.edit_selection().expect("live edit selection");
+    let live_selection = widget
+        .live_selection_preview
+        .expect("live edit selection preview")
+        .selection;
     assert!((live_selection.start() - 0.4).abs() < f32::EPSILON);
     assert!((live_selection.end() - 0.75).abs() < f32::EPSILON);
 

@@ -331,7 +331,7 @@ impl NativeAppState {
         self.waveform.current.stop_playback();
         self.audio.clear_sample_playback_session();
         self.audio.current_playback_span = None;
-        self.audio.playback_progress = Default::default();
+        self.audio.clear_playback_progress();
         starmap_telemetry::record_event(
             None,
             "controller.drag_audio_stop",

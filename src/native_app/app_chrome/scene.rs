@@ -4,7 +4,6 @@ use crate::native_app::app_chrome::view_models::sample_browser::prepare_sample_b
 use radiant::prelude as ui;
 
 const APP_TRANSIENT_OVERLAY_KEY: u64 = 0x6170_705f_6f76_726c;
-const APP_TRANSIENT_OVERLAY_FPS: u32 = 60;
 const APP_FRAME_CLOCK_FPS: u32 = 60;
 
 pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMessage> {
@@ -21,7 +20,9 @@ fn scene(state: &NativeAppState) -> ui::Scene<GuiMessage> {
 
 fn frame_clock() -> ui::FrameClock<NativeAppState, GuiMessage> {
     ui::FrameClock::message(GuiMessage::Frame)
-        .fps(APP_FRAME_CLOCK_FPS)
+        .fps_with(|state: &mut NativeAppState| {
+            (!state.playback_visual_activity_active()).then_some(APP_FRAME_CLOCK_FPS)
+        })
         .repaint_scope(
             |state: &mut NativeAppState| state.frame_repaint_scope_before_update(),
             |state, scope| state.frame_can_use_paint_only(scope),
@@ -32,6 +33,5 @@ fn app_transient_overlay() -> ui::TransientOverlay<NativeAppState> {
     ui::TransientOverlay::new(APP_TRANSIENT_OVERLAY_KEY)
         .paint_only()
         .when(|state: &mut NativeAppState| state.should_paint_app_transient_overlay())
-        .fps(APP_TRANSIENT_OVERLAY_FPS)
         .paint(NativeAppState::paint_app_transient_overlay)
 }

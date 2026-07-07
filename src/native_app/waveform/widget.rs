@@ -389,6 +389,12 @@ impl Widget for WaveformWidget {
         };
         self.common.state = previous.common.state;
         self.gesture = previous.gesture.clone();
+        self.hover_cursor_ratio = previous.hover_cursor_ratio;
+        self.hovered_selection_handle = previous.hovered_selection_handle;
+        self.hovered_edit_fade_handle = previous.hovered_edit_fade_handle;
+        self.hovered_edit_fade_outer_gain_handle = previous.hovered_edit_fade_outer_gain_handle;
+        self.hovered_edit_gain_handle = previous.hovered_edit_gain_handle;
+        self.hovered_similar_section = previous.hovered_similar_section;
         if self.should_preserve_live_selection_preview_from(previous) {
             self.last_live_selection_update_visible_ratio =
                 previous.last_live_selection_update_visible_ratio;

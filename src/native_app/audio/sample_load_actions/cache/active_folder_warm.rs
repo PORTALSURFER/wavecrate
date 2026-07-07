@@ -184,6 +184,9 @@ impl NativeAppState {
         {
             return;
         }
+        if self.playback_visual_activity_active() {
+            return;
+        }
         self.maybe_start_active_folder_cache_warm(context);
     }
 
@@ -311,6 +314,31 @@ impl NativeAppState {
         );
     }
 
+    pub(in crate::native_app) fn pause_active_folder_cache_warm_for_playback(&mut self) {
+        self.waveform.cache.active_folder_warm_plan_task.cancel();
+        if let Some(token) = self.waveform.cache.active_folder_warm_plan_cancel.take() {
+            token.cancel();
+        }
+        self.waveform.cache.active_folder_warm_delay_task.cancel();
+        let running = self
+            .waveform
+            .cache
+            .active_folder_warm_key
+            .as_ref()
+            .and_then(|key| self.waveform.cache.active_folder_warm_tasks.active(key))
+            .is_some();
+        if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
+            token.cancel();
+        }
+        self.waveform.cache.clear_active_folder_warm_job();
+        if running {
+            return;
+        }
+        if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
+            self.waveform.cache.active_folder_warm_tasks.cancel(&key);
+        }
+    }
+
     fn reschedule_active_folder_cache_warm_delay(
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -374,6 +402,8 @@ impl NativeAppState {
         if result.cancelled {
             if self.waveform.cache.active_folder_warm_pending.is_empty() {
                 self.waveform.cache.clear_active_folder_warm_job();
+            } else if self.playback_visual_activity_active() {
+                return;
             } else {
                 self.reschedule_active_folder_cache_warm_delay(
                     context,
@@ -389,6 +419,8 @@ impl NativeAppState {
         );
         if self.waveform.cache.active_folder_warm_pending.is_empty() {
             self.waveform.cache.clear_active_folder_warm_job();
+        } else if self.playback_visual_activity_active() {
+            return;
         } else {
             let delay = if result.decoded_source {
                 ACTIVE_FOLDER_CACHE_WARM_CONTINUATION_DELAY

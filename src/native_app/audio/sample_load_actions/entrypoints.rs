@@ -68,9 +68,10 @@ impl NativeAppState {
                 &self.metadata.tags_by_file,
             );
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
-            self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
+        self.cancel_metadata_tag_entry();
+        context.clear_focus();
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,
@@ -100,9 +101,10 @@ impl NativeAppState {
                 &self.metadata.tags_by_file,
             );
         if self.library.folder_browser.selected_file_id() != previous_selection.as_deref() {
-            self.cancel_metadata_tag_entry();
             self.metadata.selected_tag = None;
         }
+        self.cancel_metadata_tag_entry();
+        context.clear_focus();
         self.audio.pending_sample_playback = None;
         self.queue_sample_load_path_validation(
             path,

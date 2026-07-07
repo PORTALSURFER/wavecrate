@@ -23,7 +23,13 @@ impl NativeAppState {
         &mut self,
         context: &radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
-        if self.close_open_context_menu() {
+        if self
+            .ui
+            .browser_interaction
+            .waveform_context_menu
+            .take()
+            .is_some()
+        {
             return;
         }
         if self
@@ -33,6 +39,9 @@ impl NativeAppState {
             .is_some()
         {
             self.open_play_selection_context_menu_from_shortcut(context.current_pointer_position());
+            return;
+        }
+        if self.close_open_context_menu() {
             return;
         }
         if let Some(file_id) = self

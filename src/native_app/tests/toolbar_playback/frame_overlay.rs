@@ -165,6 +165,36 @@ fn source_cache_progress_frame_repaints_surface_for_status_bar_animation() {
 }
 
 #[test]
+fn paused_source_cache_progress_does_not_force_playback_surface_frames() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    state.waveform.cache.start_active_folder_warm_decode_queue(
+        String::from("source"),
+        vec![std::path::PathBuf::from("kick.wav")],
+    );
+
+    state.pause_active_folder_cache_warm_for_playback();
+
+    assert!(
+        state.waveform.cache.active_folder_warm_folder_id.is_none(),
+        "playback pause should clear dormant source-cache progress"
+    );
+    assert!(
+        state.waveform.cache.active_folder_warm_pending.is_empty(),
+        "playback pause should clear pending source-cache work"
+    );
+    assert_eq!(state.waveform.cache.active_folder_warm_total, 0);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "paused source-cache progress should not force full surface frames during playback"
+    );
+}
+
+#[test]
 fn copy_flash_frame_repaints_surface_while_countdown_changes() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("copy-flash.wav");
@@ -250,6 +280,32 @@ fn scene_frame_clock_runs_at_60hz_even_when_idle() {
 
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(60));
+}
+
+#[test]
+fn scene_playback_overlay_and_frame_messages_share_native_cadence() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.25);
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+
+    let activity = runtime.bridge_mut().animation_activity();
+
+    assert!(activity.needs_frame_message());
+    assert_eq!(
+        activity.target_fps(),
+        None,
+        "playback overlay paint should use the native window cadence"
+    );
+    assert_eq!(
+        activity.frame_message_target_fps(),
+        None,
+        "playback frame updates should align with the native cursor paint cadence"
+    );
 }
 
 #[test]
@@ -507,6 +563,40 @@ fn playback_cursor_paints_as_transient_overlay() {
                     && fill.color.b == 255
             }),
         "paint-only playback overlay should append the live cursor"
+    );
+}
+
+#[test]
+fn playback_cursor_transient_overlay_keeps_subpixel_position() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.12345);
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let mut primitives = Vec::new();
+
+    runtime.bridge_mut().state_mut().paint_playback_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+
+    let cursor = primitives
+        .iter()
+        .filter_map(|primitive| primitive.fill_rect())
+        .find(|fill| {
+            fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+                && fill.color.r == 71
+                && fill.color.g == 220
+                && fill.color.b == 255
+        })
+        .expect("paint-only playback overlay should append the live cursor");
+    assert!(
+        cursor.rect.min.x.fract().abs() > 0.001,
+        "live playback cursor should keep subpixel positioning instead of snapping to whole pixels"
     );
 }
 

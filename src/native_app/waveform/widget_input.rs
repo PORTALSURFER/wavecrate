@@ -53,7 +53,7 @@ impl WaveformWidget {
                 self.hovered_edit_gain_handle = false;
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return Some(pointer_location_output(pointer));
+                return None;
             }
             self.hovered_edit_fade_handle = self.edit_fade_handle_at(bounds, pointer.position);
             if self.hovered_edit_fade_handle.is_some() {
@@ -62,7 +62,7 @@ impl WaveformWidget {
                 self.hovered_edit_gain_handle = false;
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return Some(pointer_location_output(pointer));
+                return None;
             }
             self.hovered_edit_gain_handle = self.edit_gain_handle_at(bounds, pointer.position);
             if self.hovered_edit_gain_handle {
@@ -70,14 +70,14 @@ impl WaveformWidget {
                 self.hovered_selection_handle = None;
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return Some(pointer_location_output(pointer));
+                return None;
             }
             self.hovered_selection_handle =
                 self.selection_handle_hover_at(bounds, pointer.position);
             if self.hovered_selection_handle.is_some() {
                 self.hovered_similar_section = None;
                 self.hover_cursor_ratio = None;
-                return Some(pointer_location_output(pointer));
+                return None;
             }
             self.hovered_similar_section = self.similar_section_at(bounds, pointer.position);
             if self.hovered_similar_section.is_some() {
@@ -85,11 +85,11 @@ impl WaveformWidget {
                 self.hovered_edit_fade_handle = None;
                 self.hovered_edit_gain_handle = false;
                 self.hover_cursor_ratio = None;
-                return Some(pointer_location_output(pointer));
+                return None;
             }
             let visible_ratio = pointer.normalized_x();
             self.hover_cursor_ratio = self.absolute_ratio_for_visible(visible_ratio);
-            return Some(pointer_location_output(pointer));
+            return None;
         }
         if let Some((pointer, delta)) = event.wheel_pointer_delta_inside(bounds) {
             let expand_silence_margin =
@@ -269,6 +269,9 @@ impl WaveformWidget {
         }
         self.last_live_selection_update_visible_ratio = Some(visible_ratio);
         self.update_live_selection_preview_for_active_drag(visible_ratio);
+        if self.active_selection_drag_can_paint_live_preview() {
+            return None;
+        }
         Some(WidgetOutput::typed(WaveformInteraction::UpdateSelection {
             visible_ratio,
         }))
@@ -533,6 +536,13 @@ impl WaveformWidget {
         )
     }
 
+    fn active_selection_drag_can_paint_live_preview(&self) -> bool {
+        matches!(
+            self.active_drag_kind,
+            Some(WaveformActiveDragKind::Selection(_))
+        )
+    }
+
     fn begin_live_selection_preview(&mut self, kind: WaveformSelectionKind, visible_ratio: f32) {
         let baseline = self.selection_for_kind(kind);
         self.live_selection_preview_anchor = Some(LiveSelectionPreviewAnchor {
@@ -728,10 +738,4 @@ fn sample_slide_frame_offset(
         return 0;
     }
     ((visible_ratio - anchor_visible_ratio) * visible_frames.max(1) as f32).round() as i64
-}
-
-fn pointer_location_output(pointer: CanvasPointer) -> WidgetOutput {
-    WidgetOutput::typed(WaveformInteraction::RememberPointerLocation {
-        position: pointer.position,
-    })
 }

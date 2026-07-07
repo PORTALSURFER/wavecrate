@@ -32,8 +32,6 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) active_drag: Option<WaveformDrag>,
     pub(in crate::native_app::waveform) pending_playback_start: Option<f32>,
     pub(in crate::native_app::waveform) pending_sample_slide_frame_offset: Option<i64>,
-    pub(in crate::native_app::waveform) context_menu_pointer_position:
-        Option<radiant::gui::types::Point>,
     pub(in crate::native_app::waveform) normalized_audition_gain_cache: NormalizedAuditionGainCache,
 }
 

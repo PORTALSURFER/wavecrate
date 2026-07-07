@@ -12,7 +12,6 @@ mod worker;
 use worker::persist_last_played;
 
 const LAST_PLAYED_PERSIST_DEBOUNCE: Duration = Duration::from_millis(350);
-const LAST_PLAYED_PERSIST_ACTIVE_RETRY: Duration = Duration::from_millis(500);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct LastPlayedPersistResult {
@@ -72,6 +71,7 @@ impl NativeAppState {
         delay: Duration,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.audio.pending_last_played_persist = None;
         context.after_latest(&mut self.audio.last_played_persist_task, delay, |ticket| {
             GuiMessage::LastPlayedPersistReady { ticket, request }
         });
@@ -92,12 +92,33 @@ impl NativeAppState {
                 event = "playback.last_played.persist_deferred",
                 reason,
                 source = request.file_id.as_str(),
-                retry_delay_ms = LAST_PLAYED_PERSIST_ACTIVE_RETRY.as_secs_f64() * 1000.0,
                 "Deferred last-played persistence while playback/navigation is active"
             );
-            self.schedule_last_played_persist(request, LAST_PLAYED_PERSIST_ACTIVE_RETRY, context);
+            self.audio.pending_last_played_persist = Some(request);
             return;
         }
+        self.queue_last_played_persist(request, context);
+    }
+
+    pub(in crate::native_app) fn flush_deferred_last_played_persist_if_idle(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if self.audio.pending_last_played_persist.is_none()
+            || self.last_played_persist_wait_reason().is_some()
+        {
+            return;
+        }
+        if let Some(request) = self.audio.pending_last_played_persist.take() {
+            self.queue_last_played_persist(request, context);
+        }
+    }
+
+    fn queue_last_played_persist(
+        &mut self,
+        request: LastPlayedPersistRequest,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         context
             .business()
             .priority("gui-last-played-persist", ui::TaskPriority::Idle)

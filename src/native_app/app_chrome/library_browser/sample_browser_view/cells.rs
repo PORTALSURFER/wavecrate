@@ -214,6 +214,7 @@ pub(super) fn muted_sample_file_cell(value: String, width: f32) -> ui::View<GuiM
 
 /// Render a projected passive rating cell.
 fn render_rating_cell(projection: RatingCellProjection, width: f32) -> ui::View<GuiMessage> {
+    let visual_key = projection.retained_visual_key();
     if projection == RatingCellProjection::LockedKeepMarker {
         return compact_column_content_cell(
             ui::marker_run(Some(LOCKED_KEEP_RATING_COLOR), 1)
@@ -222,7 +223,8 @@ fn render_rating_cell(projection: RatingCellProjection, width: f32) -> ui::View<
                 .inset(0)
                 .view(),
             width,
-        );
+        )
+        .key(visual_key);
     }
 
     compact_column_content_cell(
@@ -233,6 +235,7 @@ fn render_rating_cell(projection: RatingCellProjection, width: f32) -> ui::View<
             .view(),
         width,
     )
+    .key(visual_key)
 }
 
 /// Render a passive text cell for a sample file column.

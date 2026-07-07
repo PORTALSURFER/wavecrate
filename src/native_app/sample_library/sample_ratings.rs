@@ -230,6 +230,19 @@ impl NativeAppState {
             }
         };
 
+        if applied == 0 && plan.auto_trash_paths.is_empty() {
+            self.ui.status.sample = String::from("Rating did not change");
+            emit_gui_action(
+                "browser.rating.adjust",
+                Some("browser"),
+                Some(direction_label(delta)),
+                "blocked",
+                started_at,
+                Some("no_rows_updated"),
+            );
+            return;
+        }
+
         if applied > 0 {
             self.ui.status.sample = format!(
                 "Rated {applied} sample{}",
@@ -509,16 +522,30 @@ impl NativeAppState {
         ) {
             persist_rating_updates(&root, &database_root, &source_updates)?;
             for update in source_updates {
-                if self.library.folder_browser.set_file_rating_state(
-                    &update.absolute_path,
-                    update.rating,
-                    update.locked,
-                ) {
+                if self.apply_rating_update_to_loaded_browser_row(&update) {
                     applied += 1;
                 }
             }
         }
         Ok(applied)
+    }
+
+    fn apply_rating_update_to_loaded_browser_row(&mut self, update: &RatingUpdate) -> bool {
+        if self.library.folder_browser.set_file_rating_state(
+            &update.absolute_path,
+            update.rating,
+            update.locked,
+        ) {
+            return true;
+        }
+        self.library
+            .folder_browser
+            .refresh_file_path_across_sources(&update.absolute_path)
+            && self.library.folder_browser.set_file_rating_state(
+                &update.absolute_path,
+                update.rating,
+                update.locked,
+            )
     }
 }
 

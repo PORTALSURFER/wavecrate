@@ -1,4 +1,7 @@
-use std::{sync::mpsc::Receiver, time::Instant};
+use std::{
+    sync::mpsc::Receiver,
+    time::{Duration, Instant},
+};
 
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
@@ -8,8 +11,11 @@ use wavecrate::audio::{
 use wavecrate::sample_sources::config::AppSettingsCore;
 
 use crate::native_app::audio::{
-    playback::PlaybackIntent, playback_history::PlaybackNavigationHistory,
+    playback::PlaybackIntent,
+    playback_history::{LastPlayedPersistRequest, PlaybackNavigationHistory},
 };
+
+const PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE: Duration = Duration::from_millis(8);
 
 pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) player: Option<AudioPlayer>,
@@ -21,6 +27,7 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) volume_persist_deadline: Option<Instant>,
     pub(in crate::native_app) volume_persist_inflight: bool,
     pub(in crate::native_app) last_played_persist_task: radiant::prelude::LatestTask,
+    pub(in crate::native_app) pending_last_played_persist: Option<LastPlayedPersistRequest>,
     pub(in crate::native_app) output_config: AudioOutputConfig,
     pub(in crate::native_app) output_resolved: Option<ResolvedOutput>,
     pub(in crate::native_app) hosts: Vec<AudioHostSummary>,
@@ -36,6 +43,16 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) playback_runtime: Option<PlaybackRuntimeHandle>,
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
+    pub(in crate::native_app) playback_visual_progress: Option<PlaybackVisualProgress>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) struct PlaybackVisualProgress {
+    pub(in crate::native_app) anchor_ratio: f32,
+    pub(in crate::native_app) anchor_at: Instant,
+    pub(in crate::native_app) anchor_animation_time: Option<Duration>,
+    pub(in crate::native_app) span: Option<(f32, f32)>,
+    pub(in crate::native_app) looping: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -246,6 +263,7 @@ impl AudioAppState {
             volume_persist_deadline: None,
             volume_persist_inflight: false,
             last_played_persist_task: radiant::prelude::LatestTask::new(),
+            pending_last_played_persist: None,
             output_config: settings.audio_output.clone(),
             output_resolved: None,
             hosts: Vec::new(),
@@ -261,6 +279,7 @@ impl AudioAppState {
             playback_runtime: None,
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),
+            playback_visual_progress: None,
         }
     }
 
@@ -315,6 +334,78 @@ impl AudioAppState {
 
     pub(in crate::native_app) fn clear_sample_playback_session(&mut self) {
         self.sample_playback_session = None;
+    }
+
+    pub(in crate::native_app) fn set_playback_progress(
+        &mut self,
+        progress: PlaybackRuntimeProgress,
+    ) {
+        self.playback_progress = progress;
+        self.sync_playback_visual_progress(false);
+    }
+
+    pub(in crate::native_app) fn set_started_playback_progress(
+        &mut self,
+        progress: PlaybackRuntimeProgress,
+    ) {
+        self.playback_progress = progress;
+        self.sync_playback_visual_progress(true);
+    }
+
+    pub(in crate::native_app) fn clear_playback_progress(&mut self) {
+        self.playback_progress = PlaybackRuntimeProgress::default();
+        self.playback_visual_progress = None;
+    }
+
+    pub(in crate::native_app) fn reset_playback_visual_progress(
+        &mut self,
+        anchor_ratio: f32,
+        looping: bool,
+    ) {
+        self.playback_visual_progress = Some(PlaybackVisualProgress {
+            anchor_ratio: anchor_ratio.clamp(0.0, 1.0),
+            anchor_at: Instant::now(),
+            anchor_animation_time: None,
+            span: self.current_playback_span,
+            looping,
+        });
+    }
+
+    fn sync_playback_visual_progress(&mut self, force: bool) {
+        if !self.playback_progress.active {
+            self.playback_visual_progress = None;
+            return;
+        }
+        let Some(progress) = self.playback_progress.progress else {
+            return;
+        };
+        let span = self.current_playback_span;
+        let looping = self.playback_progress.looping;
+        let clock_mismatch = self
+            .playback_visual_progress
+            .is_some_and(|clock| clock.span != span || clock.looping != looping);
+        let delayed_unpainted_anchor = self.delayed_unpainted_playback_anchor_needs_refresh();
+        if force
+            || self.playback_visual_progress.is_none()
+            || clock_mismatch
+            || delayed_unpainted_anchor
+        {
+            self.reset_playback_visual_progress(progress, looping);
+        }
+    }
+
+    fn delayed_unpainted_playback_anchor_needs_refresh(&self) -> bool {
+        let Some(clock) = self.playback_visual_progress else {
+            return false;
+        };
+        if clock.anchor_animation_time.is_some() {
+            return false;
+        }
+        let Some(runtime_elapsed) = self.playback_progress.elapsed else {
+            return false;
+        };
+        runtime_elapsed.saturating_add(PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE)
+            >= clock.anchor_at.elapsed()
     }
 
     pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(

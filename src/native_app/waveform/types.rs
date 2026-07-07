@@ -13,9 +13,6 @@ pub(in crate::native_app) enum WaveformInteraction {
         direction: i8,
     },
     ZoomFull,
-    RememberPointerLocation {
-        position: Point,
-    },
     ScrollTo {
         offset_fraction: f32,
     },

@@ -464,7 +464,6 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::ZoomToPlaySelection => Some("waveform.zoom_to_play_selection"),
         WaveformInteraction::SlidePlaySelection { .. } => Some("waveform.playmark.slide"),
         WaveformInteraction::ZoomFull => Some("waveform.zoom_full"),
-        WaveformInteraction::RememberPointerLocation { .. } => None,
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
         WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),

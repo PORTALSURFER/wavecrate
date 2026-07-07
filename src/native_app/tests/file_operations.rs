@@ -2258,6 +2258,51 @@ fn rating_hotkey_adjustment_does_not_advance_when_auto_advance_is_enabled() {
 }
 
 #[test]
+fn rating_hotkey_updates_visible_row_when_loaded_source_tree_is_stale() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let drums = source_root.path().join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let current = drums.join("a-current.wav");
+    write_test_wav_i16(&current, &[0, 256, -256, 512]);
+    let drums_id = drums.display().to_string();
+    let current_id = current.display().to_string();
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .apply_message(FolderBrowserMessage::ActivateFolder(
+            drums_id.clone(),
+            Default::default(),
+        ));
+    state.library.folder_browser.select_file(current_id.clone());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .remove_loaded_source_folder_for_tests(&drums_id),
+        "test setup should leave the visible tree with a selected row while making the loaded source tree unable to refresh the sample"
+    );
+
+    let mut context = radiant::prelude::UiUpdateContext::default();
+    state.adjust_selected_rating_without_advance(1, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
+
+    assert!(state.ui.status.sample.contains("Rated 1 sample"));
+    let current_row = state
+        .library
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .find(|file| file.id == current_id)
+        .expect("current row remains visible");
+    assert_eq!(current_row.rating, Rating::KEEP_1);
+}
+
+#[test]
 fn rating_advance_moves_to_next_recursive_root_sample() {
     let mut state = gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");

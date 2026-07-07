@@ -244,7 +244,7 @@ impl NativeAppState {
                 .current
                 .start_playback_without_marker(playback_start);
         }
-        self.audio.playback_progress = Default::default();
+        self.audio.clear_playback_progress();
         self.audio.current_playback_span =
             Some((command.resolved.start_ratio, command.resolved.end_ratio));
         let session_request = SamplePlaybackRequest::waveform(

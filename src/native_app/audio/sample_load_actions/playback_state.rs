@@ -107,7 +107,7 @@ impl NativeAppState {
         if self.audio.sample_playback_session.is_some() && !preserve_early_playback {
             self.stop_audio_output_playback();
             self.audio.current_playback_span = None;
-            self.audio.playback_progress = Default::default();
+            self.audio.clear_playback_progress();
             self.audio.clear_sample_playback_session();
         }
         if !preserve_early_playback {
