@@ -78,7 +78,7 @@ impl NativeAppState {
             .blocking_io("gui-active-folder-cache-warm-plan")
             .cancellable()
             .latest(&mut self.waveform.cache.active_folder_warm_plan_task)
-            .stream(
+            .stream_latest(
                 move |worker_context: BusinessWorkContext,
                       events: BusinessEventSink<ActiveFolderCacheWarmPlanProgress>| {
                     let progress_events = events.clone();
@@ -245,7 +245,7 @@ impl NativeAppState {
             return;
         };
         self.waveform.cache.active_folder_warm_key = Some(key);
-        self.waveform.cache.active_folder_warm_cancel = Some(warm.stream(
+        self.waveform.cache.active_folder_warm_cancel = Some(warm.stream_latest(
             move |worker_context: BusinessWorkContext,
                   events: BusinessEventSink<ActiveFolderCacheWarmProgress>| {
                 let progress_events = events.clone();

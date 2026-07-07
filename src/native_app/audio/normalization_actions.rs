@@ -202,7 +202,7 @@ impl NativeAppState {
         context
             .business()
             .priority("gui-normalize-selected-samples", priority)
-            .stream(
+            .stream_latest(
                 move |_context, events| run_normalization_worker(request, events),
                 GuiMessage::NormalizationProgress,
                 GuiMessage::NormalizationFinished,

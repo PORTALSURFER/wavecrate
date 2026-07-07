@@ -121,7 +121,7 @@ impl NativeAppState {
         context
             .business()
             .background("gui-folder-browser-move")
-            .stream(
+            .stream_latest(
                 move |_context, events| {
                     execute_folder_move_request_with_progress(request, task_id, move |progress| {
                         events.emit(progress)
@@ -209,7 +209,7 @@ impl NativeAppState {
         context
             .business()
             .background("gui-file-move-conflict")
-            .stream(
+            .stream_latest(
                 move |_context, events| {
                     execute_file_move_conflict_request_with_progress(
                         batch,
