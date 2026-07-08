@@ -21,9 +21,6 @@ use std::{
 use crate::native_app::app::{
     GuiMessage, StarmapAuditionDragState, StarmapViewport, StarmapViewportChange,
 };
-use crate::native_app::sample_library::context_menu_target::{
-    BrowserContextPointerAnchor, BrowserContextPointerTarget,
-};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
     StarmapItem, StarmapStatus, starmap_cluster_palette_color,
@@ -593,17 +590,6 @@ impl StarmapWidget {
         self.hovered_file_id = index.map(|index| self.items[index].file_id.clone());
     }
 
-    fn remember_hovered_context_menu_anchor(&self, point: Point) -> Option<WidgetOutput> {
-        self.hovered_file_id.as_ref().map(|file_id| {
-            WidgetOutput::typed(GuiMessage::RememberBrowserContextMenuPointerAnchor(
-                BrowserContextPointerAnchor {
-                    target: BrowserContextPointerTarget::Sample(file_id.clone()),
-                    position: point,
-                },
-            ))
-        })
-    }
-
     fn hovered_item(&self) -> Option<&StarmapItem> {
         let hovered_file_id = self.hovered_file_id.as_deref()?;
         self.item_for_cached_index(self.hovered_item_index, hovered_file_id)
@@ -1072,7 +1058,7 @@ impl Widget for StarmapWidget {
                 ),
             CanvasGestureEvent::Hover(pointer) => {
                 self.set_hovered_file_at(bounds, pointer.position);
-                self.remember_hovered_context_menu_anchor(pointer.position)
+                None
             }
             CanvasGestureEvent::Press {
                 pointer,
@@ -2372,12 +2358,8 @@ mod tests {
             widget
                 .handle_input(bounds, WidgetInput::pointer_move(Point::new(50.0, 50.0)))
                 .and_then(|output| output.typed_cloned::<GuiMessage>()),
-            Some(GuiMessage::RememberBrowserContextMenuPointerAnchor(
-                BrowserContextPointerAnchor {
-                    target: BrowserContextPointerTarget::Sample(String::from("/samples/kick.wav")),
-                    position: Point::new(50.0, 50.0),
-                }
-            ))
+            None,
+            "ordinary starmap hover should update widget-local paint state without host output"
         );
         let mut primitives = Vec::new();
         widget.append_runtime_overlay_paint(
@@ -2721,13 +2703,8 @@ mod tests {
             previous
                 .handle_input(bounds, WidgetInput::pointer_move(Point::new(50.0, 50.0)))
                 .and_then(|output| output.typed_cloned::<GuiMessage>()),
-            Some(GuiMessage::RememberBrowserContextMenuPointerAnchor(
-                BrowserContextPointerAnchor {
-                    target: BrowserContextPointerTarget::Sample(String::from("/samples/kick.wav")),
-                    position: Point::new(50.0, 50.0),
-                }
-            )),
-            "hover should remember a pointer anchor while updating local runtime state"
+            None,
+            "hover should update local runtime state without host output"
         );
         previous.ensure_hit_index(bounds);
 

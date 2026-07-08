@@ -7,9 +7,6 @@ use super::identity::{
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 use crate::native_app::app_chrome::view_models::library_sidebar::CollectionRowViewModel;
-use crate::native_app::sample_library::context_menu_target::{
-    BrowserContextPointerAnchor, BrowserContextPointerTarget,
-};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, SampleCollectionView,
@@ -65,12 +62,6 @@ fn collection_row_actions(
     collection_id: SampleCollection,
 ) -> ui::InteractiveRowActions<GuiMessage> {
     ui::row_actions()
-        .hover_key(collection_id, |collection_id, position| {
-            GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
-                target: BrowserContextPointerTarget::Collection(collection_id),
-                position,
-            })
-        })
         .drop_target_key(
             collection_id,
             |collection_id| {

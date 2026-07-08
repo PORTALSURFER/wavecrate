@@ -2,9 +2,7 @@ use super::*;
 use crate::native_app::app_chrome::browser_context_menu::{
     FileManagerLabelPlatform, file_manager_context_labels, file_manager_context_labels_for_platform,
 };
-use crate::native_app::sample_library::context_menu_target::{
-    BrowserContextPointerAnchor, BrowserContextPointerTarget,
-};
+use crate::native_app::sample_library::context_menu_target::BrowserContextPointerTarget;
 use crate::native_app::test_support::state::GuiMessage;
 use radiant::runtime::{PaintTextAlign, RuntimeUpdateSnapshot};
 
@@ -489,12 +487,9 @@ fn global_context_menu_opens_selected_sample_menu_without_playmark() {
         .folder_browser
         .select_file(sample.display().to_string());
     let pointer_anchor = Point::new(333.0, 222.0);
-    state.apply_message(
-        GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
-            target: BrowserContextPointerTarget::Sample(sample.display().to_string()),
-            position: pointer_anchor,
-        }),
-        &mut ui::UiUpdateContext::default(),
+    state.remember_context_menu_pointer_anchor(
+        BrowserContextPointerTarget::Sample(sample.display().to_string()),
+        pointer_anchor,
     );
 
     state.apply_message(
@@ -531,12 +526,9 @@ fn global_context_menu_ignores_stale_sample_pointer_anchor_after_focus_changes()
         .library
         .folder_browser
         .select_file(snare.display().to_string());
-    state.apply_message(
-        GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
-            target: BrowserContextPointerTarget::Sample(kick.display().to_string()),
-            position: Point::new(333.0, 222.0),
-        }),
-        &mut ui::UiUpdateContext::default(),
+    state.remember_context_menu_pointer_anchor(
+        BrowserContextPointerTarget::Sample(kick.display().to_string()),
+        Point::new(333.0, 222.0),
     );
 
     state.apply_message(
@@ -569,12 +561,9 @@ fn global_context_menu_uses_live_pointer_position_over_stale_sample_anchor() {
         .library
         .folder_browser
         .select_file(snare.display().to_string());
-    state.apply_message(
-        GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
-            target: BrowserContextPointerTarget::Sample(kick.display().to_string()),
-            position: Point::new(333.0, 222.0),
-        }),
-        &mut ui::UiUpdateContext::default(),
+    state.remember_context_menu_pointer_anchor(
+        BrowserContextPointerTarget::Sample(kick.display().to_string()),
+        Point::new(333.0, 222.0),
     );
     let live_pointer = Point::new(610.0, 388.0);
     let mut context = ui::UiUpdateContext::from_runtime_snapshot(
@@ -636,12 +625,9 @@ fn global_context_menu_opens_selected_folder_menu_at_matching_pointer_anchor() {
         .expect("folder selected")
         .to_owned();
     let pointer_anchor = Point::new(88.0, 144.0);
-    state.apply_message(
-        GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
-            target: BrowserContextPointerTarget::Folder(folder_id),
-            position: pointer_anchor,
-        }),
-        &mut ui::UiUpdateContext::default(),
+    state.remember_context_menu_pointer_anchor(
+        BrowserContextPointerTarget::Folder(folder_id),
+        pointer_anchor,
     );
 
     state.apply_message(
