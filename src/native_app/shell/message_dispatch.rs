@@ -76,7 +76,6 @@ impl NativeAppState {
             | GuiMessage::NormalizationFinished(_)
             | GuiMessage::SelectSampleWithModifiers { .. }
             | GuiMessage::OpenSampleContextMenu { .. }
-            | GuiMessage::RememberBrowserContextMenuPointerAnchor(_)
             | GuiMessage::DragSampleFile { .. }
             | GuiMessage::ExternalDragCompleted(_) => self.apply_browser_dispatch(message, context),
             GuiMessage::DeferredSampleLoad { .. }

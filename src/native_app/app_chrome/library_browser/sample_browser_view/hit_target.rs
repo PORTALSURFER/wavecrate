@@ -4,9 +4,6 @@ use radiant::theme::ThemeTokens;
 
 use super::identity;
 use crate::native_app::app::GuiMessage;
-use crate::native_app::sample_library::context_menu_target::{
-    BrowserContextPointerAnchor, BrowserContextPointerTarget,
-};
 
 const SAMPLE_ROW_STYLE: ui::WidgetStyle = ui::WidgetStyle::subtle(ui::WidgetTone::Accent);
 const COPY_FLASH_FILL: ui::Rgba8 = ui::Rgba8 {
@@ -161,12 +158,6 @@ fn sample_file_hit_target_builder(
 
 fn sample_file_row_actions(path: String) -> ui::InteractiveRowActions<GuiMessage> {
     ui::row_actions()
-        .hover_key(path.clone(), |path, position| {
-            GuiMessage::RememberBrowserContextMenuPointerAnchor(BrowserContextPointerAnchor {
-                target: BrowserContextPointerTarget::Sample(path),
-                position,
-            })
-        })
         .primary_with_modifiers_key(path.clone(), |path, modifiers| {
             GuiMessage::SelectSampleWithModifiers { path, modifiers }
         })
