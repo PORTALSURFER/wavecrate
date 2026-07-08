@@ -345,6 +345,52 @@ fn active_folder_cache_warm_tracks_worker_progress() {
 }
 
 #[test]
+fn active_folder_cache_warm_uses_ordered_stream_for_cache_ready_progress() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let (_config_lock, _base_guard) =
+        set_waveform_test_config_base(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let first = source_root.path().join("first.wav");
+    let second = source_root.path().join("second.wav");
+    write_test_wav_i16(&first, &[0, 1024, -2048, 4096]);
+    write_test_wav_i16(&second, &[0, 512, -512, 1024]);
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let mut context = ui::UiUpdateContext::default();
+    state.schedule_active_folder_cache_warm(&mut context);
+    finish_active_folder_cache_warm_plan(
+        &mut state,
+        &mut context,
+        source_root.path().display().to_string(),
+        Vec::new(),
+        vec![first, second],
+    );
+
+    let warm_ticket = state
+        .waveform
+        .cache
+        .active_folder_warm_delay_task
+        .active()
+        .expect("source warm delay");
+    let mut start_context = ui::UiUpdateContext::default();
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::ActiveFolderCacheWarmReady(warm_ticket),
+        &mut start_context,
+    );
+    let command = start_context.into_command();
+
+    assert_eq!(
+        active_folder_cache_warm_stream_kind(&command),
+        Some("ordered"),
+        "cache-ready progress events must not be coalesced away"
+    );
+}
+
+#[test]
 fn active_folder_cache_warm_progress_updates_statusbar_realtime() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
@@ -1844,4 +1890,23 @@ fn normal_sample_load_persists_bright_cache_indicator_before_restart() {
             .contains(&sample_path),
         "freshly loaded cache indicator should survive immediate restart"
     );
+}
+
+fn active_folder_cache_warm_stream_kind(
+    command: &radiant::runtime::Command<crate::native_app::test_support::state::GuiMessage>,
+) -> Option<&'static str> {
+    use radiant::runtime::Command;
+
+    match command {
+        Command::PerformStream { name, .. } if *name == "gui-active-folder-cache-warm" => {
+            Some("ordered")
+        }
+        Command::PerformStreamLatest { name, .. } if *name == "gui-active-folder-cache-warm" => {
+            Some("latest")
+        }
+        Command::Batch(commands) => commands
+            .iter()
+            .find_map(active_folder_cache_warm_stream_kind),
+        _ => None,
+    }
 }
