@@ -8,11 +8,9 @@ use crate::native_app::app::{
     NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState, emit_gui_action,
     sample_path_label,
 };
-use crate::native_app::app_chrome::library_browser::sample_browser_view;
 use crate::native_app::starmap_audition_telemetry::{
     self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
 };
-use crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID;
 use crate::native_app::waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 use radiant::{
     gui::types::{Point, Rect, Rgba8},
@@ -435,7 +433,6 @@ impl NativeAppState {
         push_playback_cursor(primitives, bounds, visible_ratio);
     }
 
-    #[cfg(test)]
     pub(in crate::native_app) fn paint_waveform_transient_overlay(
         &mut self,
         context: TransientOverlayContext<'_>,
@@ -446,19 +443,6 @@ impl NativeAppState {
         }
         self.paint_loading_overlay(context, primitives);
         self.paint_playback_overlay(context, primitives);
-    }
-
-    pub(in crate::native_app) fn paint_app_transient_overlay(
-        &mut self,
-        context: TransientOverlayContext<'_>,
-        primitives: &mut Vec<PaintPrimitive>,
-    ) {
-        if self.chrome_overlay_suppresses_waveform_transient_overlay() {
-            return;
-        }
-        self.paint_loading_overlay(context, primitives);
-        self.paint_playback_overlay(context, primitives);
-        self.paint_starmap_active_audition_overlay(context, primitives);
     }
 
     pub(in crate::native_app) fn should_paint_app_transient_overlay(&self) -> bool {
@@ -525,33 +509,7 @@ impl NativeAppState {
         );
     }
 
-    fn paint_starmap_active_audition_overlay(
-        &mut self,
-        context: TransientOverlayContext<'_>,
-        primitives: &mut Vec<PaintPrimitive>,
-    ) {
-        let Some(active_file_id) = self.active_starmap_audition_file_id() else {
-            return;
-        };
-        let Some(bounds) = context
-            .plan
-            .first_widget_rect_by_priority([SAMPLE_BROWSER_MAP_ID])
-        else {
-            return;
-        };
-        let Some(items) = self.library.folder_browser.cached_starmap_projection() else {
-            return;
-        };
-        sample_browser_view::paint_active_starmap_audition_overlay(
-            primitives,
-            bounds,
-            &items,
-            self.ui.chrome.starmap_viewport,
-            active_file_id,
-        );
-    }
-
-    fn active_starmap_audition_file_id(&self) -> Option<&str> {
+    pub(in crate::native_app) fn active_starmap_audition_file_id(&self) -> Option<&str> {
         self.ui
             .chrome
             .starmap_audition_drag

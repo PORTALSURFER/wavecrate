@@ -397,6 +397,45 @@ fn scene_installs_playback_cursor_transient_overlay() {
 }
 
 #[test]
+fn scene_installs_starmap_active_audition_transient_overlay() {
+    let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("kick.wav");
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
+        &mut state,
+    );
+    state.ui.chrome.starmap_audition_queue.active_file_id = Some(selected_file);
+    let theme = radiant::theme::ThemeTokens::default();
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+    let frame = runtime.frame(&theme);
+    let mut primitives = Vec::new();
+
+    runtime.bridge_mut().paint_transient_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+
+    assert!(
+        primitives.iter().any(|primitive| matches!(
+            primitive,
+            radiant::runtime::PaintPrimitive::FillPolygon(fill)
+                if fill.widget_id == crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID
+                    && fill.color.a == 255
+                    && fill.points.len() == 4
+        )),
+        "root scene should paint the active Starmap audition overlay from app chrome"
+    );
+}
+
+#[test]
 fn shortcut_help_modal_suppresses_waveform_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
