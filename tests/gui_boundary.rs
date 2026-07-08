@@ -761,6 +761,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "audio file worker",
         ),
         (
+            "src/native_app/sample_identity_diagnostics.rs",
+            "explicit opt-in sample identity diagnostics boundary",
+        ),
+        (
             "src/native_app/sample_library/drag_drop_actions/external/clipboard_clip.rs",
             "waveform clipboard clip staging worker",
         ),
