@@ -37,6 +37,8 @@ impl NativeAppState {
             started_at,
             None,
         );
+        // Keep this stream fully ordered: discovery batches must not be
+        // replaced by progress.
         context.business().background("gui-folder-scan").stream(
             move |_context, events| run_folder_scan_worker(request, events),
             folder_scan_worker_event_message,

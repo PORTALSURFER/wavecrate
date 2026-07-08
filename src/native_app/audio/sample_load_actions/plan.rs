@@ -201,6 +201,8 @@ impl NativeAppState {
             .priority("gui-sample-load", request.priority())
             .cancellable()
             .latest_for_resource(&mut self.background.sample_load_tasks, key);
+        // Keep this stream fully ordered: progress and playback-ready are
+        // distinct state transitions.
         self.background.sample_load_cancel = Some(load.stream(
             move |worker_context, events| {
                 SampleLoadWorker::new(request).run(worker_context, events)

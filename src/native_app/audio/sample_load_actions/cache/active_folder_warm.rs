@@ -78,7 +78,7 @@ impl NativeAppState {
             .blocking_io("gui-active-folder-cache-warm-plan")
             .cancellable()
             .latest(&mut self.waveform.cache.active_folder_warm_plan_task)
-            .stream(
+            .stream_latest(
                 move |worker_context: BusinessWorkContext,
                       events: BusinessEventSink<ActiveFolderCacheWarmPlanProgress>| {
                     let progress_events = events.clone();
@@ -245,6 +245,9 @@ impl NativeAppState {
             return;
         };
         self.waveform.cache.active_folder_warm_key = Some(key);
+        // Keep this stream fully ordered: `cached` progress events mark each
+        // hydrated file playback-ready, including when a later cancelled result
+        // is intentionally ignored after playback starts.
         self.waveform.cache.active_folder_warm_cancel = Some(warm.stream(
             move |worker_context: BusinessWorkContext,
                   events: BusinessEventSink<ActiveFolderCacheWarmProgress>| {
