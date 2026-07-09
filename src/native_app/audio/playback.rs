@@ -16,6 +16,9 @@ use std::time::Duration;
 pub(in crate::native_app) const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration =
     Duration::from_millis(120);
 
+pub(in crate::native_app) use diagnostics::{
+    PlayheadFrameDiagnosticsState, playhead_frame_diagnostics_observer_enabled,
+};
 pub(in crate::native_app) use intent::PlaybackIntent;
 pub(in crate::native_app) use planner::{
     ActiveSamplePlaybackPlanState, SamplePlaybackAvailableSources, SamplePlaybackPlan,

@@ -78,6 +78,7 @@ impl NativeAppStateFixture {
             audio: AudioAppState::for_tests(),
             transactions: Default::default(),
             metadata: MetadataAppState::from_settings(&self.persisted_settings),
+            playhead_frame_diagnostics: Default::default(),
         }
     }
 }
