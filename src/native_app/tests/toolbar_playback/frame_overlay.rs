@@ -923,16 +923,23 @@ fn is_playback_cursor_fill(fill: &radiant::runtime::PaintFillRect) -> bool {
 }
 
 fn assert_cursor_xs_monotonic_and_bounded(label: &str, cursor_xs: &[f32], max_delta: f32) {
+    let mut advanced = false;
     for window in cursor_xs.windows(2) {
         let previous = window[0];
         let next = window[1];
+        let delta = next - previous;
+        advanced |= delta > 0.25;
         assert!(
             next + 0.25 >= previous,
             "{label} cursor moved backward: {previous:.3} -> {next:.3}"
         );
         assert!(
-            next - previous <= max_delta,
+            delta <= max_delta,
             "{label} cursor jumped too far in one frame: {previous:.3} -> {next:.3}"
         );
     }
+    assert!(
+        advanced,
+        "{label} cursor never advanced across sampled timed frames: {cursor_xs:?}"
+    );
 }
