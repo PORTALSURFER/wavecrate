@@ -773,6 +773,13 @@ fn restarted_playback_cursor_overlay_begins_new_smooth_sequence() {
                 progress: Some(0.12),
                 error: None,
             });
+        let visual_progress = state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("restarted visual progress");
+        visual_progress.anchor_at = std::time::Instant::now() - Duration::from_millis(500);
+        visual_progress.anchor_animation_time = Some(base_time + Duration::from_millis(32));
     }
     let restarted_cursor_x = playback_cursor_x_for_frame(
         &mut runtime,
