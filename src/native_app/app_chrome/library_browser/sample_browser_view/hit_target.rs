@@ -117,20 +117,8 @@ fn sample_file_hit_target_builder(
     content: ui::View<GuiMessage>,
     model: &SampleFileHitTargetModel<'_>,
 ) -> ui::InteractiveRowUnderlayBuilder<GuiMessage> {
-    let visual_state = ui::InteractiveRowVisualStateParts {
-        selected: model.explicitly_selected
-            || model.copy_flash
-            || model.protected_source_error_flash
-            || model.cut_pending
-            || model.missing,
-        ..ui::InteractiveRowVisualStateParts::default()
-    };
     let underlay = ui::interactive_row_underlay(content)
-        .tracked_drag_source(model.drag_active, model.drag_source)
-        .activation_modifiers()
-        .custom_paint_hit_target()
-        .style(SAMPLE_ROW_STYLE)
-        .visual_state(visual_state)
+        .dense_row_policy(sample_file_row_policy(model))
         .leading_marker_if(
             model.explicitly_selected || model.cut_pending || model.missing,
             ui::DenseRowMarkerStyle::new(
@@ -156,15 +144,32 @@ fn sample_file_hit_target_builder(
     }
 }
 
+fn sample_file_row_policy(model: &SampleFileHitTargetModel<'_>) -> ui::DenseRowPolicy {
+    let visual_state = ui::InteractiveRowVisualStateParts {
+        selected: model.explicitly_selected
+            || model.copy_flash
+            || model.protected_source_error_flash
+            || model.cut_pending
+            || model.missing,
+        ..ui::InteractiveRowVisualStateParts::default()
+    };
+    ui::DenseRowPolicy::with_visual_state(visual_state)
+        .tracked_drag_source(model.drag_active, model.drag_source)
+        .drag_session_motion(model.drag_active)
+        .activation_modifiers()
+        .style(SAMPLE_ROW_STYLE)
+}
+
 fn sample_file_row_actions(path: String) -> ui::InteractiveRowActions<GuiMessage> {
     ui::row_actions()
-        .primary_with_modifiers_key(path.clone(), |path, modifiers| {
-            GuiMessage::SelectSampleWithModifiers { path, modifiers }
-        })
-        .double_key(path.clone(), |path| GuiMessage::SelectSampleWithModifiers {
-            path,
-            modifiers: Default::default(),
-        })
+        .primary_with_modifiers_and_double_key(
+            path.clone(),
+            |path, modifiers| GuiMessage::SelectSampleWithModifiers { path, modifiers },
+            |path| GuiMessage::SelectSampleWithModifiers {
+                path,
+                modifiers: Default::default(),
+            },
+        )
         .secondary_key(path.clone(), |path, position| {
             GuiMessage::OpenSampleContextMenu { path, position }
         })
