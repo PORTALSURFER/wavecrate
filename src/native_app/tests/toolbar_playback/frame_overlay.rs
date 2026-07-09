@@ -699,12 +699,21 @@ fn playback_cursor_overlay_progresses_smoothly_across_timed_frames() {
 
 #[test]
 fn looped_playback_cursor_overlay_stays_smooth_inside_span() {
+    let base_time = Duration::from_secs(30);
     let mut state = state_with_runtime_playback(0.32, (0.25, 0.75), true);
     assert_active_playback_frame_is_paint_only(&mut state);
+    {
+        let visual_progress = state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress");
+        visual_progress.anchor_at = std::time::Instant::now() - Duration::from_millis(400);
+        visual_progress.anchor_animation_time = Some(base_time);
+    }
     let theme = radiant::theme::ThemeTokens::default();
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
-    let base_time = Duration::from_secs(30);
     let cursor_xs = [
         playback_cursor_x_for_frame(&mut runtime, &frame.paint_plan, base_time)
             .expect("looped cursor paint"),
