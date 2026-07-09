@@ -65,6 +65,7 @@ impl NativeAppState {
             audio,
             transactions: Default::default(),
             metadata: MetadataAppState::from_settings(&config.core),
+            playhead_frame_diagnostics: Default::default(),
         };
         emit_gui_action(
             "runtime.startup.load_default_state",

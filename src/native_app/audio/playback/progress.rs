@@ -3,7 +3,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
+use super::{
+    PLAYBACK_START_ACTIVE_SOURCE_GRACE,
+    diagnostics::{PlayheadFrameMessageDiagnostics, PlayheadOverlayFrameDiagnostics},
+};
 use crate::native_app::app::{
     NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState, emit_gui_action,
     sample_path_label,
@@ -106,11 +109,24 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn frame_can_use_paint_only(
-        &self,
+        &mut self,
         before: FrameRepaintScopeSnapshot,
     ) -> bool {
         let after = FrameRepaintScopeSnapshot::from_state(self);
-        before.same_transient_frame_state(after) && !before.requires_surface_frame()
+        let same_transient_frame_state = before.same_transient_frame_state(after);
+        let requires_surface_frame = before.requires_surface_frame();
+        let paint_only = same_transient_frame_state && !requires_surface_frame;
+        if before.playing || after.playing {
+            self.playhead_frame_diagnostics
+                .record_frame_message(PlayheadFrameMessageDiagnostics {
+                    paint_only,
+                    reason: frame_repaint_reason(
+                        same_transient_frame_state,
+                        requires_surface_frame,
+                    ),
+                });
+        }
+        paint_only
     }
 
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
@@ -417,11 +433,15 @@ impl NativeAppState {
         if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
-        let Some(progress) = self.current_audio_progress_ratio_for_frame(context.animation_time)
+        let Some(projection) = self.playhead_progress_projection_for_frame(context.animation_time)
         else {
             return;
         };
-        let Some(visible_ratio) = self.waveform.current.visible_ratio_for_absolute(progress) else {
+        let Some(visible_ratio) = self
+            .waveform
+            .current
+            .visible_ratio_for_absolute(projection.ratio)
+        else {
             return;
         };
         let Some(bounds) = context
@@ -430,7 +450,17 @@ impl NativeAppState {
         else {
             return;
         };
-        push_playback_cursor(primitives, bounds, visible_ratio);
+        let Some(cursor_x) = push_playback_cursor(primitives, bounds, visible_ratio) else {
+            return;
+        };
+        self.playhead_frame_diagnostics
+            .record_overlay_frame(PlayheadOverlayFrameDiagnostics {
+                animation_time: context.animation_time,
+                progress_ratio: projection.ratio,
+                visible_ratio,
+                cursor_x,
+                progress_source: projection.source,
+            });
     }
 
     pub(in crate::native_app) fn paint_waveform_transient_overlay(
@@ -466,6 +496,14 @@ impl NativeAppState {
                 .sample_playback_session
                 .as_ref()
                 .is_some_and(sample_playback_session_pending_start)
+    }
+
+    pub(in crate::native_app) fn observe_playhead_native_frame_diagnostics(
+        &mut self,
+        diagnostics: radiant::runtime::NativeFrameDiagnostics,
+    ) {
+        self.playhead_frame_diagnostics
+            .observe_native_frame(diagnostics);
     }
 
     fn chrome_overlay_suppresses_waveform_transient_overlay(&self) -> bool {
@@ -749,7 +787,11 @@ impl FrameRepaintScopeSnapshot {
     }
 }
 
-fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, ratio: f32) {
+fn push_playback_cursor(
+    primitives: &mut Vec<PaintPrimitive>,
+    bounds: Rect,
+    ratio: f32,
+) -> Option<f32> {
     let width = PLAYBACK_CURSOR_WIDTH
         .ceil()
         .clamp(1.0, bounds.width().max(1.0));
@@ -758,7 +800,7 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
         (center_x - width * 0.5).clamp(bounds.min.x, (bounds.max.x - width).max(bounds.min.x));
     let right = (left + width).min(bounds.max.x);
     if right <= left {
-        return;
+        return None;
     }
     WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID).push_visible_fill_rect(
         Rect::from_min_max(
@@ -767,6 +809,20 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
         ),
         PLAYBACK_CURSOR_COLOR,
     );
+    Some(center_x)
+}
+
+fn frame_repaint_reason(
+    same_transient_frame_state: bool,
+    requires_surface_frame: bool,
+) -> &'static str {
+    if requires_surface_frame {
+        "surface_frame_required"
+    } else if !same_transient_frame_state {
+        "transient_state_changed"
+    } else {
+        "paint_only"
+    }
 }
 
 fn playback_error_indicates_output_unavailable(error: &str) -> bool {

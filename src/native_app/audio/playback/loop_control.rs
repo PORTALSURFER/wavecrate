@@ -2,6 +2,7 @@ use std::time::{Duration, Instant};
 
 use super::{
     PlaybackIntent,
+    diagnostics::PlayheadProgressSource,
     span::{playback_span_matches_selection, retarget_offset_for_selection},
 };
 use crate::native_app::app::{NativeAppState, PendingPlaySelectionRetargetCycle, emit_gui_action};
@@ -10,6 +11,12 @@ use wavecrate::audio::{AudioPlayer, PlaybackRuntimeSpanUpdate};
 const LIVE_LOOP_BOUNDARY_EPSILON: f32 = 0.01;
 const LIVE_LOOP_WRAP_EPSILON: f32 = 0.02;
 const PLAYBACK_PROGRESS_EPSILON: f32 = 0.000_001;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::native_app) struct PlayheadProgressProjection {
+    pub(in crate::native_app) ratio: f32,
+    pub(in crate::native_app) source: PlayheadProgressSource,
+}
 
 impl NativeAppState {
     pub(in crate::native_app) fn toggle_loop_playback(&mut self) {
@@ -86,12 +93,34 @@ impl NativeAppState {
             .or_else(|| self.waveform.current.playhead_ratio())
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn current_audio_progress_ratio_for_frame(
         &mut self,
         animation_time: Duration,
     ) -> Option<f32> {
-        self.interpolated_waveform_visual_progress_ratio_for_frame(animation_time)
-            .or_else(|| self.waveform.current.playhead_ratio())
+        self.playhead_progress_projection_for_frame(animation_time)
+            .map(|projection| projection.ratio)
+    }
+
+    pub(in crate::native_app) fn playhead_progress_projection_for_frame(
+        &mut self,
+        animation_time: Duration,
+    ) -> Option<PlayheadProgressProjection> {
+        if let Some(ratio) =
+            self.interpolated_waveform_visual_progress_ratio_for_frame(animation_time)
+        {
+            return Some(PlayheadProgressProjection {
+                ratio,
+                source: PlayheadProgressSource::InterpolatedVisualProgress,
+            });
+        }
+        self.waveform
+            .current
+            .playhead_ratio()
+            .map(|ratio| PlayheadProgressProjection {
+                ratio,
+                source: PlayheadProgressSource::WaveformPlayheadFallback,
+            })
     }
 
     fn interpolated_runtime_waveform_progress_ratio(&self) -> Option<f32> {
