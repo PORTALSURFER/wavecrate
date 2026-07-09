@@ -90,18 +90,16 @@ impl NativeAppState {
         &mut self,
         animation_time: Duration,
     ) -> Option<f32> {
-        if let Some(progress) = self.audio.player.as_ref().and_then(AudioPlayer::progress) {
-            return Some(progress);
-        }
-        self.interpolated_runtime_waveform_progress_ratio_for_frame(animation_time)
+        self.interpolated_waveform_visual_progress_ratio_for_frame(animation_time)
             .or_else(|| self.waveform.current.playhead_ratio())
     }
 
     fn interpolated_runtime_waveform_progress_ratio(&self) -> Option<f32> {
+        self.interpolated_waveform_visual_progress_ratio()
+    }
+
+    fn interpolated_waveform_visual_progress_ratio(&self) -> Option<f32> {
         if !self.waveform.current.is_playing() || self.audio.current_playback_span.is_none() {
-            return None;
-        }
-        if !self.audio.playback_progress.active {
             return None;
         }
         let visual_progress = self.audio.playback_visual_progress?;
@@ -124,14 +122,11 @@ impl NativeAppState {
         ))
     }
 
-    fn interpolated_runtime_waveform_progress_ratio_for_frame(
+    fn interpolated_waveform_visual_progress_ratio_for_frame(
         &mut self,
         animation_time: Duration,
     ) -> Option<f32> {
         if !self.waveform.current.is_playing() || self.audio.current_playback_span.is_none() {
-            return None;
-        }
-        if !self.audio.playback_progress.active {
             return None;
         }
         let duration_seconds = self.waveform.current.duration_seconds();
@@ -646,6 +641,45 @@ mod tests {
         assert!(
             first_visible_frame > 0.39 && first_visible_frame < 0.42,
             "first paint after a delayed overlay should advance from the latest runtime snapshot, got {first_visible_frame}"
+        );
+    }
+
+    #[test]
+    fn fallback_player_waveform_progress_for_frame_uses_seeded_visual_clock() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.current.start_playback(0.20);
+        state.audio.current_playback_span = Some((0.0, 1.0));
+        state.audio.reset_playback_visual_progress(0.20, false);
+        assert!(
+            !state.audio.playback_progress.active,
+            "fallback player coverage should not depend on runtime progress snapshots"
+        );
+
+        let base_time = Duration::from_secs(30);
+        let sample_duration = state.waveform.current.duration_seconds();
+        state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress")
+            .anchor_animation_time = Some(base_time);
+
+        let progress = state
+            .current_audio_progress_ratio_for_frame(
+                base_time + Duration::from_secs_f32(sample_duration * 0.10),
+            )
+            .expect("fallback visual progress");
+
+        assert!(
+            progress > 0.29 && progress < 0.31,
+            "fallback/player overlay paint should advance from animation_time, got {progress}"
+        );
+        assert_eq!(
+            state.waveform.current.playhead_ratio(),
+            Some(0.20),
+            "fallback visual interpolation should not mutate the retained static playhead marker"
         );
     }
 

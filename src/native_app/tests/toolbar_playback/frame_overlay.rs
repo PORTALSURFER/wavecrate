@@ -698,6 +698,56 @@ fn playback_cursor_overlay_progresses_smoothly_across_timed_frames() {
 }
 
 #[test]
+fn fallback_player_cursor_overlay_uses_seeded_visual_clock() {
+    let base_time = Duration::from_secs(30);
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(0.20);
+    state.audio.current_playback_span = Some((0.0, 1.0));
+    state.audio.reset_playback_visual_progress(0.20, false);
+    state
+        .audio
+        .playback_visual_progress
+        .as_mut()
+        .expect("visual progress")
+        .anchor_animation_time = Some(base_time);
+    assert!(
+        !state.audio.playback_progress.active,
+        "fallback/player paint coverage should not rely on runtime progress"
+    );
+    assert_active_playback_frame_is_paint_only(&mut state);
+
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let cursor_xs = [
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(16),
+        )
+        .expect("fallback cursor paint on first frame"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(32),
+        )
+        .expect("fallback cursor paint on next frame"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(48),
+        )
+        .expect("fallback cursor paint on later frame"),
+    ];
+
+    assert!(
+        cursor_xs[0] > waveform_cursor_x_from_ratio(&frame.paint_plan, 0.20),
+        "fallback/player cursor should advance from the seeded visual clock"
+    );
+    assert_cursor_xs_monotonic_and_bounded("fallback/player playback", &cursor_xs, 24.0);
+}
+
+#[test]
 fn looped_playback_cursor_overlay_stays_smooth_inside_span() {
     let base_time = Duration::from_secs(30);
     let mut state = state_with_runtime_playback(0.32, (0.25, 0.75), true);
