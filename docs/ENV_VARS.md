@@ -85,12 +85,14 @@ behind explicit operator intent:
 ```bash
 scripts/release.sh prepare --bump minor --source-ref main --dry-run
 scripts/release.sh prepare --bump minor --source-ref main --push
+scripts/release.sh prepare --bump patch --source-ref release/19.1 --dry-run
 scripts/release.sh rc --version 19.2.0 --rc-number 1 --branch release/19.2 --dispatch
 scripts/release.sh stable --version 19.2.0 --branch release/19.2 --dispatch
 ```
 
 `prepare --bump major` bumps `X.Y.Z` to `(X+1).0.0`; `prepare --bump minor`
-bumps to `X.(Y+1).0`. Without `--dispatch`, `rc` and `stable` validate inputs
+bumps to `X.(Y+1).0`; `prepare --bump patch` bumps to `X.Y.(Z+1)` on the same
+`release/X.Y` train. Without `--dispatch`, `rc` and `stable` validate inputs
 and print the exact `gh workflow run ...` command instead of publishing. With
 `--dispatch`, the script requires an authenticated GitHub CLI (`gh`) and invokes
 the existing workflows with their native input names. When `origin` is a GitHub

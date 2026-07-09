@@ -7,7 +7,7 @@ repo_slug="${WAVECRATE_GITHUB_REPO:-PORTALSURFER/wavecrate}"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/release.sh prepare --bump <major|minor> [--source-ref <ref>] [--workflow-ref <branch-or-tag>] [--dry-run|--push] [--dispatch]
+  scripts/release.sh prepare --bump <major|minor|patch> [--source-ref <ref>] [--workflow-ref <branch-or-tag>] [--dry-run|--push] [--dispatch]
   scripts/release.sh rc --version <X.Y.Z> --rc-number <N> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
   scripts/release.sh stable --version <X.Y.Z> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
 
@@ -102,7 +102,8 @@ validate_version() {
 
 validate_bump() {
   local bump="$1"
-  [[ "$bump" == "major" || "$bump" == "minor" ]] || die "bump must be major or minor"
+  [[ "$bump" == "major" || "$bump" == "minor" || "$bump" == "patch" ]] \
+    || die "bump must be major, minor, or patch"
 }
 
 package_version_from_stdin() {
@@ -131,10 +132,11 @@ bump_version() {
   local bump="$2"
   validate_version "$version"
   validate_bump "$bump"
-  IFS=. read -r major minor _patch <<<"$version"
+  IFS=. read -r major minor patch <<<"$version"
   case "$bump" in
     major) printf '%s.0.0\n' "$((major + 1))" ;;
     minor) printf '%s.%s.0\n' "$major" "$((minor + 1))" ;;
+    patch) printf '%s.%s.%s\n' "$major" "$minor" "$((patch + 1))" ;;
   esac
 }
 
@@ -294,7 +296,7 @@ prepare() {
       *) die "unknown prepare argument: $1" ;;
     esac
   done
-  [[ -n "$bump" ]] || die "prepare requires --bump <major|minor>"
+  [[ -n "$bump" ]] || die "prepare requires --bump <major|minor|patch>"
   validate_bump "$bump"
   [[ -n "$workflow_ref" ]] || die "--workflow-ref must not be empty"
   (( push == 0 || explicit_dry_run == 0 )) || die "--dry-run and --push cannot be combined"

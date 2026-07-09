@@ -48,6 +48,35 @@ fn prepare_major_bump_derives_next_major_train() {
 }
 
 #[test]
+fn prepare_patch_bump_derives_next_patch_on_existing_release_train() {
+    let repo = FixtureRepo::new();
+    repo.write_workspace("19.1.3");
+    repo.commit_all("seed release train workspace");
+    repo.create_release_branch("release/19.1");
+    let release_sha = repo.git_stdout(&["rev-parse", "origin/release/19.1"]);
+    repo.write_workspace("20.5.0");
+    repo.commit_all("advance local checkout after release branch");
+    repo.push_branch("main");
+
+    let output = repo.run_release(&[
+        "prepare",
+        "--bump",
+        "patch",
+        "--source-ref",
+        "release/19.1",
+        "--dry-run",
+    ]);
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert!(stdout.contains("Resolved version: 19.1.4"));
+    assert!(stdout.contains("Release branch: release/19.1"));
+    assert!(stdout.contains(&format!("Target SHA: {release_sha}")));
+    assert!(stdout.contains("prepare-helper [--version] [19.1.4]"));
+    assert!(stdout.contains("[cwd-version=19.1.3]"));
+}
+
+#[test]
 fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.1.0");
@@ -160,10 +189,10 @@ fn prepare_rejects_invalid_bump_argument() {
     repo.commit_all("seed workspace");
     repo.push_branch("main");
 
-    let output = repo.run_release(&["prepare", "--bump", "patch", "--dry-run"]);
+    let output = repo.run_release(&["prepare", "--bump", "micro", "--dry-run"]);
 
     assert_failure(&output);
-    assert!(stderr(&output).contains("bump must be major or minor"));
+    assert!(stderr(&output).contains("bump must be major, minor, or patch"));
 }
 
 #[test]
