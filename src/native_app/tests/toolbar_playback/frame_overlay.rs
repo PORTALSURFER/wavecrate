@@ -640,6 +640,177 @@ fn playback_cursor_transient_overlay_keeps_subpixel_position() {
 }
 
 #[test]
+fn playback_cursor_overlay_progresses_smoothly_across_timed_frames() {
+    let mut state = state_with_runtime_playback(0.10, (0.0, 1.0), false);
+    assert_active_playback_frame_is_paint_only(&mut state);
+    state
+        .audio
+        .playback_visual_progress
+        .as_mut()
+        .expect("visual progress")
+        .anchor_at = std::time::Instant::now() - Duration::from_millis(80);
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let base_time = Duration::from_secs(30);
+
+    let delayed_first_paint_x =
+        playback_cursor_x_for_frame(&mut runtime, &frame.paint_plan, base_time)
+            .expect("first cursor paint after delay");
+    runtime
+        .bridge_mut()
+        .state_mut()
+        .audio
+        .set_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::from_millis(8)),
+            looping: false,
+            progress: Some(0.105),
+            error: None,
+        });
+    let cursor_xs = [
+        delayed_first_paint_x,
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(16),
+        )
+        .expect("cursor paint after stale progress snapshot"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(32),
+        )
+        .expect("cursor paint on next frame"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(48),
+        )
+        .expect("cursor paint on later frame"),
+    ];
+
+    assert!(
+        delayed_first_paint_x > waveform_cursor_x_from_ratio(&frame.paint_plan, 0.10) + 35.0,
+        "delayed first paint should include unpainted runtime progress before the first overlay frame"
+    );
+    assert_cursor_xs_monotonic_and_bounded("non-looping playback", &cursor_xs, 24.0);
+}
+
+#[test]
+fn looped_playback_cursor_overlay_stays_smooth_inside_span() {
+    let base_time = Duration::from_secs(30);
+    let mut state = state_with_runtime_playback(0.32, (0.25, 0.75), true);
+    assert_active_playback_frame_is_paint_only(&mut state);
+    {
+        let visual_progress = state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("visual progress");
+        visual_progress.anchor_at = std::time::Instant::now() - Duration::from_millis(400);
+        visual_progress.anchor_animation_time = Some(base_time);
+    }
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let cursor_xs = [
+        playback_cursor_x_for_frame(&mut runtime, &frame.paint_plan, base_time)
+            .expect("looped cursor paint"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(16),
+        )
+        .expect("looped cursor paint on next frame"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(32),
+        )
+        .expect("looped cursor paint on later frame"),
+    ];
+
+    assert_cursor_xs_monotonic_and_bounded("looped playback before wrap", &cursor_xs, 24.0);
+}
+
+#[test]
+fn restarted_playback_cursor_overlay_begins_new_smooth_sequence() {
+    let state = state_with_runtime_playback(0.62, (0.0, 1.0), false);
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let base_time = Duration::from_secs(30);
+
+    let old_cursor_x = playback_cursor_x_for_frame(&mut runtime, &frame.paint_plan, base_time)
+        .expect("initial cursor paint");
+    runtime
+        .bridge_mut()
+        .state_mut()
+        .waveform
+        .current
+        .stop_playback();
+    assert!(
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(16)
+        )
+        .is_none(),
+        "stopped playback should remove the live cursor overlay instead of retaining stale paint"
+    );
+
+    {
+        let state = runtime.bridge_mut().state_mut();
+        state.waveform.current.start_playback(0.12);
+        state.audio.current_playback_span = Some((0.0, 1.0));
+        state
+            .audio
+            .set_started_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+                active: true,
+                elapsed: Some(Duration::ZERO),
+                looping: false,
+                progress: Some(0.12),
+                error: None,
+            });
+        let visual_progress = state
+            .audio
+            .playback_visual_progress
+            .as_mut()
+            .expect("restarted visual progress");
+        visual_progress.anchor_at = std::time::Instant::now() - Duration::from_millis(500);
+        visual_progress.anchor_animation_time = Some(base_time + Duration::from_millis(32));
+    }
+    let restarted_cursor_x = playback_cursor_x_for_frame(
+        &mut runtime,
+        &frame.paint_plan,
+        base_time + Duration::from_millis(32),
+    )
+    .expect("restarted cursor paint");
+    let cursor_xs = [
+        restarted_cursor_x,
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(48),
+        )
+        .expect("restarted cursor paint on next frame"),
+        playback_cursor_x_for_frame(
+            &mut runtime,
+            &frame.paint_plan,
+            base_time + Duration::from_millis(64),
+        )
+        .expect("restarted cursor paint on later frame"),
+    ];
+
+    assert!(
+        restarted_cursor_x < old_cursor_x,
+        "restart should begin at the new playback anchor instead of continuing the old cursor path"
+    );
+    assert_cursor_xs_monotonic_and_bounded("restarted playback", &cursor_xs, 24.0);
+}
+
+#[test]
 fn loading_progress_paints_as_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.load.label = Some(String::from("kick.wav"));
@@ -680,5 +851,95 @@ fn loading_progress_paints_as_transient_overlay() {
                     && fill.color.b == 181
             }),
         "paint-only loading overlay should append the live progress fill"
+    );
+}
+
+// Capture the actual cyan cursor primitive produced by the transient overlay.
+// These helpers keep jitter regressions visible at the same output level users see.
+fn state_with_runtime_playback(
+    anchor_ratio: f32,
+    span: (f32, f32),
+    looping: bool,
+) -> NativeAppState {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.start_playback(anchor_ratio);
+    state.audio.current_playback_span = Some(span);
+    state
+        .audio
+        .set_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(Duration::ZERO),
+            looping,
+            progress: Some(anchor_ratio),
+            error: None,
+        });
+    state
+}
+
+fn assert_active_playback_frame_is_paint_only(state: &mut NativeAppState) {
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "active playback cursor frames should not require retained scene rebuilds"
+    );
+}
+
+fn playback_cursor_x_for_frame(
+    runtime: &mut NativeRuntimeForTests,
+    paint_plan: &radiant::runtime::SurfacePaintPlan,
+    animation_time: Duration,
+) -> Option<f32> {
+    let mut primitives = Vec::new();
+    runtime.bridge_mut().state_mut().paint_playback_overlay(
+        TransientOverlayContext::new(paint_plan, Vector2::new(900.0, 620.0), animation_time),
+        &mut primitives,
+    );
+    primitives
+        .iter()
+        .filter_map(|primitive| primitive.fill_rect())
+        .find(|fill| is_playback_cursor_fill(fill))
+        .map(|fill| fill.rect.center().x)
+}
+
+fn waveform_cursor_x_from_ratio(
+    paint_plan: &radiant::runtime::SurfacePaintPlan,
+    ratio: f32,
+) -> f32 {
+    let bounds = paint_plan
+        .first_widget_rect_by_priority([
+            crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID,
+            crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID,
+        ])
+        .expect("waveform bounds");
+    bounds.min.x + bounds.width() * ratio
+}
+
+fn is_playback_cursor_fill(fill: &radiant::runtime::PaintFillRect) -> bool {
+    fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+        && fill.color.r == 71
+        && fill.color.g == 220
+        && fill.color.b == 255
+}
+
+fn assert_cursor_xs_monotonic_and_bounded(label: &str, cursor_xs: &[f32], max_delta: f32) {
+    let mut advanced = false;
+    for window in cursor_xs.windows(2) {
+        let previous = window[0];
+        let next = window[1];
+        let delta = next - previous;
+        advanced |= delta > 0.25;
+        assert!(
+            next + 0.25 >= previous,
+            "{label} cursor moved backward: {previous:.3} -> {next:.3}"
+        );
+        assert!(
+            delta <= max_delta,
+            "{label} cursor jumped too far in one frame: {previous:.3} -> {next:.3}"
+        );
+    }
+    assert!(
+        advanced,
+        "{label} cursor never advanced across sampled timed frames: {cursor_xs:?}"
     );
 }
