@@ -52,8 +52,8 @@ development and release-risk checks:
 | Stable release | `Wavecrate stable release` manual dispatch | release workflow dispatch | Builds Windows/macOS stable assets from `release/X.Y`, validates that the latest `vX.Y.Z-rc.N` tag points at the same commit, runs `scripts/internal/release/run_release_validation.sh`, verifies the checksum signing key against the pinned public key before public publication, and publishes `vX.Y.Z` as the normal GitHub release |
 
 Use `scripts/release.sh` from a clean repo root for macOS/Linux release
-orchestration. It derives major/minor target versions from the package version
-at the resolved source ref, delegates release-train prep to
+orchestration. It derives major, minor, and patch target versions from the
+package version at the resolved source ref, delegates release-train prep to
 `scripts/internal/release/prepare_release_train.py`, and dispatches the RC and
 stable GitHub workflows only when `--dispatch` is passed. Prepare dispatch uses
 `--workflow-ref` (default `main`) for the workflow file ref and sends the
