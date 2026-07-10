@@ -2362,6 +2362,8 @@ Large import lists are not formatting problems. In short: large import lists are
 
 Normal Wavecrate view-construction modules should prefer `use radiant::prelude as ui;` and then call `ui::...` builders/types. Low-level custom widget modules may import explicit Radiant subsystem contracts such as widget input/output, paint primitives, layout output, and theme tokens, but a long cross-subsystem list should trigger a boundary review: keep Wavecrate-specific paint/domain mapping app-side, move reusable interaction, layout, focus, invalidation, or rendering behavior into Radiant, and avoid creating Wavecrate-local GUI preludes to hide the dependency shape.
 
+Normal Radiant `.view(...)` projections and Wavecrate view-model construction must borrow host state immutably. Wavecrate should prepare derived sample-browser windows, starmap projections, and similar host-owned caches before initial launch and after the update messages that invalidate them; view construction must not hide durable state transitions or cache mutation.
+
 Cross-crate public facades must make ownership explicit. Prefer named `pub use`
 lists when Wavecrate owns the compatibility surface. Wildcard-style re-exports
 are allowed only for audited compatibility shims whose module docs name the

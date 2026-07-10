@@ -1,7 +1,6 @@
 use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcuts};
 use crate::native_app::app_chrome::layout;
 use crate::native_app::app_chrome::library_browser::sample_browser_view;
-use crate::native_app::app_chrome::view_models::sample_browser::prepare_sample_browser_view;
 use crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID;
 use radiant::{
     prelude as ui,
@@ -11,8 +10,7 @@ use radiant::{
 const APP_TRANSIENT_OVERLAY_KEY: u64 = 0x6170_705f_6f76_726c;
 const APP_FRAME_CLOCK_FPS: u32 = 60;
 
-pub(in crate::native_app) fn view(state: &mut NativeAppState) -> ui::View<GuiMessage> {
-    prepare_sample_browser_view(state);
+pub(in crate::native_app) fn view(state: &NativeAppState) -> ui::View<GuiMessage> {
     scene(state).into_view().fill()
 }
 

@@ -44,7 +44,7 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
 fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.settings.ui.audio_settings_open = true;
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
         .paint_plan

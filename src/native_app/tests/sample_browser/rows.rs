@@ -259,7 +259,8 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
         .into_iter()
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    prepare_sample_browser_view(&mut state);
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(1517.0, 758.0));
     let sample_texts = frame
         .paint_plan

@@ -14,7 +14,7 @@ fn default_gui_tag_library_opens_beside_library_sidebar() {
     );
     state.metadata.tag_library_open = true;
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Tag Editor"));
@@ -42,7 +42,7 @@ fn default_gui_tag_library_paints_inactive_playback_tags_as_neutral_pills() {
         radiant::widgets::WidgetState::default(),
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
 
     assert_eq!(
@@ -77,7 +77,7 @@ fn default_gui_tag_library_paints_applied_playback_tags_as_active_pills() {
         },
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
 
     assert_eq!(
@@ -126,7 +126,7 @@ fn tag_library_paints_opposite_playback_type_as_inactive_after_replacement() {
         },
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
     let one_shot_rect = frame
         .paint_plan
@@ -191,7 +191,7 @@ fn default_gui_tag_library_paints_mixed_tags_as_partial_pills() {
         radiant::widgets::WidgetState::default(),
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
     let bass_rect = frame
         .paint_plan
@@ -222,7 +222,7 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
         .insert(String::from("deep-kick"), String::from("sound-type"));
     state.metadata.tag_library_open = true;
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Sound Type (1)"));

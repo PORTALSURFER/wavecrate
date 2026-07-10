@@ -26,11 +26,11 @@ fn rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow() {
     let state_for_update = std::rc::Rc::clone(&state);
     let bridge = ui::app(())
         .view(move |()| {
-            let mut state = lock_navigation_harness_state(&state_for_view);
-            crate::native_app::test_support::state::view(&mut state)
+            let state = lock_navigation_harness_state(&state_for_view);
+            crate::native_app::test_support::state::view(&state)
         })
         .handle_message(move |(), message, context| {
-            lock_navigation_harness_state(&state_for_update).apply_message(message, context);
+            lock_navigation_harness_state(&state_for_update).handle_message(message, context);
         })
         .into_bridge();
     let mut runtime = radiant::runtime::SurfaceRuntime::new(bridge, ui::Vector2::new(900.0, 620.0));
