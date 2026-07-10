@@ -13,6 +13,10 @@ static PLAYHEAD_FRAME_DIAGNOSTICS_ENABLED: OnceLock<bool> = OnceLock::new();
 pub(in crate::native_app) struct PlayheadFrameDiagnosticsState {
     latest_overlay: Option<PlayheadOverlayFrameDiagnostics>,
     latest_frame_message: Option<PlayheadFrameMessageDiagnostics>,
+    #[cfg(test)]
+    enabled_override: Option<bool>,
+    #[cfg(test)]
+    last_logged_frame_message: Option<Option<PlayheadFrameMessageDiagnostics>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -46,11 +50,28 @@ impl PlayheadProgressSource {
 }
 
 impl PlayheadFrameDiagnosticsState {
+    fn enabled(&self) -> bool {
+        #[cfg(test)]
+        if let Some(enabled) = self.enabled_override {
+            return enabled;
+        }
+
+        playhead_frame_diagnostics_enabled()
+    }
+
+    #[cfg(test)]
+    fn enabled_for_test() -> Self {
+        Self {
+            enabled_override: Some(true),
+            ..Self::default()
+        }
+    }
+
     pub(in crate::native_app) fn record_overlay_frame(
         &mut self,
         sample: PlayheadOverlayFrameDiagnostics,
     ) {
-        if !playhead_frame_diagnostics_enabled() {
+        if !self.enabled() {
             return;
         }
         self.latest_overlay = Some(sample);
@@ -60,7 +81,7 @@ impl PlayheadFrameDiagnosticsState {
         &mut self,
         sample: PlayheadFrameMessageDiagnostics,
     ) {
-        if !playhead_frame_diagnostics_enabled() {
+        if !self.enabled() {
             return;
         }
         self.latest_frame_message = Some(sample);
@@ -77,13 +98,17 @@ impl PlayheadFrameDiagnosticsState {
         &mut self,
         diagnostics: ui::NativeFrameDiagnostics,
     ) {
-        if !playhead_frame_diagnostics_enabled() {
+        if !self.enabled() {
             return;
         }
+        let frame_message = self.latest_frame_message.take();
         let Some(overlay) = self.latest_overlay.take() else {
             return;
         };
-        let frame_message = self.latest_frame_message.take();
+        #[cfg(test)]
+        {
+            self.last_logged_frame_message = Some(frame_message);
+        }
         tracing::info!(
             target: "wavecrate::debug::ui_frame",
             event = "waveform.playhead.frame",
@@ -176,5 +201,30 @@ mod tests {
         });
 
         assert_eq!(state.latest_overlay_frame(), None);
+    }
+
+    #[test]
+    fn playhead_frame_diagnostics_retire_frame_message_on_no_overlay_presentation() {
+        let mut state = PlayheadFrameDiagnosticsState::enabled_for_test();
+        state.record_frame_message(PlayheadFrameMessageDiagnostics {
+            paint_only: true,
+            reason: "stale-frame-message",
+        });
+
+        state.observe_native_frame(ui::NativeFrameDiagnostics::default());
+
+        assert_eq!(state.latest_frame_message, None);
+        assert_eq!(state.last_logged_frame_message, None);
+
+        state.record_overlay_frame(PlayheadOverlayFrameDiagnostics {
+            animation_time: Duration::from_millis(16),
+            progress_ratio: 0.25,
+            visible_ratio: 0.25,
+            cursor_x: 42.0,
+            progress_source: PlayheadProgressSource::InterpolatedVisualProgress,
+        });
+        state.observe_native_frame(ui::NativeFrameDiagnostics::default());
+
+        assert_eq!(state.last_logged_frame_message, Some(None));
     }
 }
