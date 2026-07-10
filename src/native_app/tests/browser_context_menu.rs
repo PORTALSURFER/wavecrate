@@ -4,7 +4,7 @@ use crate::native_app::app_chrome::browser_context_menu::{
 };
 use crate::native_app::sample_library::context_menu_target::BrowserContextPointerTarget;
 use crate::native_app::test_support::state::GuiMessage;
-use radiant::runtime::{PaintTextAlign, RuntimeUpdateSnapshot};
+use radiant::runtime::{DeclarativeOwnedSurfaceRuntime, PaintTextAlign, RuntimeUpdateSnapshot};
 
 fn open_file_manager_label() -> &'static str {
     file_manager_context_labels().open()
@@ -315,7 +315,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
-    let mut runtime = ui::DeclarativeOwnedSurfaceRuntime::new_declarative_owned(
+    let mut runtime = DeclarativeOwnedSurfaceRuntime::new_declarative_owned(
         true,
         Vector2::new(960.0, 540.0),
         move |open| {

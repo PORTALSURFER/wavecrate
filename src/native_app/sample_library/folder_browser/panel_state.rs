@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, widgets::TextInputMessageKind};
+use radiant::{gui::panel as panel_ui, prelude as ui, widgets::TextInputMessageKind};
 use std::collections::{BTreeSet, HashMap};
 
 use super::{
@@ -60,17 +60,17 @@ pub(super) struct BrowserFilterState {
 
 #[derive(Clone, Debug)]
 pub(super) struct BrowserPanelLayoutState {
-    pub(super) collections: ui::PanelResizeState,
-    pub(super) filter: ui::PanelResizeState,
-    pub(super) metadata: ui::PanelResizeState,
+    pub(super) collections: panel_ui::PanelResizeState,
+    pub(super) filter: panel_ui::PanelResizeState,
+    pub(super) metadata: panel_ui::PanelResizeState,
 }
 
 impl BrowserPanelLayoutState {
     pub(super) fn new() -> Self {
         Self {
-            collections: ui::PanelResizeState::new(DEFAULT_COLLECTIONS_PANEL_HEIGHT),
-            filter: ui::PanelResizeState::new(DEFAULT_FILTER_PANEL_HEIGHT),
-            metadata: ui::PanelResizeState::new(DEFAULT_METADATA_PANEL_HEIGHT),
+            collections: panel_ui::PanelResizeState::new(DEFAULT_COLLECTIONS_PANEL_HEIGHT),
+            filter: panel_ui::PanelResizeState::new(DEFAULT_FILTER_PANEL_HEIGHT),
+            metadata: panel_ui::PanelResizeState::new(DEFAULT_METADATA_PANEL_HEIGHT),
         }
     }
 }
@@ -86,7 +86,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn resize_filter_panel(&mut self, message: ui::DragHandleMessage) {
         self.panel_layout.filter.resize_collapsible(
             message,
-            ui::CollapsiblePanelResizeConstraints::top(
+            panel_ui::CollapsiblePanelResizeConstraints::top(
                 MIN_FILTER_PANEL_HEIGHT,
                 MAX_FILTER_PANEL_HEIGHT,
                 COLLAPSED_FILTER_PANEL_HEIGHT,
@@ -328,7 +328,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn resize_metadata_panel(&mut self, message: ui::DragHandleMessage) {
         self.panel_layout.metadata.resize_collapsible(
             message,
-            ui::CollapsiblePanelResizeConstraints::top(
+            panel_ui::CollapsiblePanelResizeConstraints::top(
                 MIN_METADATA_PANEL_HEIGHT,
                 MAX_METADATA_PANEL_HEIGHT,
                 COLLAPSED_METADATA_PANEL_HEIGHT,

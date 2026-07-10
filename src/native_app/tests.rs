@@ -8,7 +8,8 @@ use radiant::{
     prelude::{self as ui, IntoView},
     runtime::{
         Command, DeclarativeOwnedCommandRuntimeBridge, Event, PaintTextInput, RuntimeBridge,
-        SurfaceRuntime, TransientOverlayContext, UiSurface,
+        SurfaceFrame, SurfaceRuntime, TransientOverlayContext, UiSurface,
+        UiUpdateHandlerDiagnosticsPolicy,
     },
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
@@ -94,7 +95,7 @@ fn apply_strict_update_diagnostics<Bridge, Message>(runtime: &mut SurfaceRuntime
 where
     Bridge: RuntimeBridge<Message>,
 {
-    runtime.set_update_handler_diagnostics_policy(ui::UiUpdateHandlerDiagnosticsPolicy::panic_at(
+    runtime.set_update_handler_diagnostics_policy(UiUpdateHandlerDiagnosticsPolicy::panic_at(
         Duration::from_millis(250),
     ));
 }
@@ -357,18 +358,18 @@ fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
     }
 }
 
-fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
+fn frame_has_clip_height(frame: &SurfaceFrame, expected: f32) -> bool {
     frame
         .paint_plan
         .clip_starts()
         .any(|clip| (clip.rect.height() - expected).abs() < 0.01)
 }
 
-fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {
+fn text_input_widget_id(frame: &SurfaceFrame) -> Option<u64> {
     metadata_tag_text_input(frame).map(|input| input.widget_id)
 }
 
-fn metadata_tag_text_input(frame: &ui::SurfaceFrame) -> Option<&PaintTextInput> {
+fn metadata_tag_text_input(frame: &SurfaceFrame) -> Option<&PaintTextInput> {
     frame.paint_plan.text_inputs().find(|input| {
         input.widget_id == crate::native_app::test_support::metadata_sidebar::METADATA_TAG_INPUT_ID
     })

@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use radiant::prelude as ui;
+use radiant::runtime as runtime_ui;
 
 const PLAYHEAD_FRAME_DIAGNOSTICS_ENV: &str = "WAVECRATE_PLAYHEAD_FRAME_DIAGNOSTICS";
 
@@ -96,7 +96,7 @@ impl PlayheadFrameDiagnosticsState {
 
     pub(in crate::native_app) fn observe_native_frame(
         &mut self,
-        diagnostics: ui::NativeFrameDiagnostics,
+        diagnostics: runtime_ui::NativeFrameDiagnostics,
     ) {
         if !self.enabled() {
             return;
@@ -211,7 +211,7 @@ mod tests {
             reason: "stale-frame-message",
         });
 
-        state.observe_native_frame(ui::NativeFrameDiagnostics::default());
+        state.observe_native_frame(runtime_ui::NativeFrameDiagnostics::default());
 
         assert_eq!(state.latest_frame_message, None);
         assert_eq!(state.last_logged_frame_message, None);
@@ -223,7 +223,7 @@ mod tests {
             cursor_x: 42.0,
             progress_source: PlayheadProgressSource::InterpolatedVisualProgress,
         });
-        state.observe_native_frame(ui::NativeFrameDiagnostics::default());
+        state.observe_native_frame(runtime_ui::NativeFrameDiagnostics::default());
 
         assert_eq!(state.last_logged_frame_message, Some(None));
     }

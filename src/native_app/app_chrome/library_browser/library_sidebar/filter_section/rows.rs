@@ -578,6 +578,7 @@ mod tests {
         BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
     };
     use radiant::prelude::IntoView;
+    use radiant::runtime::UiSurface;
 
     #[test]
     fn harvest_filter_dropdown_options_expose_full_help_tooltips() {
@@ -711,7 +712,7 @@ mod tests {
         );
     }
 
-    fn widget_tooltip(surface: &ui::UiSurface<GuiMessage>, widget_id: u64) -> Option<String> {
+    fn widget_tooltip(surface: &UiSurface<GuiMessage>, widget_id: u64) -> Option<String> {
         surface
             .find_widget(widget_id)
             .and_then(|widget| widget.widget_object().common().tooltip.as_deref())

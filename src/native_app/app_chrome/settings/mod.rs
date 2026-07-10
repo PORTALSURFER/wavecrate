@@ -1,5 +1,4 @@
-use radiant::prelude as ui;
-use radiant::prelude::IntoView;
+use radiant::prelude::{self as ui, IntoView};
 use std::sync::Arc;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, SettingsMessage};
@@ -28,15 +27,16 @@ pub(in crate::native_app) fn auxiliary_windows(
         return Vec::new();
     }
     let snapshot = AudioSettingsSnapshot::from_app_state(state);
-    let options = ui::NativeRunOptions::utility_window(
-        "Settings",
-        AUDIO_SETTINGS_POPUP_WIDTH,
-        AUDIO_SETTINGS_POPUP_HEIGHT,
-    );
     let surface = audio_settings_window_view(&snapshot).into_surface();
     vec![
-        ui::AuxiliaryWindow::new("audio-settings", options, Arc::new(surface))
-            .on_close(GuiMessage::Settings(SettingsMessage::CloseAudioSettings))
-            .cache_on_close(),
+        ui::AuxiliaryWindow::utility(
+            "audio-settings",
+            "Settings",
+            AUDIO_SETTINGS_POPUP_WIDTH,
+            AUDIO_SETTINGS_POPUP_HEIGHT,
+            Arc::new(surface),
+        )
+        .on_close(GuiMessage::Settings(SettingsMessage::CloseAudioSettings))
+        .cache_on_close(),
     ]
 }

@@ -3,7 +3,7 @@ use crate::native_app::metadata::{
     metadata_tag_category_order,
 };
 use crate::native_app::metadata::{metadata_tag_input_width_policy, metadata_tag_pill_width};
-use radiant::prelude as ui;
+use radiant::{gui::flow as flow_ui, prelude as ui};
 
 pub(super) const TAG_FIELD_CONTROL_HEIGHT: f32 = 18.0;
 pub(super) const TAG_FIELD_ITEM_GAP: f32 = 3.0;
@@ -28,7 +28,7 @@ pub(super) enum TagEntryRowItem {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct TagEntryFieldProjection {
     pub(super) rows: Vec<Vec<TagEntryRowItem>>,
-    pub(super) layout: ui::FlowFieldLayout,
+    pub(super) layout: flow_ui::FlowFieldLayout,
 }
 
 pub(super) struct TagEntryFieldInput<'a> {
@@ -69,7 +69,7 @@ impl TagEntryFieldProjection {
     }
 }
 
-impl ui::FlowItemWidth for TagEntryRowItem {
+impl flow_ui::FlowItemWidth for TagEntryRowItem {
     fn flow_width(&self) -> f32 {
         tag_entry_row_item_width(self)
     }
@@ -111,9 +111,9 @@ pub(super) fn tag_field_rows(
         );
     }
 
-    ui::pack_flow_rows_with_trailing_item_and_following_item(
+    flow_ui::pack_flow_rows_with_trailing_item_and_following_item(
         tag_entry_flow_items(&visible_tags),
-        ui::FlowTrailingItemParts::new(
+        flow_ui::FlowTrailingItemParts::new(
             TagEntryRowItem::Input,
             input_width,
             content_width,
@@ -134,13 +134,13 @@ fn tag_field_rows_with_pending_category(
     library_toggle_width: Option<f32>,
 ) -> Vec<Vec<TagEntryRowItem>> {
     let label = format!("{pending_category_tag} ->");
-    ui::pack_flow_rows_with_flexible_trailing_group(
+    flow_ui::pack_flow_rows_with_flexible_trailing_group(
         tag_entry_flow_items(tags),
-        [ui::FlowItem::new(
+        [flow_ui::FlowItem::new(
             TagEntryRowItem::PendingCategory(label.clone()),
             tag_pill_width(&label),
         )],
-        ui::FlowTrailingItemParts::new(
+        flow_ui::FlowTrailingItemParts::new(
             TagEntryRowItem::Input,
             input_width,
             input_width,
@@ -153,14 +153,16 @@ fn tag_field_rows_with_pending_category(
     )
 }
 
-fn tag_entry_flow_items(tags: &[String]) -> Vec<ui::FlowItem<TagEntryRowItem>> {
+fn tag_entry_flow_items(tags: &[String]) -> Vec<flow_ui::FlowItem<TagEntryRowItem>> {
     tags.iter()
-        .map(|tag| ui::FlowItem::new(TagEntryRowItem::Accepted(tag.clone()), tag_pill_width(tag)))
+        .map(|tag| {
+            flow_ui::FlowItem::new(TagEntryRowItem::Accepted(tag.clone()), tag_pill_width(tag))
+        })
         .collect()
 }
 
-fn library_toggle_flow_item(width: f32) -> ui::FlowItem<TagEntryRowItem> {
-    ui::FlowItem::new(TagEntryRowItem::LibraryToggle(width), width)
+fn library_toggle_flow_item(width: f32) -> flow_ui::FlowItem<TagEntryRowItem> {
+    flow_ui::FlowItem::new(TagEntryRowItem::LibraryToggle(width), width)
 }
 
 pub(super) fn order_metadata_tags_for_display(
@@ -200,7 +202,7 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
     }
 }
 
-pub(super) fn tag_field_layout(row_count: usize, content_width: f32) -> ui::FlowFieldLayout {
+pub(super) fn tag_field_layout(row_count: usize, content_width: f32) -> flow_ui::FlowFieldLayout {
     tag_field_metrics().layout_for_content_width(content_width, row_count)
 }
 
@@ -208,16 +210,16 @@ pub(in crate::native_app) fn tag_field_content_width(sidebar_width: f32) -> f32 
     tag_field_metrics().content_width(sidebar_width)
 }
 
-fn tag_field_flow_metrics() -> ui::FlowLayoutMetrics {
-    ui::FlowLayoutMetrics::new(
+fn tag_field_flow_metrics() -> flow_ui::FlowLayoutMetrics {
+    flow_ui::FlowLayoutMetrics::new(
         TAG_FIELD_ITEM_GAP,
         TAG_FIELD_LINE_GAP,
         TAG_FIELD_CONTROL_HEIGHT,
     )
 }
 
-fn tag_field_metrics() -> ui::FlowFieldMetrics {
-    ui::FlowFieldMetrics::new(
+fn tag_field_metrics() -> flow_ui::FlowFieldMetrics {
+    flow_ui::FlowFieldMetrics::new(
         tag_field_flow_metrics(),
         TAG_FIELD_HORIZONTAL_CHROME,
         TAG_FIELD_VERTICAL_CHROME,

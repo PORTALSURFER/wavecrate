@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 #[cfg(test)]
-use radiant::theme::ThemeTokens;
+use radiant::{gui::list as list_ui, theme::ThemeTokens};
 
 use super::identity;
 use crate::native_app::app::GuiMessage;
@@ -237,7 +237,7 @@ pub(in crate::native_app) fn sample_file_hit_target_for_tests(
 
 #[cfg(test)]
 fn sample_row_palette_for_tests() -> ui::DenseRowPalette {
-    ui::dense_row_palette_from_style(&ThemeTokens::default(), SAMPLE_ROW_STYLE)
+    list_ui::dense_row_palette_from_style(&ThemeTokens::default(), SAMPLE_ROW_STYLE)
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, widgets::DragHandleMessage};
+use radiant::{gui::panel as panel_ui, prelude as ui, widgets::DragHandleMessage};
 
 use super::super::FolderBrowserState;
 
@@ -36,7 +36,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
         self.panel_layout.collections.resize_collapsible(
             message,
-            ui::CollapsiblePanelResizeConstraints::top(
+            panel_ui::CollapsiblePanelResizeConstraints::top(
                 MIN_COLLECTIONS_PANEL_HEIGHT,
                 self.max_collections_panel_height(),
                 COLLAPSED_COLLECTIONS_PANEL_HEIGHT,

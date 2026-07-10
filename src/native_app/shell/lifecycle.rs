@@ -5,7 +5,7 @@ use crate::native_app::app::{
 };
 use crate::native_app::app::{WaveformInteraction, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
-use radiant::prelude as ui;
+use radiant::{gui::frame as frame_ui, prelude as ui};
 use std::{
     sync::mpsc,
     time::{Duration, Instant},
@@ -14,8 +14,8 @@ use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 
 const UI_FRAME_TARGET_FPS: u32 = 60;
 const UI_FRAME_TARGET: Duration = Duration::from_micros(16_667);
-const UI_FRAME_CADENCE: ui::FrameCadenceConfig =
-    ui::FrameCadenceConfig::new(Duration::from_millis(25), Duration::from_millis(100), 0);
+const UI_FRAME_CADENCE: frame_ui::FrameCadenceConfig =
+    frame_ui::FrameCadenceConfig::new(Duration::from_millis(25), Duration::from_millis(100), 0);
 
 impl NativeAppState {
     pub(in crate::native_app) fn load_default() -> Result<Self, String> {
@@ -211,7 +211,7 @@ impl NativeAppState {
         };
         if !matches!(
             report.kind,
-            ui::FrameCadenceKind::ErrorSpike | ui::FrameCadenceKind::WarnSpike
+            frame_ui::FrameCadenceKind::ErrorSpike | frame_ui::FrameCadenceKind::WarnSpike
         ) {
             return;
         }

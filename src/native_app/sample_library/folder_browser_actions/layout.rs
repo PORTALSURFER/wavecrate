@@ -1,4 +1,4 @@
-use radiant::prelude as ui;
+use radiant::gui::panel as panel_ui;
 use radiant::widgets::DragHandleMessage;
 use std::time::Instant;
 
@@ -15,7 +15,7 @@ impl NativeAppState {
         let outcome = phase.as_str();
         self.ui.chrome.folder_panel.resize(
             message,
-            ui::PanelResizeConstraints::right(MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH),
+            panel_ui::PanelResizeConstraints::right(MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH),
         );
         if should_log {
             emit_gui_action(

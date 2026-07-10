@@ -1,4 +1,4 @@
-use radiant::prelude as ui;
+use radiant::{gui::list as list_ui, prelude as ui};
 
 use super::identity::{RETAINED_FOLDER_TREE_ROW_INPUT_SCOPE, retained_folder_row_key};
 use crate::native_app::app::GuiMessage;
@@ -70,7 +70,7 @@ fn folder_rename_row(
     rename: FolderRenameProjection<'_>,
 ) -> ui::View<GuiMessage> {
     ui::row([
-        ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
+        list_ui::tree_guide_indent(folder.depth, folder_tree_guide_style()),
         ui::text_input(rename.draft.to_owned())
             .selection(0, rename.caret)
             .message_event(|message| {
@@ -193,7 +193,7 @@ pub(super) fn folder_tree_guide_style() -> ui::StyledTreeGuideStyle {
 
 #[cfg(test)]
 pub(super) fn folder_tree_palette_for_tests(theme: &ui::ThemeTokens) -> ui::DenseRowPalette {
-    ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
+    list_ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
 }
 
 pub(super) fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {

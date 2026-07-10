@@ -2,10 +2,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, default_gui_shortcuts};
 use crate::native_app::app_chrome::layout;
 use crate::native_app::app_chrome::library_browser::sample_browser_view;
 use crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID;
-use radiant::{
-    prelude as ui,
-    runtime::{PaintPrimitive, TransientOverlayContext},
-};
+use radiant::prelude as ui;
 
 const APP_TRANSIENT_OVERLAY_KEY: u64 = 0x6170_705f_6f76_726c;
 const APP_FRAME_CLOCK_FPS: u32 = 60;
@@ -41,8 +38,8 @@ fn app_transient_overlay() -> ui::TransientOverlay<NativeAppState> {
 
 fn paint_app_transient_overlay(
     state: &mut NativeAppState,
-    context: TransientOverlayContext<'_>,
-    primitives: &mut Vec<PaintPrimitive>,
+    context: ui::TransientOverlayContext<'_>,
+    primitives: &mut Vec<ui::PaintPrimitive>,
 ) {
     state.paint_waveform_transient_overlay(context, primitives);
     paint_starmap_active_audition_overlay(state, context, primitives);
@@ -50,8 +47,8 @@ fn paint_app_transient_overlay(
 
 fn paint_starmap_active_audition_overlay(
     state: &mut NativeAppState,
-    context: TransientOverlayContext<'_>,
-    primitives: &mut Vec<PaintPrimitive>,
+    context: ui::TransientOverlayContext<'_>,
+    primitives: &mut Vec<ui::PaintPrimitive>,
 ) {
     let Some(active_file_id) = state.active_starmap_audition_file_id() else {
         return;

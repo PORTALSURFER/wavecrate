@@ -3,7 +3,10 @@ use radiant::{
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
-    runtime::{GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive, push_fill_rect},
+    runtime::{
+        GpuSurfaceCapabilities, GpuSurfaceContent, PaintPrimitive, gpu_surface_with_capabilities,
+        push_fill_rect,
+    },
     theme::ThemeTokens,
     widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput},
 };
@@ -118,7 +121,7 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
     gain_preview: Option<radiant::runtime::GpuSignalGainPreview>,
     sample_slide_frame_offset: Option<i64>,
 ) -> ui::View<GuiMessage> {
-    ui::gpu_surface_with_capabilities(
+    gpu_surface_with_capabilities(
         file.path_hash(),
         file.content_revision(),
         GpuSurfaceContent::SignalSummaryBands {
