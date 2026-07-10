@@ -300,7 +300,7 @@ fn sample_passive_badge(label: String) -> ui::View<GuiMessage> {
         .height(14.0)
 }
 
-fn compact_text(text: impl Into<String>) -> ui::View<GuiMessage> {
+fn compact_text(text: impl Into<ui::TextContent>) -> ui::View<GuiMessage> {
     ui::text(text).height(18.0).truncate()
 }
 

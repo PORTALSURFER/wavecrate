@@ -40,7 +40,7 @@ pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui:
     .height(STATUS_BAR_HEIGHT)
 }
 
-fn status_segment(label: String) -> ui::View<GuiMessage> {
+fn status_segment(label: impl Into<ui::TextContent>) -> ui::View<GuiMessage> {
     ui::text(label).truncate().height(STATUS_BAR_SEGMENT_HEIGHT)
 }
 
@@ -123,6 +123,7 @@ fn job_details_popover_from_projection(
 mod tests {
     use super::*;
     use radiant::prelude::IntoView;
+    use std::sync::Arc;
 
     #[test]
     fn bottom_status_bar_paints_missing_source_status_as_warning() {
@@ -139,5 +140,19 @@ mod tests {
             frame.paint_plan.first_text_color("Source missing | Ready"),
             Some(SOURCE_MISSING_STATUS_COLOR)
         );
+    }
+
+    #[test]
+    fn status_segment_accepts_shared_text_content() {
+        let label: Arc<str> = Arc::from("Shared worker status");
+        let frame = status_segment(Arc::clone(&label))
+            .view_frame_at_size_with_default_theme(ui::Vector2::new(240.0, STATUS_BAR_HEIGHT));
+        let run = frame
+            .paint_plan
+            .first_text_run(label.as_ref())
+            .expect("shared status label should paint");
+
+        assert_eq!(run.text.as_str(), label.as_ref());
+        assert!(!run.text.is_static());
     }
 }
