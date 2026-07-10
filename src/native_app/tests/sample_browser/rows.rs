@@ -1,7 +1,8 @@
 use super::*;
+use radiant::gui::list::{DenseRowPalette, dense_row_palette_from_style};
 
-fn shared_dense_row_palette() -> radiant::prelude::DenseRowPalette {
-    radiant::prelude::dense_row_palette_from_style(
+fn shared_dense_row_palette() -> DenseRowPalette {
+    dense_row_palette_from_style(
         &radiant::prelude::ThemeTokens::default(),
         radiant::prelude::WidgetStyle::subtle(radiant::prelude::WidgetTone::Accent),
     )

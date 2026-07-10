@@ -1,6 +1,7 @@
 use radiant::{
+    gui::list::dense_row_palette_from_style,
     gui::types::{Point, Rect, Rgba8, Vector2},
-    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone, dense_row_palette_from_style},
+    prelude::{IntoView, ThemeTokens, WidgetStyle, WidgetTone},
     runtime::{Command, Event, PaintPrimitive, SurfaceFrame, SurfacePaintPlan, UiSurface},
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput},
 };

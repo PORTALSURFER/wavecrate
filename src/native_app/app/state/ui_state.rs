@@ -4,8 +4,8 @@ use std::{
     time::Instant,
 };
 
-use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
+use radiant::{gui::panel as panel_ui, prelude as ui};
 use wavecrate::sample_sources::SampleSource;
 use wavecrate::sample_sources::config::AppSettingsCore;
 use wavecrate::selection::SelectionRange;
@@ -50,7 +50,7 @@ impl UiAppState {
 }
 
 pub(in crate::native_app) struct ChromeUiState {
-    pub(in crate::native_app) folder_panel: ui::PanelResizeState,
+    pub(in crate::native_app) folder_panel: panel_ui::PanelResizeState,
     pub(in crate::native_app) job_details_open: bool,
     pub(in crate::native_app) transaction_list_open: bool,
     pub(in crate::native_app) shortcut_help_open: bool,
@@ -163,7 +163,7 @@ impl StarmapViewport {
 impl ChromeUiState {
     pub(in crate::native_app) fn new(folder_width: f32) -> Self {
         Self {
-            folder_panel: ui::PanelResizeState::new(folder_width),
+            folder_panel: panel_ui::PanelResizeState::new(folder_width),
             job_details_open: false,
             transaction_list_open: false,
             shortcut_help_open: false,

@@ -1,3 +1,5 @@
+#[cfg(test)]
+use radiant::gui::list as list_ui;
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
@@ -15,12 +17,12 @@ pub(super) fn sidebar_row_underlay(
 }
 
 #[cfg(test)]
-pub(super) fn sidebar_row_full_palette(theme: &ui::ThemeTokens) -> ui::DenseRowPalette {
-    ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
+pub(super) fn sidebar_row_full_palette(theme: &ui::ThemeTokens) -> list_ui::DenseRowPalette {
+    list_ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
 }
 
 #[cfg(test)]
-pub(super) fn sidebar_row_palette_for_tests() -> ui::DenseRowPalette {
+pub(super) fn sidebar_row_palette_for_tests() -> list_ui::DenseRowPalette {
     sidebar_row_full_palette(&ui::ThemeTokens::default())
 }
 

@@ -1,4 +1,4 @@
-use radiant::prelude as ui;
+use radiant::{prelude as ui, runtime as runtime_ui};
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState},
@@ -29,7 +29,7 @@ impl NativeAppState {
             ui::DragRequest::new(
                 ui::DragPreview::text_sized(
                     preview.label,
-                    ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
+                    runtime_ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
                         .min_width(96.0)
                         .max_width(DRAG_PREVIEW_MAX_WIDTH),
                 ),

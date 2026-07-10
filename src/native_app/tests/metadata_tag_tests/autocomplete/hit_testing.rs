@@ -1,4 +1,5 @@
 use super::*;
+use radiant::runtime::SurfaceFrame;
 
 #[test]
 fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
@@ -31,7 +32,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     );
 }
 
-fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, _tag_input_rect: Rect) -> Option<Rect> {
+fn tag_library_toggle_rect(frame: &SurfaceFrame, _tag_input_rect: Rect) -> Option<Rect> {
     frame.paint_plan.first_svg_rect_for_widget(
         crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
     )

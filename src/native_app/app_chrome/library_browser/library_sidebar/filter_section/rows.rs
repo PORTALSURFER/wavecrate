@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, widgets::TextInputMessage};
+use radiant::{prelude as ui, widgets as widget_ui, widgets::TextInputMessage};
 
 mod projection;
 
@@ -413,7 +413,7 @@ fn rating_filter_toggle(
         .color_marker(Some(rating_filter_swatch_color(level, toggle.active)))
         .color_marker_side(RATING_FILTER_SWATCH_SIZE)
         .color_marker_inset(0)
-        .color_marker_align(ui::ColorMarkerAlign::Center)
+        .color_marker_align(widget_ui::ColorMarkerAlign::Center)
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
@@ -578,6 +578,7 @@ mod tests {
         BrowserCurationScope, HarvestFilter, PlaybackTypeFilter,
     };
     use radiant::prelude::IntoView;
+    use radiant::runtime::UiSurface;
 
     #[test]
     fn harvest_filter_dropdown_options_expose_full_help_tooltips() {
@@ -711,7 +712,7 @@ mod tests {
         );
     }
 
-    fn widget_tooltip(surface: &ui::UiSurface<GuiMessage>, widget_id: u64) -> Option<String> {
+    fn widget_tooltip(surface: &UiSurface<GuiMessage>, widget_id: u64) -> Option<String> {
         surface
             .find_widget(widget_id)
             .and_then(|widget| widget.widget_object().common().tooltip.as_deref())

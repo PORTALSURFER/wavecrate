@@ -1,4 +1,4 @@
-use radiant::prelude as ui;
+use radiant::{gui::list as list_ui, prelude as ui};
 
 use super::identity::{
     AUTOMATION_SOURCE_ADD_BUTTON_ID, RETAINED_SOURCE_ROW_INPUT_SCOPE, retained_source_row_key,
@@ -161,16 +161,16 @@ fn source_role_icon(
         .height(SOURCE_ROW_HEIGHT)
 }
 
-fn source_row_outline() -> ui::DenseRowOutlineStyle {
-    ui::DenseRowOutlineStyle::new(
+fn source_row_outline() -> list_ui::DenseRowOutlineStyle {
+    list_ui::DenseRowOutlineStyle::new(
         SOURCE_ROW_OUTLINE_INSET,
         SOURCE_ROW_OUTLINE_COLOR,
         SOURCE_ROW_OUTLINE_WIDTH,
     )
 }
 
-fn source_protected_error_palette() -> ui::DenseRowPalette {
-    ui::DenseRowPalette::new()
+fn source_protected_error_palette() -> list_ui::DenseRowPalette {
+    list_ui::DenseRowPalette::new()
         .selected(SOURCE_PROTECTED_ERROR_FILL)
         .selected_hovered(SOURCE_PROTECTED_ERROR_HOVER_FILL)
         .interaction_fills(
@@ -206,7 +206,7 @@ pub(super) fn source_role_icon_color_for_source_for_tests(
 }
 
 #[cfg(test)]
-pub(super) fn source_row_outline_for_tests() -> ui::DenseRowOutlineStyle {
+pub(super) fn source_row_outline_for_tests() -> list_ui::DenseRowOutlineStyle {
     source_row_outline()
 }
 

@@ -1,4 +1,4 @@
-use radiant::prelude as ui;
+use radiant::{gui::badge as badge_ui, prelude as ui};
 
 const METADATA_TAG_PILL_FONT_SIZE: f32 = 12.5;
 const METADATA_TAG_PILL_PADDING_X: f32 = 11.0;
@@ -12,7 +12,7 @@ const METADATA_TAG_INPUT_CHARACTER_ADVANCE: f32 = 7.0;
 const METADATA_TAG_INPUT_PADDING: f32 = 12.0;
 
 pub(in crate::native_app) fn metadata_tag_pill_width(tag: &str) -> f32 {
-    ui::inline_badge_width_in_range(
+    badge_ui::inline_badge_width_in_range(
         tag,
         metadata_tag_pill_metrics(),
         METADATA_TAG_PILL_MIN_WIDTH,
@@ -27,8 +27,8 @@ pub(in crate::native_app) fn metadata_tag_input_width_policy(
     ui::TextInputWidthPolicy::new(metadata_tag_input_width_estimate(), min_width, max_width)
 }
 
-fn metadata_tag_pill_metrics() -> ui::InlineBadgeMetrics {
-    ui::InlineBadgeMetrics::new(
+fn metadata_tag_pill_metrics() -> badge_ui::InlineBadgeMetrics {
+    badge_ui::InlineBadgeMetrics::new(
         METADATA_TAG_PILL_FONT_SIZE,
         METADATA_TAG_PILL_PADDING_X,
         METADATA_TAG_PILL_PADDING_Y,

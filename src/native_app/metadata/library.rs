@@ -6,8 +6,8 @@ use super::vocabulary::{
 };
 use super::{GuiMessage, MetadataMessage, NativeAppState};
 use crate::native_app::sample_library::DRAG_PREVIEW_HEIGHT;
-use radiant::prelude as ui;
 use radiant::widgets::DragHandleMessage;
+use radiant::{prelude as ui, runtime as runtime_ui};
 use std::{path::PathBuf, time::Instant};
 impl NativeAppState {
     pub(in crate::native_app) fn metadata_tag_drag_active(&self) -> bool {
@@ -62,7 +62,7 @@ impl NativeAppState {
             context.begin_drag(ui::DragRequest::new(
                 ui::DragPreview::text_sized(
                     format!("Move {tag}"),
-                    ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
+                    runtime_ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
                         .horizontal_padding(48.0)
                         .min_width(92.0)
                         .max_width(180.0),

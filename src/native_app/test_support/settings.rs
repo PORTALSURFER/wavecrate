@@ -1,7 +1,7 @@
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::settings as chrome_settings;
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
-use radiant::prelude as ui;
+use radiant::{prelude as ui, runtime as runtime_ui};
 
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = chrome_settings::AUDIO_ENGINE_PILL_ID;
 pub(in crate::native_app) const AUDIO_SETTINGS_POPUP_HEIGHT: f32 =
@@ -32,7 +32,7 @@ pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> 
 
 pub(in crate::native_app) fn auxiliary_windows(
     state: &mut NativeAppState,
-) -> Vec<ui::AuxiliaryWindow<GuiMessage>> {
+) -> Vec<runtime_ui::AuxiliaryWindow<GuiMessage>> {
     chrome_settings::auxiliary_windows(state)
 }
 
