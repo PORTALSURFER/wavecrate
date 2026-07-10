@@ -48,8 +48,7 @@ fn metadata_tag_library_toggle_exposes_state_aware_help_tooltip() {
         native_app_state_with_temp_sample("tag-target.wav");
     closed_state.ui.chrome.help_tooltips_enabled = true;
     closed_state.metadata.tag_library_open = false;
-    let closed_surface =
-        crate::native_app::test_support::state::view(&mut closed_state).into_surface();
+    let closed_surface = crate::native_app::test_support::state::view(&closed_state).into_surface();
     let closed_tooltip = closed_surface
         .find_widget(
             crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
@@ -62,7 +61,7 @@ fn metadata_tag_library_toggle_exposes_state_aware_help_tooltip() {
         native_app_state_with_temp_sample("tag-target.wav");
     open_state.ui.chrome.help_tooltips_enabled = true;
     open_state.metadata.tag_library_open = true;
-    let open_surface = crate::native_app::test_support::state::view(&mut open_state).into_surface();
+    let open_surface = crate::native_app::test_support::state::view(&open_state).into_surface();
     let open_tooltip = open_surface
         .find_widget(
             crate::native_app::test_support::metadata_sidebar::METADATA_TAG_LIBRARY_TOGGLE_ID,
@@ -173,7 +172,7 @@ fn metadata_tag_chips_display_playback_tags_first() {
         ],
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let loop_rect = frame
@@ -237,7 +236,7 @@ fn metadata_tag_chips_show_mixed_tags_for_multi_selection() {
         radiant::widgets::WidgetState::default(),
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size(Vector2::new(900.0, 620.0), &theme);
     let bass_rect = frame
         .paint_plan

@@ -555,7 +555,7 @@ fn apply_gui_message_for_presentation_test(
     context: &mut ui::UiUpdateContext<GuiMessage>,
 ) {
     let frame_message = matches!(message, GuiMessage::Frame);
-    state.apply_message(message, context);
+    state.handle_message(message, context);
     if !frame_message {
         context.request_repaint();
     }

@@ -889,8 +889,39 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
             ]),
         )
         .build();
-    state.library.folder_browser.select_file(first_id);
+    state.library.folder_browser.select_file(first_id.clone());
     state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    let layout_request = state
+        .library
+        .folder_browser
+        .take_starmap_layout_load_request(&state.metadata.tags_by_file)
+        .expect("starmap layout request");
+    state
+        .library
+        .folder_browser
+        .apply_starmap_layout_load_result(wavecrate::sample_sources::StarmapLayoutLoadResult {
+            signature: layout_request.signature,
+            result: Ok(HashMap::from([
+                (
+                    first_id,
+                    wavecrate::sample_sources::StarmapLayoutPoint {
+                        x: 0.35,
+                        y: 0.50,
+                        cluster_id: None,
+                    },
+                ),
+                (
+                    second_id.clone(),
+                    wavecrate::sample_sources::StarmapLayoutPoint {
+                        x: 0.65,
+                        y: 0.50,
+                        cluster_id: None,
+                    },
+                ),
+            ])),
+        });
+    prepare_sample_browser_view(&mut state);
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::BeginStarmapAuditionDrag {
@@ -900,7 +931,12 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
         },
         &mut radiant::prelude::UiUpdateContext::default(),
     );
+    assert_eq!(
+        state.library.folder_browser.selected_file_paths(),
+        [std::path::PathBuf::from(&second_id)]
+    );
     state.copy_selected_files(&mut radiant::prelude::UiUpdateContext::default());
+    assert!(state.library.folder_browser.copy_flash_active());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
@@ -918,10 +954,21 @@ fn copying_sample_selected_from_map_flashes_map_node_and_waveform() {
             preview_audition_sample_paths: state.waveform.cache.preview_audition_sample_paths(),
         },
     );
+    let copied = items
+        .iter()
+        .find(|item| item.file_id == second_id)
+        .unwrap_or_else(|| {
+            panic!(
+                "map-selected sample should remain projected: {:?}",
+                items
+                    .iter()
+                    .map(|item| item.file_id.as_str())
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert!(copied.selected, "copied map node should remain selected");
     assert!(
-        items
-            .iter()
-            .any(|item| item.file_id == second_id && item.selected && item.copy_flash),
+        copied.copy_flash,
         "copying the map-selected sample should flash the selected map node"
     );
 }

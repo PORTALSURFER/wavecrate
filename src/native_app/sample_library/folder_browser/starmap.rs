@@ -406,6 +406,10 @@ impl FolderBrowserState {
         self.sample_list.starmap_layout.projection_items.clone()
     }
 
+    pub(in crate::native_app) fn starmap_projection_prepared(&self) -> bool {
+        self.sample_list.starmap_layout.projection_items.is_some()
+    }
+
     pub(in crate::native_app) fn cached_starmap_projection_len(&self) -> usize {
         self.sample_list
             .starmap_layout

@@ -9,7 +9,7 @@ fn app_bridge_scene_routes_primary_waveform_selection_drag() {
         .view(crate::native_app::test_support::state::view)
         .handle_message(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
-            state.apply_message(message, context);
+            state.handle_message(message, context);
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
@@ -90,7 +90,7 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
         .view(crate::native_app::test_support::state::view)
         .handle_message(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
-            state.apply_message(message, context);
+            state.handle_message(message, context);
             *captured_waveform_loading_label.borrow_mut() = state.waveform.load.label.clone();
         })
         .into_bridge();
@@ -144,7 +144,7 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
         .handle_message(move |state, message, context| {
-            state.apply_message(message, context);
+            state.handle_message(message, context);
             *captured_waveform_loading_label.borrow_mut() = state.waveform.load.label.clone();
         })
         .into_bridge();
@@ -171,7 +171,7 @@ fn app_bridge_scene_preserves_waveform_drag_during_playback_frame_refresh() {
         .view(crate::native_app::test_support::state::view)
         .handle_message(move |state, message, context| {
             captured_messages.borrow_mut().push(message.clone());
-            state.apply_message(message, context);
+            state.handle_message(message, context);
         })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));

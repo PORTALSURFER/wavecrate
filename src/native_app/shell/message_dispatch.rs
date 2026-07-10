@@ -15,6 +15,9 @@ use radiant::prelude as ui;
 use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, WaveformInteraction, sample_path_label};
+use crate::native_app::app_chrome::view_models::sample_browser::{
+    SampleBrowserFramePreparationState, prepare_sample_browser_view,
+};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 
 const FRAME_MESSAGE_PROFILE_LABEL: &str = "Frame";
@@ -27,7 +30,15 @@ impl NativeAppState {
         message: GuiMessage,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let frame_preparation_state = matches!(message, GuiMessage::Frame)
+            .then(|| SampleBrowserFramePreparationState::capture(self));
         self.apply_message(message, context);
+        if frame_preparation_state
+            .map(|state| state.requires_preparation(self))
+            .unwrap_or(true)
+        {
+            prepare_sample_browser_view(self);
+        }
     }
 
     pub(in crate::native_app) fn apply_message(

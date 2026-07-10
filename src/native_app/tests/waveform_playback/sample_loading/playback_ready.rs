@@ -410,7 +410,7 @@ fn uncached_sample_load_clears_previous_waveform_until_current_waveform_finishes
     );
     assert_eq!(state.waveform.load.label.as_deref(), Some("selected.wav"));
     assert!(state.waveform_input_blocked_by_sample_load());
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(900.0, 620.0));
     assert!(
         frame.paint_plan.contains_text("Loading selected.wav"),
@@ -468,7 +468,7 @@ fn uncached_sample_load_keeps_playing_waveform_visible_until_replacement_is_read
     );
     assert_eq!(state.audio.current_playback_span, None);
     assert_eq!(state.waveform.load.label.as_deref(), Some("selected.wav"));
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(900.0, 620.0));
     assert!(
         frame.paint_plan.contains_text("Loading selected.wav"),

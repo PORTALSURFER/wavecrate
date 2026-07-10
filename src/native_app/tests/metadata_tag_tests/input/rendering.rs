@@ -60,9 +60,9 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_without_overlay_o
 
 #[test]
 fn folder_browser_metadata_category_completion_renders_above_tag_input() {
-    let (mut baseline_state, _baseline_source_root, _baseline_selected_file) =
+    let (baseline_state, _baseline_source_root, _baseline_selected_file) =
         native_app_state_with_temp_sample("baseline-tag-target.wav");
-    let baseline_frame = crate::native_app::test_support::state::view(&mut baseline_state)
+    let baseline_frame = crate::native_app::test_support::state::view(&baseline_state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let baseline_tag_input =
         metadata_tag_text_input(&baseline_frame).expect("baseline tag input should paint");
@@ -75,7 +75,7 @@ fn folder_browser_metadata_category_completion_renders_above_tag_input() {
         };
     state.metadata.tag_draft.clear();
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let tag_input = metadata_tag_text_input(&frame).expect("tag input should paint");

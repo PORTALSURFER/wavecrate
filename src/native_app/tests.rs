@@ -71,7 +71,8 @@ type NativeRuntimeForTests = SurfaceRuntime<
     super::test_support::state::GuiMessage,
 >;
 
-fn native_runtime_for_tests(state: NativeAppState, viewport: Vector2) -> NativeRuntimeForTests {
+fn native_runtime_for_tests(mut state: NativeAppState, viewport: Vector2) -> NativeRuntimeForTests {
+    super::test_support::sample_browser::prepare_sample_browser_view(&mut state);
     let mut runtime = radiant::runtime::SurfaceRuntime::new(
         radiant::runtime::declarative_owned_command_runtime_bridge(
             state,
@@ -101,7 +102,7 @@ where
 fn project_gui_surface_for_tests(
     state: &mut NativeAppState,
 ) -> UiSurface<super::test_support::state::GuiMessage> {
-    super::test_support::state::view(state).into_surface()
+    super::test_support::state::view(&*state).into_surface()
 }
 
 fn reduce_gui_message_for_tests(
@@ -109,7 +110,7 @@ fn reduce_gui_message_for_tests(
     message: super::test_support::state::GuiMessage,
 ) -> Command<super::test_support::state::GuiMessage> {
     let mut context = ui::UiUpdateContext::default();
-    state.apply_message(message, &mut context);
+    state.handle_message(message, &mut context);
     context.into_command()
 }
 

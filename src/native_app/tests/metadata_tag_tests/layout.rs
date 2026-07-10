@@ -40,7 +40,7 @@ fn metadata_section_sits_flush_against_bottom_status_bar() {
         .tags_by_file
         .insert(selected_file, vec![String::from("kick")]);
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
         .paint_plan
@@ -201,7 +201,7 @@ fn metadata_section_collapses_to_header_only_height() {
         ),
     );
 
-    let frame = crate::native_app::test_support::state::view(&mut state)
+    let frame = crate::native_app::test_support::state::view(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
     let metadata_rect = frame
         .paint_plan
