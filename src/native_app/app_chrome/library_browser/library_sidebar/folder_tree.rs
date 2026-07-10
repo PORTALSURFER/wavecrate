@@ -1,4 +1,4 @@
-use radiant::{gui::list as list_ui, prelude as ui};
+use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::library_sidebar::FolderTreeViewModel;
@@ -61,11 +61,11 @@ fn folder_tree_window(
     .fill_height()
 }
 
-fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<list_ui::TreeGuideRow> {
+fn folder_tree_guide_rows(folders: &[VisibleFolder]) -> Vec<ui::TreeGuideRow> {
     folders
         .iter()
         .map(|folder| {
-            list_ui::TreeGuideRow::new(
+            ui::TreeGuideRow::new(
                 folder.depth,
                 folder.has_children && folder.expanded && !folder.is_source_root,
             )
