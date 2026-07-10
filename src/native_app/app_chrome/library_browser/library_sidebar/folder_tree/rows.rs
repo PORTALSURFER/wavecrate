@@ -187,18 +187,18 @@ fn folder_tree_drag_drop_state(folder: &VisibleFolder) -> ui::TreeRowDragDropSta
     }
 }
 
-pub(super) fn folder_tree_guide_style() -> list_ui::StyledTreeGuideStyle {
-    list_ui::StyledTreeGuideStyle::new(TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, SIDEBAR_ROW_STYLE)
+pub(super) fn folder_tree_guide_style() -> ui::StyledTreeGuideStyle {
+    ui::StyledTreeGuideStyle::new(TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, SIDEBAR_ROW_STYLE)
 }
 
 #[cfg(test)]
-pub(super) fn folder_tree_palette_for_tests(theme: &ui::ThemeTokens) -> list_ui::DenseRowPalette {
+pub(super) fn folder_tree_palette_for_tests(theme: &ui::ThemeTokens) -> ui::DenseRowPalette {
     list_ui::dense_row_palette_from_style(theme, SIDEBAR_ROW_STYLE)
 }
 
-pub(super) fn folder_tree_selected_hover_marker() -> list_ui::DenseRowMarkerStyle {
-    list_ui::DenseRowMarkerStyle::new(
-        list_ui::DenseRowMarkerParts::leading(FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH)
+pub(super) fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {
+    ui::DenseRowMarkerStyle::new(
+        ui::DenseRowMarkerParts::leading(FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH)
             .edge_inset(1.0)
             .vertical_inset(3.0),
         ui::ThemeTokens::default()

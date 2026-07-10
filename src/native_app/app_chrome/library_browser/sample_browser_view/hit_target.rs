@@ -1,6 +1,6 @@
+use radiant::prelude as ui;
 #[cfg(test)]
-use radiant::theme::ThemeTokens;
-use radiant::{gui::list as list_ui, prelude as ui, widgets as widget_ui};
+use radiant::{gui::list as list_ui, theme::ThemeTokens};
 
 use super::identity;
 use crate::native_app::app::GuiMessage;
@@ -121,8 +121,8 @@ fn sample_file_hit_target_builder(
         .dense_row_policy(sample_file_row_policy(model))
         .leading_marker_if(
             model.explicitly_selected || model.cut_pending || model.missing,
-            list_ui::DenseRowMarkerStyle::new(
-                list_ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+            ui::DenseRowMarkerStyle::new(
+                ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
                 if model.missing {
                     MISSING_MARKER
                 } else if model.cut_pending {
@@ -134,10 +134,7 @@ fn sample_file_hit_target_builder(
         )
         .trailing_marker_if(
             model.cached && !model.explicitly_selected && !model.copy_flash && !model.cut_pending,
-            list_ui::DenseRowMarkerStyle::new(
-                list_ui::DenseRowMarkerParts::trailing(2.0),
-                CACHED_MARKER,
-            ),
+            ui::DenseRowMarkerStyle::new(ui::DenseRowMarkerParts::trailing(2.0), CACHED_MARKER),
         )
         .outline_if(model.focused, sample_file_focus_outline());
     if let Some(palette) = sample_file_row_palette(model) {
@@ -148,13 +145,13 @@ fn sample_file_hit_target_builder(
 }
 
 fn sample_file_row_policy(model: &SampleFileHitTargetModel<'_>) -> ui::DenseRowPolicy {
-    let visual_state = widget_ui::InteractiveRowVisualStateParts {
+    let visual_state = ui::InteractiveRowVisualStateParts {
         selected: model.explicitly_selected
             || model.copy_flash
             || model.protected_source_error_flash
             || model.cut_pending
             || model.missing,
-        ..widget_ui::InteractiveRowVisualStateParts::default()
+        ..ui::InteractiveRowVisualStateParts::default()
     };
     ui::DenseRowPolicy::with_visual_state(visual_state)
         .tracked_drag_source(model.drag_active, model.drag_source)
@@ -179,12 +176,10 @@ fn sample_file_row_actions(path: String) -> ui::InteractiveRowActions<GuiMessage
         .drag_key(path, |path, drag| GuiMessage::DragSampleFile { path, drag })
 }
 
-fn sample_file_row_palette(
-    model: &SampleFileHitTargetModel<'_>,
-) -> Option<list_ui::DenseRowPalette> {
+fn sample_file_row_palette(model: &SampleFileHitTargetModel<'_>) -> Option<ui::DenseRowPalette> {
     if model.copy_flash {
         return Some(
-            list_ui::DenseRowPalette::new()
+            ui::DenseRowPalette::new()
                 .selected(COPY_FLASH_FILL)
                 .selected_hovered(COPY_FLASH_FILL)
                 .interaction_fills(COPY_FLASH_FILL, COPY_FLASH_FILL),
@@ -192,7 +187,7 @@ fn sample_file_row_palette(
     }
     if model.protected_source_error_flash {
         return Some(
-            list_ui::DenseRowPalette::new()
+            ui::DenseRowPalette::new()
                 .selected(PROTECTED_SOURCE_ERROR_FILL)
                 .selected_hovered(PROTECTED_SOURCE_ERROR_HOVER_FILL)
                 .interaction_fills(
@@ -203,7 +198,7 @@ fn sample_file_row_palette(
     }
     if model.missing {
         return Some(
-            list_ui::DenseRowPalette::new()
+            ui::DenseRowPalette::new()
                 .selected(MISSING_FILL)
                 .selected_hovered(MISSING_HOVER_FILL)
                 .interaction_fills(MISSING_HOVER_FILL, MISSING_HOVER_FILL),
@@ -211,7 +206,7 @@ fn sample_file_row_palette(
     }
     if model.cut_pending {
         return Some(
-            list_ui::DenseRowPalette::new()
+            ui::DenseRowPalette::new()
                 .selected(CUT_PENDING_FILL)
                 .selected_hovered(CUT_PENDING_HOVER_FILL)
                 .interaction_fills(CUT_PENDING_HOVER_FILL, CUT_PENDING_HOVER_FILL),
@@ -220,8 +215,8 @@ fn sample_file_row_palette(
     None
 }
 
-fn sample_file_focus_outline() -> list_ui::DenseRowOutlineStyle {
-    list_ui::DenseRowOutlineStyle::new(
+fn sample_file_focus_outline() -> ui::DenseRowOutlineStyle {
+    ui::DenseRowOutlineStyle::new(
         FOCUSED_OUTLINE_INSET,
         FOCUSED_OUTLINE,
         FOCUSED_OUTLINE_WIDTH,
@@ -241,7 +236,7 @@ pub(in crate::native_app) fn sample_file_hit_target_for_tests(
 }
 
 #[cfg(test)]
-fn sample_row_palette_for_tests() -> list_ui::DenseRowPalette {
+fn sample_row_palette_for_tests() -> ui::DenseRowPalette {
     list_ui::dense_row_palette_from_style(&ThemeTokens::default(), SAMPLE_ROW_STYLE)
 }
 
