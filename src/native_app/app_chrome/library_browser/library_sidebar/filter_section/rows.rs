@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, widgets as widget_ui, widgets::TextInputMessage};
+use radiant::{prelude as ui, widgets::TextInputMessage};
 
 mod projection;
 
@@ -413,7 +413,7 @@ fn rating_filter_toggle(
         .color_marker(Some(rating_filter_swatch_color(level, toggle.active)))
         .color_marker_side(RATING_FILTER_SWATCH_SIZE)
         .color_marker_inset(0)
-        .color_marker_align(widget_ui::ColorMarkerAlign::Center)
+        .color_marker_align(ui::ColorMarkerAlign::Center)
         .message(move |enabled| {
             GuiMessage::FolderBrowser(FolderBrowserMessage::ToggleRatingFilter(level, enabled))
         })
