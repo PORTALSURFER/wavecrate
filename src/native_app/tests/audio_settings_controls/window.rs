@@ -12,7 +12,7 @@ fn settings_auxiliary_window_is_cached_after_native_close() {
     assert!(windows[0].caches_on_close());
     assert_eq!(
         windows[0].close_policy,
-        radiant::runtime::AuxiliaryWindowClosePolicy::Hide
+        radiant::prelude::AuxiliaryWindowClosePolicy::Hide
     );
 }
 
