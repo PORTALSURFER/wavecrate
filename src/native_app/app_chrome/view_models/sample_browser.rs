@@ -59,6 +59,35 @@ pub(in crate::native_app) struct SampleBrowserViewProjection<'a> {
     help_tooltips_enabled: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::native_app) struct SampleBrowserFramePreparationState {
+    copy_flash_active: bool,
+    startup_auto_load_pending: bool,
+}
+
+impl SampleBrowserFramePreparationState {
+    pub(in crate::native_app) fn capture(state: &NativeAppState) -> Self {
+        Self {
+            copy_flash_active: state.library.folder_browser.copy_flash_active(),
+            startup_auto_load_pending: state.ui.startup.auto_load_pending,
+        }
+    }
+
+    pub(in crate::native_app) fn requires_preparation(self, state: &NativeAppState) -> bool {
+        if live_drag_defers_sample_browser_preparation(state) {
+            return false;
+        }
+        state
+            .library
+            .folder_browser
+            .visible_sample_window_needs_content_refresh()
+            || self.copy_flash_active != state.library.folder_browser.copy_flash_active()
+            || self.startup_auto_load_pending != state.ui.startup.auto_load_pending
+            || (state.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map
+                && !state.library.folder_browser.starmap_projection_prepared())
+    }
+}
+
 impl<'a> SampleBrowserViewProjection<'a> {
     pub(in crate::native_app) fn from_prepared_app_state(state: &'a NativeAppState) -> Self {
         let file_drag_active = state.library.folder_browser.file_drag_active();
