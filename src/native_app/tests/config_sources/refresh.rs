@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::app::SourceSelectionRequest;
 
 #[test]
 fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
@@ -167,10 +168,12 @@ fn selecting_loaded_cached_source_keeps_tree_visible_and_reconciles_in_backgroun
         second_source_id
     );
     let task_id = state.next_folder_task_id();
-    let request = state
+    let SourceSelectionRequest::Queued(request) = state
         .library
         .begin_select_source(first_source_id.clone(), task_id)
-        .expect("selecting a cached source should queue reconciliation");
+    else {
+        panic!("selecting a cached source should queue reconciliation");
+    };
 
     assert_eq!(
         state.library.folder_browser.selected_source_id(),

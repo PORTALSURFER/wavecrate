@@ -131,11 +131,10 @@ fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
         .expect("active source rescan");
     workflow.start_scan(&active);
 
-    assert!(
-        workflow
-            .begin_select_source(&mut browser, second_id.clone(), 34)
-            .is_none()
-    );
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, second_id.clone(), 34),
+        SourceSelectionRequest::Settled
+    ));
     assert_eq!(browser.selected_source_id(), second_id);
     assert!(browser.selected_source_loaded());
     assert!(workflow.pending_refresh_contains_for_tests(&second_id));
@@ -146,4 +145,106 @@ fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
         SourceScanFinish::Applied { .. }
     ));
     assert_eq!(workflow.next_pending_refresh_if_idle(), Some(second_id));
+}
+
+#[test]
+fn active_source_reselection_preserves_visible_tree() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let initial = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 40)
+        .expect("initial scan");
+    let source_id = initial.source_id.clone();
+    workflow.start_scan(&initial);
+    let result = scan_source_with_progress(initial, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Applied { .. }
+    ));
+    let rescan = workflow
+        .begin_source_scan(&mut browser, source_id.clone(), 41)
+        .expect("rescan");
+    workflow.start_scan(&rescan);
+    let visible_before = browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.id.clone())
+        .collect::<Vec<_>>();
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, source_id, 42),
+        SourceSelectionRequest::Settled
+    ));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>(),
+        visible_before
+    );
+}
+
+#[test]
+fn uncached_selection_reports_deferred_while_another_scan_is_active() {
+    let first = temp_dir_with_wav();
+    let second = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let active = workflow
+        .begin_add_source_path(&mut browser, first.path().to_path_buf(), 50)
+        .expect("active scan");
+    workflow.start_scan(&active);
+    let pending = browser
+        .begin_add_source_path_preserving_selection(second.path().to_path_buf(), 51)
+        .expect("pending source");
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, pending.source_id.clone(), 52),
+        SourceSelectionRequest::Deferred
+    ));
+    assert!(workflow.pending_refresh_contains_for_tests(&pending.source_id));
+}
+
+#[test]
+fn missing_selection_is_not_queued_for_permanent_refresh() {
+    let first = temp_dir_with_wav();
+    let second = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let active = workflow
+        .begin_add_source_path(&mut browser, first.path().to_path_buf(), 60)
+        .expect("active scan");
+    workflow.start_scan(&active);
+    let pending = browser
+        .begin_add_source_path_preserving_selection(second.path().to_path_buf(), 61)
+        .expect("pending source");
+    let source_id = pending.source_id.clone();
+    drop(second);
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, source_id.clone(), 62),
+        SourceSelectionRequest::Settled
+    ));
+    assert!(!workflow.pending_refresh_contains_for_tests(&source_id));
+}
+
+#[test]
+fn duplicate_add_is_blocked_while_its_scan_is_active() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let active = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 70)
+        .expect("active scan");
+    workflow.start_scan(&active);
+
+    assert!(
+        workflow
+            .begin_add_source_path(&mut browser, root.path().to_path_buf(), 71)
+            .is_none()
+    );
+    assert_eq!(workflow.progress().unwrap().task_id, active.task_id);
+    assert!(browser.scan_is_active(&active.source_id, active.task_id));
 }

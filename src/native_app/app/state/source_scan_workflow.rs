@@ -37,6 +37,12 @@ pub(in crate::native_app) enum SourceRefreshRequest {
     Deferred { source_id: String },
 }
 
+pub(in crate::native_app) enum SourceSelectionRequest {
+    Queued(FolderScanRequest),
+    Deferred,
+    Settled,
+}
+
 pub(in crate::native_app) enum SourceScanFinish {
     Applied {
         source_id: String,
@@ -73,6 +79,12 @@ impl SourceScanWorkflow {
         root: PathBuf,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
+        if self.active() {
+            if let Some(source_id) = browser.source_id_for_root_path(&root) {
+                let _ = self.begin_select_source(browser, source_id, task_id);
+            }
+            return None;
+        }
         browser.begin_add_source_path(root, task_id)
     }
 
@@ -82,6 +94,14 @@ impl SourceScanWorkflow {
         root: PathBuf,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
+        if self.active() {
+            if let Some(source_id) = browser.source_id_for_root_path(&root)
+                && !browser.source_is_missing(&source_id)
+            {
+                self.pending_refreshes.insert(source_id);
+            }
+            return None;
+        }
         browser.begin_add_source_path_preserving_selection(root, task_id)
     }
 
@@ -90,20 +110,33 @@ impl SourceScanWorkflow {
         browser: &mut FolderBrowserState,
         id: String,
         task_id: u64,
-    ) -> Option<FolderScanRequest> {
+    ) -> SourceSelectionRequest {
         if self.active() {
             let active_source_id = self
                 .progress
                 .as_ref()
                 .map(|progress| progress.source_id.as_str());
-            if browser.select_source_without_scan(id.clone())
-                && active_source_id != Some(id.as_str())
-            {
-                self.pending_refreshes.insert(id);
+            if active_source_id == Some(id.as_str()) {
+                return SourceSelectionRequest::Settled;
             }
-            return None;
+            if !browser.select_source_without_scan(id.clone()) {
+                return SourceSelectionRequest::Settled;
+            }
+            if browser.source_is_missing(&id) {
+                self.pending_refreshes.remove(&id);
+                return SourceSelectionRequest::Settled;
+            }
+            self.pending_refreshes.insert(id);
+            return if browser.selected_source_loaded() {
+                SourceSelectionRequest::Settled
+            } else {
+                SourceSelectionRequest::Deferred
+            };
         }
-        browser.begin_select_source(id, task_id)
+        browser
+            .begin_select_source(id, task_id)
+            .map(SourceSelectionRequest::Queued)
+            .unwrap_or(SourceSelectionRequest::Settled)
     }
 
     pub(in crate::native_app) fn begin_source_scan(
