@@ -5,6 +5,7 @@ use super::*;
 struct RemappedSource {
     index: usize,
     root: PathBuf,
+    previous_root: PathBuf,
     id: SourceId,
     started_at: Instant,
 }
@@ -40,19 +41,52 @@ impl AppController {
             );
             return Err(error);
         }
-        let existing_source = &self.library.sources[index];
-        copy_source_database_if_needed(existing_source, &normalized, started_at)?;
-        prepare_database_for_remap(existing_source, &normalized, started_at)?;
+        let previous_root = self.library.sources[index].root.clone();
         self.commit_remapped_source(RemappedSource {
             index,
             root: normalized,
+            previous_root,
             id: source_id,
             started_at,
         })
     }
 
     fn commit_remapped_source(&mut self, remap: RemappedSource) -> Result<(), String> {
-        self.library.sources[remap.index].root = remap.root;
+        let previous_source = self.library.sources[remap.index].clone();
+        self.library.sources[remap.index].root = remap.root.clone();
+        if let Err(err) = self.persist_config("Failed to save config after remapping source") {
+            self.library.sources[remap.index].root = remap.previous_root;
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(remap.id.as_str()),
+                "error",
+                remap.started_at,
+                Some(&err),
+            );
+            return Err(err);
+        }
+        let artifacts = RemapArtifactSnapshot::new(&remap.root);
+        let prepare_result =
+            copy_source_database_if_needed(&previous_source, &remap.root, remap.started_at)
+                .and_then(|()| {
+                    prepare_database_for_remap(&previous_source, &remap.root, remap.started_at)
+                });
+        if let Err(error) = prepare_result {
+            self.library.sources[remap.index].root = remap.previous_root;
+            artifacts.remove_created();
+            let error = match self.persist_config("Failed to restore config after remap failure") {
+                Ok(()) => error,
+                Err(rollback_error) => format!("{error}; {rollback_error}"),
+            };
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(remap.id.as_str()),
+                "error",
+                remap.started_at,
+                Some(&error),
+            );
+            return Err(error);
+        }
         self.library.missing.sources.remove(&remap.id);
         let mut invalidator = source_cache_invalidator::SourceCacheInvalidator::new_from_state(
             &mut self.cache,
@@ -64,16 +98,6 @@ impl AppController {
         if self.selection_state.ctx.selected_source.as_ref() == Some(&remap.id) {
             self.clear_wavs();
             self.selection_state.ctx.selected_source = Some(remap.id.clone());
-        }
-        if let Err(err) = self.persist_config("Failed to save config after remapping source") {
-            record_source_lifecycle_event(
-                "sources.remap",
-                Some(remap.id.as_str()),
-                "error",
-                remap.started_at,
-                Some(&err),
-            );
-            return Err(err);
         }
         self.refresh_sources_ui();
         self.queue_wav_load();
@@ -87,6 +111,51 @@ impl AppController {
         );
         Ok(())
     }
+}
+
+struct RemapArtifactSnapshot {
+    paths: Vec<(PathBuf, bool)>,
+}
+
+impl RemapArtifactSnapshot {
+    fn new(root: &Path) -> Self {
+        let database = crate::sample_sources::database_path_for(root);
+        let paths = [
+            database.clone(),
+            path_with_suffix(&database, "-wal"),
+            path_with_suffix(&database, "-shm"),
+            path_with_suffix(&database, "-journal"),
+        ]
+        .into_iter()
+        .map(|path| {
+            let existed = path.exists();
+            (path, existed)
+        })
+        .collect();
+        Self { paths }
+    }
+
+    fn remove_created(&self) {
+        for (path, existed) in &self.paths {
+            if !existed {
+                match fs::remove_file(path) {
+                    Ok(()) => {}
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(err) => tracing::warn!(
+                        path = %path.display(),
+                        error = %err,
+                        "Failed to remove remap database artifact after rollback"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut value = path.as_os_str().to_os_string();
+    value.push(suffix);
+    PathBuf::from(value)
 }
 
 fn validate_remap_source_root(

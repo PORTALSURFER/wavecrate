@@ -95,3 +95,96 @@ fn removing_source_rolls_back_when_config_save_fails() {
     );
     assert_ne!(controller.ui.status.text, "Source removed");
 }
+
+#[test]
+fn adding_source_publishes_no_runtime_state_when_config_save_fails() {
+    let (mut controller, original_source) = dummy_controller();
+    controller.library.sources.push(original_source.clone());
+    controller.cache_db(&original_source).unwrap();
+    let added_root = tempfile::tempdir().expect("create source root");
+    let selected_before = controller.selected_source_id();
+    let source_count_before = controller.library.sources.len();
+    let db_cache_count_before = controller.cache.db.len();
+    let ui_rows_before = controller.ui.sources.rows.len();
+    let config_blocker = tempfile::NamedTempFile::new().expect("create config blocker file");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_blocker.path().to_path_buf());
+
+    let error = controller
+        .add_source_from_path(added_root.path().to_path_buf())
+        .expect_err("config persistence must fail");
+
+    assert!(error.contains("Failed to save config after adding source"));
+    assert_eq!(controller.library.sources.len(), source_count_before);
+    assert_eq!(controller.library.sources[0].id, original_source.id);
+    assert_eq!(controller.selected_source_id(), selected_before);
+    assert_eq!(controller.cache.db.len(), db_cache_count_before);
+    assert_eq!(controller.ui.sources.rows.len(), ui_rows_before);
+}
+
+#[test]
+fn remapping_source_rolls_back_runtime_and_created_artifacts_when_config_save_fails() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::KEEP_1,
+    )]);
+    let old_root = source.root.clone();
+    let new_root = tempfile::tempdir().expect("create remap root");
+    let new_database = crate::sample_sources::database_path_for(new_root.path());
+    let selected_before = controller.selected_source_id();
+    let db_cache_before = controller.cache.db.get(&source.id).unwrap().clone();
+    let wav_cache_count_before = controller.cache.wav.entries.len();
+    let missing_before = controller.library.missing.sources.clone();
+    let config_blocker = tempfile::NamedTempFile::new().expect("create config blocker file");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_blocker.path().to_path_buf());
+
+    let error = controller
+        .remap_source_to(0, new_root.path().to_path_buf())
+        .expect_err("config persistence must fail");
+
+    assert!(error.contains("Failed to save config after remapping source"));
+    assert_eq!(controller.library.sources[0].root, old_root);
+    assert_eq!(controller.selected_source_id(), selected_before);
+    assert!(std::rc::Rc::ptr_eq(
+        controller.cache.db.get(&source.id).unwrap(),
+        &db_cache_before
+    ));
+    assert_eq!(controller.cache.wav.entries.len(), wav_cache_count_before);
+    assert_eq!(controller.library.missing.sources, missing_before);
+    for artifact in [
+        new_database.clone(),
+        std::path::PathBuf::from(format!("{}-wal", new_database.display())),
+        std::path::PathBuf::from(format!("{}-shm", new_database.display())),
+        std::path::PathBuf::from(format!("{}-journal", new_database.display())),
+    ] {
+        assert!(
+            !artifact.exists(),
+            "orphan artifact: {}",
+            artifact.display()
+        );
+    }
+}
+
+#[test]
+fn remapping_source_publishes_runtime_changes_after_persistence_and_db_prepare() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::KEEP_1,
+    )]);
+    let new_root = tempfile::tempdir().expect("create remap root");
+
+    controller
+        .remap_source_to(0, new_root.path().to_path_buf())
+        .expect("remap source");
+
+    assert_eq!(controller.library.sources[0].root, new_root.path());
+    assert_eq!(controller.selected_source_id(), Some(source.id.clone()));
+    assert_eq!(
+        controller.cache.db.get(&source.id).unwrap().root(),
+        new_root.path()
+    );
+    assert!(crate::sample_sources::database_path_for(new_root.path()).is_file());
+    assert_eq!(controller.ui.status.text, "Source remapped");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
+}
