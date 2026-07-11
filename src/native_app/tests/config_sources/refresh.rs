@@ -130,7 +130,7 @@ fn selecting_missing_source_reports_missing_status_without_scan() {
 }
 
 #[test]
-fn selecting_loaded_cached_source_does_not_queue_folder_tree_refresh() {
+fn selecting_loaded_cached_source_keeps_tree_visible_and_reconciles_in_background() {
     let first_root = tempfile::tempdir().expect("first source root");
     let second_root = tempfile::tempdir().expect("second source root");
     write_test_wav_i16(&first_root.path().join("first.wav"), &[0, 512, -512]);
@@ -166,9 +166,11 @@ fn selecting_loaded_cached_source_does_not_queue_folder_tree_refresh() {
         state.library.folder_browser.selected_source_id(),
         second_source_id
     );
-    let mut context = ui::UiUpdateContext::default();
-
-    state.select_source(first_source_id.clone(), &mut context);
+    let task_id = state.next_folder_task_id();
+    let request = state
+        .library
+        .begin_select_source(first_source_id.clone(), task_id)
+        .expect("selecting a cached source should queue reconciliation");
 
     assert_eq!(
         state.library.folder_browser.selected_source_id(),
@@ -177,11 +179,19 @@ fn selecting_loaded_cached_source_does_not_queue_folder_tree_refresh() {
     assert!(state.library.folder_browser.selected_source_loaded());
     assert!(
         state.background.folder_tree_refresh_task.active().is_none(),
-        "source switching must use the cached tree without queueing a whole-tree refresh"
+        "source switching should reconcile through the source scan worker"
     );
+    state.library.start_folder_scan(&request);
+    let progress = state
+        .library
+        .folder_progress()
+        .expect("selecting a loaded cached source should start a background scan");
     assert!(
-        state.library.folder_progress().is_none(),
-        "selecting a loaded cached source must not start a foreground scan"
+        state
+            .library
+            .folder_browser
+            .scan_is_active(&first_source_id, progress.task_id),
+        "the selected source should own the queued reconciliation scan"
     );
 }
 

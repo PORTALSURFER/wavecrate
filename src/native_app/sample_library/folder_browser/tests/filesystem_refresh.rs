@@ -487,6 +487,58 @@ fn selected_source_refresh_prunes_deleted_cached_files_on_finish() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn reselecting_loaded_source_reconciles_disk_without_clearing_cached_tree() {
+    let root = temp_source_root("wavecrate-gui-source-reselect-reconcile");
+    let drums = root.join("drums");
+    let stale_sample = drums.join("stale.wav");
+    let fresh_sample = drums.join("fresh.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&stale_sample, [0_u8; 8]).expect("write stale sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    let source_id = browser.selected_source_id().to_string();
+    fs::remove_file(&stale_sample).expect("remove stale sample");
+    fs::write(&fresh_sample, [0_u8; 8]).expect("write fresh sample");
+
+    let request = browser
+        .begin_select_source(source_id.clone(), 95)
+        .expect("reselecting a loaded source should queue reconciliation");
+    assert_eq!(browser.selected_folder_path(), Some(drums.clone()));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["stale.wav"],
+        "the cached listing should remain visible while reconciliation runs"
+    );
+    assert!(
+        browser.begin_select_source(source_id, 96).is_none(),
+        "repeated selection must not queue a duplicate scan"
+    );
+
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    assert!(browser.apply_scan_finished(result));
+    assert_eq!(
+        browser.selected_folder_path(),
+        Some(drums.clone()),
+        "reconciliation should preserve a selected folder that still exists"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["fresh.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[test]
 fn completed_scan_discovery_prunes_deleted_root_child_before_finish() {
     let root = temp_source_root("wavecrate-gui-source-discovery-prune-root");

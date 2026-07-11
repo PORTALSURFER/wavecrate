@@ -52,6 +52,9 @@ impl FolderBrowserState {
         let mut source = SourceEntry::new(id.clone(), label.clone(), root.clone());
         source.loading_task = Some(task_id);
         let database_root = source.database_root.clone();
+        if select_source {
+            self.park_selected_source_tree();
+        }
         self.source.sources.push(source);
         if select_source {
             self.select_pending_source(id.clone(), placeholder_folder(&root));
@@ -111,15 +114,40 @@ impl FolderBrowserState {
             self.select_cached_or_placeholder_source(index);
             return None;
         }
-        if self.source.selected_source == id && self.selected_source_loaded() {
-            return None;
+        let selected_loaded = self.source.selected_source == id && self.selected_source_loaded();
+        if selected_loaded {
+            if self.source.sources[index].loading_task.is_some() {
+                return None;
+            }
+            self.source.sources[index].loading_task = Some(task_id);
+            let source = self.source.sources[index].clone();
+            return Some(FolderScanRequest {
+                task_id,
+                source_id: source.id,
+                label: source.label,
+                root: source.root,
+                database_root: source.database_root,
+                rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
+            });
         }
         if self.source.selected_source != id {
             self.park_selected_source_tree();
         }
         if let Some(root_folder) = self.source.sources[index].root_folder.take() {
             self.select_loaded_source(id, root_folder);
-            return None;
+            if self.source.sources[index].loading_task.is_some() {
+                return None;
+            }
+            self.source.sources[index].loading_task = Some(task_id);
+            let source = self.source.sources[index].clone();
+            return Some(FolderScanRequest {
+                task_id,
+                source_id: source.id,
+                label: source.label,
+                root: source.root,
+                database_root: source.database_root,
+                rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
+            });
         }
         if self.source.sources[index].loading_task.is_some() {
             let root = self.source.sources[index].root.clone();
