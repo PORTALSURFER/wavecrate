@@ -56,8 +56,8 @@ fn bridge_reprojects_after_async_waveform_image_arrival() {
         .waveform_image
         .as_ref()
         .expect("async waveform image should be projected");
-    assert_eq!(waveform_image.width, 1);
-    assert_eq!(waveform_image.height, 1);
+    assert_eq!(waveform_image.width(), 1);
+    assert_eq!(waveform_image.height(), 1);
 }
 
 /// Projecting an arrived async image should not immediately schedule another image render.
