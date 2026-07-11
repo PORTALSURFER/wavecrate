@@ -46,7 +46,21 @@ pub fn sync_paths_with_progress(
             return Err(ScanError::Canceled);
         }
         let absolute = root.join(&relative_path);
-        let prepared_file = prepare_diff(&root, &absolute, &context)?;
+        let prepared_file = match prepare_diff(&root, &absolute, &context) {
+            Ok(prepared) => prepared,
+            Err(error) if committed => {
+                if absolute.exists() {
+                    context.existing.remove(&relative_path);
+                }
+                tracing::warn!(
+                    path = %absolute.display(),
+                    error = %error,
+                    "Skipping targeted file after an earlier chunk committed"
+                );
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
         prepared.push(prepared_file);
         context.stats.total_files += 1;
         on_progress(context.stats.total_files, &absolute);
@@ -59,6 +73,7 @@ pub fn sync_paths_with_progress(
                 cancel.filter(|_| !committed),
                 &mut context,
                 chunk,
+                committed,
             )?;
         }
     }
@@ -69,6 +84,7 @@ pub fn sync_paths_with_progress(
             cancel.filter(|_| !committed),
             &mut context,
             prepared,
+            committed,
         )?;
     }
     db_sync_phase(db, &mut context)?;

@@ -68,6 +68,7 @@ pub(super) fn walk_phase(
                     cancel.filter(|_| !committed.get()),
                     context,
                     files,
+                    committed.get(),
                 )? {
                     committed.set(true);
                 }
@@ -82,6 +83,7 @@ pub(super) fn walk_phase(
             cancel.filter(|_| !committed.get()),
             context,
             pending,
+            committed.get(),
         )?
     {
         committed.set(true);
@@ -95,6 +97,7 @@ pub(super) fn apply_prepared_chunk(
     cancel: Option<&AtomicBool>,
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
 ) -> Result<bool, ScanError> {
     let mut pending = Vec::with_capacity(prepared.len());
     for file in prepared {
@@ -107,7 +110,7 @@ pub(super) fn apply_prepared_chunk(
     if pending.is_empty() {
         return Ok(false);
     }
-    apply_batch(db, root, cancel, context, pending)
+    apply_batch(db, root, cancel, context, pending, tolerate_file_errors)
 }
 
 pub(super) fn skip_noop(context: &mut ScanContext, prepared: &PreparedFile) {
@@ -128,11 +131,25 @@ fn apply_batch(
     cancel: Option<&AtomicBool>,
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
 ) -> Result<bool, ScanError> {
     let mut ready = Vec::with_capacity(prepared.len());
     for file in prepared {
         let relative_path = file.facts.relative.clone();
-        match prepare_for_apply(root, cancel, file)? {
+        let outcome = match prepare_for_apply(root, cancel, file) {
+            Ok(outcome) => outcome,
+            Err(error) if tolerate_file_errors => {
+                skip_changed_or_unavailable(context, root, &relative_path);
+                tracing::warn!(
+                    path = %root.join(&relative_path).display(),
+                    error = %error,
+                    "Skipping file preparation failure after an earlier scan batch committed"
+                );
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        match outcome {
             PrepareForApply::Ready(file) => ready.push(file),
             PrepareForApply::Gone => {}
             PrepareForApply::Skip => {
@@ -152,10 +169,25 @@ fn apply_batch(
     }
     let mut batch = db.write_batch()?;
     for file in ready {
+        let relative_path = file.facts.relative.clone();
+        let absolute = root.join(&relative_path);
+        match read_facts(root, &absolute) {
+            Ok(current) if facts_match(&file, &current) => {}
+            _ => {
+                skip_changed_or_unavailable(context, root, &relative_path);
+                continue;
+            }
+        }
         apply_diff(db, &mut batch, file, context, root)?;
     }
     batch.commit()?;
     Ok(true)
+}
+
+fn skip_changed_or_unavailable(context: &mut ScanContext, root: &Path, relative_path: &Path) {
+    if root.join(relative_path).exists() {
+        context.existing.remove(relative_path);
+    }
 }
 
 enum PrepareForApply {

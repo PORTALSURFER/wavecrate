@@ -336,8 +336,14 @@ fn take_rename_candidate_by_hash(
     let Some(path) = path else {
         return Ok(None);
     };
+    let Some(entry) = db.entry_for_path(&path)? else {
+        return Ok(None);
+    };
+    if entry.content_hash.as_deref() != Some(hash) {
+        return Ok(None);
+    }
     let _ = context.existing.remove(&path);
-    Ok(db.entry_for_path(&path)?)
+    Ok(Some(entry))
 }
 
 fn take_rename_candidate_by_facts(
@@ -356,8 +362,14 @@ fn take_rename_candidate_by_facts(
     let Some(path) = path else {
         return Ok(None);
     };
+    let Some(entry) = db.entry_for_path(&path)? else {
+        return Ok(None);
+    };
+    if entry.file_size != size || entry.modified_ns != modified_ns {
+        return Ok(None);
+    }
     let _ = context.existing.remove(&path);
-    Ok(db.entry_for_path(&path)?)
+    Ok(Some(entry))
 }
 
 fn unique_existing_path(
