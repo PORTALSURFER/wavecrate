@@ -15,8 +15,6 @@ mod handle;
 use builder::{BuiltStreamState, build_stream_with_state};
 use config::resolve_output_stream_config;
 pub(super) use config::resolved_output_from_stream_config;
-#[cfg(test)]
-pub(crate) use handle::monitor_sink_for_tests;
 pub use handle::{CpalAudioStream, MonitorSink};
 
 /// Stream creation result that keeps both the stream handle and resolved settings.
