@@ -4,6 +4,8 @@ use radiant::gui::types::Point;
 use std::path::{Path, PathBuf};
 use wavecrate::sample_sources::{SampleCollection, SourceRole};
 
+mod validation_worker;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum BrowserContextTargetKind {
     Source,
@@ -80,27 +82,7 @@ pub(in crate::native_app) fn validate_open_target(
     kind: &BrowserContextTargetKind,
     path: &Path,
 ) -> Result<(), String> {
-    let exists = path
-        .try_exists()
-        .map_err(|error| format!("Cannot access {}: {error}", path.display()))?;
-    if !exists {
-        return Err(missing_target_message(kind).to_string());
-    }
-
-    match kind {
-        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder if !path.is_dir() => {
-            Err(format!("Not a folder: {}", path.display()))
-        }
-        BrowserContextTargetKind::Sample if !path.is_file() => {
-            Err(format!("Not a file: {}", path.display()))
-        }
-        BrowserContextTargetKind::Collection | BrowserContextTargetKind::MetadataTag => {
-            Err(missing_target_message(kind).to_string())
-        }
-        BrowserContextTargetKind::Source
-        | BrowserContextTargetKind::Folder
-        | BrowserContextTargetKind::Sample => Ok(()),
-    }
+    validation_worker::validate_open_target(kind, path)
 }
 
 pub(in crate::native_app) fn missing_target_message(
