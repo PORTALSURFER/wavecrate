@@ -146,13 +146,15 @@ mod tests {
         write_test_wav(&staged_absolute, &[0.0, 0.2, -0.2]);
         let entry = file_ops_journal::FileOpJournalEntry::new_copy(
             op_id.clone(),
-            relative,
-            staged_relative,
-            Rating::NEUTRAL,
-            false,
-            false,
-            None,
-            None,
+            file_ops_journal::CopyJournalEntryInit {
+                target_relative: relative,
+                staged_relative,
+                tag: Rating::NEUTRAL,
+                looped: false,
+                locked: false,
+                last_played_at: None,
+                last_curated_at: None,
+            },
         )
         .unwrap();
         file_ops_journal::insert_entry(&db, &entry).unwrap();
@@ -189,13 +191,15 @@ mod tests {
         write_test_wav(&staged_absolute, &[0.0, 0.1, -0.1]);
         let entry = file_ops_journal::FileOpJournalEntry::new_copy(
             op_id.clone(),
-            relative.clone(),
-            staged_relative.clone(),
-            Rating::NEUTRAL,
-            false,
-            false,
-            None,
-            None,
+            file_ops_journal::CopyJournalEntryInit {
+                target_relative: relative.clone(),
+                staged_relative: staged_relative.clone(),
+                tag: Rating::NEUTRAL,
+                looped: false,
+                locked: false,
+                last_played_at: None,
+                last_curated_at: None,
+            },
         )
         .unwrap();
         file_ops_journal::insert_entry(&context.db, &entry).unwrap();
