@@ -11,6 +11,12 @@ pub(in crate::native_app::sample_library::folder_browser) fn merge_scan_discover
         return false;
     };
     match &event.item {
+        FolderScanItem::ResetFolder => {
+            let changed = !parent.children.is_empty() || !parent.files.is_empty();
+            parent.children.clear();
+            parent.files.clear();
+            changed
+        }
         FolderScanItem::Folder(folder) => {
             insert_discovered_folder(&mut parent.children, folder.clone())
         }
@@ -74,5 +80,44 @@ pub(in crate::native_app::sample_library::folder_browser) fn upsert_file(
             files.insert(index, file);
             true
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use wavecrate::sample_sources::Rating;
+
+    #[test]
+    fn folder_snapshot_start_prunes_stale_cached_children() {
+        let mut root = FolderEntry {
+            id: String::from("root"),
+            name: String::from("root"),
+            children: vec![FolderEntry {
+                id: String::from("root/stale"),
+                name: String::from("stale"),
+                children: Vec::new(),
+                files: Vec::new(),
+            }],
+            files: vec![FileEntry::missing_collection_member(
+                Path::new("root/stale.wav"),
+                Rating::NEUTRAL,
+                false,
+                Vec::new(),
+                None,
+                None,
+            )],
+        };
+        let event = FolderScanDiscovery {
+            task_id: 1,
+            source_id: String::from("source"),
+            parent_id: String::from("root"),
+            item: FolderScanItem::ResetFolder,
+        };
+
+        assert!(merge_scan_discovery(&mut root, &event));
+        assert!(root.children.is_empty());
+        assert!(root.files.is_empty());
     }
 }

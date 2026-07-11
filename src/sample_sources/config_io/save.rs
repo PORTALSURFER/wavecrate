@@ -48,7 +48,15 @@ pub fn reserve_save_revision() -> u64 {
 /// Settings are written to TOML while sources are stored in SQLite.
 pub fn save(config: &AppConfig) -> Result<(), ConfigError> {
     let revision = reserve_save_revision();
-    save_if_revision_current(config, revision).map(|_| ())
+    require_current_save(save_if_revision_current(config, revision)?)
+}
+
+fn require_current_save(saved: bool) -> Result<(), ConfigError> {
+    if saved {
+        Ok(())
+    } else {
+        Err(ConfigError::SaveSuperseded)
+    }
 }
 
 /// Save a previously captured configuration only when no newer save was requested.
@@ -217,7 +225,7 @@ fn sync_parent_dir(dir: &Path) -> Result<(), ConfigError> {
 
 #[cfg(test)]
 mod revision_tests {
-    use super::SaveRevisionGate;
+    use super::{ConfigError, SaveRevisionGate, require_current_save};
     use std::cell::Cell;
 
     #[test]
@@ -242,5 +250,13 @@ mod revision_tests {
             Ok(true)
         );
         assert_eq!(writes.get(), 1);
+    }
+
+    #[test]
+    fn direct_save_reports_superseded_revision() {
+        assert!(matches!(
+            require_current_save(false),
+            Err(ConfigError::SaveSuperseded)
+        ));
     }
 }

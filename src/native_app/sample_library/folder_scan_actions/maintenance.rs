@@ -17,6 +17,7 @@ pub(super) struct FolderScanMaintenanceRequest {
     pub(super) sources: Vec<SampleSource>,
     pub(super) audio_file_paths: Vec<PathBuf>,
     pub(super) scan_cache_update: FolderScanCacheUpdate,
+    pub(super) scan_cache_revision: u64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -45,7 +46,9 @@ pub(super) fn persist_folder_scan_maintenance(
     let config_error = save_if_revision_current(&request.config, request.config_revision)
         .err()
         .map(|error| error.to_string());
-    let scan_cache_error = apply_folder_scan_cache_update(request.scan_cache_update).err();
+    let scan_cache_error =
+        apply_folder_scan_cache_update(request.scan_cache_update, request.scan_cache_revision)
+            .err();
     let harvest_errors = request
         .audio_file_paths
         .iter()

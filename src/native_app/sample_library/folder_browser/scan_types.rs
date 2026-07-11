@@ -33,6 +33,7 @@ pub(in crate::native_app) struct FolderScanProgress {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FolderScanItem {
+    ResetFolder,
     Folder(FolderEntry),
     File(FileEntry),
 }

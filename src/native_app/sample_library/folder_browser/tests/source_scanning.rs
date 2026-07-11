@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::scan_types::FolderScanItem;
 #[test]
 fn source_scan_installs_finished_tree_after_placeholder_selection() {
     let root = temp_source_root("wavecrate-gui-source-scan");
@@ -327,6 +328,10 @@ fn batched_scan_discoveries_clone_selected_tree_once_per_batch() {
 
     let mut discovery_events = Vec::new();
     let result = scan_source_with_progress(request, |_| {}, |event| discovery_events.push(event));
+    assert!(matches!(
+        discovery_events.first().map(|event| &event.item),
+        Some(FolderScanItem::ResetFolder)
+    ));
     assert!(
         browser.apply_scan_discovered_batch(FolderScanDiscoveryBatch {
             task_id: 88,

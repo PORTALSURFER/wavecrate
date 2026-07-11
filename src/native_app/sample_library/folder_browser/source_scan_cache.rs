@@ -1,6 +1,10 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::{
+        LazyLock, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +15,41 @@ use super::{
 
 const SOURCE_SCAN_CACHE_FILE_NAME: &str = "source-scan-cache.json";
 const SOURCE_SCAN_CACHE_VERSION: u32 = 2;
+
+#[derive(Default)]
+struct CacheSaveRevisionGate {
+    revision: AtomicU64,
+    lock: Mutex<()>,
+}
+
+impl CacheSaveRevisionGate {
+    fn reserve(&self) -> u64 {
+        self.revision.fetch_add(1, Ordering::AcqRel).wrapping_add(1)
+    }
+
+    fn run_if_current(
+        &self,
+        revision: u64,
+        write: impl FnOnce() -> Result<(), String>,
+    ) -> Result<bool, String> {
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.revision.load(Ordering::Acquire) != revision {
+            return Ok(false);
+        }
+        write()?;
+        Ok(true)
+    }
+}
+
+static CACHE_SAVE_GATE: LazyLock<CacheSaveRevisionGate> =
+    LazyLock::new(CacheSaveRevisionGate::default);
+
+pub(in crate::native_app) fn reserve_source_scan_cache_revision() -> u64 {
+    CACHE_SAVE_GATE.reserve()
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(super) struct SourceScanCache {
@@ -81,7 +120,17 @@ pub(super) fn load_source_scan_cache() -> Result<SourceScanCache, String> {
 }
 
 pub(super) fn save_source_scan_cache(sources: &[SourceEntry]) -> Result<(), String> {
-    save_source_scan_cache_to_path(&source_scan_cache_path()?, sources)
+    let path = source_scan_cache_path()?;
+    let revision = reserve_source_scan_cache_revision();
+    if CACHE_SAVE_GATE
+        .run_if_current(revision, || save_source_scan_cache_to_path(&path, sources))?
+    {
+        Ok(())
+    } else {
+        Err(String::from(
+            "source scan cache save was superseded by a newer snapshot",
+        ))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,9 +155,14 @@ pub(in crate::native_app) fn prepare_folder_scan_cache_update(
 
 pub(in crate::native_app) fn apply_folder_scan_cache_update(
     update: FolderScanCacheUpdate,
+    revision: u64,
 ) -> Result<(), String> {
     let path = source_scan_cache_path()?;
-    apply_folder_scan_cache_update_to_path(&path, update)
+    CACHE_SAVE_GATE
+        .run_if_current(revision, || {
+            apply_folder_scan_cache_update_to_path(&path, update)
+        })
+        .map(|_| ())
 }
 
 fn apply_folder_scan_cache_update_to_path(
@@ -243,6 +297,24 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_revision_gate_skips_superseded_maintenance_write() {
+        let gate = CacheSaveRevisionGate::default();
+        let stale = gate.reserve();
+        let _current = gate.reserve();
+        let mut wrote = false;
+
+        let applied = gate
+            .run_if_current(stale, || {
+                wrote = true;
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(!applied);
+        assert!(!wrote);
+    }
     use crate::native_app::sample_library::folder_browser::state_types::SourceAvailability;
     use crate::native_app::sample_library::folder_browser::{FolderEntry, model::FileEntry};
     use wavecrate::sample_sources::{Rating, SampleCollection};

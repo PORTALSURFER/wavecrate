@@ -148,6 +148,15 @@ where
         });
     }
 
+    fn record_folder_snapshot_start(&mut self, folder_id: &str) {
+        (self.discovered)(FolderScanDiscovery {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            parent_id: folder_id.to_string(),
+            item: FolderScanItem::ResetFolder,
+        });
+    }
+
     fn record_file(&mut self, path: &Path, parent_id: &str, file: FileEntry) {
         self.counter.completed += 1;
         self.counter.files += 1;
@@ -185,6 +194,7 @@ where
 {
     let entries = read_sorted_entries(path)?;
     let parent_id = path_id(path);
+    scan.record_folder_snapshot_start(&parent_id);
     let children = entries
         .iter()
         .filter(|entry| entry.is_dir())

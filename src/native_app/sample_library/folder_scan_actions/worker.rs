@@ -7,7 +7,9 @@ use crate::native_app::{
         FolderScanWorkerEvent, GuiMessage, NativeAppState, SourceScanFinish, emit_gui_action,
         run_folder_scan_worker,
     },
-    sample_library::folder_browser::scan::{FolderScanRequest, PreparedFolderScanResult},
+    sample_library::folder_browser::scan::{
+        FolderScanRequest, PreparedFolderScanResult, reserve_source_scan_cache_revision,
+    },
     sample_library::source_prep::SourcePrepTrigger,
 };
 use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
@@ -117,6 +119,7 @@ impl NativeAppState {
             sources,
             audio_file_paths,
             scan_cache_update,
+            scan_cache_revision: reserve_source_scan_cache_revision(),
         };
         #[cfg(test)]
         {
