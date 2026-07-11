@@ -47,29 +47,32 @@ pub(crate) enum AnnHnsw {
 }
 
 impl AnnHnsw {
-    fn graph(&self) -> &Hnsw<'static, f32, DistCosine> {
+    pub(crate) fn insert(&self, embedding_with_id: (&[f32], usize)) {
         match self {
-            Self::Built(hnsw) => hnsw,
-            Self::Loaded(hnsw) => hnsw.graph(),
+            Self::Built(hnsw) => hnsw.insert(embedding_with_id),
+            Self::Loaded(hnsw) => hnsw.insert(embedding_with_id),
         }
     }
 
-    pub(crate) fn insert(&self, embedding_with_id: (&[f32], usize)) {
-        self.graph().insert(embedding_with_id);
-    }
-
     pub(crate) fn search(&self, embedding: &[f32], requested: usize, ef: usize) -> Vec<Neighbour> {
-        self.graph().search(embedding, requested, ef)
+        match self {
+            Self::Built(hnsw) => hnsw.search(embedding, requested, ef),
+            Self::Loaded(hnsw) => hnsw.search(embedding, requested, ef),
+        }
     }
 
     pub(crate) fn file_dump(&self, dir: &Path, basename: &str) -> Result<String, String> {
-        self.graph()
-            .file_dump(dir, basename)
-            .map_err(|err| err.to_string())
+        match self {
+            Self::Built(hnsw) => hnsw.file_dump(dir, basename).map_err(|err| err.to_string()),
+            Self::Loaded(hnsw) => hnsw.file_dump(dir, basename),
+        }
     }
 
     pub(crate) fn get_nb_point(&self) -> usize {
-        self.graph().get_nb_point()
+        match self {
+            Self::Built(hnsw) => hnsw.get_nb_point(),
+            Self::Loaded(hnsw) => hnsw.get_nb_point(),
+        }
     }
 }
 
@@ -128,13 +131,22 @@ impl LoadedAnnHnsw {
         })
     }
 
-    fn graph(&self) -> &Hnsw<'static, f32, DistCosine> {
-        &self.hnsw
+    fn insert(&self, embedding_with_id: (&[f32], usize)) {
+        self.hnsw.insert(embedding_with_id);
     }
 
-    #[cfg(test)]
+    fn search(&self, embedding: &[f32], requested: usize, ef: usize) -> Vec<Neighbour> {
+        self.hnsw.search(embedding, requested, ef)
+    }
+
+    fn file_dump(&self, dir: &Path, basename: &str) -> Result<String, String> {
+        self.hnsw
+            .file_dump(dir, basename)
+            .map_err(|err| err.to_string())
+    }
+
     pub(crate) fn get_nb_point(&self) -> usize {
-        self.graph().get_nb_point()
+        self.hnsw.get_nb_point()
     }
 }
 
