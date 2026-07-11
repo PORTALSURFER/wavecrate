@@ -12,7 +12,13 @@ mod tests;
 
 pub(in crate::native_app) struct SourceScanWorkflow {
     progress: Option<FolderScanProgress>,
-    pending_refreshes: VecDeque<String>,
+    pending_refreshes: VecDeque<PendingSourceRefresh>,
+}
+
+struct PendingSourceRefresh {
+    source_id: String,
+    selection_requested: bool,
+    scan_required: bool,
 }
 
 pub(in crate::native_app) enum SourceFilesystemChangePlan {
@@ -83,6 +89,8 @@ impl SourceScanWorkflow {
         if self.active() {
             if let Some(source_id) = browser.source_id_for_root_path(&root) {
                 let _ = self.begin_select_source(browser, source_id, task_id);
+            } else if let Some(source_id) = browser.defer_add_source_path(root, true) {
+                self.queue_required_refresh(source_id);
             }
             return None;
         }
@@ -99,7 +107,9 @@ impl SourceScanWorkflow {
             if let Some(source_id) = browser.source_id_for_root_path(&root)
                 && !browser.source_is_missing(&source_id)
             {
-                self.queue_pending_refresh(source_id);
+                self.queue_required_refresh(source_id);
+            } else if let Some(source_id) = browser.defer_add_source_path(root, false) {
+                self.queue_required_refresh(source_id);
             }
             return None;
         }
@@ -119,7 +129,7 @@ impl SourceScanWorkflow {
                 .map(|progress| progress.source_id.as_str());
             if active_source_id == Some(id.as_str()) {
                 let _ = browser.select_source_without_scan(id.clone());
-                self.remove_pending_refresh(&id);
+                self.clear_pending_selection(&id);
                 return SourceSelectionRequest::Settled;
             }
             if !browser.select_source_without_scan(id.clone()) {
@@ -129,7 +139,7 @@ impl SourceScanWorkflow {
                 self.remove_pending_refresh(&id);
                 return SourceSelectionRequest::Settled;
             }
-            self.queue_pending_refresh(id);
+            self.queue_pending_selection(id);
             return if browser.selected_source_loaded() {
                 SourceSelectionRequest::Settled
             } else {
@@ -215,7 +225,7 @@ impl SourceScanWorkflow {
             };
         }
         if self.active() {
-            self.queue_pending_refresh(source_id.clone());
+            self.queue_required_refresh(source_id.clone());
             return SourceFilesystemChangePlan::DeferredAlreadyRunning { source_id };
         }
         SourceFilesystemChangePlan::QueueRefresh { source_id }
@@ -225,7 +235,9 @@ impl SourceScanWorkflow {
         if self.active() {
             return None;
         }
-        self.pending_refreshes.pop_back()
+        self.pending_refreshes
+            .pop_back()
+            .map(|pending| pending.source_id)
     }
 
     pub(in crate::native_app) fn begin_filesystem_refresh(
@@ -237,22 +249,57 @@ impl SourceScanWorkflow {
         if let Some(request) = browser.begin_source_scan(source_id.clone(), task_id) {
             return SourceRefreshRequest::Queued(request);
         }
-        if browser.source_is_missing(&source_id) {
+        if !browser.source_exists(&source_id) || browser.source_is_missing(&source_id) {
             self.remove_pending_refresh(&source_id);
             return SourceRefreshRequest::IgnoredMissing { source_id };
         }
-        self.queue_pending_refresh(source_id.clone());
+        self.queue_required_refresh(source_id.clone());
         SourceRefreshRequest::Deferred { source_id }
     }
 
-    fn queue_pending_refresh(&mut self, source_id: String) {
+    fn queue_pending_selection(&mut self, source_id: String) {
+        self.queue_pending_refresh(source_id, true, false);
+    }
+
+    fn queue_required_refresh(&mut self, source_id: String) {
+        self.queue_pending_refresh(source_id, false, true);
+    }
+
+    fn queue_pending_refresh(
+        &mut self,
+        source_id: String,
+        selection_requested: bool,
+        scan_required: bool,
+    ) {
+        let previous = self
+            .pending_refreshes
+            .iter()
+            .find(|pending| pending.source_id == source_id)
+            .map(|pending| (pending.selection_requested, pending.scan_required))
+            .unwrap_or_default();
         self.remove_pending_refresh(&source_id);
-        self.pending_refreshes.push_back(source_id);
+        self.pending_refreshes.push_back(PendingSourceRefresh {
+            source_id,
+            selection_requested: previous.0 || selection_requested,
+            scan_required: previous.1 || scan_required,
+        });
+    }
+
+    fn clear_pending_selection(&mut self, source_id: &str) {
+        if let Some(pending) = self
+            .pending_refreshes
+            .iter_mut()
+            .find(|pending| pending.source_id == source_id)
+        {
+            pending.selection_requested = false;
+        }
+        self.pending_refreshes
+            .retain(|pending| pending.selection_requested || pending.scan_required);
     }
 
     fn remove_pending_refresh(&mut self, source_id: &str) {
         self.pending_refreshes
-            .retain(|pending| pending != source_id);
+            .retain(|pending| pending.source_id != source_id);
     }
 
     pub(in crate::native_app) fn finish_scan(
@@ -293,6 +340,6 @@ impl SourceScanWorkflow {
     ) -> bool {
         self.pending_refreshes
             .iter()
-            .any(|pending| pending == source_id)
+            .any(|pending| pending.source_id == source_id)
     }
 }

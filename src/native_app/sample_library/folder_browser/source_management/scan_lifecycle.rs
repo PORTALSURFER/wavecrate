@@ -12,6 +12,38 @@ use super::super::{
 };
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn defer_add_source_path(
+        &mut self,
+        root: PathBuf,
+        select_source: bool,
+    ) -> Option<String> {
+        if let Some(source) = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.root == root)
+        {
+            return Some(source.id.clone());
+        }
+        let id = path_id(&root);
+        let label = folder_label(&root);
+        self.source
+            .sources
+            .push(SourceEntry::new(id.clone(), label, root.clone()));
+        if select_source {
+            self.park_selected_source_tree();
+            self.select_pending_source(id.clone(), placeholder_folder(&root));
+        }
+        Some(id)
+    }
+
+    pub(in crate::native_app) fn source_exists(&self, source_id: &str) -> bool {
+        self.source
+            .sources
+            .iter()
+            .any(|source| source.id == source_id)
+    }
+
     pub(in crate::native_app) fn begin_add_source_path(
         &mut self,
         root: PathBuf,
@@ -375,7 +407,13 @@ impl FolderBrowserState {
             self.park_selected_source_tree();
         }
         if let Some(root_folder) = self.source.sources[source_index].root_folder.take() {
-            self.select_loaded_source(source_id, root_folder);
+            let parked_tree_loaded = self.source.sources[source_index].parked_tree_loaded;
+            self.source.sources[source_index].parked_tree_loaded = false;
+            if self.source.sources[source_index].loading_task.is_some() && !parked_tree_loaded {
+                self.select_pending_source(source_id, root_folder);
+            } else {
+                self.select_loaded_source(source_id, root_folder);
+            }
         } else {
             self.select_pending_source(source_id, placeholder_folder(&source_root));
         }
