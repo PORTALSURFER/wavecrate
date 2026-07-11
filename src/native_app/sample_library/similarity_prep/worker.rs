@@ -282,12 +282,8 @@ fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
     }
     let stats = scanner::scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {})
         .map_err(|err| format!("Sync source index failed: {err}"))?;
-    if stats.hashes_pending > 0 {
-        let database_root = source
-            .database_root()
-            .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
-        scanner::schedule_deep_hash_scan_with_database_root(source.root.clone(), database_root);
-    }
+    scanner::complete_deferred_hashes(&db, stats)
+        .map_err(|err| format!("Finish deferred source hashing failed: {err}"))?;
     Ok(())
 }
 

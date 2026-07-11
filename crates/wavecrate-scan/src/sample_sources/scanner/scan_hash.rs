@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -103,10 +103,6 @@ pub(super) fn deep_hash_scan(
         &entries_by_path,
         &present_by_hash,
         &pending_by_hash,
-        &hash_backfills
-            .iter()
-            .map(|backfill| backfill.relative_path.clone())
-            .collect(),
     )?;
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
@@ -120,7 +116,6 @@ fn reconcile_missing_renames(
     entries_by_path: &HashMap<PathBuf, WavEntry>,
     present_by_hash: &HashMap<String, Vec<PathBuf>>,
     pending_by_hash: &HashMap<String, Vec<PendingRenameEntry>>,
-    backfilled_paths: &HashSet<PathBuf>,
 ) -> Result<Vec<RenamedSample>, ScanError> {
     let mut reconciled = Vec::new();
     for (hash, pending_entries) in pending_by_hash {
@@ -130,15 +125,19 @@ fn reconcile_missing_renames(
         let Some(present_paths) = present_by_hash.get(hash) else {
             continue;
         };
-        let newly_hashed = present_paths
+        let matching_facts = present_paths
             .iter()
-            .filter(|path| backfilled_paths.contains(*path))
+            .filter(|path| {
+                entries_by_path.get(*path).is_some_and(|entry| {
+                    entry.file_size == pending_entries[0].file_size
+                        && entry.modified_ns == pending_entries[0].modified_ns
+                })
+            })
             .collect::<Vec<_>>();
-        let present_path = match newly_hashed.as_slice() {
-            [path] => *path,
-            [] if present_paths.len() == 1 => &present_paths[0],
-            _ => continue,
+        let [present_path] = matching_facts.as_slice() else {
+            continue;
         };
+        let present_path = *present_path;
         let pending_entry = &pending_entries[0];
         if pending_entry.relative_path == *present_path {
             continue;

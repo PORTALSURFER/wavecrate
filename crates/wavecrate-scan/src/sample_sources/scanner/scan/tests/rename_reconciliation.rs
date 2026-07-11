@@ -1,5 +1,7 @@
 use super::*;
 use crate::sample_sources::db::SampleSoundType;
+use crate::sync_paths;
+use std::path::PathBuf;
 
 #[test]
 fn scan_detects_rename_and_preserves_tag() {
@@ -268,17 +270,19 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
     db.assign_tag_to_path(Path::new("one.wav"), "Sweep")
         .unwrap();
 
-    {
+    let original_facts = {
         let entry = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+        let facts = (entry.file_size, entry.modified_ns);
         let mut batch = db.write_batch().unwrap();
         batch.stage_pending_rename(&entry).unwrap();
         batch.remove_file(Path::new("one.wav")).unwrap();
         batch.commit().unwrap();
-    }
+        facts
+    };
     std::fs::rename(&old_path, &new_path).unwrap();
     let mut batch = db.write_batch().unwrap();
     batch
-        .upsert_file_without_hash(Path::new("two.wav"), 9 * 1024 * 1024, 0)
+        .upsert_file_without_hash(Path::new("two.wav"), original_facts.0, original_facts.1)
         .unwrap();
     batch.commit().unwrap();
 
@@ -298,6 +302,79 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Fx));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Sweep"));
     assert_eq!(rows[0].normal_tags, vec!["Sweep"]);
+    assert!(db.list_pending_renames().unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn deep_hash_scan_uses_matching_facts_to_disambiguate_backfilled_duplicates() {
+    let dir = tempdir().unwrap();
+    let original = dir.path().join("a.wav");
+    let duplicate = dir.path().join("b.wav");
+    let renamed = dir.path().join("c.wav");
+    let payload = vec![7u8; 9 * 1024 * 1024];
+    std::fs::write(&original, &payload).unwrap();
+    set_file_times(&original, 1_700_000_000, 0);
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("a.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::write(&duplicate, &payload).unwrap();
+    set_file_times(&duplicate, 1_700_000_100, 0);
+    let duplicate_scan = scan_once(&db).unwrap();
+    assert_eq!(duplicate_scan.hashes_pending, 1);
+
+    std::fs::rename(&original, &renamed).unwrap();
+    let rename_scan = scan_once(&db).unwrap();
+    assert_eq!(rename_scan.hashes_pending, 2);
+    assert_eq!(rename_scan.renames_reconciled, 0);
+
+    let deep = crate::sample_sources::scanner::scan_hash::deep_hash_scan(&db, None).unwrap();
+    assert_eq!(deep.hashes_computed, 2);
+    assert_eq!(deep.renames_reconciled, 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("b.wav")).unwrap().unwrap().tag,
+        Rating::NEUTRAL
+    );
+    assert_eq!(
+        db.entry_for_path(Path::new("c.wav")).unwrap().unwrap().tag,
+        Rating::KEEP_1
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn deferred_completion_reconciles_new_path_before_hashed_delete_returns() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let new = dir.path().join("new.wav");
+    std::fs::write(&old, b"same-content").unwrap();
+    set_file_times(&old, 1_700_000_000, 0);
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::copy(&old, &new).unwrap();
+    set_file_times(&new, 1_700_000_000, 0);
+    let added = sync_paths(&db, &[PathBuf::from("new.wav")]).unwrap();
+    assert_eq!(added.renames_reconciled, 0);
+    std::fs::remove_file(&old).unwrap();
+    let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    assert_eq!(removed.hashes_pending, 0);
+    assert_eq!(removed.missing, 1);
+
+    let completed = complete_deferred_hashes(&db, removed).unwrap();
+    assert_eq!(completed.renames_reconciled, 1);
+    assert_eq!(completed.renamed_samples.len(), 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
     assert!(db.list_pending_renames().unwrap().is_empty());
 }
 

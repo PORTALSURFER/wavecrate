@@ -3,7 +3,7 @@ use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome, SourceDbMaintena
 use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::file_ops_journal;
-use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
+use crate::sample_sources::scanner::{complete_deferred_hashes, scan_once};
 
 mod markers;
 mod refresh;
@@ -125,14 +125,13 @@ fn rescan_empty_source_if_needed(
 }
 
 fn rescan_empty_source(
-    job: &SourceDbMaintenanceJob,
+    _job: &SourceDbMaintenanceJob,
     probe: &SourceDatabase,
 ) -> Result<bool, String> {
     let stats =
         scan_once(probe).map_err(|err| format!("Deferred empty-source scan failed: {err}"))?;
-    if stats.hashes_pending > 0 {
-        schedule_deep_hash_scan(job.source_root.clone());
-    }
+    let stats = complete_deferred_hashes(probe, stats)
+        .map_err(|err| format!("Finish deferred empty-source hashing failed: {err}"))?;
     Ok(scan_changed_source(&stats))
 }
 

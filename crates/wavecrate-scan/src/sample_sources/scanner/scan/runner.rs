@@ -66,11 +66,26 @@ pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats,
     thread::spawn(move || {
         let db = SourceDatabase::open_for_scan(&root)?;
         let stats = scan_once(&db)?;
-        if stats.hashes_pending > 0 {
-            schedule_deep_hash_scan(root);
-        }
-        Ok(stats)
+        complete_deferred_hashes(&db, stats)
     })
+}
+
+/// Complete deferred content hashing and proven pending-rename reconciliation
+/// before publishing scan results to cache consumers.
+///
+/// Callers should use this from their existing background worker. Hashing runs
+/// without a source write transaction; only the final backfill/reconciliation
+/// uses a short write batch.
+pub fn complete_deferred_hashes(
+    db: &SourceDatabase,
+    mut stats: ScanStats,
+) -> Result<ScanStats, ScanError> {
+    if stats.hashes_pending == 0 && db.list_pending_renames()?.is_empty() {
+        return Ok(stats);
+    }
+    let deferred = super::super::scan_hash::deep_hash_scan(db, None)?;
+    stats.merge_deferred_hashes(deferred);
+    Ok(stats)
 }
 
 /// Spawn a detached deep-hash pass to backfill content hashes after quick scans.

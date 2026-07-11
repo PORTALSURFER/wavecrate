@@ -27,6 +27,17 @@ pub struct ScanStats {
     pub changed_samples: Vec<ChangedSample>,
 }
 
+impl ScanStats {
+    pub(super) fn merge_deferred_hashes(&mut self, mut deferred: Self) {
+        self.hashes_computed += deferred.hashes_computed;
+        self.hashes_pending = self.hashes_pending.saturating_sub(deferred.hashes_computed);
+        self.renames_reconciled += deferred.renames_reconciled;
+        self.updated_samples.append(&mut deferred.updated_samples);
+        self.renamed_samples.append(&mut deferred.renamed_samples);
+        self.changed_samples.append(&mut deferred.changed_samples);
+    }
+}
+
 /// Metadata describing a sample whose tracked file facts changed without moving.
 #[derive(Debug, Clone)]
 pub struct UpdatedSample {

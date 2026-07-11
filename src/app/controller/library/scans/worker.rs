@@ -51,8 +51,5 @@ fn run_scan_worker(
     } else {
         scanner::scan_with_progress(&db, mode, Some(cancel), &mut progress)?
     };
-    if stats.hashes_pending > 0 {
-        scanner::schedule_deep_hash_scan(root.to_path_buf());
-    }
-    Ok(stats)
+    scanner::complete_deferred_hashes(&db, stats)
 }

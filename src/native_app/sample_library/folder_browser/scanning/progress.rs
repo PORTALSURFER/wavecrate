@@ -90,15 +90,9 @@ fn sync_source_database(
         });
     };
     match scanner::scan_with_progress(&db, scanner::ScanMode::Quick, None, &mut sync_progress) {
-        Ok(stats) => {
-            if stats.hashes_pending > 0 {
-                scanner::schedule_deep_hash_scan_with_database_root(
-                    request.root.clone(),
-                    request.database_root.clone(),
-                );
-            }
-            None
-        }
+        Ok(stats) => scanner::complete_deferred_hashes(&db, stats)
+            .err()
+            .map(|err| format!("finish deferred source hashing: {err}")),
         Err(err) => Some(format!("sync source index: {err}")),
     }
 }
