@@ -40,6 +40,7 @@ use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
 };
 use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult;
+use crate::native_app::sample_library::trash_actions::movement::TrashMoveOutcome;
 use crate::native_app::waveform::WaveformInteraction;
 use crate::native_app::waveform::{SimilarSectionsResult, WaveformExtractionCompletion};
 use crate::native_app::waveform_edits::WaveformDestructiveEditResult;
@@ -255,7 +256,7 @@ pub(in crate::native_app) enum GuiMessage {
         target: TrashMoveTarget,
         action: &'static str,
         started_at: Instant,
-        result: Result<Vec<PathBuf>, String>,
+        outcomes: Vec<TrashMoveOutcome>,
     },
     RefreshContextSource,
     ProcessContextSource,
