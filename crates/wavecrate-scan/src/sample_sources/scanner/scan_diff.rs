@@ -24,7 +24,6 @@ pub(super) struct PreparedFile {
 #[derive(Default)]
 pub(super) struct RenameCandidateCache {
     by_hash: HashMap<String, Vec<PathBuf>>,
-    by_facts: HashMap<(u64, i64), Vec<PathBuf>>,
 }
 
 impl RenameCandidateCache {
@@ -38,20 +37,6 @@ impl RenameCandidateCache {
             self.by_hash.insert(hash.to_owned(), paths);
         }
         Ok(self.by_hash.get(hash).expect("hash cache populated"))
-    }
-
-    fn paths_with_facts<'a>(
-        &'a mut self,
-        batch: &SourceWriteBatch<'_>,
-        size: u64,
-        modified_ns: i64,
-    ) -> Result<&'a [PathBuf], ScanError> {
-        let key = (size, modified_ns);
-        if !self.by_facts.contains_key(&key) {
-            let paths = batch.list_paths_with_file_facts(size, modified_ns)?;
-            self.by_facts.insert(key, paths);
-        }
-        Ok(self.by_facts.get(&key).expect("facts cache populated"))
     }
 }
 
@@ -174,48 +159,8 @@ pub(super) fn apply_diff(
                     content_hash: hash,
                 });
             } else {
-                if let Some(entry) = take_rename_candidate_by_facts(
-                    db,
-                    batch,
-                    rename_candidates,
-                    context,
-                    root,
-                    facts.size,
-                    facts.modified_ns,
-                )? {
-                    let old_relative_path = entry.relative_path.clone();
-                    apply_rename_without_hash(batch, &path, &facts, entry, None)?;
-                    context.stats.updated += 1;
-                    context.stats.renames_reconciled += 1;
-                    context.stats.hashes_pending += 1;
-                    context.stats.renamed_samples.push(RenamedSample {
-                        old_relative_path,
-                        new_relative_path: path.clone(),
-                        file_size: facts.size,
-                        modified_ns: facts.modified_ns,
-                        content_hash: None,
-                    });
-                    return Ok(());
-                }
-                if let Some(entry) =
-                    batch.take_pending_rename_by_facts(facts.size, facts.modified_ns)?
-                {
-                    let normal_tags = entry.normal_tags.clone();
-                    let entry = entry.into_wav_entry();
-                    let old_relative_path = entry.relative_path.clone();
-                    apply_rename_without_hash(batch, &path, &facts, entry, Some(&normal_tags))?;
-                    context.stats.updated += 1;
-                    context.stats.renames_reconciled += 1;
-                    context.stats.hashes_pending += 1;
-                    context.stats.renamed_samples.push(RenamedSample {
-                        old_relative_path,
-                        new_relative_path: path.clone(),
-                        file_size: facts.size,
-                        modified_ns: facts.modified_ns,
-                        content_hash: None,
-                    });
-                    return Ok(());
-                }
+                // Size and modification time are not content identity. Keep any
+                // removed row pending until deep hashing can prove a match.
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
                 context.stats.added += 1;
                 context.stats.hashes_pending += 1;
@@ -294,41 +239,6 @@ fn apply_rename(
     Ok(())
 }
 
-fn apply_rename_without_hash(
-    batch: &mut SourceWriteBatch<'_>,
-    new_path: &Path,
-    facts: &FileFacts,
-    entry: WavEntry,
-    retained_normal_tags: Option<&[String]>,
-) -> Result<(), ScanError> {
-    batch.upsert_file_without_hash(new_path, facts.size, facts.modified_ns)?;
-    batch.set_tag(new_path, entry.tag)?;
-    if entry.looped {
-        batch.set_looped(new_path, entry.looped)?;
-    }
-    if entry.sound_type.is_some() {
-        batch.set_sound_type(new_path, entry.sound_type)?;
-    }
-    if entry.locked {
-        batch.set_locked(new_path, entry.locked)?;
-    }
-    if let Some(last_played_at) = entry.last_played_at {
-        batch.set_last_played_at(new_path, last_played_at)?;
-    }
-    if entry.user_tag.is_some() {
-        batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
-    }
-    batch.set_tag_named(new_path, entry.tag_named)?;
-    if let Some(normal_tags) = retained_normal_tags {
-        batch.replace_tags_for_path(new_path, normal_tags)?;
-    } else {
-        batch.copy_tags_between_paths(&entry.relative_path, new_path)?;
-    }
-    batch.remove_file(&entry.relative_path)?;
-    batch.remap_analysis_sample_identity(&entry.relative_path, new_path)?;
-    Ok(())
-}
-
 fn take_rename_candidate_by_hash(
     db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
@@ -346,30 +256,6 @@ fn take_rename_candidate_by_hash(
         return Ok(None);
     };
     if entry.content_hash.as_deref() != Some(hash) {
-        return Ok(None);
-    }
-    let _ = context.existing.remove(&path);
-    Ok(Some(entry))
-}
-
-fn take_rename_candidate_by_facts(
-    db: &SourceDatabase,
-    batch: &mut SourceWriteBatch<'_>,
-    rename_candidates: &mut RenameCandidateCache,
-    context: &mut ScanContext,
-    root: &Path,
-    size: u64,
-    modified_ns: i64,
-) -> Result<Option<WavEntry>, ScanError> {
-    let current_candidates = rename_candidates.paths_with_facts(batch, size, modified_ns)?;
-    let path = unique_missing_path_in_scope(current_candidates, context, root);
-    let Some(path) = path else {
-        return Ok(None);
-    };
-    let Some(entry) = db.entry_for_path(&path)? else {
-        return Ok(None);
-    };
-    if entry.file_size != size || entry.modified_ns != modified_ns {
         return Ok(None);
     }
     let _ = context.existing.remove(&path);
@@ -472,30 +358,6 @@ mod tests {
 
         assert_eq!(
             cache.paths_with_hash(&batch, "same").unwrap(),
-            &[PathBuf::from("one.wav")]
-        );
-    }
-
-    #[test]
-    fn rename_candidate_cache_reuses_facts_lookup_within_batch() {
-        let root = tempfile::tempdir().unwrap();
-        let db = SourceDatabase::open(root.path()).unwrap();
-        let mut batch = db.write_batch().unwrap();
-        batch
-            .upsert_file_without_hash(Path::new("one.wav"), 4, 1)
-            .unwrap();
-        let mut cache = RenameCandidateCache::default();
-
-        assert_eq!(
-            cache.paths_with_facts(&batch, 4, 1).unwrap(),
-            &[PathBuf::from("one.wav")]
-        );
-        batch
-            .upsert_file_without_hash(Path::new("two.wav"), 4, 1)
-            .unwrap();
-
-        assert_eq!(
-            cache.paths_with_facts(&batch, 4, 1).unwrap(),
             &[PathBuf::from("one.wav")]
         );
     }

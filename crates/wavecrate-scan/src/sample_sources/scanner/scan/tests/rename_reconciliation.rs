@@ -122,7 +122,7 @@ fn quick_scan_defers_hash_for_large_file() {
 }
 
 #[test]
-fn quick_scan_reconciles_large_rename_and_preserves_tag() {
+fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");
     let second_path = dir.path().join("two.wav");
@@ -137,25 +137,38 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
         .unwrap();
     db.assign_tag_to_path(Path::new("one.wav"), "Night Pad")
         .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::one.wav", "one.wav");
 
     std::fs::rename(&first_path, &second_path).unwrap();
     let stats = scan_once(&db).unwrap();
-    assert_eq!(stats.renames_reconciled, 1);
+    assert_eq!(stats.renames_reconciled, 0);
+    assert_eq!(stats.added, 1);
+    assert_eq!(stats.missing, 1);
     assert_eq!(stats.hashes_pending, 1);
 
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("two.wav"));
-    assert_eq!(rows[0].tag, Rating::KEEP_1);
-    assert_eq!(rows[0].sound_type, Some(SampleSoundType::Texture));
-    assert_eq!(rows[0].user_tag.as_deref(), Some("Night Pad"));
-    assert_eq!(rows[0].normal_tags, vec!["Night Pad"]);
+    assert_eq!(rows[0].tag, Rating::NEUTRAL);
+    assert_eq!(rows[0].sound_type, None);
+    assert_eq!(rows[0].user_tag, None);
+    assert!(rows[0].normal_tags.is_empty());
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_none());
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::one.wav"),
+        1
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::two.wav"),
+        0
+    );
+    drop(db);
 
+    let db = SourceDatabase::open(dir.path()).unwrap();
     let deep_stats = crate::sample_sources::scanner::scan_hash::deep_hash_scan(&db, None).unwrap();
     assert_eq!(deep_stats.hashes_computed, 1);
-    assert_eq!(deep_stats.renames_reconciled, 0);
+    assert_eq!(deep_stats.renames_reconciled, 1);
 
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
@@ -166,6 +179,76 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
     assert_eq!(rows[0].normal_tags, vec!["Night Pad"]);
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_some());
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::one.wav"),
+        0
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::two.wav"),
+        1
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
+    let dir = tempdir().unwrap();
+    let old_path = dir.path().join("old.wav");
+    let new_path = dir.path().join("new.wav");
+    let file_size = 9 * 1024 * 1024;
+    let timestamp = 1_700_000_000;
+    std::fs::write(&old_path, vec![0_u8; file_size]).unwrap();
+    set_file_times(&old_path, timestamp, 0);
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    db.set_user_tag(Path::new("old.wav"), Some("Must stay pending"))
+        .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::old.wav", "old.wav");
+
+    std::fs::remove_file(&old_path).unwrap();
+    std::fs::write(&new_path, vec![1_u8; file_size]).unwrap();
+    set_file_times(&new_path, timestamp, 0);
+    let quick = scan_once(&db).unwrap();
+
+    assert_eq!(quick.renames_reconciled, 0);
+    assert_eq!(quick.added, 1);
+    assert_eq!(quick.missing, 1);
+    let new_entry = db.entry_for_path(Path::new("new.wav")).unwrap().unwrap();
+    assert_eq!(new_entry.tag, Rating::NEUTRAL);
+    assert_eq!(new_entry.user_tag, None);
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        1
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::new.wav"),
+        0
+    );
+    drop(db);
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let deep = crate::sample_sources::scanner::scan_hash::deep_hash_scan(&db, None).unwrap();
+
+    assert_eq!(deep.renames_reconciled, 0);
+    let new_entry = db.entry_for_path(Path::new("new.wav")).unwrap().unwrap();
+    assert_eq!(new_entry.tag, Rating::NEUTRAL);
+    assert_eq!(new_entry.user_tag, None);
+    let pending = db.list_pending_renames().unwrap();
+    assert!(pending.iter().any(|entry| {
+        entry.relative_path == Path::new("old.wav")
+            && entry.tag == Rating::KEEP_1
+            && entry.user_tag.as_deref() == Some("Must stay pending")
+    }));
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        1
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::new.wav"),
+        0
+    );
 }
 
 #[test]
