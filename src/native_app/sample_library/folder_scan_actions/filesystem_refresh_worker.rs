@@ -14,9 +14,16 @@ pub(super) fn sync_source_database_paths(
     let result = SourceDatabase::open_for_background_job_with_database_root(&root, &database_root)
         .map_err(|err| format!("open source index: {err}"))
         .and_then(|db| {
-            scanner::sync_paths(&db, &paths).map_err(|err| format!("sync source index: {err}"))
-        })
-        .map(|_| ());
+            let stats = scanner::sync_paths(&db, &paths)
+                .map_err(|err| format!("sync source index: {err}"))?;
+            if stats.hashes_pending > 0 {
+                scanner::schedule_deep_hash_scan_with_database_root(
+                    root.clone(),
+                    database_root.clone(),
+                );
+            }
+            Ok(())
+        });
     SourceFilesystemSyncResult {
         source_id,
         changed_count,
