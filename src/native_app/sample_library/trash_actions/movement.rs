@@ -1,5 +1,7 @@
 use std::{
+    collections::hash_map::DefaultHasher,
     fs::{self, File, OpenOptions},
+    hash::{Hash, Hasher},
     io,
     path::{Path, PathBuf},
 };
@@ -87,7 +89,7 @@ fn move_path_to_configured_trash_inner(
 struct TrashDestinationReservation {
     destination: PathBuf,
     marker: PathBuf,
-    _file: File,
+    file: Option<File>,
 }
 
 impl TrashDestinationReservation {
@@ -98,6 +100,7 @@ impl TrashDestinationReservation {
 
 impl Drop for TrashDestinationReservation {
     fn drop(&mut self) {
+        drop(self.file.take());
         let _ = fs::remove_file(&self.marker);
     }
 }
@@ -129,13 +132,7 @@ fn reserve_trash_path(
         if candidate.exists() {
             continue;
         }
-        let marker = candidate.with_extension(format!(
-            "{}wavecrate-trash-reservation",
-            candidate
-                .extension()
-                .map(|value| format!("{}.", value.to_string_lossy()))
-                .unwrap_or_default()
-        ));
+        let marker = trash_reservation_marker(trash_folder, &candidate);
         match OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -150,7 +147,7 @@ fn reserve_trash_path(
                 return Ok(TrashDestinationReservation {
                     destination: candidate,
                     marker,
-                    _file: file,
+                    file: Some(file),
                 });
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
@@ -159,6 +156,15 @@ fn reserve_trash_path(
     }
     Err(String::from(
         "Trash folder contains too many matching names",
+    ))
+}
+
+fn trash_reservation_marker(trash_folder: &Path, candidate: &Path) -> PathBuf {
+    let mut hasher = DefaultHasher::new();
+    candidate.hash(&mut hasher);
+    trash_folder.join(format!(
+        ".wavecrate-trash-reservation-{:016x}",
+        hasher.finish()
     ))
 }
 
@@ -181,7 +187,6 @@ fn fallback_move_path(
         copy_file_exclusive(source, destination)
     };
     if let Err(error) = copy_result {
-        remove_partial_destination(destination);
         let kind = if is_directory { "folder" } else { "file" };
         return Err(format!(
             "Move {kind} to trash failed: {rename_error}; fallback failed: {error}"
@@ -203,16 +208,22 @@ fn fallback_move_path(
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
     fs::create_dir(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let target = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_dir_all(&entry.path(), &target)?;
-        } else {
-            copy_file_exclusive(&entry.path(), &target)?;
+    let copy_result = (|| {
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
+            let target = destination.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                copy_dir_all(&entry.path(), &target)?;
+            } else {
+                copy_file_exclusive(&entry.path(), &target)?;
+            }
         }
+        fs::set_permissions(destination, fs::metadata(source)?.permissions())
+    })();
+    if copy_result.is_err() {
+        let _ = fs::remove_dir_all(destination);
     }
-    Ok(())
+    copy_result
 }
 
 fn copy_file_exclusive(source: &Path, destination: &Path) -> io::Result<()> {
@@ -221,16 +232,16 @@ fn copy_file_exclusive(source: &Path, destination: &Path) -> io::Result<()> {
         .write(true)
         .create_new(true)
         .open(destination)?;
-    io::copy(&mut input, &mut output)?;
-    output.sync_all()
-}
-
-fn remove_partial_destination(destination: &Path) {
-    if destination.is_dir() {
-        let _ = fs::remove_dir_all(destination);
-    } else {
+    let copy_result = (|| {
+        io::copy(&mut input, &mut output)?;
+        output.sync_all()?;
+        fs::set_permissions(destination, fs::metadata(source)?.permissions())
+    })();
+    if copy_result.is_err() {
+        drop(output);
         let _ = fs::remove_file(destination);
     }
+    copy_result
 }
 
 #[cfg(test)]
@@ -257,6 +268,47 @@ mod tests {
     }
 
     #[test]
+    fn reservation_drop_closes_and_removes_marker() {
+        let temp = tempdir().unwrap();
+        let trash = temp.path().join("trash");
+        let source = temp.path().join("kick.wav");
+        fs::create_dir(&trash).unwrap();
+        fs::write(&source, b"kick").unwrap();
+        let reservation = reserve_trash_path(&trash, &source).unwrap();
+        let marker = reservation.marker.clone();
+        assert!(marker.exists());
+
+        drop(reservation);
+
+        assert!(!marker.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reservation_marker_stays_bounded_for_long_valid_file_names() {
+        let temp = tempdir().unwrap();
+        let trash = temp.path().join("trash");
+        let source_root = temp.path().join("source");
+        fs::create_dir(&trash).unwrap();
+        fs::create_dir(&source_root).unwrap();
+        let source = source_root.join(format!("{}.wav", "x".repeat(245)));
+        fs::write(&source, b"long name").unwrap();
+
+        let reservation = reserve_trash_path(&trash, &source).unwrap();
+
+        assert_eq!(reservation.destination().file_name(), source.file_name());
+        assert!(
+            reservation
+                .marker
+                .file_name()
+                .unwrap()
+                .as_encoded_bytes()
+                .len()
+                < 100
+        );
+    }
+
+    #[test]
     fn recursive_copy_preserves_nested_files() {
         let temp = tempdir().unwrap();
         let source = temp.path().join("source");
@@ -271,6 +323,39 @@ mod tests {
         assert_eq!(
             fs::read(destination.join("nested").join("child.wav")).unwrap(),
             b"child"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn fallback_copies_preserve_file_and_directory_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source");
+        let destination = temp.path().join("destination");
+        fs::create_dir(&source).unwrap();
+        fs::write(source.join("private.wav"), b"private").unwrap();
+        fs::set_permissions(&source, fs::Permissions::from_mode(0o750)).unwrap();
+        fs::set_permissions(
+            source.join("private.wav"),
+            fs::Permissions::from_mode(0o600),
+        )
+        .unwrap();
+
+        copy_dir_all(&source, &destination).unwrap();
+
+        assert_eq!(
+            fs::metadata(&destination).unwrap().permissions().mode() & 0o777,
+            0o750
+        );
+        assert_eq!(
+            fs::metadata(destination.join("private.wav"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
         );
     }
 
@@ -353,5 +438,25 @@ mod tests {
         assert!(error.contains("fallback failed"));
         assert!(source.exists());
         assert!(!destination.exists());
+    }
+
+    #[test]
+    fn fallback_does_not_remove_destination_created_by_another_actor() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source.wav");
+        let destination = temp.path().join("destination.wav");
+        fs::write(&source, b"source").unwrap();
+        fs::write(&destination, b"external").unwrap();
+
+        let error = fallback_move_path(
+            &source,
+            &destination,
+            &io::Error::from(io::ErrorKind::CrossesDevices),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("fallback failed"));
+        assert_eq!(fs::read(&destination).unwrap(), b"external");
+        assert_eq!(fs::read(&source).unwrap(), b"source");
     }
 }
