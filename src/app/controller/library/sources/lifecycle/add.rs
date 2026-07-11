@@ -92,7 +92,10 @@ impl AppController {
         started_at: Instant,
     ) -> Result<(), String> {
         self.library.sources.push(source.clone());
-        if let Err(err) = self.persist_config("Failed to save config after adding source") {
+        if let Err(err) = self.persist_config_with_selected_source(
+            source.id.clone(),
+            "Failed to save config after adding source",
+        ) {
             let removed = self.library.sources.pop();
             debug_assert!(removed.as_ref().is_some_and(|added| added.id == source.id));
             record_source_lifecycle_event(

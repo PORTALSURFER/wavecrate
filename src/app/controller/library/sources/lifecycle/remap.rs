@@ -73,9 +73,19 @@ impl AppController {
                 });
         if let Err(error) = prepare_result {
             self.library.sources[remap.index].root = remap.previous_root;
-            artifacts.remove_created();
             let error = match self.persist_config("Failed to restore config after remap failure") {
-                Ok(()) => error,
+                Ok(()) => match crate::sample_sources::library::forget_known_source_root(
+                    &remap.root,
+                    &remap.id,
+                ) {
+                    Ok(()) => {
+                        artifacts.restore_and_remove_created();
+                        error
+                    }
+                    Err(rollback_error) => {
+                        format!("{error}; Failed to forget failed remap root: {rollback_error}")
+                    }
+                },
                 Err(rollback_error) => format!("{error}; {rollback_error}"),
             };
             record_source_lifecycle_event(
@@ -115,11 +125,13 @@ impl AppController {
 
 struct RemapArtifactSnapshot {
     paths: Vec<(PathBuf, bool)>,
+    legacy_migrations: Vec<(PathBuf, PathBuf, bool, bool)>,
 }
 
 impl RemapArtifactSnapshot {
     fn new(root: &Path) -> Self {
         let database = crate::sample_sources::database_path_for(root);
+        let legacy_database = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
         let paths = [
             database.clone(),
             path_with_suffix(&database, "-wal"),
@@ -132,10 +144,35 @@ impl RemapArtifactSnapshot {
             (path, existed)
         })
         .collect();
-        Self { paths }
+        let legacy_migrations = ["", "-wal", "-shm"]
+            .into_iter()
+            .map(|suffix| {
+                let legacy = path_with_suffix(&legacy_database, suffix);
+                let current = path_with_suffix(&database, suffix);
+                let legacy_existed = legacy.exists();
+                let current_existed = current.exists();
+                (legacy, current, legacy_existed, current_existed)
+            })
+            .collect();
+        Self {
+            paths,
+            legacy_migrations,
+        }
     }
 
-    fn remove_created(&self) {
+    fn restore_and_remove_created(&self) {
+        for (legacy, current, legacy_existed, current_existed) in &self.legacy_migrations {
+            if *legacy_existed && !*current_existed && !legacy.exists() && current.exists() {
+                if let Err(err) = fs::rename(current, legacy) {
+                    tracing::warn!(
+                        from = %current.display(),
+                        to = %legacy.display(),
+                        error = %err,
+                        "Failed to restore legacy source database artifact after rollback"
+                    );
+                }
+            }
+        }
         for (path, existed) in &self.paths {
             if !existed {
                 match fs::remove_file(path) {

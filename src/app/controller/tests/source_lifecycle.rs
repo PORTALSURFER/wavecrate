@@ -14,6 +14,11 @@ fn adding_source_rejects_same_resolved_root_with_different_spelling() {
     controller
         .add_source_from_path(source_root.path().to_path_buf())
         .expect("add source");
+    let persisted = crate::sample_sources::config::load_or_default().expect("load saved config");
+    assert_eq!(
+        persisted.core.last_selected_source,
+        controller.selected_source_id()
+    );
     controller
         .add_source_from_path(source_root.path().join("."))
         .expect("duplicate source alias should short-circuit");
@@ -187,4 +192,59 @@ fn remapping_source_publishes_runtime_changes_after_persistence_and_db_prepare()
     assert!(crate::sample_sources::database_path_for(new_root.path()).is_file());
     assert_eq!(controller.ui.status.text, "Source remapped");
     assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
+}
+
+#[test]
+fn failed_remap_forgets_target_root_mapping() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::KEEP_1,
+    )]);
+    let old_root = source.root.clone();
+    let new_root = tempfile::tempdir().expect("create remap root");
+    std::fs::create_dir(crate::sample_sources::database_path_for(new_root.path()))
+        .expect("block destination database open");
+
+    controller
+        .remap_source_to(0, new_root.path().to_path_buf())
+        .expect_err("database preparation must fail");
+
+    assert_eq!(controller.library.sources[0].root, old_root);
+    assert_eq!(
+        crate::sample_sources::library::lookup_source_id_for_root(new_root.path())
+            .expect("lookup failed remap root"),
+        None
+    );
+}
+
+#[test]
+fn failed_remap_restores_preexisting_legacy_database_name() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::KEEP_1,
+    )]);
+    controller.cache.db.remove(&source.id);
+    std::fs::remove_file(crate::sample_sources::database_path_for(&source.root))
+        .expect("remove source database so remap does not copy it");
+    let new_root = tempfile::tempdir().expect("create remap root");
+    let legacy = new_root
+        .path()
+        .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+    {
+        let connection = rusqlite::Connection::open(&legacy).expect("create legacy database");
+        connection
+            .execute_batch("CREATE TABLE analysis_jobs (id INTEGER PRIMARY KEY);")
+            .expect("create incompatible legacy schema");
+    }
+
+    controller
+        .remap_source_to(0, new_root.path().to_path_buf())
+        .expect_err("invalid migrated legacy database must fail preparation");
+
+    assert!(legacy.is_file(), "legacy database name must be restored");
+    assert!(!crate::sample_sources::database_path_for(new_root.path()).exists());
 }

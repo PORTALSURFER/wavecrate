@@ -102,6 +102,23 @@ pub fn lookup_source_id_for_root(root: &Path) -> Result<Option<SourceId>, Librar
     result
 }
 
+/// Forget a historical root mapping when a remap to that root is rolled back.
+///
+/// The mapping is removed only when it still belongs to `source_id`, so this cannot erase a
+/// newer mapping established by another source.
+pub fn forget_known_source_root(root: &Path, source_id: &SourceId) -> Result<(), LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let mut db = LibraryDatabase::open()?;
+    let result = db.forget_known_source_root(root, source_id);
+    record_library_db_event(
+        "library.forget_known_source_root",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
 /// Insert or refresh a harvest file row without changing its workflow state.
 pub fn upsert_harvest_file(
     identity: &HarvestFileIdentity,

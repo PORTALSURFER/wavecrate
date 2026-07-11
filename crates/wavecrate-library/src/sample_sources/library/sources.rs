@@ -81,6 +81,23 @@ impl LibraryDatabase {
         Ok(result)
     }
 
+    pub(super) fn forget_known_source_root(
+        &mut self,
+        root: &Path,
+        source_id: &SourceId,
+    ) -> Result<(), LibraryError> {
+        let started_at = Instant::now();
+        let tx = self.connection.transaction().map_err(map_sql_error)?;
+        let normalized = normalize_path(root).to_string_lossy().to_string();
+        let mut mappings = Self::load_known_sources_from(&tx)?;
+        mappings.retain(|entry| entry.root != normalized || entry.source_id != source_id.as_str());
+        mappings.sort_by(|a, b| a.root.cmp(&b.root));
+        Self::set_metadata_in_tx(&tx, KNOWN_SOURCES_KEY, &serde_json::to_string(&mappings)?)?;
+        tx.commit().map_err(map_sql_error)?;
+        record_library_db_event("library.forget_known_source_root", started_at, Ok(()));
+        Ok(())
+    }
+
     fn replace_sources(tx: &Transaction<'_>, sources: &[SampleSource]) -> Result<(), LibraryError> {
         tx.execute("DELETE FROM sources", [])
             .map_err(map_sql_error)?;
