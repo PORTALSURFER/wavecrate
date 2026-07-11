@@ -16,8 +16,13 @@ pub(super) fn sync_source_database_paths(
         .and_then(|db| {
             let stats = scanner::sync_paths(&db, &paths)
                 .map_err(|err| format!("sync source index: {err}"))?;
-            scanner::complete_deferred_hashes(&db, stats)
-                .map_err(|err| format!("finish deferred source hashing: {err}"))?;
+            if let Err(error) = scanner::complete_deferred_hashes(&db, stats) {
+                tracing::warn!(
+                    source_id,
+                    error = %error,
+                    "Deferred source hashing failed after filesystem sync committed"
+                );
+            }
             Ok(())
         });
     SourceFilesystemSyncResult {

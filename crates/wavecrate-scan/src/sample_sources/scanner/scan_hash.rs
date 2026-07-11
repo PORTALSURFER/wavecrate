@@ -2,8 +2,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
+use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
 use super::scan::{RenamedSample, ScanError, ScanStats};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
@@ -14,6 +14,11 @@ struct HashBackfill {
     file_size: u64,
     modified_ns: i64,
     content_hash: String,
+}
+
+fn is_supported_regular_audio_file(path: &std::path::Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
+        && is_supported_audio(path)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,6 +57,12 @@ pub(super) fn deep_hash_scan(
     let mut hash_backfills = Vec::new();
 
     for entry in entries_by_path.values() {
+        if entry.missing
+            || rename_candidates.contains(&entry.relative_path)
+            || !is_supported_regular_audio_file(&root.join(&entry.relative_path))
+        {
+            continue;
+        }
         let Some(hash) = entry.content_hash.as_deref() else {
             continue;
         };
@@ -76,16 +87,19 @@ pub(super) fn deep_hash_scan(
         {
             return Err(ScanError::Canceled);
         }
-        if entry.missing || entry.content_hash.is_some() {
+        if entry.missing {
             continue;
         }
-        if scope == DeferredHashScope::RenameCandidates
-            && !rename_candidates.contains(&entry.relative_path)
-        {
+        let is_rename_candidate = rename_candidates.contains(&entry.relative_path);
+        if entry.content_hash.is_some() && !is_rename_candidate {
             continue;
         }
+        if scope == DeferredHashScope::RenameCandidates && !is_rename_candidate {
+            continue;
+        }
+        let was_unhashed = entry.content_hash.is_none();
         let absolute = root.join(&entry.relative_path);
-        if !absolute.exists() {
+        if !is_supported_regular_audio_file(&absolute) {
             continue;
         }
         let facts = read_facts(&root, &absolute)?;
@@ -103,7 +117,9 @@ pub(super) fn deep_hash_scan(
             .entry(hash)
             .or_insert_with(Vec::new)
             .push(entry.relative_path.clone());
-        stats.hashes_computed += 1;
+        if was_unhashed {
+            stats.hashes_computed += 1;
+        }
     }
 
     if let Some(cancel) = cancel
@@ -155,12 +171,11 @@ fn reconcile_missing_renames(
             .iter()
             .filter(|path| rename_candidates.contains(*path))
             .collect::<Vec<_>>();
-        let present_path = if candidates.len() == 1 {
+        let present_path = if present_paths.len() == 1 && candidates.len() == 1 {
             candidates[0]
         } else {
-            let matching_facts = candidates
+            let matching_facts = present_paths
                 .iter()
-                .copied()
                 .filter(|path| {
                     entries_by_path.get(*path).is_some_and(|entry| {
                         entry.file_size == pending_entries[0].file_size
@@ -171,6 +186,9 @@ fn reconcile_missing_renames(
             let [present_path] = matching_facts.as_slice() else {
                 continue;
             };
+            if !rename_candidates.contains(*present_path) {
+                continue;
+            }
             *present_path
         };
         if pending_entries[0].relative_path == *present_path {

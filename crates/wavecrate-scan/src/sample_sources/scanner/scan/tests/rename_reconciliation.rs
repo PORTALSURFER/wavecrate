@@ -574,6 +574,72 @@ fn targeted_destination_expires_after_two_full_quick_scans() {
 }
 
 #[test]
+fn retained_destination_is_revalidated_before_identity_transfer() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let new = dir.path().join("new.wav");
+    std::fs::write(&old, b"original-content").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    std::fs::copy(&old, &new).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("new.wav")]).unwrap();
+    complete_deferred_hashes(&db, added).unwrap();
+
+    std::fs::write(&new, b"replacement-content").unwrap();
+    std::fs::remove_file(&old).unwrap();
+    let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    let completed = complete_deferred_hashes(&db, removed).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 0);
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
+}
+
+#[test]
+fn retained_destination_stays_ambiguous_when_duplicate_live_path_exists() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let duplicate = dir.path().join("duplicate.wav");
+    let candidate = dir.path().join("candidate.wav");
+    let payload = vec![7_u8; 9 * 1024 * 1024];
+    std::fs::write(&old, &payload).unwrap();
+    std::fs::write(&duplicate, &payload).unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    std::fs::remove_file(&old).unwrap();
+    let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    complete_deferred_hashes(&db, removed).unwrap();
+
+    std::fs::copy(&duplicate, &candidate).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("candidate.wav")]).unwrap();
+    let completed = complete_deferred_hashes(&db, added).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 0);
+    assert_eq!(
+        db.entry_for_path(Path::new("candidate.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
+    assert!(
+        db.list_pending_renames()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.relative_path == Path::new("old.wav"))
+    );
+}
+
+#[test]
 fn rename_candidate_completion_does_not_backfill_unrelated_large_files() {
     let dir = tempdir().unwrap();
     let old = dir.path().join("old.wav");
