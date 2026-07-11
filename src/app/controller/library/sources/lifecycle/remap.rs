@@ -54,11 +54,8 @@ impl AppController {
     fn commit_remapped_source(&mut self, remap: RemappedSource) -> Result<(), String> {
         let previous_source = self.library.sources[remap.index].clone();
         let artifacts = RemapArtifactSnapshot::new(&remap.root);
-        let prepare_result =
-            copy_source_database_if_needed(&previous_source, &remap.root, remap.started_at)
-                .and_then(|()| {
-                    prepare_database_for_remap(&previous_source, &remap.root, remap.started_at)
-                });
+        let prepare_result = copy_source_database_if_needed(&previous_source, &remap.root)
+            .and_then(|()| prepare_database_for_remap(&remap.root));
         if let Err(error) = prepare_result {
             artifacts.restore_and_remove_created();
             record_source_lifecycle_event(
@@ -111,6 +108,7 @@ impl AppController {
 
 struct RemapArtifactSnapshot {
     paths: Vec<(PathBuf, bool)>,
+    database_existed: bool,
     legacy_migrations: Vec<(PathBuf, PathBuf, bool, bool)>,
 }
 
@@ -118,7 +116,7 @@ impl RemapArtifactSnapshot {
     fn new(root: &Path) -> Self {
         let database = crate::sample_sources::database_path_for(root);
         let legacy_database = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
-        let paths = [
+        let paths: Vec<(PathBuf, bool)> = [
             database.clone(),
             path_with_suffix(&database, "-wal"),
             path_with_suffix(&database, "-shm"),
@@ -140,8 +138,12 @@ impl RemapArtifactSnapshot {
                 (legacy, current, legacy_existed, current_existed)
             })
             .collect();
+        let database_existed = paths
+            .first()
+            .is_some_and(|(_, database_existed)| *database_existed);
         Self {
             paths,
+            database_existed,
             legacy_migrations,
         }
     }
@@ -164,6 +166,9 @@ impl RemapArtifactSnapshot {
             }
         }
         for (path, existed) in &self.paths {
+            if self.database_existed {
+                break;
+            }
             if !existed {
                 match fs::remove_file(path) {
                     Ok(()) => {}
@@ -212,6 +217,23 @@ mod artifact_snapshot_tests {
         assert!(fs::symlink_metadata(database).is_ok());
         assert!(fs::symlink_metadata(wal).is_ok());
     }
+
+    #[test]
+    fn rollback_preserves_sidecars_created_for_preexisting_database() {
+        let root = tempfile::tempdir().expect("root");
+        let database = crate::sample_sources::database_path_for(root.path());
+        fs::write(&database, b"existing database").expect("database");
+        let snapshot = RemapArtifactSnapshot::new(root.path());
+        let wal = path_with_suffix(&database, "-wal");
+        let shm = path_with_suffix(&database, "-shm");
+        fs::write(&wal, b"pending wal state").expect("wal");
+        fs::write(&shm, b"pending shm state").expect("shm");
+
+        snapshot.restore_and_remove_created();
+
+        assert!(wal.is_file());
+        assert!(shm.is_file());
+    }
 }
 
 fn validate_remap_source_root(
@@ -240,29 +262,15 @@ fn validate_remap_source_root(
     Ok(())
 }
 
-fn prepare_database_for_remap(
-    existing: &SampleSource,
-    normalized: &PathBuf,
-    started_at: Instant,
-) -> Result<(), String> {
-    if let Err(err) = SourceDatabase::open(normalized) {
-        let error = format!("Failed to prepare database: {err}");
-        record_source_lifecycle_event(
-            "sources.remap",
-            Some(existing.id.as_str()),
-            "error",
-            started_at,
-            Some(&error),
-        );
-        return Err(error);
-    }
-    Ok(())
+fn prepare_database_for_remap(normalized: &PathBuf) -> Result<(), String> {
+    SourceDatabase::open(normalized)
+        .map(|_| ())
+        .map_err(|err| format!("Failed to prepare database: {err}"))
 }
 
 fn copy_source_database_if_needed(
     existing: &SampleSource,
     normalized: &PathBuf,
-    started_at: Instant,
 ) -> Result<(), String> {
     let old_db_path = crate::sample_sources::database_path_for(&existing.root);
     let new_db_path = crate::sample_sources::database_path_for(normalized);
@@ -270,16 +278,7 @@ fn copy_source_database_if_needed(
         return Ok(());
     }
     let _ = fs::create_dir_all(normalized);
-    fs::copy(&old_db_path, &new_db_path).map_err(|err| {
-        let error = format!("Failed to copy database: {err}");
-        record_source_lifecycle_event(
-            "sources.remap",
-            Some(existing.id.as_str()),
-            "error",
-            started_at,
-            Some(&error),
-        );
-        error
-    })?;
+    fs::copy(&old_db_path, &new_db_path)
+        .map_err(|err| format!("Failed to copy database: {err}"))?;
     Ok(())
 }

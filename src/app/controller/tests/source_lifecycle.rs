@@ -186,7 +186,12 @@ fn remapping_source_publishes_runtime_changes_after_persistence_and_db_prepare()
     assert_eq!(controller.library.sources[0].root, new_root.path());
     assert_eq!(controller.selected_source_id(), Some(source.id.clone()));
     assert_eq!(
-        controller.cache.db.get(&source.id).unwrap().root(),
+        controller
+            .cache
+            .db
+            .get(&source.id)
+            .expect("remapped database should be cached")
+            .root(),
         new_root.path()
     );
     assert!(crate::sample_sources::database_path_for(new_root.path()).is_file());
