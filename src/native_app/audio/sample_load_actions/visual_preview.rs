@@ -12,7 +12,11 @@ impl NativeAppState {
         &mut self,
         path: &Path,
     ) -> Option<WaveformVisualSnapshot> {
-        let preview = self.waveform.cache.instant_waveform_preview(path);
+        let preview = self
+            .waveform
+            .cache
+            .instant_waveform_preview(path)
+            .filter(|preview| preview.matches_file(path));
         let snapshot = self
             .waveform
             .begin_playback_visual_handoff(path.to_path_buf(), preview);
@@ -31,6 +35,12 @@ impl NativeAppState {
 
     pub(super) fn commit_playback_visual_handoff(&mut self, snapshot: WaveformVisualSnapshot) {
         defer_large_drop(snapshot);
+    }
+
+    pub(super) fn clear_failed_playback_visual_handoff(&mut self, path: &Path) {
+        if let Some(discarded) = self.waveform.clear_failed_instant_preview(path) {
+            defer_large_drop(discarded);
+        }
     }
 
     pub(in crate::native_app) fn start_starmap_waveform_preview(&mut self, path: &str) {

@@ -186,6 +186,56 @@ fn playback_handoff_blanks_old_waveform_without_new_sample_preview() {
 }
 
 #[test]
+fn successful_playback_handoff_preserves_starmap_drag_restore() {
+    let old_path = PathBuf::from("/tmp/starmap-handoff-old.wav");
+    let new_path = PathBuf::from("/tmp/starmap-handoff-new.wav");
+    let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
+        crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+            old_path.clone(),
+            vec![0.0, 0.2, -0.2],
+        ),
+    )));
+    app_state.capture_starmap_drag_restore();
+
+    let snapshot = app_state
+        .begin_playback_visual_handoff(new_path.clone(), Some(instant_preview(new_path, 8)))
+        .expect("cross-sample handoff");
+    drop(snapshot);
+
+    assert!(app_state.starmap_drag_restore.is_some());
+    let discarded = app_state
+        .restore_starmap_drag_snapshot()
+        .expect("mouse-up should still restore the pre-drag waveform");
+    assert_eq!(app_state.current.path(), old_path);
+    assert_ne!(discarded.path(), old_path);
+}
+
+#[test]
+fn failed_full_load_clears_committed_instant_preview() {
+    let old_path = PathBuf::from("/tmp/failed-handoff-old.wav");
+    let new_path = PathBuf::from("/tmp/failed-handoff-new.wav");
+    let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
+        crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+            old_path.clone(),
+            vec![0.0, 0.2, -0.2],
+        ),
+    )));
+    app_state.capture_starmap_drag_restore();
+    let snapshot = app_state
+        .begin_playback_visual_handoff(new_path.clone(), Some(instant_preview(new_path.clone(), 8)))
+        .expect("cross-sample handoff");
+    drop(snapshot);
+
+    let discarded = app_state
+        .clear_failed_instant_preview(&new_path)
+        .expect("failed target preview should be cleared");
+
+    assert_eq!(app_state.current.path(), old_path);
+    assert_eq!(discarded.path(), new_path);
+    assert!(!app_state.instant_preview_active());
+}
+
+#[test]
 fn preview_warm_scheduled_path_is_not_requeued_before_completion() {
     let path = PathBuf::from("/tmp/wavecrate-preview-scheduled.wav");
     let path_id = path.display().to_string();

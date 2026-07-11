@@ -82,6 +82,7 @@ impl NativeAppState {
                 );
             }
             SampleLoadCompletion::Failed { path, label, error } => {
+                self.clear_failed_playback_visual_handoff(Path::new(&path));
                 self.clear_sample_loading_state();
                 self.waveform
                     .load

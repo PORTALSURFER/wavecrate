@@ -136,7 +136,7 @@ impl WaveformAppState {
             return None;
         }
         let display = self.display.clone();
-        let starmap_drag_restore = self.starmap_drag_restore.take();
+        let starmap_drag_restore = self.starmap_drag_restore.clone();
         let load_label = self.load.label.clone();
         let load_progress = self.load.progress;
         let load_target_progress = self.load.target_progress;
@@ -166,6 +166,21 @@ impl WaveformAppState {
         self.load.progress = snapshot.load_progress;
         self.load.target_progress = snapshot.load_target_progress;
         discarded
+    }
+
+    pub(in crate::native_app) fn clear_failed_instant_preview(
+        &mut self,
+        path: &Path,
+    ) -> Option<WaveformState> {
+        if self.instant_preview_path() != Some(path) {
+            return None;
+        }
+        if let Some(discarded) = self.restore_starmap_drag_snapshot() {
+            return Some(discarded);
+        }
+        let discarded = std::mem::replace(&mut self.current, WaveformState::empty());
+        self.mark_current_authoritative();
+        Some(discarded)
     }
 }
 
