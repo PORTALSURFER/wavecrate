@@ -279,6 +279,15 @@ impl NativeAppState {
             .iter()
             .filter(|outcome| matches!(outcome.result, TrashMoveResult::Moved { .. }))
             .count();
+        let missing_count = outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome.result, TrashMoveResult::Missing))
+            .count();
+        let failed_paths = outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome.result, TrashMoveResult::Failed { .. }))
+            .map(|outcome| outcome.source.clone())
+            .collect::<Vec<_>>();
         let failures = outcomes
             .iter()
             .filter_map(|outcome| match &outcome.result {
@@ -297,9 +306,10 @@ impl NativeAppState {
         let discarded = self
             .library
             .folder_browser
-            .discard_trashed_file_paths_matching_tags(
+            .discard_trashed_file_paths_matching_tags_preserving_selection(
                 &reconciled_paths,
                 &self.metadata.tags_by_file,
+                &failed_paths,
             );
         let selected_after_trash = if discarded {
             self.library
@@ -320,25 +330,15 @@ impl NativeAppState {
             loaded_removed,
             context,
         );
+        let (status, outcome) =
+            trash_batch_completion(moved_count, missing_count, &failures, action);
+        self.ui.status.sample = status;
         let noun = if moved_count == 1 { "file" } else { "files" };
-        self.ui.status.sample = if failures.is_empty() {
-            trash_move_finished_status(moved_count, noun, action)
-        } else {
-            format!(
-                "Moved {moved_count} {noun} to trash; {} failed: {}",
-                failures.len(),
-                failures.join("; ")
-            )
-        };
         emit_gui_action(
             action,
             Some("browser"),
             Some(&format!("{moved_count} {noun}")),
-            if failures.is_empty() {
-                "success"
-            } else {
-                "partial"
-            },
+            outcome,
             started_at,
             failures.first().copied(),
         );
@@ -467,6 +467,86 @@ impl NativeAppState {
         } else {
             vec![path]
         }
+    }
+}
+
+fn trash_batch_completion(
+    moved_count: usize,
+    missing_count: usize,
+    failures: &[&str],
+    action: &str,
+) -> (String, &'static str) {
+    let noun = if moved_count == 1 { "file" } else { "files" };
+    let failure_summary = bounded_failure_summary(failures);
+    if moved_count == 0 && !failures.is_empty() {
+        return (
+            format!(
+                "Failed to move {} files to trash: {failure_summary}",
+                failures.len()
+            ),
+            "error",
+        );
+    }
+    if !failures.is_empty() {
+        return (
+            format!(
+                "Moved {moved_count} {noun} to trash; {} failed: {failure_summary}",
+                failures.len()
+            ),
+            "partial",
+        );
+    }
+    if moved_count == 0 && missing_count > 0 {
+        let noun = if missing_count == 1 { "file" } else { "files" };
+        return (
+            format!("Removed {missing_count} missing {noun} from the browser"),
+            "reconciled",
+        );
+    }
+    (
+        trash_move_finished_status(moved_count, noun, action),
+        "success",
+    )
+}
+
+fn bounded_failure_summary(failures: &[&str]) -> String {
+    const MAX_VISIBLE_FAILURES: usize = 3;
+    let mut summary = failures
+        .iter()
+        .take(MAX_VISIBLE_FAILURES)
+        .copied()
+        .collect::<Vec<_>>()
+        .join("; ");
+    let remaining = failures.len().saturating_sub(MAX_VISIBLE_FAILURES);
+    if remaining > 0 {
+        summary.push_str(&format!("; and {remaining} more"));
+    }
+    summary
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_failed_batch_reports_error_and_caps_details() {
+        let failures = ["one", "two", "three", "four", "five"];
+
+        let (status, outcome) = trash_batch_completion(0, 0, &failures, "trash");
+
+        assert_eq!(outcome, "error");
+        assert_eq!(
+            status,
+            "Failed to move 5 files to trash: one; two; three; and 2 more"
+        );
+    }
+
+    #[test]
+    fn missing_only_batch_reports_reconciliation() {
+        let (status, outcome) = trash_batch_completion(0, 2, &[], "trash");
+
+        assert_eq!(outcome, "reconciled");
+        assert_eq!(status, "Removed 2 missing files from the browser");
     }
 }
 
