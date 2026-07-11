@@ -518,6 +518,12 @@ fn targeted_split_batches_preserve_large_rename_destination() {
         db.list_pending_rename_destinations().unwrap(),
         vec![PathBuf::from("new.wav")]
     );
+    scan_once(&db).unwrap();
+    assert_eq!(
+        db.list_pending_rename_destinations().unwrap(),
+        vec![PathBuf::from("new.wav")],
+        "a full quick scan between watcher halves must carry the destination"
+    );
 
     std::fs::remove_file(&old).unwrap();
     let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
@@ -574,11 +580,22 @@ fn deferred_completion_does_not_treat_plain_delete_as_duplicate_rename() {
     let dir = tempdir().unwrap();
     let deleted = dir.path().join("deleted.wav");
     let duplicate = dir.path().join("duplicate.wav");
+    let unrelated_large = dir.path().join("unrelated-large.wav");
     std::fs::write(&deleted, b"same-content").unwrap();
     std::fs::write(&duplicate, b"same-content").unwrap();
+    std::fs::write(&unrelated_large, vec![9_u8; 9 * 1024 * 1024]).unwrap();
 
     let db = SourceDatabase::open(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
+    let large = db
+        .entry_for_path(Path::new("unrelated-large.wav"))
+        .unwrap()
+        .unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_without_hash(&large.relative_path, large.file_size, large.modified_ns)
+        .unwrap();
+    batch.commit().unwrap();
     db.set_tag(Path::new("deleted.wav"), Rating::KEEP_1)
         .unwrap();
     std::fs::remove_file(&deleted).unwrap();
@@ -587,6 +604,15 @@ fn deferred_completion_does_not_treat_plain_delete_as_duplicate_rename() {
     let completed = complete_deferred_hashes(&db, removed).unwrap();
 
     assert_eq!(completed.renames_reconciled, 0);
+    assert_eq!(completed.hashes_computed, 0);
+    assert!(
+        db.entry_for_path(Path::new("unrelated-large.wav"))
+            .unwrap()
+            .unwrap()
+            .content_hash
+            .is_none(),
+        "plain deletes must not trigger unrelated deferred backfill"
+    );
     assert_eq!(
         db.entry_for_path(Path::new("duplicate.wav"))
             .unwrap()

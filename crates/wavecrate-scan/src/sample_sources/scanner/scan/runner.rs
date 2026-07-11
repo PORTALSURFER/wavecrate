@@ -95,8 +95,11 @@ pub fn complete_deferred_hashes_with_cancel(
     mut stats: ScanStats,
     cancel: Option<&AtomicBool>,
 ) -> Result<ScanStats, ScanError> {
-    let pending_renames = db.list_pending_renames()?;
-    if stats.hashes_pending == 0 && pending_renames.is_empty() {
+    let persisted_candidates = db.list_pending_rename_destinations()?;
+    if stats.hashes_pending == 0
+        && stats.rename_candidate_paths.is_empty()
+        && persisted_candidates.is_empty()
+    {
         return Ok(stats);
     }
     let rename_candidates = stats

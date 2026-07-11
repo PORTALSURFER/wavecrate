@@ -27,9 +27,15 @@ pub(super) fn deep_hash_scan(
         .into_iter()
         .map(|entry| (entry.relative_path.clone(), entry))
         .collect();
-    let pending_entries = db.list_pending_renames()?;
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
+    let has_unhashed_files = entries_by_path.values().any(|entry| {
+        !entry.missing && entry.content_hash.is_none() && root.join(&entry.relative_path).is_file()
+    });
+    if !has_unhashed_files && rename_candidates.is_empty() {
+        return Ok(ScanStats::default());
+    }
+    let pending_entries = db.list_pending_renames()?;
     let mut stats = ScanStats::default();
     let mut present_by_hash = HashMap::new();
     let mut pending_by_hash = HashMap::new();

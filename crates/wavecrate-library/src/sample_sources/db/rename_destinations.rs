@@ -67,7 +67,7 @@ impl SourceWriteBatch<'_> {
         Ok(generation)
     }
 
-    /// Start a full quick-scan candidate snapshot at the current watcher generation.
+    /// Start a full quick scan without discarding destinations carried from watcher batches.
     pub fn begin_quick_scan_rename_candidates(&mut self) -> Result<u64, SourceDbError> {
         let generation = self
             .tx
@@ -80,7 +80,6 @@ impl SourceWriteBatch<'_> {
             .map_err(map_sql_error)?
             .and_then(|value| value.parse::<u64>().ok())
             .unwrap_or(0);
-        self.clear_all_pending_rename_destinations()?;
         Ok(generation)
     }
 
