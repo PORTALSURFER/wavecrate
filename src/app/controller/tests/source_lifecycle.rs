@@ -315,3 +315,57 @@ fn metadata_mutation_cancels_matching_pending_remap_generation() {
             .is_some_and(|pending| pending.request_id == 43 && pending.canceled)
     );
 }
+
+#[test]
+fn remap_rejects_existing_file_mutation() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "pending.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    controller.begin_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("pending file mutation must block remap");
+
+    assert!(error.contains("changes are pending"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+    controller.finish_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
+}
+
+#[test]
+fn remap_rejects_existing_metadata_mutation() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "pending.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id: 99,
+                source_id: source.id.clone(),
+                paths: [std::path::PathBuf::from("pending.wav")]
+                    .into_iter()
+                    .collect(),
+                blocks_file_mutation: true,
+                rollback: Vec::new(),
+                refresh_browser_projection: false,
+            },
+        );
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("pending metadata mutation must block remap");
+
+    assert!(error.contains("changes are pending"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+}

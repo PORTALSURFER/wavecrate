@@ -141,14 +141,26 @@ impl SourceDatabase {
             })?;
         drop(reservation);
         let result = (|| -> Result<SourceDatabaseWriteFence, SourceDbError> {
-            let writer_connection = rusqlite::Connection::open(&self.db_path)?;
+            let database_root =
+                self.db_path
+                    .parent()
+                    .ok_or_else(|| SourceDbError::UnsafeSourceDatabasePath {
+                        path: self.db_path.clone(),
+                        reason: "source database path has no parent directory",
+                    })?;
+            let validated = open::open_source_database_with_database_root(
+                &self.root,
+                database_root,
+                false,
+                open::SourceDatabaseOpenMode::Full,
+            )?;
+            let writer_connection = validated.connection;
             writer_connection
                 .execute_batch("BEGIN IMMEDIATE")
                 .map_err(SourceDbError::from)?;
-            let source_connection = rusqlite::Connection::open(&self.db_path)?;
             let mut destination_connection = rusqlite::Connection::open(destination)?;
             let backup =
-                rusqlite::backup::Backup::new(&source_connection, &mut destination_connection)?;
+                rusqlite::backup::Backup::new(&self.connection, &mut destination_connection)?;
             backup.run_to_completion(128, Duration::from_millis(5), None)?;
             drop(backup);
             destination_connection.close().map_err(|(_, error)| error)?;

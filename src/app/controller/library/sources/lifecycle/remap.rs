@@ -55,6 +55,17 @@ impl AppController {
         if self
             .runtime
             .source_lane
+            .mutations
+            .source_has_pending_metadata(&source_id)
+            || self.source_has_pending_file_mutations(&source_id)
+        {
+            return Err(String::from(
+                "Cannot remap a source while file or metadata changes are pending",
+            ));
+        }
+        if self
+            .runtime
+            .source_lane
             .pending_adds
             .values()
             .any(|pending| roots_overlap(&pending.source.root, &normalized))
@@ -313,6 +324,7 @@ fn publish_prepared_database(
         return Err(String::from("Remap destination is no longer available"));
     }
     let destination = crate::sample_sources::database_path_for(root);
+    let legacy_destination = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
     if let Some(staged) = staged_database {
         if database_artifact_present(&destination) {
             return Err(String::from(
@@ -326,6 +338,14 @@ fn publish_prepared_database(
             return Err(format!("Failed to prepare database: {error}"));
         }
         return Ok(true);
+    }
+    if !destination_database_preexisting
+        && (database_artifact_present(&destination)
+            || database_artifact_present(&legacy_destination))
+    {
+        return Err(String::from(
+            "Destination database changed while the remap was running",
+        ));
     }
     SourceDatabase::open(root).map_err(|error| format!("Failed to prepare database: {error}"))?;
     Ok(!destination_database_preexisting)
@@ -425,6 +445,19 @@ mod tests {
         assert!(!destination.exists());
         assert!(!path_with_suffix(&destination, "-wal").exists());
         assert!(!path_with_suffix(&destination, "-shm").exists());
+    }
+
+    #[test]
+    fn no_snapshot_publish_rejects_newly_appeared_destination() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        fs::write(&destination, b"other owner").expect("create competing database");
+
+        let error = publish_prepared_database(root.path(), None, false)
+            .expect_err("new destination must not be claimed");
+
+        assert!(error.contains("changed while the remap was running"));
+        assert_eq!(fs::read(destination).unwrap(), b"other owner");
     }
 }
 

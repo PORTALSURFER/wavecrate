@@ -95,6 +95,18 @@ impl AppController {
         kind: ScanKind,
         paths: Option<Vec<PathBuf>>,
     ) {
+        if self
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.source.id == source.id)
+        {
+            if matches!(kind, ScanKind::Manual) {
+                self.set_status("Source remap in progress", StatusTone::Info);
+            }
+            return;
+        }
         if self.runtime.jobs.scan_in_progress() {
             if matches!(kind, ScanKind::Manual) {
                 self.set_status_message(StatusMessage::ScanAlreadyRunning);

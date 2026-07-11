@@ -136,3 +136,29 @@ fn snapshot_rejects_broken_symlink_destination_without_following_or_removing_it(
     assert!(std::fs::symlink_metadata(&destination).is_ok());
     assert!(!outside_target.exists());
 }
+
+#[cfg(unix)]
+#[test]
+fn snapshot_revalidates_source_path_before_reopening() {
+    use std::os::unix::fs::symlink;
+
+    let source_root = tempdir().unwrap();
+    let outside_root = tempdir().unwrap();
+    let destination_root = tempdir().unwrap();
+    let source = SourceDatabase::open(source_root.path()).unwrap();
+    source.upsert_file(Path::new("trusted.wav"), 1, 1).unwrap();
+    let outside = SourceDatabase::open(outside_root.path()).unwrap();
+    outside.upsert_file(Path::new("outside.wav"), 2, 2).unwrap();
+    let source_path = database_path_for(source_root.path());
+    std::fs::remove_file(&source_path).unwrap();
+    symlink(database_path_for(outside_root.path()), &source_path).unwrap();
+    let destination = database_path_for(destination_root.path());
+
+    let error = source.snapshot_to_path(&destination).unwrap_err();
+
+    assert!(matches!(
+        error,
+        SourceDbError::UnsafeSourceDatabasePath { .. }
+    ));
+    assert!(!destination.exists());
+}
