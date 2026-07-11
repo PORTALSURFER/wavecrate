@@ -120,6 +120,11 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
     })
 }
 
+pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
+        && is_supported_audio(path)
+}
+
 /// Hash the entire file contents for change detection, honoring cancellation when requested.
 pub(super) fn compute_content_hash(
     path: &Path,

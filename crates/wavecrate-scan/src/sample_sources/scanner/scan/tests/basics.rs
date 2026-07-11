@@ -285,6 +285,93 @@ fn missing_stage_keeps_concurrently_restored_live_row() {
     assert_eq!(restored.modified_ns, facts.modified_ns);
 }
 
+#[test]
+fn missing_stage_prunes_path_replaced_by_directory() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("replaced.wav");
+    std::fs::write(&file_path, b"old").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    std::fs::remove_file(&file_path).unwrap();
+    std::fs::create_dir(&file_path).unwrap();
+
+    let stats = scan_once(&db).unwrap();
+
+    assert_eq!(stats.missing, 1);
+    assert!(
+        db.entry_for_path(Path::new("replaced.wav"))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn scan_rebases_noop_when_concurrent_writer_clears_hash() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("one.wav");
+    std::fs::write(&file_path, b"one").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let row = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+    let mut cleared = false;
+
+    let stats = scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if cleared {
+            return;
+        }
+        let writer = SourceDatabase::open(dir.path()).unwrap();
+        let mut batch = writer.write_batch().unwrap();
+        batch
+            .upsert_file_without_hash(Path::new("one.wav"), row.file_size, row.modified_ns)
+            .unwrap();
+        batch.commit().unwrap();
+        cleared = true;
+    })
+    .unwrap();
+
+    assert!(cleared);
+    assert_eq!(stats.hashes_computed, 1);
+    assert!(
+        db.entry_for_path(Path::new("one.wav"))
+            .unwrap()
+            .unwrap()
+            .content_hash
+            .is_some()
+    );
+}
+
+#[test]
+fn missing_repair_survives_concurrent_hash_clear() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("one.wav");
+    std::fs::write(&file_path, b"one").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let row = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+    db.set_missing(Path::new("one.wav"), true).unwrap();
+    let mut cleared = false;
+
+    let stats = scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if cleared {
+            return;
+        }
+        let writer = SourceDatabase::open(dir.path()).unwrap();
+        let mut batch = writer.write_batch().unwrap();
+        batch
+            .upsert_file_without_hash(Path::new("one.wav"), row.file_size, row.modified_ns)
+            .unwrap();
+        batch.commit().unwrap();
+        cleared = true;
+    })
+    .unwrap();
+
+    assert!(cleared);
+    assert_eq!(stats.hashes_computed, 1);
+    let repaired = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+    assert!(!repaired.missing);
+    assert!(repaired.content_hash.is_some());
+}
+
 #[cfg(unix)]
 #[test]
 fn scan_hashes_current_bytes_when_facts_are_preserved_after_discovery() {

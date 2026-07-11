@@ -127,11 +127,17 @@ fn refresh_noop_preparation(
 ) -> Result<PreparedFile, ScanError> {
     let relative_path = prepared.facts.relative.clone();
     let current = db.entry_for_path(&relative_path)?;
-    if current.as_ref().is_some_and(|entry| {
-        !entry.missing
-            && entry.file_size == prepared.facts.size
-            && entry.modified_ns == prepared.facts.modified_ns
-    }) {
+    let snapshot = context.existing.get(&relative_path);
+    if current
+        .as_ref()
+        .zip(snapshot)
+        .is_some_and(|(entry, snapshot)| {
+            !entry.missing
+                && entry.file_size == prepared.facts.size
+                && entry.modified_ns == prepared.facts.modified_ns
+                && entry.content_hash == snapshot.content_hash
+        })
+    {
         return Ok(prepared);
     }
     match current {
@@ -244,7 +250,7 @@ fn prepare_for_apply(
     if !facts_match(&prepared, &before_hash) {
         return Ok(PrepareForApply::Skip);
     }
-    if prepared.needs_hash {
+    if prepared.hash_required {
         prepared.content_hash = Some(compute_content_hash(&absolute, cancel)?);
         let Ok(after_hash) = read_facts(root, &absolute) else {
             return Ok(if absolute.exists() {

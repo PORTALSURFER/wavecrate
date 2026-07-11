@@ -10,11 +10,13 @@ use super::scan::{
     ChangedSample, RenamedSample, ScanContext, ScanError, ScanMode, ScanStats, UpdatedSample,
 };
 use super::scan_fs::FileFacts;
+use super::scan_fs::is_supported_regular_audio_file;
 
 const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
 pub(super) struct PreparedFile {
     pub(super) facts: FileFacts,
+    pub(super) hash_required: bool,
     pub(super) needs_hash: bool,
     pub(super) requires_apply: bool,
     pub(super) content_hash: Option<String>,
@@ -29,6 +31,7 @@ pub(super) fn apply_diff(
 ) -> Result<(), ScanError> {
     let PreparedFile {
         facts,
+        hash_required: _,
         needs_hash: _,
         requires_apply: _,
         content_hash,
@@ -233,7 +236,7 @@ pub(super) fn mark_missing(
     mode: ScanMode,
 ) -> Result<(), ScanError> {
     for stale in existing {
-        if db.root().join(&stale.relative_path).exists() {
+        if is_supported_regular_audio_file(&db.root().join(&stale.relative_path)) {
             continue;
         }
         let Some(leftover) = db.entry_for_path(&stale.relative_path)? else {

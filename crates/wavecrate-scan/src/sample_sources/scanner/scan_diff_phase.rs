@@ -9,7 +9,8 @@ pub(super) fn prepare_diff(
     context: &ScanContext,
 ) -> Result<PreparedFile, ScanError> {
     let facts = read_facts(root, path)?;
-    let needs_hash = should_compute_full_hash(context.mode, facts.size)
+    let hash_required = should_compute_full_hash(context.mode, facts.size);
+    let needs_hash = hash_required
         && context.existing.get(&facts.relative).is_none_or(|entry| {
             entry.file_size != facts.size
                 || entry.modified_ns != facts.modified_ns
@@ -23,6 +24,7 @@ pub(super) fn prepare_diff(
     });
     Ok(PreparedFile {
         facts,
+        hash_required,
         needs_hash,
         requires_apply,
         content_hash: None,
