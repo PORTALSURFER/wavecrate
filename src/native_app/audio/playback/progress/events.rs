@@ -3,11 +3,13 @@ use std::{path::Path, time::Duration};
 use super::{
     state::playback_error_indicates_output_unavailable, telemetry::log_runtime_playback_event,
 };
-use crate::native_app::app::{NativeAppState, SamplePlaybackSessionState, sample_path_label};
+use crate::native_app::app::{
+    NativeAppState, PlaybackSpanRetargetRejection, SamplePlaybackSessionState, sample_path_label,
+};
 use crate::native_app::starmap_audition_telemetry::StarmapAuditionCounter;
 use wavecrate::audio::{
     PlaybackRuntimeCancellation, PlaybackRuntimeEvent, PlaybackRuntimeProgress,
-    PlaybackRuntimeStarted,
+    PlaybackRuntimeStarted, ResolvedOutput,
 };
 
 impl NativeAppState {
@@ -66,7 +68,10 @@ impl NativeAppState {
                 self.finish_runtime_playback_cancelled(id, reason)
             }
             PlaybackRuntimeEvent::Stopped { .. } => {}
-            PlaybackRuntimeEvent::Progress { progress, .. } => {
+            PlaybackRuntimeEvent::Progress { id, progress } => {
+                if let Some(session) = self.audio.sample_playback_session.as_mut() {
+                    session.confirm_span_retarget(id);
+                }
                 self.apply_runtime_playback_progress(progress)
             }
         }
@@ -80,10 +85,23 @@ impl NativeAppState {
     }
 
     fn finish_runtime_playback_started(&mut self, started: PlaybackRuntimeStarted) {
+        self.finish_runtime_playback_started_parts(
+            started.id.get(),
+            started.output,
+            started.playback_start,
+        );
+    }
+
+    fn finish_runtime_playback_started_parts(
+        &mut self,
+        request_id: u64,
+        output: ResolvedOutput,
+        runtime_playback_start: f32,
+    ) {
         let Some(session) = self.audio.sample_playback_session.as_mut() else {
             return;
         };
-        if session.runtime_request_id != Some(started.id) {
+        if session.runtime_request_id != Some(request_id) {
             log_runtime_playback_event(
                 "runtime.started",
                 "id_mismatch",
@@ -112,23 +130,34 @@ impl NativeAppState {
         let path = session.request.path.clone();
         let span = session.request.span;
         let show_start_marker = session.request.show_start_marker;
-        self.audio.output_resolved = Some(started.output);
+        let preserves_live_retarget = session.has_pending_span_retarget();
+        let playback_start = if preserves_live_retarget {
+            self.audio
+                .playback_visual_progress
+                .map_or(runtime_playback_start, |progress| progress.anchor_ratio)
+        } else {
+            runtime_playback_start
+        };
+        self.audio.output_resolved = Some(output);
         self.audio.current_playback_span = source_updates_waveform.then_some(span);
         self.audio
             .set_started_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
                 active: true,
                 elapsed: Some(Duration::ZERO),
                 looping: self.audio.loop_playback,
-                progress: Some(started.playback_start),
+                progress: Some(playback_start),
                 error: None,
             });
-        if source_updates_waveform && self.waveform.current.path() == Path::new(&path) {
+        if source_updates_waveform
+            && !preserves_live_retarget
+            && self.waveform.current.path() == Path::new(&path)
+        {
             if show_start_marker {
-                self.waveform.current.start_playback(started.playback_start);
+                self.waveform.current.start_playback(playback_start);
             } else {
                 self.waveform
                     .current
-                    .start_playback_without_marker(started.playback_start);
+                    .start_playback_without_marker(playback_start);
             }
         }
         self.ui.status.sample = format!("Playing {}", sample_path_label(&path));
@@ -139,10 +168,56 @@ impl NativeAppState {
         id: wavecrate::audio::PlaybackRequestId,
         error: String,
     ) {
+        let span_retarget_failure =
+            self.audio
+                .sample_playback_session
+                .as_mut()
+                .and_then(|session| {
+                    let rejection = session.reject_span_retarget(id)?;
+                    let (outcome, counter) = match rejection {
+                        PlaybackSpanRetargetRejection::Restore(_) => (
+                            "retarget_failed",
+                            Some(StarmapAuditionCounter::RuntimeFailed),
+                        ),
+                        PlaybackSpanRetargetRejection::Superseded => (
+                            "retarget_failure_superseded",
+                            Some(StarmapAuditionCounter::RuntimeStale),
+                        ),
+                    };
+                    log_runtime_playback_event(
+                        "runtime.failed",
+                        outcome,
+                        counter,
+                        session,
+                        None,
+                        Some(&error),
+                    );
+                    Some((session.request.path.clone(), rejection))
+                });
+        if let Some((path, rejection)) = span_retarget_failure {
+            if playback_error_indicates_output_unavailable(&error) {
+                self.mark_audio_output_unavailable(error);
+                return;
+            }
+            let PlaybackSpanRetargetRejection::Restore(span) = rejection else {
+                return;
+            };
+            let progress = self.audio.playback_progress.progress.unwrap_or(span.0);
+            self.audio.current_playback_span = Some(span);
+            self.audio
+                .reset_playback_visual_progress(progress, self.audio.loop_playback);
+            self.waveform.current.set_playhead_ratio(progress);
+            self.ui.status.sample = format!(
+                "Playing {} | live range update unavailable: {error}",
+                sample_path_label(&path)
+            );
+            return;
+        }
+
         let Some(session) = self.audio.sample_playback_session.as_mut() else {
             return;
         };
-        if session.runtime_request_id != Some(id) {
+        if session.runtime_request_id != Some(id.get()) {
             log_runtime_playback_event(
                 "runtime.failed",
                 "id_mismatch",
@@ -185,7 +260,7 @@ impl NativeAppState {
         let Some(session) = self.audio.sample_playback_session.as_ref() else {
             return;
         };
-        if session.runtime_request_id != Some(id) {
+        if session.runtime_request_id != Some(id.get()) {
             log_runtime_playback_event(
                 "runtime.cancelled",
                 "id_mismatch",
@@ -214,5 +289,62 @@ impl NativeAppState {
             self.audio.current_playback_span = None;
             self.waveform.current.stop_playback();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{path::PathBuf, sync::Arc};
+
+    use super::*;
+    use crate::native_app::{
+        app::{SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackRequest},
+        test_support::state::{NativeAppStateFixture, WaveformState},
+        waveform::test_decoded_waveform_file_from_mono_samples,
+    };
+
+    #[test]
+    fn late_original_start_preserves_newer_live_retarget_span_and_anchor() {
+        let path = PathBuf::from("late-start-retarget.wav");
+        let file =
+            test_decoded_waveform_file_from_mono_samples(path.clone(), vec![0.0, 0.5, -0.5, 0.0]);
+        let mut state = NativeAppStateFixture::default().build();
+        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
+        state.waveform.current.start_playback(0.0);
+        state.audio.current_playback_span = Some((0.0, 1.0));
+        let request = SamplePlaybackRequest::waveform(
+            path.display().to_string(),
+            (0.0, 1.0),
+            SamplePlaybackIntent::WaveformSpan,
+            "waveform",
+            SamplePlaybackHistory::Record,
+        );
+        state
+            .audio
+            .start_resolving_sample_playback_session(request, "decoded_samples");
+        state
+            .audio
+            .sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .runtime_request_id = Some(1);
+        state.audio.record_span_retarget_for_tests(2, (0.25, 0.60));
+        state.audio.current_playback_span = Some((0.25, 0.60));
+        state.audio.reset_playback_visual_progress(0.25, true);
+        state.waveform.current.start_playback(0.25);
+
+        state.finish_runtime_playback_started_parts(1, ResolvedOutput::default(), 0.0);
+
+        assert_eq!(state.audio.current_playback_span, Some((0.25, 0.60)));
+        assert_eq!(state.audio.playback_progress.progress, Some(0.25));
+        assert_eq!(state.waveform.current.playhead_ratio(), Some(0.25));
+        assert!(matches!(
+            state
+                .audio
+                .sample_playback_session
+                .as_ref()
+                .map(|session| &session.state),
+            Some(SamplePlaybackSessionState::WaveformVisible)
+        ));
     }
 }

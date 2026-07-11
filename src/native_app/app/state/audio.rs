@@ -15,6 +15,11 @@ use crate::native_app::audio::{
     playback_history::{LastPlayedPersistRequest, PlaybackNavigationHistory},
 };
 
+mod span_retarget;
+
+pub(in crate::native_app) use span_retarget::PlaybackSpanRetargetRejection;
+use span_retarget::PlaybackSpanRetargetState;
+
 const PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE: Duration = Duration::from_millis(8);
 
 pub(in crate::native_app) struct AudioAppState {
@@ -223,10 +228,11 @@ pub(in crate::native_app) enum SamplePlaybackSessionState {
 pub(in crate::native_app) struct SamplePlaybackSession {
     pub(in crate::native_app) generation: u64,
     pub(in crate::native_app) request: SamplePlaybackRequest,
-    pub(in crate::native_app) runtime_request_id: Option<PlaybackRequestId>,
+    pub(in crate::native_app) runtime_request_id: Option<u64>,
     pub(in crate::native_app) source_kind: &'static str,
     pub(in crate::native_app) submitted_at: Instant,
     pub(in crate::native_app) state: SamplePlaybackSessionState,
+    span_retarget: PlaybackSpanRetargetState,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -299,13 +305,15 @@ impl AudioAppState {
             .next_sample_playback_generation
             .saturating_add(1)
             .max(1);
+        let confirmed_span = request.span;
         self.sample_playback_session = Some(SamplePlaybackSession {
             generation,
             request,
-            runtime_request_id: Some(runtime_request_id),
+            runtime_request_id: Some(runtime_request_id.get()),
             source_kind,
             submitted_at: Instant::now(),
             state: SamplePlaybackSessionState::RuntimePending,
+            span_retarget: PlaybackSpanRetargetState::new(confirmed_span),
         });
         generation
     }
@@ -321,6 +329,7 @@ impl AudioAppState {
             .next_sample_playback_generation
             .saturating_add(1)
             .max(1);
+        let confirmed_span = request.span;
         self.sample_playback_session = Some(SamplePlaybackSession {
             generation,
             request,
@@ -328,6 +337,7 @@ impl AudioAppState {
             source_kind,
             submitted_at: Instant::now(),
             state: SamplePlaybackSessionState::ResolvingSource,
+            span_retarget: PlaybackSpanRetargetState::new(confirmed_span),
         });
         generation
     }
@@ -478,7 +488,19 @@ impl AudioAppState {
 
     pub(in crate::native_app) fn set_active_sample_playback_span(&mut self, span: (f32, f32)) {
         if let Some(session) = self.sample_playback_session.as_mut() {
-            session.request.span = span;
+            session.set_confirmed_span(span);
         }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn record_span_retarget_for_tests(
+        &mut self,
+        request_id: u64,
+        span: (f32, f32),
+    ) {
+        self.sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .record_span_retarget_id(request_id, span);
     }
 }

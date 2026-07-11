@@ -10,16 +10,6 @@ pub(in crate::native_app) struct ResolvedPlaybackSpan {
     pub(in crate::native_app) offset_ratio: f32,
 }
 
-pub(super) fn retarget_offset_for_selection(playhead: f32, selection: SelectionRange) -> f32 {
-    let start = selection.start();
-    let end = selection.end();
-    if (start..=end).contains(&playhead) {
-        playhead
-    } else {
-        start
-    }
-}
-
 pub(super) fn playback_span_matches_selection(
     span: Option<(f32, f32)>,
     selection: SelectionRange,
