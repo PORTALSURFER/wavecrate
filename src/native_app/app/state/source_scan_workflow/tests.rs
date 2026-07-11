@@ -138,6 +138,32 @@ fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
     assert_eq!(browser.selected_source_id(), second_id);
     assert!(browser.selected_source_loaded());
     assert!(workflow.pending_refresh_contains_for_tests(&second_id));
+    let second_visible = browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.id.clone())
+        .collect::<Vec<_>>();
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, second_id.clone(), 35),
+        SourceSelectionRequest::Settled
+    ));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>(),
+        second_visible,
+        "reselecting the visible source must preserve its live tree"
+    );
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, first_id.clone(), 36),
+        SourceSelectionRequest::Settled
+    ));
+    assert_eq!(browser.selected_source_id(), first_id);
+    assert!(browser.selected_source_loaded());
+    assert!(!workflow.pending_refresh_contains_for_tests(&first_id));
 
     let active_result = scan_source_with_progress(active, |_| {}, |_| {});
     assert!(matches!(
@@ -247,4 +273,83 @@ fn duplicate_add_is_blocked_while_its_scan_is_active() {
     );
     assert_eq!(workflow.progress().unwrap().task_id, active.task_id);
     assert!(browser.scan_is_active(&active.source_id, active.task_id));
+}
+
+#[test]
+fn latest_deferred_selection_is_refreshed_first() {
+    let first = temp_dir_with_wav();
+    let second = temp_dir_with_wav();
+    let third = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let active = workflow
+        .begin_add_source_path(&mut browser, first.path().to_path_buf(), 80)
+        .expect("active scan");
+    workflow.start_scan(&active);
+    let second_request = browser
+        .begin_add_source_path_preserving_selection(second.path().to_path_buf(), 81)
+        .expect("second source");
+    let third_request = browser
+        .begin_add_source_path_preserving_selection(third.path().to_path_buf(), 82)
+        .expect("third source");
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, second_request.source_id.clone(), 83),
+        SourceSelectionRequest::Deferred
+    ));
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, third_request.source_id.clone(), 84),
+        SourceSelectionRequest::Deferred
+    ));
+    let result = scan_source_with_progress(active, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Applied { .. }
+    ));
+
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(third_request.source_id)
+    );
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(second_request.source_id)
+    );
+}
+
+#[test]
+fn deferred_selection_missing_before_execution_is_dropped() {
+    let first = temp_dir_with_wav();
+    let second = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let active = workflow
+        .begin_add_source_path(&mut browser, first.path().to_path_buf(), 90)
+        .expect("active scan");
+    workflow.start_scan(&active);
+    let pending = browser
+        .begin_add_source_path_preserving_selection(second.path().to_path_buf(), 91)
+        .expect("pending source");
+    let source_id = pending.source_id.clone();
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, source_id.clone(), 92),
+        SourceSelectionRequest::Deferred
+    ));
+    let result = scan_source_with_progress(active, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(source_id.clone())
+    );
+    drop(second);
+
+    assert!(matches!(
+        workflow.begin_filesystem_refresh(&mut browser, source_id.clone(), 93),
+        SourceRefreshRequest::IgnoredMissing { .. }
+    ));
+    assert!(!workflow.pending_refresh_contains_for_tests(&source_id));
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
 }

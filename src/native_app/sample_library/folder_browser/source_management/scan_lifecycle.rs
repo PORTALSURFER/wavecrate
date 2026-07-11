@@ -177,6 +177,9 @@ impl FolderBrowserState {
             return false;
         };
         self.source.sources[index].refresh_availability_from_disk();
+        if self.source.selected_source == id && self.selected_source_loaded() {
+            return true;
+        }
         self.select_cached_or_placeholder_source(index);
         true
     }
