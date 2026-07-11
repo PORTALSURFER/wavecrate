@@ -25,6 +25,7 @@ pub(crate) use self::waveform_types::*;
 pub(crate) enum JobMessage {
     WavLoaded(WavLoadResult),
     SourceAddPrepared(SourceAddPreparedResult),
+    SourceRemapPrepared(SourceRemapPreparedResult),
     SourceHydrated(SourceHydrationResult),
     BrowserFeatureCacheRefreshed(BrowserFeatureCacheRefreshResult),
     FolderProjected(FolderProjectionResult),

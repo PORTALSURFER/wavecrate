@@ -61,6 +61,32 @@ pub(crate) struct SourceAddPreparedResult {
     pub(crate) result: Result<(), String>,
 }
 
+/// Background source-remap snapshot request.
+#[derive(Debug)]
+pub(crate) struct SourceRemapJob {
+    /// Monotonic request identifier used to reject stale completion.
+    pub(crate) request_id: u64,
+    /// Source before the remap.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Normalized destination root.
+    pub(crate) new_root: PathBuf,
+}
+
+/// Result of one background source-remap snapshot request.
+#[derive(Debug)]
+pub(crate) struct SourceRemapPreparedResult {
+    /// Request identifier echoed from [`SourceRemapJob::request_id`].
+    pub(crate) request_id: u64,
+    /// Source before the remap.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Normalized destination root.
+    pub(crate) new_root: PathBuf,
+    /// Whether the destination database predated this request and must never be cleaned up.
+    pub(crate) destination_existed: bool,
+    /// Preparation outcome.
+    pub(crate) result: Result<(), String>,
+}
+
 /// Compact source snapshot prepared off the UI thread for later controller apply.
 #[derive(Debug)]
 pub(crate) struct SourceHydrationSnapshot {

@@ -95,3 +95,38 @@ fn removing_source_rolls_back_when_config_save_fails() {
     );
     assert_ne!(controller.ui.status.text, "Source removed");
 }
+
+#[test]
+fn remapping_source_snapshots_wal_resident_metadata() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "wal.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let source_db = controller.cache.db.get(&source.id).unwrap().clone();
+    source_db
+        .set_tag(
+            std::path::Path::new("wal.wav"),
+            crate::sample_sources::Rating::KEEP_3,
+        )
+        .expect("commit WAL-resident tag");
+    let source_wal = std::path::PathBuf::from(format!(
+        "{}-wal",
+        crate::sample_sources::database_path_for(&source.root).display()
+    ));
+    assert!(source_wal.metadata().expect("source WAL").len() > 0);
+    let destination = tempfile::tempdir().expect("create destination root");
+
+    controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect("remap source");
+
+    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
+        .expect("open destination snapshot");
+    let entry = destination_db
+        .entry_for_path(std::path::Path::new("wal.wav"))
+        .expect("query snapshot")
+        .expect("snapshotted row");
+    assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_3);
+}

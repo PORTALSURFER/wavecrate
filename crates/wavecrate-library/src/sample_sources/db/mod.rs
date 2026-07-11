@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use rusqlite::{Connection, Transaction};
 
@@ -79,6 +80,38 @@ impl SourceDatabase {
             open::should_open_source_db_read_only(),
             open::SourceDatabaseOpenMode::Full,
         )
+    }
+
+    /// Write a transactionally consistent SQLite snapshot to a new database file.
+    ///
+    /// SQLite's online backup API coordinates with source-local writers and includes committed
+    /// WAL-resident pages without requiring a global checkpoint. The destination must not exist.
+    pub fn snapshot_to_path(&self, destination: &Path) -> Result<(), SourceDbError> {
+        if destination.exists() {
+            return Err(SourceDbError::Sql(rusqlite::Error::InvalidPath(
+                destination.to_path_buf(),
+            )));
+        }
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| SourceDbError::CreateDir {
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        }
+        let result = (|| -> Result<(), rusqlite::Error> {
+            let mut destination_connection = rusqlite::Connection::open(destination)?;
+            let backup =
+                rusqlite::backup::Backup::new(&self.connection, &mut destination_connection)?;
+            backup.run_to_completion(128, Duration::from_millis(5), None)?;
+            drop(backup);
+            destination_connection.close().map_err(|(_, error)| error)?;
+            Ok(())
+        })()
+        .map_err(SourceDbError::from);
+        if result.is_err() {
+            remove_snapshot_artifacts(destination);
+        }
+        result
     }
 
     /// Open (or create) a source database stored outside the source root.
@@ -299,6 +332,31 @@ impl SourceDatabase {
     fn into_connection(self) -> Connection {
         self.connection
     }
+}
+
+fn remove_snapshot_artifacts(database: &Path) {
+    for path in [
+        database.to_path_buf(),
+        snapshot_sidecar_path(database, "-wal"),
+        snapshot_sidecar_path(database, "-shm"),
+        snapshot_sidecar_path(database, "-journal"),
+    ] {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => tracing::warn!(
+                path = %path.display(),
+                error = %error,
+                "Failed to clean incomplete SQLite snapshot artifact"
+            ),
+        }
+    }
+}
+
+fn snapshot_sidecar_path(database: &Path, suffix: &str) -> PathBuf {
+    let mut path = database.as_os_str().to_os_string();
+    path.push(suffix);
+    PathBuf::from(path)
 }
 
 /// Unit tests for source-database open, migration, and metadata invariants.

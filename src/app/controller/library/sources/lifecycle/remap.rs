@@ -1,6 +1,11 @@
 use super::telemetry::record_source_lifecycle_event;
 use super::validation::{nested_source_conflict_error, source_roots_match};
 use super::*;
+#[cfg(not(test))]
+use crate::app::controller::jobs::JobMessage;
+use crate::app::controller::jobs::{SourceRemapJob, SourceRemapPreparedResult};
+#[cfg(not(test))]
+use crate::app::controller::state::runtime::PendingSourceRemap;
 
 struct RemappedSource {
     index: usize,
@@ -40,15 +45,102 @@ impl AppController {
             );
             return Err(error);
         }
-        let existing_source = &self.library.sources[index];
-        copy_source_database_if_needed(existing_source, &normalized, started_at)?;
-        prepare_database_for_remap(existing_source, &normalized, started_at)?;
-        self.commit_remapped_source(RemappedSource {
-            index,
-            root: normalized,
-            id: source_id,
-            started_at,
-        })
+        if self.runtime.source_lane.pending_remap.is_some() {
+            return Err(String::from("Source remap already in progress"));
+        }
+        let job = SourceRemapJob {
+            request_id: self.runtime.jobs.next_source_remap_request_id(),
+            source: existing_source.clone(),
+            new_root: normalized,
+        };
+        #[cfg(test)]
+        {
+            let prepared = run_source_remap_prepare(job);
+            prepared.result?;
+            self.commit_remapped_source(RemappedSource {
+                index,
+                root: prepared.new_root,
+                id: source_id,
+                started_at,
+            })
+        }
+        #[cfg(not(test))]
+        {
+            self.queue_source_remap_prepare(job, started_at);
+            Ok(())
+        }
+    }
+
+    #[cfg(not(test))]
+    fn queue_source_remap_prepare(&mut self, job: SourceRemapJob, started_at: Instant) {
+        self.runtime.source_lane.pending_remap = Some(PendingSourceRemap {
+            request_id: job.request_id,
+            source: job.source.clone(),
+            new_root: job.new_root.clone(),
+            queued_at: started_at,
+        });
+        self.set_status(
+            format!("Remapping source to {}", job.new_root.display()),
+            StatusTone::Info,
+        );
+        self.runtime.jobs.spawn_one_shot_job(
+            true,
+            move || run_source_remap_prepare(job),
+            JobMessage::SourceRemapPrepared,
+        );
+    }
+
+    pub(crate) fn handle_source_remap_prepared_message(
+        &mut self,
+        message: SourceRemapPreparedResult,
+    ) {
+        let is_current = self
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| {
+                pending.request_id == message.request_id
+                    && pending.source.id == message.source.id
+                    && pending.new_root == message.new_root
+            });
+        if !is_current {
+            return;
+        }
+        let pending = self
+            .runtime
+            .source_lane
+            .pending_remap
+            .take()
+            .expect("current source remap pending entry");
+        let Some(index) = self.library.sources.iter().position(|source| {
+            source.id == message.source.id && source.root == message.source.root
+        }) else {
+            remove_database_artifacts_if_created(&message.new_root, message.destination_existed);
+            return;
+        };
+        match message.result {
+            Ok(()) => {
+                if let Err(error) =
+                    validate_remap_source_root(&self.library.sources, index, &message.new_root)
+                        .and_then(|()| {
+                            self.commit_remapped_source(RemappedSource {
+                                index,
+                                root: message.new_root.clone(),
+                                id: message.source.id.clone(),
+                                started_at: pending.queued_at,
+                            })
+                        })
+                {
+                    remove_database_artifacts_if_created(
+                        &message.new_root,
+                        message.destination_existed,
+                    );
+                    self.set_status(error, StatusTone::Error);
+                }
+            }
+            Err(error) => self.set_status(error, StatusTone::Error),
+        }
     }
 
     fn commit_remapped_source(&mut self, remap: RemappedSource) -> Result<(), String> {
@@ -115,46 +207,57 @@ fn validate_remap_source_root(
     Ok(())
 }
 
-fn prepare_database_for_remap(
-    existing: &SampleSource,
-    normalized: &PathBuf,
-    started_at: Instant,
-) -> Result<(), String> {
-    if let Err(err) = SourceDatabase::open(normalized) {
-        let error = format!("Failed to prepare database: {err}");
-        record_source_lifecycle_event(
-            "sources.remap",
-            Some(existing.id.as_str()),
-            "error",
-            started_at,
-            Some(&error),
-        );
-        return Err(error);
+fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
+    let destination = crate::sample_sources::database_path_for(&job.new_root);
+    let destination_existed = destination.exists();
+    let result = (|| {
+        let source_database = crate::sample_sources::database_path_for(&job.source.root);
+        if source_database.exists() && !destination_existed {
+            let source = SourceDatabase::open(&job.source.root)
+                .map_err(|error| format!("Failed to open source database for snapshot: {error}"))?;
+            source
+                .snapshot_to_path(&destination)
+                .map_err(|error| format!("Failed to snapshot source database: {error}"))?;
+        }
+        SourceDatabase::open(&job.new_root)
+            .map(|_| ())
+            .map_err(|error| format!("Failed to prepare database: {error}"))
+    })();
+    if result.is_err() {
+        remove_database_artifacts_if_created(&job.new_root, destination_existed);
     }
-    Ok(())
+    SourceRemapPreparedResult {
+        request_id: job.request_id,
+        source: job.source,
+        new_root: job.new_root,
+        destination_existed,
+        result,
+    }
 }
 
-fn copy_source_database_if_needed(
-    existing: &SampleSource,
-    normalized: &PathBuf,
-    started_at: Instant,
-) -> Result<(), String> {
-    let old_db_path = crate::sample_sources::database_path_for(&existing.root);
-    let new_db_path = crate::sample_sources::database_path_for(normalized);
-    if !old_db_path.exists() || new_db_path.exists() {
-        return Ok(());
+fn remove_database_artifacts_if_created(root: &Path, database_existed: bool) {
+    if database_existed {
+        return;
     }
-    let _ = fs::create_dir_all(normalized);
-    fs::copy(&old_db_path, &new_db_path).map_err(|err| {
-        let error = format!("Failed to copy database: {err}");
-        record_source_lifecycle_event(
-            "sources.remap",
-            Some(existing.id.as_str()),
-            "error",
-            started_at,
-            Some(&error),
-        );
-        error
-    })?;
-    Ok(())
+    let database = crate::sample_sources::database_path_for(root);
+    for path in [
+        database.clone(),
+        path_with_suffix(&database, "-wal"),
+        path_with_suffix(&database, "-shm"),
+        path_with_suffix(&database, "-journal"),
+    ] {
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                tracing::warn!(error = %error, "Failed to remove remap snapshot artifact")
+            }
+        }
+    }
+}
+
+fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut value = path.as_os_str().to_os_string();
+    value.push(suffix);
+    PathBuf::from(value)
 }
