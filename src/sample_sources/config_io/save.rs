@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{
-    LazyLock, Mutex,
+    Arc, LazyLock, Mutex,
     atomic::{AtomicU64, Ordering},
 };
 
@@ -10,11 +11,23 @@ use super::load::config_path;
 
 #[derive(Default)]
 struct SaveRevisionGate {
+    targets: Mutex<HashMap<PathBuf, Arc<TargetSaveRevisionGate>>>,
+}
+
+#[derive(Default)]
+struct TargetSaveRevisionGate {
     revision: AtomicU64,
     lock: Mutex<()>,
 }
 
-impl SaveRevisionGate {
+/// Reserved generation for one concrete configuration target.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConfigSaveRevision {
+    target: PathBuf,
+    revision: u64,
+}
+
+impl TargetSaveRevisionGate {
     fn reserve(&self) -> u64 {
         self.revision.fetch_add(1, Ordering::AcqRel).wrapping_add(1)
     }
@@ -36,19 +49,47 @@ impl SaveRevisionGate {
     }
 }
 
+impl SaveRevisionGate {
+    fn target(&self, path: &Path) -> Arc<TargetSaveRevisionGate> {
+        let mut targets = self
+            .targets
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        Arc::clone(
+            targets
+                .entry(path.to_path_buf())
+                .or_insert_with(|| Arc::new(TargetSaveRevisionGate::default())),
+        )
+    }
+
+    fn reserve(&self, target: PathBuf) -> ConfigSaveRevision {
+        let revision = self.target(&target).reserve();
+        ConfigSaveRevision { target, revision }
+    }
+
+    fn run_if_current<E>(
+        &self,
+        reservation: &ConfigSaveRevision,
+        write: impl FnOnce() -> Result<(), E>,
+    ) -> Result<bool, E> {
+        self.target(&reservation.target)
+            .run_if_current(reservation.revision, write)
+    }
+}
+
 static SAVE_GATE: LazyLock<SaveRevisionGate> = LazyLock::new(SaveRevisionGate::default);
 
 /// Reserve a revision for a configuration snapshot that will be saved later.
-pub fn reserve_save_revision() -> u64 {
-    SAVE_GATE.reserve()
+pub fn reserve_save_revision() -> Result<ConfigSaveRevision, ConfigError> {
+    Ok(SAVE_GATE.reserve(config_path()?))
 }
 
 /// Persist configuration to disk, overwriting any previous contents.
 ///
 /// Settings are written to TOML while sources are stored in SQLite.
 pub fn save(config: &AppConfig) -> Result<(), ConfigError> {
-    let revision = reserve_save_revision();
-    require_current_save(save_if_revision_current(config, revision)?)
+    let revision = reserve_save_revision()?;
+    require_current_save(save_if_revision_current(config, &revision)?)
 }
 
 fn require_current_save(saved: bool) -> Result<(), ConfigError> {
@@ -62,11 +103,11 @@ fn require_current_save(saved: bool) -> Result<(), ConfigError> {
 /// Save a previously captured configuration only when no newer save was requested.
 ///
 /// Returns `false` without writing when `revision` has been superseded.
-pub fn save_if_revision_current(config: &AppConfig, revision: u64) -> Result<bool, ConfigError> {
-    SAVE_GATE.run_if_current(revision, || {
-        let path = config_path()?;
-        save_to_path(config, &path)
-    })
+pub fn save_if_revision_current(
+    config: &AppConfig,
+    revision: &ConfigSaveRevision,
+) -> Result<bool, ConfigError> {
+    SAVE_GATE.run_if_current(revision, || save_to_path(config, &revision.target))
 }
 
 /// Save configuration to a specific path, creating parent directories as needed.
@@ -226,30 +267,48 @@ fn sync_parent_dir(dir: &Path) -> Result<(), ConfigError> {
 #[cfg(test)]
 mod revision_tests {
     use super::{ConfigError, SaveRevisionGate, require_current_save};
-    use std::cell::Cell;
+    use std::{cell::Cell, path::PathBuf};
 
     #[test]
     fn stale_snapshot_is_skipped_after_newer_revision_is_reserved() {
         let gate = SaveRevisionGate::default();
-        let stale = gate.reserve();
-        let current = gate.reserve();
+        let target = PathBuf::from("config.toml");
+        let stale = gate.reserve(target.clone());
+        let current = gate.reserve(target);
         let writes = Cell::new(0);
 
         assert_eq!(
-            gate.run_if_current(stale, || {
+            gate.run_if_current(&stale, || {
                 writes.set(writes.get() + 1);
                 Ok::<(), ()>(())
             }),
             Ok(false)
         );
         assert_eq!(
-            gate.run_if_current(current, || {
+            gate.run_if_current(&current, || {
                 writes.set(writes.get() + 1);
                 Ok::<(), ()>(())
             }),
             Ok(true)
         );
         assert_eq!(writes.get(), 1);
+    }
+
+    #[test]
+    fn revisions_are_scoped_to_the_config_target() {
+        let gate = SaveRevisionGate::default();
+        let first_target = gate.reserve(PathBuf::from("first/config.toml"));
+        let second_target = gate.reserve(PathBuf::from("second/config.toml"));
+        let _newer_first = gate.reserve(PathBuf::from("first/config.toml"));
+
+        assert_eq!(
+            gate.run_if_current(&second_target, || Ok::<(), ()>(())),
+            Ok(true)
+        );
+        assert_eq!(
+            gate.run_if_current(&first_target, || Ok::<(), ()>(())),
+            Ok(false)
+        );
     }
 
     #[test]

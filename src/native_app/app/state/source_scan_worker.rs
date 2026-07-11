@@ -89,7 +89,9 @@ where
 mod tests {
     use std::{fs, sync::mpsc};
 
-    use crate::native_app::sample_library::folder_browser::scan::FolderScanRequest;
+    use crate::native_app::sample_library::folder_browser::scan::{
+        FolderScanItem, FolderScanRequest,
+    };
 
     use super::{DISCOVERY_BATCH_SIZE, FolderScanWorkerEvent, run_folder_scan_worker_with_emit};
 
@@ -126,17 +128,22 @@ mod tests {
         });
 
         assert_eq!(result.audio_file_paths.len(), DISCOVERY_BATCH_SIZE + 2);
-        let batch_lengths = receiver
+        let batches = receiver
             .try_iter()
             .filter_map(|message| match message {
-                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events.len()),
+                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events),
                 _ => None,
             })
             .collect::<Vec<_>>();
+        let batch_lengths = batches.iter().map(Vec::len).collect::<Vec<_>>();
+        let published_file_count = batches
+            .iter()
+            .flatten()
+            .filter(|event| matches!(event.item, FolderScanItem::File(_)))
+            .count();
         assert_eq!(batch_lengths.first().copied(), Some(DISCOVERY_BATCH_SIZE));
         assert_eq!(
-            batch_lengths.iter().sum::<usize>(),
-            result.scan.file_count,
+            published_file_count, result.scan.file_count,
             "discovery transport should publish each scanned item once without completed-subtree clones"
         );
     }
@@ -150,20 +157,26 @@ mod tests {
             sender.send(event).is_ok()
         });
 
-        let batch_lengths = receiver
+        let batches = receiver
             .try_iter()
             .filter_map(|message| match message {
-                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events.len()),
+                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events),
                 _ => None,
             })
             .collect::<Vec<_>>();
+        let batch_lengths = batches.iter().map(Vec::len).collect::<Vec<_>>();
+        let published_file_count = batches
+            .iter()
+            .flatten()
+            .filter(|event| matches!(event.item, FolderScanItem::File(_)))
+            .count();
         assert!(batch_lengths.len() > 1);
         assert!(
             batch_lengths
                 .iter()
                 .all(|count| *count <= DISCOVERY_BATCH_SIZE)
         );
-        assert_eq!(batch_lengths.iter().sum::<usize>(), result.scan.file_count);
+        assert_eq!(published_file_count, result.scan.file_count);
         assert_eq!(result.audio_file_paths.len(), DISCOVERY_BATCH_SIZE * 16);
     }
 }

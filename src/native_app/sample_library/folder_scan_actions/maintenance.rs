@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use wavecrate::sample_sources::{
     HarvestFileIdentity, HarvestFileKey, SampleSource,
-    config::{AppConfig, save_if_revision_current},
+    config::{AppConfig, ConfigError, ConfigSaveRevision, save_if_revision_current},
     harvest_file_ops, library,
 };
 
@@ -13,7 +13,7 @@ use crate::native_app::sample_library::folder_browser::scan::{
 #[derive(Clone)]
 pub(super) struct FolderScanMaintenanceRequest {
     pub(super) config: AppConfig,
-    pub(super) config_revision: u64,
+    pub(super) config_revision: Result<ConfigSaveRevision, String>,
     pub(super) sources: Vec<SampleSource>,
     pub(super) audio_file_paths: Vec<PathBuf>,
     pub(super) scan_cache_update: FolderScanCacheUpdate,
@@ -43,9 +43,7 @@ impl FolderScanMaintenanceResult {
 pub(super) fn persist_folder_scan_maintenance(
     request: FolderScanMaintenanceRequest,
 ) -> FolderScanMaintenanceResult {
-    let config_error = save_if_revision_current(&request.config, request.config_revision)
-        .err()
-        .map(|error| error.to_string());
+    let config_error = persist_config_revision(&request.config, &request.config_revision);
     let scan_cache_error =
         apply_folder_scan_cache_update(request.scan_cache_update, request.scan_cache_revision)
             .err();
@@ -58,6 +56,20 @@ pub(super) fn persist_folder_scan_maintenance(
         config_error,
         scan_cache_error,
         harvest_errors,
+    }
+}
+
+fn persist_config_revision(
+    config: &AppConfig,
+    revision: &Result<ConfigSaveRevision, String>,
+) -> Option<String> {
+    match revision {
+        Ok(revision) => match save_if_revision_current(config, revision) {
+            Ok(true) => None,
+            Ok(false) => Some(ConfigError::SaveSuperseded.to_string()),
+            Err(error) => Some(error.to_string()),
+        },
+        Err(error) => Some(error.clone()),
     }
 }
 
@@ -111,5 +123,17 @@ mod tests {
             result.persistence_error().as_deref(),
             Some("source configuration: config denied; source scan cache: cache full")
         );
+    }
+
+    #[test]
+    fn superseded_config_revision_is_reported_as_persistence_error() {
+        let root = tempfile::tempdir().unwrap();
+        let _guard = wavecrate::app_dirs::ConfigBaseGuard::set(root.path().to_path_buf());
+        let stale = wavecrate::sample_sources::config::reserve_save_revision().unwrap();
+        let _current = wavecrate::sample_sources::config::reserve_save_revision().unwrap();
+
+        let error = persist_config_revision(&AppConfig::default(), &Ok(stale));
+
+        assert!(error.is_some_and(|error| error.contains("superseded")));
     }
 }

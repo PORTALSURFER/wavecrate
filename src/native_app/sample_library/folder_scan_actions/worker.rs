@@ -115,7 +115,7 @@ impl NativeAppState {
                 sources: sources.clone(),
                 core: self.current_settings_core(),
             },
-            config_revision: reserve_save_revision(),
+            config_revision: reserve_save_revision().map_err(|error| error.to_string()),
             sources,
             audio_file_paths,
             scan_cache_update,
