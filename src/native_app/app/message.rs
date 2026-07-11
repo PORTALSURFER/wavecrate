@@ -237,7 +237,15 @@ pub(in crate::native_app) enum GuiMessage {
     },
     CancelFileMoveConflicts,
     CopyContextPath,
-    OpenContextTarget,
+    OpenContextTarget {
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+    },
+    ContextTargetOpenValidated {
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+        result: Result<(), String>,
+    },
     CreateFolderAtContextTarget,
     RenameContextFolder,
     ContextFolderCreateFinished {
