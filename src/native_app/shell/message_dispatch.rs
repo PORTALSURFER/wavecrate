@@ -79,6 +79,7 @@ impl NativeAppState {
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)
             | GuiMessage::FolderScanFinished(_)
+            | GuiMessage::FolderScanMaintenanceFinished(_)
             | GuiMessage::FolderTreeRefreshFinished(_)
             | GuiMessage::SelectedFolderVerifyFinished(_)
             | GuiMessage::SourceFilesystemChanged { .. }
@@ -312,6 +313,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::FolderScanProgress(_) => "FolderScanProgress",
         GuiMessage::FolderScanDiscoveryBatch(_) => "FolderScanDiscoveryBatch",
         GuiMessage::FolderScanFinished(_) => "FolderScanFinished",
+        GuiMessage::FolderScanMaintenanceFinished(_) => "FolderScanMaintenanceFinished",
         GuiMessage::FolderTreeRefreshFinished(_) => "FolderTreeRefreshFinished",
         GuiMessage::SelectedFolderVerifyFinished(_) => "SelectedFolderVerifyFinished",
         GuiMessage::SourceFilesystemChanged { .. } => "SourceFilesystemChanged",

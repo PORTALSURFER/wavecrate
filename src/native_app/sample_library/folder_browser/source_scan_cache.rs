@@ -5,7 +5,9 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use super::{FolderEntry, SourceEntry, collections::MissingCollectionSnapshot};
+use super::{
+    FolderEntry, SourceEntry, collections::MissingCollectionSnapshot, scan::FolderScanResult,
+};
 
 const SOURCE_SCAN_CACHE_FILE_NAME: &str = "source-scan-cache.json";
 const SOURCE_SCAN_CACHE_VERSION: u32 = 2;
@@ -16,7 +18,7 @@ pub(super) struct SourceScanCache {
     sources: Vec<CachedSourceScan>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct CachedSourceScan {
     source_id: String,
     root: PathBuf,
@@ -82,6 +84,43 @@ pub(super) fn save_source_scan_cache(sources: &[SourceEntry]) -> Result<(), Stri
     save_source_scan_cache_to_path(&source_scan_cache_path()?, sources)
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderScanCacheUpdate {
+    source_id: String,
+    source: Option<CachedSourceScan>,
+}
+
+pub(in crate::native_app) fn prepare_folder_scan_cache_update(
+    result: &FolderScanResult,
+) -> FolderScanCacheUpdate {
+    FolderScanCacheUpdate {
+        source_id: result.source_id.clone(),
+        source: result.source_root_available.then(|| CachedSourceScan {
+            source_id: result.source_id.clone(),
+            root: PathBuf::from(&result.folder.id),
+            root_folder: result.folder.clone(),
+            missing_collection_snapshot: result.missing_collection_snapshot.clone(),
+        }),
+    }
+}
+
+pub(in crate::native_app) fn apply_folder_scan_cache_update(
+    update: FolderScanCacheUpdate,
+) -> Result<(), String> {
+    let path = source_scan_cache_path()?;
+    let mut cache = load_source_scan_cache_from_path(&path)?;
+    cache
+        .sources
+        .retain(|source| source.source_id != update.source_id);
+    if let Some(source) = update.source {
+        cache.sources.push(source);
+    }
+    cache
+        .sources
+        .sort_by(|left, right| left.source_id.cmp(&right.source_id));
+    save_source_scan_cache_value_to_path(&path, &cache)
+}
+
 fn source_scan_cache_path() -> Result<PathBuf, String> {
     wavecrate::app_dirs::app_root_dir()
         .map(|root| root.join(SOURCE_SCAN_CACHE_FILE_NAME))
@@ -131,8 +170,15 @@ fn save_source_scan_cache_to_path(path: &Path, sources: &[SourceEntry]) -> Resul
             })
             .collect(),
     );
+    save_source_scan_cache_value_to_path(path, &cache)
+}
+
+fn save_source_scan_cache_value_to_path(
+    path: &Path,
+    cache: &SourceScanCache,
+) -> Result<(), String> {
     let bytes =
-        serde_json::to_vec(&cache).map_err(|err| format!("serialize source scan cache: {err}"))?;
+        serde_json::to_vec(cache).map_err(|err| format!("serialize source scan cache: {err}"))?;
     atomic_write(path, &bytes)
 }
 

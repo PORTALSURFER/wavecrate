@@ -7,20 +7,6 @@ pub(in crate::native_app::sample_library::folder_browser) fn merge_scan_discover
     root: &mut FolderEntry,
     event: &FolderScanDiscovery,
 ) -> bool {
-    if let FolderScanItem::CompletedFolder(folder) = &event.item {
-        if root.id == folder.id {
-            if root == folder {
-                return false;
-            }
-            *root = folder.clone();
-            return true;
-        }
-        let Some(parent) = root.find_mut(&event.parent_id) else {
-            return false;
-        };
-        return upsert_folder(&mut parent.children, folder.clone());
-    }
-
     let Some(parent) = root.find_mut(&event.parent_id) else {
         return false;
     };
@@ -28,7 +14,6 @@ pub(in crate::native_app::sample_library::folder_browser) fn merge_scan_discover
         FolderScanItem::Folder(folder) => {
             insert_discovered_folder(&mut parent.children, folder.clone())
         }
-        FolderScanItem::CompletedFolder(_) => unreachable!("completed folders are handled above"),
         FolderScanItem::File(file) => upsert_file(&mut parent.files, file.clone()),
     }
 }

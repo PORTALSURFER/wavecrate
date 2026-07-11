@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::sample_library::folder_browser::scan::{
     self, FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-    FolderScanResult,
+    PreparedFolderScanResult, prepare_folder_scan_cache_update,
 };
 
 const DISCOVERY_BATCH_SIZE: usize = 64;
@@ -15,17 +15,17 @@ pub(in crate::native_app) enum FolderScanWorkerEvent {
 pub(in crate::native_app) fn run_folder_scan_worker(
     request: FolderScanRequest,
     events: ui::BusinessEventSink<FolderScanWorkerEvent>,
-) -> FolderScanResult {
+) -> PreparedFolderScanResult {
     run_folder_scan_worker_with_emit(request, move |event| events.emit(event))
 }
 
 fn run_folder_scan_worker_with_emit(
     request: FolderScanRequest,
     emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
-) -> FolderScanResult {
+) -> PreparedFolderScanResult {
     let mut discovery_transport =
         FolderScanDiscoveryTransport::new(emit.clone(), request.task_id, request.source_id.clone());
-    let result = scan::scan_source_with_progress(
+    let scan = scan::scan_source_with_progress(
         request,
         |progress| {
             let _ = emit(FolderScanWorkerEvent::Progress(progress));
@@ -35,7 +35,13 @@ fn run_folder_scan_worker_with_emit(
         },
     );
     discovery_transport.flush();
-    result
+    let audio_file_paths = scan.audio_file_paths();
+    let scan_cache_update = prepare_folder_scan_cache_update(&scan);
+    PreparedFolderScanResult {
+        scan,
+        audio_file_paths,
+        scan_cache_update,
+    }
 }
 
 struct FolderScanDiscoveryTransport<Emit> {
@@ -119,7 +125,7 @@ mod tests {
             sender.send(event).is_ok()
         });
 
-        assert_eq!(result.file_count, DISCOVERY_BATCH_SIZE + 2);
+        assert_eq!(result.audio_file_paths.len(), DISCOVERY_BATCH_SIZE + 2);
         let batch_lengths = receiver
             .try_iter()
             .filter_map(|message| match message {
@@ -130,7 +136,34 @@ mod tests {
         assert_eq!(batch_lengths.first().copied(), Some(DISCOVERY_BATCH_SIZE));
         assert_eq!(
             batch_lengths.iter().sum::<usize>(),
-            DISCOVERY_BATCH_SIZE + 3
+            result.scan.file_count,
+            "discovery transport should publish each scanned item once without completed-subtree clones"
         );
+    }
+
+    #[test]
+    fn large_scan_worker_keeps_every_ui_discovery_message_bounded() {
+        let root = temp_source_with_wavs(DISCOVERY_BATCH_SIZE * 16);
+        let (sender, receiver) = mpsc::channel();
+
+        let result = run_folder_scan_worker_with_emit(scan_request(&root), move |event| {
+            sender.send(event).is_ok()
+        });
+
+        let batch_lengths = receiver
+            .try_iter()
+            .filter_map(|message| match message {
+                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events.len()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(batch_lengths.len() > 1);
+        assert!(
+            batch_lengths
+                .iter()
+                .all(|count| *count <= DISCOVERY_BATCH_SIZE)
+        );
+        assert_eq!(batch_lengths.iter().sum::<usize>(), result.scan.file_count);
+        assert_eq!(result.audio_file_paths.len(), DISCOVERY_BATCH_SIZE * 16);
     }
 }

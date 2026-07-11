@@ -54,12 +54,6 @@ pub(in crate::native_app) fn scan_source_with_progress(
         None
     };
     let source_root_available = request.root.is_dir();
-    discovered(FolderScanDiscovery {
-        task_id: request.task_id,
-        source_id: request.source_id.clone(),
-        parent_id: path_id(&request.root),
-        item: FolderScanItem::CompletedFolder(folder.clone()),
-    });
     FolderScanResult {
         task_id: request.task_id,
         source_id: request.source_id,
@@ -166,15 +160,6 @@ where
         });
     }
 
-    fn record_completed_folder(&mut self, parent_id: &str, folder: FolderEntry) {
-        (self.discovered)(FolderScanDiscovery {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            parent_id: parent_id.to_string(),
-            item: FolderScanItem::CompletedFolder(folder),
-        });
-    }
-
     fn maybe_report_progress(&mut self, path: &Path) {
         if self.counter.completed == 1 || self.counter.completed.is_multiple_of(64) {
             (self.progress)(FolderScanProgress {
@@ -205,9 +190,7 @@ where
         .filter(|entry| entry.is_dir())
         .filter_map(|entry| {
             scan.record_folder(entry, &parent_id);
-            let child = load_folder_with_progress(entry, scan)?;
-            scan.record_completed_folder(&parent_id, child.clone());
-            Some(child)
+            load_folder_with_progress(entry, scan)
         })
         .collect::<Vec<_>>();
     let files = entries
