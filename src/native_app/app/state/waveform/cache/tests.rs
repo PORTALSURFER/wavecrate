@@ -161,6 +161,27 @@ fn playback_handoff_rebinds_visible_waveform_to_new_sample_preview() {
 }
 
 #[test]
+fn playback_handoff_replaces_same_path_waveform_during_a_fresh_load() {
+    let path = PathBuf::from("/tmp/handoff-overwritten.wav");
+    let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
+        crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+            path.clone(),
+            vec![0.0, 0.2, -0.2],
+        ),
+    )));
+
+    let previous = app_state
+        .begin_playback_visual_handoff(path.clone(), Some(instant_preview(path.clone(), 8)))
+        .expect("fresh same-path load should replace stale visuals");
+
+    assert_eq!(app_state.current.path(), path);
+    assert!(app_state.instant_preview_active());
+    let discarded = app_state.rollback_playback_visual_handoff(previous);
+    assert_eq!(discarded.path(), path);
+    assert!(!app_state.instant_preview_active());
+}
+
+#[test]
 fn playback_handoff_blanks_old_waveform_without_new_sample_preview() {
     let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
         crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(

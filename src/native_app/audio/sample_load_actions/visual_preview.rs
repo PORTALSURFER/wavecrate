@@ -11,12 +11,14 @@ impl NativeAppState {
     pub(super) fn begin_playback_visual_handoff(
         &mut self,
         path: &Path,
+        source_len: u64,
+        source_modified: Option<std::time::SystemTime>,
     ) -> Option<WaveformVisualSnapshot> {
         let preview = self
             .waveform
             .cache
             .instant_waveform_preview(path)
-            .filter(|preview| preview.matches_file(path));
+            .filter(|preview| preview.matches_source_identity(source_len, source_modified));
         let snapshot = self
             .waveform
             .begin_playback_visual_handoff(path.to_path_buf(), preview);

@@ -132,9 +132,6 @@ impl WaveformAppState {
         path: PathBuf,
         preview: Option<InstantWaveformPreview>,
     ) -> Option<WaveformVisualSnapshot> {
-        if self.current.has_loaded_sample() && self.current.path() == path {
-            return None;
-        }
         let display = self.display.clone();
         let starmap_drag_restore = self.starmap_drag_restore.clone();
         let load_label = self.load.label.clone();

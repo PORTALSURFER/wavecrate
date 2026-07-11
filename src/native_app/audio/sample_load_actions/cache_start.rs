@@ -1790,7 +1790,11 @@ impl NativeAppState {
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
-        let visual_handoff = self.begin_playback_visual_handoff(Path::new(path.as_str()));
+        let visual_handoff = self.begin_playback_visual_handoff(
+            Path::new(path.as_str()),
+            ready.source_len,
+            ready.source_modified,
+        );
         let request_id = match runtime.try_play(request) {
             Ok(request_id) => request_id,
             Err(err) => {

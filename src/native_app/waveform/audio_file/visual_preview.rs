@@ -35,9 +35,18 @@ impl InstantWaveformPreview {
         signal_summary_byte_len(self.file.gpu_signal_summary.as_ref())
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn matches_file(&self, path: &Path) -> bool {
         source_identity(path)
             .is_some_and(|identity| identity == (self.source_len, self.source_modified))
+    }
+
+    pub(in crate::native_app) fn matches_source_identity(
+        &self,
+        source_len: u64,
+        source_modified: Option<SystemTime>,
+    ) -> bool {
+        self.source_len == source_len && self.source_modified == source_modified
     }
 }
 
@@ -90,6 +99,7 @@ pub(in crate::native_app) fn instant_waveform_head_preview_from_clip(
     })
 }
 
+#[cfg(test)]
 fn source_identity(path: &Path) -> Option<(u64, Option<SystemTime>)> {
     let metadata = path.metadata().ok()?;
     Some((metadata.len(), metadata.modified().ok()))
