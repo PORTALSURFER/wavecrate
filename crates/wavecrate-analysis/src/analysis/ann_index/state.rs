@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     mem::ManuallyDrop,
-    ops::Deref,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -47,14 +46,30 @@ pub(crate) enum AnnHnsw {
     Loaded(LoadedAnnHnsw),
 }
 
-impl Deref for AnnHnsw {
-    type Target = Hnsw<'static, f32, DistCosine>;
-
-    fn deref(&self) -> &Self::Target {
+impl AnnHnsw {
+    fn graph(&self) -> &Hnsw<'static, f32, DistCosine> {
         match self {
             Self::Built(hnsw) => hnsw,
-            Self::Loaded(hnsw) => hnsw,
+            Self::Loaded(hnsw) => hnsw.graph(),
         }
+    }
+
+    pub(crate) fn insert(&self, embedding_with_id: (&[f32], usize)) {
+        self.graph().insert(embedding_with_id);
+    }
+
+    pub(crate) fn search(&self, embedding: &[f32], requested: usize, ef: usize) -> Vec<Neighbour> {
+        self.graph().search(embedding, requested, ef)
+    }
+
+    pub(crate) fn file_dump(&self, dir: &Path, basename: &str) -> Result<String, String> {
+        self.graph()
+            .file_dump(dir, basename)
+            .map_err(|err| err.to_string())
+    }
+
+    pub(crate) fn get_nb_point(&self) -> usize {
+        self.graph().get_nb_point()
     }
 }
 
@@ -95,8 +110,9 @@ impl LoadedAnnHnsw {
             .load_hnsw::<f32, DistCosine>()
             .map_err(|_| "Failed to read ANN index".to_string())?;
         // SAFETY: `Hnsw` may borrow only from the boxed `HnswIo`. Moving this
-        // wrapper never moves the loader allocation, the graph is not exposed
-        // by value, and our Drop implementation destroys the graph first.
+        // wrapper never moves the loader allocation, callers can use the graph
+        // only through scoped operations that return no borrowed point data,
+        // and our Drop implementation destroys the graph first.
         let hnsw = unsafe {
             std::mem::transmute::<Hnsw<'_, f32, DistCosine>, Hnsw<'static, f32, DistCosine>>(hnsw)
         };
@@ -111,13 +127,14 @@ impl LoadedAnnHnsw {
             live_probe,
         })
     }
-}
 
-impl Deref for LoadedAnnHnsw {
-    type Target = Hnsw<'static, f32, DistCosine>;
-
-    fn deref(&self) -> &Self::Target {
+    fn graph(&self) -> &Hnsw<'static, f32, DistCosine> {
         &self.hnsw
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_nb_point(&self) -> usize {
+        self.graph().get_nb_point()
     }
 }
 

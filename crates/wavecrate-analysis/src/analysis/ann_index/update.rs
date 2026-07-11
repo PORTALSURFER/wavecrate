@@ -1,7 +1,6 @@
 use super::container;
 use super::state::AnnIndexState;
 use super::storage::{hnsw_dump_paths, upsert_meta};
-use hnsw_rs::api::AnnT;
 use rusqlite::Connection;
 use std::collections::HashSet;
 use std::time::Duration;
