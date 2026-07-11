@@ -19,7 +19,6 @@ const METRONOME_TOOLTIP: &str = "Play a metronome from the beat guide divisions.
 const BEAT_GUIDE_COUNT_TOOLTIP: &str = "Beat guide divisions.";
 const APPLY_EDIT_MARK_EDITS_TOOLTIP: &str = "Apply edit mark gain and fade edits.";
 const PLAY_TOOLTIP: &str = "Play";
-const PAUSE_TOOLTIP: &str = "Pause";
 const STOP_TOOLTIP: &str = "Stop preview playback.";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -111,11 +110,7 @@ impl ToolbarProjection {
                 ToolbarIcon::Play,
                 true,
                 model.playing,
-                if model.playing {
-                    PAUSE_TOOLTIP
-                } else {
-                    PLAY_TOOLTIP
-                },
+                PLAY_TOOLTIP,
             )
             .into(),
         );
