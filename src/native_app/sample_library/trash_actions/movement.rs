@@ -169,10 +169,74 @@ fn trash_reservation_marker(trash_folder: &Path, candidate: &Path) -> PathBuf {
 }
 
 fn move_path(source: &Path, destination: &Path) -> Result<(), String> {
-    match fs::rename(source, destination) {
+    match rename_no_replace(source, destination) {
         Ok(()) => Ok(()),
         Err(rename_error) => fallback_move_path(source, destination, &rename_error),
     }
+}
+
+#[cfg(target_os = "windows")]
+fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
+    // Windows rename already refuses to replace an existing destination.
+    fs::rename(source, destination)
+}
+
+#[cfg(target_os = "macos")]
+fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
+    let source = path_to_c_string(source)?;
+    let destination = path_to_c_string(destination)?;
+    let result =
+        unsafe { libc::renamex_np(source.as_ptr(), destination.as_ptr(), libc::RENAME_EXCL) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
+    let source = path_to_c_string(source)?;
+    let destination = path_to_c_string(destination)?;
+    let result = unsafe {
+        libc::renameat2(
+            libc::AT_FDCWD,
+            source.as_ptr(),
+            libc::AT_FDCWD,
+            destination.as_ptr(),
+            libc::RENAME_NOREPLACE,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
+fn path_to_c_string(path: &Path) -> io::Result<std::ffi::CString> {
+    use std::os::unix::ffi::OsStrExt;
+
+    std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "trash move path contains an interior NUL byte",
+        )
+    })
+}
+
+#[cfg(not(any(
+    target_os = "windows",
+    target_os = "macos",
+    target_os = "linux",
+    target_os = "android"
+)))]
+fn rename_no_replace(_source: &Path, _destination: &Path) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "atomic no-replace rename is unavailable on this platform",
+    ))
 }
 
 fn fallback_move_path(
@@ -384,6 +448,46 @@ mod tests {
         drop(reservation);
 
         assert!(!marker.exists());
+    }
+
+    #[cfg(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android"
+    ))]
+    #[test]
+    fn no_replace_rename_preserves_an_existing_destination() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source.wav");
+        let destination = temp.path().join("destination.wav");
+        fs::write(&source, b"source").unwrap();
+        fs::write(&destination, b"existing").unwrap();
+
+        let error = rename_no_replace(&source, &destination).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(&source).unwrap(), b"source");
+        assert_eq!(fs::read(&destination).unwrap(), b"existing");
+    }
+
+    #[cfg(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android"
+    ))]
+    #[test]
+    fn no_replace_rename_moves_into_an_absent_destination() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source.wav");
+        let destination = temp.path().join("destination.wav");
+        fs::write(&source, b"source").unwrap();
+
+        rename_no_replace(&source, &destination).unwrap();
+
+        assert!(!source.exists());
+        assert_eq!(fs::read(&destination).unwrap(), b"source");
     }
 
     #[cfg(unix)]
