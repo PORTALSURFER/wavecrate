@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -19,6 +19,7 @@ struct HashBackfill {
 pub(super) fn deep_hash_scan(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
+    rename_candidates: &HashSet<PathBuf>,
 ) -> Result<ScanStats, ScanError> {
     let root = ensure_root_dir(db)?;
     let entries = db.list_files()?;
@@ -103,6 +104,7 @@ pub(super) fn deep_hash_scan(
         &entries_by_path,
         &present_by_hash,
         &pending_by_hash,
+        rename_candidates,
     )?;
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
@@ -116,6 +118,7 @@ fn reconcile_missing_renames(
     entries_by_path: &HashMap<PathBuf, WavEntry>,
     present_by_hash: &HashMap<String, Vec<PathBuf>>,
     pending_by_hash: &HashMap<String, Vec<PendingRenameEntry>>,
+    rename_candidates: &HashSet<PathBuf>,
 ) -> Result<Vec<RenamedSample>, ScanError> {
     let mut reconciled = Vec::new();
     for (hash, pending_entries) in pending_by_hash {
@@ -125,23 +128,32 @@ fn reconcile_missing_renames(
         let Some(present_paths) = present_by_hash.get(hash) else {
             continue;
         };
-        let matching_facts = present_paths
+        let candidates = present_paths
             .iter()
-            .filter(|path| {
-                entries_by_path.get(*path).is_some_and(|entry| {
-                    entry.file_size == pending_entries[0].file_size
-                        && entry.modified_ns == pending_entries[0].modified_ns
-                })
-            })
+            .filter(|path| rename_candidates.contains(*path))
             .collect::<Vec<_>>();
-        let [present_path] = matching_facts.as_slice() else {
-            continue;
+        let present_path = if candidates.len() == 1 {
+            candidates[0]
+        } else {
+            let matching_facts = candidates
+                .iter()
+                .copied()
+                .filter(|path| {
+                    entries_by_path.get(*path).is_some_and(|entry| {
+                        entry.file_size == pending_entries[0].file_size
+                            && entry.modified_ns == pending_entries[0].modified_ns
+                    })
+                })
+                .collect::<Vec<_>>();
+            let [present_path] = matching_facts.as_slice() else {
+                continue;
+            };
+            *present_path
         };
-        let present_path = *present_path;
-        let pending_entry = &pending_entries[0];
-        if pending_entry.relative_path == *present_path {
+        if pending_entries[0].relative_path == *present_path {
             continue;
         }
+        let pending_entry = &pending_entries[0];
         let Some(present_entry) = entries_by_path.get(present_path) else {
             continue;
         };
@@ -218,7 +230,7 @@ mod tests {
         let _writer = lock_db.write_batch().expect("writer lock");
         let cancel = AtomicBool::new(true);
 
-        let result = deep_hash_scan(&db, Some(&cancel));
+        let result = deep_hash_scan(&db, Some(&cancel), &HashSet::new());
 
         assert!(matches!(result, Err(ScanError::Canceled)));
     }

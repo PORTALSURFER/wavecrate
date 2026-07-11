@@ -150,6 +150,7 @@ pub(super) fn apply_diff(
                 }
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
                 context.stats.added += 1;
+                context.stats.record_rename_candidate(path.clone());
                 context.stats.content_changed += 1;
                 context.stats.hashes_computed += 1;
                 context.stats.changed_samples.push(ChangedSample {
@@ -163,6 +164,7 @@ pub(super) fn apply_diff(
                 // removed row pending until deep hashing can prove a match.
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
                 context.stats.added += 1;
+                context.stats.record_rename_candidate(path.clone());
                 context.stats.hashes_pending += 1;
             }
         }

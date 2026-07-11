@@ -51,5 +51,5 @@ fn run_scan_worker(
     } else {
         scanner::scan_with_progress(&db, mode, Some(cancel), &mut progress)?
     };
-    scanner::complete_deferred_hashes(&db, stats)
+    scanner::complete_deferred_hashes_with_cancel(&db, stats, Some(cancel))
 }

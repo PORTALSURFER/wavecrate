@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::thread;
@@ -78,13 +79,38 @@ pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats,
 /// uses a short write batch.
 pub fn complete_deferred_hashes(
     db: &SourceDatabase,
-    mut stats: ScanStats,
+    stats: ScanStats,
 ) -> Result<ScanStats, ScanError> {
-    if stats.hashes_pending == 0 && db.list_pending_renames()?.is_empty() {
+    complete_deferred_hashes_with_cancel(db, stats, None)
+}
+
+/// Complete deferred hashing while honoring the owning scan's cancellation flag.
+pub fn complete_deferred_hashes_with_cancel(
+    db: &SourceDatabase,
+    mut stats: ScanStats,
+    cancel: Option<&AtomicBool>,
+) -> Result<ScanStats, ScanError> {
+    let pending_renames = match db.list_pending_renames() {
+        Ok(pending) => pending,
+        Err(error) => {
+            tracing::warn!("Could not inspect deferred rename state: {error}");
+            return Ok(stats);
+        }
+    };
+    if stats.hashes_pending == 0 && pending_renames.is_empty() {
         return Ok(stats);
     }
-    let deferred = super::super::scan_hash::deep_hash_scan(db, None)?;
-    stats.merge_deferred_hashes(deferred);
+    let rename_candidates = stats
+        .rename_candidate_paths
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    match super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates) {
+        Ok(deferred) => stats.merge_deferred_hashes(deferred),
+        Err(error) => {
+            tracing::warn!("Deferred deep-hash scan did not complete: {error}");
+        }
+    }
     Ok(stats)
 }
 
@@ -101,7 +127,7 @@ pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: 
     thread::spawn(move || {
         let result = (|| -> Result<(), ScanError> {
             let db = SourceDatabase::open_for_scan_with_database_root(root, database_root)?;
-            let _ = super::super::scan_hash::deep_hash_scan(&db, None)?;
+            let _ = super::super::scan_hash::deep_hash_scan(&db, None, &HashSet::new())?;
             Ok(())
         })();
         if let Err(err) = result {
