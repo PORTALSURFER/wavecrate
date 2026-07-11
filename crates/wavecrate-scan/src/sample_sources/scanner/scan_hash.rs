@@ -130,15 +130,15 @@ fn reconcile_missing_renames(
         let Some(present_paths) = present_by_hash.get(hash) else {
             continue;
         };
-        let mut newly_hashed = present_paths
+        let newly_hashed = present_paths
             .iter()
-            .filter(|path| backfilled_paths.contains(*path));
-        let Some(present_path) = newly_hashed.next() else {
-            continue;
+            .filter(|path| backfilled_paths.contains(*path))
+            .collect::<Vec<_>>();
+        let present_path = match newly_hashed.as_slice() {
+            [path] => *path,
+            [] if present_paths.len() == 1 => &present_paths[0],
+            _ => continue,
         };
-        if newly_hashed.next().is_some() {
-            continue;
-        }
         let pending_entry = &pending_entries[0];
         if pending_entry.relative_path == *present_path {
             continue;
