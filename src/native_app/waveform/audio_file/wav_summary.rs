@@ -11,13 +11,100 @@ use wavecrate::audio::{Source, decoder::SymphoniaDecoder};
 
 use super::{
     WaveformFile, report_phase_progress_throttled,
+    wav_format::{integer_sample_max_i32, integer_sample_max_i64},
     wav_summary_builder::{
         MAX_STREAMING_WAV_SUMMARY_BUCKETS, STREAMING_WAV_SUMMARY_BUILD_END,
         STREAMING_WAV_SUMMARY_READ_END, StreamingWavSummaryBuilder,
         streaming_summary_bucket_frames,
     },
-    wav_summary_hound::read_wav_summary_with_progress,
+    wav_summary_hound::{
+        read_float_frame_peak, read_i16_frame_peak, read_i32_frame_peak,
+        read_wav_summary_with_progress,
+    },
 };
+
+pub(in crate::native_app) fn load_wav_detail_summary(
+    key: crate::native_app::waveform::WaveformDetailKey,
+) -> crate::native_app::waveform::WaveformDetailResult {
+    let started_at = Instant::now();
+    let summary = (|| {
+        let mut reader = hound::WavReader::open(&key.path)
+            .map_err(|error| format!("failed to open detail WAV: {error}"))?;
+        let spec = reader.spec();
+        let channels = usize::from(spec.channels).max(1);
+        let source_frames = reader.duration() as usize;
+        let end = key.end_frame.min(source_frames);
+        let start = key.start_frame.min(end);
+        let visible = end.saturating_sub(start);
+        if visible == 0 || start > u32::MAX as usize {
+            return Err(String::from("waveform detail range is unavailable"));
+        }
+        let metadata_before = std::fs::metadata(&key.path)
+            .map_err(|error| format!("failed to inspect detail WAV: {error}"))?;
+        let revision_before = content_revision_for_path_metadata(
+            &key.path,
+            &metadata_before,
+            spec.sample_rate,
+            channels,
+            source_frames,
+        );
+        if revision_before != key.content_revision {
+            return Err(String::from("stale waveform detail request"));
+        }
+        reader
+            .seek(start as u32)
+            .map_err(|error| format!("failed to seek detail WAV: {error}"))?;
+        let bucket_frames = visible.div_ceil(MAX_STREAMING_WAV_SUMMARY_BUCKETS).max(1);
+        let mut builder = StreamingWavSummaryBuilder::new(spec.sample_rate, bucket_frames);
+        match spec.sample_format {
+            hound::SampleFormat::Float => {
+                let mut samples = reader.samples::<f32>();
+                for _ in 0..visible {
+                    builder.push_peak(read_float_frame_peak(&mut samples, channels)?);
+                }
+            }
+            hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
+                let max = integer_sample_max_i32(spec.bits_per_sample);
+                let mut samples = reader.samples::<i16>();
+                for _ in 0..visible {
+                    builder.push_peak(read_i16_frame_peak(&mut samples, channels, max)?);
+                }
+            }
+            hound::SampleFormat::Int => {
+                let max = integer_sample_max_i64(spec.bits_per_sample);
+                let mut samples = reader.samples::<i32>();
+                for _ in 0..visible {
+                    builder.push_peak(read_i32_frame_peak(&mut samples, channels, max)?);
+                }
+            }
+        }
+        let summary = builder.finish(0.0, 1.0, &|_| {}, &|| false)?;
+        let metadata_after = std::fs::metadata(&key.path)
+            .map_err(|error| format!("failed to revalidate detail WAV: {error}"))?;
+        let revision_after = content_revision_for_path_metadata(
+            &key.path,
+            &metadata_after,
+            spec.sample_rate,
+            channels,
+            source_frames,
+        );
+        if revision_after != key.content_revision {
+            return Err(String::from("stale waveform detail result"));
+        }
+        Ok(Arc::new(summary))
+    })();
+    tracing::debug!(
+        target: "wavecrate::waveform_detail",
+        event = "waveform.detail.refinement",
+        path = %key.path.display(),
+        start_frame = key.start_frame,
+        end_frame = key.end_frame,
+        elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+        outcome = if summary.is_ok() { "ready" } else { "rejected" },
+        "Waveform viewport detail refinement finished"
+    );
+    crate::native_app::waveform::WaveformDetailResult { key, summary }
+}
 
 pub(in crate::native_app::waveform) fn load_wav_waveform_summary_from_path_with_progress(
     path: PathBuf,

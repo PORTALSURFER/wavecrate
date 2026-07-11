@@ -62,9 +62,10 @@ fn waveform_signal_surface_plan(
     edit_selection: Option<wavecrate::selection::SelectionRange>,
     sample_slide_frame_offset: Option<i64>,
 ) -> SurfacePaintPlan {
+    let mut state = WaveformState::from_cached_file(file);
+    state.viewport = viewport;
     let view = waveform_signal_surface_view(
-        file,
-        viewport,
+        &state,
         gain_preview_for_selection(edit_selection),
         sample_slide_frame_offset,
     )

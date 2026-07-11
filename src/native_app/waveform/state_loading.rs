@@ -152,6 +152,9 @@ impl WaveformState {
             pending_playback_start: None,
             pending_sample_slide_frame_offset: None,
             normalized_audition_gain_cache: Default::default(),
+            detail_summary: None,
+            pending_detail_key: None,
+            failed_detail_key: None,
         }
     }
 

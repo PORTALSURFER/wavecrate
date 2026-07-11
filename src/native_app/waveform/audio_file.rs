@@ -78,3 +78,6 @@ pub(in crate::native_app) use visual_preview::{
     InstantWaveformPreview, InstantWaveformPreviewTier, instant_waveform_head_preview_from_clip,
 };
 pub(in crate::native_app::waveform) use wav_decode::read_wav_playback_samples;
+pub(in crate::native_app) use wav_summary::load_wav_detail_summary;
+#[cfg(test)]
+pub(super) use wav_summary::load_wav_waveform_summary_from_path_with_progress;
