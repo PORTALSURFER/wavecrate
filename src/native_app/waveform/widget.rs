@@ -121,22 +121,28 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
 ) -> ui::View<GuiMessage> {
     let file = state.file();
     let viewport = state.viewport();
-    let (frames, frame_range, summary, detail_revision) =
-        if let Some(detail) = state.render_detail() {
-            (
-                detail.summary.frames,
-                [0.0, detail.summary.frames as f32],
-                Arc::clone(&detail.summary),
-                detail.key.start_frame as u64 ^ (detail.key.end_frame as u64).rotate_left(17),
-            )
-        } else {
-            (
-                file.frames,
-                viewport.frame_range(),
-                Arc::clone(&file.gpu_signal_summary),
-                0,
-            )
-        };
+    let detail = state
+        .render_detail()
+        .filter(|_| sample_slide_frame_offset.unwrap_or(0) == 0);
+    let (frames, frame_range, summary, gain_preview, detail_revision) = if let Some(detail) = detail
+    {
+        (
+            detail.summary.frames,
+            [0.0, detail.summary.frames as f32],
+            Arc::clone(&detail.summary),
+            gain_preview
+                .map(|preview| remap_gain_preview_to_detail(preview, file.frames, &detail.key)),
+            detail.key.start_frame as u64 ^ (detail.key.end_frame as u64).rotate_left(17),
+        )
+    } else {
+        (
+            file.frames,
+            viewport.frame_range(),
+            Arc::clone(&file.gpu_signal_summary),
+            gain_preview,
+            0,
+        )
+    };
     gpu_surface_with_capabilities(
         file.path_hash(),
         file.content_revision() ^ detail_revision,
@@ -154,6 +160,19 @@ pub(in crate::native_app::waveform) fn waveform_signal_surface_view(
             runtime_overlays: Default::default(),
         },
     )
+}
+
+fn remap_gain_preview_to_detail(
+    mut preview: radiant::runtime::GpuSignalGainPreview,
+    source_frames: usize,
+    key: &super::WaveformDetailKey,
+) -> radiant::runtime::GpuSignalGainPreview {
+    let source_frames = source_frames.max(1) as f32;
+    let detail_start = key.start_frame as f32 / source_frames;
+    let detail_width = key.end_frame.saturating_sub(key.start_frame).max(1) as f32 / source_frames;
+    preview.start = (preview.start - detail_start) / detail_width;
+    preview.end = (preview.end - detail_start) / detail_width;
+    preview
 }
 
 pub(in crate::native_app::waveform) fn signal_gain_preview_for_state(

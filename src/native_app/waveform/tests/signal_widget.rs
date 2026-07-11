@@ -32,8 +32,12 @@ fn zoomed_long_wav_refines_visible_range_independently_of_total_duration() {
     let result = super::super::load_wav_detail_summary(key);
     assert!(result.summary.is_ok());
     state.apply_detail_result(result);
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(1088.0 / 4096.0, 1216.0 / 4096.0).with_gain(0.5),
+    );
 
-    let view = waveform_signal_surface_view(&state, None, None)
+    let gain_preview = signal_gain_preview_for_state(&state, false);
+    let view = waveform_signal_surface_view(&state, gain_preview, None)
         .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
         .size(200.0, 80.0);
     let surface_view = view.into_surface();
@@ -45,6 +49,7 @@ fn zoomed_long_wav_refines_visible_range_independently_of_total_duration() {
         frames,
         frame_range,
         summary,
+        gain_preview,
         ..
     } = &surface.content
     else {
@@ -52,6 +57,9 @@ fn zoomed_long_wav_refines_visible_range_independently_of_total_duration() {
     };
     assert_eq!(*frames, 256);
     assert_eq!(*frame_range, [0.0, 256.0]);
+    let gain_preview = gain_preview.expect("detail gain preview");
+    assert!((gain_preview.start - 0.25).abs() < 0.0001);
+    assert!((gain_preview.end - 0.75).abs() < 0.0001);
     assert_eq!(summary.levels[0].bucket_frames, 2);
     assert_eq!(
         summary.levels[0].buckets, short.gpu_signal_summary.levels[0].buckets,
@@ -64,6 +72,69 @@ fn zoomed_long_wav_refines_visible_range_independently_of_total_duration() {
             .any(|bucket| bucket.max > 0.9),
         "narrow transient in the visible long-file range should survive refinement"
     );
+}
+
+#[test]
+fn waveform_detail_preserves_virtual_silence_margin_with_overview_rendering() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("virtual-margin-detail.wav");
+    write_test_wav_i16(&path, &vec![0_i16; 4096]);
+    let file =
+        super::super::load_wav_waveform_summary_from_path_with_progress(path, &|_| {}, &|| false)
+            .unwrap();
+    let mut state = WaveformState::from_cached_file(Arc::new(file));
+    state.viewport = WaveformViewport {
+        start: -128,
+        end: 128,
+    };
+
+    assert_eq!(state.desired_detail_key(), None);
+
+    let view = waveform_signal_surface_view(&state, None, None)
+        .id(crate::native_app::test_support::waveform::WAVEFORM_SIGNAL_WIDGET_ID)
+        .size(200.0, 80.0);
+    let surface_view = view.into_surface();
+    let bounds = Rect::from_size(200.0, 80.0);
+    let layout = radiant::layout::layout_tree(&surface_view.layout_node(), bounds);
+    let plan = surface_view.paint_plan(&layout, &ThemeTokens::default());
+    let surface = plan.gpu_surfaces().next().unwrap();
+    let GpuSurfaceContent::SignalSummaryBands {
+        frames,
+        frame_range,
+        ..
+    } = &surface.content
+    else {
+        panic!("expected overview signal surface");
+    };
+    assert_eq!(*frames, 4096);
+    assert_eq!(*frame_range, [-128.0, 128.0]);
+}
+
+#[test]
+fn moved_file_backed_wav_recomputes_detail_revision_for_new_path() {
+    let temp = tempfile::tempdir().unwrap();
+    let old_path = temp.path().join("before-move.wav");
+    let new_path = temp.path().join("after-move.wav");
+    write_test_wav_i16(&old_path, &vec![0_i16; 4096]);
+    let file = super::super::load_wav_waveform_summary_from_path_with_progress(
+        old_path.clone(),
+        &|_| {},
+        &|| false,
+    )
+    .unwrap();
+    let old_revision = file.content_revision();
+    let mut state = WaveformState::from_cached_file(Arc::new(file));
+    state.viewport = WaveformViewport { start: 0, end: 256 };
+    let old_key = state.desired_detail_key().expect("original WAV detail key");
+    state.mark_detail_pending(old_key);
+    std::fs::rename(&old_path, &new_path).unwrap();
+
+    assert!(state.rewrite_path_prefix(&old_path, &new_path));
+    assert_ne!(state.file().content_revision(), old_revision);
+    let key = state.desired_detail_key().expect("moved WAV detail key");
+    let result = super::super::load_wav_detail_summary(key);
+
+    assert!(result.summary.is_ok());
 }
 
 #[test]

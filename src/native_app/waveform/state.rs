@@ -67,6 +67,9 @@ impl WaveformState {
         if self.pending_detail_key.is_some() || !super::audio_file::is_wav_path(&self.file.path) {
             return None;
         }
+        if self.viewport.extends_beyond_audio(self.file.frames) {
+            return None;
+        }
         let range = self
             .viewport
             .clamped_index_viewport(self.file.frames, super::MIN_VISIBLE_FRAMES);
@@ -136,7 +139,8 @@ impl WaveformState {
 
     pub(in crate::native_app::waveform) fn render_detail(&self) -> Option<&WaveformDetailSummary> {
         self.detail_summary.as_ref().filter(|detail| {
-            detail.key.path == self.file.path
+            !self.viewport.extends_beyond_audio(self.file.frames)
+                && detail.key.path == self.file.path
                 && detail.key.content_revision == self.file.content_revision()
                 && detail.key.start_frame
                     == self

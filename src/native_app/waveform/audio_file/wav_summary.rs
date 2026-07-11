@@ -1,16 +1,16 @@
 use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 use crate::native_app::waveform::audio_file::diagnostics::log_audio_load_timing;
 use wavecrate::audio::{Source, decoder::SymphoniaDecoder};
 
 use super::{
-    WaveformFile, report_phase_progress_throttled,
+    WaveformFile,
+    model::content_revision_for_path_metadata,
+    report_phase_progress_throttled,
     wav_format::{integer_sample_max_i32, integer_sample_max_i64},
     wav_summary_builder::{
         MAX_STREAMING_WAV_SUMMARY_BUCKETS, STREAMING_WAV_SUMMARY_BUILD_END,
@@ -322,32 +322,6 @@ fn estimate_frames_from_file_size(bytes: u64, channels: usize) -> usize {
     usize::try_from(bytes / bytes_per_frame)
         .unwrap_or(usize::MAX)
         .max(1)
-}
-
-fn content_revision_for_path_metadata(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-    sample_rate: u32,
-    channels: usize,
-    frames: usize,
-) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    path.hash(&mut hasher);
-    metadata.len().hash(&mut hasher);
-    modified_ns(metadata).hash(&mut hasher);
-    sample_rate.hash(&mut hasher);
-    channels.hash(&mut hasher);
-    frames.hash(&mut hasher);
-    hasher.finish().max(1)
-}
-
-fn modified_ns(metadata: &std::fs::Metadata) -> u128 {
-    metadata
-        .modified()
-        .ok()
-        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .map(|duration| duration.as_nanos())
-        .unwrap_or_default()
 }
 
 #[cfg(test)]
