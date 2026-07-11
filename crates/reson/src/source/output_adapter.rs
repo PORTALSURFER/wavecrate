@@ -15,8 +15,10 @@ pub(crate) struct OutputAdapter<S> {
     target_channels: usize,
     source_rate: u32,
     target_rate: u32,
-    current_frame: Option<Vec<f32>>,
-    next_frame: Option<Vec<f32>>,
+    current_frame: Vec<f32>,
+    next_frame: Vec<f32>,
+    current_frame_valid: bool,
+    next_frame_valid: bool,
     base_frame_index: u64,
     position_num: u64,
     pending_output: Vec<f32>,
@@ -30,41 +32,46 @@ where
     /// Build an adapter that emits samples in the requested output format.
     pub(crate) fn new(mut inner: S, target_rate: u32, target_channels: u16) -> Self {
         let source_channels = inner.channels().max(1) as usize;
-        let current_frame = read_frame(&mut inner, source_channels);
-        let next_frame = read_frame(&mut inner, source_channels);
+        let mut current_frame = vec![0.0; source_channels];
+        let current_frame_valid = read_frame_into(&mut inner, &mut current_frame);
+        let mut next_frame = vec![0.0; source_channels];
+        let next_frame_valid = read_frame_into(&mut inner, &mut next_frame);
+        let target_channels = target_channels.max(1) as usize;
         Self {
             source_rate: inner.sample_rate().max(1),
             target_rate: target_rate.max(1),
-            target_channels: target_channels.max(1) as usize,
+            target_channels,
             inner,
             source_channels,
             current_frame,
             next_frame,
+            current_frame_valid,
+            next_frame_valid,
             base_frame_index: 0,
             position_num: 0,
-            pending_output: Vec::new(),
-            pending_index: 0,
+            pending_output: vec![0.0; target_channels],
+            pending_index: target_channels,
         }
     }
 
     fn fill_pending_output(&mut self) -> Option<()> {
         self.align_to_position()?;
-        let current = self.current_frame.as_ref()?;
-        let next = self.next_frame.as_ref();
-        let fraction = if next.is_some() {
+        if !self.current_frame_valid {
+            return None;
+        }
+        let current = self.current_frame.as_slice();
+        let next = self.next_frame_valid.then_some(self.next_frame.as_slice());
+        let fraction = if self.next_frame_valid {
             (self.position_num % self.target_rate as u64) as f32 / self.target_rate as f32
         } else {
             0.0
         };
 
-        self.pending_output.clear();
-        self.pending_output.reserve(self.target_channels);
         if self.target_channels == 1 && self.source_channels > 1 {
             let total = (0..self.source_channels)
                 .map(|channel| interpolate_channel(current, next, channel, fraction))
                 .sum::<f32>();
-            self.pending_output
-                .push(total / self.source_channels as f32);
+            self.pending_output[0] = total / self.source_channels as f32;
         } else {
             for output_channel in 0..self.target_channels {
                 let source_channel = if self.source_channels == 1 {
@@ -72,12 +79,8 @@ where
                 } else {
                     output_channel % self.source_channels
                 };
-                self.pending_output.push(interpolate_channel(
-                    current,
-                    next,
-                    source_channel,
-                    fraction,
-                ));
+                self.pending_output[output_channel] =
+                    interpolate_channel(current, next, source_channel, fraction);
             }
         }
 
@@ -89,7 +92,7 @@ where
     fn align_to_position(&mut self) -> Option<()> {
         loop {
             let requested_frame = self.position_num / self.target_rate as u64;
-            match self.next_frame.is_some() {
+            match self.next_frame_valid {
                 true if requested_frame > self.base_frame_index => self.advance_frame()?,
                 false if requested_frame > self.base_frame_index => return None,
                 _ => return Some(()),
@@ -98,10 +101,11 @@ where
     }
 
     fn advance_frame(&mut self) -> Option<()> {
-        self.current_frame = self.next_frame.take();
+        std::mem::swap(&mut self.current_frame, &mut self.next_frame);
+        self.current_frame_valid = self.next_frame_valid;
         self.base_frame_index = self.base_frame_index.saturating_add(1);
-        self.next_frame = read_frame(&mut self.inner, self.source_channels);
-        self.current_frame.as_ref().map(|_| ())
+        self.next_frame_valid = read_frame_into(&mut self.inner, &mut self.next_frame);
+        self.current_frame_valid.then_some(())
     }
 }
 
@@ -146,20 +150,22 @@ where
     }
 }
 
-fn read_frame<S>(source: &mut S, channels: usize) -> Option<Vec<f32>>
+fn read_frame_into<S>(source: &mut S, frame: &mut [f32]) -> bool
 where
     S: Source,
 {
-    let mut frame = Vec::with_capacity(channels);
-    for _ in 0..channels {
-        frame.push(source.next()?);
+    for sample in frame {
+        let Some(next) = source.next() else {
+            return false;
+        };
+        *sample = next;
     }
-    Some(frame)
+    true
 }
 
 fn interpolate_channel(
     current: &[f32],
-    next: Option<&Vec<f32>>,
+    next: Option<&[f32]>,
     channel: usize,
     fraction: f32,
 ) -> f32 {
@@ -175,7 +181,56 @@ fn interpolate_channel(
 mod tests {
     use super::OutputAdapter;
     use crate::Source;
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::cell::Cell;
     use std::time::Duration;
+
+    thread_local! {
+        static COUNT_ALLOCATIONS: Cell<bool> = const { Cell::new(false) };
+        static ALLOCATION_COUNT: Cell<usize> = const { Cell::new(0) };
+    }
+
+    struct ThreadCountingAllocator;
+
+    unsafe impl GlobalAlloc for ThreadCountingAllocator {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            record_allocation();
+            unsafe { System.alloc(layout) }
+        }
+
+        unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+            record_allocation();
+            unsafe { System.alloc_zeroed(layout) }
+        }
+
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            unsafe { System.dealloc(ptr, layout) };
+        }
+
+        unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+            record_allocation();
+            unsafe { System.realloc(ptr, layout, new_size) }
+        }
+    }
+
+    #[global_allocator]
+    static TEST_ALLOCATOR: ThreadCountingAllocator = ThreadCountingAllocator;
+
+    fn record_allocation() {
+        let _ = COUNT_ALLOCATIONS.try_with(|enabled| {
+            if enabled.get() {
+                let _ = ALLOCATION_COUNT.try_with(|count| count.set(count.get() + 1));
+            }
+        });
+    }
+
+    fn count_thread_allocations(run: impl FnOnce()) -> usize {
+        ALLOCATION_COUNT.with(|count| count.set(0));
+        COUNT_ALLOCATIONS.with(|enabled| enabled.set(true));
+        run();
+        COUNT_ALLOCATIONS.with(|enabled| enabled.set(false));
+        ALLOCATION_COUNT.with(Cell::get)
+    }
 
     struct FrameSource {
         channels: u16,
@@ -243,5 +298,25 @@ mod tests {
         assert_eq!(samples.len(), 2);
         assert!((samples[0] - 1.0).abs() < 1e-6);
         assert!((samples[1] - 9.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn sustained_44100_to_48000_adaptation_allocates_nothing_after_construction() {
+        let frames = 4_410;
+        let samples = (0..frames * 2)
+            .map(|sample| sample as f32 / (frames * 2) as f32)
+            .collect();
+        let source = FrameSource::new(2, 44_100, samples);
+        let mut adapted = OutputAdapter::new(source, 48_000, 2);
+        let mut emitted = 0usize;
+
+        let allocations = count_thread_allocations(|| {
+            while adapted.next().is_some() {
+                emitted += 1;
+            }
+        });
+
+        assert!(emitted > frames * 2);
+        assert_eq!(allocations, 0);
     }
 }
