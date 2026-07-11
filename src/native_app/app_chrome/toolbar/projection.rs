@@ -10,15 +10,16 @@ use crate::native_app::app_chrome::toolbar::{
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
 
 const FOCUS_LOADED_TOOLTIP: &str = "Focus the loaded sample in the browser.";
-const LOOP_TOOLTIP: &str = "Loop preview playback.";
-const RANDOM_TOOLTIP: &str = "Random section playback\nClick: play a random section now.\nShift-click: pick a random listed sample first.\nCommand-click: make Space use random sections.";
+const LOOP_TOOLTIP: &str = "Loop";
+const RANDOM_TOOLTIP: &str = "Play random section\nClick: play a random section now.\nShift-click: pick a random listed sample first.\nCommand-click: make Space use random sections.";
 const SIMILAR_SECTIONS_TOOLTIP: &str = "Mark sections similar to the playmark selection.\nSet a playmark first, then toggle this to scan the loaded sample.";
 const ZERO_CROSSING_SNAP_TOOLTIP: &str = "Snap play and edit mark edges to nearby zero crossings.";
 const BEAT_GUIDES_TOOLTIP: &str = "Show beat guide lines inside the play selection.";
 const METRONOME_TOOLTIP: &str = "Play a metronome from the beat guide divisions.";
 const BEAT_GUIDE_COUNT_TOOLTIP: &str = "Beat guide divisions.";
 const APPLY_EDIT_MARK_EDITS_TOOLTIP: &str = "Apply edit mark gain and fade edits.";
-const PLAY_TOOLTIP: &str = "Play the selected sample.";
+const PLAY_TOOLTIP: &str = "Play";
+const PAUSE_TOOLTIP: &str = "Pause";
 const STOP_TOOLTIP: &str = "Stop preview playback.";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,14 +45,6 @@ impl ToolbarProjection {
                 true,
                 model.loop_playback,
                 LOOP_TOOLTIP,
-            )
-            .into(),
-            ToolbarIconButtonProjection::new(
-                TOOLBAR_RANDOM_ID,
-                ToolbarIcon::Random,
-                model.random_available,
-                model.sticky_random_sample_range_playback,
-                RANDOM_TOOLTIP,
             )
             .into(),
             ToolbarIconButtonProjection::new(
@@ -104,11 +97,25 @@ impl ToolbarProjection {
 
         controls.push(
             ToolbarIconButtonProjection::new(
+                TOOLBAR_RANDOM_ID,
+                ToolbarIcon::Random,
+                model.random_available,
+                model.sticky_random_sample_range_playback,
+                RANDOM_TOOLTIP,
+            )
+            .into(),
+        );
+        controls.push(
+            ToolbarIconButtonProjection::new(
                 TOOLBAR_PLAY_ID,
                 ToolbarIcon::Play,
                 true,
                 model.playing,
-                PLAY_TOOLTIP,
+                if model.playing {
+                    PAUSE_TOOLTIP
+                } else {
+                    PLAY_TOOLTIP
+                },
             )
             .into(),
         );
