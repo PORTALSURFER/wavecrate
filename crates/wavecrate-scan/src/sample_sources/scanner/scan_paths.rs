@@ -12,8 +12,10 @@ use super::{
     scan_db_sync::db_sync_phase,
     scan_diff_phase::prepare_diff,
     scan_fs::ensure_root_dir,
-    scan_walk::apply_prepared_files,
+    scan_walk::apply_prepared_chunk,
 };
+
+const TARGET_PREPARE_BATCH_SIZE: usize = 64;
 
 /// Reconcile a bounded set of changed paths against a source database.
 ///
@@ -34,9 +36,11 @@ pub fn sync_paths_with_progress(
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
     let mut context = ScanContext::from_existing(targets.existing, ScanMode::Targeted);
-    let mut prepared = Vec::with_capacity(targets.current_files.len());
+    let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
+    let mut committed = false;
     for relative_path in targets.current_files {
-        if let Some(cancel) = cancel
+        if !committed
+            && let Some(cancel) = cancel
             && cancel.load(Ordering::Relaxed)
         {
             return Err(ScanError::Canceled);
@@ -46,8 +50,27 @@ pub fn sync_paths_with_progress(
         prepared.push(prepared_file);
         context.stats.total_files += 1;
         on_progress(context.stats.total_files, &absolute);
+        if prepared.len() == TARGET_PREPARE_BATCH_SIZE {
+            let chunk =
+                std::mem::replace(&mut prepared, Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE));
+            committed |= apply_prepared_chunk(
+                db,
+                &root,
+                cancel.filter(|_| !committed),
+                &mut context,
+                chunk,
+            )?;
+        }
     }
-    apply_prepared_files(db, &root, cancel, &mut context, prepared)?;
+    if !prepared.is_empty() {
+        let _ = apply_prepared_chunk(
+            db,
+            &root,
+            cancel.filter(|_| !committed),
+            &mut context,
+            prepared,
+        )?;
+    }
     db_sync_phase(db, &mut context)?;
     Ok(context.stats)
 }

@@ -34,7 +34,23 @@ pub(super) fn walk_phase(
             if cancel_requested(cancel, committed.get()) {
                 return Err(ScanError::Canceled);
             }
-            let prepared = prepare_diff(root, path, context)?;
+            let prepared = match prepare_diff(root, path, context) {
+                Ok(prepared) => prepared,
+                Err(error) if committed.get() => {
+                    if let Ok(relative) = path.strip_prefix(root)
+                        && path.exists()
+                    {
+                        context.existing.remove(relative);
+                    }
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %error,
+                        "Skipping file that changed after an earlier scan batch committed"
+                    );
+                    return Ok(());
+                }
+                Err(error) => return Err(error),
+            };
             context.stats.total_files += 1;
             if let Some(on_progress) = on_progress.as_mut() {
                 on_progress(context.stats.total_files, path);
@@ -73,47 +89,25 @@ pub(super) fn walk_phase(
     Ok(())
 }
 
-pub(super) fn apply_prepared_files(
+pub(super) fn apply_prepared_chunk(
     db: &SourceDatabase,
     root: &Path,
     cancel: Option<&AtomicBool>,
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
-) -> Result<(), ScanError> {
-    let committed = Cell::new(false);
-    let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
+) -> Result<bool, ScanError> {
+    let mut pending = Vec::with_capacity(prepared.len());
     for file in prepared {
-        if cancel_requested(cancel, committed.get()) {
-            return Err(ScanError::Canceled);
-        }
-        if !file.requires_apply {
+        if file.requires_apply {
+            pending.push(file);
+        } else {
             skip_noop(context, &file);
-            continue;
-        }
-        pending.push(file);
-        if pending.len() == APPLY_BATCH_SIZE {
-            let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-            if apply_batch(
-                db,
-                root,
-                cancel.filter(|_| !committed.get()),
-                context,
-                files,
-            )? {
-                committed.set(true);
-            }
         }
     }
-    if !pending.is_empty() {
-        let _ = apply_batch(
-            db,
-            root,
-            cancel.filter(|_| !committed.get()),
-            context,
-            pending,
-        )?;
+    if pending.is_empty() {
+        return Ok(false);
     }
-    Ok(())
+    apply_batch(db, root, cancel, context, pending)
 }
 
 pub(super) fn skip_noop(context: &mut ScanContext, prepared: &PreparedFile) {
@@ -138,10 +132,12 @@ fn apply_batch(
     let mut ready = Vec::with_capacity(prepared.len());
     for file in prepared {
         let relative_path = file.facts.relative.clone();
-        if let Some(file) = prepare_for_apply(root, cancel, file)? {
-            ready.push(file);
-        } else {
-            context.existing.remove(&relative_path);
+        match prepare_for_apply(root, cancel, file)? {
+            PrepareForApply::Ready(file) => ready.push(file),
+            PrepareForApply::Gone => {}
+            PrepareForApply::Skip => {
+                context.existing.remove(&relative_path);
+            }
         }
     }
     if ready.is_empty() {
@@ -156,34 +152,48 @@ fn apply_batch(
     }
     let mut batch = db.write_batch()?;
     for file in ready {
-        apply_diff(db, &mut batch, file, context)?;
+        apply_diff(db, &mut batch, file, context, root)?;
     }
     batch.commit()?;
     Ok(true)
+}
+
+enum PrepareForApply {
+    Ready(PreparedFile),
+    Gone,
+    Skip,
 }
 
 fn prepare_for_apply(
     root: &Path,
     cancel: Option<&AtomicBool>,
     mut prepared: PreparedFile,
-) -> Result<Option<PreparedFile>, ScanError> {
+) -> Result<PrepareForApply, ScanError> {
     let absolute = root.join(&prepared.facts.relative);
     let Ok(before_hash) = read_facts(root, &absolute) else {
-        return Ok(None);
+        return Ok(if absolute.exists() {
+            PrepareForApply::Skip
+        } else {
+            PrepareForApply::Gone
+        });
     };
     if !facts_match(&prepared, &before_hash) {
-        return Ok(None);
+        return Ok(PrepareForApply::Skip);
     }
     if prepared.needs_hash {
         prepared.content_hash = Some(compute_content_hash(&absolute, cancel)?);
         let Ok(after_hash) = read_facts(root, &absolute) else {
-            return Ok(None);
+            return Ok(if absolute.exists() {
+                PrepareForApply::Skip
+            } else {
+                PrepareForApply::Gone
+            });
         };
         if !facts_match(&prepared, &after_hash) {
-            return Ok(None);
+            return Ok(PrepareForApply::Skip);
         }
     }
-    Ok(Some(prepared))
+    Ok(PrepareForApply::Ready(prepared))
 }
 
 fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {

@@ -25,6 +25,7 @@ pub(super) fn apply_diff(
     batch: &mut SourceWriteBatch<'_>,
     prepared: PreparedFile,
     context: &mut ScanContext,
+    root: &Path,
 ) -> Result<(), ScanError> {
     let PreparedFile {
         facts,
@@ -87,7 +88,7 @@ pub(super) fn apply_diff(
         None => {
             if should_hash {
                 let hash = required_prepared_hash(content_hash);
-                if let Some(entry) = take_rename_candidate_by_hash(db, context, &hash)? {
+                if let Some(entry) = take_rename_candidate_by_hash(db, context, root, &hash)? {
                     let old_relative_path = entry.relative_path.clone();
                     apply_rename(batch, &path, &facts, &hash, entry, None)?;
                     context.stats.updated += 1;
@@ -129,9 +130,13 @@ pub(super) fn apply_diff(
                     content_hash: hash,
                 });
             } else {
-                if let Some(entry) =
-                    take_rename_candidate_by_facts(db, context, facts.size, facts.modified_ns)?
-                {
+                if let Some(entry) = take_rename_candidate_by_facts(
+                    db,
+                    context,
+                    root,
+                    facts.size,
+                    facts.modified_ns,
+                )? {
                     let old_relative_path = entry.relative_path.clone();
                     apply_rename_without_hash(batch, &path, &facts, entry, None)?;
                     context.stats.updated += 1;
@@ -320,11 +325,13 @@ fn apply_rename_without_hash(
 fn take_rename_candidate_by_hash(
     db: &SourceDatabase,
     context: &mut ScanContext,
+    root: &Path,
     hash: &str,
 ) -> Result<Option<WavEntry>, ScanError> {
     let path = unique_existing_path(
         context.rename_candidates_by_hash.get(hash),
         &context.existing,
+        root,
     );
     let Some(path) = path else {
         return Ok(None);
@@ -336,6 +343,7 @@ fn take_rename_candidate_by_hash(
 fn take_rename_candidate_by_facts(
     db: &SourceDatabase,
     context: &mut ScanContext,
+    root: &Path,
     size: u64,
     modified_ns: i64,
 ) -> Result<Option<WavEntry>, ScanError> {
@@ -343,6 +351,7 @@ fn take_rename_candidate_by_facts(
     let path = unique_existing_path(
         context.rename_candidates_by_facts.get(&key),
         &context.existing,
+        root,
     );
     let Some(path) = path else {
         return Ok(None);
@@ -354,11 +363,15 @@ fn take_rename_candidate_by_facts(
 fn unique_existing_path(
     candidates: Option<&Vec<PathBuf>>,
     existing: &HashMap<PathBuf, WavEntry>,
+    root: &Path,
 ) -> Option<PathBuf> {
     let candidates = candidates?;
     let mut match_path: Option<PathBuf> = None;
     for path in candidates {
         if !existing.contains_key(path) {
+            continue;
+        }
+        if root.join(path).exists() {
             continue;
         }
         if match_path.is_some() {
@@ -404,24 +417,39 @@ mod tests {
 
     #[test]
     fn unique_existing_path_returns_single_match() {
+        let root = tempfile::tempdir().unwrap();
         let mut existing = HashMap::new();
         existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
         let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("missing.wav")];
 
-        let matched = unique_existing_path(Some(&candidates), &existing);
+        let matched = unique_existing_path(Some(&candidates), &existing, root.path());
 
         assert_eq!(matched, Some(PathBuf::from("one.wav")));
     }
 
     #[test]
     fn unique_existing_path_rejects_ambiguous_matches() {
+        let root = tempfile::tempdir().unwrap();
         let mut existing = HashMap::new();
         existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
         let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
 
-        let matched = unique_existing_path(Some(&candidates), &existing);
+        let matched = unique_existing_path(Some(&candidates), &existing, root.path());
+
+        assert_eq!(matched, None);
+    }
+
+    #[test]
+    fn unique_existing_path_rejects_candidate_recreated_before_claim() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("one.wav"), b"recreated").unwrap();
+        let mut existing = HashMap::new();
+        existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
+        let candidates = vec![PathBuf::from("one.wav")];
+
+        let matched = unique_existing_path(Some(&candidates), &existing, root.path());
 
         assert_eq!(matched, None);
     }
