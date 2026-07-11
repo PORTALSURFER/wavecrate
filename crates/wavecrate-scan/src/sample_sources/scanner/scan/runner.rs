@@ -56,6 +56,11 @@ fn scan(
     debug_assert_ne!(mode, ScanMode::Targeted);
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
+    if mode == ScanMode::Quick {
+        let mut batch = db.write_batch()?;
+        context.rename_candidate_generation = Some(batch.begin_quick_scan_rename_candidates()?);
+        batch.commit()?;
+    }
     walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
     db_sync_phase(db, &mut context)?;
     Ok(context.stats)
@@ -90,13 +95,7 @@ pub fn complete_deferred_hashes_with_cancel(
     mut stats: ScanStats,
     cancel: Option<&AtomicBool>,
 ) -> Result<ScanStats, ScanError> {
-    let pending_renames = match db.list_pending_renames() {
-        Ok(pending) => pending,
-        Err(error) => {
-            tracing::warn!("Could not inspect deferred rename state: {error}");
-            return Ok(stats);
-        }
-    };
+    let pending_renames = db.list_pending_renames()?;
     if stats.hashes_pending == 0 && pending_renames.is_empty() {
         return Ok(stats);
     }
@@ -105,12 +104,8 @@ pub fn complete_deferred_hashes_with_cancel(
         .iter()
         .cloned()
         .collect::<HashSet<_>>();
-    match super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates) {
-        Ok(deferred) => stats.merge_deferred_hashes(deferred),
-        Err(error) => {
-            tracing::warn!("Deferred deep-hash scan did not complete: {error}");
-        }
-    }
+    let deferred = super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates)?;
+    stats.merge_deferred_hashes(deferred);
     Ok(stats)
 }
 

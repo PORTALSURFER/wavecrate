@@ -28,6 +28,8 @@ pub(super) fn deep_hash_scan(
         .map(|entry| (entry.relative_path.clone(), entry))
         .collect();
     let pending_entries = db.list_pending_renames()?;
+    let mut rename_candidates = rename_candidates.clone();
+    rename_candidates.extend(db.list_pending_rename_destinations()?);
     let mut stats = ScanStats::default();
     let mut present_by_hash = HashMap::new();
     let mut pending_by_hash = HashMap::new();
@@ -104,7 +106,7 @@ pub(super) fn deep_hash_scan(
         &entries_by_path,
         &present_by_hash,
         &pending_by_hash,
-        rename_candidates,
+        &rename_candidates,
     )?;
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
@@ -176,6 +178,7 @@ fn apply_deep_rename(
     hash: &str,
 ) -> Result<(), ScanError> {
     batch.clear_pending_rename(&pending_entry.relative_path)?;
+    batch.clear_pending_rename_destination(&present_entry.relative_path)?;
     batch.upsert_file_with_hash_and_tag(
         &present_entry.relative_path,
         present_entry.file_size,

@@ -140,7 +140,7 @@ fn quick_scan_defers_hash_for_large_file() {
 }
 
 #[test]
-fn canceled_deferred_hashing_still_returns_committed_quick_scan_stats() {
+fn canceled_deferred_hashing_reports_cancellation_after_quick_scan_commit() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("large.wav");
     std::fs::write(&file_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
@@ -148,10 +148,9 @@ fn canceled_deferred_hashing_still_returns_committed_quick_scan_stats() {
     let stats = scan_once(&db).unwrap();
     let cancel = std::sync::atomic::AtomicBool::new(true);
 
-    let completed = complete_deferred_hashes_with_cancel(&db, stats, Some(&cancel)).unwrap();
+    let result = complete_deferred_hashes_with_cancel(&db, stats, Some(&cancel));
 
-    assert_eq!(completed.added, 1);
-    assert_eq!(completed.hashes_pending, 1);
+    assert!(matches!(result, Err(ScanError::Canceled)));
     assert!(db.entry_for_path(Path::new("large.wav")).unwrap().is_some());
 }
 
@@ -227,6 +226,35 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
         sample_id_count(dir.path(), "features", "source::two.wav"),
         1
     );
+}
+
+#[test]
+fn detached_deep_hash_uses_persisted_quick_scan_destinations() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let new = dir.path().join("new.wav");
+    std::fs::write(&old, vec![5_u8; 9 * 1024 * 1024]).unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    std::fs::rename(&old, &new).unwrap();
+
+    let quick = scan_once(&db).unwrap();
+    assert_eq!(quick.hashes_pending, 1);
+    let deferred =
+        crate::sample_sources::scanner::scan_hash::deep_hash_scan(&db, None, &HashSet::new())
+            .unwrap();
+
+    assert_eq!(deferred.renames_reconciled, 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+    assert!(db.list_pending_renames().unwrap().is_empty());
 }
 
 #[test]
@@ -469,6 +497,76 @@ fn deferred_completion_reconciles_unique_hash_even_when_mtime_changes() {
         Rating::KEEP_1
     );
     assert!(db.list_pending_renames().unwrap().is_empty());
+}
+
+#[test]
+fn targeted_split_batches_preserve_large_rename_destination() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let new = dir.path().join("new.wav");
+    std::fs::write(&old, vec![7_u8; 9 * 1024 * 1024]).unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::copy(&old, &new).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("new.wav")]).unwrap();
+    let added = complete_deferred_hashes(&db, added).unwrap();
+    assert_eq!(added.hashes_pending, 0);
+    assert_eq!(
+        db.list_pending_rename_destinations().unwrap(),
+        vec![PathBuf::from("new.wav")]
+    );
+
+    std::fs::remove_file(&old).unwrap();
+    let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    let completed = complete_deferred_hashes(&db, removed).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+}
+
+#[test]
+fn targeted_destination_expires_after_an_unrelated_batch() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let duplicate = dir.path().join("duplicate.wav");
+    let unrelated = dir.path().join("unrelated.wav");
+    std::fs::write(&old, b"same-content").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::copy(&old, &duplicate).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("duplicate.wav")]).unwrap();
+    complete_deferred_hashes(&db, added).unwrap();
+
+    std::fs::write(&unrelated, b"different").unwrap();
+    let unrelated_stats = sync_paths(&db, &[PathBuf::from("unrelated.wav")]).unwrap();
+    complete_deferred_hashes(&db, unrelated_stats).unwrap();
+
+    std::fs::remove_file(&old).unwrap();
+    let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    let completed = complete_deferred_hashes(&db, removed).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 0);
+    assert_eq!(
+        db.entry_for_path(Path::new("duplicate.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
 }
 
 #[test]

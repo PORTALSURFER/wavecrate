@@ -31,6 +31,7 @@ pub(super) fn db_sync_phase(
     let mut batch = db.write_batch()?;
     if context.mode == ScanMode::Hard {
         batch.clear_all_pending_renames()?;
+        batch.clear_all_pending_rename_destinations()?;
     }
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

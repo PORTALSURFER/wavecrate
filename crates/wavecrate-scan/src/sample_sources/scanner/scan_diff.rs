@@ -149,6 +149,9 @@ pub(super) fn apply_diff(
                     return Ok(());
                 }
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
+                if let Some(generation) = context.rename_candidate_generation {
+                    batch.stage_pending_rename_destination(&path, generation)?;
+                }
                 context.stats.added += 1;
                 context.stats.record_rename_candidate(path.clone());
                 context.stats.content_changed += 1;
@@ -163,6 +166,9 @@ pub(super) fn apply_diff(
                 // Size and modification time are not content identity. Keep any
                 // removed row pending until deep hashing can prove a match.
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
+                if let Some(generation) = context.rename_candidate_generation {
+                    batch.stage_pending_rename_destination(&path, generation)?;
+                }
                 context.stats.added += 1;
                 context.stats.record_rename_candidate(path.clone());
                 context.stats.hashes_pending += 1;

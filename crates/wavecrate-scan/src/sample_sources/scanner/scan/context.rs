@@ -10,6 +10,7 @@ pub(crate) struct ScanContext {
     pub(crate) existing: HashMap<PathBuf, WavEntry>,
     pub(crate) stats: ScanStats,
     pub(crate) mode: ScanMode,
+    pub(crate) rename_candidate_generation: Option<u64>,
 }
 
 impl ScanContext {
@@ -26,6 +27,7 @@ impl ScanContext {
             existing,
             stats: ScanStats::default(),
             mode,
+            rename_candidate_generation: None,
         }
     }
 }
