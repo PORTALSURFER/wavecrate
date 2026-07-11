@@ -36,6 +36,10 @@ pub use open_profiles::SourceDatabaseConnectionRole;
 pub use pending_renames::PendingRenameEntry;
 pub use types::{Rating, SampleCollection, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
 pub use util::normalize_relative_path;
+pub use write::{
+    SourceCollectionWrite, SourceContentHashWrite, SourceFileWrite, SourceTagWrite,
+    SourceWriteCommand,
+};
 
 /// Hidden filename used for per-source databases.
 pub const DB_FILE_NAME: &str = ".wavecrate.db";
