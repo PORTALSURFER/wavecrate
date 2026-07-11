@@ -66,6 +66,47 @@ fn snapshot_waits_for_source_writer_and_captures_committed_state() {
 }
 
 #[test]
+fn retained_snapshot_fence_blocks_later_source_writers_until_publish() {
+    let source_root = tempdir().unwrap();
+    let destination_root = tempdir().unwrap();
+    let destination = database_path_for(destination_root.path());
+    let source = SourceDatabase::open(source_root.path()).unwrap();
+    let fence = source
+        .snapshot_to_path_with_write_fence(&destination)
+        .unwrap();
+    let source_path = source_root.path().to_path_buf();
+    let (done_tx, done_rx) = mpsc::channel();
+
+    let writer_thread = std::thread::spawn(move || {
+        let source = SourceDatabase::open(source_path).unwrap();
+        done_tx
+            .send(source.set_metadata("after_snapshot", "committed"))
+            .unwrap();
+    });
+    assert!(done_rx.recv_timeout(Duration::from_millis(50)).is_err());
+
+    drop(fence);
+    done_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("writer completion")
+        .unwrap();
+    writer_thread.join().unwrap();
+}
+
+#[test]
+fn snapshot_does_not_recreate_a_missing_destination_root() {
+    let source_root = tempdir().unwrap();
+    let destination_parent = tempdir().unwrap();
+    let missing_root = destination_parent.path().join("removed");
+    let destination = database_path_for(&missing_root);
+    let source = SourceDatabase::open(source_root.path()).unwrap();
+
+    source.snapshot_to_path(&destination).unwrap_err();
+
+    assert!(!missing_root.exists());
+}
+
+#[test]
 fn snapshot_failure_does_not_remove_preexisting_destination() {
     let source_root = tempdir().unwrap();
     let destination_root = tempdir().unwrap();

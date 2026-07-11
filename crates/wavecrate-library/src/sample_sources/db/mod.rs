@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use rusqlite::{Connection, Transaction};
+use std::fmt;
 
 mod error;
 /// Persistent file operation journal for crash recovery.
@@ -63,6 +64,25 @@ pub struct SourceDatabase {
     telemetry_label: &'static str,
 }
 
+/// Owned source-database writer reservation retained across an asynchronous snapshot handoff.
+///
+/// Dropping the fence releases the SQLite `BEGIN IMMEDIATE` transaction without changing data.
+pub struct SourceDatabaseWriteFence {
+    connection: Connection,
+}
+
+impl fmt::Debug for SourceDatabaseWriteFence {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("SourceDatabaseWriteFence").finish()
+    }
+}
+
+impl Drop for SourceDatabaseWriteFence {
+    fn drop(&mut self) {
+        let _ = self.connection.execute_batch("ROLLBACK");
+    }
+}
+
 /// Groups multiple database writes into one transaction using cached statements.
 pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
@@ -87,11 +107,29 @@ impl SourceDatabase {
     /// SQLite's online backup API coordinates with source-local writers and includes committed
     /// WAL-resident pages without requiring a global checkpoint. The destination must not exist.
     pub fn snapshot_to_path(&self, destination: &Path) -> Result<(), SourceDbError> {
-        if let Some(parent) = destination.parent() {
-            std::fs::create_dir_all(parent).map_err(|source| SourceDbError::CreateDir {
+        self.snapshot_to_path_with_write_fence(destination)
+            .map(drop)
+    }
+
+    /// Write a consistent snapshot while retaining the source writer reservation.
+    ///
+    /// The returned fence must remain alive until the caller either publishes or abandons the
+    /// snapshot. This closes the post-snapshot window where a later source mutation could commit
+    /// to the old root before an asynchronous remap result is applied.
+    pub fn snapshot_to_path_with_write_fence(
+        &self,
+        destination: &Path,
+    ) -> Result<SourceDatabaseWriteFence, SourceDbError> {
+        if let Some(parent) = destination.parent()
+            && !parent.is_dir()
+        {
+            return Err(SourceDbError::CreateDir {
                 path: parent.to_path_buf(),
-                source,
-            })?;
+                source: std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "snapshot destination directory is unavailable",
+                ),
+            });
         }
         let reservation = std::fs::OpenOptions::new()
             .write(true)
@@ -102,10 +140,11 @@ impl SourceDatabase {
                 source,
             })?;
         drop(reservation);
-        let result = (|| -> Result<(), SourceDbError> {
-            // Wait for any earlier writer to commit, then retain the writer
-            // reservation so no later write can race the source snapshot.
-            let _writer_reservation = self.write_batch()?;
+        let result = (|| -> Result<SourceDatabaseWriteFence, SourceDbError> {
+            let writer_connection = rusqlite::Connection::open(&self.db_path)?;
+            writer_connection
+                .execute_batch("BEGIN IMMEDIATE")
+                .map_err(SourceDbError::from)?;
             let source_connection = rusqlite::Connection::open(&self.db_path)?;
             let mut destination_connection = rusqlite::Connection::open(destination)?;
             let backup =
@@ -113,7 +152,9 @@ impl SourceDatabase {
             backup.run_to_completion(128, Duration::from_millis(5), None)?;
             drop(backup);
             destination_connection.close().map_err(|(_, error)| error)?;
-            Ok(())
+            Ok(SourceDatabaseWriteFence {
+                connection: writer_connection,
+            })
         })();
         if result.is_err() {
             remove_snapshot_artifacts(destination);

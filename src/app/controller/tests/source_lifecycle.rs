@@ -151,6 +151,72 @@ fn remapping_source_rolls_back_root_and_snapshot_when_config_save_fails() {
 }
 
 #[test]
+fn remapping_source_preserves_and_migrates_legacy_destination_database() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "source.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.cache.db.remove(&source.id);
+    std::fs::remove_file(crate::sample_sources::database_path_for(&source.root))
+        .expect("remove source database");
+    let destination = tempfile::tempdir().expect("destination root");
+    let legacy = destination
+        .path()
+        .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
+        .expect("destination database");
+    destination_db
+        .upsert_file(std::path::Path::new("legacy.wav"), 10, 5)
+        .expect("legacy row");
+    drop(destination_db);
+    std::fs::rename(
+        crate::sample_sources::database_path_for(destination.path()),
+        &legacy,
+    )
+    .expect("rename current database to legacy name");
+
+    controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect("remap source");
+
+    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
+        .expect("migrated destination database");
+    assert!(
+        destination_db
+            .entry_for_path(std::path::Path::new("legacy.wav"))
+            .expect("legacy query")
+            .is_some()
+    );
+}
+
+#[test]
+fn remapping_source_rejects_destination_owned_by_pending_add() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination root");
+    let pending_source = crate::sample_sources::SampleSource::new(destination.path().to_path_buf());
+    controller.runtime.source_lane.pending_adds.insert(
+        pending_source.root.clone(),
+        crate::app::controller::state::runtime::PendingSourceAdd {
+            request_id: 77,
+            source: pending_source,
+            queued_at: std::time::Instant::now(),
+        },
+    );
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("pending add destination must reject remap");
+
+    assert!(error.contains("being added"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+}
+
+#[test]
 fn removing_source_cancels_matching_pending_remap_generation() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());

@@ -49,6 +49,17 @@ impl AppController {
         if self.runtime.source_lane.pending_remap.is_some() {
             return Err(String::from("Source remap already in progress"));
         }
+        if self
+            .runtime
+            .source_lane
+            .pending_adds
+            .values()
+            .any(|pending| roots_overlap(&pending.source.root, &normalized))
+        {
+            return Err(String::from(
+                "Cannot remap to a source folder while it is being added",
+            ));
+        }
         let job = SourceRemapJob {
             request_id: self.runtime.jobs.next_source_remap_request_id(),
             source: existing_source.clone(),
@@ -58,6 +69,11 @@ impl AppController {
         {
             let prepared = run_source_remap_prepare(job);
             prepared.result?;
+            let final_database_created = publish_prepared_database(
+                &prepared.new_root,
+                prepared.staged_database.as_deref(),
+                prepared.destination_database_preexisting,
+            )?;
             let result = self.commit_remapped_source(RemappedSource {
                 index,
                 root: prepared.new_root.clone(),
@@ -66,10 +82,7 @@ impl AppController {
                 started_at,
             });
             if result.is_err() {
-                remove_database_artifacts_if_created(
-                    &prepared.new_root,
-                    prepared.artifacts_created,
-                );
+                remove_database_artifacts_if_created(&prepared.new_root, final_database_created);
             }
             result
         }
@@ -115,6 +128,7 @@ impl AppController {
                     && pending.new_root == message.new_root
             });
         if !is_current {
+            remove_staged_database(message.staged_database.as_deref());
             return;
         }
         let pending = self
@@ -124,20 +138,29 @@ impl AppController {
             .take()
             .expect("current source remap pending entry");
         if pending.canceled {
-            remove_database_artifacts_if_created(&message.new_root, message.artifacts_created);
+            remove_staged_database(message.staged_database.as_deref());
             return;
         }
         let Some(index) = self.library.sources.iter().position(|source| {
             source.id == message.source.id && source.root == message.source.root
         }) else {
-            remove_database_artifacts_if_created(&message.new_root, message.artifacts_created);
+            remove_staged_database(message.staged_database.as_deref());
             return;
         };
         match message.result {
             Ok(()) => {
-                if let Err(error) =
+                let mut final_database_created = false;
+                let result =
                     validate_remap_source_root(&self.library.sources, index, &message.new_root)
                         .and_then(|()| {
+                            publish_prepared_database(
+                                &message.new_root,
+                                message.staged_database.as_deref(),
+                                message.destination_database_preexisting,
+                            )
+                        })
+                        .and_then(|created| {
+                            final_database_created = created;
                             self.commit_remapped_source(RemappedSource {
                                 index,
                                 root: message.new_root.clone(),
@@ -145,16 +168,17 @@ impl AppController {
                                 id: message.source.id.clone(),
                                 started_at: pending.queued_at,
                             })
-                        })
-                {
-                    remove_database_artifacts_if_created(
-                        &message.new_root,
-                        message.artifacts_created,
-                    );
+                        });
+                if let Err(error) = result {
+                    remove_staged_database(message.staged_database.as_deref());
+                    remove_database_artifacts_if_created(&message.new_root, final_database_created);
                     self.set_status(error, StatusTone::Error);
                 }
             }
-            Err(error) => self.set_status(error, StatusTone::Error),
+            Err(error) => {
+                remove_staged_database(message.staged_database.as_deref());
+                self.set_status(error, StatusTone::Error);
+            }
         }
     }
 
@@ -197,6 +221,12 @@ impl AppController {
     }
 }
 
+fn roots_overlap(first: &PathBuf, second: &PathBuf) -> bool {
+    source_roots_match(first, second)
+        || nested_source_conflict_error(first, second).is_some()
+        || nested_source_conflict_error(second, first).is_some()
+}
+
 fn validate_remap_source_root(
     sources: &[SampleSource],
     index: usize,
@@ -225,36 +255,95 @@ fn validate_remap_source_root(
 
 fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
     let destination = crate::sample_sources::database_path_for(&job.new_root);
-    let destination_existed = database_artifact_present(&destination);
-    let mut artifacts_created = false;
+    let legacy_destination = job
+        .new_root
+        .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+    let destination_database_preexisting =
+        database_artifact_present(&destination) || database_artifact_present(&legacy_destination);
+    let mut staged_database = None;
+    let mut write_fence = None;
     let result = (|| {
+        if !job.new_root.is_dir() {
+            return Err(String::from("Remap destination is no longer available"));
+        }
         let source_database = crate::sample_sources::database_path_for(&job.source.root);
-        if !destination_existed {
+        if !destination_database_preexisting {
             if source_database.exists() {
                 let source = SourceDatabase::open(&job.source.root).map_err(|error| {
                     format!("Failed to open source database for snapshot: {error}")
                 })?;
-                source
-                    .snapshot_to_path(&destination)
+                let staged = staged_database_path(&destination, job.request_id);
+                let fence = source
+                    .snapshot_to_path_with_write_fence(&staged)
                     .map_err(|error| format!("Failed to snapshot source database: {error}"))?;
-            } else {
-                reserve_empty_database_path(&destination)?;
+                staged_database = Some(staged);
+                write_fence = Some(fence);
             }
-            artifacts_created = true;
+            return Ok(());
         }
         SourceDatabase::open(&job.new_root)
             .map(|_| ())
             .map_err(|error| format!("Failed to prepare database: {error}"))
     })();
     if result.is_err() {
-        remove_database_artifacts_if_created(&job.new_root, artifacts_created);
+        remove_staged_database(staged_database.as_deref());
+        staged_database = None;
+        write_fence = None;
     }
     SourceRemapPreparedResult {
         request_id: job.request_id,
         source: job.source,
         new_root: job.new_root,
-        artifacts_created,
+        staged_database,
+        destination_database_preexisting,
+        write_fence,
         result,
+    }
+}
+
+fn publish_prepared_database(
+    root: &Path,
+    staged_database: Option<&Path>,
+    destination_database_preexisting: bool,
+) -> Result<bool, String> {
+    if !root.is_dir() {
+        return Err(String::from("Remap destination is no longer available"));
+    }
+    let destination = crate::sample_sources::database_path_for(root);
+    if let Some(staged) = staged_database {
+        if database_artifact_present(&destination) {
+            return Err(String::from(
+                "Destination database changed while the remap was running",
+            ));
+        }
+        fs::rename(staged, &destination)
+            .map_err(|error| format!("Failed to publish source database snapshot: {error}"))?;
+        SourceDatabase::open(root)
+            .map_err(|error| format!("Failed to prepare database: {error}"))?;
+        return Ok(true);
+    }
+    SourceDatabase::open(root).map_err(|error| format!("Failed to prepare database: {error}"))?;
+    Ok(!destination_database_preexisting)
+}
+
+fn remove_staged_database(staged_database: Option<&Path>) {
+    let Some(staged_database) = staged_database else {
+        return;
+    };
+    for path in [
+        staged_database.to_path_buf(),
+        path_with_suffix(staged_database, "-wal"),
+        path_with_suffix(staged_database, "-shm"),
+        path_with_suffix(staged_database, "-journal"),
+    ] {
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => tracing::warn!(
+                error = %error,
+                "Failed to remove staged remap snapshot artifact"
+            ),
+        }
     }
 }
 
@@ -287,13 +376,8 @@ fn database_artifact_present(path: &Path) -> bool {
     }
 }
 
-fn reserve_empty_database_path(path: &Path) -> Result<(), String> {
-    fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)
-        .map(drop)
-        .map_err(|error| format!("Failed to reserve destination database: {error}"))
+fn staged_database_path(destination: &Path, request_id: u64) -> PathBuf {
+    path_with_suffix(destination, &format!(".remap-{request_id}.staged"))
 }
 
 fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {

@@ -81,8 +81,12 @@ pub(crate) struct SourceRemapPreparedResult {
     pub(crate) source: crate::sample_sources::SampleSource,
     /// Normalized destination root.
     pub(crate) new_root: PathBuf,
-    /// Whether this request exclusively created destination database artifacts.
-    pub(crate) artifacts_created: bool,
+    /// Request-owned snapshot staged outside the destination database path.
+    pub(crate) staged_database: Option<PathBuf>,
+    /// Whether the destination already owned a current or legacy database before preparation.
+    pub(crate) destination_database_preexisting: bool,
+    /// Source writer reservation retained until this result is published or discarded.
+    pub(crate) write_fence: Option<crate::sample_sources::db::SourceDatabaseWriteFence>,
     /// Preparation outcome.
     pub(crate) result: Result<(), String>,
 }
