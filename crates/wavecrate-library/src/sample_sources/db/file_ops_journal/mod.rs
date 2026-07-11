@@ -14,8 +14,10 @@
 
 use super::{SourceDatabase, SourceDbError};
 
+mod decode;
 mod entry;
 mod reconcile;
+mod recovery_io;
 mod store;
 #[cfg(test)]
 mod tests;
@@ -26,11 +28,11 @@ pub use entry::{
 /// Summary of the work performed while reconciling pending journal entries.
 pub type FileOpReconcileSummary = reconcile::FileOpReconcileSummary;
 /// Result of loading journal rows during tests.
-pub type ListedJournalEntries = store::ListedJournalEntries;
+pub type ListedJournalEntries = decode::ListedJournalEntries;
 
 /// Insert a new journal entry before mutating the filesystem.
 pub fn insert_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<(), SourceDbError> {
-    store::insert_entry(db, entry)
+    store::FileOpJournalStore::new(db).insert(entry)
 }
 
 /// Update a journal entry stage and optional metadata after filesystem work.
@@ -41,17 +43,17 @@ pub fn update_stage(
     file_size: Option<u64>,
     modified_ns: Option<i64>,
 ) -> Result<(), SourceDbError> {
-    store::update_stage(db, id, stage, file_size, modified_ns)
+    store::FileOpJournalStore::new(db).update_stage(id, stage, file_size, modified_ns)
 }
 
 /// Remove a resolved journal entry after reconciliation.
 pub fn remove_entry(db: &SourceDatabase, id: &str) -> Result<(), SourceDbError> {
-    store::remove_entry(db, id)
+    store::FileOpJournalStore::new(db).remove(id)
 }
 
 /// Load all pending journal entries for reconciliation.
 pub fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, SourceDbError> {
-    store::list_entries(db)
+    store::FileOpJournalStore::new(db).list()
 }
 
 /// Reconcile all pending file ops against the filesystem and database.
