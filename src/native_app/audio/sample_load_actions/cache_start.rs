@@ -1753,7 +1753,7 @@ impl NativeAppState {
         let label = sample_path_label(path.as_str());
         self.prepare_playback_mode_for_path(path.as_str());
         self.maybe_open_audio_player(context);
-        let Some(runtime) = self.audio.playback_runtime.as_ref() else {
+        let Some(runtime) = self.audio.playback_runtime.clone() else {
             return false;
         };
         let playback_started_at = Instant::now();
@@ -1790,9 +1790,13 @@ impl NativeAppState {
             edit_fade: None,
             metronome: self.playback_metronome_config_for_span(0.0, 1.0, 0.0),
         };
+        let visual_handoff = self.begin_playback_visual_handoff(Path::new(path.as_str()));
         let request_id = match runtime.try_play(request) {
             Ok(request_id) => request_id,
             Err(err) => {
+                if let Some(snapshot) = visual_handoff {
+                    self.rollback_playback_visual_handoff(snapshot);
+                }
                 emit_gui_action(
                     "browser.sample_load.playback_ready",
                     Some("browser"),
@@ -1804,10 +1808,13 @@ impl NativeAppState {
                 return false;
             }
         };
+        if let Some(snapshot) = visual_handoff {
+            self.commit_playback_visual_handoff(snapshot);
+        }
         self.audio.current_playback_span = Some((0.0, 1.0));
         let origin = self.runtime_playback_origin_for_path(path.as_str());
         let session_request = SamplePlaybackRequest::waveform(
-            path,
+            path.clone(),
             (0.0, 1.0),
             SamplePlaybackIntent::ExplicitPlayback,
             origin,
@@ -1815,6 +1822,12 @@ impl NativeAppState {
         );
         self.audio
             .start_sample_playback_session(session_request, request_id, "decoded_samples");
+        self.log_sample_identity_checkpoint(
+            "browser.sample_load.playback_ready_visual_handoff",
+            "start_playback_ready_instant_audition",
+            Some(Path::new(path.as_str())),
+            Some("playback_and_waveform_identity_committed"),
+        );
         self.ui.status.sample = format!("Playing {label}");
         log_sample_load_timing(
             "browser.sample_load.playback_ready.playback_submit",

@@ -117,6 +117,58 @@ impl WaveformAppState {
     }
 }
 
+pub(in crate::native_app) struct WaveformVisualSnapshot {
+    current: WaveformState,
+    display: WaveformDisplayState,
+    starmap_drag_restore: Option<WaveformState>,
+    load_label: Option<String>,
+    load_progress: f32,
+    load_target_progress: f32,
+}
+
+impl WaveformAppState {
+    pub(in crate::native_app) fn begin_playback_visual_handoff(
+        &mut self,
+        path: PathBuf,
+        preview: Option<InstantWaveformPreview>,
+    ) -> Option<WaveformVisualSnapshot> {
+        if self.current.has_loaded_sample() && self.current.path() == path {
+            return None;
+        }
+        let display = self.display.clone();
+        let starmap_drag_restore = self.starmap_drag_restore.take();
+        let load_label = self.load.label.clone();
+        let load_progress = self.load.progress;
+        let load_target_progress = self.load.target_progress;
+        let current = if let Some(preview) = preview {
+            self.replace_current_with_instant_waveform_preview(preview)
+        } else {
+            self.replace_current_with_instant_waveform_preview_loading(path)
+        };
+        Some(WaveformVisualSnapshot {
+            current,
+            display,
+            starmap_drag_restore,
+            load_label,
+            load_progress,
+            load_target_progress,
+        })
+    }
+
+    pub(in crate::native_app) fn rollback_playback_visual_handoff(
+        &mut self,
+        snapshot: WaveformVisualSnapshot,
+    ) -> WaveformState {
+        let discarded = std::mem::replace(&mut self.current, snapshot.current);
+        self.display = snapshot.display;
+        self.starmap_drag_restore = snapshot.starmap_drag_restore;
+        self.load.label = snapshot.load_label;
+        self.load.progress = snapshot.load_progress;
+        self.load.target_progress = snapshot.load_target_progress;
+        discarded
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::native_app) enum WaveformDisplayState {
     Authoritative,

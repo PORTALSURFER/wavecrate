@@ -1,13 +1,38 @@
 use std::path::Path;
 
 use crate::native_app::{
-    app::{NativeAppState, sample_path_label},
+    app::{NativeAppState, WaveformVisualSnapshot, sample_path_label},
     waveform::InstantWaveformPreview,
 };
 
 use super::deferred_drop::defer_large_drop;
 
 impl NativeAppState {
+    pub(super) fn begin_playback_visual_handoff(
+        &mut self,
+        path: &Path,
+    ) -> Option<WaveformVisualSnapshot> {
+        let preview = self.waveform.cache.instant_waveform_preview(path);
+        let snapshot = self
+            .waveform
+            .begin_playback_visual_handoff(path.to_path_buf(), preview);
+        if snapshot.is_some() {
+            self.waveform.load.label = Some(sample_path_label(path));
+            self.waveform.load.progress = 0.0;
+            self.waveform.load.target_progress = 0.0;
+        }
+        snapshot
+    }
+
+    pub(super) fn rollback_playback_visual_handoff(&mut self, snapshot: WaveformVisualSnapshot) {
+        let discarded = self.waveform.rollback_playback_visual_handoff(snapshot);
+        defer_large_drop(discarded);
+    }
+
+    pub(super) fn commit_playback_visual_handoff(&mut self, snapshot: WaveformVisualSnapshot) {
+        defer_large_drop(snapshot);
+    }
+
     pub(in crate::native_app) fn start_starmap_waveform_preview(&mut self, path: &str) {
         if self.waveform.current.has_loaded_sample()
             && self.waveform.current.path() == Path::new(path)

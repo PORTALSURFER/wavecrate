@@ -136,6 +136,56 @@ fn instant_waveform_preview_loading_replaces_stale_waveform() {
 }
 
 #[test]
+fn playback_handoff_rebinds_visible_waveform_to_new_sample_preview() {
+    let old_path = PathBuf::from("/tmp/handoff-old.wav");
+    let new_path = PathBuf::from("/tmp/handoff-new.wav");
+    let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
+        crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+            old_path.clone(),
+            vec![0.0, 0.2, -0.2],
+        ),
+    )));
+
+    let previous = app_state
+        .begin_playback_visual_handoff(new_path.clone(), Some(instant_preview(new_path.clone(), 8)))
+        .expect("cross-sample handoff");
+
+    assert_eq!(app_state.current.path(), new_path);
+    assert_eq!(
+        app_state.instant_preview_path(),
+        Some(Path::new("/tmp/handoff-new.wav"))
+    );
+    let discarded = app_state.rollback_playback_visual_handoff(previous);
+    assert_eq!(app_state.current.path(), old_path);
+    assert_eq!(discarded.path(), new_path);
+}
+
+#[test]
+fn playback_handoff_blanks_old_waveform_without_new_sample_preview() {
+    let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
+        crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(
+            PathBuf::from("/tmp/handoff-old.wav"),
+            vec![0.0, 0.2, -0.2],
+        ),
+    )));
+    app_state.load.label = Some(String::from("handoff-old.wav"));
+
+    let previous = app_state
+        .begin_playback_visual_handoff(PathBuf::from("/tmp/handoff-new.wav"), None)
+        .expect("cross-sample handoff");
+
+    assert!(!app_state.current.has_loaded_sample());
+    assert_eq!(
+        app_state.instant_preview_path(),
+        Some(Path::new("/tmp/handoff-new.wav"))
+    );
+    let discarded = app_state.rollback_playback_visual_handoff(previous);
+    assert_eq!(app_state.current.path(), Path::new("/tmp/handoff-old.wav"));
+    assert_eq!(app_state.load.label.as_deref(), Some("handoff-old.wav"));
+    assert!(!discarded.has_loaded_sample());
+}
+
+#[test]
 fn preview_warm_scheduled_path_is_not_requeued_before_completion() {
     let path = PathBuf::from("/tmp/wavecrate-preview-scheduled.wav");
     let path_id = path.display().to_string();

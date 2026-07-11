@@ -41,7 +41,7 @@ pub(in crate::native_app) use ui_state::{
 };
 pub(in crate::native_app) use waveform::{
     PendingPlaySelectionRetargetCycle, WaveformAppState, WaveformEditSelectionSnapshot,
-    WaveformPlaySelectionSnapshot,
+    WaveformPlaySelectionSnapshot, WaveformVisualSnapshot,
 };
 
 pub(in crate::native_app) struct NativeAppState {
