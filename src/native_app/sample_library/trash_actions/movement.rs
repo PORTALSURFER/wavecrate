@@ -208,8 +208,11 @@ fn fallback_move_path(
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
     let mut directory_permissions = Vec::new();
+    let root_permissions = fs::metadata(source)?.permissions();
+    fs::create_dir(destination)?;
     let copy_result =
-        copy_dir_tree(source, destination, &mut directory_permissions).and_then(|()| {
+        copy_dir_contents(source, destination, &mut directory_permissions).and_then(|()| {
+            directory_permissions.push((destination.to_path_buf(), root_permissions));
             for (path, permissions) in directory_permissions {
                 fs::set_permissions(path, permissions)?;
             }
@@ -228,6 +231,16 @@ fn copy_dir_tree(
 ) -> io::Result<()> {
     let permissions = fs::metadata(source)?.permissions();
     fs::create_dir(destination)?;
+    copy_dir_contents(source, destination, directory_permissions)?;
+    directory_permissions.push((destination.to_path_buf(), permissions));
+    Ok(())
+}
+
+fn copy_dir_contents(
+    source: &Path,
+    destination: &Path,
+    directory_permissions: &mut Vec<(PathBuf, fs::Permissions)>,
+) -> io::Result<()> {
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let target = destination.join(entry.file_name());
@@ -237,9 +250,6 @@ fn copy_dir_tree(
             copy_file_exclusive(&entry.path(), &target)?;
         }
     }
-    // Post-order application keeps every parent traversable until all child
-    // modes have been restored and the complete copy is known to be durable.
-    directory_permissions.push((destination.to_path_buf(), permissions));
     Ok(())
 }
 
@@ -583,5 +593,30 @@ mod tests {
         assert!(error.contains("fallback failed"));
         assert_eq!(fs::read(&destination).unwrap(), b"external");
         assert_eq!(fs::read(&source).unwrap(), b"source");
+    }
+
+    #[test]
+    fn directory_fallback_does_not_remove_destination_created_by_another_actor() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source");
+        let destination = temp.path().join("destination");
+        fs::create_dir(&source).unwrap();
+        fs::write(source.join("source.wav"), b"source").unwrap();
+        fs::create_dir(&destination).unwrap();
+        fs::write(destination.join("external.wav"), b"external").unwrap();
+
+        let error = fallback_move_path(
+            &source,
+            &destination,
+            &io::Error::from(io::ErrorKind::CrossesDevices),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("fallback failed"));
+        assert_eq!(
+            fs::read(destination.join("external.wav")).unwrap(),
+            b"external"
+        );
+        assert_eq!(fs::read(source.join("source.wav")).unwrap(), b"source");
     }
 }
