@@ -8,7 +8,7 @@ use crate::sample_sources::SourceDatabase;
 
 use super::super::scan_db_sync::db_sync_phase;
 use super::super::scan_fs::ensure_root_dir;
-use super::super::scan_walk::{apply_prepared_files, walk_phase};
+use super::super::scan_walk::walk_phase;
 use super::{ScanContext, ScanError, ScanStats};
 
 /// Scan strategy used when walking a source root.
@@ -55,8 +55,7 @@ fn scan(
     debug_assert_ne!(mode, ScanMode::Targeted);
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
-    let prepared = walk_phase(&root, cancel, &mut on_progress, &mut context)?;
-    apply_prepared_files(db, &root, cancel, &mut context, prepared)?;
+    walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
     db_sync_phase(db, &mut context)?;
     Ok(context.stats)
 }

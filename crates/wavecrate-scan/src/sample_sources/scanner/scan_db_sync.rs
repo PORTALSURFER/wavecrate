@@ -24,7 +24,7 @@ pub(super) fn db_sync_phase(
             break;
         }
         let mut batch = db.write_batch()?;
-        mark_missing(&mut batch, chunk, &mut context.stats, context.mode)?;
+        mark_missing(db, &mut batch, chunk, &mut context.stats, context.mode)?;
         batch.commit()?;
     }
 

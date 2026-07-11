@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
@@ -8,8 +8,6 @@ use super::{ScanError, ScanMode, ScanStats};
 
 pub(crate) struct ScanContext {
     pub(crate) existing: HashMap<PathBuf, WavEntry>,
-    /// Relative paths observed during filesystem discovery.
-    pub(crate) discovered_paths: HashSet<PathBuf>,
     /// On-demand rename candidate paths keyed by content hash.
     ///
     /// Unlike the previous full in-memory hash index, this cache only stores
@@ -36,7 +34,6 @@ impl ScanContext {
     ) -> Self {
         Self {
             existing,
-            discovered_paths: HashSet::new(),
             rename_candidates_by_hash: HashMap::new(),
             rename_candidates_by_facts: HashMap::new(),
             stats: ScanStats::default(),

@@ -220,3 +220,112 @@ fn scan_revalidation_rejects_file_mutation_after_discovery() {
     assert_eq!(fresh_scan.updated, 1);
     assert_ne!(db.list_files().unwrap()[0].file_size, before.file_size);
 }
+
+#[cfg(unix)]
+#[test]
+fn scan_hashes_current_bytes_when_facts_are_preserved_after_discovery() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("one.wav");
+    std::fs::write(&file_path, b"old!").unwrap();
+    let timestamp = 1_700_000_000;
+    set_file_times(&file_path, timestamp, 0);
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let mut replaced = false;
+
+    scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if !replaced {
+            std::fs::write(&file_path, b"new!").unwrap();
+            set_file_times(&file_path, timestamp, 0);
+            replaced = true;
+        }
+    })
+    .unwrap();
+
+    let row = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+    assert_eq!(
+        row.content_hash.as_deref(),
+        Some(blake3::hash(b"new!").to_hex().as_str())
+    );
+}
+
+#[test]
+fn cancellation_after_first_committed_batch_finishes_consistently() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = tempdir().unwrap();
+    for index in 0..70 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let cancel = AtomicBool::new(false);
+
+    let stats = scan_with_progress(&db, ScanMode::Quick, Some(&cancel), &mut |count, _| {
+        if count == 65 {
+            cancel.store(true, Ordering::Relaxed);
+        }
+    })
+    .expect("once a bounded batch commits, the scan must finish consistently");
+
+    assert_eq!(stats.total_files, 70);
+    assert_eq!(db.count_files().unwrap(), 70);
+}
+
+#[test]
+fn unchanged_large_scan_only_commits_completion_metadata() {
+    let dir = tempdir().unwrap();
+    for index in 0..130 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let revision_before = db
+        .get_metadata("revision")
+        .unwrap()
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
+
+    let stats = scan_once(&db).unwrap();
+
+    let revision_after = db
+        .get_metadata("revision")
+        .unwrap()
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
+    assert_eq!(stats.updated, 0);
+    assert_eq!(stats.added, 0);
+    assert_eq!(revision_after, revision_before + 1);
+}
+
+#[test]
+fn skipped_existing_file_is_not_used_as_a_rename_source() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir(&hidden).unwrap();
+    std::fs::write(hidden.join("old.wav"), b"same").unwrap();
+    std::fs::write(dir.path().join("new.wav"), b"same").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let facts =
+        super::super::super::scan_fs::read_facts(dir.path(), &hidden.join("old.wav")).unwrap();
+    let hash = blake3::hash(b"same").to_hex().to_string();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash(
+            Path::new(".hidden/old.wav"),
+            facts.size,
+            facts.modified_ns,
+            &hash,
+        )
+        .unwrap();
+    batch
+        .set_tag(Path::new(".hidden/old.wav"), Rating::KEEP_1)
+        .unwrap();
+    batch.commit().unwrap();
+
+    let stats = scan_once(&db).unwrap();
+
+    assert_eq!(stats.renames_reconciled, 0);
+    let new_entry = db.entry_for_path(Path::new("new.wav")).unwrap().unwrap();
+    assert_eq!(new_entry.tag, Rating::NEUTRAL);
+}

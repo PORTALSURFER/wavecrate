@@ -28,16 +28,14 @@ pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError>
     }
 }
 
-pub(super) fn visit_dir(
+pub(super) fn visit_dir_with_cancel_check(
     root: &Path,
-    cancel: Option<&AtomicBool>,
+    should_cancel: &mut impl FnMut() -> bool,
     visitor: &mut impl FnMut(&Path) -> Result<(), ScanError>,
 ) -> Result<(), ScanError> {
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        if let Some(cancel) = cancel
-            && cancel.load(Ordering::Relaxed)
-        {
+        if should_cancel() {
             return Err(ScanError::Canceled);
         }
         let entries = match fs::read_dir(&dir) {

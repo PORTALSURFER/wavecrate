@@ -15,6 +15,8 @@ const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
 pub(super) struct PreparedFile {
     pub(super) facts: FileFacts,
+    pub(super) needs_hash: bool,
+    pub(super) requires_apply: bool,
     pub(super) content_hash: Option<String>,
 }
 
@@ -26,11 +28,15 @@ pub(super) fn apply_diff(
 ) -> Result<(), ScanError> {
     let PreparedFile {
         facts,
+        needs_hash: _,
+        requires_apply: _,
         content_hash,
     } = prepared;
     let path = facts.relative.clone();
     let should_hash = should_compute_full_hash(context.mode, facts.size);
-    match context.existing.remove(&path) {
+    let _ = context.existing.remove(&path);
+    let existing = db.entry_for_path(&path)?;
+    match existing {
         Some(entry) if entry.file_size == facts.size && entry.modified_ns == facts.modified_ns => {
             if entry.missing {
                 batch.set_missing(&path, false)?;
@@ -172,13 +178,59 @@ fn required_prepared_hash(content_hash: Option<String>) -> String {
     content_hash.expect("hash-required scan entries must be prepared before opening a write batch")
 }
 
+pub(super) fn preload_rename_candidates(
+    db: &SourceDatabase,
+    root: &Path,
+    context: &mut ScanContext,
+    prepared: &[PreparedFile],
+) -> Result<(), ScanError> {
+    for file in prepared {
+        if context.existing.contains_key(&file.facts.relative) {
+            continue;
+        }
+        if file.needs_hash {
+            let hash = file
+                .content_hash
+                .as_ref()
+                .expect("prepared hash must exist before rename preloading");
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                context.rename_candidates_by_hash.entry(hash.clone())
+            {
+                let paths = db
+                    .list_paths_with_content_hash(hash)?
+                    .into_iter()
+                    .filter(|path| !root.join(path).exists())
+                    .collect();
+                entry.insert(paths);
+            }
+        } else {
+            let key = (file.facts.size, file.facts.modified_ns);
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                context.rename_candidates_by_facts.entry(key)
+            {
+                let paths = db
+                    .list_paths_with_file_facts(file.facts.size, file.facts.modified_ns)?
+                    .into_iter()
+                    .filter(|path| !root.join(path).exists())
+                    .collect();
+                entry.insert(paths);
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn mark_missing(
+    db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
     existing: impl IntoIterator<Item = WavEntry>,
     stats: &mut ScanStats,
     mode: ScanMode,
 ) -> Result<(), ScanError> {
-    for leftover in existing {
+    for stale in existing {
+        let Some(leftover) = db.entry_for_path(&stale.relative_path)? else {
+            continue;
+        };
         if matches!(mode, ScanMode::Targeted | ScanMode::Quick) {
             batch.stage_pending_rename(&leftover)?;
         }
@@ -270,18 +322,15 @@ fn take_rename_candidate_by_hash(
     context: &mut ScanContext,
     hash: &str,
 ) -> Result<Option<WavEntry>, ScanError> {
-    if let std::collections::hash_map::Entry::Vacant(entry) =
-        context.rename_candidates_by_hash.entry(hash.to_string())
-    {
-        let paths = db.list_paths_with_content_hash(hash)?;
-        entry.insert(paths);
-    }
     let path = unique_existing_path(
         context.rename_candidates_by_hash.get(hash),
         &context.existing,
-        &context.discovered_paths,
     );
-    Ok(path.and_then(|path| context.existing.remove(&path)))
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let _ = context.existing.remove(&path);
+    Ok(db.entry_for_path(&path)?)
 }
 
 fn take_rename_candidate_by_facts(
@@ -291,32 +340,25 @@ fn take_rename_candidate_by_facts(
     modified_ns: i64,
 ) -> Result<Option<WavEntry>, ScanError> {
     let key = (size, modified_ns);
-    if let std::collections::hash_map::Entry::Vacant(entry) =
-        context.rename_candidates_by_facts.entry(key)
-    {
-        let paths = db.list_paths_with_file_facts(size, modified_ns)?;
-        entry.insert(paths);
-    }
     let path = unique_existing_path(
         context.rename_candidates_by_facts.get(&key),
         &context.existing,
-        &context.discovered_paths,
     );
-    Ok(path.and_then(|path| context.existing.remove(&path)))
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let _ = context.existing.remove(&path);
+    Ok(db.entry_for_path(&path)?)
 }
 
 fn unique_existing_path(
     candidates: Option<&Vec<PathBuf>>,
     existing: &HashMap<PathBuf, WavEntry>,
-    discovered_paths: &std::collections::HashSet<PathBuf>,
 ) -> Option<PathBuf> {
     let candidates = candidates?;
     let mut match_path: Option<PathBuf> = None;
     for path in candidates {
         if !existing.contains_key(path) {
-            continue;
-        }
-        if discovered_paths.contains(path) {
             continue;
         }
         if match_path.is_some() {
@@ -338,7 +380,7 @@ pub(super) fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
 mod tests {
     use super::unique_existing_path;
     use crate::sample_sources::{Rating, WavEntry};
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     fn entry(path: &str) -> WavEntry {
@@ -367,7 +409,7 @@ mod tests {
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
         let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("missing.wav")];
 
-        let matched = unique_existing_path(Some(&candidates), &existing, &HashSet::new());
+        let matched = unique_existing_path(Some(&candidates), &existing);
 
         assert_eq!(matched, Some(PathBuf::from("one.wav")));
     }
@@ -379,7 +421,7 @@ mod tests {
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
         let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
 
-        let matched = unique_existing_path(Some(&candidates), &existing, &HashSet::new());
+        let matched = unique_existing_path(Some(&candidates), &existing);
 
         assert_eq!(matched, None);
     }

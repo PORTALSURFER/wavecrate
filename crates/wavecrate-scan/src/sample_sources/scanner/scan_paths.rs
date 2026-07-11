@@ -42,10 +42,7 @@ pub fn sync_paths_with_progress(
             return Err(ScanError::Canceled);
         }
         let absolute = root.join(&relative_path);
-        let prepared_file = prepare_diff(&root, &absolute, &context, cancel)?;
-        context
-            .discovered_paths
-            .insert(prepared_file.facts.relative.clone());
+        let prepared_file = prepare_diff(&root, &absolute, &context)?;
         prepared.push(prepared_file);
         context.stats.total_files += 1;
         on_progress(context.stats.total_files, &absolute);
