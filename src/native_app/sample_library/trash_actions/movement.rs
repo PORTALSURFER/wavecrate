@@ -207,29 +207,44 @@ fn fallback_move_path(
 }
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
-    let permissions = fs::metadata(source)?.permissions();
-    fs::create_dir(destination)?;
-    let copy_result = (|| {
-        for entry in fs::read_dir(source)? {
-            let entry = entry?;
-            let target = destination.join(entry.file_name());
-            if entry.file_type()?.is_dir() {
-                copy_dir_all(&entry.path(), &target)?;
-            } else {
-                copy_file_exclusive(&entry.path(), &target)?;
+    let mut directory_permissions = Vec::new();
+    let copy_result =
+        copy_dir_tree(source, destination, &mut directory_permissions).and_then(|()| {
+            for (path, permissions) in directory_permissions {
+                fs::set_permissions(path, permissions)?;
             }
-        }
-        fs::set_permissions(destination, permissions)
-    })();
+            Ok(())
+        });
     if copy_result.is_err() {
         cleanup_partial_directory(destination);
     }
     copy_result
 }
 
+fn copy_dir_tree(
+    source: &Path,
+    destination: &Path,
+    directory_permissions: &mut Vec<(PathBuf, fs::Permissions)>,
+) -> io::Result<()> {
+    let permissions = fs::metadata(source)?.permissions();
+    fs::create_dir(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let target = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_tree(&entry.path(), &target, directory_permissions)?;
+        } else {
+            copy_file_exclusive(&entry.path(), &target)?;
+        }
+    }
+    // Post-order application keeps every parent traversable until all child
+    // modes have been restored and the complete copy is known to be durable.
+    directory_permissions.push((destination.to_path_buf(), permissions));
+    Ok(())
+}
+
 fn cleanup_partial_directory(destination: &Path) {
-    #[cfg(windows)]
-    clear_readonly_permissions(destination);
+    make_tree_removable(destination);
     if let Err(error) = fs::remove_dir_all(destination)
         && error.kind() != io::ErrorKind::NotFound
     {
@@ -240,6 +255,34 @@ fn cleanup_partial_directory(destination: &Path) {
         );
     }
 }
+
+#[cfg(unix)]
+fn make_tree_removable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let Ok(metadata) = fs::symlink_metadata(path) else {
+        return;
+    };
+    if !metadata.file_type().is_dir() {
+        return;
+    }
+    let mut permissions = metadata.permissions();
+    permissions.set_mode(permissions.mode() | 0o700);
+    let _ = fs::set_permissions(path, permissions);
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            make_tree_removable(&entry.path());
+        }
+    }
+}
+
+#[cfg(windows)]
+fn make_tree_removable(path: &Path) {
+    clear_readonly_permissions(path);
+}
+
+#[cfg(not(any(unix, windows)))]
+fn make_tree_removable(_path: &Path) {}
 
 #[cfg(windows)]
 fn clear_readonly_permissions(path: &Path) {
@@ -502,6 +545,23 @@ mod tests {
 
         assert!(error.contains("fallback failed"));
         assert!(source.exists());
+        assert!(!destination.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn partial_cleanup_removes_restrictive_copied_subdirectories() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempdir().unwrap();
+        let destination = temp.path().join("partial");
+        let restricted = destination.join("restricted");
+        fs::create_dir_all(&restricted).unwrap();
+        fs::write(restricted.join("copied.wav"), b"copied").unwrap();
+        fs::set_permissions(&restricted, fs::Permissions::from_mode(0o500)).unwrap();
+
+        cleanup_partial_directory(&destination);
+
         assert!(!destination.exists());
     }
 
