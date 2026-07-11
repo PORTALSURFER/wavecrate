@@ -32,9 +32,10 @@ use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FileMoveConflictResolutionRequest, FolderMoveCompletion,
 };
 use crate::native_app::sample_library::folder_browser::scan::{
-    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderTreeRefreshResult,
-    FolderVerifyResult,
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderTreeRefreshResult, FolderVerifyResult,
+    PreparedFolderScanResult,
 };
+use crate::native_app::sample_library::folder_scan_actions::FolderScanMaintenanceResult;
 use crate::native_app::sample_library::native_file_open_actions::NativeAudioDocumentOpenValidation;
 use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
@@ -68,7 +69,8 @@ pub(in crate::native_app) enum GuiMessage {
     },
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
-    FolderScanFinished(FolderScanResult),
+    FolderScanFinished(PreparedFolderScanResult),
+    FolderScanMaintenanceFinished(FolderScanMaintenanceResult),
     FolderTreeRefreshFinished(ui::TaskCompletion<FolderTreeRefreshResult>),
     SelectedFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
     SourceFilesystemChanged {

@@ -54,12 +54,6 @@ pub(in crate::native_app) fn scan_source_with_progress(
         None
     };
     let source_root_available = request.root.is_dir();
-    discovered(FolderScanDiscovery {
-        task_id: request.task_id,
-        source_id: request.source_id.clone(),
-        parent_id: path_id(&request.root),
-        item: FolderScanItem::CompletedFolder(folder.clone()),
-    });
     FolderScanResult {
         task_id: request.task_id,
         source_id: request.source_id,
@@ -156,6 +150,15 @@ where
         });
     }
 
+    fn record_folder_snapshot_start(&mut self, folder_id: &str) {
+        (self.discovered)(FolderScanDiscovery {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            parent_id: folder_id.to_string(),
+            item: FolderScanItem::ResetFolder,
+        });
+    }
+
     fn record_file(&mut self, path: &Path, parent_id: &str, file: FileEntry) {
         self.counter.completed += 1;
         self.counter.files += 1;
@@ -165,15 +168,6 @@ where
             source_id: self.request.source_id.clone(),
             parent_id: parent_id.to_string(),
             item: FolderScanItem::File(file),
-        });
-    }
-
-    fn record_completed_folder(&mut self, parent_id: &str, folder: FolderEntry) {
-        (self.discovered)(FolderScanDiscovery {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            parent_id: parent_id.to_string(),
-            item: FolderScanItem::CompletedFolder(folder),
         });
     }
 
@@ -202,14 +196,13 @@ where
 {
     let entries = read_sorted_entries(path)?;
     let parent_id = path_id(path);
+    scan.record_folder_snapshot_start(&parent_id);
     let children = entries
         .iter()
         .filter(|entry| entry.is_dir())
         .filter_map(|entry| {
             scan.record_folder(entry, &parent_id);
-            let child = load_folder_with_progress(entry, scan)?;
-            scan.record_completed_folder(&parent_id, child.clone());
-            Some(child)
+            load_folder_with_progress(entry, scan)
         })
         .collect::<Vec<_>>();
     let files = entries

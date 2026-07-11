@@ -7,8 +7,15 @@ use crate::native_app::{
         FolderScanWorkerEvent, GuiMessage, NativeAppState, SourceScanFinish, emit_gui_action,
         run_folder_scan_worker,
     },
-    sample_library::folder_browser::scan::{FolderScanRequest, FolderScanResult},
+    sample_library::folder_browser::scan::{
+        FolderScanRequest, PreparedFolderScanResult, reserve_source_scan_cache_revision,
+    },
     sample_library::source_prep::SourcePrepTrigger,
+};
+use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
+
+use super::maintenance::{
+    FolderScanMaintenanceRequest, FolderScanMaintenanceResult, persist_folder_scan_maintenance,
 };
 
 impl NativeAppState {
@@ -48,12 +55,13 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn finish_folder_scan(
         &mut self,
-        result: FolderScanResult,
+        prepared: impl Into<PreparedFolderScanResult>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let prepared = prepared.into();
         let started_at = Instant::now();
-        let discovered_audio_paths = result.audio_file_paths();
-        match self.library.finish_folder_scan(result) {
+        let scan_cache_update = prepared.scan_cache_update;
+        match self.library.finish_folder_scan(prepared.scan) {
             SourceScanFinish::Applied {
                 source_id,
                 label,
@@ -62,9 +70,13 @@ impl NativeAppState {
                 source_db_error,
                 source_root_available,
             } => {
-                if source_root_available {
-                    self.record_harvest_discovered_for_paths(&discovered_audio_paths);
-                }
+                self.queue_folder_scan_maintenance(
+                    source_root_available
+                        .then_some(prepared.audio_file_paths)
+                        .unwrap_or_default(),
+                    scan_cache_update,
+                    context,
+                );
                 self.apply_finished_folder_scan(
                     AppliedFolderScan {
                         source_id,
@@ -91,6 +103,72 @@ impl NativeAppState {
         }
     }
 
+    fn queue_folder_scan_maintenance(
+        &self,
+        audio_file_paths: Vec<std::path::PathBuf>,
+        scan_cache_update: crate::native_app::sample_library::folder_browser::scan::FolderScanCacheUpdate,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let sources = self.library.folder_browser.configured_sample_sources();
+        let request = FolderScanMaintenanceRequest {
+            config: AppConfig {
+                sources: sources.clone(),
+                core: self.current_settings_core(),
+            },
+            config_revision: reserve_save_revision().map_err(|error| error.to_string()),
+            sources,
+            audio_file_paths,
+            scan_cache_update,
+            scan_cache_revision: reserve_source_scan_cache_revision(),
+        };
+        #[cfg(test)]
+        {
+            let result = persist_folder_scan_maintenance(request.clone());
+            if let Some(error) = result.config_error {
+                tracing::warn!("failed to persist source configuration after scan: {error}");
+            }
+            if let Some(error) = result.scan_cache_error {
+                tracing::warn!("failed to persist source scan cache after scan: {error}");
+            }
+            for error in result.harvest_errors {
+                tracing::warn!("{error}");
+            }
+        }
+        context
+            .business()
+            .background("gui-folder-scan-maintenance")
+            .run(
+                move |_| persist_folder_scan_maintenance(request),
+                GuiMessage::FolderScanMaintenanceFinished,
+            );
+    }
+
+    pub(in crate::native_app) fn finish_folder_scan_maintenance(
+        &mut self,
+        result: FolderScanMaintenanceResult,
+    ) {
+        if let Some(error) = result.persistence_error() {
+            self.ui.status.sample = format!("Settings not saved: {error}");
+            emit_gui_action(
+                "folder_browser.sources.persist",
+                Some("settings"),
+                None,
+                "persist_error",
+                Instant::now(),
+                Some(&error),
+            );
+        }
+        if let Some(error) = result.config_error {
+            tracing::warn!("failed to persist source configuration after scan: {error}");
+        }
+        if let Some(error) = result.scan_cache_error {
+            tracing::warn!("failed to persist source scan cache after scan: {error}");
+        }
+        for error in result.harvest_errors {
+            tracing::warn!("{error}");
+        }
+    }
+
     fn apply_finished_folder_scan(
         &mut self,
         scan: AppliedFolderScan,
@@ -109,7 +187,6 @@ impl NativeAppState {
                 started_at,
                 Some("source_root_missing"),
             );
-            self.persist_user_configuration("folder_browser.sources.persist", started_at);
             self.sync_source_watcher();
             return;
         }
@@ -151,7 +228,6 @@ impl NativeAppState {
             started_at,
             None,
         );
-        self.persist_user_configuration("folder_browser.sources.persist", started_at);
         self.sync_source_watcher();
         self.open_ready_audio_documents(context, started_at);
     }
