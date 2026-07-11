@@ -504,9 +504,33 @@ fn interpolate_runtime_progress_ratio(
 
 #[cfg(test)]
 mod tests {
+    use crate::native_app::app::PendingPlaySelectionRetargetCycle;
     use crate::native_app::test_support::state::NativeAppStateFixture;
     use std::time::{Duration, Instant};
     use wavecrate::audio::PlaybackRuntimeProgress;
+
+    #[test]
+    fn pending_live_retarget_uses_latest_shortened_end_as_boundary() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.pending_play_selection_retarget_cycle =
+            Some(PendingPlaySelectionRetargetCycle::new(0.80, Some(0.40)));
+
+        assert!(!state.pending_play_selection_retarget_boundary_reached(0.50, 0.55));
+        assert!(state.pending_play_selection_retarget_boundary_reached(0.545, 0.55));
+    }
+
+    #[test]
+    fn pending_live_retarget_detects_old_loop_wrap_for_moved_range() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.pending_play_selection_retarget_cycle =
+            Some(PendingPlaySelectionRetargetCycle::new(0.60, Some(0.59)));
+
+        assert!(state.pending_play_selection_retarget_boundary_reached(0.21, 0.80));
+    }
 
     #[test]
     fn runtime_waveform_progress_interpolates_between_snapshots() {
