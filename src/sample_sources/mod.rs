@@ -49,7 +49,7 @@ pub mod library {
         HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity, HarvestFileKey,
         HarvestFileRecord, HarvestMetadataSnapshot, HarvestSourceRange, HarvestState,
         LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, NewHarvestDerivation,
-        forget_known_source_root, harvest_derivations_for_parent, harvest_derivative_count,
+        harvest_derivations_for_parent, harvest_derivative_count,
         harvest_derivative_counts_for_source, harvest_file, harvest_files_for_source,
         harvest_parents_for_child, load, lookup_source_id_for_root, mark_harvest_seen,
         mark_harvest_touched, open_connection, record_harvest_derivation, remap_harvest_file_key,

@@ -720,32 +720,6 @@ fn reuses_known_source_id_for_same_root() {
 }
 
 #[test]
-fn forgetting_known_root_removes_only_the_matching_source_mapping() {
-    let temp = tempdir().unwrap();
-    with_config_home(temp.path(), || {
-        let forgotten_root = normalize_path(Path::new("forgotten/root"));
-        let retained_root = normalize_path(Path::new("retained/root"));
-        let forgotten_id = SourceId::new();
-        let retained_id = SourceId::new();
-        save(&LibraryState {
-            sources: vec![
-                SampleSource::new_with_id(forgotten_id.clone(), forgotten_root.clone()),
-                SampleSource::new_with_id(retained_id.clone(), retained_root.clone()),
-            ],
-        })
-        .unwrap();
-
-        forget_known_source_root(&forgotten_root, &forgotten_id).unwrap();
-
-        assert_eq!(lookup_source_id_for_root(&forgotten_root).unwrap(), None);
-        assert_eq!(
-            lookup_source_id_for_root(&retained_root).unwrap(),
-            Some(retained_id)
-        );
-    });
-}
-
-#[test]
 fn corrupt_known_source_metadata_is_reported() {
     let temp = tempdir().unwrap();
     with_config_home(temp.path(), || {

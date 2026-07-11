@@ -53,18 +53,6 @@ impl AppController {
 
     fn commit_remapped_source(&mut self, remap: RemappedSource) -> Result<(), String> {
         let previous_source = self.library.sources[remap.index].clone();
-        self.library.sources[remap.index].root = remap.root.clone();
-        if let Err(err) = self.persist_config("Failed to save config after remapping source") {
-            self.library.sources[remap.index].root = remap.previous_root;
-            record_source_lifecycle_event(
-                "sources.remap",
-                Some(remap.id.as_str()),
-                "error",
-                remap.started_at,
-                Some(&err),
-            );
-            return Err(err);
-        }
         let artifacts = RemapArtifactSnapshot::new(&remap.root);
         let prepare_result =
             copy_source_database_if_needed(&previous_source, &remap.root, remap.started_at)
@@ -72,22 +60,20 @@ impl AppController {
                     prepare_database_for_remap(&previous_source, &remap.root, remap.started_at)
                 });
         if let Err(error) = prepare_result {
+            artifacts.restore_and_remove_created();
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(remap.id.as_str()),
+                "error",
+                remap.started_at,
+                Some(&error),
+            );
+            return Err(error);
+        }
+        self.library.sources[remap.index].root = remap.root.clone();
+        if let Err(error) = self.persist_config("Failed to save config after remapping source") {
             self.library.sources[remap.index].root = remap.previous_root;
-            let error = match self.persist_config("Failed to restore config after remap failure") {
-                Ok(()) => match crate::sample_sources::library::forget_known_source_root(
-                    &remap.root,
-                    &remap.id,
-                ) {
-                    Ok(()) => {
-                        artifacts.restore_and_remove_created();
-                        error
-                    }
-                    Err(rollback_error) => {
-                        format!("{error}; Failed to forget failed remap root: {rollback_error}")
-                    }
-                },
-                Err(rollback_error) => format!("{error}; {rollback_error}"),
-            };
+            artifacts.restore_and_remove_created();
             record_source_lifecycle_event(
                 "sources.remap",
                 Some(remap.id.as_str()),
