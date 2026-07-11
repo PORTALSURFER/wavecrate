@@ -163,3 +163,60 @@ fn scan_detects_changed_content_hash() {
     assert_eq!(stats.content_changed, 1);
     assert_eq!(stats.changed_samples.len(), 1);
 }
+
+#[test]
+fn scan_discovery_does_not_hold_the_source_writer() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("one.wav"), b"one").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let mut concurrent_write = None;
+
+    scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if concurrent_write.is_some() {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+        let writer = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
+        concurrent_write = Some(writer.set_metadata("scan_contention_probe", "complete"));
+    })
+    .unwrap();
+
+    concurrent_write
+        .expect("progress callback must run")
+        .expect("metadata writer must complete while discovery is active");
+    assert_eq!(
+        db.get_metadata("scan_contention_probe").unwrap().as_deref(),
+        Some("complete")
+    );
+}
+
+#[test]
+fn scan_revalidation_rejects_file_mutation_after_discovery() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("one.wav");
+    std::fs::write(&file_path, b"original").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let before = db.list_files().unwrap().remove(0);
+    let mut mutated = false;
+
+    let stale_scan = scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if !mutated {
+            std::fs::write(&file_path, b"replacement-with-different-size").unwrap();
+            mutated = true;
+        }
+    })
+    .unwrap();
+
+    assert!(mutated);
+    assert_eq!(stale_scan.updated, 0);
+    assert_eq!(stale_scan.missing, 0);
+    let after_stale_scan = db.list_files().unwrap().remove(0);
+    assert_eq!(after_stale_scan.file_size, before.file_size);
+    assert_eq!(after_stale_scan.modified_ns, before.modified_ns);
+    assert_eq!(after_stale_scan.content_hash, before.content_hash);
+
+    let fresh_scan = scan_once(&db).unwrap();
+    assert_eq!(fresh_scan.updated, 1);
+    assert_ne!(db.list_files().unwrap()[0].file_size, before.file_size);
+}

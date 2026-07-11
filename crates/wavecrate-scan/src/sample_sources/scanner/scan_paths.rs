@@ -10,8 +10,9 @@ use crate::sample_sources::{SourceDatabase, WavEntry, is_supported_audio};
 use super::{
     scan::{ScanContext, ScanError, ScanMode, ScanStats},
     scan_db_sync::db_sync_phase,
-    scan_diff::apply_diff,
-    scan_fs::{ensure_root_dir, read_facts},
+    scan_diff_phase::prepare_diff,
+    scan_fs::ensure_root_dir,
+    scan_walk::apply_prepared_files,
 };
 
 /// Reconcile a bounded set of changed paths against a source database.
@@ -33,7 +34,7 @@ pub fn sync_paths_with_progress(
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
     let mut context = ScanContext::from_existing(targets.existing, ScanMode::Targeted);
-    let mut batch = db.write_batch()?;
+    let mut prepared = Vec::with_capacity(targets.current_files.len());
     for relative_path in targets.current_files {
         if let Some(cancel) = cancel
             && cancel.load(Ordering::Relaxed)
@@ -41,12 +42,16 @@ pub fn sync_paths_with_progress(
             return Err(ScanError::Canceled);
         }
         let absolute = root.join(&relative_path);
-        let facts = read_facts(&root, &absolute)?;
-        apply_diff(db, &mut batch, facts, &mut context, &root, cancel)?;
+        let prepared_file = prepare_diff(&root, &absolute, &context, cancel)?;
+        context
+            .discovered_paths
+            .insert(prepared_file.facts.relative.clone());
+        prepared.push(prepared_file);
         context.stats.total_files += 1;
         on_progress(context.stats.total_files, &absolute);
     }
-    db_sync_phase(db, batch, &mut context)?;
+    apply_prepared_files(db, &root, cancel, &mut context, prepared)?;
+    db_sync_phase(db, &mut context)?;
     Ok(context.stats)
 }
 

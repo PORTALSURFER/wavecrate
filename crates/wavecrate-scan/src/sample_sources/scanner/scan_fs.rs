@@ -12,7 +12,7 @@ use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
 use super::scan::ScanError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct FileFacts {
     pub(super) relative: PathBuf,
     pub(super) size: u64,

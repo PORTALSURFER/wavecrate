@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::atomic::AtomicBool,
 };
 
 use crate::sample_sources::SourceDatabase;
@@ -10,18 +9,25 @@ use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 use super::scan::{
     ChangedSample, RenamedSample, ScanContext, ScanError, ScanMode, ScanStats, UpdatedSample,
 };
-use super::scan_fs::{FileFacts, compute_content_hash};
+use super::scan_fs::FileFacts;
 
 const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
+
+pub(super) struct PreparedFile {
+    pub(super) facts: FileFacts,
+    pub(super) content_hash: Option<String>,
+}
 
 pub(super) fn apply_diff(
     db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
-    facts: FileFacts,
+    prepared: PreparedFile,
     context: &mut ScanContext,
-    root: &Path,
-    cancel: Option<&AtomicBool>,
 ) -> Result<(), ScanError> {
+    let PreparedFile {
+        facts,
+        content_hash,
+    } = prepared;
     let path = facts.relative.clone();
     let should_hash = should_compute_full_hash(context.mode, facts.size);
     match context.existing.remove(&path) {
@@ -31,8 +37,7 @@ pub(super) fn apply_diff(
             }
             if entry.content_hash.is_none() {
                 if should_hash {
-                    let absolute = root.join(&path);
-                    let hash = compute_content_hash(&absolute, cancel)?;
+                    let hash = required_prepared_hash(content_hash);
                     batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
                     context.stats.hashes_computed += 1;
                 } else {
@@ -41,10 +46,9 @@ pub(super) fn apply_diff(
             }
         }
         Some(entry) => {
-            let absolute = root.join(&path);
             let previous_hash = entry.content_hash.as_deref();
             if should_hash {
-                let hash = compute_content_hash(&absolute, cancel)?;
+                let hash = required_prepared_hash(content_hash);
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
                 context.stats.hashes_computed += 1;
                 context.stats.updated_samples.push(UpdatedSample {
@@ -75,10 +79,9 @@ pub(super) fn apply_diff(
             context.stats.updated += 1;
         }
         None => {
-            let absolute = root.join(&path);
             if should_hash {
-                let hash = compute_content_hash(&absolute, cancel)?;
-                if let Some(entry) = take_rename_candidate_by_hash(db, context, root, &hash)? {
+                let hash = required_prepared_hash(content_hash);
+                if let Some(entry) = take_rename_candidate_by_hash(db, context, &hash)? {
                     let old_relative_path = entry.relative_path.clone();
                     apply_rename(batch, &path, &facts, &hash, entry, None)?;
                     context.stats.updated += 1;
@@ -120,13 +123,9 @@ pub(super) fn apply_diff(
                     content_hash: hash,
                 });
             } else {
-                if let Some(entry) = take_rename_candidate_by_facts(
-                    db,
-                    context,
-                    root,
-                    facts.size,
-                    facts.modified_ns,
-                )? {
+                if let Some(entry) =
+                    take_rename_candidate_by_facts(db, context, facts.size, facts.modified_ns)?
+                {
                     let old_relative_path = entry.relative_path.clone();
                     apply_rename_without_hash(batch, &path, &facts, entry, None)?;
                     context.stats.updated += 1;
@@ -169,15 +168,19 @@ pub(super) fn apply_diff(
     Ok(())
 }
 
+fn required_prepared_hash(content_hash: Option<String>) -> String {
+    content_hash.expect("hash-required scan entries must be prepared before opening a write batch")
+}
+
 pub(super) fn mark_missing(
     batch: &mut SourceWriteBatch<'_>,
-    existing: HashMap<PathBuf, WavEntry>,
+    existing: impl IntoIterator<Item = WavEntry>,
     stats: &mut ScanStats,
     mode: ScanMode,
 ) -> Result<(), ScanError> {
-    for leftover in existing.values() {
+    for leftover in existing {
         if matches!(mode, ScanMode::Targeted | ScanMode::Quick) {
-            batch.stage_pending_rename(leftover)?;
+            batch.stage_pending_rename(&leftover)?;
         }
         batch.remove_file(&leftover.relative_path)?;
         stats.missing += 1;
@@ -265,7 +268,6 @@ fn apply_rename_without_hash(
 fn take_rename_candidate_by_hash(
     db: &SourceDatabase,
     context: &mut ScanContext,
-    root: &Path,
     hash: &str,
 ) -> Result<Option<WavEntry>, ScanError> {
     if let std::collections::hash_map::Entry::Vacant(entry) =
@@ -277,7 +279,7 @@ fn take_rename_candidate_by_hash(
     let path = unique_existing_path(
         context.rename_candidates_by_hash.get(hash),
         &context.existing,
-        root,
+        &context.discovered_paths,
     );
     Ok(path.and_then(|path| context.existing.remove(&path)))
 }
@@ -285,7 +287,6 @@ fn take_rename_candidate_by_hash(
 fn take_rename_candidate_by_facts(
     db: &SourceDatabase,
     context: &mut ScanContext,
-    root: &Path,
     size: u64,
     modified_ns: i64,
 ) -> Result<Option<WavEntry>, ScanError> {
@@ -299,7 +300,7 @@ fn take_rename_candidate_by_facts(
     let path = unique_existing_path(
         context.rename_candidates_by_facts.get(&key),
         &context.existing,
-        root,
+        &context.discovered_paths,
     );
     Ok(path.and_then(|path| context.existing.remove(&path)))
 }
@@ -307,7 +308,7 @@ fn take_rename_candidate_by_facts(
 fn unique_existing_path(
     candidates: Option<&Vec<PathBuf>>,
     existing: &HashMap<PathBuf, WavEntry>,
-    root: &Path,
+    discovered_paths: &std::collections::HashSet<PathBuf>,
 ) -> Option<PathBuf> {
     let candidates = candidates?;
     let mut match_path: Option<PathBuf> = None;
@@ -315,7 +316,7 @@ fn unique_existing_path(
         if !existing.contains_key(path) {
             continue;
         }
-        if root.join(path).exists() {
+        if discovered_paths.contains(path) {
             continue;
         }
         if match_path.is_some() {
@@ -326,7 +327,7 @@ fn unique_existing_path(
     match_path
 }
 
-fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
+pub(super) fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
     match mode {
         ScanMode::Targeted | ScanMode::Quick => size <= QUICK_HASH_MAX_BYTES,
         ScanMode::Hard => true,
@@ -337,7 +338,7 @@ fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
 mod tests {
     use super::unique_existing_path;
     use crate::sample_sources::{Rating, WavEntry};
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
 
     fn entry(path: &str) -> WavEntry {
@@ -361,26 +362,24 @@ mod tests {
 
     #[test]
     fn unique_existing_path_returns_single_match() {
-        let root = tempfile::tempdir().unwrap();
         let mut existing = HashMap::new();
         existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
         let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("missing.wav")];
 
-        let matched = unique_existing_path(Some(&candidates), &existing, root.path());
+        let matched = unique_existing_path(Some(&candidates), &existing, &HashSet::new());
 
         assert_eq!(matched, Some(PathBuf::from("one.wav")));
     }
 
     #[test]
     fn unique_existing_path_rejects_ambiguous_matches() {
-        let root = tempfile::tempdir().unwrap();
         let mut existing = HashMap::new();
         existing.insert(PathBuf::from("one.wav"), entry("one.wav"));
         existing.insert(PathBuf::from("two.wav"), entry("two.wav"));
         let candidates = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
 
-        let matched = unique_existing_path(Some(&candidates), &existing, root.path());
+        let matched = unique_existing_path(Some(&candidates), &existing, &HashSet::new());
 
         assert_eq!(matched, None);
     }
