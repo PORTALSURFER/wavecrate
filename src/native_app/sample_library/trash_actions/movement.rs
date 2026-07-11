@@ -43,8 +43,14 @@ fn move_path_to_configured_trash_inner(
     path: &Path,
     trash_folder: Option<&Path>,
 ) -> TrashMoveResult {
-    if !path.exists() {
-        return TrashMoveResult::Missing;
+    match path.try_exists() {
+        Ok(true) => {}
+        Ok(false) => return TrashMoveResult::Missing,
+        Err(error) => {
+            return TrashMoveResult::Failed {
+                error: format!("Trash source is unavailable: {error}"),
+            };
+        }
     }
     let moved = (|| {
         let trash_folder = trash_folder.ok_or_else(|| {
@@ -168,20 +174,31 @@ fn fallback_move_path(
     destination: &Path,
     rename_error: &io::Error,
 ) -> Result<(), String> {
-    let fallback = if source.is_dir() {
-        copy_dir_all(source, destination).and_then(|()| fs::remove_dir_all(source))
+    let is_directory = source.is_dir();
+    let copy_result = if is_directory {
+        copy_dir_all(source, destination)
     } else {
-        copy_file_exclusive(source, destination).and_then(|()| fs::remove_file(source))
+        copy_file_exclusive(source, destination)
     };
-    if let Err(error) = fallback {
+    if let Err(error) = copy_result {
         remove_partial_destination(destination);
-        let kind = if source.is_dir() { "folder" } else { "file" };
-        Err(format!(
+        let kind = if is_directory { "folder" } else { "file" };
+        return Err(format!(
             "Move {kind} to trash failed: {rename_error}; fallback failed: {error}"
-        ))
-    } else {
-        Ok(())
+        ));
     }
+    let cleanup_result = if is_directory {
+        fs::remove_dir_all(source)
+    } else {
+        fs::remove_file(source)
+    };
+    if let Err(error) = cleanup_result {
+        let kind = if is_directory { "folder" } else { "file" };
+        return Err(format!(
+            "Move {kind} to trash copied successfully, but source cleanup failed: {error}; the trash copy was preserved"
+        ));
+    }
+    Ok(())
 }
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
