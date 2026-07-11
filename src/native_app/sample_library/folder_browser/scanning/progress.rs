@@ -77,11 +77,13 @@ fn sync_source_database(
     request: &FolderScanRequest,
     progress: &mut impl FnMut(FolderScanProgress),
 ) -> Option<String> {
-    let db =
-        match SourceDatabase::open_fast_with_database_root(&request.root, &request.database_root) {
-            Ok(db) => db,
-            Err(err) => return Some(format!("open source index: {err}")),
-        };
+    let db = match SourceDatabase::open_for_background_job_with_database_root(
+        &request.root,
+        &request.database_root,
+    ) {
+        Ok(db) => db,
+        Err(err) => return Some(format!("open source index: {err}")),
+    };
     let mut sync_progress = |completed: usize, path: &Path| {
         progress(FolderScanProgress {
             task_id: request.task_id,

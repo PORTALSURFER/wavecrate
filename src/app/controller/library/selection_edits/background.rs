@@ -160,7 +160,7 @@ fn run_selection_edit_commit_job(
     let result = (|| {
         let backup =
             crate::app::controller::undo::OverwriteBackup::capture_before(&target.absolute_path)?;
-        let db = crate::sample_sources::SourceDatabase::open(&target.source.root)
+        let db = crate::sample_sources::SourceDatabase::open_for_source_write(&target.source.root)
             .map_err(|err| format!("Database unavailable: {err}"))?;
         let tag = db
             .tag_for_path(&target.relative_path)

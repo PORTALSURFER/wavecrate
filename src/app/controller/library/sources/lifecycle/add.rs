@@ -261,7 +261,7 @@ fn validate_add_source_root(
 
 fn run_source_add_prepare(job: SourceAddJob) -> SourceAddPreparedResult {
     let started_at = Instant::now();
-    let result = SourceDatabase::open(&job.source.root)
+    let result = SourceDatabase::open_for_source_write(&job.source.root)
         .map(|_| ())
         .map_err(|err| {
             let error = format!("Failed to create database: {err}");

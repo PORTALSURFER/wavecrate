@@ -40,7 +40,7 @@ pub fn persist_harvest_seen(request: HarvestSeenPersistRequest) -> HarvestSeenPe
 fn persist_harvest_seen_inner(request: &HarvestSeenPersistRequest) -> Result<(), String> {
     let path = request.source_root.join(&request.relative_path);
     let (file_size, modified_ns) = harvest_file_ops::file_identity_metadata(&path);
-    let entry = SourceDatabase::open_read_only_with_database_root(
+    let entry = SourceDatabase::open_for_ui_read_with_database_root(
         &request.source_root,
         &request.source_database_root,
     )

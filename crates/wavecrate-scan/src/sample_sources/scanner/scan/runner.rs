@@ -72,7 +72,7 @@ fn scan(
 /// Useful for fire-and-forget refreshes without blocking the UI thread.
 pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats, ScanError>> {
     thread::spawn(move || {
-        let db = SourceDatabase::open_fast(&root)?;
+        let db = SourceDatabase::open_for_scan(&root)?;
         let stats = scan_once(&db)?;
         if stats.hashes_pending > 0 {
             schedule_deep_hash_scan(root);
@@ -93,7 +93,7 @@ pub fn schedule_deep_hash_scan(root: PathBuf) {
 pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: PathBuf) {
     thread::spawn(move || {
         let result = (|| -> Result<(), ScanError> {
-            let db = SourceDatabase::open_fast_with_database_root(root, database_root)?;
+            let db = SourceDatabase::open_for_scan_with_database_root(root, database_root)?;
             let _ = super::super::scan_hash::deep_hash_scan(&db, None)?;
             Ok(())
         })();

@@ -33,7 +33,7 @@ pub(super) fn source_db_for<'a>(
         return Ok(target_db);
     }
     if !source_dbs.contains_key(source_root) {
-        let db = SourceDatabase::open(source_root)
+        let db = SourceDatabase::open_for_source_write(source_root)
             .map_err(|err| format!("Failed to open source DB: {err}"))?;
         source_dbs.insert(source_root.to_path_buf(), db);
     }

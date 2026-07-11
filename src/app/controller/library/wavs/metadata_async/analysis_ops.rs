@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 pub(super) fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let mut conn = analysis_jobs::open_source_db(&job.source_root)?;
-    let source_db = SourceDatabase::open_read_only(&job.source_root)
+    let source_db = SourceDatabase::open_for_ui_read(&job.source_root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     let duration_updates = collect_loaded_duration_updates(job, &source_db)?;
     let bpm_ops: Vec<_> = job

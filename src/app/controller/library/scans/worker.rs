@@ -40,7 +40,7 @@ fn run_scan_worker(
     cancel: &AtomicBool,
     mut progress: impl FnMut(usize, &Path),
 ) -> Result<ScanStats, scanner::ScanError> {
-    let db = SourceDatabase::open_fast(root)?;
+    let db = SourceDatabase::open_for_background_job(root)?;
     let stats = if mode == ScanMode::Targeted {
         scanner::sync_paths_with_progress(
             &db,

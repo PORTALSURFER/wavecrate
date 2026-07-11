@@ -24,6 +24,8 @@ pub mod write;
 pub mod util;
 
 mod rating_tests;
+#[cfg(test)]
+mod role_contract_tests;
 
 pub use error::SourceDbError;
 pub(crate) use open::SourceDatabaseOpenMode;
@@ -71,14 +73,22 @@ pub struct SourceWriteBatch<'conn> {
 }
 
 impl SourceDatabase {
-    /// Open (or create) the database that lives inside the source folder.
-    pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+    /// Open a writable source database for general source-owned mutations.
+    ///
+    /// This preserves the complete schema and cleanup behavior used by the
+    /// legacy `open` entrypoint while making write intent explicit to callers.
+    pub fn open_for_source_write(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         let root = root.as_ref();
         open::open_source_database(
             root,
             open::should_open_source_db_read_only(),
             open::SourceDatabaseOpenMode::Full,
         )
+    }
+
+    /// Open (or create) the database that lives inside the source folder.
+    pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_source_write(root)
     }
 
     /// Open (or create) a source database stored outside the source root.
@@ -97,17 +107,21 @@ impl SourceDatabase {
         )
     }
 
-    /// Open (or create) the database using startup-friendly schema work only.
-    ///
-    /// This preserves required table/index compatibility while deferring expensive
-    /// path validation/cleanup to a background maintenance job.
-    pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
-        let root = root.as_ref();
+    /// Open a writable external source database for general source-owned mutations.
+    pub fn open_for_source_write_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_with_database_root(root, database_root)
+    }
+
+    /// Open a startup-friendly database for a background job.
+    pub fn open_for_background_job(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         Self::open_with_role(root, SourceDatabaseConnectionRole::JobWorker)
     }
 
-    /// Open a startup-friendly source database stored outside the source root.
-    pub fn open_fast_with_database_root(
+    /// Open a startup-friendly external database for a background job.
+    pub fn open_for_background_job_with_database_root(
         root: impl AsRef<Path>,
         database_root: impl AsRef<Path>,
     ) -> Result<Self, SourceDbError> {
@@ -118,13 +132,26 @@ impl SourceDatabase {
         )
     }
 
-    /// Open an existing database in read-only mode without applying schema migrations.
-    pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+    /// Open a startup-friendly database owned by source scanning.
+    pub fn open_for_scan(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job(root)
+    }
+
+    /// Open a startup-friendly external database owned by source scanning.
+    pub fn open_for_scan_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job_with_database_root(root, database_root)
+    }
+
+    /// Open an existing database for UI-owned read access.
+    pub fn open_for_ui_read(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         Self::open_with_role(root, SourceDatabaseConnectionRole::UiRead)
     }
 
-    /// Open an external source database in read-only mode.
-    pub fn open_read_only_with_database_root(
+    /// Open an external database for UI-owned read access.
+    pub fn open_for_ui_read_with_database_root(
         root: impl AsRef<Path>,
         database_root: impl AsRef<Path>,
     ) -> Result<Self, SourceDbError> {
@@ -133,6 +160,40 @@ impl SourceDatabase {
             database_root,
             SourceDatabaseConnectionRole::UiRead,
         )
+    }
+
+    /// Open a source database for deferred schema and cleanup maintenance.
+    pub fn open_for_maintenance(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_with_role(root, SourceDatabaseConnectionRole::Maintenance)
+    }
+
+    /// Open (or create) the database using startup-friendly schema work only.
+    ///
+    /// This preserves required table/index compatibility while deferring expensive
+    /// path validation/cleanup to a background maintenance job.
+    pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job(root)
+    }
+
+    /// Open a startup-friendly source database stored outside the source root.
+    pub fn open_fast_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job_with_database_root(root, database_root)
+    }
+
+    /// Open an existing database in read-only mode without applying schema migrations.
+    pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_ui_read(root)
+    }
+
+    /// Open an external source database in read-only mode.
+    pub fn open_read_only_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_for_ui_read_with_database_root(root, database_root)
     }
 
     /// Open a source database using one explicit runtime role profile.

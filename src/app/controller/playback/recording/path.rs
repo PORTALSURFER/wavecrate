@@ -106,7 +106,7 @@ fn ensure_recordings_source(
             SampleSource::new(root.clone())
         }
     };
-    SourceDatabase::open(&root)
+    SourceDatabase::open_for_source_write(&root)
         .map_err(|err| format!("Failed to create recordings database: {err}"))?;
     let _ = controller.cache_db(&source);
     controller.library.sources.push(source.clone());

@@ -47,7 +47,7 @@ fn rewrite_folder_entries(
     new_folder: &Path,
     affected: &[WavEntry],
 ) -> Result<Vec<WavEntry>, String> {
-    let db = crate::sample_sources::SourceDatabase::open(source_root)
+    let db = crate::sample_sources::SourceDatabase::open_for_source_write(source_root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     let mut batch = db
         .write_batch()
