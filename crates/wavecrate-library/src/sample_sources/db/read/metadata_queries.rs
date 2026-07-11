@@ -163,9 +163,6 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(None);
         };
-        if !schema_has_last_curated_at_column(self)? {
-            return Ok(None);
-        }
         let value: Option<i64> = self
             .connection
             .query_row(
@@ -195,47 +192,27 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(Vec::new());
         };
-        if schema_has_collection_membership_table(self)? {
-            let mut stmt = self
-                .connection
-                .prepare(
-                    "SELECT collection
-                     FROM wav_file_collections
-                     WHERE path = ?1
-                     ORDER BY collection ASC",
-                )
-                .map_err(map_sql_error)?;
-            let collections = stmt
-                .query_map(rusqlite::params![path_str.as_str()], |row| {
-                    row.get::<_, i64>(0)
-                })
-                .map_err(map_sql_error)?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(map_sql_error)?
+        let mut stmt = self
+            .connection
+            .prepare(
+                "SELECT collection
+                 FROM wav_file_collections
+                 WHERE path = ?1
+                 ORDER BY collection ASC",
+            )
+            .map_err(map_sql_error)?;
+        stmt.query_map(rusqlite::params![path_str.as_str()], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(map_sql_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(map_sql_error)
+        .map(|collections| {
+            collections
                 .into_iter()
                 .filter_map(SampleCollection::from_i64)
-                .collect::<Vec<_>>();
-            if !collections.is_empty() {
-                return Ok(collections);
-            }
-        }
-        if !schema_has_collection_column(self)? {
-            return Ok(Vec::new());
-        }
-        let value: Option<i64> = self
-            .connection
-            .query_row(
-                "SELECT collection FROM wav_files WHERE path = ?1",
-                rusqlite::params![path_str.as_str()],
-                |row| row.get::<_, Option<i64>>(0),
-            )
-            .optional()
-            .map_err(map_sql_error)?
-            .flatten();
-        Ok(value
-            .and_then(SampleCollection::from_i64)
-            .into_iter()
-            .collect())
+                .collect()
+        })
     }
 
     /// Read a metadata value by key from the database.
@@ -261,28 +238,4 @@ impl SourceDatabase {
     pub fn get_wav_paths_revision(&self) -> Result<u64, SourceDbError> {
         self.get_numeric_metadata(META_WAV_PATHS_REVISION)
     }
-}
-
-fn schema_has_collection_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
-    let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
-    Ok(columns.contains("collection"))
-}
-
-fn schema_has_last_curated_at_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
-    let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
-    Ok(columns.contains("last_curated_at"))
-}
-
-fn schema_has_collection_membership_table(db: &SourceDatabase) -> Result<bool, SourceDbError> {
-    let exists: i64 = db
-        .connection
-        .query_row(
-            "SELECT COUNT(*)
-             FROM sqlite_master
-             WHERE type = 'table' AND name = 'wav_file_collections'",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(map_sql_error)?;
-    Ok(exists != 0)
 }
