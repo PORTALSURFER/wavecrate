@@ -306,6 +306,50 @@ fn missing_stage_prunes_path_replaced_by_directory() {
 }
 
 #[test]
+fn full_scan_prunes_tracked_files_below_hidden_directories() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir(&hidden).unwrap();
+    std::fs::write(hidden.join("one.wav"), b"hidden").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new(".hidden/one.wav"), 6, 1).unwrap();
+
+    let stats = scan_once(&db).unwrap();
+
+    assert_eq!(stats.missing, 1);
+    assert!(
+        db.entry_for_path(Path::new(".hidden/one.wav"))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn unsupported_replacement_after_discovery_remains_eligible_for_pruning() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("one.wav");
+    std::fs::write(&file_path, b"old").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    std::fs::write(&file_path, b"changed-size").unwrap();
+    let mut replaced = false;
+
+    let stats = scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if replaced {
+            return;
+        }
+        std::fs::remove_file(&file_path).unwrap();
+        std::fs::create_dir(&file_path).unwrap();
+        replaced = true;
+    })
+    .unwrap();
+
+    assert!(replaced);
+    assert_eq!(stats.missing, 1);
+    assert!(db.entry_for_path(Path::new("one.wav")).unwrap().is_none());
+}
+
+#[test]
 fn scan_rebases_noop_when_concurrent_writer_clears_hash() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("one.wav");

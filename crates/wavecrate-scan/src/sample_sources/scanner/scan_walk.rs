@@ -9,9 +9,12 @@ use std::{
 use crate::sample_sources::SourceDatabase;
 
 use super::scan::{ScanContext, ScanError};
-use super::scan_diff::{PreparedFile, apply_diff, preload_rename_candidates};
+use super::scan_diff::{PreparedFile, apply_diff};
 use super::scan_diff_phase::prepare_diff;
-use super::scan_fs::{compute_content_hash, read_facts, visit_dir_with_cancel_check};
+use super::scan_fs::{
+    compute_content_hash, is_supported_scannable_audio_file, read_facts,
+    visit_dir_with_cancel_check,
+};
 
 const APPLY_BATCH_SIZE: usize = 64;
 
@@ -38,7 +41,7 @@ pub(super) fn walk_phase(
                 Ok(prepared) => prepared,
                 Err(error) if committed.get() => {
                     if let Ok(relative) = path.strip_prefix(root)
-                        && path.exists()
+                        && is_supported_scannable_audio_file(root, relative)
                     {
                         context.existing.remove(relative);
                     }
@@ -191,17 +194,13 @@ fn apply_batch(
             PrepareForApply::Ready(file) => ready.push(file),
             PrepareForApply::Gone => {}
             PrepareForApply::Skip => {
-                context.existing.remove(&relative_path);
+                skip_changed_or_unavailable(context, root, &relative_path);
             }
         }
     }
     if ready.is_empty() {
         return Ok(false);
     }
-    // Candidate DB reads and filesystem existence checks stay outside the
-    // source writer transaction; the selected row itself is refreshed after
-    // the transaction acquires SQLite's writer lock.
-    preload_rename_candidates(db, root, context, &ready)?;
     if cancel_requested(cancel, false) {
         return Err(ScanError::Canceled);
     }
@@ -223,7 +222,7 @@ fn apply_batch(
 }
 
 fn skip_changed_or_unavailable(context: &mut ScanContext, root: &Path, relative_path: &Path) {
-    if root.join(relative_path).exists() {
+    if is_supported_scannable_audio_file(root, relative_path) {
         context.existing.remove(relative_path);
     }
 }
@@ -240,6 +239,9 @@ fn prepare_for_apply(
     mut prepared: PreparedFile,
 ) -> Result<PrepareForApply, ScanError> {
     let absolute = root.join(&prepared.facts.relative);
+    if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
+        return Ok(PrepareForApply::Gone);
+    }
     let Ok(before_hash) = read_facts(root, &absolute) else {
         return Ok(if absolute.exists() {
             PrepareForApply::Skip
@@ -259,6 +261,9 @@ fn prepare_for_apply(
                 PrepareForApply::Gone
             });
         };
+        if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
+            return Ok(PrepareForApply::Gone);
+        }
         if !facts_match(&prepared, &after_hash) {
             return Ok(PrepareForApply::Skip);
         }

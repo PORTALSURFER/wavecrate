@@ -8,16 +8,6 @@ use super::{ScanError, ScanMode, ScanStats};
 
 pub(crate) struct ScanContext {
     pub(crate) existing: HashMap<PathBuf, WavEntry>,
-    /// On-demand rename candidate paths keyed by content hash.
-    ///
-    /// Unlike the previous full in-memory hash index, this cache only stores
-    /// keys encountered during the current walk.
-    pub(crate) rename_candidates_by_hash: HashMap<String, Vec<PathBuf>>,
-    /// On-demand rename candidate paths keyed by `(file_size, modified_ns)`.
-    ///
-    /// This keeps quick-scan reconciliation incremental and avoids triplicating
-    /// all row mappings in memory.
-    pub(crate) rename_candidates_by_facts: HashMap<(u64, i64), Vec<PathBuf>>,
     pub(crate) stats: ScanStats,
     pub(crate) mode: ScanMode,
 }
@@ -34,8 +24,6 @@ impl ScanContext {
     ) -> Self {
         Self {
             existing,
-            rename_candidates_by_hash: HashMap::new(),
-            rename_candidates_by_facts: HashMap::new(),
             stats: ScanStats::default(),
             mode,
         }
