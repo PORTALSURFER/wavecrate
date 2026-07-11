@@ -107,6 +107,26 @@ fn scan_ignores_non_wav_and_counts_nested() {
 }
 
 #[test]
+fn scan_tracks_dot_prefixed_wav_files_but_not_files_below_hidden_directories() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir(&hidden).unwrap();
+    std::fs::write(dir.path().join(".kick.wav"), b"kick").unwrap();
+    std::fs::write(hidden.join("ignored.wav"), b"ignored").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let stats = scan_once(&db).unwrap();
+
+    assert_eq!(stats.added, 1);
+    assert!(db.entry_for_path(Path::new(".kick.wav")).unwrap().is_some());
+    assert!(
+        db.entry_for_path(Path::new(".hidden/ignored.wav"))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
 fn scan_in_background_finishes() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("one.wav"), b"one").unwrap();

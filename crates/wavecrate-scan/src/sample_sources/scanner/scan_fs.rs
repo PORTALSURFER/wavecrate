@@ -126,11 +126,13 @@ pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {
 }
 
 pub(super) fn is_supported_scannable_audio_file(root: &Path, relative_path: &Path) -> bool {
-    let hidden_ancestor = relative_path.components().any(|component| {
-        let std::path::Component::Normal(name) = component else {
-            return false;
-        };
-        name.to_str().is_some_and(|name| name.starts_with('.'))
+    let hidden_ancestor = relative_path.parent().is_some_and(|parent| {
+        parent.components().any(|component| {
+            let std::path::Component::Normal(name) = component else {
+                return false;
+            };
+            name.to_str().is_some_and(|name| name.starts_with('.'))
+        })
     });
     !hidden_ancestor && is_supported_regular_audio_file(&root.join(relative_path))
 }
