@@ -91,6 +91,18 @@ impl SourceScanWorkflow {
         id: String,
         task_id: u64,
     ) -> Option<FolderScanRequest> {
+        if self.active() {
+            let active_source_id = self
+                .progress
+                .as_ref()
+                .map(|progress| progress.source_id.as_str());
+            if browser.select_source_without_scan(id.clone())
+                && active_source_id != Some(id.as_str())
+            {
+                self.pending_refreshes.insert(id);
+            }
+            return None;
+        }
         browser.begin_select_source(id, task_id)
     }
 

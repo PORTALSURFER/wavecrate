@@ -167,6 +167,20 @@ impl FolderBrowserState {
         })
     }
 
+    pub(in crate::native_app) fn select_source_without_scan(&mut self, id: String) -> bool {
+        let Some(index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == id)
+        else {
+            return false;
+        };
+        self.source.sources[index].refresh_availability_from_disk();
+        self.select_cached_or_placeholder_source(index);
+        true
+    }
+
     pub(in crate::native_app) fn begin_selected_source_scan(
         &mut self,
         task_id: u64,

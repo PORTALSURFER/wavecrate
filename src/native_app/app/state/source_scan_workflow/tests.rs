@@ -92,3 +92,58 @@ fn pending_refresh_waits_for_active_scan() {
     ));
     assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
 }
+
+#[test]
+fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
+    let first_root = temp_dir_with_wav();
+    let second_root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+
+    let first = workflow
+        .begin_add_source_path(&mut browser, first_root.path().to_path_buf(), 31)
+        .expect("first source scan");
+    let first_id = first.source_id.clone();
+    workflow.start_scan(&first);
+    let first_result = scan_source_with_progress(first, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, first_result),
+        SourceScanFinish::Applied { .. }
+    ));
+
+    let second = workflow
+        .begin_add_source_path_preserving_selection(
+            &mut browser,
+            second_root.path().to_path_buf(),
+            32,
+        )
+        .expect("second source scan");
+    let second_id = second.source_id.clone();
+    workflow.start_scan(&second);
+    let second_result = scan_source_with_progress(second, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, second_result),
+        SourceScanFinish::Applied { .. }
+    ));
+
+    let active = workflow
+        .begin_source_scan(&mut browser, first_id.clone(), 33)
+        .expect("active source rescan");
+    workflow.start_scan(&active);
+
+    assert!(
+        workflow
+            .begin_select_source(&mut browser, second_id.clone(), 34)
+            .is_none()
+    );
+    assert_eq!(browser.selected_source_id(), second_id);
+    assert!(browser.selected_source_loaded());
+    assert!(workflow.pending_refresh_contains_for_tests(&second_id));
+
+    let active_result = scan_source_with_progress(active, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, active_result),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert_eq!(workflow.next_pending_refresh_if_idle(), Some(second_id));
+}

@@ -4,6 +4,9 @@ impl FolderBrowserState {
     pub(in crate::native_app::sample_library::folder_browser) fn park_selected_source_tree(
         &mut self,
     ) {
+        if !self.source.selected_tree_loaded {
+            return;
+        }
         let selected_source = self.source.selected_source.clone();
         let Some(index) = self
             .source
