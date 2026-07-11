@@ -207,6 +207,7 @@ fn fallback_move_path(
 }
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
+    let permissions = fs::metadata(source)?.permissions();
     fs::create_dir(destination)?;
     let copy_result = (|| {
         for entry in fs::read_dir(source)? {
@@ -218,7 +219,7 @@ fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
                 copy_file_exclusive(&entry.path(), &target)?;
             }
         }
-        fs::set_permissions(destination, fs::metadata(source)?.permissions())
+        fs::set_permissions(destination, permissions)
     })();
     if copy_result.is_err() {
         let _ = fs::remove_dir_all(destination);
@@ -227,7 +228,16 @@ fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
 }
 
 fn copy_file_exclusive(source: &Path, destination: &Path) -> io::Result<()> {
-    let mut input = File::open(source)?;
+    let input = File::open(source)?;
+    let permissions = input.metadata()?.permissions();
+    copy_open_file_exclusive(input, permissions, destination)
+}
+
+fn copy_open_file_exclusive(
+    mut input: File,
+    permissions: fs::Permissions,
+    destination: &Path,
+) -> io::Result<()> {
     let mut output = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -235,7 +245,7 @@ fn copy_file_exclusive(source: &Path, destination: &Path) -> io::Result<()> {
     let copy_result = (|| {
         io::copy(&mut input, &mut output)?;
         output.sync_all()?;
-        fs::set_permissions(destination, fs::metadata(source)?.permissions())
+        fs::set_permissions(destination, permissions)
     })();
     if copy_result.is_err() {
         drop(output);
@@ -357,6 +367,21 @@ mod tests {
                 & 0o777,
             0o600
         );
+    }
+
+    #[test]
+    fn completed_copy_survives_when_source_path_disappears_after_open() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source.wav");
+        let destination = temp.path().join("trash.wav");
+        fs::write(&source, b"only copy").unwrap();
+        let input = File::open(&source).unwrap();
+        let permissions = input.metadata().unwrap().permissions();
+        fs::remove_file(&source).unwrap();
+
+        copy_open_file_exclusive(input, permissions, &destination).unwrap();
+
+        assert_eq!(fs::read(destination).unwrap(), b"only copy");
     }
 
     #[test]
