@@ -1,9 +1,9 @@
 use super::retry_policy::{DEFERRED_MAINTENANCE_MAX_ATTEMPTS, DEFERRED_MAINTENANCE_RETRY_DELAY};
 use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome, SourceDbMaintenanceRefresh};
 use crate::app::controller::library::analysis_jobs;
+use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
-use crate::sample_sources::{SourceDatabase, SourceDatabaseConnectionRole};
 
 mod markers;
 mod refresh;
@@ -92,7 +92,7 @@ fn run_source_db_maintenance_with_retries(
 }
 
 fn open_maintenance_probe(job: &SourceDbMaintenanceJob) -> Result<SourceDatabase, String> {
-    SourceDatabase::open_with_role(&job.source_root, SourceDatabaseConnectionRole::Maintenance)
+    SourceDatabase::open_for_maintenance(&job.source_root)
         .map_err(|err| format!("Open source DB failed: {err}"))
 }
 

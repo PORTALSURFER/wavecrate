@@ -753,7 +753,7 @@ pub(super) fn open_fast_source_db(source: &SampleSource) -> Result<SourceDatabas
     let database_root = source
         .database_root()
         .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
-    SourceDatabase::open_fast_with_database_root(&source.root, database_root)
+    SourceDatabase::open_for_background_job_with_database_root(&source.root, database_root)
         .map_err(|err| format!("Open source DB failed: {err}"))
 }
 

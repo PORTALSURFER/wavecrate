@@ -303,10 +303,11 @@ fn source_db_for_request<'a>(
 ) -> Result<&'a mut SourceDatabase, String> {
     match source_dbs.entry(source_root.to_path_buf()) {
         std::collections::hash_map::Entry::Occupied(entry) => Ok(entry.into_mut()),
-        std::collections::hash_map::Entry::Vacant(entry) => match SourceDatabase::open(source_root)
-        {
-            Ok(db) => Ok(entry.insert(db)),
-            Err(err) => Err(format!("Failed to open source DB: {err}")),
-        },
+        std::collections::hash_map::Entry::Vacant(entry) => {
+            match SourceDatabase::open_for_source_write(source_root) {
+                Ok(db) => Ok(entry.insert(db)),
+                Err(err) => Err(format!("Failed to open source DB: {err}")),
+            }
+        }
     }
 }

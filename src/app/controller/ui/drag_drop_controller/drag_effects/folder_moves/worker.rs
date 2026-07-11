@@ -135,7 +135,7 @@ pub(super) fn run_folder_sample_move_task(
             cancelled,
         };
     }
-    let db = match SourceDatabase::open(&source_root) {
+    let db = match SourceDatabase::open_for_source_write(&source_root) {
         Ok(db) => db,
         Err(err) => {
             errors.push(format!("Failed to open source DB: {err}"));

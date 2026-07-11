@@ -157,8 +157,8 @@ fn restore_rows_in_db(source: &SampleSource, entries: &[WavEntry]) -> Result<(),
     if entries.is_empty() {
         return Ok(());
     }
-    let db =
-        SourceDatabase::open(&source.root).map_err(|err| format!("Database unavailable: {err}"))?;
+    let db = SourceDatabase::open_for_source_write(&source.root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
     let mut batch = db
         .write_batch()
         .map_err(|err| format!("Failed to start database update: {err}"))?;

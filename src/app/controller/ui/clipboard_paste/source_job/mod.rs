@@ -136,7 +136,7 @@ mod tests {
         let (mut controller, source) = dummy_controller();
         controller.library.sources.push(source.clone());
         controller.cache_db(&source).unwrap();
-        let db = SourceDatabase::open(&source.root).unwrap();
+        let db = SourceDatabase::open_for_source_write(&source.root).unwrap();
         let op_id = file_ops_journal::new_op_id();
         let relative = PathBuf::from("Drums").join("kick.wav");
         let staged_relative =

@@ -202,10 +202,10 @@ mod tests {
     fn deep_hash_scan_checks_cancel_before_writer_lock() {
         let dir = tempfile::tempdir().expect("temp source");
         std::fs::write(dir.path().join("pending.wav"), b"pending").expect("write wav");
-        let db = SourceDatabase::open(dir.path()).expect("source db");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
         db.upsert_file(Path::new("pending.wav"), 7, 10)
             .expect("file row");
-        let lock_db = SourceDatabase::open(dir.path()).expect("lock db");
+        let lock_db = SourceDatabase::open_for_source_write(dir.path()).expect("lock db");
         let _writer = lock_db.write_batch().expect("writer lock");
         let cancel = AtomicBool::new(true);
 

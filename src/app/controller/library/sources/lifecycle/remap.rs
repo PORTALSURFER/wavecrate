@@ -120,7 +120,7 @@ fn prepare_database_for_remap(
     normalized: &PathBuf,
     started_at: Instant,
 ) -> Result<(), String> {
-    if let Err(err) = SourceDatabase::open(normalized) {
+    if let Err(err) = SourceDatabase::open_for_source_write(normalized) {
         let error = format!("Failed to prepare database: {err}");
         record_source_lifecycle_event(
             "sources.remap",
