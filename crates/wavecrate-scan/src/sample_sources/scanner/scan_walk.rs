@@ -34,7 +34,7 @@ pub(super) fn walk_phase(
             if cancel_requested(cancel, committed.get()) {
                 return Err(ScanError::Canceled);
             }
-            let prepared = match prepare_diff(root, path, context) {
+            let mut prepared = match prepare_diff(root, path, context) {
                 Ok(prepared) => prepared,
                 Err(error) if committed.get() => {
                     if let Ok(relative) = path.strip_prefix(root)
@@ -54,6 +54,9 @@ pub(super) fn walk_phase(
             context.stats.total_files += 1;
             if let Some(on_progress) = on_progress.as_mut() {
                 on_progress(context.stats.total_files, path);
+            }
+            if !prepared.requires_apply {
+                prepared = refresh_noop_preparation(db, root, context, prepared)?;
             }
             if !prepared.requires_apply {
                 skip_noop(context, &prepared);
@@ -100,7 +103,10 @@ pub(super) fn apply_prepared_chunk(
     tolerate_file_errors: bool,
 ) -> Result<bool, ScanError> {
     let mut pending = Vec::with_capacity(prepared.len());
-    for file in prepared {
+    for mut file in prepared {
+        if !file.requires_apply {
+            file = refresh_noop_preparation(db, root, context, file)?;
+        }
         if file.requires_apply {
             pending.push(file);
         } else {
@@ -111,6 +117,32 @@ pub(super) fn apply_prepared_chunk(
         return Ok(false);
     }
     apply_batch(db, root, cancel, context, pending, tolerate_file_errors)
+}
+
+fn refresh_noop_preparation(
+    db: &SourceDatabase,
+    root: &Path,
+    context: &mut ScanContext,
+    prepared: PreparedFile,
+) -> Result<PreparedFile, ScanError> {
+    let relative_path = prepared.facts.relative.clone();
+    let current = db.entry_for_path(&relative_path)?;
+    if current.as_ref().is_some_and(|entry| {
+        !entry.missing
+            && entry.file_size == prepared.facts.size
+            && entry.modified_ns == prepared.facts.modified_ns
+    }) {
+        return Ok(prepared);
+    }
+    match current {
+        Some(entry) => {
+            context.existing.insert(relative_path.clone(), entry);
+        }
+        None => {
+            context.existing.remove(&relative_path);
+        }
+    }
+    prepare_diff(root, &root.join(relative_path), context)
 }
 
 pub(super) fn skip_noop(context: &mut ScanContext, prepared: &PreparedFile) {

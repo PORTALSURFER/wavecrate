@@ -221,6 +221,70 @@ fn scan_revalidation_rejects_file_mutation_after_discovery() {
     assert_ne!(db.list_files().unwrap()[0].file_size, before.file_size);
 }
 
+#[test]
+fn scan_refreshes_noop_row_after_concurrent_removal() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("one.wav");
+    std::fs::write(&file_path, b"one").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let mut removed = false;
+
+    scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if removed {
+            return;
+        }
+        let writer = SourceDatabase::open(dir.path()).unwrap();
+        let mut batch = writer.write_batch().unwrap();
+        batch.remove_file(Path::new("one.wav")).unwrap();
+        batch.commit().unwrap();
+        removed = true;
+    })
+    .unwrap();
+
+    assert!(removed);
+    assert!(db.entry_for_path(Path::new("one.wav")).unwrap().is_some());
+}
+
+#[test]
+fn missing_stage_keeps_concurrently_restored_live_row() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("restored.wav");
+    std::fs::write(&file_path, b"old").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let stale = db
+        .entry_for_path(Path::new("restored.wav"))
+        .unwrap()
+        .unwrap();
+    std::fs::remove_file(&file_path).unwrap();
+
+    std::fs::write(&file_path, b"new-longer").unwrap();
+    let facts = super::super::super::scan_fs::read_facts(dir.path(), &file_path).unwrap();
+    db.upsert_file(Path::new("restored.wav"), facts.size, facts.modified_ns)
+        .unwrap();
+    let mut stats = ScanStats::default();
+    let mut batch = db.write_batch().unwrap();
+
+    super::super::super::scan_diff::mark_missing(
+        &db,
+        &mut batch,
+        [stale],
+        &mut stats,
+        ScanMode::Quick,
+    )
+    .unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(stats.missing, 0);
+    let restored = db
+        .entry_for_path(Path::new("restored.wav"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.file_size, facts.size);
+    assert_eq!(restored.modified_ns, facts.modified_ns);
+}
+
 #[cfg(unix)]
 #[test]
 fn scan_hashes_current_bytes_when_facts_are_preserved_after_discovery() {

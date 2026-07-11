@@ -233,6 +233,9 @@ pub(super) fn mark_missing(
     mode: ScanMode,
 ) -> Result<(), ScanError> {
     for stale in existing {
+        if db.root().join(&stale.relative_path).exists() {
+            continue;
+        }
         let Some(leftover) = db.entry_for_path(&stale.relative_path)? else {
             continue;
         };
