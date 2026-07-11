@@ -1,9 +1,20 @@
 use crate::analysis::{similarity, version};
+use hnsw_rs::hnswio::HnswIo;
 use hnsw_rs::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::time::Instant;
+use std::{
+    collections::HashMap,
+    mem::ManuallyDrop,
+    ops::Deref,
+    path::{Path, PathBuf},
+    time::Instant,
+};
+
+#[cfg(test)]
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 /// Configuration parameters for ANN index building/loading.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -20,13 +31,108 @@ pub(crate) struct AnnIndexParams {
 
 /// In-memory ANN index state with metadata for persistence.
 pub(crate) struct AnnIndexState {
-    pub(crate) hnsw: Hnsw<'static, f32, DistCosine>,
+    pub(crate) hnsw: AnnHnsw,
     pub(crate) id_map: Vec<String>,
     pub(crate) id_lookup: HashMap<String, usize>,
     pub(crate) params: AnnIndexParams,
     pub(crate) index_path: PathBuf,
     pub(crate) last_flush: Instant,
     pub(crate) dirty_inserts: usize,
+}
+
+/// HNSW storage that either owns all point data directly or keeps its disk
+/// loader alive for as long as a loaded graph can reference mmap-backed data.
+pub(crate) enum AnnHnsw {
+    Built(Hnsw<'static, f32, DistCosine>),
+    Loaded(LoadedAnnHnsw),
+}
+
+impl Deref for AnnHnsw {
+    type Target = Hnsw<'static, f32, DistCosine>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Built(hnsw) => hnsw,
+            Self::Loaded(hnsw) => hnsw,
+        }
+    }
+}
+
+/// Self-referential disk-loaded HNSW owner.
+///
+/// `HnswIo::load_hnsw` ties the graph lifetime to the loader because points may
+/// borrow its mmap. The loader lives at a stable boxed address, and `Drop`
+/// destroys the graph before Rust drops that loader.
+pub(crate) struct LoadedAnnHnsw {
+    hnsw: ManuallyDrop<Hnsw<'static, f32, DistCosine>>,
+    _loader: Box<HnswIo>,
+    #[cfg(test)]
+    live_probe: Option<Arc<AtomicUsize>>,
+}
+
+impl LoadedAnnHnsw {
+    pub(crate) fn load(dir: &Path, basename: &str) -> Result<Self, String> {
+        Self::load_inner(dir, basename, None)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn load_with_live_probe(
+        dir: &Path,
+        basename: &str,
+        live_probe: Arc<AtomicUsize>,
+    ) -> Result<Self, String> {
+        Self::load_inner(dir, basename, Some(live_probe))
+    }
+
+    fn load_inner(
+        dir: &Path,
+        basename: &str,
+        #[cfg(test)] live_probe: Option<Arc<AtomicUsize>>,
+        #[cfg(not(test))] _live_probe: Option<()>,
+    ) -> Result<Self, String> {
+        let mut loader = Box::new(HnswIo::new(dir, basename));
+        let hnsw = loader
+            .load_hnsw::<f32, DistCosine>()
+            .map_err(|_| "Failed to read ANN index".to_string())?;
+        // SAFETY: `Hnsw` may borrow only from the boxed `HnswIo`. Moving this
+        // wrapper never moves the loader allocation, the graph is not exposed
+        // by value, and our Drop implementation destroys the graph first.
+        let hnsw = unsafe {
+            std::mem::transmute::<Hnsw<'_, f32, DistCosine>, Hnsw<'static, f32, DistCosine>>(hnsw)
+        };
+        #[cfg(test)]
+        if let Some(probe) = &live_probe {
+            probe.fetch_add(1, Ordering::AcqRel);
+        }
+        Ok(Self {
+            hnsw: ManuallyDrop::new(hnsw),
+            _loader: loader,
+            #[cfg(test)]
+            live_probe,
+        })
+    }
+}
+
+impl Deref for LoadedAnnHnsw {
+    type Target = Hnsw<'static, f32, DistCosine>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.hnsw
+    }
+}
+
+impl Drop for LoadedAnnHnsw {
+    fn drop(&mut self) {
+        // SAFETY: `hnsw` is initialized exactly once and this is its only
+        // explicit drop. `_loader` remains alive until after this method.
+        unsafe {
+            ManuallyDrop::drop(&mut self.hnsw);
+        }
+        #[cfg(test)]
+        if let Some(probe) = &self.live_probe {
+            probe.fetch_sub(1, Ordering::AcqRel);
+        }
+    }
 }
 
 /// Metadata persisted in the source database for ANN indexes.
