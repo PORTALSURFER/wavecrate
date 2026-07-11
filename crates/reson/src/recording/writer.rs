@@ -103,6 +103,15 @@ impl RecorderWriter {
     }
 }
 
+impl Drop for RecorderWriter {
+    fn drop(&mut self) {
+        self.stop();
+        if let Some(handle) = self.join.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
 fn record_writer_result(
     result: &Result<RecordingStats, AudioInputError>,
     health: &RecordingHealthState,
@@ -229,6 +238,25 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         assert_eq!(samples, vec![0.0, 0.25, -0.25, 0.5]);
+    }
+
+    #[test]
+    fn recorder_drop_stops_worker_and_finalizes_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("recording.wav");
+        let health = Arc::new(RecordingHealthState::default());
+        let (writer, mut capture) = RecorderWriter::spawn(path.clone(), 48_000, 1, health).unwrap();
+        capture.submit(&[0.25, -0.25]);
+        drop(capture);
+
+        drop(writer);
+
+        let samples = hound::WavReader::open(&path)
+            .unwrap()
+            .into_samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(samples, vec![0.25, -0.25]);
     }
 
     #[test]

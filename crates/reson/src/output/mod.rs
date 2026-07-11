@@ -15,6 +15,8 @@ use self::callback::{CallbackState, process_audio_callback};
 #[cfg(test)]
 use self::discovery::sample_rates_in_range;
 #[cfg(test)]
+pub(crate) use self::stream::monitor_sink_for_tests;
+#[cfg(test)]
 use self::stream::resolved_output_from_stream_config;
 
 /// Errors that can occur while enumerating or opening audio outputs.

@@ -23,6 +23,7 @@ pub(super) struct MonitorTarget {
     sink: MonitorSink,
     channels: u16,
     sample_rate: u32,
+    active: Arc<AtomicBool>,
 }
 
 /// Optional live monitor target that can be attached to a recorder.
@@ -39,6 +40,7 @@ impl InputMonitor {
                 sink,
                 channels: channels.max(1),
                 sample_rate: sample_rate.max(1),
+                active: Arc::new(AtomicBool::new(true)),
             },
         }
     }
@@ -49,6 +51,7 @@ impl InputMonitor {
 
     /// Stop the monitor sink.
     pub fn stop(self) {
+        self.target.active.store(false, Ordering::Release);
         self.target.sink.stop();
     }
 }
@@ -93,15 +96,16 @@ pub(super) struct RecordingMonitor {
 
 impl RecordingMonitor {
     pub(super) fn attach(&self, target: MonitorTarget) {
-        if self.submit_control(MonitorControlCommand::Attach(target)) {
+        if target.active.load(Ordering::Acquire)
+            && self.submit_control(MonitorControlCommand::Attach(target))
+        {
             self.enabled.store(true, Ordering::Release);
         }
     }
 
     pub(super) fn detach(&self) {
-        if self.submit_control(MonitorControlCommand::Detach) {
-            self.enabled.store(false, Ordering::Release);
-        }
+        self.enabled.store(false, Ordering::Release);
+        let _ = self.submit_control(MonitorControlCommand::Detach);
     }
 
     fn submit_control(&self, command: MonitorControlCommand) -> bool {
@@ -133,6 +137,12 @@ impl RecordingMonitor {
     }
 }
 
+impl Drop for RecordingMonitor {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
 pub(super) fn start_recording_monitor(
     sample_rate: u32,
     channels: u16,
@@ -150,8 +160,15 @@ pub(super) fn start_recording_monitor(
     let stop = Arc::new(AtomicBool::new(false));
     let enabled = Arc::new(AtomicBool::new(false));
     let worker_stop = Arc::clone(&stop);
+    let worker_enabled = Arc::clone(&enabled);
     let join = thread::spawn(move || {
-        monitor_loop(consumer, control_receiver, channels.max(1), &worker_stop)
+        monitor_loop(
+            consumer,
+            control_receiver,
+            channels.max(1),
+            &worker_enabled,
+            &worker_stop,
+        )
     });
     (
         RecordingMonitor {
@@ -173,6 +190,7 @@ fn monitor_loop(
     mut consumer: ringbuf::HeapCons<f32>,
     controls: Receiver<MonitorControlCommand>,
     capture_channels: u16,
+    enabled: &AtomicBool,
     stop: &AtomicBool,
 ) {
     let mut target: Option<MonitorTarget> = None;
@@ -186,9 +204,19 @@ fn monitor_loop(
                 Err(TryRecvError::Disconnected) => break,
             }
         }
+        if target
+            .as_ref()
+            .is_some_and(|target| !target.active.load(Ordering::Acquire))
+        {
+            enabled.store(false, Ordering::Release);
+            target = None;
+        }
         let popped = consumer.pop_slice(&mut samples);
         if popped > 0 {
-            if let Some(target) = &target {
+            if enabled.load(Ordering::Acquire)
+                && let Some(target) = &target
+                && target.active.load(Ordering::Acquire)
+            {
                 target.sink.append(SamplesBuffer::new(
                     target.channels,
                     target.sample_rate,
@@ -207,6 +235,9 @@ fn monitor_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::output::{StreamCommand, monitor_sink_for_tests};
+    use std::sync::atomic::AtomicU64;
+    use std::time::Duration;
 
     #[test]
     fn stalled_monitor_consumer_has_bounded_nonblocking_submission() {
@@ -227,6 +258,16 @@ mod tests {
     }
 
     #[test]
+    fn recording_monitor_drop_stops_worker_and_disables_capture() {
+        let health = Arc::new(RecordingHealthState::default());
+        let (monitor, capture) = start_recording_monitor(48_000, 2, health);
+
+        drop(monitor);
+
+        assert!(!capture.enabled.load(Ordering::Acquire));
+    }
+
+    #[test]
     fn monitor_control_reports_full_and_disconnected_queue() {
         let health = Arc::new(RecordingHealthState::default());
         let stop = Arc::new(AtomicBool::new(false));
@@ -242,9 +283,49 @@ mod tests {
         monitor.detach();
         monitor.detach();
         assert_eq!(health.snapshot().monitor_control_drops, 1);
+        assert!(!monitor.enabled.load(Ordering::Acquire));
 
         drop(receiver);
         monitor.detach();
         assert!(health.snapshot().monitor_disconnected);
+    }
+
+    #[test]
+    fn stopping_input_monitor_invalidates_attached_recorder_target() {
+        let (command_sender, command_receiver) = std::sync::mpsc::sync_channel(8);
+        let sink = monitor_sink_for_tests(
+            command_sender,
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicU64::new(1)),
+        );
+        let input_monitor = InputMonitor::start(sink, 1, 48_000);
+        let health = Arc::new(RecordingHealthState::default());
+        let (recording_monitor, mut capture) = start_recording_monitor(48_000, 1, health);
+        recording_monitor.attach(input_monitor.target());
+        capture.submit(&[0.5]);
+
+        match command_receiver
+            .recv_timeout(Duration::from_millis(100))
+            .expect("attached monitor must append captured samples")
+        {
+            StreamCommand::Append { .. } => {}
+            _ => panic!("expected monitor append command"),
+        }
+
+        input_monitor.stop();
+        match command_receiver
+            .recv_timeout(Duration::from_millis(100))
+            .expect("stopping input monitor must clear the sink")
+        {
+            StreamCommand::Clear { .. } => {}
+            _ => panic!("expected monitor clear command"),
+        }
+        capture.submit(&[0.75]);
+        assert!(
+            command_receiver
+                .recv_timeout(Duration::from_millis(20))
+                .is_err(),
+            "stopped input monitor must reject later recorder appends"
+        );
     }
 }

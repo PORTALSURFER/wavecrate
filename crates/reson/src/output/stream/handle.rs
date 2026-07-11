@@ -220,3 +220,17 @@ fn log_stream_command_timing(command: &'static str, started_at: Option<Instant>,
         "Audio stream command stage"
     );
 }
+
+#[cfg(test)]
+pub(crate) fn monitor_sink_for_tests(
+    command_sender: SyncSender<StreamCommand>,
+    clear_pending: Arc<AtomicBool>,
+    command_generation: Arc<AtomicU64>,
+) -> MonitorSink {
+    MonitorSink {
+        command_sender,
+        clear_pending,
+        command_generation,
+        volume: 1.0,
+    }
+}
