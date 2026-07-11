@@ -107,7 +107,12 @@ pub fn complete_deferred_hashes_with_cancel(
         .iter()
         .cloned()
         .collect::<HashSet<_>>();
-    let deferred = super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates)?;
+    let scope = if stats.hashes_pending > 0 {
+        super::super::scan_hash::DeferredHashScope::AllUnhashed
+    } else {
+        super::super::scan_hash::DeferredHashScope::RenameCandidates
+    };
+    let deferred = super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates, scope)?;
     stats.merge_deferred_hashes(deferred);
     Ok(stats)
 }
@@ -125,7 +130,12 @@ pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: 
     thread::spawn(move || {
         let result = (|| -> Result<(), ScanError> {
             let db = SourceDatabase::open_for_scan_with_database_root(root, database_root)?;
-            let _ = super::super::scan_hash::deep_hash_scan(&db, None, &HashSet::new())?;
+            let _ = super::super::scan_hash::deep_hash_scan(
+                &db,
+                None,
+                &HashSet::new(),
+                super::super::scan_hash::DeferredHashScope::AllUnhashed,
+            )?;
             Ok(())
         })();
         if let Err(err) = result {

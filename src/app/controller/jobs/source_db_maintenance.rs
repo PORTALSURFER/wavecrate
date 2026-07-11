@@ -3,7 +3,7 @@ use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome, SourceDbMaintena
 use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::file_ops_journal;
-use crate::sample_sources::scanner::{complete_deferred_hashes, scan_once};
+use crate::sample_sources::scanner::{ScanStats, complete_deferred_hashes, scan_once};
 
 mod markers;
 mod refresh;
@@ -125,14 +125,27 @@ fn rescan_empty_source_if_needed(
 }
 
 fn rescan_empty_source(
-    _job: &SourceDbMaintenanceJob,
+    job: &SourceDbMaintenanceJob,
     probe: &SourceDatabase,
 ) -> Result<bool, String> {
-    let stats =
+    let committed =
         scan_once(probe).map_err(|err| format!("Deferred empty-source scan failed: {err}"))?;
-    let stats = complete_deferred_hashes(probe, stats)
-        .map_err(|err| format!("Finish deferred empty-source hashing failed: {err}"))?;
-    Ok(scan_changed_source(&stats))
+    match complete_deferred_hashes(probe, committed.clone()) {
+        Ok(completed) => Ok(scan_changed_after_deferred(&committed, Some(&completed))),
+        Err(error) => {
+            tracing::warn!(
+                source_id = %job.source_id,
+                source_root = %job.source_root.display(),
+                %error,
+                "Deferred hashing failed after the empty-source scan committed"
+            );
+            Ok(scan_changed_after_deferred(&committed, None))
+        }
+    }
+}
+
+fn scan_changed_after_deferred(committed: &ScanStats, completed: Option<&ScanStats>) -> bool {
+    scan_changed_source(completed.unwrap_or(committed))
 }
 
 fn maintenance_error(

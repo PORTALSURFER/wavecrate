@@ -203,6 +203,7 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
         &db,
         None,
         &rename_candidates(&["two.wav"]),
+        crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
     )
     .unwrap();
     assert_eq!(deep_stats.hashes_computed, 1);
@@ -242,9 +243,13 @@ fn detached_deep_hash_uses_persisted_quick_scan_destinations() {
 
     let quick = scan_once(&db).unwrap();
     assert_eq!(quick.hashes_pending, 1);
-    let deferred =
-        crate::sample_sources::scanner::scan_hash::deep_hash_scan(&db, None, &HashSet::new())
-            .unwrap();
+    let deferred = crate::sample_sources::scanner::scan_hash::deep_hash_scan(
+        &db,
+        None,
+        &HashSet::new(),
+        crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+    )
+    .unwrap();
 
     assert_eq!(deferred.renames_reconciled, 1);
     assert_eq!(
@@ -280,6 +285,7 @@ fn large_rename_reconciles_when_unchanged_duplicate_remains() {
         &db,
         None,
         &rename_candidates(&["c.wav"]),
+        crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
     )
     .unwrap();
     assert_eq!(deep.renames_reconciled, 1);
@@ -334,6 +340,7 @@ fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
         &db,
         None,
         &rename_candidates(&["new.wav"]),
+        crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
     )
     .unwrap();
 
@@ -400,6 +407,7 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
         &db,
         None,
         &rename_candidates(&["two.wav"]),
+        crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
     )
     .unwrap();
     assert_eq!(deep_stats.renames_reconciled, 1);
@@ -443,6 +451,7 @@ fn deep_hash_scan_uses_matching_facts_to_disambiguate_backfilled_duplicates() {
         &db,
         None,
         &rename_candidates(&["b.wav", "c.wav"]),
+        crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
     )
     .unwrap();
     assert_eq!(deep.hashes_computed, 2);
@@ -539,6 +548,72 @@ fn targeted_split_batches_preserve_large_rename_destination() {
     );
     assert!(db.list_pending_renames().unwrap().is_empty());
     assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+}
+
+#[test]
+fn targeted_destination_expires_after_two_full_quick_scans() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let new = dir.path().join("new.wav");
+    std::fs::write(&old, b"same-content").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    std::fs::copy(&old, &new).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("new.wav")]).unwrap();
+    complete_deferred_hashes(&db, added).unwrap();
+
+    scan_once(&db).unwrap();
+    assert_eq!(
+        db.list_pending_rename_destinations().unwrap(),
+        vec![PathBuf::from("new.wav")]
+    );
+    scan_once(&db).unwrap();
+
+    assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+}
+
+#[test]
+fn rename_candidate_completion_does_not_backfill_unrelated_large_files() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let new = dir.path().join("new.wav");
+    let unrelated = dir.path().join("unrelated-large.wav");
+    std::fs::write(&old, b"same-content").unwrap();
+    std::fs::write(&unrelated, vec![9_u8; 9 * 1024 * 1024]).unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    let unrelated_entry = db
+        .entry_for_path(Path::new("unrelated-large.wav"))
+        .unwrap()
+        .unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_without_hash(
+            &unrelated_entry.relative_path,
+            unrelated_entry.file_size,
+            unrelated_entry.modified_ns,
+        )
+        .unwrap();
+    batch.commit().unwrap();
+
+    std::fs::copy(&old, &new).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("new.wav")]).unwrap();
+    complete_deferred_hashes(&db, added).unwrap();
+    std::fs::remove_file(&old).unwrap();
+    let removed = sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    let completed = complete_deferred_hashes(&db, removed).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 1);
+    assert_eq!(completed.hashes_computed, 0);
+    assert!(
+        db.entry_for_path(Path::new("unrelated-large.wav"))
+            .unwrap()
+            .unwrap()
+            .content_hash
+            .is_none()
+    );
 }
 
 #[test]

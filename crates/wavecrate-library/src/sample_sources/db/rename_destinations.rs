@@ -6,6 +6,22 @@ use super::util::{map_sql_error, normalize_relative_path, parse_relative_path_fr
 use super::{SourceDatabase, SourceDbError, SourceWriteBatch};
 
 const TARGETED_SCAN_GENERATION_KEY: &str = "targeted_scan_generation_v1";
+const RENAME_CANDIDATE_LAST_SCAN_KIND_KEY: &str = "rename_candidate_last_scan_kind_v1";
+
+#[derive(Clone, Copy)]
+enum RenameCandidateScanKind {
+    Targeted,
+    Quick,
+}
+
+impl RenameCandidateScanKind {
+    fn token(self) -> &'static str {
+        match self {
+            Self::Targeted => "targeted",
+            Self::Quick => "quick",
+        }
+    }
+}
 
 impl SourceDatabase {
     /// List destination paths discovered in the current or immediately previous targeted scan.
@@ -45,6 +61,18 @@ impl SourceDatabase {
 impl SourceWriteBatch<'_> {
     /// Begin a targeted watcher scan and expire candidates older than one prior batch.
     pub fn begin_targeted_scan_generation(&mut self) -> Result<u64, SourceDbError> {
+        self.begin_rename_candidate_generation(RenameCandidateScanKind::Targeted)
+    }
+
+    /// Start a full quick scan while carrying destinations from one immediately prior scan.
+    pub fn begin_quick_scan_rename_candidates(&mut self) -> Result<u64, SourceDbError> {
+        self.begin_rename_candidate_generation(RenameCandidateScanKind::Quick)
+    }
+
+    fn begin_rename_candidate_generation(
+        &mut self,
+        kind: RenameCandidateScanKind,
+    ) -> Result<u64, SourceDbError> {
         let current = self
             .tx
             .query_row(
@@ -56,30 +84,30 @@ impl SourceWriteBatch<'_> {
             .map_err(map_sql_error)?
             .and_then(|value| value.parse::<u64>().ok())
             .unwrap_or(0);
-        let generation = current.saturating_add(1);
+        let last_kind = self
+            .tx
+            .query_row(
+                "SELECT value FROM metadata WHERE key = ?1",
+                params![RENAME_CANDIDATE_LAST_SCAN_KIND_KEY],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?;
+        let generation = if matches!(kind, RenameCandidateScanKind::Targeted)
+            && last_kind.as_deref() == Some(RenameCandidateScanKind::Quick.token())
+        {
+            current.max(1)
+        } else {
+            current.saturating_add(1)
+        };
         self.set_metadata(TARGETED_SCAN_GENERATION_KEY, &generation.to_string())?;
+        self.set_metadata(RENAME_CANDIDATE_LAST_SCAN_KIND_KEY, kind.token())?;
         self.tx
             .execute(
                 "DELETE FROM pending_wav_rename_destinations WHERE scan_generation < ?1",
                 params![generation.saturating_sub(1) as i64],
             )
             .map_err(map_sql_error)?;
-        Ok(generation)
-    }
-
-    /// Start a full quick scan without discarding destinations carried from watcher batches.
-    pub fn begin_quick_scan_rename_candidates(&mut self) -> Result<u64, SourceDbError> {
-        let generation = self
-            .tx
-            .query_row(
-                "SELECT value FROM metadata WHERE key = ?1",
-                params![TARGETED_SCAN_GENERATION_KEY],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(map_sql_error)?
-            .and_then(|value| value.parse::<u64>().ok())
-            .unwrap_or(0);
         Ok(generation)
     }
 

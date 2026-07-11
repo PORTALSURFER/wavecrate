@@ -16,10 +16,17 @@ struct HashBackfill {
     content_hash: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DeferredHashScope {
+    AllUnhashed,
+    RenameCandidates,
+}
+
 pub(super) fn deep_hash_scan(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
     rename_candidates: &HashSet<PathBuf>,
+    scope: DeferredHashScope,
 ) -> Result<ScanStats, ScanError> {
     let root = ensure_root_dir(db)?;
     let entries = db.list_files()?;
@@ -29,9 +36,12 @@ pub(super) fn deep_hash_scan(
         .collect();
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
-    let has_unhashed_files = entries_by_path.values().any(|entry| {
-        !entry.missing && entry.content_hash.is_none() && root.join(&entry.relative_path).is_file()
-    });
+    let has_unhashed_files = scope == DeferredHashScope::AllUnhashed
+        && entries_by_path.values().any(|entry| {
+            !entry.missing
+                && entry.content_hash.is_none()
+                && root.join(&entry.relative_path).is_file()
+        });
     if !has_unhashed_files && rename_candidates.is_empty() {
         return Ok(ScanStats::default());
     }
@@ -67,6 +77,11 @@ pub(super) fn deep_hash_scan(
             return Err(ScanError::Canceled);
         }
         if entry.missing || entry.content_hash.is_some() {
+            continue;
+        }
+        if scope == DeferredHashScope::RenameCandidates
+            && !rename_candidates.contains(&entry.relative_path)
+        {
             continue;
         }
         let absolute = root.join(&entry.relative_path);
@@ -239,7 +254,12 @@ mod tests {
         let _writer = lock_db.write_batch().expect("writer lock");
         let cancel = AtomicBool::new(true);
 
-        let result = deep_hash_scan(&db, Some(&cancel), &HashSet::new());
+        let result = deep_hash_scan(
+            &db,
+            Some(&cancel),
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+        );
 
         assert!(matches!(result, Err(ScanError::Canceled)));
     }
