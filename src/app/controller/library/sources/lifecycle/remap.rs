@@ -126,7 +126,7 @@ impl RemapArtifactSnapshot {
         ]
         .into_iter()
         .map(|path| {
-            let existed = path.exists();
+            let existed = artifact_was_present(&path);
             (path, existed)
         })
         .collect();
@@ -135,8 +135,8 @@ impl RemapArtifactSnapshot {
             .map(|suffix| {
                 let legacy = path_with_suffix(&legacy_database, suffix);
                 let current = path_with_suffix(&database, suffix);
-                let legacy_existed = legacy.exists();
-                let current_existed = current.exists();
+                let legacy_existed = artifact_was_present(&legacy);
+                let current_existed = artifact_was_present(&current);
                 (legacy, current, legacy_existed, current_existed)
             })
             .collect();
@@ -148,7 +148,11 @@ impl RemapArtifactSnapshot {
 
     fn restore_and_remove_created(&self) {
         for (legacy, current, legacy_existed, current_existed) in &self.legacy_migrations {
-            if *legacy_existed && !*current_existed && !legacy.exists() && current.exists() {
+            if *legacy_existed
+                && !*current_existed
+                && !artifact_was_present(legacy)
+                && artifact_was_present(current)
+            {
                 if let Err(err) = fs::rename(current, legacy) {
                     tracing::warn!(
                         from = %current.display(),
@@ -175,10 +179,39 @@ impl RemapArtifactSnapshot {
     }
 }
 
+fn artifact_was_present(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => true,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => true,
+    }
+}
+
 fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut value = path.as_os_str().to_os_string();
     value.push(suffix);
     PathBuf::from(value)
+}
+
+#[cfg(all(test, unix))]
+mod artifact_snapshot_tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn rollback_preserves_preexisting_broken_database_symlinks() {
+        let root = tempfile::tempdir().expect("root");
+        let database = crate::sample_sources::database_path_for(root.path());
+        let wal = path_with_suffix(&database, "-wal");
+        symlink(root.path().join("missing-db-target"), &database).expect("database symlink");
+        symlink(root.path().join("missing-wal-target"), &wal).expect("wal symlink");
+        let snapshot = RemapArtifactSnapshot::new(root.path());
+
+        snapshot.restore_and_remove_created();
+
+        assert!(fs::symlink_metadata(database).is_ok());
+        assert!(fs::symlink_metadata(wal).is_ok());
+    }
 }
 
 fn validate_remap_source_root(
