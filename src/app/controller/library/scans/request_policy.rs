@@ -81,11 +81,14 @@ impl AppController {
         if !auto_sync_due(last_sync, now, min_interval) {
             return;
         }
-        self.runtime
-            .source_sync
-            .auto_sync_last_by_source
-            .insert(source.id.clone(), now);
-        self.request_scan_for_source_with_paths(&source, mode, ScanKind::Auto, paths);
+        let launched =
+            self.request_scan_for_source_with_paths(&source, mode, ScanKind::Auto, paths);
+        record_auto_sync_launch(
+            &mut self.runtime.source_sync.auto_sync_last_by_source,
+            &source.id,
+            now,
+            launched,
+        );
     }
 
     fn request_scan_for_source_with_paths(
@@ -94,7 +97,7 @@ impl AppController {
         mode: ScanMode,
         kind: ScanKind,
         paths: Option<Vec<PathBuf>>,
-    ) {
+    ) -> bool {
         if self
             .runtime
             .source_lane
@@ -105,19 +108,20 @@ impl AppController {
             if matches!(kind, ScanKind::Manual) {
                 self.set_status("Source remap in progress", StatusTone::Info);
             }
-            return;
+            return false;
         }
         if self.runtime.jobs.scan_in_progress() {
             if matches!(kind, ScanKind::Manual) {
                 self.set_status_message(StatusMessage::ScanAlreadyRunning);
             }
-            return;
+            return false;
         }
         self.prepare_for_scan(source, mode);
         if matches!(kind, ScanKind::Manual) {
             self.begin_scan_progress(mode, source);
         }
         worker::launch_scan_worker(self, source, mode, kind, paths);
+        true
     }
 
     fn prepare_for_scan(&mut self, source: &SampleSource, mode: ScanMode) {
@@ -132,10 +136,36 @@ impl AppController {
     }
 }
 
+fn record_auto_sync_launch(
+    last_by_source: &mut std::collections::HashMap<SourceId, Instant>,
+    source_id: &SourceId,
+    now: Instant,
+    launched: bool,
+) {
+    if launched {
+        last_by_source.insert(source_id.clone(), now);
+    }
+}
+
 pub(super) fn auto_sync_due(
     last_sync: Option<Instant>,
     now: Instant,
     min_interval: Duration,
 ) -> bool {
     last_sync.is_none_or(|last| now.saturating_duration_since(last) >= min_interval)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blocked_auto_sync_does_not_consume_debounce_slot() {
+        let source_id = SourceId::new();
+        let mut last_by_source = std::collections::HashMap::new();
+
+        record_auto_sync_launch(&mut last_by_source, &source_id, Instant::now(), false);
+
+        assert!(!last_by_source.contains_key(&source_id));
+    }
 }

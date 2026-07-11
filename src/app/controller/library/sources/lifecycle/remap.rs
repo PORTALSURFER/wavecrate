@@ -326,12 +326,13 @@ fn publish_prepared_database(
     let destination = crate::sample_sources::database_path_for(root);
     let legacy_destination = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
     if let Some(staged) = staged_database {
-        if database_artifact_present(&destination) {
+        if database_artifact_present(&destination) || database_artifact_present(&legacy_destination)
+        {
             return Err(String::from(
                 "Destination database changed while the remap was running",
             ));
         }
-        fs::rename(staged, &destination)
+        publish_staged_database_without_replace(staged, &destination)
             .map_err(|error| format!("Failed to publish source database snapshot: {error}"))?;
         if let Err(error) = SourceDatabase::open(root) {
             remove_database_artifacts_if_created(root, true);
@@ -349,6 +350,82 @@ fn publish_prepared_database(
     }
     SourceDatabase::open(root).map_err(|error| format!("Failed to prepare database: {error}"))?;
     Ok(!destination_database_preexisting)
+}
+
+fn publish_staged_database_without_replace(
+    staged: &Path,
+    destination: &Path,
+) -> std::io::Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::{
+            Win32::Storage::FileSystem::{MOVEFILE_WRITE_THROUGH, MoveFileExW},
+            core::PCWSTR,
+        };
+
+        let staged = wide_path(staged);
+        let destination = wide_path(destination);
+        unsafe {
+            MoveFileExW(
+                PCWSTR(staged.as_ptr()),
+                PCWSTR(destination.as_ptr()),
+                MOVEFILE_WRITE_THROUGH,
+            )
+        }
+        .map_err(|error| std::io::Error::other(error.to_string()))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        let staged = std::ffi::CString::new(staged.as_os_str().as_bytes())?;
+        let destination = std::ffi::CString::new(destination.as_os_str().as_bytes())?;
+        let result =
+            unsafe { libc::renamex_np(staged.as_ptr(), destination.as_ptr(), libc::RENAME_EXCL) };
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        let staged = std::ffi::CString::new(staged.as_os_str().as_bytes())?;
+        let destination = std::ffi::CString::new(destination.as_os_str().as_bytes())?;
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                staged.as_ptr(),
+                libc::AT_FDCWD,
+                destination.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android"
+    )))]
+    {
+        fs::hard_link(staged, destination)?;
+        fs::remove_file(staged)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn wide_path(path: &Path) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+
+    path.as_os_str().encode_wide().chain(Some(0)).collect()
 }
 
 fn remove_staged_database(staged_database: Option<&Path>) {
@@ -458,6 +535,40 @@ mod tests {
 
         assert!(error.contains("changed while the remap was running"));
         assert_eq!(fs::read(destination).unwrap(), b"other owner");
+    }
+
+    #[test]
+    fn staged_publish_rejects_newly_appeared_legacy_destination() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        let staged = staged_database_path(&destination, 1);
+        fs::write(&staged, b"snapshot").expect("stage snapshot");
+        let legacy = root
+            .path()
+            .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+        fs::write(&legacy, b"legacy owner").expect("create competing legacy database");
+
+        let error = publish_prepared_database(root.path(), Some(&staged), false)
+            .expect_err("new legacy destination must not be claimed");
+
+        assert!(error.contains("changed while the remap was running"));
+        assert_eq!(fs::read(legacy).unwrap(), b"legacy owner");
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn no_replace_publish_preserves_late_destination_owner() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        let staged = staged_database_path(&destination, 1);
+        fs::write(&staged, b"snapshot").expect("stage snapshot");
+        fs::write(&destination, b"late owner").expect("create late owner");
+
+        publish_staged_database_without_replace(&staged, &destination)
+            .expect_err("no-replace publish must reject a late owner");
+
+        assert_eq!(fs::read(&destination).unwrap(), b"late owner");
+        assert_eq!(fs::read(&staged).unwrap(), b"snapshot");
     }
 }
 
