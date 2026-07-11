@@ -10,6 +10,7 @@ use crate::app::controller::state::runtime::PendingSourceRemap;
 struct RemappedSource {
     index: usize,
     root: PathBuf,
+    previous_root: PathBuf,
     id: SourceId,
     started_at: Instant,
 }
@@ -57,12 +58,20 @@ impl AppController {
         {
             let prepared = run_source_remap_prepare(job);
             prepared.result?;
-            self.commit_remapped_source(RemappedSource {
+            let result = self.commit_remapped_source(RemappedSource {
                 index,
-                root: prepared.new_root,
+                root: prepared.new_root.clone(),
+                previous_root: existing_source.root.clone(),
                 id: source_id,
                 started_at,
-            })
+            });
+            if result.is_err() {
+                remove_database_artifacts_if_created(
+                    &prepared.new_root,
+                    prepared.artifacts_created,
+                );
+            }
+            result
         }
         #[cfg(not(test))]
         {
@@ -78,6 +87,7 @@ impl AppController {
             source: job.source.clone(),
             new_root: job.new_root.clone(),
             queued_at: started_at,
+            canceled: false,
         });
         self.set_status(
             format!("Remapping source to {}", job.new_root.display()),
@@ -113,10 +123,14 @@ impl AppController {
             .pending_remap
             .take()
             .expect("current source remap pending entry");
+        if pending.canceled {
+            remove_database_artifacts_if_created(&message.new_root, message.artifacts_created);
+            return;
+        }
         let Some(index) = self.library.sources.iter().position(|source| {
             source.id == message.source.id && source.root == message.source.root
         }) else {
-            remove_database_artifacts_if_created(&message.new_root, message.destination_existed);
+            remove_database_artifacts_if_created(&message.new_root, message.artifacts_created);
             return;
         };
         match message.result {
@@ -127,6 +141,7 @@ impl AppController {
                             self.commit_remapped_source(RemappedSource {
                                 index,
                                 root: message.new_root.clone(),
+                                previous_root: message.source.root.clone(),
                                 id: message.source.id.clone(),
                                 started_at: pending.queued_at,
                             })
@@ -134,7 +149,7 @@ impl AppController {
                 {
                     remove_database_artifacts_if_created(
                         &message.new_root,
-                        message.destination_existed,
+                        message.artifacts_created,
                     );
                     self.set_status(error, StatusTone::Error);
                 }
@@ -145,6 +160,17 @@ impl AppController {
 
     fn commit_remapped_source(&mut self, remap: RemappedSource) -> Result<(), String> {
         self.library.sources[remap.index].root = remap.root;
+        if let Err(err) = self.persist_config("Failed to save config after remapping source") {
+            self.library.sources[remap.index].root = remap.previous_root;
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(remap.id.as_str()),
+                "error",
+                remap.started_at,
+                Some(&err),
+            );
+            return Err(err);
+        }
         self.library.missing.sources.remove(&remap.id);
         let mut invalidator = source_cache_invalidator::SourceCacheInvalidator::new_from_state(
             &mut self.cache,
@@ -156,16 +182,6 @@ impl AppController {
         if self.selection_state.ctx.selected_source.as_ref() == Some(&remap.id) {
             self.clear_wavs();
             self.selection_state.ctx.selected_source = Some(remap.id.clone());
-        }
-        if let Err(err) = self.persist_config("Failed to save config after remapping source") {
-            record_source_lifecycle_event(
-                "sources.remap",
-                Some(remap.id.as_str()),
-                "error",
-                remap.started_at,
-                Some(&err),
-            );
-            return Err(err);
         }
         self.refresh_sources_ui();
         self.queue_wav_load();
@@ -209,34 +225,41 @@ fn validate_remap_source_root(
 
 fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
     let destination = crate::sample_sources::database_path_for(&job.new_root);
-    let destination_existed = destination.exists();
+    let destination_existed = database_artifact_present(&destination);
+    let mut artifacts_created = false;
     let result = (|| {
         let source_database = crate::sample_sources::database_path_for(&job.source.root);
-        if source_database.exists() && !destination_existed {
-            let source = SourceDatabase::open(&job.source.root)
-                .map_err(|error| format!("Failed to open source database for snapshot: {error}"))?;
-            source
-                .snapshot_to_path(&destination)
-                .map_err(|error| format!("Failed to snapshot source database: {error}"))?;
+        if !destination_existed {
+            if source_database.exists() {
+                let source = SourceDatabase::open(&job.source.root).map_err(|error| {
+                    format!("Failed to open source database for snapshot: {error}")
+                })?;
+                source
+                    .snapshot_to_path(&destination)
+                    .map_err(|error| format!("Failed to snapshot source database: {error}"))?;
+            } else {
+                reserve_empty_database_path(&destination)?;
+            }
+            artifacts_created = true;
         }
         SourceDatabase::open(&job.new_root)
             .map(|_| ())
             .map_err(|error| format!("Failed to prepare database: {error}"))
     })();
     if result.is_err() {
-        remove_database_artifacts_if_created(&job.new_root, destination_existed);
+        remove_database_artifacts_if_created(&job.new_root, artifacts_created);
     }
     SourceRemapPreparedResult {
         request_id: job.request_id,
         source: job.source,
         new_root: job.new_root,
-        destination_existed,
+        artifacts_created,
         result,
     }
 }
 
-fn remove_database_artifacts_if_created(root: &Path, database_existed: bool) {
-    if database_existed {
+fn remove_database_artifacts_if_created(root: &Path, artifacts_created: bool) {
+    if !artifacts_created {
         return;
     }
     let database = crate::sample_sources::database_path_for(root);
@@ -254,6 +277,23 @@ fn remove_database_artifacts_if_created(root: &Path, database_existed: bool) {
             }
         }
     }
+}
+
+fn database_artifact_present(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => true,
+    }
+}
+
+fn reserve_empty_database_path(path: &Path) -> Result<(), String> {
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map(drop)
+        .map_err(|error| format!("Failed to reserve destination database: {error}"))
 }
 
 fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {

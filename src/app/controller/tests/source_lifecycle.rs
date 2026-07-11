@@ -130,3 +130,51 @@ fn remapping_source_snapshots_wal_resident_metadata() {
         .expect("snapshotted row");
     assert_eq!(entry.tag, crate::sample_sources::Rating::KEEP_3);
 }
+
+#[test]
+fn remapping_source_rolls_back_root_and_snapshot_when_config_save_fails() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "rollback.wav",
+        crate::sample_sources::Rating::KEEP_1,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    let config_blocker = tempfile::NamedTempFile::new().expect("config blocker");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_blocker.path().to_path_buf());
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("config save should fail");
+
+    assert!(error.contains("Failed to save config after remapping source"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+    assert!(!crate::sample_sources::database_path_for(destination.path()).exists());
+}
+
+#[test]
+fn removing_source_cancels_matching_pending_remap_generation() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "pending.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 41,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("destination").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+        });
+
+    controller.remove_source(0);
+
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.request_id == 41 && pending.canceled)
+    );
+}

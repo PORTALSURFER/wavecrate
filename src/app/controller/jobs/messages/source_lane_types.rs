@@ -81,8 +81,8 @@ pub(crate) struct SourceRemapPreparedResult {
     pub(crate) source: crate::sample_sources::SampleSource,
     /// Normalized destination root.
     pub(crate) new_root: PathBuf,
-    /// Whether the destination database predated this request and must never be cleaned up.
-    pub(crate) destination_existed: bool,
+    /// Whether this request exclusively created destination database artifacts.
+    pub(crate) artifacts_created: bool,
     /// Preparation outcome.
     pub(crate) result: Result<(), String>,
 }

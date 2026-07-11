@@ -49,6 +49,8 @@ pub(crate) struct PendingSourceRemap {
     pub(crate) new_root: PathBuf,
     /// Time when snapshot preparation was queued.
     pub(crate) queued_at: Instant,
+    /// The original source was removed while preparation was running.
+    pub(crate) canceled: bool,
 }
 
 /// Runtime tracking for active and inactive source hydration requests.

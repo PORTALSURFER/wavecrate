@@ -50,7 +50,6 @@ pub(crate) use similarity_runtime::{
     SimilarityPrepStage, SimilarityPrepState, SimilarityRuntimeState,
 };
 pub(crate) use source_lane::ActiveAutoRenameBatchSnapshot;
-#[cfg(not(test))]
 pub(crate) use source_lane::PendingSourceRemap;
 #[cfg(test)]
 pub(crate) use source_lane::{AutoRenameBatchRowSnapshot, AutoRenameBatchRowState};

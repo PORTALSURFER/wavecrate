@@ -212,6 +212,19 @@ impl AppController {
     }
 
     fn pending_source_add_conflict(&self, normalized: &PathBuf) -> Option<String> {
+        if let Some(pending) = &self.runtime.source_lane.pending_remap {
+            for root in [&pending.source.root, &pending.new_root] {
+                if source_roots_match(root, normalized) {
+                    return Some(String::from("Source remap already in progress"));
+                }
+                if let Some(message) = nested_source_conflict_error(root, normalized) {
+                    return Some(message);
+                }
+                if let Some(message) = nested_source_conflict_error(normalized, root) {
+                    return Some(message);
+                }
+            }
+        }
         for pending in self.runtime.source_lane.pending_adds.values() {
             if source_roots_match(&pending.source.root, normalized) {
                 return Some(String::from("Source add already in progress"));

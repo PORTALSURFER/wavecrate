@@ -87,27 +87,34 @@ impl SourceDatabase {
     /// SQLite's online backup API coordinates with source-local writers and includes committed
     /// WAL-resident pages without requiring a global checkpoint. The destination must not exist.
     pub fn snapshot_to_path(&self, destination: &Path) -> Result<(), SourceDbError> {
-        if destination.exists() {
-            return Err(SourceDbError::Sql(rusqlite::Error::InvalidPath(
-                destination.to_path_buf(),
-            )));
-        }
         if let Some(parent) = destination.parent() {
             std::fs::create_dir_all(parent).map_err(|source| SourceDbError::CreateDir {
                 path: parent.to_path_buf(),
                 source,
             })?;
         }
-        let result = (|| -> Result<(), rusqlite::Error> {
+        let reservation = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(destination)
+            .map_err(|source| SourceDbError::InspectSourceDatabasePath {
+                path: destination.to_path_buf(),
+                source,
+            })?;
+        drop(reservation);
+        let result = (|| -> Result<(), SourceDbError> {
+            // Wait for any earlier writer to commit, then retain the writer
+            // reservation so no later write can race the source snapshot.
+            let _writer_reservation = self.write_batch()?;
+            let source_connection = rusqlite::Connection::open(&self.db_path)?;
             let mut destination_connection = rusqlite::Connection::open(destination)?;
             let backup =
-                rusqlite::backup::Backup::new(&self.connection, &mut destination_connection)?;
+                rusqlite::backup::Backup::new(&source_connection, &mut destination_connection)?;
             backup.run_to_completion(128, Duration::from_millis(5), None)?;
             drop(backup);
             destination_connection.close().map_err(|(_, error)| error)?;
             Ok(())
-        })()
-        .map_err(SourceDbError::from);
+        })();
         if result.is_err() {
             remove_snapshot_artifacts(destination);
         }

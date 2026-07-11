@@ -77,3 +77,21 @@ fn snapshot_failure_does_not_remove_preexisting_destination() {
 
     assert_eq!(std::fs::read(destination).unwrap(), b"preexisting");
 }
+
+#[cfg(unix)]
+#[test]
+fn snapshot_rejects_broken_symlink_destination_without_following_or_removing_it() {
+    use std::os::unix::fs::symlink;
+
+    let source_root = tempdir().unwrap();
+    let destination_root = tempdir().unwrap();
+    let destination = database_path_for(destination_root.path());
+    let outside_target = destination_root.path().join("outside-target.db");
+    symlink(&outside_target, &destination).unwrap();
+    let source = SourceDatabase::open(source_root.path()).unwrap();
+
+    source.snapshot_to_path(&destination).unwrap_err();
+
+    assert!(std::fs::symlink_metadata(&destination).is_ok());
+    assert!(!outside_target.exists());
+}

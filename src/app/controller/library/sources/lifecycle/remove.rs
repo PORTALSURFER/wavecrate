@@ -29,6 +29,12 @@ impl AppController {
             return;
         }
         self.library.missing.sources.remove(&removed.id);
+        if let Some(pending) = self.runtime.source_lane.pending_remap.as_mut()
+            && pending.source.id == removed.id
+            && pending.source.root == removed.root
+        {
+            pending.canceled = true;
+        }
         self.clear_removed_source_folder_panes(&removed.id);
         let mut invalidator = source_cache_invalidator::SourceCacheInvalidator::new_from_state(
             &mut self.cache,
