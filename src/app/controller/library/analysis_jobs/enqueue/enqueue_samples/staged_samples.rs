@@ -2,7 +2,7 @@ use super::duration_probe::update_missing_sample_durations;
 use super::*;
 
 pub(super) fn enqueue_from_staged_samples(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     source: &crate::sample_sources::SampleSource,
     staged_samples: Vec<db::SampleMetadata>,
     job_type: &str,

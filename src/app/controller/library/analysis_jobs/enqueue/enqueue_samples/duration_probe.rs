@@ -11,7 +11,7 @@ pub(crate) fn update_missing_durations_for_source(
 }
 
 pub(super) fn update_missing_sample_durations(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     source: &crate::sample_sources::SampleSource,
     samples: &[db::SampleMetadata],
 ) -> Result<usize, String> {

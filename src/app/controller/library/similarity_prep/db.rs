@@ -38,7 +38,7 @@ pub(crate) fn source_has_embeddings(source: &SampleSource) -> bool {
     if sample_ids.is_empty() {
         return true;
     }
-    let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
+    let Ok(conn) = analysis_jobs::open_source_db_ui_read(&source.root) else {
         return false;
     };
     let model_id = wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
@@ -54,7 +54,7 @@ pub(crate) fn source_has_layout(source: &SampleSource, umap_version: &str) -> bo
     if sample_ids.is_empty() {
         return true;
     }
-    let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
+    let Ok(conn) = analysis_jobs::open_source_db_ui_read(&source.root) else {
         return false;
     };
     let model_id = wavecrate_analysis::similarity::SIMILARITY_MODEL_ID;
@@ -76,7 +76,7 @@ pub(crate) fn source_has_aspect_descriptors(source: &SampleSource) -> bool {
     if sample_ids.is_empty() {
         return true;
     }
-    let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
+    let Ok(conn) = analysis_jobs::open_source_db_ui_read(&source.root) else {
         return false;
     };
     let sample_id_prefix = format!("{}::%", source.id.as_str());
@@ -194,7 +194,7 @@ pub(crate) fn count_umap_layout_rows(
 
 pub(crate) fn open_source_db_for_similarity(
     source_id: &SourceId,
-) -> Result<rusqlite::Connection, String> {
+) -> Result<analysis_jobs::AnalysisJobSession, String> {
     let state = crate::sample_sources::library::load().map_err(|err| err.to_string())?;
     let source = state
         .sources

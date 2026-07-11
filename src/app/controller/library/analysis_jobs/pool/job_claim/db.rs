@@ -7,12 +7,13 @@ use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
 use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
 use crate::logging::{ActionDebugEvent, emit_action_debug_event};
-use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
+
+pub(crate) type AnalysisConnections = HashMap<std::path::PathBuf, analysis_db::AnalysisJobSession>;
 
 /// Deferred status update retried after a temporary source-DB-open failure.
 pub(crate) struct DeferredJobUpdate {
@@ -22,7 +23,7 @@ pub(crate) struct DeferredJobUpdate {
 
 /// Shared state for finalizing claimed jobs and broadcasting progress updates.
 pub(crate) struct FinalizeJobContext<'a> {
-    pub(crate) connections: &'a mut HashMap<std::path::PathBuf, Connection>,
+    pub(crate) connections: &'a mut AnalysisConnections,
     pub(crate) decode_queue: &'a DecodedQueue,
     pub(crate) tx: &'a JobMessageSender,
     pub(crate) progress_cache: &'a Arc<RwLock<ProgressCache>>,
@@ -157,9 +158,9 @@ pub(crate) fn flush_deferred_updates(
 }
 
 pub(crate) fn open_connection_with_retry<'a>(
-    connections: &'a mut HashMap<std::path::PathBuf, Connection>,
+    connections: &'a mut AnalysisConnections,
     source_root: &std::path::Path,
-) -> Result<&'a mut Connection, String> {
+) -> Result<&'a mut analysis_db::AnalysisJobSession, String> {
     match connections.entry(source_root.to_path_buf()) {
         std::collections::hash_map::Entry::Occupied(entry) => Ok(entry.into_mut()),
         std::collections::hash_map::Entry::Vacant(entry) => {

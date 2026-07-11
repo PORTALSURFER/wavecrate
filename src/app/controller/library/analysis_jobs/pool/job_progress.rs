@@ -38,7 +38,7 @@ mod tests {
     #[test]
     fn cleanup_runs_without_workers() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         let now = now_epoch_seconds();
         conn.execute(
             "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, running_at)
@@ -79,7 +79,7 @@ mod tests {
     #[test]
     fn cleanup_updates_cache_and_emits_message() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         conn.execute(
             "INSERT INTO wav_files (path, file_size, modified_ns, missing)
              VALUES (?1, 1, 0, 0)",
@@ -128,7 +128,7 @@ mod tests {
     #[test]
     fn current_progress_all_reuses_cache_without_db_refresh() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
         let sources = vec![ProgressSourceDb {
             source_id: source_id.clone(),
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn seed_missing_progress_populates_only_missing_sources() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         conn.execute(
             "INSERT INTO wav_files (path, file_size, modified_ns, missing)
              VALUES (?1, 1, 0, 0)",

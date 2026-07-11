@@ -38,15 +38,18 @@ pub(super) fn open_cached_source_db<'a>(
         .map
         .query_connections
         .get_mut(&source_id)
+        .map(|session| &mut **session)
         .ok_or_else(|| "Map query connection missing after open".to_string())
 }
 
-pub(super) fn open_source_db_for_id(source_id: &SourceId) -> Result<Connection, String> {
+pub(super) fn open_source_db_for_id(
+    source_id: &SourceId,
+) -> Result<analysis_jobs::AnalysisJobSession, String> {
     let state = crate::sample_sources::library::load().map_err(|err| err.to_string())?;
     let source = state
         .sources
         .iter()
         .find(|source| &source.id == source_id)
         .ok_or_else(|| "Source not found".to_string())?;
-    analysis_jobs::open_source_db_ui_read(&source.root)
+    analysis_jobs::open_source_db(&source.root)
 }

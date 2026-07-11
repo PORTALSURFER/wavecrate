@@ -47,7 +47,8 @@ pub(crate) struct LoadedSimilarityQueryJob {
 pub(crate) fn compute_focused_similarity(
     job: FocusedSimilarityJob,
 ) -> Result<Option<FocusedSimilarityPaths>, String> {
-    let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
+    let conn =
+        crate::app::controller::library::analysis_jobs::open_source_db_ui_read(&job.source_root)?;
     let neighbours = wavecrate_analysis::ann_index::find_similar(
         &conn,
         &job.sample_id,
@@ -88,7 +89,8 @@ pub(crate) fn compute_focused_similarity(
 pub(crate) fn compute_loaded_similarity_query(
     job: LoadedSimilarityQueryJob,
 ) -> Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String> {
-    let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
+    let conn =
+        crate::app::controller::library::analysis_jobs::open_source_db_ui_read(&job.source_root)?;
     let request = loaded::build_loaded_similarity_request(
         &job.source_id,
         &job.relative_path,

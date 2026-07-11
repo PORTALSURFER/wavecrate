@@ -87,7 +87,7 @@ mod tests {
         fn open_source_db_for_similarity(
             &self,
             _source_id: &SourceId,
-        ) -> Result<rusqlite::Connection, String> {
+        ) -> Result<analysis_jobs::AnalysisJobSession, String> {
             Err("not needed".to_string())
         }
 

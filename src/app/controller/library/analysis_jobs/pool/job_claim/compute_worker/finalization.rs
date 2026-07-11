@@ -23,7 +23,7 @@ pub(super) fn flush_deferred_updates(
 }
 
 pub(super) fn release_disallowed_work(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
+    connections: &mut db::AnalysisConnections,
     work: &DecodedWork,
     log_jobs: bool,
     decode_queue: &super::super::DecodedQueue,

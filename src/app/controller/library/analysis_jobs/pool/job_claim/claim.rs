@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 pub(crate) struct SourceClaimDb {
     pub(crate) source: crate::sample_sources::SampleSource,
-    pub(crate) conn: rusqlite::Connection,
+    pub(crate) conn: db::AnalysisJobSession,
 }
 
 pub(crate) const SOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(5);

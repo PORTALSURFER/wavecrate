@@ -55,12 +55,12 @@ fn resolve_sample_id_for_entry(
 pub(crate) fn open_source_db_for_id(
     controller: &AppController,
     source_id: &SourceId,
-) -> Result<rusqlite::Connection, String> {
+) -> Result<analysis_jobs::AnalysisReadSession, String> {
     let source = controller
         .library
         .sources
         .iter()
         .find(|source| &source.id == source_id)
         .ok_or_else(|| "Source not found".to_string())?;
-    analysis_jobs::open_source_db(&source.root)
+    analysis_jobs::open_source_db_ui_read(&source.root)
 }

@@ -12,10 +12,13 @@ pub(crate) use db::sample_bpm;
 #[cfg(test)]
 pub(crate) use db::update_sample_bpm;
 pub(crate) use db::{
+    AnalysisJobSession, AnalysisReadSession, open_source_db, open_source_db_maintenance,
+    open_source_db_ui_read,
+};
+pub(crate) use db::{
     SampleMetadata, build_sample_id, parse_sample_id, update_sample_duration,
     update_sample_long_mark,
 };
-pub(crate) use db::{open_source_db, open_source_db_maintenance, open_source_db_ui_read};
 pub(crate) use enqueue::enqueue_jobs_for_source;
 pub(crate) use enqueue::enqueue_jobs_for_source_backfill;
 pub(crate) use enqueue::enqueue_jobs_for_source_backfill_full;
