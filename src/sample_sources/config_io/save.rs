@@ -1,15 +1,64 @@
 use std::io::Write;
 use std::path::Path;
+use std::sync::{
+    LazyLock, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use super::super::config_types::{AppConfig, AppSettings, ConfigError};
 use super::load::config_path;
+
+#[derive(Default)]
+struct SaveRevisionGate {
+    revision: AtomicU64,
+    lock: Mutex<()>,
+}
+
+impl SaveRevisionGate {
+    fn reserve(&self) -> u64 {
+        self.revision.fetch_add(1, Ordering::AcqRel).wrapping_add(1)
+    }
+
+    fn run_if_current<E>(
+        &self,
+        revision: u64,
+        write: impl FnOnce() -> Result<(), E>,
+    ) -> Result<bool, E> {
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.revision.load(Ordering::Acquire) != revision {
+            return Ok(false);
+        }
+        write()?;
+        Ok(true)
+    }
+}
+
+static SAVE_GATE: LazyLock<SaveRevisionGate> = LazyLock::new(SaveRevisionGate::default);
+
+/// Reserve a revision for a configuration snapshot that will be saved later.
+pub fn reserve_save_revision() -> u64 {
+    SAVE_GATE.reserve()
+}
 
 /// Persist configuration to disk, overwriting any previous contents.
 ///
 /// Settings are written to TOML while sources are stored in SQLite.
 pub fn save(config: &AppConfig) -> Result<(), ConfigError> {
-    let path = config_path()?;
-    save_to_path(config, &path)
+    let revision = reserve_save_revision();
+    save_if_revision_current(config, revision).map(|_| ())
+}
+
+/// Save a previously captured configuration only when no newer save was requested.
+///
+/// Returns `false` without writing when `revision` has been superseded.
+pub fn save_if_revision_current(config: &AppConfig, revision: u64) -> Result<bool, ConfigError> {
+    SAVE_GATE.run_if_current(revision, || {
+        let path = config_path()?;
+        save_to_path(config, &path)
+    })
 }
 
 /// Save configuration to a specific path, creating parent directories as needed.
@@ -164,4 +213,34 @@ fn sync_parent_dir(dir: &Path) -> Result<(), ConfigError> {
         let _ = dir;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::SaveRevisionGate;
+    use std::cell::Cell;
+
+    #[test]
+    fn stale_snapshot_is_skipped_after_newer_revision_is_reserved() {
+        let gate = SaveRevisionGate::default();
+        let stale = gate.reserve();
+        let current = gate.reserve();
+        let writes = Cell::new(0);
+
+        assert_eq!(
+            gate.run_if_current(stale, || {
+                writes.set(writes.get() + 1);
+                Ok::<(), ()>(())
+            }),
+            Ok(false)
+        );
+        assert_eq!(
+            gate.run_if_current(current, || {
+                writes.set(writes.get() + 1);
+                Ok::<(), ()>(())
+            }),
+            Ok(true)
+        );
+        assert_eq!(writes.get(), 1);
+    }
 }

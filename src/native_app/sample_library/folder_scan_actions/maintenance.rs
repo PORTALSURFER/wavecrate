@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use wavecrate::sample_sources::{
     HarvestFileIdentity, HarvestFileKey, SampleSource,
-    config::{AppConfig, save},
+    config::{AppConfig, save_if_revision_current},
     harvest_file_ops, library,
 };
 
@@ -13,6 +13,7 @@ use crate::native_app::sample_library::folder_browser::scan::{
 #[derive(Clone)]
 pub(super) struct FolderScanMaintenanceRequest {
     pub(super) config: AppConfig,
+    pub(super) config_revision: u64,
     pub(super) sources: Vec<SampleSource>,
     pub(super) audio_file_paths: Vec<PathBuf>,
     pub(super) scan_cache_update: FolderScanCacheUpdate,
@@ -25,10 +26,25 @@ pub(in crate::native_app) struct FolderScanMaintenanceResult {
     pub(in crate::native_app) harvest_errors: Vec<String>,
 }
 
+impl FolderScanMaintenanceResult {
+    pub(super) fn persistence_error(&self) -> Option<String> {
+        match (&self.config_error, &self.scan_cache_error) {
+            (Some(config), Some(cache)) => Some(format!(
+                "source configuration: {config}; source scan cache: {cache}"
+            )),
+            (Some(config), None) => Some(format!("source configuration: {config}")),
+            (None, Some(cache)) => Some(format!("source scan cache: {cache}")),
+            (None, None) => None,
+        }
+    }
+}
+
 pub(super) fn persist_folder_scan_maintenance(
     request: FolderScanMaintenanceRequest,
 ) -> FolderScanMaintenanceResult {
-    let config_error = save(&request.config).err().map(|error| error.to_string());
+    let config_error = save_if_revision_current(&request.config, request.config_revision)
+        .err()
+        .map(|error| error.to_string());
     let scan_cache_error = apply_folder_scan_cache_update(request.scan_cache_update).err();
     let harvest_errors = request
         .audio_file_paths
@@ -78,5 +94,19 @@ mod tests {
     fn discovery_outside_configured_sources_is_a_noop() {
         let result = persist_harvest_discovery(&[], Path::new("/tmp/outside.wav"));
         assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn maintenance_result_combines_user_visible_persistence_errors() {
+        let result = FolderScanMaintenanceResult {
+            config_error: Some(String::from("config denied")),
+            scan_cache_error: Some(String::from("cache full")),
+            harvest_errors: Vec::new(),
+        };
+
+        assert_eq!(
+            result.persistence_error().as_deref(),
+            Some("source configuration: config denied; source scan cache: cache full")
+        );
     }
 }

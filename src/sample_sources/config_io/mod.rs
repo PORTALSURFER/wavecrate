@@ -15,7 +15,7 @@ pub const CONFIG_FILE_NAME: &str = "config.toml";
 pub const LEGACY_CONFIG_FILE_NAME: &str = "config.json";
 
 pub use load::{config_path, load_or_default, normalize_path};
-pub use save::{save, save_to_path};
+pub use save::{reserve_save_revision, save, save_if_revision_current, save_to_path};
 
 fn map_app_dir_error(error: app_dirs::AppDirError) -> ConfigError {
     match error {

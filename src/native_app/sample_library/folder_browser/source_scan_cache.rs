@@ -108,17 +108,26 @@ pub(in crate::native_app) fn apply_folder_scan_cache_update(
     update: FolderScanCacheUpdate,
 ) -> Result<(), String> {
     let path = source_scan_cache_path()?;
-    let mut cache = load_source_scan_cache_from_path(&path)?;
+    apply_folder_scan_cache_update_to_path(&path, update)
+}
+
+fn apply_folder_scan_cache_update_to_path(
+    path: &Path,
+    update: FolderScanCacheUpdate,
+) -> Result<(), String> {
+    let Some(source) = update.source else {
+        return Ok(());
+    };
+    let mut cache = load_source_scan_cache_from_path(path).unwrap_or_default();
+    cache.version = SOURCE_SCAN_CACHE_VERSION;
     cache
         .sources
         .retain(|source| source.source_id != update.source_id);
-    if let Some(source) = update.source {
-        cache.sources.push(source);
-    }
+    cache.sources.push(source);
     cache
         .sources
         .sort_by(|left, right| left.source_id.cmp(&right.source_id));
-    save_source_scan_cache_value_to_path(&path, &cache)
+    save_source_scan_cache_value_to_path(path, &cache)
 }
 
 fn source_scan_cache_path() -> Result<PathBuf, String> {
@@ -346,6 +355,81 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["kick.wav"]
         );
+    }
+
+    #[test]
+    fn incremental_update_writes_current_cache_version_for_new_profiles() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let root = temp.path().join("source");
+
+        apply_folder_scan_cache_update_to_path(
+            &path,
+            FolderScanCacheUpdate {
+                source_id: String::from("source-id"),
+                source: Some(cached_source_for_test("source-id", &root)),
+            },
+        )
+        .expect("apply cache update");
+
+        let cache = load_source_scan_cache_from_path(&path).expect("load updated cache");
+        assert_eq!(cache.version, SOURCE_SCAN_CACHE_VERSION);
+        assert!(cache.folder_for_source("source-id", &root).is_some());
+    }
+
+    #[test]
+    fn incremental_update_preserves_offline_source_snapshot() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let root = temp.path().join("source");
+        let cache = SourceScanCache::new(vec![cached_source_for_test("source-id", &root)]);
+        save_source_scan_cache_value_to_path(&path, &cache).expect("seed cache");
+        let before = fs::read(&path).expect("read seeded cache");
+
+        apply_folder_scan_cache_update_to_path(
+            &path,
+            FolderScanCacheUpdate {
+                source_id: String::from("source-id"),
+                source: None,
+            },
+        )
+        .expect("preserve offline cache");
+
+        assert_eq!(fs::read(&path).expect("read preserved cache"), before);
+    }
+
+    #[test]
+    fn incremental_update_replaces_corrupt_cache() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let root = temp.path().join("source");
+        fs::write(&path, b"{not-json").expect("seed corrupt cache");
+
+        apply_folder_scan_cache_update_to_path(
+            &path,
+            FolderScanCacheUpdate {
+                source_id: String::from("source-id"),
+                source: Some(cached_source_for_test("source-id", &root)),
+            },
+        )
+        .expect("repair cache");
+
+        let cache = load_source_scan_cache_from_path(&path).expect("load repaired cache");
+        assert!(cache.folder_for_source("source-id", &root).is_some());
+    }
+
+    fn cached_source_for_test(source_id: &str, root: &Path) -> CachedSourceScan {
+        CachedSourceScan {
+            source_id: source_id.to_owned(),
+            root: root.to_path_buf(),
+            root_folder: FolderEntry {
+                id: root.display().to_string(),
+                name: String::from("source"),
+                children: Vec::new(),
+                files: vec![file_for_cache_test(&root.join("kick.wav"))],
+            },
+            missing_collection_snapshot: MissingCollectionSnapshot::default(),
+        }
     }
 
     fn file_for_cache_test(path: &Path) -> FileEntry {

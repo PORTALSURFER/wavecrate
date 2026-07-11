@@ -10,7 +10,7 @@ use crate::native_app::{
     sample_library::folder_browser::scan::{FolderScanRequest, PreparedFolderScanResult},
     sample_library::source_prep::SourcePrepTrigger,
 };
-use wavecrate::sample_sources::config::AppConfig;
+use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
 
 use super::maintenance::{
     FolderScanMaintenanceRequest, FolderScanMaintenanceResult, persist_folder_scan_maintenance,
@@ -113,6 +113,7 @@ impl NativeAppState {
                 sources: sources.clone(),
                 core: self.current_settings_core(),
             },
+            config_revision: reserve_save_revision(),
             sources,
             audio_file_paths,
             scan_cache_update,
@@ -143,6 +144,17 @@ impl NativeAppState {
         &mut self,
         result: FolderScanMaintenanceResult,
     ) {
+        if let Some(error) = result.persistence_error() {
+            self.ui.status.sample = format!("Settings not saved: {error}");
+            emit_gui_action(
+                "folder_browser.sources.persist",
+                Some("settings"),
+                None,
+                "persist_error",
+                Instant::now(),
+                Some(&error),
+            );
+        }
         if let Some(error) = result.config_error {
             tracing::warn!("failed to persist source configuration after scan: {error}");
         }
