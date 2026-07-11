@@ -33,6 +33,40 @@ fn file_drag_external_request_uses_selected_file_paths() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn large_file_drag_external_request_is_sorted_complete_and_duplicate_free() {
+    let root = temp_source_root("wavecrate-gui-large-file-external-drag");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let paths = (0..1_000)
+        .map(|index| drums.join(format!("sample-{index:04}.wav")))
+        .collect::<Vec<_>>();
+    for file in &paths {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&paths[999]));
+    for path in paths.iter().rev().skip(1) {
+        browser.select_file_with_modifiers(
+            path_id(path),
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+    }
+
+    browser.begin_file_drag(path_id(&paths[500]), Point::new(4.0, 8.0));
+    let request = browser
+        .external_drag_request()
+        .expect("large file drag should expose external request");
+
+    assert_eq!(request.preview.label, "1000 files");
+    assert_eq!(request.payload, ExternalDragPayload::Files(paths.clone()));
+    let _ = fs::remove_dir_all(root);
+}
 #[test]
 fn extracted_file_drag_external_request_uses_extracted_path() {
     let root = temp_source_root("wavecrate-gui-extracted-file-external-drag");
