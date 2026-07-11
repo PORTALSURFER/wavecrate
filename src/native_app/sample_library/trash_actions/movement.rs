@@ -222,9 +222,49 @@ fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
         fs::set_permissions(destination, permissions)
     })();
     if copy_result.is_err() {
-        let _ = fs::remove_dir_all(destination);
+        cleanup_partial_directory(destination);
     }
     copy_result
+}
+
+fn cleanup_partial_directory(destination: &Path) {
+    #[cfg(windows)]
+    clear_readonly_permissions(destination);
+    if let Err(error) = fs::remove_dir_all(destination)
+        && error.kind() != io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            path = %destination.display(),
+            error = %error,
+            "Failed to remove partial trash fallback copy"
+        );
+    }
+}
+
+#[cfg(windows)]
+fn clear_readonly_permissions(path: &Path) {
+    if let Ok(entries) = fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let child = entry.path();
+            if entry.file_type().is_ok_and(|file_type| file_type.is_dir()) {
+                clear_readonly_permissions(&child);
+            }
+            if let Ok(metadata) = fs::metadata(&child) {
+                let mut permissions = metadata.permissions();
+                if permissions.readonly() {
+                    permissions.set_readonly(false);
+                    let _ = fs::set_permissions(&child, permissions);
+                }
+            }
+        }
+    }
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        if permissions.readonly() {
+            permissions.set_readonly(false);
+            let _ = fs::set_permissions(path, permissions);
+        }
+    }
 }
 
 fn copy_file_exclusive(source: &Path, destination: &Path) -> io::Result<()> {
