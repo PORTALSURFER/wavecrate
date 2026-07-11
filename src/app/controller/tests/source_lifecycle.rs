@@ -244,3 +244,74 @@ fn removing_source_cancels_matching_pending_remap_generation() {
             .is_some_and(|pending| pending.request_id == 41 && pending.canceled)
     );
 }
+
+#[test]
+fn source_mutation_cancels_matching_pending_remap_generation() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "pending.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 42,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("destination").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+        });
+
+    controller.begin_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
+
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.request_id == 42 && pending.canceled)
+    );
+    controller.finish_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
+}
+
+#[test]
+fn metadata_mutation_cancels_matching_pending_remap_generation() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "pending.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 43,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("destination").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+        });
+
+    controller.queue_metadata_mutation(
+        &source,
+        vec![
+            crate::app::controller::jobs::SourceMetadataMutationOp::SetTagAndLocked {
+                relative_path: std::path::PathBuf::from("pending.wav"),
+                tag: crate::sample_sources::Rating::KEEP_1,
+                locked: false,
+            },
+        ],
+        Vec::new(),
+        Vec::new(),
+        false,
+    );
+
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.request_id == 43 && pending.canceled)
+    );
+}

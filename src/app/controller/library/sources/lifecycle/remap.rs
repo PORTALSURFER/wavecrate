@@ -15,6 +15,9 @@ struct RemappedSource {
     started_at: Instant,
 }
 
+static NEXT_STAGED_DATABASE_NONCE: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(1);
+
 impl AppController {
     /// Remap a source root via folder picker.
     pub fn remap_source_via_dialog(&mut self, index: usize) {
@@ -318,8 +321,10 @@ fn publish_prepared_database(
         }
         fs::rename(staged, &destination)
             .map_err(|error| format!("Failed to publish source database snapshot: {error}"))?;
-        SourceDatabase::open(root)
-            .map_err(|error| format!("Failed to prepare database: {error}"))?;
+        if let Err(error) = SourceDatabase::open(root) {
+            remove_database_artifacts_if_created(root, true);
+            return Err(format!("Failed to prepare database: {error}"));
+        }
         return Ok(true);
     }
     SourceDatabase::open(root).map_err(|error| format!("Failed to prepare database: {error}"))?;
@@ -377,7 +382,50 @@ fn database_artifact_present(path: &Path) -> bool {
 }
 
 fn staged_database_path(destination: &Path, request_id: u64) -> PathBuf {
-    path_with_suffix(destination, &format!(".remap-{request_id}.staged"))
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let nonce = NEXT_STAGED_DATABASE_NONCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    path_with_suffix(
+        destination,
+        &format!(
+            ".remap-{}-{request_id}-{unique}-{nonce}.staged",
+            std::process::id()
+        ),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn staged_snapshot_paths_are_unique_across_requests_and_restarts() {
+        let destination = PathBuf::from(".wavecrate.db");
+
+        let first = staged_database_path(&destination, 1);
+        let second = staged_database_path(&destination, 1);
+
+        assert_ne!(first, second);
+        assert!(first.to_string_lossy().contains(".remap-"));
+    }
+
+    #[test]
+    fn failed_post_publish_validation_removes_new_snapshot_artifacts() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        let staged = staged_database_path(&destination, 1);
+        fs::write(&staged, b"not a sqlite database").expect("invalid staged database");
+
+        let error = publish_prepared_database(root.path(), Some(&staged), false)
+            .expect_err("invalid snapshot must fail validation");
+
+        assert!(error.contains("Failed to prepare database"));
+        assert!(!destination.exists());
+        assert!(!path_with_suffix(&destination, "-wal").exists());
+        assert!(!path_with_suffix(&destination, "-shm").exists());
+    }
 }
 
 fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
