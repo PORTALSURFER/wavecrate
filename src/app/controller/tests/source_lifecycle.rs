@@ -315,8 +315,10 @@ fn canceled_remap_completion_clears_active_status() {
             source,
             new_root,
             staged_database: None,
-            destination_current_database_identity: None,
-            destination_legacy_database_identity: None,
+            destination_current_database_identity:
+                crate::app::controller::jobs::SourceRemapDatabaseIdentity::default(),
+            destination_legacy_database_identity:
+                crate::app::controller::jobs::SourceRemapDatabaseIdentity::default(),
             write_fence: std::sync::Arc::new(
                 crate::app::controller::jobs::SourceRemapWriteFence::default(),
             ),

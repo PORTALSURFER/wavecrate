@@ -29,6 +29,29 @@ pub(crate) struct SourceRemapArtifactIdentity {
     pub(crate) is_symlink: bool,
 }
 
+/// Complete SQLite artifact identity for one current or legacy database name.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SourceRemapDatabaseIdentity {
+    /// Main SQLite database file.
+    pub(crate) database: Option<SourceRemapArtifactIdentity>,
+    /// Write-ahead log sidecar.
+    pub(crate) wal: Option<SourceRemapArtifactIdentity>,
+    /// Shared-memory sidecar.
+    pub(crate) shm: Option<SourceRemapArtifactIdentity>,
+    /// Rollback-journal sidecar.
+    pub(crate) journal: Option<SourceRemapArtifactIdentity>,
+}
+
+impl SourceRemapDatabaseIdentity {
+    /// Return whether any artifact exists under this database name.
+    pub(crate) fn has_artifacts(&self) -> bool {
+        self.database.is_some()
+            || self.wal.is_some()
+            || self.shm.is_some()
+            || self.journal.is_some()
+    }
+}
+
 impl SourceRemapWriteFence {
     /// Install a prepared source-write fence unless the remap was already canceled.
     pub(crate) fn install(
@@ -147,9 +170,9 @@ pub(crate) struct SourceRemapPreparedResult {
     /// Request-owned snapshot staged outside the destination database path.
     pub(crate) staged_database: Option<PathBuf>,
     /// Prepared identity of the current destination database, when present.
-    pub(crate) destination_current_database_identity: Option<SourceRemapArtifactIdentity>,
+    pub(crate) destination_current_database_identity: SourceRemapDatabaseIdentity,
     /// Prepared identity of the legacy destination database, when present.
-    pub(crate) destination_legacy_database_identity: Option<SourceRemapArtifactIdentity>,
+    pub(crate) destination_legacy_database_identity: SourceRemapDatabaseIdentity,
     /// Source writer reservation retained until this result is published or discarded.
     pub(crate) write_fence: Arc<SourceRemapWriteFence>,
     /// Preparation outcome.
