@@ -1,4 +1,4 @@
 mod cleanup;
 mod config;
-mod movement;
+pub(in crate::native_app) mod movement;
 mod routing;

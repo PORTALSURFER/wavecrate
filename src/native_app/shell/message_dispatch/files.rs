@@ -155,8 +155,8 @@ impl NativeAppState {
                 target,
                 action,
                 started_at,
-                result,
-            } => self.finish_trash_move(target, action, started_at, result, context),
+                outcomes,
+            } => self.finish_trash_move(target, action, started_at, outcomes, context),
             GuiMessage::ContextTargetOpenFinished { kind, path, result } => {
                 self.finish_context_target_open(kind, path, result);
             }
