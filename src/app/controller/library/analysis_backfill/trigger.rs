@@ -8,7 +8,7 @@ impl AppController {
             .source_lane
             .pending_remap
             .as_ref()
-            .is_some_and(|pending| pending.source.id == source_id)
+            .is_some_and(|pending| !pending.canceled && pending.source.id == source_id)
         {
             tracing::debug!(
                 source_id = %source_id,
