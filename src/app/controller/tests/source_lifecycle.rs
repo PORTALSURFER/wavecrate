@@ -342,6 +342,30 @@ fn remap_rejects_existing_file_mutation() {
 }
 
 #[test]
+fn remap_rejects_active_scan_for_same_source() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "scanning.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    let (_sender, receiver) = std::sync::mpsc::channel();
+    controller.runtime.jobs.start_scan(
+        source.id.clone(),
+        receiver,
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    );
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("active source scan must block remap");
+
+    assert!(error.contains("being scanned"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+}
+
+#[test]
 fn remap_rejects_existing_metadata_mutation() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());

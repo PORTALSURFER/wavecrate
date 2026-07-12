@@ -52,6 +52,11 @@ impl AppController {
         if self.runtime.source_lane.pending_remap.is_some() {
             return Err(String::from("Source remap already in progress"));
         }
+        if self.runtime.jobs.source_scan_in_progress(&source_id) {
+            return Err(String::from(
+                "Cannot remap a source while it is being scanned",
+            ));
+        }
         if self
             .runtime
             .source_lane

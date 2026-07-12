@@ -75,6 +75,7 @@ impl ControllerJobs {
             pending_slice_batch_export: None,
             request_counters: JobRequestCounters::default(),
             in_progress: JobInProgressState::default(),
+            active_scan_source: None,
             cancel_handles: JobCancelHandles::default(),
             pending_folder_scan: None,
             repaint_signal,

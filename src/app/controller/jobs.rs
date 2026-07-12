@@ -109,6 +109,7 @@ pub(crate) struct ControllerJobs {
     pub(super) pending_slice_batch_export: Option<PendingSliceBatchExport>,
     request_counters: JobRequestCounters,
     in_progress: JobInProgressState,
+    active_scan_source: Option<SourceId>,
     cancel_handles: JobCancelHandles,
     pending_folder_scan: Option<PendingFolderScan>,
     pub(super) repaint_signal: Arc<SharedRepaintSignal>,
