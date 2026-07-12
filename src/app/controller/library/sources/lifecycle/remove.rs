@@ -34,6 +34,7 @@ impl AppController {
             && pending.source.root == removed.root
         {
             pending.canceled = true;
+            pending.write_fence.cancel();
         }
         self.clear_removed_source_folder_panes(&removed.id);
         let mut invalidator = source_cache_invalidator::SourceCacheInvalidator::new_from_state(

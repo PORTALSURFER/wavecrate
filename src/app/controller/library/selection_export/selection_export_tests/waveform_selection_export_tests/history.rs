@@ -27,6 +27,9 @@ fn selection_export_cancels_live_remap_and_blocks_new_remap_until_completion() {
             new_root: temp.path().join("first-remap"),
             queued_at: Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller

@@ -11,6 +11,7 @@ impl AppController {
             return;
         }
         pending.canceled = true;
+        pending.write_fence.cancel();
         tracing::info!(
             source_id = %source_id,
             request_id = pending.request_id,

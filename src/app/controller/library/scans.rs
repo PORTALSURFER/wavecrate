@@ -135,6 +135,9 @@ mod tests {
                 new_root: tempfile::tempdir().expect("destination").keep(),
                 queued_at: std::time::Instant::now(),
                 canceled: false,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
             });
 
         controller.request_quick_sync_for_source(&source.id);
@@ -155,6 +158,9 @@ mod tests {
                 new_root: tempfile::tempdir().expect("destination").keep(),
                 queued_at: std::time::Instant::now(),
                 canceled: true,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
             });
 
         controller.request_quick_sync_for_source(&source.id);
@@ -174,6 +180,9 @@ mod tests {
                 new_root: tempfile::tempdir().expect("destination").keep(),
                 queued_at: std::time::Instant::now(),
                 canceled: true,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
             });
 
         controller.request_auto_quick_sync_for_source_if_due(&source.id, Duration::from_secs(0));

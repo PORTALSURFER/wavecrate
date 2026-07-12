@@ -267,6 +267,9 @@ fn removing_source_cancels_matching_pending_remap_generation() {
             new_root: tempfile::tempdir().expect("destination").keep(),
             queued_at: std::time::Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.remove_source(0);
@@ -297,6 +300,9 @@ fn canceled_remap_completion_clears_active_status() {
             new_root: new_root.clone(),
             queued_at: std::time::Instant::now(),
             canceled: true,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
     controller.set_status(
         format!("Remapping source to {}", new_root.display()),
@@ -311,7 +317,9 @@ fn canceled_remap_completion_clears_active_status() {
             staged_database: None,
             destination_current_database_preexisting: true,
             destination_legacy_database_preexisting: false,
-            write_fence: None,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
             result: Ok(()),
         },
     );
@@ -335,6 +343,9 @@ fn source_mutation_cancels_matching_pending_remap_generation() {
             new_root: tempfile::tempdir().expect("destination").keep(),
             queued_at: std::time::Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.begin_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
@@ -365,6 +376,9 @@ fn metadata_mutation_cancels_matching_pending_remap_generation() {
             new_root: tempfile::tempdir().expect("destination").keep(),
             queued_at: std::time::Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.queue_metadata_mutation(

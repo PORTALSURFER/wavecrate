@@ -4,6 +4,54 @@ use super::*;
 use crate::app::controller::LoadEntriesError;
 use crate::app::controller::library::source_folders::{FolderProjectionView, FolderTreeSnapshot};
 use crate::sample_sources::WavEntry;
+use std::sync::{
+    Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+
+/// Shared cancellation and source-write-fence ownership for one remap request.
+#[derive(Debug, Default)]
+pub(crate) struct SourceRemapWriteFence {
+    canceled: AtomicBool,
+    fence: Mutex<Option<crate::sample_sources::db::SourceDatabaseWriteFence>>,
+}
+
+impl SourceRemapWriteFence {
+    /// Install a prepared source-write fence unless the remap was already canceled.
+    pub(crate) fn install(
+        &self,
+        fence: crate::sample_sources::db::SourceDatabaseWriteFence,
+    ) -> bool {
+        let mut active = self
+            .fence
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.canceled.load(Ordering::Acquire) {
+            return false;
+        }
+        *active = Some(fence);
+        true
+    }
+
+    /// Cancel the remap and immediately release any installed source-write fence.
+    pub(crate) fn cancel(&self) {
+        self.canceled.store(true, Ordering::Release);
+        self.release();
+    }
+
+    /// Release an installed source-write fence without changing cancellation state.
+    pub(crate) fn release(&self) {
+        self.fence
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+    }
+
+    /// Return whether the controller canceled this remap request.
+    pub(crate) fn is_canceled(&self) -> bool {
+        self.canceled.load(Ordering::Acquire)
+    }
+}
 
 /// Controller-owned source hydration lanes used to load source snapshots off the UI thread.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,6 +118,8 @@ pub(crate) struct SourceRemapJob {
     pub(crate) source: crate::sample_sources::SampleSource,
     /// Normalized destination root.
     pub(crate) new_root: PathBuf,
+    /// Shared cancellation and source-write-fence ownership.
+    pub(crate) write_fence: Arc<SourceRemapWriteFence>,
 }
 
 /// Result of one background source-remap snapshot request.
@@ -88,7 +138,7 @@ pub(crate) struct SourceRemapPreparedResult {
     /// Whether the destination already owned the legacy database before preparation.
     pub(crate) destination_legacy_database_preexisting: bool,
     /// Source writer reservation retained until this result is published or discarded.
-    pub(crate) write_fence: Option<crate::sample_sources::db::SourceDatabaseWriteFence>,
+    pub(crate) write_fence: Arc<SourceRemapWriteFence>,
     /// Preparation outcome.
     pub(crate) result: Result<(), String>,
 }

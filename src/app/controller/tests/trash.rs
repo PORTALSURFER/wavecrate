@@ -40,6 +40,9 @@ fn moving_trashed_samples_moves_and_prunes_state() -> Result<(), String> {
             new_root: temp.path().join("remap-target"),
             queued_at: std::time::Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.move_all_trashed_to_folder();

@@ -121,10 +121,13 @@ impl AppController {
                 "Cannot remap to a source folder while it is being added",
             ));
         }
+        let write_fence =
+            std::sync::Arc::new(crate::app::controller::jobs::SourceRemapWriteFence::default());
         let job = SourceRemapJob {
             request_id: self.runtime.jobs.next_source_remap_request_id(),
             source: existing_source.clone(),
             new_root: normalized,
+            write_fence,
         };
         #[cfg(test)]
         {
@@ -163,6 +166,7 @@ impl AppController {
             new_root: job.new_root.clone(),
             queued_at: started_at,
             canceled: false,
+            write_fence: std::sync::Arc::clone(&job.write_fence),
         });
         self.set_status(
             format!("Remapping source to {}", job.new_root.display()),
@@ -333,8 +337,10 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
     let destination_database_preexisting =
         destination_current_database_preexisting || destination_legacy_database_preexisting;
     let mut staged_database = None;
-    let mut write_fence = None;
     let result = (|| {
+        if job.write_fence.is_canceled() {
+            return Err(String::from("Source remap canceled"));
+        }
         if !job.new_root.is_dir() {
             return Err(String::from("Remap destination is no longer available"));
         }
@@ -350,7 +356,9 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
                     .snapshot_to_path_with_write_fence(&staged)
                     .map_err(|error| format!("Failed to snapshot source database: {error}"))?;
                 staged_database = Some(staged);
-                write_fence = Some(fence);
+                if !job.write_fence.install(fence) {
+                    return Err(String::from("Source remap canceled"));
+                }
             }
             return Ok(());
         }
@@ -362,7 +370,7 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
     if result.is_err() {
         remove_staged_database(staged_database.as_deref());
         staged_database = None;
-        write_fence = None;
+        job.write_fence.release();
     }
     SourceRemapPreparedResult {
         request_id: job.request_id,
@@ -371,7 +379,7 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
         staged_database,
         destination_current_database_preexisting,
         destination_legacy_database_preexisting,
-        write_fence,
+        write_fence: job.write_fence,
         result,
     }
 }

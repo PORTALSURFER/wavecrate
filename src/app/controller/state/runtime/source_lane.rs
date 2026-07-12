@@ -1,4 +1,6 @@
-use crate::app::controller::jobs::{SampleAutoRenameProgress, SourceHydrationKind};
+use crate::app::controller::jobs::{
+    SampleAutoRenameProgress, SourceHydrationKind, SourceRemapWriteFence,
+};
 use crate::app::state::FolderPaneId;
 pub(crate) use crate::app_core::browser_projection_cache::AutoRenameBatchRowState;
 use crate::sample_sources::Rating;
@@ -51,6 +53,8 @@ pub(crate) struct PendingSourceRemap {
     pub(crate) queued_at: Instant,
     /// The original source was removed while preparation was running.
     pub(crate) canceled: bool,
+    /// Shared cancellation and source-write-fence ownership for the worker request.
+    pub(crate) write_fence: std::sync::Arc<SourceRemapWriteFence>,
 }
 
 /// Runtime tracking for active and inactive source hydration requests.

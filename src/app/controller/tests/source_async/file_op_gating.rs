@@ -64,6 +64,9 @@ fn startup_source_db_maintenance_defers_same_source_during_live_remap() {
             new_root: remapped_root.clone(),
             queued_at: std::time::Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.flush_deferred_startup_source_db_maintenance();

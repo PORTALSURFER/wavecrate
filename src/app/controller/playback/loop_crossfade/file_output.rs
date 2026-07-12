@@ -34,6 +34,7 @@ pub(super) fn register_loop_crossfade_entry(
     output: &LoopCrossfadeFileOutput,
     tag: Rating,
 ) -> Result<(), String> {
+    controller.cancel_pending_source_remap_for_mutation(&source.id);
     let (file_size, modified_ns) = file_metadata(&output.absolute_path)?;
     let db = controller
         .database_for(source)

@@ -214,6 +214,9 @@ fn canceled_source_remap_allows_analysis_enqueue() {
             new_root: tempfile::tempdir().expect("remap destination").keep(),
             queued_at: Instant::now(),
             canceled: true,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.trigger_analysis_for_added_sample(
@@ -251,6 +254,9 @@ fn changed_sample_trigger_cancels_live_remap_and_enqueues_analysis() {
             new_root: tempfile::tempdir().expect("remap destination").keep(),
             queued_at: Instant::now(),
             canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
         });
 
     controller.trigger_analysis_for_added_sample(

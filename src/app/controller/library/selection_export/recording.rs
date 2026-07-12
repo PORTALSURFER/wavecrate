@@ -22,6 +22,9 @@ impl AppController {
             looped,
             bpm,
         } = request;
+        if register_in_source {
+            self.cancel_pending_source_remap_for_mutation(&source.id);
+        }
         let metadata = fs::metadata(source.root.join(&relative_path))
             .map_err(|err| format!("Failed to read saved clip: {err}"))?;
         let modified_ns = metadata
