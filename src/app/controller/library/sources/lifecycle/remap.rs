@@ -92,6 +92,16 @@ impl AppController {
                 "Cannot remap a source while similarity preparation is running",
             ));
         }
+        if self.runtime.jobs.umap_build_in_progress_for(&source_id)
+            || self
+                .runtime
+                .jobs
+                .umap_cluster_build_in_progress_for(&source_id)
+        {
+            return Err(String::from(
+                "Cannot remap a source while Starmap layout or clustering is running",
+            ));
+        }
         if self
             .runtime
             .jobs

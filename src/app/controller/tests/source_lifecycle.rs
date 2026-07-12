@@ -588,6 +588,59 @@ fn remap_rejects_active_similarity_finalizer_after_prep_state_is_canceled() {
 }
 
 #[test]
+fn remap_rejects_active_umap_layout_build_for_same_source() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "layout.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    controller
+        .runtime
+        .jobs
+        .begin_umap_build(crate::app::controller::jobs::UmapBuildJob {
+            model_id: String::from("test-model"),
+            umap_version: String::from("test-version"),
+            source_id: source.id.clone(),
+        });
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("active UMAP layout build must block remap");
+
+    assert!(error.contains("Starmap layout or clustering is running"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+    controller.runtime.jobs.clear_umap_build();
+}
+
+#[test]
+fn remap_rejects_active_umap_cluster_build_for_same_source() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "cluster.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    controller.runtime.jobs.begin_umap_cluster_build(
+        crate::app::controller::jobs::UmapClusterBuildJob {
+            model_id: String::from("test-model"),
+            umap_version: String::from("test-version"),
+            source_id: Some(source.id.clone()),
+        },
+    );
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("active UMAP cluster build must block remap");
+
+    assert!(error.contains("Starmap layout or clustering is running"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+    controller.runtime.jobs.clear_umap_cluster_build();
+}
+
+#[test]
 fn remap_rejects_analysis_enqueue_for_same_source() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());

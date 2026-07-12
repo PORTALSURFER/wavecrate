@@ -76,6 +76,8 @@ impl ControllerJobs {
             request_counters: JobRequestCounters::default(),
             in_progress: JobInProgressState::default(),
             active_scan_source: None,
+            active_umap_build_source: None,
+            active_umap_cluster_build_source: None,
             active_source_db_maintenance_sources: HashSet::new(),
             active_selection_export_sources: HashMap::new(),
             cancel_handles: JobCancelHandles::default(),

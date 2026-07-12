@@ -65,9 +65,26 @@ impl ControllerJobs {
         self.in_progress.umap_build
     }
 
+    /// Return whether the active UMAP layout build belongs to `source_id`.
+    pub(in super::super) fn umap_build_in_progress_for(&self, source_id: &SourceId) -> bool {
+        self.in_progress.umap_build && self.active_umap_build_source.as_ref() == Some(source_id)
+    }
+
     /// Return whether a UMAP cluster build is currently running.
     pub(in super::super) fn umap_cluster_build_in_progress(&self) -> bool {
         self.in_progress.umap_cluster_build
+    }
+
+    /// Return whether the active UMAP cluster build can write `source_id`.
+    pub(in super::super) fn umap_cluster_build_in_progress_for(
+        &self,
+        source_id: &SourceId,
+    ) -> bool {
+        self.in_progress.umap_cluster_build
+            && self
+                .active_umap_cluster_build_source
+                .as_ref()
+                .is_none_or(|active_source| active_source == source_id)
     }
 
     /// Start one UMAP build if no existing build is active.
@@ -76,6 +93,7 @@ impl ControllerJobs {
             return;
         }
         self.in_progress.umap_build = true;
+        self.active_umap_build_source = Some(job.source_id.clone());
         self.spawn_one_shot_job(
             true,
             move || {
@@ -96,6 +114,7 @@ impl ControllerJobs {
     /// Clear UMAP build in-progress state.
     pub(in super::super) fn clear_umap_build(&mut self) {
         self.in_progress.umap_build = false;
+        self.active_umap_build_source = None;
     }
 
     /// Start one UMAP cluster build if no existing build is active.
@@ -104,6 +123,7 @@ impl ControllerJobs {
             return;
         }
         self.in_progress.umap_cluster_build = true;
+        self.active_umap_cluster_build_source = job.source_id.clone();
         self.spawn_one_shot_job(
             true,
             move || {
@@ -124,6 +144,7 @@ impl ControllerJobs {
     /// Clear UMAP cluster build in-progress state.
     pub(in super::super) fn clear_umap_cluster_build(&mut self) {
         self.in_progress.umap_cluster_build = false;
+        self.active_umap_cluster_build_source = None;
     }
 
     /// Start one update check if no existing check is active.

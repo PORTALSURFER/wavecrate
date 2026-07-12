@@ -110,6 +110,8 @@ pub(crate) struct ControllerJobs {
     request_counters: JobRequestCounters,
     in_progress: JobInProgressState,
     active_scan_source: Option<SourceId>,
+    active_umap_build_source: Option<SourceId>,
+    active_umap_cluster_build_source: Option<SourceId>,
     active_source_db_maintenance_sources: HashSet<SourceId>,
     active_selection_export_sources: HashMap<u64, SourceId>,
     cancel_handles: JobCancelHandles,
