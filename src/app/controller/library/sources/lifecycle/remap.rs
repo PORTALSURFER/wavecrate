@@ -517,13 +517,16 @@ fn publish_prepared_database(
         }
         publish_staged_database_without_replace(staged, &destination)
             .map_err(|error| format!("Failed to publish source database snapshot: {error}"))?;
+        let published_identity = database_identity(&destination)?;
         if let Err(error) = SourceDatabase::open_for_source_write(root) {
-            artifact_snapshot.remove_created();
+            artifact_snapshot.remove_created_if_unchanged(&published_identity);
             return Err(format!("Failed to prepare database: {error}"));
         }
+        let initialized_identity = database_identity(&destination)?;
         return Ok(PublishedRemapDatabase {
             artifact_snapshot,
             legacy_migration: LegacyDatabaseMigrationSnapshot::new(root),
+            created_database_identity: Some(initialized_identity),
         });
     }
     if database_identity(&destination)? != *destination_current_database_identity
@@ -536,18 +539,40 @@ fn publish_prepared_database(
     let destination_was_empty = !destination_current_database_identity.has_artifacts()
         && !destination_legacy_database_identity.has_artifacts();
     let legacy_migration = LegacyDatabaseMigrationSnapshot::new(root);
-    if destination_was_empty {
-        reserve_empty_database_path(&destination)
-            .map_err(|error| format!("Failed to claim remap destination database: {error}"))?;
-    }
+    let empty_claim = destination_was_empty
+        .then(|| reserve_empty_database_path(&destination))
+        .transpose()
+        .map_err(|error| format!("Failed to claim remap destination database: {error}"))?;
     if let Err(error) = SourceDatabase::open_for_source_write(root) {
         legacy_migration.restore_original_names(true);
-        artifact_snapshot.remove_created();
+        if let Some(claim) = &empty_claim {
+            artifact_snapshot.remove_created_if_unchanged(
+                &crate::app::controller::jobs::SourceRemapDatabaseIdentity {
+                    database: Some(claim.clone()),
+                    ..Default::default()
+                },
+            );
+        }
         return Err(format!("Failed to prepare database: {error}"));
     }
+    if let Some(claim) = &empty_claim {
+        let initialized = database_artifact_identity(&destination)?
+            .ok_or_else(|| String::from("Remap destination database disappeared"))?;
+        if !database_artifact_is_same_file(claim, &initialized) {
+            return Err(String::from(
+                "Destination database changed while the remap was running",
+            ));
+        }
+    }
+    let created_database_identity = if destination_was_empty {
+        Some(database_identity(&destination)?)
+    } else {
+        None
+    };
     Ok(PublishedRemapDatabase {
         artifact_snapshot,
         legacy_migration,
+        created_database_identity,
     })
 }
 
@@ -555,12 +580,15 @@ fn publish_prepared_database(
 struct PublishedRemapDatabase {
     artifact_snapshot: DatabaseArtifactSnapshot,
     legacy_migration: LegacyDatabaseMigrationSnapshot,
+    created_database_identity: Option<crate::app::controller::jobs::SourceRemapDatabaseIdentity>,
 }
 
 impl PublishedRemapDatabase {
     fn rollback(self) {
         self.legacy_migration.restore_original_names(true);
-        self.artifact_snapshot.remove_created();
+        if let Some(identity) = &self.created_database_identity {
+            self.artifact_snapshot.remove_created_if_unchanged(identity);
+        }
     }
 }
 
@@ -610,6 +638,26 @@ impl DatabaseArtifactSnapshot {
                 ),
             }
         }
+    }
+
+    fn remove_created_if_unchanged(
+        &self,
+        expected: &crate::app::controller::jobs::SourceRemapDatabaseIdentity,
+    ) {
+        if self.database_preexisting {
+            return;
+        }
+        let Some((database, _)) = self.artifacts.first() else {
+            return;
+        };
+        if database_identity(database).as_ref().ok() != Some(expected) {
+            tracing::warn!(
+                path = %database.display(),
+                "Preserving remap database artifacts because ownership changed"
+            );
+            return;
+        }
+        self.remove_created();
     }
 }
 
@@ -682,13 +730,24 @@ fn publish_staged_database_without_replace(
     }
 }
 
-fn reserve_empty_database_path(destination: &Path) -> std::io::Result<()> {
+fn reserve_empty_database_path(
+    destination: &Path,
+) -> std::io::Result<crate::app::controller::jobs::SourceRemapArtifactIdentity> {
     let reservation = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(destination)?;
-    drop(reservation);
-    Ok(())
+    let metadata = reservation.metadata()?;
+    Ok(crate::app::controller::jobs::SourceRemapArtifactIdentity {
+        stable_id: stable_database_artifact_id(&metadata),
+        len: metadata.len(),
+        modified_ns: metadata
+            .modified()
+            .ok()
+            .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_nanos()),
+        is_symlink: false,
+    })
 }
 
 #[cfg(target_os = "windows")]
@@ -771,6 +830,17 @@ fn database_artifact_owner_matches(
     prepared: &crate::app::controller::jobs::SourceRemapDatabaseIdentity,
 ) -> bool {
     initial == prepared
+}
+
+fn database_artifact_is_same_file(
+    claimed: &crate::app::controller::jobs::SourceRemapArtifactIdentity,
+    current: &crate::app::controller::jobs::SourceRemapArtifactIdentity,
+) -> bool {
+    match (&claimed.stable_id, &current.stable_id) {
+        (Some(claimed), Some(current)) => claimed == current,
+        (None, None) => !claimed.is_symlink && !current.is_symlink,
+        _ => false,
+    }
 }
 
 #[cfg(unix)]
@@ -874,6 +944,21 @@ mod tests {
         assert_eq!(fs::read(destination).unwrap(), b"late owner");
     }
 
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn empty_destination_claim_detects_replacement_before_initialization() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        let claim = reserve_empty_database_path(&destination).expect("claim destination");
+        fs::remove_file(&destination).expect("remove claimed file");
+        fs::write(&destination, b"replacement owner").expect("replace destination");
+        let replacement = database_artifact_identity(&destination)
+            .expect("replacement identity")
+            .expect("replacement artifact");
+
+        assert!(!database_artifact_is_same_file(&claim, &replacement));
+    }
+
     #[test]
     fn no_snapshot_publish_claims_and_initializes_empty_destination() {
         let root = tempfile::tempdir().expect("destination root");
@@ -886,6 +971,20 @@ mod tests {
         assert!(destination.exists());
         publication.rollback();
         assert!(!destination.exists());
+    }
+
+    #[test]
+    fn empty_destination_rollback_preserves_post_initialization_writes() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        let empty = empty_database_identity();
+        let publication = publish_prepared_database(root.path(), None, &empty, &empty)
+            .expect("empty destination should be claimed");
+        fs::write(&destination, b"other process state").expect("change claimed database");
+
+        publication.rollback();
+
+        assert_eq!(fs::read(destination).unwrap(), b"other process state");
     }
 
     #[test]
