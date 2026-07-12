@@ -60,6 +60,7 @@ impl AppController {
                 self.set_status(format!("Normalization failed: {err}"), StatusTone::Error);
             }
         }
+        self.finish_pending_file_mutation(&source_id, [relative_path.clone()]);
         self.update_normalization_progress();
     }
 

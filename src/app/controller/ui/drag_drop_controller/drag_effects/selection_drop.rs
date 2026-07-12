@@ -98,7 +98,7 @@ impl DragDropController<'_> {
         match self.capture_selection_export_snapshot(bounds, None) {
             Ok(snapshot) => {
                 let request_id = self.runtime.jobs.next_selection_export_request_id();
-                self.runtime.jobs.begin_selection_export(
+                self.queue_selection_export_job(
                     crate::app::controller::jobs::SelectionExportJob::Clip {
                         request_id,
                         snapshot,
@@ -146,7 +146,7 @@ impl DragDropController<'_> {
         match self.capture_selection_export_snapshot(bounds, target_tag) {
             Ok(snapshot) => {
                 let request_id = self.runtime.jobs.next_selection_export_request_id();
-                self.runtime.jobs.begin_selection_export(
+                self.queue_selection_export_job(
                     crate::app::controller::jobs::SelectionExportJob::Clip {
                         request_id,
                         snapshot,

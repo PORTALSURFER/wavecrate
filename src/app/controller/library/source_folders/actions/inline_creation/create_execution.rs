@@ -39,7 +39,7 @@ impl AppController {
     fn spawn_folder_create_job(&mut self, command: FolderCreateCommand) {
         let (tx, rx) = std::sync::mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        self.start_file_ops_with_remap_cancellation(rx, cancel.clone());
         std::thread::spawn(move || {
             let result = if cancel.load(std::sync::atomic::Ordering::Relaxed) {
                 Err(String::from("Folder creation cancelled"))

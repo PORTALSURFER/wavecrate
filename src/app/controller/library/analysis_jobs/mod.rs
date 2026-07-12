@@ -48,6 +48,31 @@ pub(crate) fn current_running_jobs_for_source(
     db::current_running_jobs(&conn, &source.root, limit)
 }
 
+pub(crate) fn source_has_pending_or_running_jobs(
+    source: &crate::sample_sources::SampleSource,
+) -> Result<bool, String> {
+    let current = crate::sample_sources::database_path_for(&source.root);
+    let legacy = source
+        .root
+        .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+    if !database_path_entry_present(&current)? && !database_path_entry_present(&legacy)? {
+        return Ok(false);
+    }
+    let conn = db::open_source_db_maintenance(&source.root)?;
+    db::has_pending_or_running_jobs(&conn)
+}
+
+fn database_path_entry_present(path: &std::path::Path) -> Result<bool, String> {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!(
+            "Failed to inspect source database path {}: {error}",
+            path.display()
+        )),
+    }
+}
+
 pub(crate) fn default_worker_count() -> u32 {
     pool::default_worker_count().max(1) as u32
 }

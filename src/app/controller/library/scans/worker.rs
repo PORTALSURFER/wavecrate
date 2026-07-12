@@ -12,8 +12,11 @@ pub(super) fn launch_scan_worker(
 ) {
     let cancel = Arc::new(AtomicBool::new(false));
     let (tx, rx) = std::sync::mpsc::channel();
-    controller.runtime.jobs.start_scan(rx, cancel.clone());
     let source_id = source.id.clone();
+    controller
+        .runtime
+        .jobs
+        .start_scan(source_id.clone(), rx, cancel.clone());
     let root = source.root.clone();
     std::thread::spawn(move || {
         let result = run_scan_worker(&root, mode, paths, cancel.as_ref(), |completed, path| {

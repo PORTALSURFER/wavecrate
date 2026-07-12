@@ -10,6 +10,9 @@ impl AppController {
             JobMessage::SourceAddPrepared(message) => {
                 self.handle_source_add_prepared_message(message)
             }
+            JobMessage::SourceRemapPrepared(message) => {
+                self.handle_source_remap_prepared_message(message)
+            }
             JobMessage::SourceHydrated(message) => self.handle_source_hydrated_message(message),
             JobMessage::BrowserFeatureCacheRefreshed(message) => {
                 self.handle_feature_cache_refreshed_message(message)

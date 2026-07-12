@@ -32,6 +32,7 @@ impl AppController {
         source: &SampleSource,
         relative_path: &Path,
     ) -> Result<bool, String> {
+        self.cancel_pending_source_remap_for_mutation(&source.id);
         let db = match self.database_for(source) {
             Ok(db) => db,
             Err(SourceDbError::InvalidRoot(_)) => {

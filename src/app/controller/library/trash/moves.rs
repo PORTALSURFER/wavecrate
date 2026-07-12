@@ -46,6 +46,15 @@ impl AppController {
         let Ok(trash_root) = self.ensure_trash_folder_ready() else {
             return;
         };
+        if let Some(source_id) = self
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .map(|pending| pending.source.id.clone())
+        {
+            self.cancel_pending_source_remap_for_mutation(&source_id);
+        }
         self.set_status("Moving trashed samples...", StatusTone::Busy);
         self.show_status_progress(
             ProgressTaskKind::TrashMove,
@@ -148,6 +157,7 @@ impl AppController {
         let mut moved_paths = Vec::new();
         let mut affected_sources = std::collections::HashSet::new();
         for (source, entry) in samples {
+            self.cancel_pending_source_remap_for_mutation(&source.id);
             let db = match SourceDatabase::open_for_source_write(&source.root) {
                 Ok(db) => db,
                 Err(err) => {

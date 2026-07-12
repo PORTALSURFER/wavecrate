@@ -60,5 +60,6 @@ pub(crate) use jobs::{
 };
 pub(crate) use progress::{
     current_embedding_backfill_progress, current_progress, current_running_jobs,
+    has_pending_or_running_jobs,
 };
 pub(crate) use types::{ClaimedJob, SampleMetadata};

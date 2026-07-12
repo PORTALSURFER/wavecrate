@@ -248,3 +248,45 @@ fn prune_missing_sample_removes_db_entry_without_cache() {
     assert!(!controller.cache.wav.entries.contains_key(&source.id));
     assert!(controller.sample_missing(&source.id, Path::new("ghost.wav")));
 }
+
+#[test]
+fn prune_missing_sample_cancels_pending_remap_before_db_write() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = WaveformRenderer::new(10, 10);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    let db = SourceDatabase::open(&root).unwrap();
+    db.upsert_file(Path::new("gone.wav"), 1, 1).unwrap();
+    let write_fence =
+        std::sync::Arc::new(crate::app::controller::jobs::SourceRemapWriteFence::default());
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 1,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("remap target").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+            write_fence: std::sync::Arc::clone(&write_fence),
+        });
+
+    assert!(
+        controller
+            .prune_missing_sample(&source, Path::new("gone.wav"))
+            .unwrap()
+    );
+
+    assert!(write_fence.is_canceled());
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.canceled)
+    );
+    assert!(db.entry_for_path(Path::new("gone.wav")).unwrap().is_none());
+}

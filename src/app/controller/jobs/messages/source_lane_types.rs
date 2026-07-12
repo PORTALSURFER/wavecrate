@@ -4,6 +4,90 @@ use super::*;
 use crate::app::controller::LoadEntriesError;
 use crate::app::controller::library::source_folders::{FolderProjectionView, FolderTreeSnapshot};
 use crate::sample_sources::WavEntry;
+use std::sync::{
+    Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+
+/// Shared cancellation and source-write-fence ownership for one remap request.
+#[derive(Debug, Default)]
+pub(crate) struct SourceRemapWriteFence {
+    canceled: AtomicBool,
+    fence: Mutex<Option<crate::sample_sources::db::SourceDatabaseWriteFence>>,
+}
+
+/// Stable identity and metadata captured for one remap destination database artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SourceRemapArtifactIdentity {
+    /// Platform file identity when the operating system exposes one.
+    pub(crate) stable_id: Option<String>,
+    /// Artifact length from no-follow metadata.
+    pub(crate) len: u64,
+    /// Last-modified timestamp as nanoseconds after the Unix epoch, when available.
+    pub(crate) modified_ns: Option<u128>,
+    /// Whether the artifact itself is a symbolic link.
+    pub(crate) is_symlink: bool,
+}
+
+/// Complete SQLite artifact identity for one current or legacy database name.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SourceRemapDatabaseIdentity {
+    /// Main SQLite database file.
+    pub(crate) database: Option<SourceRemapArtifactIdentity>,
+    /// Write-ahead log sidecar.
+    pub(crate) wal: Option<SourceRemapArtifactIdentity>,
+    /// Shared-memory sidecar.
+    pub(crate) shm: Option<SourceRemapArtifactIdentity>,
+    /// Rollback-journal sidecar.
+    pub(crate) journal: Option<SourceRemapArtifactIdentity>,
+}
+
+impl SourceRemapDatabaseIdentity {
+    /// Return whether any artifact exists under this database name.
+    pub(crate) fn has_artifacts(&self) -> bool {
+        self.database.is_some()
+            || self.wal.is_some()
+            || self.shm.is_some()
+            || self.journal.is_some()
+    }
+}
+
+impl SourceRemapWriteFence {
+    /// Install a prepared source-write fence unless the remap was already canceled.
+    pub(crate) fn install(
+        &self,
+        fence: crate::sample_sources::db::SourceDatabaseWriteFence,
+    ) -> bool {
+        let mut active = self
+            .fence
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.canceled.load(Ordering::Acquire) {
+            return false;
+        }
+        *active = Some(fence);
+        true
+    }
+
+    /// Cancel the remap and immediately release any installed source-write fence.
+    pub(crate) fn cancel(&self) {
+        self.canceled.store(true, Ordering::Release);
+        self.release();
+    }
+
+    /// Release an installed source-write fence without changing cancellation state.
+    pub(crate) fn release(&self) {
+        self.fence
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .take();
+    }
+
+    /// Return whether the controller canceled this remap request.
+    pub(crate) fn is_canceled(&self) -> bool {
+        self.canceled.load(Ordering::Acquire)
+    }
+}
 
 /// Controller-owned source hydration lanes used to load source snapshots off the UI thread.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,6 +141,40 @@ pub(crate) struct SourceAddPreparedResult {
     pub(crate) source: crate::sample_sources::SampleSource,
     /// Worker time spent opening or migrating source state.
     pub(crate) elapsed: Duration,
+    /// Preparation outcome.
+    pub(crate) result: Result<(), String>,
+}
+
+/// Background source-remap snapshot request.
+#[derive(Debug)]
+pub(crate) struct SourceRemapJob {
+    /// Monotonic request identifier used to reject stale completion.
+    pub(crate) request_id: u64,
+    /// Source before the remap.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Normalized destination root.
+    pub(crate) new_root: PathBuf,
+    /// Shared cancellation and source-write-fence ownership.
+    pub(crate) write_fence: Arc<SourceRemapWriteFence>,
+}
+
+/// Result of one background source-remap snapshot request.
+#[derive(Debug)]
+pub(crate) struct SourceRemapPreparedResult {
+    /// Request identifier echoed from [`SourceRemapJob::request_id`].
+    pub(crate) request_id: u64,
+    /// Source before the remap.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Normalized destination root.
+    pub(crate) new_root: PathBuf,
+    /// Request-owned snapshot staged outside the destination database path.
+    pub(crate) staged_database: Option<PathBuf>,
+    /// Prepared identity of the current destination database, when present.
+    pub(crate) destination_current_database_identity: SourceRemapDatabaseIdentity,
+    /// Prepared identity of the legacy destination database, when present.
+    pub(crate) destination_legacy_database_identity: SourceRemapDatabaseIdentity,
+    /// Source writer reservation retained until this result is published or discarded.
+    pub(crate) write_fence: Arc<SourceRemapWriteFence>,
     /// Preparation outcome.
     pub(crate) result: Result<(), String>,
 }

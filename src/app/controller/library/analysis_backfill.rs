@@ -104,6 +104,33 @@ enum AnalysisTrigger {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RemapConflictPolicy {
+    CancelRemap,
+    BlockWithStatus,
+}
+
+impl AnalysisTrigger {
+    fn source_id(&self) -> &SourceId {
+        match self {
+            Self::ChangedSamples { source, .. } | Self::UserRequestedReanalysis { source, .. } => {
+                &source.id
+            }
+        }
+    }
+
+    fn remap_conflict_policy(&self) -> RemapConflictPolicy {
+        match self {
+            Self::ChangedSamples { .. }
+            | Self::UserRequestedReanalysis {
+                action: ManualReanalysisAction::SimilarityPrepBootstrap { .. },
+                ..
+            } => RemapConflictPolicy::CancelRemap,
+            Self::UserRequestedReanalysis { .. } => RemapConflictPolicy::BlockWithStatus,
+        }
+    }
+}
+
 impl AppController {
     /// Enqueue analysis for a newly created sample through the shared trigger contract.
     pub(crate) fn trigger_analysis_for_added_sample(

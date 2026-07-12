@@ -70,8 +70,25 @@ impl AppController {
         }
         let mut ready = Vec::new();
         let mut deferred = Vec::new();
-        for job in std::mem::take(&mut self.runtime.startup.deferred_source_db_maintenance_jobs) {
-            if self.source_has_pending_file_mutations(&job.source_id) {
+        for mut job in std::mem::take(&mut self.runtime.startup.deferred_source_db_maintenance_jobs)
+        {
+            let Some(current_root) = self
+                .library
+                .sources
+                .iter()
+                .find(|source| source.id == job.source_id)
+                .map(|source| source.root.clone())
+            else {
+                continue;
+            };
+            job.source_root = current_root;
+            let live_remap_owns_source = self
+                .runtime
+                .source_lane
+                .pending_remap
+                .as_ref()
+                .is_some_and(|pending| !pending.canceled && pending.source.id == job.source_id);
+            if self.source_has_pending_file_mutations(&job.source_id) || live_remap_owns_source {
                 deferred.push(job);
             } else {
                 ready.push(job);

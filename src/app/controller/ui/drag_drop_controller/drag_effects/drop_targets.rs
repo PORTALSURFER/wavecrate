@@ -237,7 +237,7 @@ impl DragDropController<'_> {
         #[cfg(not(test))]
         {
             let (tx, rx) = std::sync::mpsc::channel();
-            self.runtime.jobs.start_file_ops(rx, cancel.clone());
+            self.start_file_ops_with_remap_cancellation(rx, cancel.clone());
             std::thread::spawn(move || {
                 let result = run_drop_target_transfer_task(
                     DropTargetTransferTask {

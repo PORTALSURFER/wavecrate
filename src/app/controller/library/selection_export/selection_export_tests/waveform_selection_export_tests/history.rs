@@ -1,6 +1,72 @@
 use super::super::*;
 
 #[test]
+fn selection_export_cancels_live_remap_and_blocks_new_remap_until_completion() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+    let wav_path = source_root.join("clip.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    let selection = SelectionRange::new(0.25, 0.75);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.selection = Some(selection);
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 71,
+            source: source.clone(),
+            new_root: temp.path().join("first-remap"),
+            queued_at: Instant::now(),
+            canceled: false,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
+        });
+
+    controller
+        .save_waveform_selection_to_browser(true)
+        .expect("selection export should queue");
+
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.canceled)
+    );
+    assert!(
+        controller
+            .runtime
+            .jobs
+            .selection_export_in_progress_for(&source.id)
+    );
+    controller.runtime.source_lane.pending_remap = None;
+    let next_root = temp.path().join("next-remap");
+    std::fs::create_dir_all(&next_root).unwrap();
+    let error = controller
+        .remap_source_to(0, next_root)
+        .expect_err("active selection export must block a new remap");
+    assert!(error.contains("selection exports are running"));
+
+    pump_background_jobs_until(&mut controller, |controller| {
+        !controller
+            .runtime
+            .jobs
+            .selection_export_in_progress_for(&source.id)
+    });
+}
+
+#[test]
 #[ignore = "runs serially through scripts/ci.ps1 agent; background job polling is load-sensitive in the full parallel lib lane"]
 fn save_waveform_selection_to_browser_success_finishes_pending_history_and_supports_undo() {
     let temp = tempdir().unwrap();
