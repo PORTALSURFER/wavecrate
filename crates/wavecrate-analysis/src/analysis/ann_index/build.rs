@@ -1,12 +1,12 @@
 use super::container;
 use super::state::{
-    AnnIndexMetaRow, AnnIndexParams, AnnIndexState, build_id_lookup, default_params,
+    AnnHnsw, AnnIndexMetaRow, AnnIndexParams, AnnIndexState, LoadedAnnHnsw, build_id_lookup,
+    default_params,
 };
 use super::storage::{
     default_index_path, hnsw_dump_paths, legacy_id_map_path_for, load_legacy_id_map, read_meta,
 };
 use crate::analysis::decode_f32_le_blob;
-use hnsw_rs::hnswio::HnswIo;
 use hnsw_rs::prelude::*;
 use rusqlite::{Connection, params};
 use std::path::{Path, PathBuf};
@@ -47,7 +47,12 @@ pub(crate) fn build_index_from_db(
     let mut hnsw = build_hnsw(&params, count);
     let mut id_map = Vec::with_capacity(count.max(0) as usize);
     insert_embeddings(conn, &params, &mut hnsw, &mut id_map)?;
-    Ok(build_state(params, hnsw, id_map, index_path))
+    Ok(build_state(
+        params,
+        AnnHnsw::Built(hnsw),
+        id_map,
+        index_path,
+    ))
 }
 
 /// Attempt to load an ANN index from disk using stored metadata.
@@ -115,7 +120,7 @@ fn insert_embeddings(
 
 fn build_state(
     params: AnnIndexParams,
-    hnsw: Hnsw<'static, f32, DistCosine>,
+    hnsw: AnnHnsw,
     id_map: Vec<String>,
     index_path: PathBuf,
 ) -> AnnIndexState {
@@ -194,18 +199,11 @@ fn load_legacy_index(
     build_loaded_state(hnsw, id_map, params, index_path.to_path_buf())
 }
 
-fn load_hnsw(
-    dir: &std::path::Path,
-    basename: &str,
-) -> Result<Hnsw<'static, f32, DistCosine>, String> {
-    let hnsw_io = Box::new(HnswIo::new(dir, basename));
-    let hnsw_io = Box::leak(hnsw_io);
-    hnsw_io
-        .load_hnsw::<f32, DistCosine>()
-        .map_err(|_| "Failed to read ANN index".to_string())
+fn load_hnsw(dir: &std::path::Path, basename: &str) -> Result<AnnHnsw, String> {
+    LoadedAnnHnsw::load(dir, basename).map(AnnHnsw::Loaded)
 }
 
-fn load_hnsw_from_path(index_path: &Path) -> Result<Hnsw<'static, f32, DistCosine>, String> {
+fn load_hnsw_from_path(index_path: &Path) -> Result<AnnHnsw, String> {
     let basename = index_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -270,7 +268,7 @@ fn update_index_path(mut state: AnnIndexState, index_path: &Path, force: bool) -
 }
 
 fn build_loaded_state(
-    hnsw: Hnsw<'static, f32, DistCosine>,
+    hnsw: AnnHnsw,
     id_map: Vec<String>,
     params: &AnnIndexParams,
     index_path: PathBuf,

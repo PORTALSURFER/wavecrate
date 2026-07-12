@@ -381,6 +381,14 @@ impl NativeAppState {
         result: Result<ui::ExternalDragOutcome, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        tracing::debug!(
+            target: "wavecrate::external_drag",
+            event = "external_drag.completed",
+            accepted = result.as_ref().is_ok_and(|outcome| outcome.accepted()),
+            effect = ?result.as_ref().ok().map(|outcome| outcome.effect),
+            error = result.as_ref().err().map(String::as_str).unwrap_or(""),
+            "External drag completed"
+        );
         let handoff_paths = self
             .ui
             .browser_interaction

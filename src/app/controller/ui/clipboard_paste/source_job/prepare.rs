@@ -27,7 +27,7 @@ impl SourcePasteContext {
                 target_root.display()
             ));
         }
-        let db = SourceDatabase::open(&job.source_root)
+        let db = SourceDatabase::open_for_source_write(&job.source_root)
             .map_err(|err| format!("Failed to open source DB: {err}"))?;
         Ok(Self {
             source_id: job.source_id,

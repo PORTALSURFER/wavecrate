@@ -21,7 +21,8 @@ mod store;
 mod tests;
 
 pub use entry::{
-    FileOpJournalEntry, FileOpStage, MoveJournalEntryInit, new_op_id, staged_relative_for_target,
+    CopyJournalEntryInit, FileOpJournalEntry, FileOpStage, MoveJournalEntryInit, new_op_id,
+    staged_relative_for_target,
 };
 /// Summary of the work performed while reconciling pending journal entries.
 pub type FileOpReconcileSummary = reconcile::FileOpReconcileSummary;

@@ -58,6 +58,25 @@ fn pending_rename_migration_adds_extended_metadata_columns() {
     assert!(columns.contains("sound_type"));
     assert!(columns.contains("user_tag"));
     assert!(columns.contains("normal_tags"));
+    assert!(columns.contains("file_identity"));
+}
+
+#[test]
+fn wav_file_migration_adds_stable_file_identity_column() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE wav_files (
+            path TEXT PRIMARY KEY,
+            file_size INTEGER NOT NULL,
+            modified_ns INTEGER NOT NULL
+        );",
+    )
+    .unwrap();
+
+    ensure_wav_files_optional_columns(&conn).unwrap();
+
+    let columns = table_columns(&conn, "wav_files").unwrap();
+    assert!(columns.contains("file_identity"));
 }
 
 #[test]

@@ -21,9 +21,11 @@ pub mod scan_state {
 /// Source scanning logic.
 pub mod scanner {
     pub use wavecrate_scan::sample_sources::scanner::{
-        ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample, hard_rescan,
-        scan_in_background, scan_once, scan_with_progress, schedule_deep_hash_scan,
-        schedule_deep_hash_scan_with_database_root, sync_paths, sync_paths_with_progress,
+        ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample,
+        complete_deferred_hashes, complete_deferred_hashes_with_cancel,
+        complete_deferred_rename_candidates, hard_rescan, scan_in_background, scan_once,
+        scan_with_progress, schedule_deep_hash_scan, schedule_deep_hash_scan_with_database_root,
+        sync_paths, sync_paths_with_progress,
     };
 }
 
@@ -33,10 +35,11 @@ pub mod db {
         DB_FILE_NAME, LEGACY_DB_FILE_NAME, META_DEFERRED_MAINTENANCE_REVISION,
         META_DEFERRED_MAINTENANCE_SCHEMA, META_LAST_SCAN_COMPLETED_AT,
         META_LAST_SIMILARITY_PREP_SCAN_AT, META_WAV_PATHS_REVISION, PendingRenameEntry, Rating,
-        SOURCE_DB_READ_ONLY_ENV, SampleCollection, SampleSoundType, SourceDatabase,
-        SourceDatabaseConnectionRole, SourceDatabaseWriteFence, SourceDbError, SourceTag,
-        SourceTagUsage, SourceWriteBatch, WavEntry, file_ops_journal, normalize_relative_path,
-        read, schema, tags, util, write,
+        SOURCE_DB_READ_ONLY_ENV, SampleCollection, SampleSoundType, SourceCollectionWrite,
+        SourceContentHashWrite, SourceDatabase, SourceDatabaseConnectionRole,
+        SourceDatabaseWriteFence, SourceDbError, SourceFileWrite, SourceTag, SourceTagUsage,
+        SourceTagWrite, SourceWriteBatch, SourceWriteCommand, WavEntry, file_ops_journal,
+        normalize_relative_path, read, schema, tags, util, write,
     };
     #[cfg(debug_assertions)]
     pub use wavecrate_library::sample_sources::db::{
@@ -81,8 +84,9 @@ pub use wavecrate_library::sample_sources::{
     DB_FILE_NAME, HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity,
     HarvestFileKey, HarvestFileRecord, HarvestMetadataSnapshot, HarvestSourceRange, HarvestState,
     LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, NewHarvestDerivation, Rating, SampleSource,
-    SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, SourceId, SourceMetadataStorage,
-    SourceRole, WavEntry, database_path_for, default_primary_import_folder, normalize_path,
+    SourceCollectionWrite, SourceContentHashWrite, SourceDatabase, SourceDatabaseConnectionRole,
+    SourceDbError, SourceFileWrite, SourceId, SourceMetadataStorage, SourceRole, SourceTagWrite,
+    SourceWriteCommand, WavEntry, database_path_for, default_primary_import_folder, normalize_path,
 };
 pub use wavecrate_scan::sample_sources::ScanTracker;
 pub use wavecrate_scan::sample_sources::{

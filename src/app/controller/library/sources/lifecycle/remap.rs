@@ -272,6 +272,7 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
     let legacy_destination = job
         .new_root
         .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+    let legacy_migration = LegacyDatabaseMigrationSnapshot::new(&job.new_root);
     let destination_database_preexisting =
         database_artifact_present(&destination) || database_artifact_present(&legacy_destination);
     let mut staged_database = None;
@@ -283,9 +284,10 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
         let source_database = crate::sample_sources::database_path_for(&job.source.root);
         if !destination_database_preexisting {
             if source_database.exists() {
-                let source = SourceDatabase::open(&job.source.root).map_err(|error| {
-                    format!("Failed to open source database for snapshot: {error}")
-                })?;
+                let source =
+                    SourceDatabase::open_for_source_write(&job.source.root).map_err(|error| {
+                        format!("Failed to open source database for snapshot: {error}")
+                    })?;
                 let staged = staged_database_path(&destination, job.request_id);
                 let fence = source
                     .snapshot_to_path_with_write_fence(&staged)
@@ -295,11 +297,12 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
             }
             return Ok(());
         }
-        SourceDatabase::open(&job.new_root)
+        SourceDatabase::open_for_source_write(&job.new_root)
             .map(|_| ())
             .map_err(|error| format!("Failed to prepare database: {error}"))
     })();
     if result.is_err() {
+        legacy_migration.restore_after_failed_prepare();
         remove_staged_database(staged_database.as_deref());
         staged_database = None;
         write_fence = None;
@@ -312,6 +315,46 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
         destination_database_preexisting,
         write_fence,
         result,
+    }
+}
+
+struct LegacyDatabaseMigrationSnapshot {
+    artifacts: Vec<(PathBuf, PathBuf, bool, bool)>,
+}
+
+impl LegacyDatabaseMigrationSnapshot {
+    fn new(root: &Path) -> Self {
+        let current_database = crate::sample_sources::database_path_for(root);
+        let legacy_database = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+        let artifacts = ["", "-wal", "-shm"]
+            .into_iter()
+            .map(|suffix| {
+                let legacy = path_with_suffix(&legacy_database, suffix);
+                let current = path_with_suffix(&current_database, suffix);
+                let legacy_existed = database_artifact_present(&legacy);
+                let current_existed = database_artifact_present(&current);
+                (legacy, current, legacy_existed, current_existed)
+            })
+            .collect();
+        Self { artifacts }
+    }
+
+    fn restore_after_failed_prepare(&self) {
+        for (legacy, current, legacy_existed, current_existed) in &self.artifacts {
+            if *legacy_existed
+                && !*current_existed
+                && !database_artifact_present(legacy)
+                && database_artifact_present(current)
+                && let Err(error) = fs::rename(current, legacy)
+            {
+                tracing::warn!(
+                    from = %current.display(),
+                    to = %legacy.display(),
+                    error = %error,
+                    "Failed to restore legacy source database artifact after remap preparation"
+                );
+            }
+        }
     }
 }
 
@@ -334,7 +377,7 @@ fn publish_prepared_database(
         }
         publish_staged_database_without_replace(staged, &destination)
             .map_err(|error| format!("Failed to publish source database snapshot: {error}"))?;
-        if let Err(error) = SourceDatabase::open(root) {
+        if let Err(error) = SourceDatabase::open_for_source_write(root) {
             remove_database_artifacts_if_created(root, true);
             return Err(format!("Failed to prepare database: {error}"));
         }
@@ -348,7 +391,8 @@ fn publish_prepared_database(
             "Destination database changed while the remap was running",
         ));
     }
-    SourceDatabase::open(root).map_err(|error| format!("Failed to prepare database: {error}"))?;
+    SourceDatabase::open_for_source_write(root)
+        .map_err(|error| format!("Failed to prepare database: {error}"))?;
     Ok(!destination_database_preexisting)
 }
 

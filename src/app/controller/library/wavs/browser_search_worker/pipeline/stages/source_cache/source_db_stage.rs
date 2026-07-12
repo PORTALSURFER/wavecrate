@@ -20,10 +20,7 @@ pub(in super::super::super) fn ensure_search_cache_ready_for_job(
     let db_stamp = DbFileStamp::from_path(&db_path);
     let source_changed = cache.source_id.as_deref() != Some(source_id)
         || cache.source_root.as_ref() != Some(&job.source_root);
-    match crate::sample_sources::SourceDatabase::open_with_role(
-        &job.source_root,
-        crate::sample_sources::SourceDatabaseConnectionRole::UiRead,
-    ) {
+    match crate::sample_sources::SourceDatabase::open_for_ui_read(&job.source_root) {
         Ok(db) => {
             cache.db = Some(db);
             apply_reopened_source_db(cache, job, source_id, db_stamp, source_changed);

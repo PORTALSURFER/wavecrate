@@ -4,7 +4,6 @@ use crate::analysis::ann_index::{
 use crate::analysis::vector::encode_f32_le_blob;
 use crate::analysis::{ann_index, similarity};
 use crate::app_dirs::ConfigBaseGuard;
-use hnsw_rs::api::AnnT;
 use rusqlite::{Connection, params};
 use std::sync::{LazyLock, Mutex};
 use tempfile::tempdir;

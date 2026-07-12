@@ -198,7 +198,8 @@ mod tests {
         let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
         let source_dir = TempDir::new().unwrap();
         let source = crate::sample_sources::SampleSource::new(source_dir.path().to_path_buf());
-        crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+        crate::sample_sources::SourceDatabase::open_for_source_write(&source.root)
+            .expect("seed source db");
         crate::sample_sources::library::save(&crate::sample_sources::library::LibraryState {
             sources: vec![source.clone()],
         })

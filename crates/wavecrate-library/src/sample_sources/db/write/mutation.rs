@@ -114,11 +114,11 @@ pub(super) fn remap_wav_file_path_statement(
             "INSERT INTO wav_files (
                  path, file_size, modified_ns, tag, looped, locked, sound_type,
                  user_tag, tag_named, missing, extension, last_played_at, last_curated_at,
-                 collection
+                 collection, file_identity
              )
              SELECT ?2, file_size, modified_ns, tag, looped, locked, sound_type,
                     user_tag, tag_named, missing, extension, last_played_at, last_curated_at,
-                    collection
+                    collection, file_identity
              FROM wav_files
              WHERE path = ?1",
         )

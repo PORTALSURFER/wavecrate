@@ -130,7 +130,12 @@ impl NativeAppState {
             GuiMessage::ContextPathCopyFinished { kind, path, result } => {
                 self.finish_context_path_copy(kind, path, result);
             }
-            GuiMessage::OpenContextTarget => self.open_context_target(context),
+            GuiMessage::OpenContextTarget { kind, path } => {
+                self.open_context_target(kind, path, context)
+            }
+            GuiMessage::ContextTargetOpenValidated { kind, path, result } => {
+                self.finish_context_target_validation(kind, path, result, context)
+            }
             GuiMessage::CreateFolderAtContextTarget => {
                 self.create_folder_at_context_target(context)
             }
