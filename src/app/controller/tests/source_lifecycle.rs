@@ -480,6 +480,30 @@ fn remap_rejects_active_trash_move() {
 }
 
 #[test]
+fn remap_rejects_active_deferred_file_operation() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "undo.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    let (_sender, receiver) = std::sync::mpsc::channel();
+    controller.runtime.jobs.start_file_ops(
+        receiver,
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    );
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("active deferred file operation must block remap");
+
+    assert!(error.contains("file operations are running"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+    controller.runtime.jobs.clear_file_ops();
+}
+
+#[test]
 fn remap_rejects_active_database_maintenance_for_same_source() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());

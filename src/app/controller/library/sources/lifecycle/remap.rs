@@ -73,6 +73,11 @@ impl AppController {
                 "Cannot remap a source while samples are being moved to trash",
             ));
         }
+        if self.runtime.jobs.file_ops_in_progress() {
+            return Err(String::from(
+                "Cannot remap a source while file operations are running",
+            ));
+        }
         if self
             .runtime
             .jobs
