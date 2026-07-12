@@ -56,11 +56,6 @@ fn scan(
     debug_assert_ne!(mode, ScanMode::Targeted);
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
-    if mode == ScanMode::Quick {
-        let mut batch = db.write_batch()?;
-        context.rename_candidate_generation = Some(batch.begin_quick_scan_rename_candidates()?);
-        batch.commit()?;
-    }
     walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
     db_sync_phase(db, &mut context)?;
     Ok(context.stats)

@@ -238,6 +238,7 @@ fn apply_batch(
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
+    context.ensure_rename_candidate_generation(&mut batch)?;
     let mut rename_candidates = RenameCandidateCache::default();
     for file in ready {
         let relative_path = file.facts.relative.clone();

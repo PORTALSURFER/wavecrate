@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::WavEntry;
+use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 
 use super::{ScanError, ScanMode, ScanStats};
 
@@ -29,6 +29,22 @@ impl ScanContext {
             mode,
             rename_candidate_generation: None,
         }
+    }
+
+    pub(in crate::sample_sources::scanner) fn ensure_rename_candidate_generation(
+        &mut self,
+        batch: &mut SourceWriteBatch<'_>,
+    ) -> Result<(), ScanError> {
+        if self.rename_candidate_generation.is_some() || self.mode == ScanMode::Hard {
+            return Ok(());
+        }
+        let generation = match self.mode {
+            ScanMode::Targeted => batch.begin_targeted_scan_generation()?,
+            ScanMode::Quick => batch.begin_quick_scan_rename_candidates()?,
+            ScanMode::Hard => unreachable!("hard scans do not track rename destinations"),
+        };
+        self.rename_candidate_generation = Some(generation);
+        Ok(())
     }
 }
 

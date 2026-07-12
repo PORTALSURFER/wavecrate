@@ -36,9 +36,6 @@ pub fn sync_paths_with_progress(
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
     let mut context = ScanContext::from_existing(targets.existing, ScanMode::Targeted);
-    let mut generation_batch = db.write_batch()?;
-    context.rename_candidate_generation = Some(generation_batch.begin_targeted_scan_generation()?);
-    generation_batch.commit()?;
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
     let mut committed = false;
     for relative_path in targets.current_files {
