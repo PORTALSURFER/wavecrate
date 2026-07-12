@@ -6,7 +6,7 @@ pub(super) fn prepare_folder_move_transaction(
     request: FolderMoveRequest,
 ) -> Result<FolderMoveTransaction, FolderMoveResult> {
     let prepared = prepare_folder_move(&request)?;
-    let db = SourceDatabase::open(&request.source_root).map_err(|err| {
+    let db = SourceDatabase::open_for_source_write(&request.source_root).map_err(|err| {
         error_result(
             &request,
             prepared.new_relative.clone(),

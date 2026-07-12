@@ -148,7 +148,7 @@ impl AppController {
         let mut moved_paths = Vec::new();
         let mut affected_sources = std::collections::HashSet::new();
         for (source, entry) in samples {
-            let db = match SourceDatabase::open(&source.root) {
+            let db = match SourceDatabase::open_for_source_write(&source.root) {
                 Ok(db) => db,
                 Err(err) => {
                     errors.push(format!("{}: {err}", source.root.display()));

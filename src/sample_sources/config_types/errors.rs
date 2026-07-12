@@ -80,6 +80,9 @@ pub enum ConfigError {
         /// Rejected profile name.
         profile: String,
     },
+    /// A newer configuration snapshot was reserved before this save could run.
+    #[error("Configuration save was superseded by a newer snapshot")]
+    SaveSuperseded,
     /// Library database error.
     #[error("Library database error: {0}")]
     Library(Box<crate::sample_sources::library::LibraryError>),

@@ -197,7 +197,7 @@ pub(super) fn load_persisted_metadata_tag_map_for_source(
     source_root: &Path,
     source_database_root: &Path,
 ) -> Result<HashMap<String, Vec<String>>, String> {
-    let db = match SourceDatabase::open_read_only_with_database_root(
+    let db = match SourceDatabase::open_for_ui_read_with_database_root(
         source_root,
         source_database_root,
     ) {

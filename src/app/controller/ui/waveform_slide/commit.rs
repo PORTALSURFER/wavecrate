@@ -50,7 +50,7 @@ fn commit_waveform_slide(
     let spec = slide_wav_spec(state.spec_channels, state.sample_rate);
     write_waveform_wav(&state.absolute_path, rotated, spec)?;
     let (file_size, modified_ns) = file_metadata(&state.absolute_path)?;
-    let db = crate::sample_sources::SourceDatabase::open(&state.source.root)
+    let db = crate::sample_sources::SourceDatabase::open_for_source_write(&state.source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     let tag = db
         .tag_for_path(&state.relative_path)

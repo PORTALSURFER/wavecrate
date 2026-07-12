@@ -87,27 +87,57 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn open_context_target(
         &mut self,
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let Some(menu) = self.ui.browser_interaction.context_menu.take() else {
-            return;
-        };
-        if !context_menu::target_available(&menu.kind, &menu.path) {
-            let error = context_menu::missing_target_message(&menu.kind);
-            self.ui.status.sample = error.to_string();
+        self.ui.browser_interaction.context_menu = None;
+        let validation_kind = kind.clone();
+        let validation_path = path.clone();
+        let completion_kind = kind.clone();
+        let completion_path = path.clone();
+        context
+            .business()
+            .blocking_io("gui-context-target-validate")
+            .run(
+                move |_| context_menu::validate_open_target(&validation_kind, &validation_path),
+                move |result| GuiMessage::ContextTargetOpenValidated {
+                    kind: completion_kind,
+                    path: completion_path,
+                    result,
+                },
+            );
+        emit_gui_action(
+            "browser.context_menu.open_explorer",
+            Some(context_menu::pane(&kind)),
+            Some(context_menu::target_label(&path).as_str()),
+            "validating",
+            started_at,
+            None,
+        );
+    }
+
+    pub(in crate::native_app) fn finish_context_target_validation(
+        &mut self,
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+        result: Result<(), String>,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if let Err(error) = result {
+            self.ui.status.sample = error.clone();
             emit_gui_action(
                 "browser.context_menu.open_explorer",
-                Some(context_menu::pane(&menu.kind)),
-                Some(context_menu::target_label(&menu.path).as_str()),
+                Some(context_menu::pane(&kind)),
+                Some(context_menu::target_label(&path).as_str()),
                 "error",
                 started_at,
-                Some(error),
+                Some(&error),
             );
             return;
         }
-        let kind = menu.kind;
-        let path = menu.path;
         match kind {
             BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => {
                 let completion_kind = kind.clone();

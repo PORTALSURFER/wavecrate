@@ -62,7 +62,7 @@ pub(super) fn run_drop_target_transfer_task(
             cancelled,
         };
     }
-    let target_db = match SourceDatabase::open(&target_root) {
+    let target_db = match SourceDatabase::open_for_source_write(&target_root) {
         Ok(db) => db,
         Err(err) => {
             errors.push(format!("Failed to open target DB: {err}"));

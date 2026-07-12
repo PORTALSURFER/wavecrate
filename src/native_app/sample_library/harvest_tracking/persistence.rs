@@ -56,16 +56,6 @@ impl NativeAppState {
         }
     }
 
-    pub(in crate::native_app) fn record_harvest_discovered_for_paths<I>(&self, paths: I)
-    where
-        I: IntoIterator,
-        I::Item: AsRef<Path>,
-    {
-        for path in paths {
-            self.record_harvest_discovered_for_path(path.as_ref());
-        }
-    }
-
     pub(in crate::native_app) fn record_harvest_extraction_with_source_duration(
         &self,
         source_path: &Path,
@@ -191,15 +181,6 @@ impl NativeAppState {
                 }
             }
             FolderMoveRequest::ExtractedFile { .. } => {}
-        }
-    }
-
-    fn record_harvest_discovered_for_path(&self, path: &Path) {
-        let Some(identity) = self.harvest_identity_for_path(path) else {
-            return;
-        };
-        if let Err(error) = wavecrate::sample_sources::library::upsert_harvest_file(&identity) {
-            tracing::warn!(path = %path.display(), "failed to record discovered harvest file: {error}");
         }
     }
 

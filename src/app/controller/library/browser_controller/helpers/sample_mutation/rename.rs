@@ -16,11 +16,8 @@ pub(in crate::app::controller::library::browser_controller::helpers) fn perform_
     fallback_user_tag: Option<String>,
     fallback_tag_named: Option<bool>,
 ) -> Result<WavEntry, String> {
-    let db = crate::sample_sources::SourceDatabase::open_with_role(
-        &source.root,
-        crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
-    )
-    .map_err(|err| format!("Database unavailable: {err}"))?;
+    let db = crate::sample_sources::SourceDatabase::open_for_background_job(&source.root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
     perform_sample_rename_with_db(
         source,
         &db,

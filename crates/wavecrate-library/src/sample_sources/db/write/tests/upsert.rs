@@ -64,6 +64,27 @@ fn wav_upsert_variants_preserve_hash_tag_and_missing_contracts() {
 }
 
 #[test]
+fn scan_candidate_queries_ignore_unsupported_and_apple_double_rows() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    for path in ["one.wav", "legacy.flac", "._sidecar.wav"] {
+        batch
+            .upsert_file_with_hash(Path::new(path), 10, 5, "same-hash")
+            .unwrap();
+    }
+
+    assert_eq!(
+        batch.list_paths_with_content_hash("same-hash").unwrap(),
+        vec![Path::new("one.wav").to_path_buf()]
+    );
+    assert_eq!(
+        batch.list_paths_with_file_facts(10, 5).unwrap(),
+        vec![Path::new("one.wav").to_path_buf()]
+    );
+}
+
+#[test]
 fn collections_can_accumulate_multiple_memberships() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();

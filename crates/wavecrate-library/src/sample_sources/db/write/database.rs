@@ -9,6 +9,7 @@ use super::super::{
     SourceWriteBatch,
 };
 use super::event::record_source_db_event;
+use super::{SourceContentHashWrite, SourceFileWrite, SourceTagWrite, SourceWriteCommand};
 
 impl SourceDatabase {
     /// Upsert a wav file row using the path relative to the source root.
@@ -18,27 +19,37 @@ impl SourceDatabase {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.upsert_file", |batch| {
-            batch.upsert_file(relative_path, file_size, modified_ns)
-        })
+        self.execute_write(SourceWriteCommand::UpsertFile(SourceFileWrite {
+            relative_path,
+            file_size,
+            modified_ns,
+            content_hash: SourceContentHashWrite::Preserve,
+            tag: SourceTagWrite::Preserve,
+            missing: false,
+        }))
     }
 
     /// Persist a keep/trash tag for a single wav file by relative path.
     pub fn set_tag(&self, relative_path: &Path, tag: Rating) -> Result<(), SourceDbError> {
-        self.set_tags_batch(&[(relative_path.to_path_buf(), tag)])
+        self.execute_write(SourceWriteCommand::SetTag {
+            path: relative_path,
+            tag,
+        })
     }
 
     /// Persist a loop marker for a single wav file by relative path.
     pub fn set_looped(&self, relative_path: &Path, looped: bool) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_looped", |batch| {
-            batch.set_looped(relative_path, looped)
+        self.execute_write(SourceWriteCommand::SetLooped {
+            path: relative_path,
+            looped,
         })
     }
 
     /// Persist a keep-lock marker for a single wav file by relative path.
     pub fn set_locked(&self, relative_path: &Path, locked: bool) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_locked", |batch| {
-            batch.set_locked(relative_path, locked)
+        self.execute_write(SourceWriteCommand::SetLocked {
+            path: relative_path,
+            locked,
         })
     }
 
@@ -48,8 +59,9 @@ impl SourceDatabase {
         relative_path: &Path,
         sound_type: Option<SampleSoundType>,
     ) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_sound_type", |batch| {
-            batch.set_sound_type(relative_path, sound_type)
+        self.execute_write(SourceWriteCommand::SetSoundType {
+            path: relative_path,
+            sound_type,
         })
     }
 
@@ -59,8 +71,9 @@ impl SourceDatabase {
         relative_path: &Path,
         user_tag: Option<&str>,
     ) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_user_tag", |batch| {
-            batch.set_user_tag(relative_path, user_tag)
+        self.execute_write(SourceWriteCommand::SetUserTag {
+            path: relative_path,
+            user_tag,
         })
     }
 
@@ -70,8 +83,9 @@ impl SourceDatabase {
         relative_path: &Path,
         tag_named: bool,
     ) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_tag_named", |batch| {
-            batch.set_tag_named(relative_path, tag_named)
+        self.execute_write(SourceWriteCommand::SetTagNamed {
+            path: relative_path,
+            tag_named,
         })
     }
 
@@ -84,7 +98,7 @@ impl SourceDatabase {
         let started_at = Instant::now();
         let mut batch = self.write_batch()?;
         for (path, tag) in updates {
-            batch.set_tag(path, *tag)?;
+            batch.execute_write(SourceWriteCommand::SetTag { path, tag: *tag })?;
         }
         let result = batch.commit();
         record_source_db_event(
@@ -98,8 +112,9 @@ impl SourceDatabase {
 
     /// Update the missing flag for a wav file by relative path.
     pub fn set_missing(&self, relative_path: &Path, missing: bool) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_missing", |batch| {
-            batch.set_missing(relative_path, missing)
+        self.execute_write(SourceWriteCommand::SetMissing {
+            path: relative_path,
+            missing,
         })
     }
 
@@ -109,15 +124,17 @@ impl SourceDatabase {
         relative_path: &Path,
         played_at: i64,
     ) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_last_played_at", |batch| {
-            batch.set_last_played_at(relative_path, played_at)
+        self.execute_write(SourceWriteCommand::SetLastPlayedAt {
+            path: relative_path,
+            played_at: Some(played_at),
         })
     }
 
     /// Clear the recorded most recent playback timestamp for a wav file.
     pub fn clear_last_played_at(&self, relative_path: &Path) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.clear_last_played_at", |batch| {
-            batch.clear_last_played_at(relative_path)
+        self.execute_write(SourceWriteCommand::SetLastPlayedAt {
+            path: relative_path,
+            played_at: None,
         })
     }
 
@@ -127,22 +144,24 @@ impl SourceDatabase {
         relative_path: &Path,
         curated_at: i64,
     ) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_last_curated_at", |batch| {
-            batch.set_last_curated_at(relative_path, curated_at)
+        self.execute_write(SourceWriteCommand::SetLastCuratedAt {
+            path: relative_path,
+            curated_at: Some(curated_at),
         })
     }
 
     /// Clear the recorded curation timestamp for a wav file.
     pub fn clear_last_curated_at(&self, relative_path: &Path) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.clear_last_curated_at", |batch| {
-            batch.clear_last_curated_at(relative_path)
+        self.execute_write(SourceWriteCommand::SetLastCuratedAt {
+            path: relative_path,
+            curated_at: None,
         })
     }
 
     /// Remove a wav file row by relative path.
     pub fn remove_file(&self, relative_path: &Path) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.remove_file", |batch| {
-            batch.remove_file(relative_path)
+        self.execute_write(SourceWriteCommand::RemoveFile {
+            path: relative_path,
         })
     }
 
@@ -162,9 +181,7 @@ impl SourceDatabase {
 
     /// Insert or update a metadata key/value pair.
     pub fn set_metadata(&self, key: &str, value: &str) -> Result<(), SourceDbError> {
-        self.mutate_with_batch("source_db.set_metadata", |batch| {
-            batch.set_metadata(key, value)
-        })
+        self.execute_write(SourceWriteCommand::SetMetadata { key, value })
     }
 
     pub(super) fn bump_revision(conn: &rusqlite::Connection) -> Result<(), SourceDbError> {
@@ -188,7 +205,7 @@ impl SourceDatabase {
         Ok(())
     }
 
-    fn mutate_with_batch(
+    pub(super) fn mutate_with_batch(
         &self,
         operation: &'static str,
         mutate: impl FnOnce(&mut SourceWriteBatch<'_>) -> Result<(), SourceDbError>,

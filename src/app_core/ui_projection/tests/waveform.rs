@@ -61,12 +61,9 @@ fn waveform_projection_passes_raster_image_payload() {
         .waveform_image
         .as_ref()
         .expect("waveform image should be projected");
-    assert_eq!(waveform_image.width, 2);
-    assert_eq!(waveform_image.height, 1);
-    assert_eq!(
-        waveform_image.pixels.as_ref(),
-        &[10, 20, 30, 40, 11, 21, 31, 41]
-    );
+    assert_eq!(waveform_image.width(), 2);
+    assert_eq!(waveform_image.height(), 1);
+    assert_eq!(waveform_image.pixels(), &[10, 20, 30, 40, 11, 21, 31, 41]);
 }
 
 #[test]

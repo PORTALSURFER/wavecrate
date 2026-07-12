@@ -1,4 +1,5 @@
 use radiant::prelude as ui;
+use std::time::Instant;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState},
@@ -25,6 +26,7 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         add_keep_rating: bool,
     ) {
+        let started_at = Instant::now();
         let drag = self.library.folder_browser.drag_preview().map(|preview| {
             ui::DragRequest::new(
                 ui::DragPreview::text_sized(
@@ -37,9 +39,29 @@ impl NativeAppState {
             )
         });
         let external = self.library.folder_browser.external_drag_request();
+        let path_count = external
+            .as_ref()
+            .map(|request| match &request.payload {
+                ui::ExternalDragPayload::Files(paths) => paths.len(),
+            })
+            .unwrap_or_default();
+        tracing::debug!(
+            target: "wavecrate::external_drag",
+            event = "external_drag.payload_ready",
+            path_count,
+            elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+            "External drag payload ready"
+        );
         self.arm_pending_internal_file_drag_paths(external.as_ref(), add_keep_rating);
 
         context.begin_drag_session(drag, external, GuiMessage::ExternalDragCompleted);
+        tracing::debug!(
+            target: "wavecrate::external_drag",
+            event = "external_drag.armed",
+            path_count,
+            elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
+            "External drag armed"
+        );
     }
 
     pub(in crate::native_app) fn cancel_browser_drag_on_sample_list(

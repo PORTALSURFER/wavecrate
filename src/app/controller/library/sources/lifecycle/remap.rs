@@ -263,7 +263,7 @@ fn validate_remap_source_root(
 }
 
 fn prepare_database_for_remap(normalized: &PathBuf) -> Result<(), String> {
-    SourceDatabase::open(normalized)
+    SourceDatabase::open_for_source_write(normalized)
         .map(|_| ())
         .map_err(|err| format!("Failed to prepare database: {err}"))
 }
