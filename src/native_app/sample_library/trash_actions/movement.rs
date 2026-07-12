@@ -240,8 +240,66 @@ fn move_path_after_no_replace_error(
 }
 
 #[cfg(target_os = "windows")]
-fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
+fn windows_wide_path(path: &Path) -> io::Result<Vec<u16>> {
     use std::os::windows::ffi::OsStrExt;
+
+    const LEGACY_MAX_PATH: usize = 248;
+    const SEP: u16 = b'\\' as u16;
+    const ALT_SEP: u16 = b'/' as u16;
+    const QUERY: u16 = b'?' as u16;
+    const COLON: u16 = b':' as u16;
+    const DOT: u16 = b'.' as u16;
+    const VERBATIM_PREFIX: &[u16] = &[SEP, SEP, QUERY, SEP];
+    const NT_PREFIX: &[u16] = &[SEP, QUERY, QUERY, SEP];
+    const UNC_PREFIX: &[u16] = &[
+        SEP,
+        SEP,
+        QUERY,
+        SEP,
+        b'U' as u16,
+        b'N' as u16,
+        b'C' as u16,
+        SEP,
+    ];
+
+    let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+    if wide.contains(&0) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "trash move path contains an interior NUL code unit",
+        ));
+    }
+    if wide.is_empty() || wide.starts_with(VERBATIM_PREFIX) || wide.starts_with(NT_PREFIX) {
+        wide.push(0);
+        return Ok(wide);
+    }
+    if wide.len() + 1 < LEGACY_MAX_PATH
+        && (matches!(wide.as_slice(), [drive, COLON, SEP | ALT_SEP, ..] if *drive != SEP && *drive != ALT_SEP)
+            || matches!(wide.as_slice(), [SEP | ALT_SEP, SEP | ALT_SEP, ..]))
+    {
+        wide.push(0);
+        return Ok(wide);
+    }
+
+    let absolute = std::path::absolute(path)?;
+    let absolute = absolute.as_os_str().encode_wide().collect::<Vec<_>>();
+    let (prefix, skip) = match absolute.as_slice() {
+        [_, COLON, SEP, ..] => (VERBATIM_PREFIX, 0),
+        [SEP, SEP, DOT, SEP, ..] => (VERBATIM_PREFIX, 4),
+        [SEP, SEP, QUERY, SEP, ..] | [SEP, QUERY, QUERY, SEP, ..] => (&[][..], 0),
+        [SEP, SEP, ..] => (UNC_PREFIX, 2),
+        _ => (&[][..], 0),
+    };
+    wide.clear();
+    wide.reserve(prefix.len() + absolute.len() + 1);
+    wide.extend_from_slice(prefix);
+    wide.extend_from_slice(&absolute[skip..]);
+    wide.push(0);
+    Ok(wide)
+}
+
+#[cfg(target_os = "windows")]
+fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
     use windows::{
         Win32::{
             Foundation::{ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, ERROR_NOT_SAME_DEVICE},
@@ -250,20 +308,8 @@ fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
         core::{HRESULT, PCWSTR},
     };
 
-    fn wide_path(path: &Path) -> io::Result<Vec<u16>> {
-        let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
-        if wide.contains(&0) {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "trash move path contains an interior NUL code unit",
-            ));
-        }
-        wide.push(0);
-        Ok(wide)
-    }
-
-    let source = wide_path(source)?;
-    let destination = wide_path(destination)?;
+    let source = windows_wide_path(source)?;
+    let destination = windows_wide_path(destination)?;
     let result = unsafe {
         MoveFileExW(
             PCWSTR(source.as_ptr()),
@@ -677,6 +723,28 @@ mod tests {
             trash_reservation_marker_with_case_policy(trash, &upper, false),
             trash_reservation_marker_with_case_policy(trash, &lower, false)
         );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_move_paths_preserve_short_and_extend_long_names() {
+        fn decoded(path: &Path) -> String {
+            let wide = windows_wide_path(path).unwrap();
+            String::from_utf16(wide.strip_suffix(&[0]).unwrap()).unwrap()
+        }
+
+        let short = Path::new(r"C:\packs\kick.wav");
+        assert_eq!(decoded(short), short.to_string_lossy());
+
+        let tail = format!(r"{}kick.wav", "nested\\".repeat(50));
+        let long_drive = PathBuf::from(format!(r"C:\packs\{tail}"));
+        assert_eq!(decoded(&long_drive), format!(r"\\?\C:\packs\{tail}"));
+
+        let long_unc = PathBuf::from(format!(r"\\server\share\{tail}"));
+        assert_eq!(decoded(&long_unc), format!(r"\\?\UNC\server\share\{tail}"));
+
+        let verbatim = PathBuf::from(format!(r"\\?\C:\packs\{tail}"));
+        assert_eq!(decoded(&verbatim), verbatim.to_string_lossy());
     }
 
     #[cfg(any(
