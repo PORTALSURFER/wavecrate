@@ -61,14 +61,53 @@ pub(crate) fn stop_recording(
     };
     let outcome = recorder.stop().map_err(|err| err.to_string())?;
     controller.audio.recording_target = None;
-    controller.set_status(
-        format!(
-            "Recorded {:.2}s to {}",
-            outcome.duration_seconds,
-            outcome.path.display()
-        ),
-        StatusTone::Info,
-    );
+    let capture_loss = outcome.health.writer_dropped_samples > 0;
+    let monitor_loss = outcome.health.monitor_dropped_samples > 0
+        || outcome.health.monitor_control_drops > 0
+        || outcome.health.monitor_failed
+        || outcome.health.monitor_disconnected;
+    if capture_loss || monitor_loss {
+        tracing::warn!(
+            writer_dropped_samples = outcome.health.writer_dropped_samples,
+            writer_overrun_events = outcome.health.writer_overrun_events,
+            monitor_dropped_samples = outcome.health.monitor_dropped_samples,
+            monitor_overrun_events = outcome.health.monitor_overrun_events,
+            monitor_control_drops = outcome.health.monitor_control_drops,
+            monitor_failed = outcome.health.monitor_failed,
+            monitor_disconnected = outcome.health.monitor_disconnected,
+            "Recording completed with capture transport loss"
+        );
+        let loss_detail = if capture_loss {
+            format!(
+                "{} recording samples dropped",
+                outcome.health.writer_dropped_samples
+            )
+        } else if outcome.health.monitor_dropped_samples > 0 {
+            format!(
+                "live monitoring lost {} samples",
+                outcome.health.monitor_dropped_samples
+            )
+        } else {
+            "live monitoring transport reported a control/worker failure".to_string()
+        };
+        controller.set_status(
+            format!(
+                "Recorded {:.2}s to {} ({loss_detail})",
+                outcome.duration_seconds,
+                outcome.path.display()
+            ),
+            StatusTone::Warning,
+        );
+    } else {
+        controller.set_status(
+            format!(
+                "Recorded {:.2}s to {}",
+                outcome.duration_seconds,
+                outcome.path.display()
+            ),
+            StatusTone::Info,
+        );
+    }
     if let Err(err) =
         super::path::register_recording_in_browser(controller, target.as_ref(), &outcome.path)
     {
