@@ -181,6 +181,10 @@ impl AppController {
             .expect("current source remap pending entry");
         if pending.canceled {
             remove_staged_database(message.staged_database.as_deref());
+            let active_status = format!("Remapping source to {}", pending.new_root.display());
+            if self.ui.status.text == active_status {
+                self.set_status("Source remap canceled", StatusTone::Info);
+            }
             return;
         }
         let Some(index) = self.library.sources.iter().position(|source| {

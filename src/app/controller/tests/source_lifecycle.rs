@@ -282,6 +282,44 @@ fn removing_source_cancels_matching_pending_remap_generation() {
 }
 
 #[test]
+fn canceled_remap_completion_clears_active_status() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "pending.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let new_root = tempfile::tempdir().expect("destination").keep();
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 42,
+            source: source.clone(),
+            new_root: new_root.clone(),
+            queued_at: std::time::Instant::now(),
+            canceled: true,
+        });
+    controller.set_status(
+        format!("Remapping source to {}", new_root.display()),
+        StatusTone::Info,
+    );
+
+    controller.handle_source_remap_prepared_message(
+        crate::app::controller::jobs::SourceRemapPreparedResult {
+            request_id: 42,
+            source,
+            new_root,
+            staged_database: None,
+            destination_database_preexisting: true,
+            write_fence: None,
+            result: Ok(()),
+        },
+    );
+
+    assert!(controller.runtime.source_lane.pending_remap.is_none());
+    assert_eq!(controller.ui.status.text, "Source remap canceled");
+}
+
+#[test]
 fn source_mutation_cancels_matching_pending_remap_generation() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
