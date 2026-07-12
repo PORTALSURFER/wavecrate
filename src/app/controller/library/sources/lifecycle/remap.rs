@@ -82,6 +82,11 @@ impl AppController {
                 "Cannot remap a source while selection exports are running",
             ));
         }
+        if self.similarity_prep_in_progress_for_source(&source_id) {
+            return Err(String::from(
+                "Cannot remap a source while similarity preparation is running",
+            ));
+        }
         if self
             .runtime
             .jobs

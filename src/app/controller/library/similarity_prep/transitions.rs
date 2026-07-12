@@ -73,6 +73,7 @@ impl AppController {
     }
 
     pub(crate) fn handle_similarity_prep_result(&mut self, result: jobs::SimilarityPrepResult) {
+        self.runtime.similarity.finish_finalize(&result.source_id);
         let state = self.runtime.similarity.prep.take();
         if state.as_ref().map(|s| &s.source_id) != Some(&result.source_id) {
             return;
