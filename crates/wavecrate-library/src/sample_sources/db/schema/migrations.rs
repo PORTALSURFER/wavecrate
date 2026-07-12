@@ -48,7 +48,20 @@ fn apply_structural_migrations(connection: &Connection) -> Result<(), SourceDbEr
     ensure_feature_metric_columns(connection, "analysis_cache_features")?;
     ensure_tag_catalog_schema(connection)?;
     ensure_collection_membership_schema(connection)?;
+    ensure_pending_rename_destination_schema(connection)?;
     ensure_aspect_descriptor_tables(connection)?;
+    Ok(())
+}
+
+fn ensure_pending_rename_destination_schema(connection: &Connection) -> Result<(), SourceDbError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS pending_wav_rename_destinations (
+                path TEXT PRIMARY KEY,
+                scan_generation INTEGER NOT NULL
+            );",
+        )
+        .map_err(map_sql_error)?;
     Ok(())
 }
 

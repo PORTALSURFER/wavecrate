@@ -377,7 +377,12 @@ pub(in crate::native_app) enum GuiMessage {
 pub(in crate::native_app) struct SourceFilesystemSyncResult {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) changed_count: usize,
-    pub(in crate::native_app) result: Result<(), String>,
+    pub(in crate::native_app) result: Result<SourceFilesystemSyncSuccess, String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
+    pub(in crate::native_app) renames_reconciled: usize,
 }
 
 #[derive(Clone, Debug)]

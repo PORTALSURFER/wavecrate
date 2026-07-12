@@ -24,13 +24,16 @@ pub(super) fn db_sync_phase(
             break;
         }
         let mut batch = db.write_batch()?;
+        context.ensure_rename_candidate_generation(&mut batch)?;
         mark_missing(db, &mut batch, chunk, &mut context.stats, context.mode)?;
         batch.commit()?;
     }
 
     let mut batch = db.write_batch()?;
+    context.ensure_rename_candidate_generation(&mut batch)?;
     if context.mode == ScanMode::Hard {
         batch.clear_all_pending_renames()?;
+        batch.clear_all_pending_rename_destinations()?;
     }
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -51,8 +51,47 @@ fn run_scan_worker(
     } else {
         scanner::scan_with_progress(&db, mode, Some(cancel), &mut progress)?
     };
-    if stats.hashes_pending > 0 {
-        scanner::schedule_deep_hash_scan(root.to_path_buf());
+    Ok(complete_deferred_hashes_preserving_committed(
+        &db, stats, cancel,
+    ))
+}
+
+fn complete_deferred_hashes_preserving_committed(
+    db: &SourceDatabase,
+    stats: ScanStats,
+    cancel: &AtomicBool,
+) -> ScanStats {
+    let committed = stats.clone();
+    match scanner::complete_deferred_hashes_with_cancel(db, stats, Some(cancel)) {
+        Ok(completed) => completed,
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                "Deferred source hashing failed after scan changes were committed"
+            );
+            committed
+        }
     }
-    Ok(stats)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+
+    #[test]
+    fn deferred_failure_preserves_committed_quick_scan_stats() {
+        let root = tempfile::tempdir().expect("source");
+        std::fs::write(root.path().join("large.wav"), vec![1_u8; 9 * 1024 * 1024])
+            .expect("large wav");
+        let db = SourceDatabase::open(root.path()).expect("source db");
+        let stats = scanner::scan_once(&db).expect("quick scan");
+        let cancel = AtomicBool::new(true);
+
+        let completed = complete_deferred_hashes_preserving_committed(&db, stats, &cancel);
+
+        assert_eq!(completed.added, 1);
+        assert_eq!(completed.hashes_pending, 1);
+        assert!(db.entry_for_path(Path::new("large.wav")).unwrap().is_some());
+    }
 }

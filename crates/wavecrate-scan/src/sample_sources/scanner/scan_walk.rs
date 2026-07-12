@@ -238,6 +238,7 @@ fn apply_batch(
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
+    context.ensure_rename_candidate_generation(&mut batch)?;
     let mut rename_candidates = RenameCandidateCache::default();
     for file in ready {
         let relative_path = file.facts.relative.clone();
@@ -314,7 +315,9 @@ fn prepare_for_apply(
 }
 
 fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {
-    current.size == prepared.facts.size && current.modified_ns == prepared.facts.modified_ns
+    current.size == prepared.facts.size
+        && current.modified_ns == prepared.facts.modified_ns
+        && current.file_identity == prepared.facts.file_identity
 }
 
 fn cancel_requested(cancel: Option<&AtomicBool>, committed: bool) -> bool {

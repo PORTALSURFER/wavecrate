@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)]
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::thread;
@@ -66,11 +67,80 @@ pub fn scan_in_background(root: PathBuf) -> thread::JoinHandle<Result<ScanStats,
     thread::spawn(move || {
         let db = SourceDatabase::open_for_scan(&root)?;
         let stats = scan_once(&db)?;
-        if stats.hashes_pending > 0 {
-            schedule_deep_hash_scan(root);
-        }
-        Ok(stats)
+        complete_deferred_hashes(&db, stats)
     })
+}
+
+/// Complete deferred content hashing and proven pending-rename reconciliation
+/// before publishing scan results to cache consumers.
+///
+/// Callers should use this from their existing background worker. Hashing runs
+/// without a source write transaction; only the final backfill/reconciliation
+/// uses a short write batch.
+pub fn complete_deferred_hashes(
+    db: &SourceDatabase,
+    stats: ScanStats,
+) -> Result<ScanStats, ScanError> {
+    complete_deferred_hashes_with_cancel(db, stats, None)
+}
+
+/// Reconcile only proven rename destinations before publishing latency-sensitive results.
+///
+/// Unrelated large-file hash backfills remain deferred. A cold import with no
+/// pending source rows returns immediately even though its new paths are tracked
+/// as possible destinations for a following watcher batch.
+pub fn complete_deferred_rename_candidates(
+    db: &SourceDatabase,
+    mut stats: ScanStats,
+) -> Result<ScanStats, ScanError> {
+    if db.list_pending_renames()?.is_empty() {
+        return Ok(stats);
+    }
+    let persisted_candidates = db.list_pending_rename_destinations()?;
+    if stats.rename_candidate_paths.is_empty() && persisted_candidates.is_empty() {
+        return Ok(stats);
+    }
+    let rename_candidates = stats
+        .rename_candidate_paths
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let deferred = super::super::scan_hash::deep_hash_scan(
+        db,
+        None,
+        &rename_candidates,
+        super::super::scan_hash::DeferredHashScope::RenameCandidates,
+    )?;
+    stats.merge_deferred_hashes(deferred);
+    Ok(stats)
+}
+
+/// Complete deferred hashing while honoring the owning scan's cancellation flag.
+pub fn complete_deferred_hashes_with_cancel(
+    db: &SourceDatabase,
+    mut stats: ScanStats,
+    cancel: Option<&AtomicBool>,
+) -> Result<ScanStats, ScanError> {
+    let persisted_candidates = db.list_pending_rename_destinations()?;
+    if stats.hashes_pending == 0
+        && stats.rename_candidate_paths.is_empty()
+        && persisted_candidates.is_empty()
+    {
+        return Ok(stats);
+    }
+    let rename_candidates = stats
+        .rename_candidate_paths
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let scope = if stats.hashes_pending > 0 {
+        super::super::scan_hash::DeferredHashScope::AllUnhashed
+    } else {
+        super::super::scan_hash::DeferredHashScope::RenameCandidates
+    };
+    let deferred = super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates, scope)?;
+    stats.merge_deferred_hashes(deferred);
+    Ok(stats)
 }
 
 /// Spawn a detached deep-hash pass to backfill content hashes after quick scans.
@@ -86,7 +156,12 @@ pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: 
     thread::spawn(move || {
         let result = (|| -> Result<(), ScanError> {
             let db = SourceDatabase::open_for_scan_with_database_root(root, database_root)?;
-            let _ = super::super::scan_hash::deep_hash_scan(&db, None)?;
+            let _ = super::super::scan_hash::deep_hash_scan(
+                &db,
+                None,
+                &HashSet::new(),
+                super::super::scan_hash::DeferredHashScope::AllUnhashed,
+            )?;
             Ok(())
         })();
         if let Err(err) = result {

@@ -20,7 +20,13 @@ pub(in crate::native_app) fn scan_source_with_progress(
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
-    let ratings = if request.root.is_dir() {
+    let source_root_available = request.root.is_dir();
+    let source_db_error = if source_root_available {
+        sync_source_database(&request, &mut progress)
+    } else {
+        None
+    };
+    let ratings = if source_root_available {
         source_rating_map_with_rating_decay(
             &request.root,
             &request.database_root,
@@ -48,12 +54,6 @@ pub(in crate::native_app) fn scan_source_with_progress(
     let file_count = scan.counter.files;
     let folder_count = scan.counter.folders;
     drop(scan);
-    let source_db_error = if request.root.is_dir() {
-        sync_source_database(&request, &mut progress)
-    } else {
-        None
-    };
-    let source_root_available = request.root.is_dir();
     FolderScanResult {
         task_id: request.task_id,
         source_id: request.source_id,
@@ -89,18 +89,26 @@ fn sync_source_database(
             detail: path.display().to_string(),
         });
     };
-    match scanner::scan_with_progress(&db, scanner::ScanMode::Quick, None, &mut sync_progress) {
-        Ok(stats) => {
-            if stats.hashes_pending > 0 {
-                scanner::schedule_deep_hash_scan_with_database_root(
-                    request.root.clone(),
-                    request.database_root.clone(),
-                );
-            }
-            None
-        }
-        Err(err) => Some(format!("sync source index: {err}")),
+    let stats = match scanner::scan_with_progress(
+        &db,
+        scanner::ScanMode::Quick,
+        None,
+        &mut sync_progress,
+    ) {
+        Ok(stats) => stats,
+        Err(err) => return Some(format!("sync source index: {err}")),
+    };
+    let completed = match scanner::complete_deferred_rename_candidates(&db, stats) {
+        Ok(completed) => completed,
+        Err(err) => return Some(format!("finish deferred rename hashing: {err}")),
+    };
+    if completed.hashes_pending > 0 {
+        scanner::schedule_deep_hash_scan_with_database_root(
+            request.root.clone(),
+            request.database_root.clone(),
+        );
     }
+    None
 }
 
 struct ScanProgressCounter {

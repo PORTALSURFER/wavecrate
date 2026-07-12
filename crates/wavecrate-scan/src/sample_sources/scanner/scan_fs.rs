@@ -17,6 +17,7 @@ pub(super) struct FileFacts {
     pub(super) relative: PathBuf,
     pub(super) size: u64,
     pub(super) modified_ns: i64,
+    pub(super) file_identity: Option<String>,
 }
 
 pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError> {
@@ -117,7 +118,31 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
         relative,
         size: meta.len(),
         modified_ns,
+        file_identity: stable_file_identity(&meta),
     })
+}
+
+#[cfg(unix)]
+fn stable_file_identity(metadata: &fs::Metadata) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+
+    Some(format!("unix:{}:{}", metadata.dev(), metadata.ino()))
+}
+
+#[cfg(windows)]
+fn stable_file_identity(metadata: &fs::Metadata) -> Option<String> {
+    use std::os::windows::fs::MetadataExt;
+
+    Some(format!(
+        "windows:{}:{}",
+        metadata.volume_serial_number()?,
+        metadata.file_index()?
+    ))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn stable_file_identity(_metadata: &fs::Metadata) -> Option<String> {
+    None
 }
 
 pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {

@@ -127,6 +127,51 @@ fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
 }
 
 #[test]
+fn source_scan_publishes_restored_rating_after_large_rename() {
+    let root = temp_source_root("wavecrate-gui-large-rename");
+    let old_path = root.join("old.wav");
+    let new_path = root.join("new.wav");
+    fs::write(&old_path, vec![7_u8; 9 * 1024 * 1024]).expect("write large wav");
+    let mut browser = FolderBrowserState::load_default();
+    let initial_request = browser
+        .begin_add_source_path(root.clone(), 42)
+        .expect("new source should request scan");
+    assert!(browser.apply_scan_finished(scan_source_with_progress(
+        initial_request,
+        |_| {},
+        |_| {}
+    )));
+
+    let db = SourceDatabase::open(&root).expect("source db");
+    db.set_tag(std::path::Path::new("old.wav"), Rating::KEEP_1)
+        .expect("rate original file");
+    fs::rename(&old_path, &new_path).expect("rename large wav");
+
+    let request = browser
+        .begin_selected_source_scan(43)
+        .expect("selected source refresh should queue");
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    let renamed = result
+        .folder
+        .all_files()
+        .into_iter()
+        .find(|file| file.name == "new.wav")
+        .expect("renamed file");
+
+    assert_eq!(result.source_db_error, None);
+    assert_eq!(renamed.rating, Rating::KEEP_1);
+    assert_eq!(
+        db.entry_for_path(std::path::Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn non_wav_audio_looking_files_are_visible_but_not_supported_audio() {
     let root = temp_source_root("wavecrate-gui-unsupported-audio");
     let drums = root.join("drums");

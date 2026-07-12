@@ -11,6 +11,7 @@ mod open_profiles;
 mod pending_renames;
 /// Read-only database queries for sample sources.
 pub mod read;
+mod rename_destinations;
 /// SQLite schema management for sample source databases.
 pub mod schema;
 /// Durable per-source tag catalog and sample assignment helpers.
