@@ -129,8 +129,15 @@ fn reserve_trash_path(
             name.into()
         };
         let candidate = trash_folder.join(name);
-        if candidate.exists() {
-            continue;
+        match trash_entry_exists(&candidate) {
+            Ok(true) => continue,
+            Ok(false) => {}
+            Err(error) => {
+                return Err(format!(
+                    "Inspect trash destination {} failed: {error}",
+                    candidate.display()
+                ));
+            }
         }
         let marker = trash_reservation_marker(trash_folder, &candidate);
         match OpenOptions::new()
@@ -139,10 +146,21 @@ fn reserve_trash_path(
             .open(&marker)
         {
             Ok(file) => {
-                if candidate.exists() {
-                    drop(file);
-                    let _ = fs::remove_file(marker);
-                    continue;
+                match trash_entry_exists(&candidate) {
+                    Ok(true) => {
+                        drop(file);
+                        let _ = fs::remove_file(marker);
+                        continue;
+                    }
+                    Ok(false) => {}
+                    Err(error) => {
+                        drop(file);
+                        let _ = fs::remove_file(marker);
+                        return Err(format!(
+                            "Inspect trash destination {} failed: {error}",
+                            candidate.display()
+                        ));
+                    }
                 }
                 return Ok(TrashDestinationReservation {
                     destination: candidate,
@@ -157,6 +175,14 @@ fn reserve_trash_path(
     Err(String::from(
         "Trash folder contains too many matching names",
     ))
+}
+
+fn trash_entry_exists(path: &Path) -> io::Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 fn trash_reservation_marker(trash_folder: &Path, candidate: &Path) -> PathBuf {
@@ -584,6 +610,35 @@ mod tests {
         drop(reservation);
 
         assert!(!marker.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn trash_move_numbers_past_a_broken_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let trash = temp.path().join("trash");
+        let source_root = temp.path().join("source");
+        fs::create_dir(&trash).unwrap();
+        fs::create_dir(&source_root).unwrap();
+        let source = source_root.join("kick.wav");
+        fs::write(&source, b"kick").unwrap();
+        let broken_link = trash.join("kick.wav");
+        symlink(trash.join("missing.wav"), &broken_link).unwrap();
+        assert!(!broken_link.exists());
+
+        let outcome = move_path_to_configured_trash(&source, Some(&trash));
+        let moved_path = trash.canonicalize().unwrap().join("kick 2.wav");
+
+        assert_eq!(
+            outcome.result,
+            TrashMoveResult::Moved {
+                destination: moved_path.clone()
+            }
+        );
+        assert_eq!(fs::read(moved_path).unwrap(), b"kick");
+        assert!(fs::symlink_metadata(broken_link).is_ok());
     }
 
     #[test]
