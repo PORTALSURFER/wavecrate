@@ -567,12 +567,14 @@ impl PublishedRemapDatabase {
 
 #[derive(Debug)]
 struct DatabaseArtifactSnapshot {
+    database_preexisting: bool,
     artifacts: Vec<(PathBuf, bool)>,
 }
 
 impl DatabaseArtifactSnapshot {
     fn new(root: &Path) -> Self {
         let database = crate::sample_sources::database_path_for(root);
+        let database_preexisting = database_artifact_present(&database);
         let artifacts = [
             database.clone(),
             path_with_suffix(&database, "-wal"),
@@ -585,10 +587,16 @@ impl DatabaseArtifactSnapshot {
             (path, existed)
         })
         .collect();
-        Self { artifacts }
+        Self {
+            database_preexisting,
+            artifacts,
+        }
     }
 
     fn remove_created(&self) {
+        if self.database_preexisting {
+            return;
+        }
         for (path, existed) in &self.artifacts {
             if *existed {
                 continue;
@@ -1038,6 +1046,24 @@ mod tests {
         assert!(!database.exists());
         assert!(!shm.exists());
         assert_eq!(fs::read(wal).unwrap(), b"preexisting wal");
+    }
+
+    #[test]
+    fn rollback_preserves_sidecars_created_for_preexisting_database() {
+        let root = tempfile::tempdir().expect("destination root");
+        let database = crate::sample_sources::database_path_for(root.path());
+        let wal = path_with_suffix(&database, "-wal");
+        let shm = path_with_suffix(&database, "-shm");
+        fs::write(&database, b"preexisting database").expect("preexisting database");
+        let snapshot = DatabaseArtifactSnapshot::new(root.path());
+        fs::write(&wal, b"committed wal rows").expect("created wal");
+        fs::write(&shm, b"shared memory state").expect("created shm");
+
+        snapshot.remove_created();
+
+        assert_eq!(fs::read(database).unwrap(), b"preexisting database");
+        assert_eq!(fs::read(wal).unwrap(), b"committed wal rows");
+        assert_eq!(fs::read(shm).unwrap(), b"shared memory state");
     }
 }
 
