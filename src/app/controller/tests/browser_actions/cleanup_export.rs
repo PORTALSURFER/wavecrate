@@ -94,6 +94,43 @@ fn browser_normalize_resumes_playback_when_playing() {
 }
 
 #[test]
+fn browser_normalization_cancels_pending_source_remap_before_writing() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "normalize_remap.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    write_test_wav(
+        &source.root.join("normalize_remap.wav"),
+        &[0.0, 0.2, -0.6, 0.3],
+    );
+    let write_fence =
+        std::sync::Arc::new(crate::app::controller::jobs::SourceRemapWriteFence::default());
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 1,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("remap target").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+            write_fence: std::sync::Arc::clone(&write_fence),
+        });
+
+    controller
+        .normalize_browser_sample(0)
+        .expect("normalization should proceed after canceling remap");
+
+    assert!(write_fence.is_canceled());
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.canceled)
+    );
+}
+
+#[test]
 fn pruning_missing_browser_sample_keeps_remaining_rows_visible() -> Result<(), String> {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
