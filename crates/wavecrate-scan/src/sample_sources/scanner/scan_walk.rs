@@ -177,7 +177,7 @@ fn apply_batch(
     let mut ready = Vec::with_capacity(prepared.len());
     for file in prepared {
         let relative_path = file.facts.relative.clone();
-        let outcome = match prepare_for_apply(root, cancel, file) {
+        let outcome = match prepare_for_apply(db, root, cancel, file) {
             Ok(outcome) => outcome,
             Err(error) if tolerate_file_errors => {
                 skip_changed_or_unavailable(context, root, &relative_path);
@@ -234,6 +234,7 @@ enum PrepareForApply {
 }
 
 fn prepare_for_apply(
+    db: &SourceDatabase,
     root: &Path,
     cancel: Option<&AtomicBool>,
     mut prepared: PreparedFile,
@@ -252,7 +253,14 @@ fn prepare_for_apply(
     if !facts_match(&prepared, &before_hash) {
         return Ok(PrepareForApply::Skip);
     }
-    if prepared.hash_required {
+    let current_needs_hash = db
+        .entry_for_path(&prepared.facts.relative)?
+        .is_none_or(|entry| {
+            entry.file_size != prepared.facts.size
+                || entry.modified_ns != prepared.facts.modified_ns
+                || entry.content_hash.is_none()
+        });
+    if prepared.hash_required && (prepared.needs_hash || current_needs_hash) {
         prepared.content_hash = Some(compute_content_hash(&absolute, cancel)?);
         let Ok(after_hash) = read_facts(root, &absolute) else {
             return Ok(if absolute.exists() {
@@ -277,4 +285,40 @@ fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> 
 
 fn cancel_requested(cancel: Option<&AtomicBool>, committed: bool) -> bool {
     !committed && cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PrepareForApply, prepare_for_apply};
+    use crate::sample_sources::SourceDatabase;
+    use crate::sample_sources::scanner::scan::scan_once;
+    use crate::sample_sources::scanner::scan_diff::PreparedFile;
+    use crate::sample_sources::scanner::scan_fs::read_facts;
+    use std::path::Path;
+    use tempfile::tempdir;
+
+    #[test]
+    fn missing_repair_with_existing_hash_skips_prepared_hash() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, b"one").unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        db.set_missing(Path::new("one.wav"), true).unwrap();
+        let prepared = PreparedFile {
+            facts: read_facts(dir.path(), &file_path).unwrap(),
+            hash_required: true,
+            needs_hash: false,
+            requires_apply: true,
+            content_hash: None,
+        };
+
+        assert!(prepared.requires_apply);
+        assert!(!prepared.needs_hash);
+        let outcome = prepare_for_apply(&db, dir.path(), None, prepared).unwrap();
+        let PrepareForApply::Ready(prepared) = outcome else {
+            panic!("restored missing file should remain ready for apply");
+        };
+        assert!(prepared.content_hash.is_none());
+    }
 }
