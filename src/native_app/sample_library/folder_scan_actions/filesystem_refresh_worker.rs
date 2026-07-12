@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use wavecrate::sample_sources::{SourceDatabase, scanner};
 
-use crate::native_app::app::SourceFilesystemSyncResult;
+use crate::native_app::app::{SourceFilesystemSyncResult, SourceFilesystemSyncSuccess};
 
 pub(super) fn sync_source_database_paths(
     source_id: String,
@@ -16,18 +16,69 @@ pub(super) fn sync_source_database_paths(
         .and_then(|db| {
             let stats = scanner::sync_paths(&db, &paths)
                 .map_err(|err| format!("sync source index: {err}"))?;
-            if let Err(error) = scanner::complete_deferred_hashes(&db, stats) {
-                tracing::warn!(
-                    source_id,
-                    error = %error,
-                    "Deferred source hashing failed after filesystem sync committed"
-                );
-            }
-            Ok(())
+            let committed = stats.clone();
+            let completed = match scanner::complete_deferred_hashes(&db, stats) {
+                Ok(completed) => completed,
+                Err(error) => {
+                    tracing::warn!(
+                        source_id,
+                        error = %error,
+                        "Deferred source hashing failed after filesystem sync committed"
+                    );
+                    committed
+                }
+            };
+            Ok(SourceFilesystemSyncSuccess {
+                renames_reconciled: completed.renames_reconciled,
+            })
         });
     SourceFilesystemSyncResult {
         source_id,
         changed_count,
         result,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    use wavecrate::sample_sources::{Rating, SourceDatabase, scanner};
+
+    use super::{SourceFilesystemSyncSuccess, sync_source_database_paths};
+
+    #[test]
+    fn filesystem_sync_returns_deferred_rename_results_for_refresh() {
+        let root = tempfile::tempdir().expect("source root");
+        let old = root.path().join("old.wav");
+        let new = root.path().join("new.wav");
+        std::fs::write(&old, vec![5_u8; 9 * 1024 * 1024]).expect("large wav");
+        let db = SourceDatabase::open(root.path()).expect("source db");
+        scanner::hard_rescan(&db).expect("initial scan");
+        db.set_tag(Path::new("old.wav"), Rating::KEEP_1)
+            .expect("tag old path");
+        std::fs::rename(&old, &new).expect("rename wav");
+
+        let result = sync_source_database_paths(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+            vec![PathBuf::from("old.wav"), PathBuf::from("new.wav")],
+            2,
+        );
+
+        assert_eq!(
+            result.result,
+            Ok(SourceFilesystemSyncSuccess {
+                renames_reconciled: 1
+            })
+        );
+        assert_eq!(
+            db.entry_for_path(Path::new("new.wav"))
+                .unwrap()
+                .unwrap()
+                .tag,
+            Rating::KEEP_1
+        );
     }
 }

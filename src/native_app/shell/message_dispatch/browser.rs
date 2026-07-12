@@ -71,7 +71,7 @@ impl NativeAppState {
                 self.refresh_source_after_filesystem_change(source_id, paths, overflowed, context);
             }
             GuiMessage::SourceFilesystemSyncFinished(result) => {
-                self.finish_source_filesystem_sync(result);
+                self.finish_source_filesystem_sync(result, context);
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);
