@@ -504,6 +504,43 @@ fn remap_rejects_active_deferred_file_operation() {
 }
 
 #[test]
+fn source_file_operation_started_during_live_remap_cancels_it() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "undo.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let write_fence =
+        std::sync::Arc::new(crate::app::controller::jobs::SourceRemapWriteFence::default());
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 95,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("destination").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+            write_fence: std::sync::Arc::clone(&write_fence),
+        });
+    let (_sender, receiver) = std::sync::mpsc::channel();
+
+    controller.start_file_ops_with_remap_cancellation(
+        receiver,
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    );
+
+    assert!(write_fence.is_canceled());
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.canceled)
+    );
+    assert!(controller.runtime.jobs.file_ops_in_progress());
+    controller.runtime.jobs.clear_file_ops();
+}
+
+#[test]
 fn remap_rejects_active_database_maintenance_for_same_source() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
