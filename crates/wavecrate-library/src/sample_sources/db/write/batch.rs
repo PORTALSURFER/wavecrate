@@ -139,6 +139,46 @@ impl<'conn> SourceWriteBatch<'conn> {
         )
     }
 
+    /// Insert or update a wav file with a specific tag while leaving its hash unset.
+    pub fn upsert_file_without_hash_and_tag(
+        &mut self,
+        relative_path: &Path,
+        file_size: u64,
+        modified_ns: i64,
+        tag: Rating,
+        missing: bool,
+    ) -> Result<(), SourceDbError> {
+        self.upsert_file_with_policies(
+            relative_path,
+            file_size,
+            modified_ns,
+            ContentHashPolicy::Clear,
+            TagPolicy::Set(tag),
+            missing,
+        )
+    }
+
+    /// Persist the stable filesystem-object identity observed by the scanner.
+    pub fn set_file_identity(
+        &mut self,
+        relative_path: &Path,
+        file_identity: Option<&str>,
+    ) -> Result<(), SourceDbError> {
+        match file_identity {
+            Some(identity) => update_path_text_statement(
+                &self.tx,
+                "UPDATE wav_files SET file_identity = ?1 WHERE path = ?2",
+                relative_path,
+                identity,
+            ),
+            None => update_path_null_statement(
+                &self.tx,
+                "UPDATE wav_files SET file_identity = NULL WHERE path = ?1",
+                relative_path,
+            ),
+        }
+    }
+
     fn upsert_file_with_policies(
         &mut self,
         relative_path: &Path,

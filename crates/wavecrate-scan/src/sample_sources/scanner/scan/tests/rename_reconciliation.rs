@@ -229,6 +229,73 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
     );
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn large_rename_before_initial_hash_uses_stable_file_identity() {
+    let dir = tempdir().unwrap();
+    let first_path = dir.path().join("one.wav");
+    let second_path = dir.path().join("two.wav");
+    std::fs::write(&first_path, vec![3u8; 9 * 1024 * 1024]).unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let initial = scan_once(&db).unwrap();
+    assert_eq!(initial.hashes_pending, 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("one.wav"))
+            .unwrap()
+            .unwrap()
+            .content_hash,
+        None
+    );
+    db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::rename(&first_path, &second_path).unwrap();
+    let quick = scan_once(&db).unwrap();
+    assert_eq!(quick.renames_reconciled, 0);
+    assert_eq!(quick.hashes_pending, 1);
+
+    let completed = complete_deferred_hashes(&db, quick).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 1);
+    let renamed = db.entry_for_path(Path::new("two.wav")).unwrap().unwrap();
+    assert_eq!(renamed.tag, Rating::KEEP_1);
+    assert!(renamed.content_hash.is_some());
+    assert!(db.list_pending_renames().unwrap().is_empty());
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn copy_delete_before_initial_hash_does_not_transfer_identity() {
+    let dir = tempdir().unwrap();
+    let first_path = dir.path().join("one.wav");
+    let second_path = dir.path().join("two.wav");
+    std::fs::write(&first_path, vec![4u8; 9 * 1024 * 1024]).unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::copy(&first_path, &second_path).unwrap();
+    std::fs::remove_file(&first_path).unwrap();
+    let quick = scan_once(&db).unwrap();
+    let completed = complete_deferred_hashes(&db, quick).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 0);
+    assert_eq!(
+        db.entry_for_path(Path::new("two.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
+    assert!(
+        db.list_pending_renames()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.relative_path == Path::new("one.wav"))
+    );
+}
+
 #[test]
 fn detached_deep_hash_uses_persisted_quick_scan_destinations() {
     let dir = tempdir().unwrap();

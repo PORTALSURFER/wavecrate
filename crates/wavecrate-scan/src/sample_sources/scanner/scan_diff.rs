@@ -73,6 +73,7 @@ pub(super) fn apply_diff(
                     context.stats.hashes_pending += 1;
                 }
             }
+            batch.set_file_identity(&path, facts.file_identity.as_deref())?;
         }
         Some(entry) => {
             let previous_hash = entry.content_hash.as_deref();
@@ -105,6 +106,7 @@ pub(super) fn apply_diff(
                     content_hash: None,
                 });
             }
+            batch.set_file_identity(&path, facts.file_identity.as_deref())?;
             context.stats.updated += 1;
         }
         None => {
@@ -119,7 +121,8 @@ pub(super) fn apply_diff(
                     &hash,
                 )? {
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, &hash, entry, None)?;
+                    apply_rename(batch, &path, &facts, Some(&hash), entry, None)?;
+                    batch.set_file_identity(&path, facts.file_identity.as_deref())?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.renamed_samples.push(RenamedSample {
@@ -135,7 +138,8 @@ pub(super) fn apply_diff(
                     let normal_tags = entry.normal_tags.clone();
                     let entry = entry.into_wav_entry();
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, &hash, entry, Some(&normal_tags))?;
+                    apply_rename(batch, &path, &facts, Some(&hash), entry, Some(&normal_tags))?;
+                    batch.set_file_identity(&path, facts.file_identity.as_deref())?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_computed += 1;
@@ -149,6 +153,7 @@ pub(super) fn apply_diff(
                     return Ok(());
                 }
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
+                batch.set_file_identity(&path, facts.file_identity.as_deref())?;
                 if let Some(generation) = context.rename_candidate_generation {
                     batch.stage_pending_rename_destination(&path, generation)?;
                 }
@@ -163,9 +168,34 @@ pub(super) fn apply_diff(
                     content_hash: hash,
                 });
             } else {
-                // Size and modification time are not content identity. Keep any
-                // removed row pending until deep hashing can prove a match.
+                // Size and modification time are not identity. Recover only a
+                // unique same-file move here; otherwise wait for deep hashing.
+                if let Some(file_identity) = facts.file_identity.as_deref()
+                    && let Some(entry) = batch.take_pending_rename_by_file_identity(
+                        file_identity,
+                        facts.size,
+                        facts.modified_ns,
+                    )?
+                {
+                    let normal_tags = entry.normal_tags.clone();
+                    let entry = entry.into_wav_entry();
+                    let old_relative_path = entry.relative_path.clone();
+                    apply_rename(batch, &path, &facts, None, entry, Some(&normal_tags))?;
+                    batch.set_file_identity(&path, Some(file_identity))?;
+                    context.stats.updated += 1;
+                    context.stats.renames_reconciled += 1;
+                    context.stats.hashes_pending += 1;
+                    context.stats.renamed_samples.push(RenamedSample {
+                        old_relative_path,
+                        new_relative_path: path.clone(),
+                        file_size: facts.size,
+                        modified_ns: facts.modified_ns,
+                        content_hash: None,
+                    });
+                    return Ok(());
+                }
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
+                batch.set_file_identity(&path, facts.file_identity.as_deref())?;
                 if let Some(generation) = context.rename_candidate_generation {
                     batch.stage_pending_rename_destination(&path, generation)?;
                 }
@@ -209,18 +239,28 @@ fn apply_rename(
     batch: &mut SourceWriteBatch<'_>,
     new_path: &Path,
     facts: &FileFacts,
-    hash: &str,
+    hash: Option<&str>,
     entry: WavEntry,
     retained_normal_tags: Option<&[String]>,
 ) -> Result<(), ScanError> {
-    batch.upsert_file_with_hash_and_tag(
-        new_path,
-        facts.size,
-        facts.modified_ns,
-        hash,
-        entry.tag,
-        false,
-    )?;
+    if let Some(hash) = hash {
+        batch.upsert_file_with_hash_and_tag(
+            new_path,
+            facts.size,
+            facts.modified_ns,
+            hash,
+            entry.tag,
+            false,
+        )?;
+    } else {
+        batch.upsert_file_without_hash_and_tag(
+            new_path,
+            facts.size,
+            facts.modified_ns,
+            entry.tag,
+            false,
+        )?;
+    }
     if entry.looped {
         batch.set_looped(new_path, entry.looped)?;
     }

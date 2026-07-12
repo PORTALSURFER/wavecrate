@@ -23,7 +23,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         extension TEXT NOT NULL DEFAULT '',
         last_played_at INTEGER,
         last_curated_at INTEGER,
-        collection INTEGER
+        collection INTEGER,
+        file_identity TEXT
     );
     CREATE TABLE IF NOT EXISTS source_tags (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -218,7 +219,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         user_tag TEXT,
         normal_tags TEXT,
         collection INTEGER,
-        tag_named INTEGER NOT NULL DEFAULT 0
+        tag_named INTEGER NOT NULL DEFAULT 0,
+        file_identity TEXT
     );
     CREATE TABLE IF NOT EXISTS pending_wav_rename_destinations (
         path TEXT PRIMARY KEY,
@@ -235,6 +237,8 @@ const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON wav_file_collections(collection);
      CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_hash
          ON pending_wav_renames (content_hash);
+     CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_file_identity
+         ON pending_wav_renames (file_identity);
      CREATE INDEX IF NOT EXISTS idx_pending_wav_renames_facts
          ON pending_wav_renames (file_size, modified_ns);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_source_job_status_created
