@@ -763,18 +763,7 @@ fn database_artifact_owner_matches(
     initial: &crate::app::controller::jobs::SourceRemapDatabaseIdentity,
     prepared: &crate::app::controller::jobs::SourceRemapDatabaseIdentity,
 ) -> bool {
-    let database_matches = match (&initial.database, &prepared.database) {
-        (None, None) => true,
-        (Some(initial), Some(prepared)) => match &initial.stable_id {
-            Some(stable_id) => prepared.stable_id.as_ref() == Some(stable_id),
-            None => initial == prepared,
-        },
-        _ => false,
-    };
-    database_matches
-        && initial.wal == prepared.wal
-        && initial.shm == prepared.shm
-        && initial.journal == prepared.journal
+    initial == prepared
 }
 
 #[cfg(unix)]
@@ -993,6 +982,22 @@ mod tests {
         fs::write(&wal, b"old wal rows").expect("wal");
         let initial = database_identity(&destination).expect("initial identity");
         fs::write(&wal, b"new committed wal rows").expect("change wal");
+        let prepared = database_identity(&destination).expect("prepared identity");
+
+        assert_eq!(
+            initial.database.as_ref().unwrap().stable_id,
+            prepared.database.as_ref().unwrap().stable_id
+        );
+        assert!(!database_artifact_owner_matches(&initial, &prepared));
+    }
+
+    #[test]
+    fn prepared_owner_check_rejects_changed_preexisting_database() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        fs::write(&destination, b"database owner").expect("database");
+        let initial = database_identity(&destination).expect("initial identity");
+        fs::write(&destination, b"changed database owner").expect("change database");
         let prepared = database_identity(&destination).expect("prepared identity");
 
         assert_eq!(
