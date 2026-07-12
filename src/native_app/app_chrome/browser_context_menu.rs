@@ -110,7 +110,7 @@ fn context_menu_commands(
         return missing_sample_context_menu_commands(menu);
     }
     let mut actions = vec![
-        context_menu_command(&menu.kind, action_label, GuiMessage::OpenContextTarget),
+        context_menu_command(&menu.kind, action_label, open_target_message(menu)),
         context_menu_command(&menu.kind, "Copy Path", GuiMessage::CopyContextPath),
     ];
     if matches!(
@@ -223,6 +223,13 @@ fn context_menu_commands(
         );
     }
     actions
+}
+
+pub(in crate::native_app) fn open_target_message(menu: &BrowserContextMenu) -> GuiMessage {
+    GuiMessage::OpenContextTarget {
+        kind: menu.kind.clone(),
+        path: menu.path.clone(),
+    }
 }
 
 fn source_protection_label(role: SourceRole) -> &'static str {

@@ -17,6 +17,10 @@ impl ControllerJobs {
         next_request_id(&mut self.request_counters.next_source_add_request_id)
     }
 
+    pub(in super::super::super) fn next_source_remap_request_id(&mut self) -> u64 {
+        next_request_id(&mut self.request_counters.next_source_remap_request_id)
+    }
+
     /// Generate a request id for pane-scoped folder projection jobs.
     pub(in super::super::super) fn next_folder_projection_request_id(&mut self) -> u64 {
         next_request_id(&mut self.request_counters.next_folder_projection_request_id)

@@ -129,7 +129,7 @@ impl DragDropController<'_> {
                     request_id,
                     "drag controller: queued selection export backing external drag"
                 );
-                self.runtime.jobs.begin_selection_export(
+                self.queue_selection_export_job(
                     crate::app::controller::jobs::SelectionExportJob::Clip {
                         request_id,
                         snapshot,

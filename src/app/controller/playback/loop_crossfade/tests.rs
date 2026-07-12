@@ -90,6 +90,22 @@ fn request_loop_crossfade_prompt_rejects_non_wav_targets_with_explicit_message()
 fn apply_loop_crossfade_prompt_creates_suffixed_copy_preserves_tag_and_selects_result() {
     let (mut controller, source, _absolute_path) =
         prepare_loop_crossfade_controller("clip.wav", Rating::KEEP_1);
+    let write_fence = Arc::new(crate::app::controller::jobs::SourceRemapWriteFence::default());
+    let snapshot_path = source.root.join("loop-crossfade-remap.staged");
+    let source_db = SourceDatabase::open_for_source_write(&source.root).expect("source db");
+    let fence = source_db
+        .snapshot_to_path_with_write_fence(&snapshot_path)
+        .expect("snapshot fence");
+    assert!(write_fence.install(fence));
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 73,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("remap target").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+            write_fence: Arc::clone(&write_fence),
+        });
     let colliding_output = source.root.join("clip_fade5ms.wav");
     test_support::write_test_wav(&colliding_output, &[0.0, 0.0, 0.0, 0.0]);
     controller.ui.loop_crossfade_prompt = Some(LoopCrossfadePrompt {
@@ -102,6 +118,15 @@ fn apply_loop_crossfade_prompt_creates_suffixed_copy_preserves_tag_and_selects_r
         .apply_loop_crossfade_prompt()
         .expect("loop crossfade should apply");
 
+    assert!(write_fence.is_canceled());
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.canceled)
+    );
     let expected_relative = PathBuf::from("clip_fade5ms_1.wav");
     let expected_absolute = source.root.join(&expected_relative);
     assert!(expected_absolute.exists(), "expected created waveform copy");

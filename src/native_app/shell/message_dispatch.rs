@@ -79,6 +79,7 @@ impl NativeAppState {
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)
             | GuiMessage::FolderScanFinished(_)
+            | GuiMessage::FolderScanMaintenanceFinished(_)
             | GuiMessage::FolderTreeRefreshFinished(_)
             | GuiMessage::SelectedFolderVerifyFinished(_)
             | GuiMessage::SourceFilesystemChanged { .. }
@@ -158,7 +159,8 @@ impl NativeAppState {
             | GuiMessage::CopyContextPath
             | GuiMessage::TrashFolderDialogFinished(_)
             | GuiMessage::ContextPathCopyFinished { .. }
-            | GuiMessage::OpenContextTarget
+            | GuiMessage::OpenContextTarget { .. }
+            | GuiMessage::ContextTargetOpenValidated { .. }
             | GuiMessage::CreateFolderAtContextTarget
             | GuiMessage::RenameContextFolder
             | GuiMessage::ContextFolderCreateFinished { .. }
@@ -312,6 +314,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::FolderScanProgress(_) => "FolderScanProgress",
         GuiMessage::FolderScanDiscoveryBatch(_) => "FolderScanDiscoveryBatch",
         GuiMessage::FolderScanFinished(_) => "FolderScanFinished",
+        GuiMessage::FolderScanMaintenanceFinished(_) => "FolderScanMaintenanceFinished",
         GuiMessage::FolderTreeRefreshFinished(_) => "FolderTreeRefreshFinished",
         GuiMessage::SelectedFolderVerifyFinished(_) => "SelectedFolderVerifyFinished",
         GuiMessage::SourceFilesystemChanged { .. } => "SourceFilesystemChanged",

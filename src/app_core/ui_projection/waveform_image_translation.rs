@@ -44,9 +44,9 @@ mod tests {
 
         let native = waveform_image_to_native_rgba(&image).expect("expected translated image");
 
-        assert_eq!(native.width, 2);
-        assert_eq!(native.height, 1);
-        assert_eq!(native.pixels.as_ref(), &[1, 2, 3, 4, 5, 6, 7, 8]);
+        assert_eq!(native.width(), 2);
+        assert_eq!(native.height(), 1);
+        assert_eq!(native.pixels(), &[1, 2, 3, 4, 5, 6, 7, 8]);
     }
 
     #[test]

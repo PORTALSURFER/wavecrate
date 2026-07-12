@@ -343,7 +343,7 @@ mod tests {
         let first_collision = root.join("kick_copy001.wav");
         fs::write(&source, [1_u8, 2, 3, 4]).expect("write source");
         fs::write(&first_collision, [9_u8]).expect("write collision");
-        let db = SourceDatabase::open(root).expect("open db");
+        let db = SourceDatabase::open_for_source_write(root).expect("open db");
         db.upsert_file(Path::new("kick.wav"), 4, 1)
             .expect("upsert source");
         db.set_tag(Path::new("kick.wav"), Rating::new(2))
@@ -435,7 +435,7 @@ mod tests {
         .expect("duplicate double");
 
         assert_eq!(result.destination, temp.path().join("loop_doubled.wav"));
-        let db = SourceDatabase::open(temp.path()).expect("open db");
+        let db = SourceDatabase::open_for_source_write(temp.path()).expect("open db");
         assert!(
             db.entry_for_path(Path::new("loop_doubled.wav"))
                 .expect("read doubled entry")

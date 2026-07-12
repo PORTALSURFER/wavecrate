@@ -112,7 +112,7 @@ impl AppController {
                     target_path,
                     entries,
                 )?;
-                let db = crate::sample_sources::SourceDatabase::open(&source.root)
+                let db = crate::sample_sources::SourceDatabase::open_for_source_write(&source.root)
                     .map_err(|err| format!("Database unavailable: {err}"))?;
                 let mut batch = db
                     .write_batch()
@@ -163,7 +163,7 @@ pub(super) fn run_folder_delete_job(
         &entries,
     )
     .and_then(|staged| {
-        let db = crate::sample_sources::SourceDatabase::open(&source.root)
+        let db = crate::sample_sources::SourceDatabase::open_for_source_write(&source.root)
             .map_err(|err| format!("Database unavailable: {err}"))?;
         let mut batch = db
             .write_batch()

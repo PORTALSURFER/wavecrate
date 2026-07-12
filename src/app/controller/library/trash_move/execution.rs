@@ -48,7 +48,7 @@ where
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        let db = match SourceDatabase::open(&source.root) {
+        let db = match SourceDatabase::open_for_source_write(&source.root) {
             Ok(db) => db,
             Err(err) => {
                 errors.push(format!("{}: {err}", source.root.display()));
@@ -94,7 +94,7 @@ where
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        let db = match SourceDatabase::open(&source.root) {
+        let db = match SourceDatabase::open_for_source_write(&source.root) {
             Ok(db) => db,
             Err(err) => {
                 errors.push(format!("{}: {err}", source.root.display()));

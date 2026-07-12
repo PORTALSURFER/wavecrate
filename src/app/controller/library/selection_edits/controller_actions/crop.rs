@@ -33,7 +33,7 @@ impl AppController {
             },
             "Cropped to new sample",
         );
-        self.runtime.jobs.begin_selection_export(
+        self.queue_selection_export_job(
             crate::app::controller::jobs::SelectionExportJob::CropNewSample {
                 request_id,
                 snapshot: self.capture_selection_export_snapshot(

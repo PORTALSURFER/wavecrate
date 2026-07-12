@@ -1,6 +1,7 @@
 //! Audio recording pipeline and monitoring utilities.
 
 mod capture;
+mod health;
 mod monitor;
 mod writer;
 
@@ -10,8 +11,13 @@ use cpal::Stream;
 use cpal::traits::StreamTrait;
 
 use super::input::{AudioInputConfig, AudioInputError, ResolvedInput};
-use monitor::{MonitorSenderSlot, set_monitor_sender};
+use std::sync::Arc;
+
+use health::RecordingHealthState;
+use monitor::RecordingMonitor;
 use writer::RecorderWriter;
+
+pub use health::RecordingHealth;
 
 /// Summary returned when a recording completes.
 pub struct RecordingOutcome {
@@ -23,6 +29,8 @@ pub struct RecordingOutcome {
     pub frames: u64,
     /// Duration of the recording in seconds.
     pub duration_seconds: f32,
+    /// Capture overrun and worker-failure counters for the completed session.
+    pub health: RecordingHealth,
 }
 
 /// Active audio recorder that streams samples to a WAV file.
@@ -31,7 +39,8 @@ pub struct AudioRecorder {
     writer: Option<RecorderWriter>,
     resolved: ResolvedInput,
     path: PathBuf,
-    monitor_sender: MonitorSenderSlot,
+    monitor: RecordingMonitor,
+    health: Arc<RecordingHealthState>,
     active: bool,
 }
 
@@ -48,7 +57,8 @@ impl AudioRecorder {
             writer: Some(runtime.writer),
             resolved: runtime.resolved,
             path,
-            monitor_sender: runtime.monitor_sender,
+            monitor: runtime.monitor,
+            health: runtime.health,
             active: true,
         })
     }
@@ -62,6 +72,7 @@ impl AudioRecorder {
         }
         self.active = false;
         drop(self.stream.take());
+        self.monitor.stop();
         let mut writer = self
             .writer
             .take()
@@ -80,6 +91,7 @@ impl AudioRecorder {
             resolved: self.resolved.clone(),
             frames: stats.frames,
             duration_seconds,
+            health: self.health(),
         })
     }
 
@@ -98,18 +110,19 @@ impl AudioRecorder {
         &self.path
     }
 
+    /// Return a lock-free snapshot of capture overruns and worker failures.
+    pub fn health(&self) -> RecordingHealth {
+        self.health.snapshot()
+    }
+
     /// Attach a monitor that receives live audio samples.
     pub fn attach_monitor(&self, monitor: &monitor::InputMonitor) {
-        self.set_monitor_sender(Some(monitor.sender()));
+        self.monitor.attach(monitor.target());
     }
 
     /// Detach any active input monitor.
     pub fn detach_monitor(&self) {
-        self.set_monitor_sender(None);
-    }
-
-    fn set_monitor_sender(&self, sender: Option<std::sync::mpsc::Sender<monitor::MonitorCommand>>) {
-        set_monitor_sender(&self.monitor_sender, sender);
+        self.monitor.detach();
     }
 }
 
@@ -124,8 +137,11 @@ mod tests {
     fn recorder_is_active_clears_after_stop() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("recording.wav");
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let writer = RecorderWriter::spawn(path.clone(), 48_000, 2, receiver, sender).unwrap();
+        let health = Arc::new(RecordingHealthState::default());
+        let (writer, _capture) =
+            RecorderWriter::spawn(path.clone(), 48_000, 2, Arc::clone(&health)).unwrap();
+        let (monitor, _monitor_capture) =
+            monitor::start_recording_monitor(48_000, 2, Arc::clone(&health));
         let resolved = ResolvedInput {
             host_id: "test".to_string(),
             device_name: "test device".to_string(),
@@ -141,7 +157,8 @@ mod tests {
             writer: Some(writer),
             resolved,
             path,
-            monitor_sender: monitor::new_monitor_sender_slot(),
+            monitor,
+            health,
             active: true,
         };
 
@@ -149,5 +166,6 @@ mod tests {
         let outcome = recorder.stop().unwrap();
         assert!(!recorder.is_active());
         assert_eq!(outcome.frames, 0);
+        assert_eq!(outcome.health, RecordingHealth::default());
     }
 }

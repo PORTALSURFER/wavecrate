@@ -134,7 +134,7 @@ impl AppController {
         {
             let (tx, rx) = std::sync::mpsc::channel();
             let cancel = Arc::new(AtomicBool::new(false));
-            self.runtime.jobs.start_file_ops(rx, cancel);
+            self.start_file_ops_with_remap_cancellation(rx, cancel);
             std::thread::spawn(move || {
                 let result = run_retained_delete_resolution_job(request, Some(&tx));
                 let _ = tx.send(FileOpMessage::Finished(

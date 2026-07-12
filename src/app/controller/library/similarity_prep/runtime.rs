@@ -82,6 +82,7 @@ impl AppController {
     }
 
     pub(crate) fn start_similarity_finalize(&mut self, source_id: SourceId, umap_version: String) {
+        self.runtime.similarity.begin_finalize(&source_id);
         let tx = self.runtime.jobs.message_sender();
         thread::spawn(move || {
             let started_at = std::time::Instant::now();

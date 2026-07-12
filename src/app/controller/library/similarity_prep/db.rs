@@ -3,7 +3,7 @@ use crate::sample_sources::{SampleSource, SourceDatabase, SourceId};
 use std::collections::HashSet;
 
 pub(crate) fn read_source_scan_timestamp(source: &SampleSource) -> Option<i64> {
-    let db = SourceDatabase::open_fast(&source.root).ok()?;
+    let db = SourceDatabase::open_for_background_job(&source.root).ok()?;
     db.get_metadata(crate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT)
         .ok()
         .flatten()
@@ -11,7 +11,7 @@ pub(crate) fn read_source_scan_timestamp(source: &SampleSource) -> Option<i64> {
 }
 
 pub(crate) fn read_source_prep_timestamp(source: &SampleSource) -> Option<i64> {
-    let db = SourceDatabase::open_fast(&source.root).ok()?;
+    let db = SourceDatabase::open_for_background_job(&source.root).ok()?;
     db.get_metadata(crate::sample_sources::db::META_LAST_SIMILARITY_PREP_SCAN_AT)
         .ok()
         .flatten()
@@ -23,7 +23,8 @@ pub(crate) fn record_similarity_prep_scan_timestamp(
     source: &SampleSource,
     scan_completed_at: i64,
 ) -> Result<(), String> {
-    let db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let db =
+        SourceDatabase::open_for_background_job(&source.root).map_err(|err| err.to_string())?;
     db.set_metadata(
         crate::sample_sources::db::META_LAST_SIMILARITY_PREP_SCAN_AT,
         &scan_completed_at.to_string(),
@@ -85,7 +86,8 @@ pub(crate) fn source_has_aspect_descriptors(source: &SampleSource) -> bool {
 
 /// Handles current present sample ids.
 fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, String> {
-    let source_db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
+    let source_db =
+        SourceDatabase::open_for_background_job(&source.root).map_err(|err| err.to_string())?;
     let entries = source_db.list_files().map_err(|err| err.to_string())?;
     Ok(entries
         .into_iter()
@@ -290,7 +292,7 @@ mod tests {
         let root = dir.path().join("source");
         std::fs::create_dir_all(&root).unwrap();
         let source = SampleSource::new(root);
-        let db = SourceDatabase::open(&source.root).unwrap();
+        let db = SourceDatabase::open_for_source_write(&source.root).unwrap();
         db.upsert_file(std::path::Path::new("old-a.wav"), 1, 1)
             .unwrap();
         db.upsert_file(std::path::Path::new("old-b.wav"), 1, 1)

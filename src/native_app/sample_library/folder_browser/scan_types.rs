@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use super::source_scan_cache::FolderScanCacheUpdate;
 use super::{FileEntry, FolderEntry, collections::MissingCollectionSnapshot};
 use wavecrate::sample_sources::config::DEFAULT_RATING_DECAY_WEEKS;
 
@@ -32,8 +33,8 @@ pub(in crate::native_app) struct FolderScanProgress {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FolderScanItem {
+    ResetFolder,
     Folder(FolderEntry),
-    CompletedFolder(FolderEntry),
     File(FileEntry),
 }
 
@@ -74,6 +75,25 @@ impl FolderScanResult {
             .filter(|file| file.is_audio() && !file.is_missing())
             .map(|file| PathBuf::from(&file.id))
             .collect()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct PreparedFolderScanResult {
+    pub(in crate::native_app) scan: FolderScanResult,
+    pub(in crate::native_app) audio_file_paths: Vec<PathBuf>,
+    pub(in crate::native_app) scan_cache_update: FolderScanCacheUpdate,
+}
+
+impl From<FolderScanResult> for PreparedFolderScanResult {
+    fn from(scan: FolderScanResult) -> Self {
+        let audio_file_paths = scan.audio_file_paths();
+        let scan_cache_update = super::source_scan_cache::prepare_folder_scan_cache_update(&scan);
+        Self {
+            scan,
+            audio_file_paths,
+            scan_cache_update,
+        }
     }
 }
 

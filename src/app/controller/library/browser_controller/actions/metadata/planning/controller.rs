@@ -9,7 +9,7 @@ impl BrowserController<'_> {
         paths: &[PathBuf],
     ) -> Result<Vec<SampleAutoRenameRequest>, String> {
         let started_at = Instant::now();
-        let db = crate::sample_sources::SourceDatabase::open_read_only(&source.root)
+        let db = crate::sample_sources::SourceDatabase::open_for_ui_read(&source.root)
             .map_err(|err| format!("Database unavailable: {err}"))?;
         let mut requests = Vec::with_capacity(paths.len());
         let mut reserved_targets = HashSet::new();

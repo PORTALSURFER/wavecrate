@@ -78,6 +78,16 @@ fn source_db_maintenance_defers_quietly_during_same_source_file_op() {
 }
 
 #[test]
+fn deferred_hash_failure_preserves_committed_empty_source_refresh() {
+    let committed = crate::sample_sources::scanner::ScanStats {
+        added: 1,
+        ..Default::default()
+    };
+
+    assert!(scan_changed_after_deferred(&committed, None));
+}
+
+#[test]
 /// Verifies deferred maintenance retry records source scoped telemetry.
 fn deferred_maintenance_retry_records_source_scoped_telemetry() {
     let temp = tempdir().expect("create temp dir");
