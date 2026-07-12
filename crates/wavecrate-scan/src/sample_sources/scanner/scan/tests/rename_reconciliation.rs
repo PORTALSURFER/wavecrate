@@ -155,6 +155,27 @@ fn canceled_deferred_hashing_reports_cancellation_after_quick_scan_commit() {
 }
 
 #[test]
+fn candidate_completion_keeps_cold_large_import_hashing_deferred() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("large.wav"), vec![0_u8; 9 * 1024 * 1024]).unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let stats = scan_once(&db).unwrap();
+    assert_eq!(stats.hashes_pending, 1);
+
+    let completed = complete_deferred_rename_candidates(&db, stats).unwrap();
+
+    assert_eq!(completed.hashes_pending, 1);
+    assert_eq!(completed.hashes_computed, 0);
+    assert!(
+        db.entry_for_path(Path::new("large.wav"))
+            .unwrap()
+            .unwrap()
+            .content_hash
+            .is_none()
+    );
+}
+
+#[test]
 fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");

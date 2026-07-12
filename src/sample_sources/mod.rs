@@ -22,9 +22,10 @@ pub mod scan_state {
 pub mod scanner {
     pub use wavecrate_scan::sample_sources::scanner::{
         ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample,
-        complete_deferred_hashes, complete_deferred_hashes_with_cancel, hard_rescan,
-        scan_in_background, scan_once, scan_with_progress, schedule_deep_hash_scan,
-        schedule_deep_hash_scan_with_database_root, sync_paths, sync_paths_with_progress,
+        complete_deferred_hashes, complete_deferred_hashes_with_cancel,
+        complete_deferred_rename_candidates, hard_rescan, scan_in_background, scan_once,
+        scan_with_progress, schedule_deep_hash_scan, schedule_deep_hash_scan_with_database_root,
+        sync_paths, sync_paths_with_progress,
     };
 }
 

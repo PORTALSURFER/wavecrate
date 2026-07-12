@@ -98,9 +98,17 @@ fn sync_source_database(
         Ok(stats) => stats,
         Err(err) => return Some(format!("sync source index: {err}")),
     };
-    scanner::complete_deferred_hashes(&db, stats)
-        .map(|_| None)
-        .unwrap_or_else(|err| Some(format!("finish deferred source hashing: {err}")))
+    let completed = match scanner::complete_deferred_rename_candidates(&db, stats) {
+        Ok(completed) => completed,
+        Err(err) => return Some(format!("finish deferred rename hashing: {err}")),
+    };
+    if completed.hashes_pending > 0 {
+        scanner::schedule_deep_hash_scan_with_database_root(
+            request.root.clone(),
+            request.database_root.clone(),
+        );
+    }
+    None
 }
 
 struct ScanProgressCounter {
