@@ -160,6 +160,21 @@ impl SelectionExportJob {
             | Self::SliceBatch { request_id, .. } => *request_id,
         }
     }
+
+    /// Return the source whose files and database this export writes.
+    pub(crate) fn destination_source_id(&self) -> &SourceId {
+        match self {
+            Self::Clip {
+                snapshot: _,
+                destination: SelectionClipDestination::Folder { source_id, .. },
+                ..
+            } => source_id,
+            Self::Clip { snapshot, .. } | Self::CropNewSample { snapshot, .. } => {
+                &snapshot.source_id
+            }
+            Self::SliceBatch { snapshot, .. } => &snapshot.source_id,
+        }
+    }
 }
 
 /// Stage timings captured by one selection-export worker execution.

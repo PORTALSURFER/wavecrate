@@ -12,13 +12,15 @@ fn reconcile_copy_from_staged_file() {
     let staged_relative = staged_relative_for_target(&target_relative, "copy").unwrap();
     let entry = FileOpJournalEntry::new_copy(
         String::from("copy-test"),
-        target_relative.clone(),
-        staged_relative.clone(),
-        Rating::KEEP_1,
-        true,
-        true,
-        Some(123),
-        Some(456),
+        CopyJournalEntryInit {
+            target_relative: target_relative.clone(),
+            staged_relative: staged_relative.clone(),
+            tag: Rating::KEEP_1,
+            looped: true,
+            locked: true,
+            last_played_at: Some(123),
+            last_curated_at: Some(456),
+        },
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();
@@ -77,13 +79,15 @@ fn reconcile_copy_clears_stale_target_metadata_when_journal_defaults_are_empty()
     let staged_relative = staged_relative_for_target(&target_relative, "copy").unwrap();
     let entry = FileOpJournalEntry::new_copy(
         String::from("copy-test"),
-        target_relative.clone(),
-        staged_relative.clone(),
-        Rating::NEUTRAL,
-        false,
-        false,
-        None,
-        None,
+        CopyJournalEntryInit {
+            target_relative: target_relative.clone(),
+            staged_relative: staged_relative.clone(),
+            tag: Rating::NEUTRAL,
+            looped: false,
+            locked: false,
+            last_played_at: None,
+            last_curated_at: None,
+        },
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();
@@ -123,13 +127,15 @@ fn reconcile_copy_preserves_staged_file_when_target_path_was_reused() {
     let staged_relative = staged_relative_for_target(&target_relative, "copy").unwrap();
     let entry = FileOpJournalEntry::new_copy(
         String::from("copy-test"),
-        target_relative.clone(),
-        staged_relative.clone(),
-        Rating::KEEP_1,
-        true,
-        true,
-        Some(123),
-        Some(456),
+        CopyJournalEntryInit {
+            target_relative: target_relative.clone(),
+            staged_relative: staged_relative.clone(),
+            tag: Rating::KEEP_1,
+            looped: true,
+            locked: true,
+            last_played_at: Some(123),
+            last_curated_at: Some(456),
+        },
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();
@@ -200,13 +206,15 @@ fn reconcile_copy_defers_when_target_exists_and_journal_identity_is_incomplete()
     let staged_relative = staged_relative_for_target(&target_relative, "copy").unwrap();
     let entry = FileOpJournalEntry::new_copy(
         String::from("copy-test"),
-        target_relative.clone(),
-        staged_relative.clone(),
-        Rating::KEEP_1,
-        true,
-        true,
-        Some(123),
-        Some(456),
+        CopyJournalEntryInit {
+            target_relative: target_relative.clone(),
+            staged_relative: staged_relative.clone(),
+            tag: Rating::KEEP_1,
+            looped: true,
+            locked: true,
+            last_played_at: Some(123),
+            last_curated_at: Some(456),
+        },
     )
     .unwrap();
     insert_entry(&target_db, &entry).unwrap();

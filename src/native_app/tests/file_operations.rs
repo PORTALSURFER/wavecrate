@@ -1634,12 +1634,17 @@ fn trashing_selected_block_materializes_remaining_rows_and_loads_next_sample() {
     for path in &trashed {
         fs::remove_file(path).expect("trash source removal");
     }
-    let moved = trashed
+    let outcomes = trashed
         .iter()
         .map(|path| {
-            trash_root
-                .path()
-                .join(path.file_name().expect("sample file name"))
+            crate::native_app::sample_library::trash_actions::movement::TrashMoveOutcome {
+                source: path.clone(),
+                result: crate::native_app::sample_library::trash_actions::movement::TrashMoveResult::Moved {
+                    destination: trash_root
+                        .path()
+                        .join(path.file_name().expect("sample file name")),
+                },
+            }
         })
         .collect::<Vec<_>>();
     let mut context = radiant::prelude::UiUpdateContext::default();
@@ -1648,7 +1653,7 @@ fn trashing_selected_block_materializes_remaining_rows_and_loads_next_sample() {
         crate::native_app::app::TrashMoveTarget::Files(trashed),
         "browser.delete_selected_files",
         std::time::Instant::now(),
-        Ok(moved),
+        outcomes,
         &mut context,
     );
 
@@ -1684,6 +1689,76 @@ fn trashing_selected_block_materializes_remaining_rows_and_loads_next_sample() {
             .any(|stem| stem == "sample_068"),
         "remaining rows should include the next sample after the trashed block: {:?}",
         projection.first_stems
+    );
+}
+
+#[test]
+fn partial_batch_trash_reconciles_moved_rows_and_keeps_failed_rows() {
+    use crate::native_app::sample_library::trash_actions::movement::{
+        TrashMoveOutcome, TrashMoveResult,
+    };
+
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let moved = source_root.path().join("a-moved.wav");
+    let failed = source_root.path().join("b-failed.wav");
+    let untouched = source_root.path().join("c-untouched.wav");
+    for sample in [&moved, &failed, &untouched] {
+        write_test_wav_i16(sample, &[0, 256, -256, 512]);
+    }
+    state.library.folder_browser =
+        FolderBrowserState::from_sample_sources(&[wavecrate::sample_sources::SampleSource::new(
+            source_root.path().to_path_buf(),
+        )]);
+    state
+        .library
+        .folder_browser
+        .select_file(moved.display().to_string());
+    fs::remove_file(&moved).expect("simulate completed first trash move");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    state.finish_trash_move(
+        crate::native_app::app::TrashMoveTarget::Files(vec![moved.clone(), failed.clone()]),
+        "browser.delete_selected_files",
+        std::time::Instant::now(),
+        vec![
+            TrashMoveOutcome {
+                source: moved.clone(),
+                result: TrashMoveResult::Moved {
+                    destination: source_root.path().join("trash").join("a-moved.wav"),
+                },
+            },
+            TrashMoveOutcome {
+                source: failed.clone(),
+                result: TrashMoveResult::Failed {
+                    error: String::from("injected second-item failure"),
+                },
+            },
+        ],
+        &mut context,
+    );
+
+    let visible = state.library.folder_browser.selected_audio_files();
+    assert!(!visible.iter().any(|file| file.name == "a-moved.wav"));
+    assert!(visible.iter().any(|file| file.name == "b-failed.wav"));
+    assert!(visible.iter().any(|file| file.name == "c-untouched.wav"));
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(failed.display().to_string().as_str())
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("Moved 1 file to trash; 1 failed")
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("injected second-item failure")
     );
 }
 

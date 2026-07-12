@@ -1,3 +1,4 @@
+mod command;
 mod helpers;
 mod remap;
 mod revision;

@@ -64,6 +64,11 @@ pub(super) fn ensure_wav_files_optional_columns(
         &columns,
         OptionalColumn::new("wav_files", "collection", "INTEGER"),
     )?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("wav_files", "file_identity", "TEXT"),
+    )?;
     Ok(())
 }
 
@@ -107,6 +112,11 @@ pub(super) fn ensure_pending_rename_optional_columns(
             "tag_named",
             "INTEGER NOT NULL DEFAULT 0",
         ),
+    )?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("pending_wav_renames", "file_identity", "TEXT"),
     )?;
     Ok(())
 }

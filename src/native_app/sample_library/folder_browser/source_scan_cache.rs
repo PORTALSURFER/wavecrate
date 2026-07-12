@@ -1,14 +1,55 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::{
+        LazyLock, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use serde::{Deserialize, Serialize};
 
-use super::{FolderEntry, SourceEntry, collections::MissingCollectionSnapshot};
+use super::{
+    FolderEntry, SourceEntry, collections::MissingCollectionSnapshot, scan::FolderScanResult,
+};
 
 const SOURCE_SCAN_CACHE_FILE_NAME: &str = "source-scan-cache.json";
 const SOURCE_SCAN_CACHE_VERSION: u32 = 2;
+
+#[derive(Default)]
+struct CacheSaveRevisionGate {
+    revision: AtomicU64,
+    lock: Mutex<()>,
+}
+
+impl CacheSaveRevisionGate {
+    fn reserve(&self) -> u64 {
+        self.revision.fetch_add(1, Ordering::AcqRel).wrapping_add(1)
+    }
+
+    fn run_if_current(
+        &self,
+        revision: u64,
+        write: impl FnOnce() -> Result<(), String>,
+    ) -> Result<bool, String> {
+        let _guard = self
+            .lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if self.revision.load(Ordering::Acquire) != revision {
+            return Ok(false);
+        }
+        write()?;
+        Ok(true)
+    }
+}
+
+static CACHE_SAVE_GATE: LazyLock<CacheSaveRevisionGate> =
+    LazyLock::new(CacheSaveRevisionGate::default);
+
+pub(in crate::native_app) fn reserve_source_scan_cache_revision() -> u64 {
+    CACHE_SAVE_GATE.reserve()
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub(super) struct SourceScanCache {
@@ -16,7 +57,7 @@ pub(super) struct SourceScanCache {
     sources: Vec<CachedSourceScan>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct CachedSourceScan {
     source_id: String,
     root: PathBuf,
@@ -79,7 +120,68 @@ pub(super) fn load_source_scan_cache() -> Result<SourceScanCache, String> {
 }
 
 pub(super) fn save_source_scan_cache(sources: &[SourceEntry]) -> Result<(), String> {
-    save_source_scan_cache_to_path(&source_scan_cache_path()?, sources)
+    let path = source_scan_cache_path()?;
+    let revision = reserve_source_scan_cache_revision();
+    if CACHE_SAVE_GATE
+        .run_if_current(revision, || save_source_scan_cache_to_path(&path, sources))?
+    {
+        Ok(())
+    } else {
+        Err(String::from(
+            "source scan cache save was superseded by a newer snapshot",
+        ))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct FolderScanCacheUpdate {
+    source_id: String,
+    source: Option<CachedSourceScan>,
+}
+
+pub(in crate::native_app) fn prepare_folder_scan_cache_update(
+    result: &FolderScanResult,
+) -> FolderScanCacheUpdate {
+    FolderScanCacheUpdate {
+        source_id: result.source_id.clone(),
+        source: result.source_root_available.then(|| CachedSourceScan {
+            source_id: result.source_id.clone(),
+            root: PathBuf::from(&result.folder.id),
+            root_folder: result.folder.clone(),
+            missing_collection_snapshot: result.missing_collection_snapshot.clone(),
+        }),
+    }
+}
+
+pub(in crate::native_app) fn apply_folder_scan_cache_update(
+    update: FolderScanCacheUpdate,
+    revision: u64,
+) -> Result<(), String> {
+    let path = source_scan_cache_path()?;
+    CACHE_SAVE_GATE
+        .run_if_current(revision, || {
+            apply_folder_scan_cache_update_to_path(&path, update)
+        })
+        .map(|_| ())
+}
+
+fn apply_folder_scan_cache_update_to_path(
+    path: &Path,
+    update: FolderScanCacheUpdate,
+) -> Result<(), String> {
+    let Some(source) = update.source else {
+        return Ok(());
+    };
+    let mut cache = load_source_scan_cache_from_path(path).unwrap_or_default();
+    cache.version = SOURCE_SCAN_CACHE_VERSION;
+    cache
+        .sources
+        .retain(|source| source.source_id != update.source_id);
+    cache.sources.push(source);
+    cache
+        .sources
+        .sort_by(|left, right| left.source_id.cmp(&right.source_id));
+    save_source_scan_cache_value_to_path(path, &cache)
 }
 
 fn source_scan_cache_path() -> Result<PathBuf, String> {
@@ -131,8 +233,15 @@ fn save_source_scan_cache_to_path(path: &Path, sources: &[SourceEntry]) -> Resul
             })
             .collect(),
     );
+    save_source_scan_cache_value_to_path(path, &cache)
+}
+
+fn save_source_scan_cache_value_to_path(
+    path: &Path,
+    cache: &SourceScanCache,
+) -> Result<(), String> {
     let bytes =
-        serde_json::to_vec(&cache).map_err(|err| format!("serialize source scan cache: {err}"))?;
+        serde_json::to_vec(cache).map_err(|err| format!("serialize source scan cache: {err}"))?;
     atomic_write(path, &bytes)
 }
 
@@ -188,6 +297,24 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cache_revision_gate_skips_superseded_maintenance_write() {
+        let gate = CacheSaveRevisionGate::default();
+        let stale = gate.reserve();
+        let _current = gate.reserve();
+        let mut wrote = false;
+
+        let applied = gate
+            .run_if_current(stale, || {
+                wrote = true;
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(!applied);
+        assert!(!wrote);
+    }
     use crate::native_app::sample_library::folder_browser::state_types::SourceAvailability;
     use crate::native_app::sample_library::folder_browser::{FolderEntry, model::FileEntry};
     use wavecrate::sample_sources::{Rating, SampleCollection};
@@ -301,6 +428,81 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["kick.wav"]
         );
+    }
+
+    #[test]
+    fn incremental_update_writes_current_cache_version_for_new_profiles() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let root = temp.path().join("source");
+
+        apply_folder_scan_cache_update_to_path(
+            &path,
+            FolderScanCacheUpdate {
+                source_id: String::from("source-id"),
+                source: Some(cached_source_for_test("source-id", &root)),
+            },
+        )
+        .expect("apply cache update");
+
+        let cache = load_source_scan_cache_from_path(&path).expect("load updated cache");
+        assert_eq!(cache.version, SOURCE_SCAN_CACHE_VERSION);
+        assert!(cache.folder_for_source("source-id", &root).is_some());
+    }
+
+    #[test]
+    fn incremental_update_preserves_offline_source_snapshot() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let root = temp.path().join("source");
+        let cache = SourceScanCache::new(vec![cached_source_for_test("source-id", &root)]);
+        save_source_scan_cache_value_to_path(&path, &cache).expect("seed cache");
+        let before = fs::read(&path).expect("read seeded cache");
+
+        apply_folder_scan_cache_update_to_path(
+            &path,
+            FolderScanCacheUpdate {
+                source_id: String::from("source-id"),
+                source: None,
+            },
+        )
+        .expect("preserve offline cache");
+
+        assert_eq!(fs::read(&path).expect("read preserved cache"), before);
+    }
+
+    #[test]
+    fn incremental_update_replaces_corrupt_cache() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
+        let root = temp.path().join("source");
+        fs::write(&path, b"{not-json").expect("seed corrupt cache");
+
+        apply_folder_scan_cache_update_to_path(
+            &path,
+            FolderScanCacheUpdate {
+                source_id: String::from("source-id"),
+                source: Some(cached_source_for_test("source-id", &root)),
+            },
+        )
+        .expect("repair cache");
+
+        let cache = load_source_scan_cache_from_path(&path).expect("load repaired cache");
+        assert!(cache.folder_for_source("source-id", &root).is_some());
+    }
+
+    fn cached_source_for_test(source_id: &str, root: &Path) -> CachedSourceScan {
+        CachedSourceScan {
+            source_id: source_id.to_owned(),
+            root: root.to_path_buf(),
+            root_folder: FolderEntry {
+                id: root.display().to_string(),
+                name: String::from("source"),
+                children: Vec::new(),
+                files: vec![file_for_cache_test(&root.join("kick.wav"))],
+            },
+            missing_collection_snapshot: MissingCollectionSnapshot::default(),
+        }
     }
 
     fn file_for_cache_test(path: &Path) -> FileEntry {

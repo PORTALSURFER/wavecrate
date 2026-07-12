@@ -196,7 +196,7 @@ impl DragDropController<'_> {
         #[cfg(not(test))]
         {
             let (tx, rx) = std::sync::mpsc::channel();
-            self.runtime.jobs.start_file_ops(rx, cancel.clone());
+            self.start_file_ops_with_remap_cancellation(rx, cancel.clone());
             std::thread::spawn(move || {
                 let result = run_folder_move_task(request, cancel, Some(&tx));
                 let _ = tx.send(FileOpMessage::Finished(FileOpResult::FolderMove(result)));
@@ -302,7 +302,7 @@ impl DragDropController<'_> {
         #[cfg(not(test))]
         {
             let (tx, rx) = std::sync::mpsc::channel();
-            self.runtime.jobs.start_file_ops(rx, cancel.clone());
+            self.start_file_ops_with_remap_cancellation(rx, cancel.clone());
             std::thread::spawn(move || {
                 let result = run_folder_sample_move_task(
                     source.id.clone(),

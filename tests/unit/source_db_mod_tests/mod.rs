@@ -6,6 +6,7 @@ use tempfile::tempdir;
 
 mod metadata;
 mod opening;
+mod snapshot;
 
 fn source_db_env_lock() -> &'static Mutex<()> {
     static SOURCE_DB_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();

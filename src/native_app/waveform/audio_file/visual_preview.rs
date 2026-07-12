@@ -40,6 +40,14 @@ impl InstantWaveformPreview {
         source_identity(path)
             .is_some_and(|identity| identity == (self.source_len, self.source_modified))
     }
+
+    pub(in crate::native_app) fn matches_source_identity(
+        &self,
+        source_len: u64,
+        source_modified: Option<SystemTime>,
+    ) -> bool {
+        self.source_len == source_len && self.source_modified == source_modified
+    }
 }
 
 impl PartialEq for InstantWaveformPreview {

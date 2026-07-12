@@ -91,11 +91,13 @@ impl AppController {
         source: SampleSource,
         started_at: Instant,
     ) -> Result<(), String> {
-        let _ = self.cache_db(&source);
         self.library.sources.push(source.clone());
-        self.refresh_source_watcher();
-        self.select_source(Some(source.id.clone()));
-        if let Err(err) = self.persist_config("Failed to save config after adding source") {
+        if let Err(err) = self.persist_config_with_selected_source(
+            source.id.clone(),
+            "Failed to save config after adding source",
+        ) {
+            let removed = self.library.sources.pop();
+            debug_assert!(removed.as_ref().is_some_and(|added| added.id == source.id));
             record_source_lifecycle_event(
                 "sources.add",
                 Some(source.id.as_str()),
@@ -105,6 +107,9 @@ impl AppController {
             );
             return Err(err);
         }
+        let _ = self.cache_db(&source);
+        self.refresh_source_watcher();
+        self.select_source(Some(source.id.clone()));
         self.prepare_similarity_for_selected_source();
         record_source_lifecycle_event(
             "sources.add",
@@ -212,6 +217,19 @@ impl AppController {
     }
 
     fn pending_source_add_conflict(&self, normalized: &PathBuf) -> Option<String> {
+        if let Some(pending) = &self.runtime.source_lane.pending_remap {
+            for root in [&pending.source.root, &pending.new_root] {
+                if source_roots_match(root, normalized) {
+                    return Some(String::from("Source remap already in progress"));
+                }
+                if let Some(message) = nested_source_conflict_error(root, normalized) {
+                    return Some(message);
+                }
+                if let Some(message) = nested_source_conflict_error(normalized, root) {
+                    return Some(message);
+                }
+            }
+        }
         for pending in self.runtime.source_lane.pending_adds.values() {
             if source_roots_match(&pending.source.root, normalized) {
                 return Some(String::from("Source add already in progress"));
@@ -261,7 +279,7 @@ fn validate_add_source_root(
 
 fn run_source_add_prepare(job: SourceAddJob) -> SourceAddPreparedResult {
     let started_at = Instant::now();
-    let result = SourceDatabase::open(&job.source.root)
+    let result = SourceDatabase::open_for_source_write(&job.source.root)
         .map(|_| ())
         .map_err(|err| {
             let error = format!("Failed to create database: {err}");

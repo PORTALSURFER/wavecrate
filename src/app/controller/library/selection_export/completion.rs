@@ -343,7 +343,7 @@ fn harvest_metadata_snapshot_from_entry(entry: Option<&WavEntry>) -> HarvestMeta
 }
 
 fn source_db_entry(source_root: &Path, relative_path: &Path) -> Option<WavEntry> {
-    let db = SourceDatabase::open_read_only(source_root.to_path_buf()).ok()?;
+    let db = SourceDatabase::open_for_ui_read(source_root.to_path_buf()).ok()?;
     db.list_files()
         .ok()?
         .into_iter()

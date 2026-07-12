@@ -119,13 +119,18 @@ impl FolderBrowserState {
 
     #[cfg(test)]
     pub(in crate::native_app) fn discard_trashed_file_paths(&mut self, paths: &[PathBuf]) -> bool {
-        self.discard_trashed_file_paths_matching_tags(paths, &HashMap::new())
+        self.discard_trashed_file_paths_matching_tags_preserving_selection(
+            paths,
+            &HashMap::new(),
+            &[],
+        )
     }
 
-    pub(in crate::native_app) fn discard_trashed_file_paths_matching_tags(
+    pub(in crate::native_app) fn discard_trashed_file_paths_matching_tags_preserving_selection(
         &mut self,
         paths: &[PathBuf],
         tags_by_file: &HashMap<String, Vec<String>>,
+        preserved_selected_paths: &[PathBuf],
     ) -> bool {
         let target_ids = paths
             .iter()
@@ -139,6 +144,11 @@ impl FolderBrowserState {
             .as_deref()
             .is_some_and(|id| target_ids.contains(id));
         let before_visible_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
+        let preserved_selected_ids = preserved_selected_paths
+            .iter()
+            .map(|path| path_id(path))
+            .filter(|id| self.selection.selected_file_ids().contains(id))
+            .collect::<HashSet<_>>();
         let changed = self.mutate_selected_source_trees(|root_folder| {
             root_folder.remove_files_by_ids(&target_ids)
         });
@@ -158,7 +168,19 @@ impl FolderBrowserState {
             })
             .flatten();
         self.selection.discard_files(&target_ids);
-        if let Some(fallback_id) = fallback_id {
+        if focused_removed && !preserved_selected_ids.is_empty() {
+            let preserved_focus = focused_id
+                .filter(|id| preserved_selected_ids.contains(id))
+                .or_else(|| {
+                    before_visible_ids
+                        .iter()
+                        .find(|id| preserved_selected_ids.contains(*id))
+                        .cloned()
+                })
+                .expect("preserved selection has a visible focus candidate");
+            self.selection
+                .restore_file_selection(preserved_focus, preserved_selected_ids);
+        } else if let Some(fallback_id) = fallback_id {
             self.selection.set_focus_file_set(fallback_id);
         }
         self.reconcile_file_view_after_tagged_content_change(tags_by_file);

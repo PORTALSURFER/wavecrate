@@ -3,14 +3,12 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use rusqlite::{OptionalExtension, params};
+use rusqlite::params;
 
 use super::super::util::map_sql_error;
-use super::super::{
-    Rating, SampleCollection, SampleSoundType, SourceDatabase, SourceDbError, SourceWriteBatch,
-};
+use super::super::{Rating, SampleSoundType, SourceDbError, SourceWriteBatch};
+use super::command::{SourceContentHashWrite, SourceFileWrite, SourceTagWrite};
 use super::mutation::{
-    delete_path_statement, remap_analysis_sample_identity_statement, remap_wav_file_path_statement,
     update_flag_statement, update_path_i64_statement, update_path_null_statement,
     update_path_text_statement,
 };
@@ -31,10 +29,31 @@ const UPDATE_LAST_CURATED_AT_SQL: &str =
     "UPDATE wav_files SET last_curated_at = ?1 WHERE path = ?2";
 const CLEAR_LAST_CURATED_AT_SQL: &str =
     "UPDATE wav_files SET last_curated_at = NULL WHERE path = ?1";
-const UPDATE_COLLECTION_SQL: &str = "UPDATE wav_files SET collection = ?1 WHERE path = ?2";
-const CLEAR_COLLECTION_SQL: &str = "UPDATE wav_files SET collection = NULL WHERE path = ?1";
 
 impl<'conn> SourceWriteBatch<'conn> {
+    pub(super) fn apply_file_write(
+        &mut self,
+        write: SourceFileWrite<'_>,
+    ) -> Result<(), SourceDbError> {
+        let content_hash = match write.content_hash {
+            SourceContentHashWrite::Preserve => ContentHashPolicy::Preserve,
+            SourceContentHashWrite::Clear => ContentHashPolicy::Clear,
+            SourceContentHashWrite::Set(value) => ContentHashPolicy::Set(value),
+        };
+        let tag = match write.tag {
+            SourceTagWrite::Preserve => TagPolicy::Preserve,
+            SourceTagWrite::Set(value) => TagPolicy::Set(value),
+        };
+        self.upsert_file_with_policies(
+            write.relative_path,
+            write.file_size,
+            write.modified_ns,
+            content_hash,
+            tag,
+            write.missing,
+        )
+    }
+
     /// Insert or update a metadata key/value pair within the active batch.
     pub fn set_metadata(&mut self, key: &str, value: &str) -> Result<(), SourceDbError> {
         self.tx
@@ -118,6 +137,46 @@ impl<'conn> SourceWriteBatch<'conn> {
             TagPolicy::Set(tag),
             missing,
         )
+    }
+
+    /// Insert or update a wav file with a specific tag while leaving its hash unset.
+    pub fn upsert_file_without_hash_and_tag(
+        &mut self,
+        relative_path: &Path,
+        file_size: u64,
+        modified_ns: i64,
+        tag: Rating,
+        missing: bool,
+    ) -> Result<(), SourceDbError> {
+        self.upsert_file_with_policies(
+            relative_path,
+            file_size,
+            modified_ns,
+            ContentHashPolicy::Clear,
+            TagPolicy::Set(tag),
+            missing,
+        )
+    }
+
+    /// Persist the stable filesystem-object identity observed by the scanner.
+    pub fn set_file_identity(
+        &mut self,
+        relative_path: &Path,
+        file_identity: Option<&str>,
+    ) -> Result<(), SourceDbError> {
+        match file_identity {
+            Some(identity) => update_path_text_statement(
+                &self.tx,
+                "UPDATE wav_files SET file_identity = ?1 WHERE path = ?2",
+                relative_path,
+                identity,
+            ),
+            None => update_path_null_statement(
+                &self.tx,
+                "UPDATE wav_files SET file_identity = NULL WHERE path = ?1",
+                relative_path,
+            ),
+        }
     }
 
     fn upsert_file_with_policies(
@@ -252,162 +311,11 @@ impl<'conn> SourceWriteBatch<'conn> {
         update_path_null_statement(&self.tx, CLEAR_LAST_CURATED_AT_SQL, relative_path)
     }
 
-    /// Update the fixed collection slot for a wav row within the batch.
-    pub fn set_collection(
-        &mut self,
-        relative_path: &Path,
-        collection: Option<SampleCollection>,
-    ) -> Result<(), SourceDbError> {
-        let path_str = super::super::normalize_relative_path(relative_path)?;
-        self.tx
-            .execute(
-                "DELETE FROM wav_file_collections WHERE path = ?1",
-                params![path_str.as_str()],
-            )
-            .map_err(map_sql_error)?;
-        match collection {
-            Some(collection) => {
-                self.insert_collection_membership(path_str.as_str(), collection)?;
-                update_path_i64_statement(
-                    &self.tx,
-                    UPDATE_COLLECTION_SQL,
-                    relative_path,
-                    collection.as_i64(),
-                )?;
-                self.touch_last_curated_at(relative_path)
-            }
-            None => {
-                update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path)?;
-                self.touch_last_curated_at(relative_path)
-            }
-        }
-    }
-
-    /// Add one fixed collection slot for a wav row without clearing other slots.
-    pub fn add_collection(
-        &mut self,
-        relative_path: &Path,
-        collection: SampleCollection,
-    ) -> Result<(), SourceDbError> {
-        let path_str = super::super::normalize_relative_path(relative_path)?;
-        self.insert_collection_membership(path_str.as_str(), collection)?;
-        self.tx
-            .execute(
-                "UPDATE wav_files
-                 SET collection = COALESCE(collection, ?1)
-                 WHERE path = ?2",
-                params![collection.as_i64(), path_str.as_str()],
-            )
-            .map_err(map_sql_error)?;
-        self.touch_last_curated_at(relative_path)
-    }
-
-    /// Remove one fixed collection slot for a wav row without clearing other slots.
-    pub fn remove_collection(
-        &mut self,
-        relative_path: &Path,
-        collection: SampleCollection,
-    ) -> Result<(), SourceDbError> {
-        let path_str = super::super::normalize_relative_path(relative_path)?;
-        self.tx
-            .execute(
-                "DELETE FROM wav_file_collections
-                 WHERE path = ?1 AND collection = ?2",
-                params![path_str.as_str(), collection.as_i64()],
-            )
-            .map_err(map_sql_error)?;
-        let first_remaining = self
-            .tx
-            .query_row(
-                "SELECT collection
-                 FROM wav_file_collections
-                 WHERE path = ?1
-                 ORDER BY collection ASC
-                 LIMIT 1",
-                params![path_str.as_str()],
-                |row| row.get::<_, i64>(0),
-            )
-            .optional()
-            .map_err(map_sql_error)?;
-        match first_remaining.and_then(SampleCollection::from_i64) {
-            Some(collection) => {
-                update_path_i64_statement(
-                    &self.tx,
-                    UPDATE_COLLECTION_SQL,
-                    relative_path,
-                    collection.as_i64(),
-                )?;
-                self.touch_last_curated_at(relative_path)
-            }
-            None => {
-                update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path)?;
-                self.touch_last_curated_at(relative_path)
-            }
-        }
-    }
-
     pub(crate) fn touch_last_curated_at(
         &mut self,
         relative_path: &Path,
     ) -> Result<(), SourceDbError> {
         self.set_last_curated_at(relative_path, epoch_seconds())
-    }
-
-    fn insert_collection_membership(
-        &self,
-        path: &str,
-        collection: SampleCollection,
-    ) -> Result<(), SourceDbError> {
-        self.tx
-            .execute(
-                "INSERT OR IGNORE INTO wav_file_collections (path, collection)
-                 VALUES (?1, ?2)",
-                params![path, collection.as_i64()],
-            )
-            .map_err(map_sql_error)?;
-        Ok(())
-    }
-
-    /// Remove a wav row within the batch.
-    pub fn remove_file(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
-        self.paths_revision_dirty = true;
-        delete_path_statement(&self.tx, relative_path)
-    }
-
-    /// Remap a wav row and its path-keyed user metadata after a filesystem rename.
-    pub fn remap_wav_file_path(
-        &mut self,
-        old_relative_path: &Path,
-        new_relative_path: &Path,
-    ) -> Result<(), SourceDbError> {
-        self.paths_revision_dirty = true;
-        self.clear_pending_rename(old_relative_path)?;
-        self.clear_pending_rename(new_relative_path)?;
-        remap_wav_file_path_statement(&self.tx, old_relative_path, new_relative_path)
-    }
-
-    /// Remap path-derived analysis rows after a rename-only sample identity change.
-    pub fn remap_analysis_sample_identity(
-        &mut self,
-        old_relative_path: &Path,
-        new_relative_path: &Path,
-    ) -> Result<(), SourceDbError> {
-        remap_analysis_sample_identity_statement(&self.tx, old_relative_path, new_relative_path)
-    }
-
-    /// Commit all batched operations atomically.
-    pub fn commit(self) -> Result<(), SourceDbError> {
-        SourceDatabase::bump_revision(&self.tx)?;
-        if self.paths_revision_dirty {
-            SourceDatabase::bump_wav_paths_revision(&self.tx)?;
-        }
-        self.tx.commit().map_err(map_sql_error)?;
-        crate::sqlite_wal::maybe_checkpoint_database_file(
-            &self.db_path,
-            "source_db",
-            self.telemetry_label,
-        );
-        Ok(())
     }
 }
 

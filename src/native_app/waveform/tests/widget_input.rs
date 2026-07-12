@@ -1048,6 +1048,166 @@ fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
 }
 
 #[test]
+fn playmark_resize_target_extends_beyond_painted_handle_without_stealing_distant_clicks() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    for (point, expected_edge) in [
+        (Point::new(34.0, 8.0), WaveformSelectionEdge::Start),
+        (Point::new(126.0, 8.0), WaveformSelectionEdge::End),
+    ] {
+        let mut widget = waveform_widget_for_state(&state);
+        assert!(
+            widget
+                .handle_input(bounds, WidgetInput::pointer_move(point))
+                .is_none()
+        );
+        assert_eq!(
+            widget.hovered_selection_handle.map(|hover| hover.role),
+            Some(super::super::widget_geometry::waveform_selection_edge_role(
+                expected_edge
+            )),
+            "expanded hit target should provide hover feedback"
+        );
+
+        let interaction = widget
+            .handle_input(bounds, WidgetInput::primary_press(point))
+            .expect("expanded target should begin resize")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginSelectionResize {
+                kind: WaveformSelectionKind::Play,
+                edge: expected_edge,
+                visible_ratio: point.x / bounds.width(),
+            }
+        );
+    }
+
+    let mut widget = waveform_widget_for_state(&state);
+    let outside = Point::new(128.0, 8.0);
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::pointer_move(outside))
+            .is_none()
+    );
+    assert_eq!(widget.hovered_selection_handle, None);
+    assert_eq!(widget.hover_cursor_ratio, Some(0.64));
+    let interaction = widget
+        .handle_input(bounds, WidgetInput::primary_press(outside))
+        .expect("click outside resize tolerance should retain selection creation")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert_eq!(
+        interaction,
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.64,
+        }
+    );
+}
+
+#[test]
+fn playmark_resize_target_tracks_edges_at_multiple_zoom_depths() {
+    let bounds = Rect::from_size(200.0, 80.0);
+    for viewport in [
+        WaveformViewport::full(48_000),
+        WaveformViewport {
+            start: 6_000,
+            end: 42_000,
+        },
+        WaveformViewport {
+            start: 22_000,
+            end: 26_000,
+        },
+    ] {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.viewport = viewport;
+        let start = state.absolute_ratio_from_visible(0.2);
+        let end = state.absolute_ratio_from_visible(0.6);
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(start, end));
+        state.play_mark_ratio = Some(start);
+
+        for (point, expected_edge) in [
+            (Point::new(34.0, 8.0), WaveformSelectionEdge::Start),
+            (Point::new(126.0, 8.0), WaveformSelectionEdge::End),
+        ] {
+            let mut widget = waveform_widget_for_state(&state);
+            let interaction = widget
+                .handle_input(bounds, WidgetInput::primary_press(point))
+                .expect("zoomed expanded target should begin resize")
+                .typed_copied::<WaveformInteraction>()
+                .expect("waveform interaction");
+            assert!(matches!(
+                interaction,
+                WaveformInteraction::BeginSelectionResize { edge, .. } if edge == expected_edge
+            ));
+        }
+    }
+}
+
+#[test]
+fn playmark_resize_target_uses_logical_pixels_at_high_dpi() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let dpi = radiant::theme::DpiScale::new(2.0);
+    let physical = Point::new(dpi.logical_to_physical(126.0), dpi.logical_to_physical(8.0));
+    let logical = Point::new(
+        dpi.physical_to_logical(physical.x),
+        dpi.physical_to_logical(physical.y),
+    );
+    let mut widget = waveform_widget_for_state(&state);
+
+    let interaction = widget
+        .handle_input(bounds, WidgetInput::primary_press(logical))
+        .expect("DPI-normalized point should remain in the expanded target")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    assert!(matches!(
+        interaction,
+        WaveformInteraction::BeginSelectionResize {
+            edge: WaveformSelectionEdge::End,
+            ..
+        }
+    ));
+    assert_eq!(
+        dpi.logical_to_physical(
+            super::super::widget_geometry::PLAY_SELECTION_RESIZE_HANDLE_HIT_WIDTH
+        ),
+        30.0
+    );
+}
+
+#[test]
+fn overlapping_playmark_resize_targets_choose_nearest_edge_with_stable_tie() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.5, 0.54));
+    state.play_mark_ratio = Some(0.5);
+    let bounds = Rect::from_size(200.0, 80.0);
+
+    for (x, expected_edge) in [
+        (104.0, WaveformSelectionEdge::Start),
+        (105.0, WaveformSelectionEdge::End),
+    ] {
+        let mut widget = waveform_widget_for_state(&state);
+        let interaction = widget
+            .handle_input(bounds, WidgetInput::primary_press(Point::new(x, 8.0)))
+            .expect("overlapping target should begin deterministic resize")
+            .typed_copied::<WaveformInteraction>()
+            .expect("waveform interaction");
+        assert!(matches!(
+            interaction,
+            WaveformInteraction::BeginSelectionResize { edge, .. } if edge == expected_edge
+        ));
+    }
+}
+
+#[test]
 fn primary_press_on_playmark_top_handle_starts_move() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

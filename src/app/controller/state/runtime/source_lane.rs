@@ -1,4 +1,6 @@
-use crate::app::controller::jobs::{SampleAutoRenameProgress, SourceHydrationKind};
+use crate::app::controller::jobs::{
+    SampleAutoRenameProgress, SourceHydrationKind, SourceRemapWriteFence,
+};
 use crate::app::state::FolderPaneId;
 pub(crate) use crate::app_core::browser_projection_cache::AutoRenameBatchRowState;
 use crate::sample_sources::Rating;
@@ -17,6 +19,8 @@ mod mutations;
 pub(crate) struct SourceLaneRuntimeState {
     /// Source roots currently being prepared before they are committed to the library.
     pub(crate) pending_adds: HashMap<PathBuf, PendingSourceAdd>,
+    /// Source remap currently being snapshotted before controller publication.
+    pub(crate) pending_remap: Option<PendingSourceRemap>,
     /// In-flight source hydration requests keyed by selection lane.
     pub(crate) hydration: SourceHydrationRuntime,
     /// Pending pane-scoped folder projection work.
@@ -34,6 +38,23 @@ pub(crate) struct PendingSourceAdd {
     pub(crate) source: crate::sample_sources::SampleSource,
     /// Time when the preparation request was queued on the controller thread.
     pub(crate) queued_at: Instant,
+}
+
+/// Active controller-side tracking for one source-remap snapshot request.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSourceRemap {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Source before the remap.
+    pub(crate) source: crate::sample_sources::SampleSource,
+    /// Normalized destination root.
+    pub(crate) new_root: PathBuf,
+    /// Time when snapshot preparation was queued.
+    pub(crate) queued_at: Instant,
+    /// The original source was removed while preparation was running.
+    pub(crate) canceled: bool,
+    /// Shared cancellation and source-write-fence ownership for the worker request.
+    pub(crate) write_fence: std::sync::Arc<SourceRemapWriteFence>,
 }
 
 /// Runtime tracking for active and inactive source hydration requests.

@@ -31,6 +31,10 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
     }
 
     let frames = samples.len() / channels;
+    let source_modified = path
+        .metadata()
+        .ok()
+        .and_then(|metadata| metadata.modified().ok());
     let playback_samples = Arc::from(samples);
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -42,6 +46,8 @@ pub(in crate::native_app::waveform) fn load_wav_waveform_file_with_progress(
         sample_rate: spec.sample_rate,
         channels,
         frames,
+        source_len: bytes.len() as u64,
+        source_modified,
     });
     if cancelled() {
         return Err(String::from("cancelled"));

@@ -8,6 +8,11 @@ impl ControllerJobs {
         self.in_progress.scan
     }
 
+    /// Return whether the active source scan belongs to `source_id`.
+    pub(in super::super::super) fn source_scan_in_progress(&self, source_id: &SourceId) -> bool {
+        self.in_progress.scan && self.active_scan_source.as_ref() == Some(source_id)
+    }
+
     /// Return the source id currently being scanned for folders, if any.
     pub(in super::super::super) fn pending_folder_scan_source(&self) -> Option<SourceId> {
         self.pending_folder_scan
@@ -73,10 +78,12 @@ impl ControllerJobs {
     /// Start forwarding stream updates for a source scan operation.
     pub(in super::super::super) fn start_scan(
         &mut self,
+        source_id: SourceId,
         rx: Receiver<ScanJobMessage>,
         cancel: Arc<AtomicBool>,
     ) {
         self.in_progress.scan = true;
+        self.active_scan_source = Some(source_id);
         self.cancel_handles.scan = Some(cancel);
         self.send_source_watch_scan_state(true);
         self.start_progress_stream(rx, JobMessage::Scan, scan_message_is_finished);
@@ -90,6 +97,7 @@ impl ControllerJobs {
     /// Clear scan in-progress state and notify the source watcher.
     pub(in super::super::super) fn clear_scan(&mut self) {
         self.in_progress.scan = false;
+        self.active_scan_source = None;
         self.cancel_handles.scan = None;
         self.send_source_watch_scan_state(false);
     }

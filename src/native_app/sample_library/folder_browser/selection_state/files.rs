@@ -215,6 +215,16 @@ impl BrowserSelectionState {
         self.selected_file_ids_explicit = false;
     }
 
+    pub(in crate::native_app::sample_library::folder_browser) fn restore_file_selection(
+        &mut self,
+        focused_id: String,
+        selected_ids: HashSet<String>,
+    ) {
+        self.selected_file = Some(focused_id);
+        self.selected_file_ids_explicit = selected_ids.len() > 1;
+        self.selected_file_ids = selected_ids;
+    }
+
     fn file_selection_model(&self) -> FileSelectionModel {
         FileSelectionModel::new(
             self.selected_file.clone(),
