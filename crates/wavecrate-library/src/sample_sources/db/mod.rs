@@ -135,6 +135,54 @@ impl SourceDatabase {
         &self,
         destination: &Path,
     ) -> Result<SourceDatabaseWriteFence, SourceDbError> {
+        let fence = self.acquire_snapshot_write_fence()?;
+        self.snapshot_to_path_with_held_write_fence(destination)?;
+        Ok(fence)
+    }
+
+    /// Install the source writer reservation before copying snapshot pages.
+    ///
+    /// The installer takes ownership of the fence before the backup starts, allowing a caller's
+    /// cancellation path to release blocked source writers immediately during a long snapshot.
+    pub fn snapshot_to_path_with_write_fence_install(
+        &self,
+        destination: &Path,
+        install: impl FnOnce(SourceDatabaseWriteFence) -> bool,
+    ) -> Result<(), SourceDbError> {
+        let fence = self.acquire_snapshot_write_fence()?;
+        if !install(fence) {
+            return Err(SourceDbError::Canceled);
+        }
+        self.snapshot_to_path_with_held_write_fence(destination)
+    }
+
+    fn acquire_snapshot_write_fence(&self) -> Result<SourceDatabaseWriteFence, SourceDbError> {
+        let database_root =
+            self.db_path
+                .parent()
+                .ok_or_else(|| SourceDbError::UnsafeSourceDatabasePath {
+                    path: self.db_path.clone(),
+                    reason: "source database path has no parent directory",
+                })?;
+        let validated = open::open_source_database_with_database_root(
+            &self.root,
+            database_root,
+            false,
+            open::SourceDatabaseOpenMode::Full,
+        )?;
+        let writer_connection = validated.connection;
+        writer_connection
+            .execute_batch("BEGIN IMMEDIATE")
+            .map_err(SourceDbError::from)?;
+        Ok(SourceDatabaseWriteFence {
+            connection: writer_connection,
+        })
+    }
+
+    fn snapshot_to_path_with_held_write_fence(
+        &self,
+        destination: &Path,
+    ) -> Result<(), SourceDbError> {
         if let Some(parent) = destination.parent()
             && !parent.is_dir()
         {
@@ -155,33 +203,14 @@ impl SourceDatabase {
                 source,
             })?;
         drop(reservation);
-        let result = (|| -> Result<SourceDatabaseWriteFence, SourceDbError> {
-            let database_root =
-                self.db_path
-                    .parent()
-                    .ok_or_else(|| SourceDbError::UnsafeSourceDatabasePath {
-                        path: self.db_path.clone(),
-                        reason: "source database path has no parent directory",
-                    })?;
-            let validated = open::open_source_database_with_database_root(
-                &self.root,
-                database_root,
-                false,
-                open::SourceDatabaseOpenMode::Full,
-            )?;
-            let writer_connection = validated.connection;
-            writer_connection
-                .execute_batch("BEGIN IMMEDIATE")
-                .map_err(SourceDbError::from)?;
+        let result = (|| -> Result<(), SourceDbError> {
             let mut destination_connection = rusqlite::Connection::open(destination)?;
             let backup =
                 rusqlite::backup::Backup::new(&self.connection, &mut destination_connection)?;
             backup.run_to_completion(128, Duration::from_millis(5), None)?;
             drop(backup);
             destination_connection.close().map_err(|(_, error)| error)?;
-            Ok(SourceDatabaseWriteFence {
-                connection: writer_connection,
-            })
+            Ok(())
         })();
         if result.is_err() {
             remove_snapshot_artifacts(destination);

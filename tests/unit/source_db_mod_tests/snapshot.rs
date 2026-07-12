@@ -94,6 +94,45 @@ fn retained_snapshot_fence_blocks_later_source_writers_until_publish() {
 }
 
 #[test]
+fn snapshot_installs_cancelable_fence_before_copying() {
+    let source_root = tempdir().unwrap();
+    let destination_root = tempdir().unwrap();
+    let destination = database_path_for(destination_root.path());
+    let source = SourceDatabase::open(source_root.path()).unwrap();
+    let mut installed_fence = None;
+
+    source
+        .snapshot_to_path_with_write_fence_install(&destination, |fence| {
+            assert!(!destination.exists());
+            installed_fence = Some(fence);
+            true
+        })
+        .unwrap();
+
+    assert!(installed_fence.is_some());
+    assert!(destination.exists());
+    drop(installed_fence);
+}
+
+#[test]
+fn rejected_snapshot_fence_install_skips_copying() {
+    let source_root = tempdir().unwrap();
+    let destination_root = tempdir().unwrap();
+    let destination = database_path_for(destination_root.path());
+    let source = SourceDatabase::open(source_root.path()).unwrap();
+
+    let error = source
+        .snapshot_to_path_with_write_fence_install(&destination, |fence| {
+            drop(fence);
+            false
+        })
+        .unwrap_err();
+
+    assert!(matches!(error, SourceDbError::Canceled));
+    assert!(!destination.exists());
+}
+
+#[test]
 fn snapshot_does_not_recreate_a_missing_destination_root() {
     let source_root = tempdir().unwrap();
     let destination_parent = tempdir().unwrap();

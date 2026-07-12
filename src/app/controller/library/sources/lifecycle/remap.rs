@@ -378,11 +378,13 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
                         format!("Failed to open source database for snapshot: {error}")
                     })?;
                 let staged = staged_database_path(&destination, job.request_id);
-                let fence = source
-                    .snapshot_to_path_with_write_fence(&staged)
+                staged_database = Some(staged.clone());
+                source
+                    .snapshot_to_path_with_write_fence_install(&staged, |fence| {
+                        job.write_fence.install(fence)
+                    })
                     .map_err(|error| format!("Failed to snapshot source database: {error}"))?;
-                staged_database = Some(staged);
-                if !job.write_fence.install(fence) {
+                if job.write_fence.is_canceled() {
                     return Err(String::from("Source remap canceled"));
                 }
             }
