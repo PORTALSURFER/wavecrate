@@ -59,7 +59,12 @@ pub(super) fn walk_phase(
                 on_progress(context.stats.total_files, path);
             }
             if !prepared.requires_apply {
-                prepared = refresh_noop_preparation(db, root, context, prepared)?;
+                let Some(refreshed) =
+                    refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
+                else {
+                    return Ok(());
+                };
+                prepared = refreshed;
             }
             if !prepared.requires_apply {
                 skip_noop(context, &prepared);
@@ -108,7 +113,12 @@ pub(super) fn apply_prepared_chunk(
     let mut pending = Vec::with_capacity(prepared.len());
     for mut file in prepared {
         if !file.requires_apply {
-            file = refresh_noop_preparation(db, root, context, file)?;
+            let Some(refreshed) =
+                refresh_noop_preparation_or_skip(db, root, context, file, tolerate_file_errors)?
+            else {
+                continue;
+            };
+            file = refreshed;
         }
         if file.requires_apply {
             pending.push(file);
@@ -120,6 +130,29 @@ pub(super) fn apply_prepared_chunk(
         return Ok(false);
     }
     apply_batch(db, root, cancel, context, pending, tolerate_file_errors)
+}
+
+fn refresh_noop_preparation_or_skip(
+    db: &SourceDatabase,
+    root: &Path,
+    context: &mut ScanContext,
+    prepared: PreparedFile,
+    tolerate_file_errors: bool,
+) -> Result<Option<PreparedFile>, ScanError> {
+    let relative_path = prepared.facts.relative.clone();
+    match refresh_noop_preparation(db, root, context, prepared) {
+        Ok(prepared) => Ok(Some(prepared)),
+        Err(error) if tolerate_file_errors => {
+            skip_changed_or_unavailable(context, root, &relative_path);
+            tracing::warn!(
+                path = %root.join(&relative_path).display(),
+                error = %error,
+                "Skipping no-op refresh failure after an earlier scan batch committed"
+            );
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
 }
 
 fn refresh_noop_preparation(
@@ -290,11 +323,13 @@ fn cancel_requested(cancel: Option<&AtomicBool>, committed: bool) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrepareForApply, prepare_for_apply};
+    use super::{PrepareForApply, prepare_for_apply, refresh_noop_preparation_or_skip};
     use crate::sample_sources::SourceDatabase;
-    use crate::sample_sources::scanner::scan::scan_once;
+    use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
     use crate::sample_sources::scanner::scan_diff::PreparedFile;
+    use crate::sample_sources::scanner::scan_diff_phase::prepare_diff;
     use crate::sample_sources::scanner::scan_fs::read_facts;
+    use std::collections::HashMap;
     use std::path::Path;
     use tempfile::tempdir;
 
@@ -321,5 +356,32 @@ mod tests {
             panic!("restored missing file should remain ready for apply");
         };
         assert!(prepared.content_hash.is_none());
+    }
+
+    #[test]
+    fn committed_batch_tolerates_noop_refresh_failure() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, b"one").unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        let entry = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::from([(Path::new("one.wav").to_path_buf(), entry)]),
+            ScanMode::Quick,
+        );
+        let prepared = prepare_diff(dir.path(), &file_path, &context).unwrap();
+        assert!(!prepared.requires_apply);
+
+        std::fs::remove_file(&file_path).unwrap();
+        let mut batch = db.write_batch().unwrap();
+        batch.remove_file(Path::new("one.wav")).unwrap();
+        batch.commit().unwrap();
+
+        let refreshed =
+            refresh_noop_preparation_or_skip(&db, dir.path(), &mut context, prepared, true)
+                .unwrap();
+
+        assert!(refreshed.is_none());
     }
 }
