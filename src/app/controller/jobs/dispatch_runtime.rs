@@ -9,6 +9,17 @@ impl ControllerJobs {
         self.in_progress.source_db_maintenance
     }
 
+    /// Return whether deferred maintenance currently owns `source_id`.
+    pub(in super::super) fn source_db_maintenance_in_progress_for(
+        &self,
+        source_id: &SourceId,
+    ) -> bool {
+        self.in_progress.source_db_maintenance
+            && self
+                .active_source_db_maintenance_sources
+                .contains(source_id)
+    }
+
     /// Run startup-deferred source DB maintenance in the background.
     pub(in super::super) fn begin_source_db_maintenance(
         &mut self,
@@ -18,6 +29,8 @@ impl ControllerJobs {
             return;
         }
         self.in_progress.source_db_maintenance = true;
+        self.active_source_db_maintenance_sources =
+            jobs.iter().map(|job| job.source_id.clone()).collect();
         self.spawn_one_shot_job(
             true,
             move || {
@@ -34,6 +47,7 @@ impl ControllerJobs {
     /// Clear the in-progress state for deferred source DB maintenance.
     pub(in super::super) fn clear_source_db_maintenance(&mut self) {
         self.in_progress.source_db_maintenance = false;
+        self.active_source_db_maintenance_sources.clear();
     }
 
     /// Return whether an update-check request is currently running.

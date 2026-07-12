@@ -57,6 +57,15 @@ impl AppController {
                 "Cannot remap a source while it is being scanned",
             ));
         }
+        if self
+            .runtime
+            .jobs
+            .source_db_maintenance_in_progress_for(&source_id)
+        {
+            return Err(String::from(
+                "Cannot remap a source while database maintenance is running",
+            ));
+        }
         if self.runtime.analysis.source_enqueue_in_progress(&source_id) {
             return Err(String::from(
                 "Cannot remap a source while analysis jobs are being queued",

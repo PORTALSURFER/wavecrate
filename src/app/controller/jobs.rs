@@ -62,7 +62,7 @@ use crate::app::state::FolderPaneId;
 use crate::sample_sources::SourceId;
 use radiant::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     path::PathBuf,
     sync::{
         Arc,
@@ -110,6 +110,7 @@ pub(crate) struct ControllerJobs {
     request_counters: JobRequestCounters,
     in_progress: JobInProgressState,
     active_scan_source: Option<SourceId>,
+    active_source_db_maintenance_sources: HashSet<SourceId>,
     cancel_handles: JobCancelHandles,
     pending_folder_scan: Option<PendingFolderScan>,
     pub(super) repaint_signal: Arc<SharedRepaintSignal>,

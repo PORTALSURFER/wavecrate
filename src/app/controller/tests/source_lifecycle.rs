@@ -397,6 +397,30 @@ fn remap_rejects_active_scan_for_same_source() {
 }
 
 #[test]
+fn remap_rejects_active_database_maintenance_for_same_source() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "maintenance.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination");
+    controller.runtime.jobs.begin_source_db_maintenance(vec![
+        crate::app::controller::jobs::SourceDbMaintenanceJob {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+        },
+    ]);
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("active source database maintenance must block remap");
+
+    assert!(error.contains("database maintenance is running"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+}
+
+#[test]
 fn remap_rejects_analysis_enqueue_for_same_source() {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());

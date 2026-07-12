@@ -40,6 +40,46 @@ fn startup_source_db_maintenance_defers_same_source_during_file_op() {
 }
 
 #[test]
+fn startup_source_db_maintenance_defers_same_source_during_live_remap() {
+    let (mut controller, sources) = build_controller_with_sources(&["source-a"]);
+    let source = sources[0].clone();
+    controller
+        .runtime
+        .startup
+        .deferred_source_db_maintenance_jobs =
+        vec![crate::app::controller::jobs::SourceDbMaintenanceJob {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+        }];
+    controller
+        .runtime
+        .startup
+        .deferred_source_db_maintenance_armed = true;
+    controller.runtime.startup.frame_prepare_count = 1;
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 92,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("remap destination").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+        });
+
+    controller.flush_deferred_startup_source_db_maintenance();
+
+    assert!(controller.has_pending_startup_source_db_maintenance());
+    assert!(!controller.runtime.jobs.source_db_maintenance_in_progress());
+    assert_eq!(
+        controller
+            .runtime
+            .startup
+            .deferred_source_db_maintenance_jobs[0]
+            .source_id,
+        source.id
+    );
+}
+
+#[test]
 fn startup_source_db_maintenance_allows_other_sources_during_file_op() {
     let (mut controller, sources) = build_controller_with_sources(&["source-a", "source-b"]);
     controller

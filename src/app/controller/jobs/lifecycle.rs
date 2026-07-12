@@ -76,6 +76,7 @@ impl ControllerJobs {
             request_counters: JobRequestCounters::default(),
             in_progress: JobInProgressState::default(),
             active_scan_source: None,
+            active_source_db_maintenance_sources: HashSet::new(),
             cancel_handles: JobCancelHandles::default(),
             pending_folder_scan: None,
             repaint_signal,
