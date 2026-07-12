@@ -160,8 +160,24 @@ fn reserve_trash_path(
 }
 
 fn trash_reservation_marker(trash_folder: &Path, candidate: &Path) -> PathBuf {
+    trash_reservation_marker_with_case_policy(
+        trash_folder,
+        candidate,
+        cfg!(any(target_os = "windows", target_os = "macos")),
+    )
+}
+
+fn trash_reservation_marker_with_case_policy(
+    trash_folder: &Path,
+    candidate: &Path,
+    case_insensitive: bool,
+) -> PathBuf {
     let mut hasher = DefaultHasher::new();
-    candidate.hash(&mut hasher);
+    if case_insensitive {
+        candidate.to_string_lossy().to_lowercase().hash(&mut hasher);
+    } else {
+        candidate.hash(&mut hasher);
+    }
     trash_folder.join(format!(
         ".wavecrate-trash-reservation-{:016x}",
         hasher.finish()
@@ -171,14 +187,76 @@ fn trash_reservation_marker(trash_folder: &Path, candidate: &Path) -> PathBuf {
 fn move_path(source: &Path, destination: &Path) -> Result<(), String> {
     match rename_no_replace(source, destination) {
         Ok(()) => Ok(()),
-        Err(rename_error) => fallback_move_path(source, destination, &rename_error),
+        Err(rename_error) => move_path_after_no_replace_error(source, destination, rename_error),
     }
+}
+
+fn move_path_after_no_replace_error(
+    source: &Path,
+    destination: &Path,
+    rename_error: io::Error,
+) -> Result<(), String> {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    let rename_error = if no_replace_rename_is_unsupported(&rename_error) {
+        match rename_via_owned_placeholder(source, destination) {
+            Ok(()) => return Ok(()),
+            Err(error) => error,
+        }
+    } else {
+        rename_error
+    };
+
+    if rename_error.kind() == io::ErrorKind::CrossesDevices {
+        return fallback_move_path(source, destination, &rename_error);
+    }
+    let kind = if source.is_dir() { "folder" } else { "file" };
+    Err(format!("Move {kind} to trash failed: {rename_error}"))
 }
 
 #[cfg(target_os = "windows")]
 fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    // Windows rename already refuses to replace an existing destination.
-    fs::rename(source, destination)
+    use std::os::windows::ffi::OsStrExt;
+    use windows::{
+        Win32::{
+            Foundation::{ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, ERROR_NOT_SAME_DEVICE},
+            Storage::FileSystem::{MOVE_FILE_FLAGS, MoveFileExW},
+        },
+        core::{HRESULT, PCWSTR},
+    };
+
+    fn wide_path(path: &Path) -> io::Result<Vec<u16>> {
+        let mut wide = path.as_os_str().encode_wide().collect::<Vec<_>>();
+        if wide.contains(&0) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "trash move path contains an interior NUL code unit",
+            ));
+        }
+        wide.push(0);
+        Ok(wide)
+    }
+
+    let source = wide_path(source)?;
+    let destination = wide_path(destination)?;
+    let result = unsafe {
+        MoveFileExW(
+            PCWSTR(source.as_ptr()),
+            PCWSTR(destination.as_ptr()),
+            MOVE_FILE_FLAGS(0),
+        )
+    };
+    result.map_err(|error| {
+        let code = error.code();
+        if code == HRESULT::from_win32(ERROR_ALREADY_EXISTS.0)
+            || code == HRESULT::from_win32(ERROR_FILE_EXISTS.0)
+        {
+            io::Error::from(io::ErrorKind::AlreadyExists)
+        } else if code == HRESULT::from_win32(ERROR_NOT_SAME_DEVICE.0) {
+            io::Error::from(io::ErrorKind::CrossesDevices)
+        } else {
+            io::Error::other(error)
+        }
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -211,6 +289,64 @@ fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn no_replace_rename_is_unsupported(error: &io::Error) -> bool {
+    matches!(
+        error.raw_os_error(),
+        Some(libc::ENOSYS | libc::EINVAL | libc::EOPNOTSUPP)
+    )
+}
+
+#[cfg(any(target_os = "linux", target_os = "android", all(test, unix)))]
+fn rename_via_owned_placeholder(source: &Path, destination: &Path) -> io::Result<()> {
+    let is_directory = source.is_dir();
+    let placeholder = if is_directory {
+        fs::create_dir(destination)?;
+        File::open(destination)?
+    } else {
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(destination)?
+    };
+    match fs::rename(source, destination) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            cleanup_owned_placeholder(destination, is_directory, &placeholder);
+            Err(error)
+        }
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "android", all(test, unix)))]
+fn cleanup_owned_placeholder(destination: &Path, is_directory: bool, placeholder: &File) {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(expected) = placeholder.metadata() else {
+        return;
+    };
+    let Ok(actual) = fs::symlink_metadata(destination) else {
+        return;
+    };
+    if expected.dev() != actual.dev() || expected.ino() != actual.ino() {
+        return;
+    }
+    let cleanup = if is_directory {
+        fs::remove_dir(destination)
+    } else {
+        fs::remove_file(destination)
+    };
+    if let Err(error) = cleanup
+        && error.kind() != io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            path = %destination.display(),
+            error = %error,
+            "Failed to remove reserved trash rename placeholder"
+        );
     }
 }
 
@@ -450,6 +586,22 @@ mod tests {
         assert!(!marker.exists());
     }
 
+    #[test]
+    fn case_insensitive_reservation_markers_merge_case_only_destinations() {
+        let trash = Path::new("/trash");
+        let upper = trash.join("Kick.wav");
+        let lower = trash.join("kick.wav");
+
+        assert_eq!(
+            trash_reservation_marker_with_case_policy(trash, &upper, true),
+            trash_reservation_marker_with_case_policy(trash, &lower, true)
+        );
+        assert_ne!(
+            trash_reservation_marker_with_case_policy(trash, &upper, false),
+            trash_reservation_marker_with_case_policy(trash, &lower, false)
+        );
+    }
+
     #[cfg(any(
         target_os = "windows",
         target_os = "macos",
@@ -488,6 +640,86 @@ mod tests {
 
         assert!(!source.exists());
         assert_eq!(fs::read(&destination).unwrap(), b"source");
+    }
+
+    #[test]
+    fn non_cross_device_rename_errors_do_not_start_copy_fallback() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source.wav");
+        let destination = temp.path().join("destination.wav");
+        fs::write(&source, b"source").unwrap();
+
+        let error = move_path_after_no_replace_error(
+            &source,
+            &destination,
+            io::Error::from(io::ErrorKind::PermissionDenied),
+        )
+        .unwrap_err();
+
+        assert!(error.contains("Move file to trash failed"));
+        assert_eq!(fs::read(&source).unwrap(), b"source");
+        assert!(!destination.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owned_placeholders_enable_same_volume_file_and_directory_renames() {
+        let temp = tempdir().unwrap();
+        let source_file = temp.path().join("source.wav");
+        let destination_file = temp.path().join("trash.wav");
+        let source_dir = temp.path().join("source-folder");
+        let destination_dir = temp.path().join("trash-folder");
+        fs::write(&source_file, b"source").unwrap();
+        fs::create_dir(&source_dir).unwrap();
+        fs::write(source_dir.join("child.wav"), b"child").unwrap();
+
+        rename_via_owned_placeholder(&source_file, &destination_file).unwrap();
+        rename_via_owned_placeholder(&source_dir, &destination_dir).unwrap();
+
+        assert!(!source_file.exists());
+        assert_eq!(fs::read(destination_file).unwrap(), b"source");
+        assert!(!source_dir.exists());
+        assert_eq!(
+            fs::read(destination_dir.join("child.wav")).unwrap(),
+            b"child"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn owned_placeholder_cleanup_preserves_a_replaced_destination() {
+        let temp = tempdir().unwrap();
+        let destination = temp.path().join("trash.wav");
+        let placeholder = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&destination)
+            .unwrap();
+        fs::remove_file(&destination).unwrap();
+        fs::write(&destination, b"external").unwrap();
+
+        cleanup_owned_placeholder(&destination, false, &placeholder);
+
+        assert_eq!(fs::read(destination).unwrap(), b"external");
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[test]
+    fn unsupported_atomic_rename_uses_owned_same_volume_placeholder() {
+        let temp = tempdir().unwrap();
+        let source = temp.path().join("source.wav");
+        let destination = temp.path().join("trash.wav");
+        fs::write(&source, b"source").unwrap();
+
+        move_path_after_no_replace_error(
+            &source,
+            &destination,
+            io::Error::from_raw_os_error(libc::ENOSYS),
+        )
+        .unwrap();
+
+        assert!(!source.exists());
+        assert_eq!(fs::read(destination).unwrap(), b"source");
     }
 
     #[cfg(unix)]
