@@ -112,6 +112,10 @@ impl AnalysisTrigger {
             }
         }
     }
+
+    fn cancels_pending_remap(&self) -> bool {
+        matches!(self, Self::ChangedSamples { .. })
+    }
 }
 
 impl AppController {

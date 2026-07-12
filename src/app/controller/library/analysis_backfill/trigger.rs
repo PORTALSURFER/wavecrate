@@ -3,13 +3,15 @@ use super::*;
 impl AppController {
     pub(super) fn spawn_analysis_trigger(&mut self, trigger: AnalysisTrigger) {
         let source_id = trigger.source_id().clone();
-        if self
+        let live_remap_owns_source = self
             .runtime
             .source_lane
             .pending_remap
             .as_ref()
-            .is_some_and(|pending| !pending.canceled && pending.source.id == source_id)
-        {
+            .is_some_and(|pending| !pending.canceled && pending.source.id == source_id);
+        if live_remap_owns_source && trigger.cancels_pending_remap() {
+            self.cancel_pending_source_remap_for_mutation(&source_id);
+        } else if live_remap_owns_source {
             tracing::debug!(
                 source_id = %source_id,
                 "Skipping analysis enqueue while source remap is pending"

@@ -239,3 +239,48 @@ fn canceled_source_remap_allows_analysis_enqueue() {
         1
     );
 }
+
+#[test]
+fn changed_sample_trigger_cancels_live_remap_and_enqueues_analysis() {
+    let (mut controller, source, _config_dir, _guard) =
+        prepare_manual_reanalysis_fixture(&["Pack/a.wav"]);
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 92,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("remap destination").keep(),
+            queued_at: Instant::now(),
+            canceled: false,
+        });
+
+    controller.trigger_analysis_for_added_sample(
+        &source,
+        std::path::Path::new("Pack/a.wav"),
+        64,
+        1,
+    );
+
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.request_id == 92 && pending.canceled)
+    );
+    match wait_for_analysis_message(&mut controller, |message| {
+        matches!(
+            message,
+            analysis_jobs::AnalysisJobMessage::EnqueueFinished { .. }
+        )
+    }) {
+        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, .. } => {
+            assert_eq!(inserted, 1);
+        }
+        other => panic!("unexpected analysis message: {other:?}"),
+    }
+    assert_eq!(
+        pending_job_count(&source, analysis_jobs::db::ANALYZE_SAMPLE_JOB_TYPE),
+        1
+    );
+}
