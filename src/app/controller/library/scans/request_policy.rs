@@ -103,7 +103,7 @@ impl AppController {
             .source_lane
             .pending_remap
             .as_ref()
-            .is_some_and(|pending| pending.source.id == source.id)
+            .is_some_and(|pending| !pending.canceled && pending.source.id == source.id)
         {
             if matches!(kind, ScanKind::Manual) {
                 self.set_status("Source remap in progress", StatusTone::Info);
