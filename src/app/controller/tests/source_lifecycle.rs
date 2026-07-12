@@ -400,6 +400,7 @@ fn remap_rejects_existing_file_mutation() {
     )]);
     let destination = tempfile::tempdir().expect("destination");
     controller.begin_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
+    crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
 
     let error = controller
         .remap_source_to(0, destination.path().to_path_buf())
@@ -407,6 +408,11 @@ fn remap_rejects_existing_file_mutation() {
 
     assert!(error.contains("changes are pending"));
     assert_eq!(controller.library.sources[0].root, source.root);
+    assert_eq!(
+        crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+        0,
+        "pending mutation gate must run before analysis DB inspection"
+    );
     controller.finish_pending_file_mutation(&source.id, [std::path::PathBuf::from("pending.wav")]);
 }
 

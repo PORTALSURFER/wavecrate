@@ -52,6 +52,17 @@ impl AppController {
         if self.runtime.source_lane.pending_remap.is_some() {
             return Err(String::from("Source remap already in progress"));
         }
+        if self
+            .runtime
+            .source_lane
+            .mutations
+            .source_has_pending_metadata(&source_id)
+            || self.source_has_pending_file_mutations(&source_id)
+        {
+            return Err(String::from(
+                "Cannot remap a source while file or metadata changes are pending",
+            ));
+        }
         if self.runtime.jobs.source_scan_in_progress(&source_id) {
             return Err(String::from(
                 "Cannot remap a source while it is being scanned",
@@ -78,17 +89,6 @@ impl AppController {
         {
             return Err(String::from(
                 "Cannot remap a source while analysis jobs are pending or running",
-            ));
-        }
-        if self
-            .runtime
-            .source_lane
-            .mutations
-            .source_has_pending_metadata(&source_id)
-            || self.source_has_pending_file_mutations(&source_id)
-        {
-            return Err(String::from(
-                "Cannot remap a source while file or metadata changes are pending",
             ));
         }
         if self
