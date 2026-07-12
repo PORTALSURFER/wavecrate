@@ -534,7 +534,13 @@ fn publish_prepared_database(
             "Destination database changed while the remap was running",
         ));
     }
+    let destination_was_empty = !destination_current_database_identity.has_artifacts()
+        && !destination_legacy_database_identity.has_artifacts();
     let legacy_migration = LegacyDatabaseMigrationSnapshot::new(root);
+    if destination_was_empty {
+        reserve_empty_database_path(&destination)
+            .map_err(|error| format!("Failed to claim remap destination database: {error}"))?;
+    }
     if let Err(error) = SourceDatabase::open_for_source_write(root) {
         legacy_migration.restore_original_names();
         artifact_snapshot.remove_created();
@@ -667,6 +673,15 @@ fn publish_staged_database_without_replace(
         fs::hard_link(staged, destination)?;
         fs::remove_file(staged)
     }
+}
+
+fn reserve_empty_database_path(destination: &Path) -> std::io::Result<()> {
+    let reservation = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)?;
+    drop(reservation);
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -848,6 +863,33 @@ mod tests {
 
         assert!(error.contains("changed while the remap was running"));
         assert_eq!(fs::read(destination).unwrap(), b"other owner");
+    }
+
+    #[test]
+    fn empty_destination_claim_preserves_late_owner() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        fs::write(&destination, b"late owner").expect("create competing database");
+
+        let error = reserve_empty_database_path(&destination)
+            .expect_err("atomic claim must reject a late destination owner");
+
+        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(destination).unwrap(), b"late owner");
+    }
+
+    #[test]
+    fn no_snapshot_publish_claims_and_initializes_empty_destination() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+        let empty = empty_database_identity();
+
+        let publication = publish_prepared_database(root.path(), None, &empty, &empty)
+            .expect("empty destination should be claimed");
+
+        assert!(destination.exists());
+        publication.rollback();
+        assert!(!destination.exists());
     }
 
     #[test]
