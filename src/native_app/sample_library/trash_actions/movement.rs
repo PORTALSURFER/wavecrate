@@ -45,7 +45,7 @@ fn move_path_to_configured_trash_inner(
     path: &Path,
     trash_folder: Option<&Path>,
 ) -> TrashMoveResult {
-    match path.try_exists() {
+    match path_entry_exists(path) {
         Ok(true) => {}
         Ok(false) => return TrashMoveResult::Missing,
         Err(error) => {
@@ -129,7 +129,7 @@ fn reserve_trash_path(
             name.into()
         };
         let candidate = trash_folder.join(name);
-        match trash_entry_exists(&candidate) {
+        match path_entry_exists(&candidate) {
             Ok(true) => continue,
             Ok(false) => {}
             Err(error) => {
@@ -146,7 +146,7 @@ fn reserve_trash_path(
             .open(&marker)
         {
             Ok(file) => {
-                match trash_entry_exists(&candidate) {
+                match path_entry_exists(&candidate) {
                     Ok(true) => {
                         drop(file);
                         let _ = fs::remove_file(marker);
@@ -177,7 +177,7 @@ fn reserve_trash_path(
     ))
 }
 
-fn trash_entry_exists(path: &Path) -> io::Result<bool> {
+fn path_entry_exists(path: &Path) -> io::Result<bool> {
     match fs::symlink_metadata(path) {
         Ok(_) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
@@ -639,6 +639,28 @@ mod tests {
         );
         assert_eq!(fs::read(moved_path).unwrap(), b"kick");
         assert!(fs::symlink_metadata(broken_link).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn broken_source_symlink_is_reported_as_failed_instead_of_missing() {
+        use std::os::unix::fs::symlink;
+
+        let temp = tempdir().unwrap();
+        let trash = temp.path().join("trash");
+        let source = temp.path().join("kick.wav");
+        fs::create_dir(&trash).unwrap();
+        symlink(temp.path().join("missing.wav"), &source).unwrap();
+        assert!(!source.exists());
+
+        let outcome = move_path_to_configured_trash(&source, Some(&trash));
+
+        assert!(matches!(
+            outcome.result,
+            TrashMoveResult::Failed { ref error }
+                if error.starts_with("Trash source is unavailable:")
+        ));
+        assert!(fs::symlink_metadata(source).is_ok());
     }
 
     #[test]
