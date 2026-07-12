@@ -33,9 +33,25 @@ fn moving_trashed_samples_moves_and_prunes_state() -> Result<(), String> {
     ]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 72,
+            source: source.clone(),
+            new_root: temp.path().join("remap-target"),
+            queued_at: std::time::Instant::now(),
+            canceled: false,
+        });
 
     controller.move_all_trashed_to_folder();
 
+    assert!(
+        controller
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| pending.canceled)
+    );
     assert!(trash_root.join("trash.wav").is_file());
     assert!(!source.root.join("trash.wav").exists());
     let rows = controller

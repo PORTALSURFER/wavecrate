@@ -161,7 +161,9 @@ impl ControllerJobs {
     }
 
     /// Start one non-blocking selection-export job.
-    pub(in super::super) fn begin_selection_export(&self, job: SelectionExportJob) {
+    pub(in super::super) fn begin_selection_export(&mut self, job: SelectionExportJob) {
+        self.active_selection_export_sources
+            .insert(job.request_id(), job.destination_source_id().clone());
         self.spawn_one_shot_job(
             true,
             move || {
@@ -172,7 +174,9 @@ impl ControllerJobs {
     }
 
     /// Start one streamed background slice-batch export job.
-    pub(in super::super) fn begin_selection_slice_batch_export(&self, job: SelectionExportJob) {
+    pub(in super::super) fn begin_selection_slice_batch_export(&mut self, job: SelectionExportJob) {
+        self.active_selection_export_sources
+            .insert(job.request_id(), job.destination_source_id().clone());
         let (tx, rx) = std::sync::mpsc::channel();
         self.start_progress_stream(
             rx,
@@ -182,6 +186,18 @@ impl ControllerJobs {
         thread::spawn(move || {
             crate::app::controller::library::selection_export::run_slice_batch_export_job(job, &tx);
         });
+    }
+
+    /// Return whether a selection export still owns writes for one source.
+    pub(in super::super) fn selection_export_in_progress_for(&self, source_id: &SourceId) -> bool {
+        self.active_selection_export_sources
+            .values()
+            .any(|active_source_id| active_source_id == source_id)
+    }
+
+    /// Release source-write ownership for a completed selection export.
+    pub(in super::super) fn finish_selection_export(&mut self, request_id: u64) {
+        self.active_selection_export_sources.remove(&request_id);
     }
 
     /// Start a one-shot audio normalization job.

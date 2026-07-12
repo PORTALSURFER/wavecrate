@@ -68,6 +68,20 @@ impl AppController {
                 "Cannot remap a source while it is being scanned",
             ));
         }
+        if self.runtime.jobs.trash_move_in_progress() {
+            return Err(String::from(
+                "Cannot remap a source while samples are being moved to trash",
+            ));
+        }
+        if self
+            .runtime
+            .jobs
+            .selection_export_in_progress_for(&source_id)
+        {
+            return Err(String::from(
+                "Cannot remap a source while selection exports are running",
+            ));
+        }
         if self
             .runtime
             .jobs

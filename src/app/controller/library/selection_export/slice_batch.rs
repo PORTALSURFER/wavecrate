@@ -48,12 +48,10 @@ impl AppController {
                 source_id: snapshot.source_id.clone(),
                 relative_path: snapshot.relative_path.clone(),
             }));
-        self.runtime
-            .jobs
-            .begin_selection_slice_batch_export(SelectionExportJob::SliceBatch {
-                request_id,
-                snapshot,
-            });
+        self.queue_selection_slice_batch_export_job(SelectionExportJob::SliceBatch {
+            request_id,
+            snapshot,
+        });
         self.show_status_progress(
             ProgressTaskKind::SelectionExport,
             "Saving slices",

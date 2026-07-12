@@ -69,16 +69,14 @@ impl AppController {
             },
             "Saved selection clip",
         );
-        self.runtime
-            .jobs
-            .begin_selection_export(SelectionExportJob::Clip {
-                request_id,
-                snapshot: self.capture_selection_export_snapshot(selection, target_tag)?,
-                destination: SelectionClipDestination::Browser {
-                    keep_source_focused,
-                    folder_override,
-                },
-            });
+        self.queue_selection_export_job(SelectionExportJob::Clip {
+            request_id,
+            snapshot: self.capture_selection_export_snapshot(selection, target_tag)?,
+            destination: SelectionClipDestination::Browser {
+                keep_source_focused,
+                folder_override,
+            },
+        });
         self.record_waveform_selection_export_flash();
         self.set_status("Saving selection clip...", StatusTone::Busy);
         Ok(())
