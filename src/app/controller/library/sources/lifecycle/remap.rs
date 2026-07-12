@@ -387,9 +387,13 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
             }
             return Ok(());
         }
-        if database_identity(&destination)? != *initial_current_database_identity
-            || database_identity(&legacy_destination)? != *initial_legacy_database_identity
-        {
+        if !database_artifact_owner_matches(
+            initial_current_database_identity,
+            &database_identity(&destination)?,
+        ) || !database_artifact_owner_matches(
+            initial_legacy_database_identity,
+            &database_identity(&legacy_destination)?,
+        ) {
             return Err(String::from(
                 "Destination database changed while the remap was running",
             ));
@@ -403,6 +407,8 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
                 "Destination contains SQLite sidecars without their database",
             ));
         }
+        // Ownership is fixed by the exact identity check above. The writable open may then
+        // migrate the schema or journal mode; its resulting identities become the publish gate.
         SourceDatabase::open_for_source_write(&job.new_root)
             .map(|_| ())
             .map_err(|error| format!("Failed to prepare database: {error}"))
@@ -418,22 +424,8 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
             database_identity(&legacy_destination),
         ) {
             (Ok(current), Ok(legacy)) => {
-                let initial_current = initial_current_database_identity
-                    .as_ref()
-                    .expect("successful remap preparation inspected current destination");
-                let initial_legacy = initial_legacy_database_identity
-                    .as_ref()
-                    .expect("successful remap preparation inspected legacy destination");
-                if database_artifact_owner_matches(initial_current, &current)
-                    && database_artifact_owner_matches(initial_legacy, &legacy)
-                {
-                    destination_current_database_identity = current;
-                    destination_legacy_database_identity = legacy;
-                } else {
-                    result = Err(String::from(
-                        "Destination database changed while the remap was running",
-                    ));
-                }
+                destination_current_database_identity = current;
+                destination_legacy_database_identity = legacy;
             }
             (Err(error), _) | (_, Err(error)) => result = Err(error),
         }
@@ -1013,6 +1005,38 @@ mod tests {
             prepared.database.as_ref().unwrap().stable_id
         );
         assert!(!database_artifact_owner_matches(&initial, &prepared));
+    }
+
+    #[test]
+    fn prepare_refreshes_identity_after_controlled_destination_migration() {
+        let source_root = tempfile::tempdir().expect("source root");
+        let destination_root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(destination_root.path());
+        let connection = rusqlite::Connection::open(&destination).expect("legacy database");
+        connection
+            .execute_batch(
+                "CREATE TABLE legacy_marker (id INTEGER PRIMARY KEY); PRAGMA user_version = 0;",
+            )
+            .expect("stale schema");
+        connection.close().expect("close stale database");
+        let initial = database_identity(&destination).expect("initial identity");
+        let job = SourceRemapJob {
+            request_id: 1,
+            source: SampleSource::new(source_root.path().to_path_buf()),
+            new_root: destination_root.path().to_path_buf(),
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
+        };
+
+        let prepared = run_source_remap_prepare(job);
+
+        assert!(prepared.result.is_ok(), "{:?}", prepared.result);
+        assert_ne!(initial, prepared.destination_current_database_identity);
+        assert_eq!(
+            database_identity(&destination).expect("migrated identity"),
+            prepared.destination_current_database_identity
+        );
     }
 
     #[test]
