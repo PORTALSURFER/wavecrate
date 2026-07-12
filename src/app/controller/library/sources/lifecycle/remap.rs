@@ -5,6 +5,7 @@ use super::*;
 struct RemappedSource {
     index: usize,
     root: PathBuf,
+    previous_root: PathBuf,
     id: SourceId,
     started_at: Instant,
 }
@@ -40,19 +41,45 @@ impl AppController {
             );
             return Err(error);
         }
-        let existing_source = &self.library.sources[index];
-        copy_source_database_if_needed(existing_source, &normalized, started_at)?;
-        prepare_database_for_remap(existing_source, &normalized, started_at)?;
+        let previous_root = self.library.sources[index].root.clone();
         self.commit_remapped_source(RemappedSource {
             index,
             root: normalized,
+            previous_root,
             id: source_id,
             started_at,
         })
     }
 
     fn commit_remapped_source(&mut self, remap: RemappedSource) -> Result<(), String> {
-        self.library.sources[remap.index].root = remap.root;
+        let previous_source = self.library.sources[remap.index].clone();
+        let artifacts = RemapArtifactSnapshot::new(&remap.root);
+        let prepare_result = copy_source_database_if_needed(&previous_source, &remap.root)
+            .and_then(|()| prepare_database_for_remap(&remap.root));
+        if let Err(error) = prepare_result {
+            artifacts.restore_and_remove_created();
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(remap.id.as_str()),
+                "error",
+                remap.started_at,
+                Some(&error),
+            );
+            return Err(error);
+        }
+        self.library.sources[remap.index].root = remap.root.clone();
+        if let Err(error) = self.persist_config("Failed to save config after remapping source") {
+            self.library.sources[remap.index].root = remap.previous_root;
+            artifacts.restore_and_remove_created();
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(remap.id.as_str()),
+                "error",
+                remap.started_at,
+                Some(&error),
+            );
+            return Err(error);
+        }
         self.library.missing.sources.remove(&remap.id);
         let mut invalidator = source_cache_invalidator::SourceCacheInvalidator::new_from_state(
             &mut self.cache,
@@ -65,16 +92,6 @@ impl AppController {
             self.clear_wavs();
             self.selection_state.ctx.selected_source = Some(remap.id.clone());
         }
-        if let Err(err) = self.persist_config("Failed to save config after remapping source") {
-            record_source_lifecycle_event(
-                "sources.remap",
-                Some(remap.id.as_str()),
-                "error",
-                remap.started_at,
-                Some(&err),
-            );
-            return Err(err);
-        }
         self.refresh_sources_ui();
         self.queue_wav_load();
         self.set_status("Source remapped", StatusTone::Info);
@@ -86,6 +103,136 @@ impl AppController {
             None,
         );
         Ok(())
+    }
+}
+
+struct RemapArtifactSnapshot {
+    paths: Vec<(PathBuf, bool)>,
+    database_existed: bool,
+    legacy_migrations: Vec<(PathBuf, PathBuf, bool, bool)>,
+}
+
+impl RemapArtifactSnapshot {
+    fn new(root: &Path) -> Self {
+        let database = crate::sample_sources::database_path_for(root);
+        let legacy_database = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+        let paths: Vec<(PathBuf, bool)> = [
+            database.clone(),
+            path_with_suffix(&database, "-wal"),
+            path_with_suffix(&database, "-shm"),
+            path_with_suffix(&database, "-journal"),
+        ]
+        .into_iter()
+        .map(|path| {
+            let existed = artifact_was_present(&path);
+            (path, existed)
+        })
+        .collect();
+        let legacy_migrations = ["", "-wal", "-shm"]
+            .into_iter()
+            .map(|suffix| {
+                let legacy = path_with_suffix(&legacy_database, suffix);
+                let current = path_with_suffix(&database, suffix);
+                let legacy_existed = artifact_was_present(&legacy);
+                let current_existed = artifact_was_present(&current);
+                (legacy, current, legacy_existed, current_existed)
+            })
+            .collect();
+        let database_existed = paths
+            .first()
+            .is_some_and(|(_, database_existed)| *database_existed);
+        Self {
+            paths,
+            database_existed,
+            legacy_migrations,
+        }
+    }
+
+    fn restore_and_remove_created(&self) {
+        for (legacy, current, legacy_existed, current_existed) in &self.legacy_migrations {
+            if *legacy_existed
+                && !*current_existed
+                && !artifact_was_present(legacy)
+                && artifact_was_present(current)
+            {
+                if let Err(err) = fs::rename(current, legacy) {
+                    tracing::warn!(
+                        from = %current.display(),
+                        to = %legacy.display(),
+                        error = %err,
+                        "Failed to restore legacy source database artifact after rollback"
+                    );
+                }
+            }
+        }
+        for (path, existed) in &self.paths {
+            if self.database_existed {
+                break;
+            }
+            if !existed {
+                match fs::remove_file(path) {
+                    Ok(()) => {}
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(err) => tracing::warn!(
+                        path = %path.display(),
+                        error = %err,
+                        "Failed to remove remap database artifact after rollback"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+fn artifact_was_present(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(_) => true,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => true,
+    }
+}
+
+fn path_with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut value = path.as_os_str().to_os_string();
+    value.push(suffix);
+    PathBuf::from(value)
+}
+
+#[cfg(all(test, unix))]
+mod artifact_snapshot_tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn rollback_preserves_preexisting_broken_database_symlinks() {
+        let root = tempfile::tempdir().expect("root");
+        let database = crate::sample_sources::database_path_for(root.path());
+        let wal = path_with_suffix(&database, "-wal");
+        symlink(root.path().join("missing-db-target"), &database).expect("database symlink");
+        symlink(root.path().join("missing-wal-target"), &wal).expect("wal symlink");
+        let snapshot = RemapArtifactSnapshot::new(root.path());
+
+        snapshot.restore_and_remove_created();
+
+        assert!(fs::symlink_metadata(database).is_ok());
+        assert!(fs::symlink_metadata(wal).is_ok());
+    }
+
+    #[test]
+    fn rollback_preserves_sidecars_created_for_preexisting_database() {
+        let root = tempfile::tempdir().expect("root");
+        let database = crate::sample_sources::database_path_for(root.path());
+        fs::write(&database, b"existing database").expect("database");
+        let snapshot = RemapArtifactSnapshot::new(root.path());
+        let wal = path_with_suffix(&database, "-wal");
+        let shm = path_with_suffix(&database, "-shm");
+        fs::write(&wal, b"pending wal state").expect("wal");
+        fs::write(&shm, b"pending shm state").expect("shm");
+
+        snapshot.restore_and_remove_created();
+
+        assert!(wal.is_file());
+        assert!(shm.is_file());
     }
 }
 
@@ -115,29 +262,15 @@ fn validate_remap_source_root(
     Ok(())
 }
 
-fn prepare_database_for_remap(
-    existing: &SampleSource,
-    normalized: &PathBuf,
-    started_at: Instant,
-) -> Result<(), String> {
-    if let Err(err) = SourceDatabase::open_for_source_write(normalized) {
-        let error = format!("Failed to prepare database: {err}");
-        record_source_lifecycle_event(
-            "sources.remap",
-            Some(existing.id.as_str()),
-            "error",
-            started_at,
-            Some(&error),
-        );
-        return Err(error);
-    }
-    Ok(())
+fn prepare_database_for_remap(normalized: &PathBuf) -> Result<(), String> {
+    SourceDatabase::open_for_source_write(normalized)
+        .map(|_| ())
+        .map_err(|err| format!("Failed to prepare database: {err}"))
 }
 
 fn copy_source_database_if_needed(
     existing: &SampleSource,
     normalized: &PathBuf,
-    started_at: Instant,
 ) -> Result<(), String> {
     let old_db_path = crate::sample_sources::database_path_for(&existing.root);
     let new_db_path = crate::sample_sources::database_path_for(normalized);
@@ -145,16 +278,7 @@ fn copy_source_database_if_needed(
         return Ok(());
     }
     let _ = fs::create_dir_all(normalized);
-    fs::copy(&old_db_path, &new_db_path).map_err(|err| {
-        let error = format!("Failed to copy database: {err}");
-        record_source_lifecycle_event(
-            "sources.remap",
-            Some(existing.id.as_str()),
-            "error",
-            started_at,
-            Some(&error),
-        );
-        error
-    })?;
+    fs::copy(&old_db_path, &new_db_path)
+        .map_err(|err| format!("Failed to copy database: {err}"))?;
     Ok(())
 }

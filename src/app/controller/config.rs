@@ -158,11 +158,26 @@ impl AppController {
             .map_err(|err| format!("{error_prefix}: {err}"))
     }
 
+    pub(super) fn persist_config_with_selected_source(
+        &self,
+        source_id: SourceId,
+        error_prefix: &str,
+    ) -> Result<(), String> {
+        let mut config = self.full_config();
+        config.core.upper_folder_pane_source = Some(source_id.clone());
+        config.core.last_selected_source = Some(source_id);
+        crate::sample_sources::config::save(&config).map_err(|err| format!("{error_prefix}: {err}"))
+    }
+
     #[allow(clippy::result_large_err)]
     pub(crate) fn save_full_config(
         &self,
     ) -> Result<(), crate::sample_sources::config::ConfigError> {
-        crate::sample_sources::config::save(&crate::sample_sources::config::AppConfig {
+        crate::sample_sources::config::save(&self.full_config())
+    }
+
+    fn full_config(&self) -> crate::sample_sources::config::AppConfig {
+        crate::sample_sources::config::AppConfig {
             sources: self.library.sources.clone(),
             core: crate::sample_sources::config::AppSettingsCore {
                 feature_flags: self.settings.feature_flags.clone(),
@@ -199,7 +214,7 @@ impl AppController {
                 default_identifier: self.settings.default_identifier.clone(),
                 tag_dictionary: self.settings.tag_dictionary.clone(),
             },
-        })
+        }
     }
 
     /// Open the `.wavecrate` config directory in the OS file explorer.
