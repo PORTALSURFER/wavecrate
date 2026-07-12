@@ -4,6 +4,7 @@ use std::{
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 #[derive(Clone, Debug)]
@@ -42,6 +43,8 @@ pub(in crate::native_app) struct WaveformPlaybackReady {
     pub(in crate::native_app) sample_rate: u32,
     pub(in crate::native_app) channels: usize,
     pub(in crate::native_app) frames: usize,
+    pub(in crate::native_app) source_len: u64,
+    pub(in crate::native_app) source_modified: Option<SystemTime>,
 }
 
 impl PersistedPlaybackCacheFile {

@@ -45,6 +45,8 @@ fn stale_playback_ready_message_is_ignored_after_selection_changes() {
                     sample_rate: 48_000,
                     channels: 1,
                     frames: 4,
+                    source_len: 0,
+                    source_modified: None,
                 },
                 true,
             ),

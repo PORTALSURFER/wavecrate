@@ -239,6 +239,35 @@ impl NativeAppState {
                 }
                 true
             }
+            SamplePlaybackIntent::ExplicitPlayback | SamplePlaybackIntent::WaveformSpan => {
+                match self.request_sample_playback(playback, context) {
+                    Ok(_) => {
+                        self.record_selected_sample_last_played(context);
+                        self.ui.status.sample = format!("Playing {file_name}");
+                        emit_gui_action(
+                            "playback.pending_load",
+                            Some("transport"),
+                            Some(file_name),
+                            "success",
+                            started_at,
+                            None,
+                        );
+                    }
+                    Err(err) => {
+                        self.ui.status.sample =
+                            format!("Loaded {file_name} | playback unavailable: {err}");
+                        emit_gui_action(
+                            "playback.pending_load",
+                            Some("transport"),
+                            Some(file_name),
+                            "error",
+                            started_at,
+                            Some(&err),
+                        );
+                    }
+                }
+                true
+            }
             _ => false,
         }
     }

@@ -52,6 +52,7 @@ impl NativeAppState {
         }
 
         if !self.waveform.current.has_loaded_sample()
+            || self.waveform.instant_preview_active()
             || self.waveform.current.path() != std::path::Path::new(request.path.as_str())
         {
             self.audio.pending_sample_playback = Some(request.clone());
@@ -100,6 +101,7 @@ impl NativeAppState {
 
     fn sample_playback_available_sources(&mut self, path: &str) -> SamplePlaybackAvailableSources {
         let loaded_current = self.waveform.current.has_loaded_sample()
+            && !self.waveform.instant_preview_active()
             && self.waveform.current.path() == std::path::Path::new(path);
         SamplePlaybackAvailableSources {
             loaded_decoded_samples: loaded_current
