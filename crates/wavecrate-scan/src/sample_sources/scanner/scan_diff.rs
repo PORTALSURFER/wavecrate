@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
@@ -18,9 +21,44 @@ pub(super) struct PreparedFile {
     pub(super) content_hash: Option<String>,
 }
 
+#[derive(Default)]
+pub(super) struct RenameCandidateCache {
+    by_hash: HashMap<String, Vec<PathBuf>>,
+    by_facts: HashMap<(u64, i64), Vec<PathBuf>>,
+}
+
+impl RenameCandidateCache {
+    fn paths_with_hash<'a>(
+        &'a mut self,
+        batch: &SourceWriteBatch<'_>,
+        hash: &str,
+    ) -> Result<&'a [PathBuf], ScanError> {
+        if !self.by_hash.contains_key(hash) {
+            let paths = batch.list_paths_with_content_hash(hash)?;
+            self.by_hash.insert(hash.to_owned(), paths);
+        }
+        Ok(self.by_hash.get(hash).expect("hash cache populated"))
+    }
+
+    fn paths_with_facts<'a>(
+        &'a mut self,
+        batch: &SourceWriteBatch<'_>,
+        size: u64,
+        modified_ns: i64,
+    ) -> Result<&'a [PathBuf], ScanError> {
+        let key = (size, modified_ns);
+        if !self.by_facts.contains_key(&key) {
+            let paths = batch.list_paths_with_file_facts(size, modified_ns)?;
+            self.by_facts.insert(key, paths);
+        }
+        Ok(self.by_facts.get(&key).expect("facts cache populated"))
+    }
+}
+
 pub(super) fn apply_diff(
     db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
+    rename_candidates: &mut RenameCandidateCache,
     prepared: PreparedFile,
     context: &mut ScanContext,
     root: &Path,
@@ -87,8 +125,14 @@ pub(super) fn apply_diff(
         None => {
             if should_hash {
                 let hash = required_prepared_hash(content_hash);
-                if let Some(entry) = take_rename_candidate_by_hash(db, batch, context, root, &hash)?
-                {
+                if let Some(entry) = take_rename_candidate_by_hash(
+                    db,
+                    batch,
+                    rename_candidates,
+                    context,
+                    root,
+                    &hash,
+                )? {
                     let old_relative_path = entry.relative_path.clone();
                     apply_rename(batch, &path, &facts, &hash, entry, None)?;
                     context.stats.updated += 1;
@@ -133,6 +177,7 @@ pub(super) fn apply_diff(
                 if let Some(entry) = take_rename_candidate_by_facts(
                     db,
                     batch,
+                    rename_candidates,
                     context,
                     root,
                     facts.size,
@@ -287,13 +332,13 @@ fn apply_rename_without_hash(
 fn take_rename_candidate_by_hash(
     db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
+    rename_candidates: &mut RenameCandidateCache,
     context: &mut ScanContext,
     root: &Path,
     hash: &str,
 ) -> Result<Option<WavEntry>, ScanError> {
-    let current_candidates =
-        rename_candidates_in_scope(batch.list_paths_with_content_hash(hash)?, context);
-    let path = unique_missing_path(&current_candidates, root);
+    let current_candidates = rename_candidates.paths_with_hash(batch, hash)?;
+    let path = unique_missing_path_in_scope(current_candidates, context, root);
     let Some(path) = path else {
         return Ok(None);
     };
@@ -310,16 +355,14 @@ fn take_rename_candidate_by_hash(
 fn take_rename_candidate_by_facts(
     db: &SourceDatabase,
     batch: &mut SourceWriteBatch<'_>,
+    rename_candidates: &mut RenameCandidateCache,
     context: &mut ScanContext,
     root: &Path,
     size: u64,
     modified_ns: i64,
 ) -> Result<Option<WavEntry>, ScanError> {
-    let current_candidates = rename_candidates_in_scope(
-        batch.list_paths_with_file_facts(size, modified_ns)?,
-        context,
-    );
-    let path = unique_missing_path(&current_candidates, root);
+    let current_candidates = rename_candidates.paths_with_facts(batch, size, modified_ns)?;
+    let path = unique_missing_path_in_scope(current_candidates, context, root);
     let Some(path) = path else {
         return Ok(None);
     };
@@ -333,14 +376,23 @@ fn take_rename_candidate_by_facts(
     Ok(Some(entry))
 }
 
-fn rename_candidates_in_scope(mut candidates: Vec<PathBuf>, context: &ScanContext) -> Vec<PathBuf> {
-    if context.mode == ScanMode::Targeted {
-        candidates.retain(|path| context.existing.contains_key(path));
-    }
-    candidates
+fn unique_missing_path_in_scope(
+    candidates: &[PathBuf],
+    context: &ScanContext,
+    root: &Path,
+) -> Option<PathBuf> {
+    unique_missing_path(
+        candidates.iter().filter(|path| {
+            context.mode != ScanMode::Targeted || context.existing.contains_key(*path)
+        }),
+        root,
+    )
 }
 
-fn unique_missing_path(candidates: &[PathBuf], root: &Path) -> Option<PathBuf> {
+fn unique_missing_path<'a>(
+    candidates: impl IntoIterator<Item = &'a PathBuf>,
+    root: &Path,
+) -> Option<PathBuf> {
     let mut match_path: Option<PathBuf> = None;
     for path in candidates {
         if root.join(path).exists() {
@@ -363,7 +415,9 @@ pub(super) fn should_compute_full_hash(mode: ScanMode, size: u64) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::unique_missing_path;
+    use super::{RenameCandidateCache, unique_missing_path};
+    use crate::sample_sources::SourceDatabase;
+    use std::path::Path;
     use std::path::PathBuf;
 
     #[test]
@@ -396,5 +450,53 @@ mod tests {
         let matched = unique_missing_path(&candidates, root.path());
 
         assert_eq!(matched, None);
+    }
+
+    #[test]
+    fn rename_candidate_cache_reuses_hash_lookup_within_batch() {
+        let root = tempfile::tempdir().unwrap();
+        let db = SourceDatabase::open(root.path()).unwrap();
+        let mut batch = db.write_batch().unwrap();
+        batch
+            .upsert_file_with_hash(Path::new("one.wav"), 4, 1, "same")
+            .unwrap();
+        let mut cache = RenameCandidateCache::default();
+
+        assert_eq!(
+            cache.paths_with_hash(&batch, "same").unwrap(),
+            &[PathBuf::from("one.wav")]
+        );
+        batch
+            .upsert_file_with_hash(Path::new("two.wav"), 4, 1, "same")
+            .unwrap();
+
+        assert_eq!(
+            cache.paths_with_hash(&batch, "same").unwrap(),
+            &[PathBuf::from("one.wav")]
+        );
+    }
+
+    #[test]
+    fn rename_candidate_cache_reuses_facts_lookup_within_batch() {
+        let root = tempfile::tempdir().unwrap();
+        let db = SourceDatabase::open(root.path()).unwrap();
+        let mut batch = db.write_batch().unwrap();
+        batch
+            .upsert_file_without_hash(Path::new("one.wav"), 4, 1)
+            .unwrap();
+        let mut cache = RenameCandidateCache::default();
+
+        assert_eq!(
+            cache.paths_with_facts(&batch, 4, 1).unwrap(),
+            &[PathBuf::from("one.wav")]
+        );
+        batch
+            .upsert_file_without_hash(Path::new("two.wav"), 4, 1)
+            .unwrap();
+
+        assert_eq!(
+            cache.paths_with_facts(&batch, 4, 1).unwrap(),
+            &[PathBuf::from("one.wav")]
+        );
     }
 }
