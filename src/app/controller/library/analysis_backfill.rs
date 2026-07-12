@@ -104,6 +104,16 @@ enum AnalysisTrigger {
     },
 }
 
+impl AnalysisTrigger {
+    fn source_id(&self) -> &SourceId {
+        match self {
+            Self::ChangedSamples { source, .. } | Self::UserRequestedReanalysis { source, .. } => {
+                &source.id
+            }
+        }
+    }
+}
+
 impl AppController {
     /// Enqueue analysis for a newly created sample through the shared trigger contract.
     pub(crate) fn trigger_analysis_for_added_sample(

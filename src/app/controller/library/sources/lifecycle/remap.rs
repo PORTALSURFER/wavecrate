@@ -57,6 +57,20 @@ impl AppController {
                 "Cannot remap a source while it is being scanned",
             ));
         }
+        if self.runtime.analysis.source_enqueue_in_progress(&source_id) {
+            return Err(String::from(
+                "Cannot remap a source while analysis jobs are being queued",
+            ));
+        }
+        if crate::app::controller::library::analysis_jobs::source_has_pending_or_running_jobs(
+            existing_source,
+        )
+        .map_err(|error| format!("Failed to inspect analysis jobs before remapping: {error}"))?
+        {
+            return Err(String::from(
+                "Cannot remap a source while analysis jobs are pending or running",
+            ));
+        }
         if self
             .runtime
             .source_lane

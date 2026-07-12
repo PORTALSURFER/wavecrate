@@ -9,12 +9,11 @@ use crate::app::controller::jobs::JobMessageSender;
 use crate::sample_sources::SourceId;
 use progress_cache::ProgressCache;
 use radiant::gui::repaint::{RepaintSignal, SharedRepaintSignal};
+use std::collections::HashMap;
 #[cfg(not(test))]
 use std::collections::HashSet;
-#[cfg(not(test))]
-use std::sync::Mutex;
 use std::sync::{
-    Arc, RwLock,
+    Arc, Mutex, RwLock,
     atomic::AtomicU32,
     atomic::{AtomicBool, Ordering},
 };
@@ -28,6 +27,7 @@ pub(crate) struct AnalysisWorkerPool {
     pause_claiming: Arc<AtomicBool>,
     use_cache: Arc<AtomicBool>,
     allowed_source_ids: Arc<RwLock<Option<std::collections::HashSet<SourceId>>>>,
+    enqueueing_sources: Arc<Mutex<HashMap<SourceId, usize>>>,
     max_duration_bits: Arc<AtomicU32>,
     analysis_sample_rate: Arc<AtomicU32>,
     analysis_version_override: Arc<RwLock<Option<String>>>,
@@ -51,6 +51,7 @@ impl AnalysisWorkerPool {
             pause_claiming: Arc::new(AtomicBool::new(false)),
             use_cache: Arc::new(AtomicBool::new(true)),
             allowed_source_ids: Arc::new(RwLock::new(None)),
+            enqueueing_sources: Arc::new(Mutex::new(HashMap::new())),
             max_duration_bits: Arc::new(AtomicU32::new(30.0f32.to_bits())),
             analysis_sample_rate: Arc::new(AtomicU32::new(
                 wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
@@ -116,6 +117,23 @@ impl AnalysisWorkerPool {
         wakeup::notify_claim_wakeup();
         #[cfg(not(test))]
         self.progress_wakeup.notify();
+    }
+
+    pub(crate) fn begin_source_enqueue(&self, source_id: SourceId) -> AnalysisEnqueueGuard {
+        if let Ok(mut sources) = self.enqueueing_sources.lock() {
+            *sources.entry(source_id.clone()).or_default() += 1;
+        }
+        AnalysisEnqueueGuard {
+            source_id,
+            enqueueing_sources: self.enqueueing_sources.clone(),
+        }
+    }
+
+    pub(crate) fn source_enqueue_in_progress(&self, source_id: &SourceId) -> bool {
+        self.enqueueing_sources
+            .lock()
+            .map(|sources| sources.get(source_id).is_some_and(|count| *count > 0))
+            .unwrap_or(true)
     }
 
     pub(crate) fn pause_claiming(&self) {
@@ -280,6 +298,26 @@ impl AnalysisWorkerPool {
             self.progress_wakeup.notify();
         }
         self.threads.clear();
+    }
+}
+
+pub(crate) struct AnalysisEnqueueGuard {
+    source_id: SourceId,
+    enqueueing_sources: Arc<Mutex<HashMap<SourceId, usize>>>,
+}
+
+impl Drop for AnalysisEnqueueGuard {
+    fn drop(&mut self) {
+        let Ok(mut sources) = self.enqueueing_sources.lock() else {
+            return;
+        };
+        let Some(count) = sources.get_mut(&self.source_id) else {
+            return;
+        };
+        *count = count.saturating_sub(1);
+        if *count == 0 {
+            sources.remove(&self.source_id);
+        }
     }
 }
 
