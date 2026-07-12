@@ -356,6 +356,7 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
             .as_ref()
             .is_ok_and(|identity| identity.has_artifacts());
     let mut staged_database = None;
+    let mut destination_open_attempted = false;
     let mut result = (|| {
         let initial_current_database_identity = initial_current_database_identity
             .as_ref()
@@ -409,11 +410,12 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
         }
         // Ownership is fixed by the exact identity check above. The writable open may then
         // migrate the schema or journal mode; its resulting identities become the publish gate.
+        destination_open_attempted = true;
         SourceDatabase::open_for_source_write(&job.new_root)
             .map(|_| ())
             .map_err(|error| format!("Failed to prepare database: {error}"))
     })();
-    legacy_migration.restore_original_names();
+    legacy_migration.restore_original_names(destination_open_attempted);
     let mut destination_current_database_identity =
         crate::app::controller::jobs::SourceRemapDatabaseIdentity::default();
     let mut destination_legacy_database_identity =
@@ -469,7 +471,10 @@ impl LegacyDatabaseMigrationSnapshot {
         Self { artifacts }
     }
 
-    fn restore_original_names(&self) {
+    fn restore_original_names(&self, migration_attempted: bool) {
+        if !migration_attempted {
+            return;
+        }
         for (legacy, current, legacy_existed, current_existed) in &self.artifacts {
             if *legacy_existed
                 && !*current_existed
@@ -534,7 +539,7 @@ fn publish_prepared_database(
             .map_err(|error| format!("Failed to claim remap destination database: {error}"))?;
     }
     if let Err(error) = SourceDatabase::open_for_source_write(root) {
-        legacy_migration.restore_original_names();
+        legacy_migration.restore_original_names(true);
         artifact_snapshot.remove_created();
         return Err(format!("Failed to prepare database: {error}"));
     }
@@ -552,7 +557,7 @@ struct PublishedRemapDatabase {
 
 impl PublishedRemapDatabase {
     fn rollback(self) {
-        self.legacy_migration.restore_original_names();
+        self.legacy_migration.restore_original_names(true);
         self.artifact_snapshot.remove_created();
     }
 }
@@ -1037,6 +1042,23 @@ mod tests {
             database_identity(&destination).expect("migrated identity"),
             prepared.destination_current_database_identity
         );
+    }
+
+    #[test]
+    fn legacy_restore_ignores_changes_before_destination_open() {
+        let root = tempfile::tempdir().expect("destination root");
+        let legacy = root
+            .path()
+            .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+        let current = crate::sample_sources::database_path_for(root.path());
+        fs::write(&legacy, b"legacy owner").expect("legacy database");
+        let migration = LegacyDatabaseMigrationSnapshot::new(root.path());
+        fs::rename(&legacy, &current).expect("external migration");
+
+        migration.restore_original_names(false);
+
+        assert!(!legacy.exists());
+        assert_eq!(fs::read(current).unwrap(), b"legacy owner");
     }
 
     #[test]
