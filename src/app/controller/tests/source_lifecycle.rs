@@ -452,6 +452,40 @@ fn remap_rejects_running_analysis_jobs_for_same_source() {
     assert_remap_rejects_analysis_job_with_status("running");
 }
 
+#[test]
+fn remap_repairs_analysis_schema_before_activity_check() {
+    let config_root = tempfile::tempdir().expect("config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "legacy-schema.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let connection =
+        crate::app::controller::library::analysis_jobs::db::open_source_db(&source.root)
+            .expect("analysis database");
+    connection
+        .execute_batch("DROP TABLE analysis_jobs;")
+        .expect("remove newer analysis schema");
+    let destination = tempfile::tempdir().expect("destination");
+
+    controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect("schema-assured remap");
+
+    assert_eq!(controller.library.sources[0].root, destination.path());
+    let destination_connection =
+        crate::app::controller::library::analysis_jobs::db::open_source_db(destination.path())
+            .expect("remapped analysis database");
+    let table_count: i64 = destination_connection
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'analysis_jobs'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("inspect repaired schema");
+    assert_eq!(table_count, 1);
+}
+
 fn assert_remap_rejects_analysis_job_with_status(status: &str) {
     let config_root = tempfile::tempdir().expect("config root");
     let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());

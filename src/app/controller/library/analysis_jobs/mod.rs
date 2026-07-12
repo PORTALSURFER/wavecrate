@@ -58,7 +58,7 @@ pub(crate) fn source_has_pending_or_running_jobs(
     if !database_path_entry_present(&current)? && !database_path_entry_present(&legacy)? {
         return Ok(false);
     }
-    let conn = db::open_source_db_ui_read(&source.root)?;
+    let conn = db::open_source_db_maintenance(&source.root)?;
     db::has_pending_or_running_jobs(&conn)
 }
 
