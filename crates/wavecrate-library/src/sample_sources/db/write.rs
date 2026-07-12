@@ -5,6 +5,7 @@ mod database;
 mod event;
 mod mutation;
 mod paths;
+mod scan_queries;
 mod transaction;
 mod upsert;
 

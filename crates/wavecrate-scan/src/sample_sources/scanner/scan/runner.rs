@@ -55,16 +55,8 @@ fn scan(
     debug_assert_ne!(mode, ScanMode::Targeted);
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
-    let mut batch = db.write_batch()?;
-    walk_phase(
-        db,
-        &root,
-        cancel,
-        &mut on_progress,
-        &mut context,
-        &mut batch,
-    )?;
-    db_sync_phase(db, batch, &mut context)?;
+    walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
+    db_sync_phase(db, &mut context)?;
     Ok(context.stats)
 }
 

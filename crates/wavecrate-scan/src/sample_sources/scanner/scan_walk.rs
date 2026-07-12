@@ -1,16 +1,22 @@
 #![allow(clippy::type_complexity)]
 
 use std::{
+    cell::Cell,
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
 };
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::SourceWriteBatch;
 
 use super::scan::{ScanContext, ScanError};
-use super::scan_diff_phase::diff_phase;
-use super::scan_fs::visit_dir;
+use super::scan_diff::{PreparedFile, RenameCandidateCache, apply_diff};
+use super::scan_diff_phase::prepare_diff;
+use super::scan_fs::{
+    compute_content_hash, is_supported_scannable_audio_file, read_facts,
+    visit_dir_with_cancel_check,
+};
+
+const APPLY_BATCH_SIZE: usize = 64;
 
 pub(super) fn walk_phase(
     db: &SourceDatabase,
@@ -18,18 +24,364 @@ pub(super) fn walk_phase(
     cancel: Option<&AtomicBool>,
     on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
     context: &mut ScanContext,
-    batch: &mut SourceWriteBatch<'_>,
 ) -> Result<(), ScanError> {
-    visit_dir(root, cancel, &mut |path| {
-        if let Some(cancel) = cancel
-            && cancel.load(Ordering::Relaxed)
-        {
-            return Err(ScanError::Canceled);
+    // Before the first commit cancellation is rollback-safe. After a bounded
+    // batch commits, finish the scan so callers never receive `Canceled` for a
+    // partially applied source state.
+    let committed = Cell::new(false);
+    let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
+    visit_dir_with_cancel_check(
+        root,
+        &mut || cancel_requested(cancel, committed.get()),
+        &mut |path| {
+            if cancel_requested(cancel, committed.get()) {
+                return Err(ScanError::Canceled);
+            }
+            let mut prepared = match prepare_diff(root, path, context) {
+                Ok(prepared) => prepared,
+                Err(error) if committed.get() => {
+                    if let Ok(relative) = path.strip_prefix(root)
+                        && is_supported_scannable_audio_file(root, relative)
+                    {
+                        context.existing.remove(relative);
+                    }
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %error,
+                        "Skipping file that changed after an earlier scan batch committed"
+                    );
+                    return Ok(());
+                }
+                Err(error) => return Err(error),
+            };
+            context.stats.total_files += 1;
+            if let Some(on_progress) = on_progress.as_mut() {
+                on_progress(context.stats.total_files, path);
+            }
+            if !prepared.requires_apply {
+                let Some(refreshed) =
+                    refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
+                else {
+                    return Ok(());
+                };
+                prepared = refreshed;
+            }
+            if !prepared.requires_apply {
+                skip_noop(context, &prepared);
+                return Ok(());
+            }
+            pending.push(prepared);
+            if pending.len() == APPLY_BATCH_SIZE {
+                let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
+                if apply_batch(
+                    db,
+                    root,
+                    cancel.filter(|_| !committed.get()),
+                    context,
+                    files,
+                    committed.get(),
+                )? {
+                    committed.set(true);
+                }
+            }
+            Ok(())
+        },
+    )?;
+    if !pending.is_empty()
+        && apply_batch(
+            db,
+            root,
+            cancel.filter(|_| !committed.get()),
+            context,
+            pending,
+            committed.get(),
+        )?
+    {
+        committed.set(true);
+    }
+    Ok(())
+}
+
+pub(super) fn apply_prepared_chunk(
+    db: &SourceDatabase,
+    root: &Path,
+    cancel: Option<&AtomicBool>,
+    context: &mut ScanContext,
+    prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
+) -> Result<bool, ScanError> {
+    let mut pending = Vec::with_capacity(prepared.len());
+    for mut file in prepared {
+        if !file.requires_apply {
+            let Some(refreshed) =
+                refresh_noop_preparation_or_skip(db, root, context, file, tolerate_file_errors)?
+            else {
+                continue;
+            };
+            file = refreshed;
         }
-        diff_phase(db, batch, root, path, context, cancel)?;
-        if let Some(on_progress) = on_progress.as_mut() {
-            on_progress(context.stats.total_files, path);
+        if file.requires_apply {
+            pending.push(file);
+        } else {
+            skip_noop(context, &file);
         }
-        Ok(())
-    })
+    }
+    if pending.is_empty() {
+        return Ok(false);
+    }
+    apply_batch(db, root, cancel, context, pending, tolerate_file_errors)
+}
+
+fn refresh_noop_preparation_or_skip(
+    db: &SourceDatabase,
+    root: &Path,
+    context: &mut ScanContext,
+    prepared: PreparedFile,
+    tolerate_file_errors: bool,
+) -> Result<Option<PreparedFile>, ScanError> {
+    let relative_path = prepared.facts.relative.clone();
+    match refresh_noop_preparation(db, root, context, prepared) {
+        Ok(prepared) => Ok(Some(prepared)),
+        Err(error) if tolerate_file_errors => {
+            skip_changed_or_unavailable(context, root, &relative_path);
+            tracing::warn!(
+                path = %root.join(&relative_path).display(),
+                error = %error,
+                "Skipping no-op refresh failure after an earlier scan batch committed"
+            );
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn refresh_noop_preparation(
+    db: &SourceDatabase,
+    root: &Path,
+    context: &mut ScanContext,
+    prepared: PreparedFile,
+) -> Result<PreparedFile, ScanError> {
+    let relative_path = prepared.facts.relative.clone();
+    let current = db.entry_for_path(&relative_path)?;
+    let snapshot = context.existing.get(&relative_path);
+    if current
+        .as_ref()
+        .zip(snapshot)
+        .is_some_and(|(entry, snapshot)| {
+            !entry.missing
+                && entry.file_size == prepared.facts.size
+                && entry.modified_ns == prepared.facts.modified_ns
+                && entry.content_hash == snapshot.content_hash
+        })
+    {
+        return Ok(prepared);
+    }
+    match current {
+        Some(entry) => {
+            context.existing.insert(relative_path.clone(), entry);
+        }
+        None => {
+            context.existing.remove(&relative_path);
+        }
+    }
+    prepare_diff(root, &root.join(relative_path), context)
+}
+
+pub(super) fn skip_noop(context: &mut ScanContext, prepared: &PreparedFile) {
+    if !prepared.needs_hash
+        && context
+            .existing
+            .get(&prepared.facts.relative)
+            .is_some_and(|entry| entry.content_hash.is_none())
+    {
+        context.stats.hashes_pending += 1;
+    }
+    let _ = context.existing.remove(&prepared.facts.relative);
+}
+
+fn apply_batch(
+    db: &SourceDatabase,
+    root: &Path,
+    cancel: Option<&AtomicBool>,
+    context: &mut ScanContext,
+    prepared: Vec<PreparedFile>,
+    tolerate_file_errors: bool,
+) -> Result<bool, ScanError> {
+    let mut ready = Vec::with_capacity(prepared.len());
+    for file in prepared {
+        let relative_path = file.facts.relative.clone();
+        let outcome = match prepare_for_apply(db, root, cancel, file) {
+            Ok(outcome) => outcome,
+            Err(error) if tolerate_file_errors => {
+                skip_changed_or_unavailable(context, root, &relative_path);
+                tracing::warn!(
+                    path = %root.join(&relative_path).display(),
+                    error = %error,
+                    "Skipping file preparation failure after an earlier scan batch committed"
+                );
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        match outcome {
+            PrepareForApply::Ready(file) => ready.push(file),
+            PrepareForApply::Gone => {}
+            PrepareForApply::Skip => {
+                skip_changed_or_unavailable(context, root, &relative_path);
+            }
+        }
+    }
+    if ready.is_empty() {
+        return Ok(false);
+    }
+    if cancel_requested(cancel, false) {
+        return Err(ScanError::Canceled);
+    }
+    let mut batch = db.write_batch()?;
+    let mut rename_candidates = RenameCandidateCache::default();
+    for file in ready {
+        let relative_path = file.facts.relative.clone();
+        let absolute = root.join(&relative_path);
+        match read_facts(root, &absolute) {
+            Ok(current) if facts_match(&file, &current) => {}
+            _ => {
+                skip_changed_or_unavailable(context, root, &relative_path);
+                continue;
+            }
+        }
+        apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
+    }
+    batch.commit()?;
+    Ok(true)
+}
+
+fn skip_changed_or_unavailable(context: &mut ScanContext, root: &Path, relative_path: &Path) {
+    if is_supported_scannable_audio_file(root, relative_path) {
+        context.existing.remove(relative_path);
+    }
+}
+
+enum PrepareForApply {
+    Ready(PreparedFile),
+    Gone,
+    Skip,
+}
+
+fn prepare_for_apply(
+    db: &SourceDatabase,
+    root: &Path,
+    cancel: Option<&AtomicBool>,
+    mut prepared: PreparedFile,
+) -> Result<PrepareForApply, ScanError> {
+    let absolute = root.join(&prepared.facts.relative);
+    if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
+        return Ok(PrepareForApply::Gone);
+    }
+    let Ok(before_hash) = read_facts(root, &absolute) else {
+        return Ok(if absolute.exists() {
+            PrepareForApply::Skip
+        } else {
+            PrepareForApply::Gone
+        });
+    };
+    if !facts_match(&prepared, &before_hash) {
+        return Ok(PrepareForApply::Skip);
+    }
+    let current_needs_hash = db
+        .entry_for_path(&prepared.facts.relative)?
+        .is_none_or(|entry| {
+            entry.file_size != prepared.facts.size
+                || entry.modified_ns != prepared.facts.modified_ns
+                || entry.content_hash.is_none()
+        });
+    if prepared.hash_required && (prepared.needs_hash || current_needs_hash) {
+        prepared.content_hash = Some(compute_content_hash(&absolute, cancel)?);
+        let Ok(after_hash) = read_facts(root, &absolute) else {
+            return Ok(if absolute.exists() {
+                PrepareForApply::Skip
+            } else {
+                PrepareForApply::Gone
+            });
+        };
+        if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
+            return Ok(PrepareForApply::Gone);
+        }
+        if !facts_match(&prepared, &after_hash) {
+            return Ok(PrepareForApply::Skip);
+        }
+    }
+    Ok(PrepareForApply::Ready(prepared))
+}
+
+fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {
+    current.size == prepared.facts.size && current.modified_ns == prepared.facts.modified_ns
+}
+
+fn cancel_requested(cancel: Option<&AtomicBool>, committed: bool) -> bool {
+    !committed && cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PrepareForApply, prepare_for_apply, refresh_noop_preparation_or_skip};
+    use crate::sample_sources::SourceDatabase;
+    use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
+    use crate::sample_sources::scanner::scan_diff::PreparedFile;
+    use crate::sample_sources::scanner::scan_diff_phase::prepare_diff;
+    use crate::sample_sources::scanner::scan_fs::read_facts;
+    use std::collections::HashMap;
+    use std::path::Path;
+    use tempfile::tempdir;
+
+    #[test]
+    fn missing_repair_with_existing_hash_skips_prepared_hash() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, b"one").unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        db.set_missing(Path::new("one.wav"), true).unwrap();
+        let prepared = PreparedFile {
+            facts: read_facts(dir.path(), &file_path).unwrap(),
+            hash_required: true,
+            needs_hash: false,
+            requires_apply: true,
+            content_hash: None,
+        };
+
+        assert!(prepared.requires_apply);
+        assert!(!prepared.needs_hash);
+        let outcome = prepare_for_apply(&db, dir.path(), None, prepared).unwrap();
+        let PrepareForApply::Ready(prepared) = outcome else {
+            panic!("restored missing file should remain ready for apply");
+        };
+        assert!(prepared.content_hash.is_none());
+    }
+
+    #[test]
+    fn committed_batch_tolerates_noop_refresh_failure() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, b"one").unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        let entry = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::from([(Path::new("one.wav").to_path_buf(), entry)]),
+            ScanMode::Quick,
+        );
+        let prepared = prepare_diff(dir.path(), &file_path, &context).unwrap();
+        assert!(!prepared.requires_apply);
+
+        std::fs::remove_file(&file_path).unwrap();
+        let mut batch = db.write_batch().unwrap();
+        batch.remove_file(Path::new("one.wav")).unwrap();
+        batch.commit().unwrap();
+
+        let refreshed =
+            refresh_noop_preparation_or_skip(&db, dir.path(), &mut context, prepared, true)
+                .unwrap();
+
+        assert!(refreshed.is_none());
+    }
 }

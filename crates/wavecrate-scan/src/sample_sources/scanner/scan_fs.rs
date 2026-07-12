@@ -12,7 +12,7 @@ use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
 use super::scan::ScanError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct FileFacts {
     pub(super) relative: PathBuf,
     pub(super) size: u64,
@@ -28,16 +28,14 @@ pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError>
     }
 }
 
-pub(super) fn visit_dir(
+pub(super) fn visit_dir_with_cancel_check(
     root: &Path,
-    cancel: Option<&AtomicBool>,
+    should_cancel: &mut impl FnMut() -> bool,
     visitor: &mut impl FnMut(&Path) -> Result<(), ScanError>,
 ) -> Result<(), ScanError> {
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        if let Some(cancel) = cancel
-            && cancel.load(Ordering::Relaxed)
-        {
+        if should_cancel() {
             return Err(ScanError::Canceled);
         }
         let entries = match fs::read_dir(&dir) {
@@ -120,6 +118,23 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
         size: meta.len(),
         modified_ns,
     })
+}
+
+pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
+        && is_supported_audio(path)
+}
+
+pub(super) fn is_supported_scannable_audio_file(root: &Path, relative_path: &Path) -> bool {
+    let hidden_ancestor = relative_path.parent().is_some_and(|parent| {
+        parent.components().any(|component| {
+            let std::path::Component::Normal(name) = component else {
+                return false;
+            };
+            name.to_str().is_some_and(|name| name.starts_with('.'))
+        })
+    });
+    !hidden_ancestor && is_supported_regular_audio_file(&root.join(relative_path))
 }
 
 /// Hash the entire file contents for change detection, honoring cancellation when requested.

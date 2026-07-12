@@ -50,6 +50,62 @@ fn scan_detects_rename_and_preserves_tag() {
 }
 
 #[test]
+fn rename_apply_refreshes_metadata_changed_during_discovery() {
+    let dir = tempdir().unwrap();
+    let first_path = dir.path().join("one.wav");
+    let second_path = dir.path().join("two.wav");
+    std::fs::write(&first_path, b"one").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    std::fs::rename(&first_path, &second_path).unwrap();
+    let mut edited = false;
+
+    let stats = scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if !edited {
+            db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
+            db.set_user_tag(Path::new("one.wav"), Some("Edited during scan"))
+                .unwrap();
+            edited = true;
+        }
+    })
+    .unwrap();
+
+    assert!(edited);
+    assert_eq!(stats.renames_reconciled, 1);
+    let row = db.entry_for_path(Path::new("two.wav")).unwrap().unwrap();
+    assert_eq!(row.tag, Rating::KEEP_1);
+    assert_eq!(row.user_tag.as_deref(), Some("Edited during scan"));
+}
+
+#[test]
+fn pending_rename_staging_refreshes_metadata_changed_during_discovery() {
+    let dir = tempdir().unwrap();
+    let removed_path = dir.path().join("removed.wav");
+    std::fs::write(&removed_path, b"removed").unwrap();
+    std::fs::write(dir.path().join("live.wav"), b"live").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    std::fs::remove_file(&removed_path).unwrap();
+    let mut edited = false;
+
+    scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {
+        if !edited {
+            db.set_tag(Path::new("removed.wav"), Rating::KEEP_1)
+                .unwrap();
+            edited = true;
+        }
+    })
+    .unwrap();
+
+    let pending = db.list_pending_renames().unwrap();
+    let removed = pending
+        .iter()
+        .find(|entry| entry.relative_path == Path::new("removed.wav"))
+        .expect("removed path must be staged");
+    assert_eq!(removed.tag, Rating::KEEP_1);
+}
+
+#[test]
 fn quick_scan_defers_hash_for_large_file() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("large.wav");
