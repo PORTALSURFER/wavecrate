@@ -16,6 +16,19 @@ pub(crate) struct SourceRemapWriteFence {
     fence: Mutex<Option<crate::sample_sources::db::SourceDatabaseWriteFence>>,
 }
 
+/// Stable identity and metadata captured for one remap destination database artifact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SourceRemapArtifactIdentity {
+    /// Platform file identity when the operating system exposes one.
+    pub(crate) stable_id: Option<String>,
+    /// Artifact length from no-follow metadata.
+    pub(crate) len: u64,
+    /// Last-modified timestamp as nanoseconds after the Unix epoch, when available.
+    pub(crate) modified_ns: Option<u128>,
+    /// Whether the artifact itself is a symbolic link.
+    pub(crate) is_symlink: bool,
+}
+
 impl SourceRemapWriteFence {
     /// Install a prepared source-write fence unless the remap was already canceled.
     pub(crate) fn install(
@@ -133,10 +146,10 @@ pub(crate) struct SourceRemapPreparedResult {
     pub(crate) new_root: PathBuf,
     /// Request-owned snapshot staged outside the destination database path.
     pub(crate) staged_database: Option<PathBuf>,
-    /// Whether the destination already owned the current database before preparation.
-    pub(crate) destination_current_database_preexisting: bool,
-    /// Whether the destination already owned the legacy database before preparation.
-    pub(crate) destination_legacy_database_preexisting: bool,
+    /// Prepared identity of the current destination database, when present.
+    pub(crate) destination_current_database_identity: Option<SourceRemapArtifactIdentity>,
+    /// Prepared identity of the legacy destination database, when present.
+    pub(crate) destination_legacy_database_identity: Option<SourceRemapArtifactIdentity>,
     /// Source writer reservation retained until this result is published or discarded.
     pub(crate) write_fence: Arc<SourceRemapWriteFence>,
     /// Preparation outcome.
