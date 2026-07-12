@@ -291,7 +291,8 @@ fn take_rename_candidate_by_hash(
     root: &Path,
     hash: &str,
 ) -> Result<Option<WavEntry>, ScanError> {
-    let current_candidates = batch.list_paths_with_content_hash(hash)?;
+    let current_candidates =
+        rename_candidates_in_scope(batch.list_paths_with_content_hash(hash)?, context);
     let path = unique_missing_path(&current_candidates, root);
     let Some(path) = path else {
         return Ok(None);
@@ -314,7 +315,10 @@ fn take_rename_candidate_by_facts(
     size: u64,
     modified_ns: i64,
 ) -> Result<Option<WavEntry>, ScanError> {
-    let current_candidates = batch.list_paths_with_file_facts(size, modified_ns)?;
+    let current_candidates = rename_candidates_in_scope(
+        batch.list_paths_with_file_facts(size, modified_ns)?,
+        context,
+    );
     let path = unique_missing_path(&current_candidates, root);
     let Some(path) = path else {
         return Ok(None);
@@ -327,6 +331,13 @@ fn take_rename_candidate_by_facts(
     }
     let _ = context.existing.remove(&path);
     Ok(Some(entry))
+}
+
+fn rename_candidates_in_scope(mut candidates: Vec<PathBuf>, context: &ScanContext) -> Vec<PathBuf> {
+    if context.mode == ScanMode::Targeted {
+        candidates.retain(|path| context.existing.contains_key(path));
+    }
+    candidates
 }
 
 fn unique_missing_path(candidates: &[PathBuf], root: &Path) -> Option<PathBuf> {
