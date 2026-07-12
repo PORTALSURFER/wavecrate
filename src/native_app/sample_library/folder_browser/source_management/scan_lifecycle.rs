@@ -208,8 +208,10 @@ impl FolderBrowserState {
         else {
             return false;
         };
-        self.source.sources[index].refresh_availability_from_disk();
-        if self.source.selected_source == id && self.selected_source_loaded() {
+        let source_missing = self.source.sources[index]
+            .refresh_availability_from_disk()
+            .is_missing();
+        if self.source.selected_source == id && self.selected_source_loaded() && !source_missing {
             return true;
         }
         self.select_cached_or_placeholder_source(index);
