@@ -88,7 +88,7 @@ impl AppController {
         {
             let prepared = run_source_remap_prepare(job);
             prepared.result?;
-            let final_database_created = publish_prepared_database(
+            let publication = publish_prepared_database(
                 &prepared.new_root,
                 prepared.staged_database.as_deref(),
                 prepared.destination_database_preexisting,
@@ -101,7 +101,7 @@ impl AppController {
                 started_at,
             });
             if result.is_err() {
-                remove_database_artifacts_if_created(&prepared.new_root, final_database_created);
+                publication.rollback();
             }
             result
         }
@@ -168,7 +168,7 @@ impl AppController {
         };
         match message.result {
             Ok(()) => {
-                let mut final_database_created = false;
+                let mut publication = None;
                 let result =
                     validate_remap_source_root(&self.library.sources, index, &message.new_root)
                         .and_then(|()| {
@@ -178,8 +178,8 @@ impl AppController {
                                 message.destination_database_preexisting,
                             )
                         })
-                        .and_then(|created| {
-                            final_database_created = created;
+                        .and_then(|published| {
+                            publication = Some(published);
                             self.commit_remapped_source(RemappedSource {
                                 index,
                                 root: message.new_root.clone(),
@@ -190,7 +190,9 @@ impl AppController {
                         });
                 if let Err(error) = result {
                     remove_staged_database(message.staged_database.as_deref());
-                    remove_database_artifacts_if_created(&message.new_root, final_database_created);
+                    if let Some(publication) = publication {
+                        publication.rollback();
+                    }
                     self.set_status(error, StatusTone::Error);
                 }
             }
@@ -306,8 +308,8 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
             .map(|_| ())
             .map_err(|error| format!("Failed to prepare database: {error}"))
     })();
+    legacy_migration.restore_original_names();
     if result.is_err() {
-        legacy_migration.restore_after_failed_prepare();
         remove_staged_database(staged_database.as_deref());
         staged_database = None;
         write_fence = None;
@@ -323,6 +325,7 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
     }
 }
 
+#[derive(Debug)]
 struct LegacyDatabaseMigrationSnapshot {
     artifacts: Vec<(PathBuf, PathBuf, bool, bool)>,
 }
@@ -344,7 +347,7 @@ impl LegacyDatabaseMigrationSnapshot {
         Self { artifacts }
     }
 
-    fn restore_after_failed_prepare(&self) {
+    fn restore_original_names(&self) {
         for (legacy, current, legacy_existed, current_existed) in &self.artifacts {
             if *legacy_existed
                 && !*current_existed
@@ -356,7 +359,7 @@ impl LegacyDatabaseMigrationSnapshot {
                     from = %current.display(),
                     to = %legacy.display(),
                     error = %error,
-                    "Failed to restore legacy source database artifact after remap preparation"
+                    "Failed to restore legacy source database artifact after remap rollback"
                 );
             }
         }
@@ -367,7 +370,7 @@ fn publish_prepared_database(
     root: &Path,
     staged_database: Option<&Path>,
     destination_database_preexisting: bool,
-) -> Result<bool, String> {
+) -> Result<PublishedRemapDatabase, String> {
     if !root.is_dir() {
         return Err(String::from("Remap destination is no longer available"));
     }
@@ -386,7 +389,7 @@ fn publish_prepared_database(
             remove_database_artifacts_if_created(root, true);
             return Err(format!("Failed to prepare database: {error}"));
         }
-        return Ok(true);
+        return Ok(PublishedRemapDatabase::new(root, true));
     }
     if !destination_database_preexisting
         && (database_artifact_present(&destination)
@@ -396,9 +399,38 @@ fn publish_prepared_database(
             "Destination database changed while the remap was running",
         ));
     }
-    SourceDatabase::open_for_source_write(root)
-        .map_err(|error| format!("Failed to prepare database: {error}"))?;
-    Ok(!destination_database_preexisting)
+    let legacy_migration = LegacyDatabaseMigrationSnapshot::new(root);
+    if let Err(error) = SourceDatabase::open_for_source_write(root) {
+        legacy_migration.restore_original_names();
+        return Err(format!("Failed to prepare database: {error}"));
+    }
+    Ok(PublishedRemapDatabase {
+        root: root.to_path_buf(),
+        artifacts_created: !destination_database_preexisting,
+        legacy_migration,
+    })
+}
+
+#[derive(Debug)]
+struct PublishedRemapDatabase {
+    root: PathBuf,
+    artifacts_created: bool,
+    legacy_migration: LegacyDatabaseMigrationSnapshot,
+}
+
+impl PublishedRemapDatabase {
+    fn new(root: &Path, artifacts_created: bool) -> Self {
+        Self {
+            root: root.to_path_buf(),
+            artifacts_created,
+            legacy_migration: LegacyDatabaseMigrationSnapshot::new(root),
+        }
+    }
+
+    fn rollback(self) {
+        self.legacy_migration.restore_original_names();
+        remove_database_artifacts_if_created(&self.root, self.artifacts_created);
+    }
 }
 
 fn publish_staged_database_without_replace(

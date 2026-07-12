@@ -197,6 +197,37 @@ fn remapping_source_preserves_and_migrates_legacy_destination_database() {
 }
 
 #[test]
+fn remapping_source_restores_legacy_destination_when_config_save_fails() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "source.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let destination = tempfile::tempdir().expect("destination root");
+    let current = crate::sample_sources::database_path_for(destination.path());
+    let legacy = destination
+        .path()
+        .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
+        .expect("destination database");
+    destination_db
+        .upsert_file(std::path::Path::new("legacy.wav"), 10, 5)
+        .expect("legacy row");
+    drop(destination_db);
+    std::fs::rename(&current, &legacy).expect("rename current database to legacy name");
+    let config_blocker = tempfile::NamedTempFile::new().expect("config blocker");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_blocker.path().to_path_buf());
+
+    let error = controller
+        .remap_source_to(0, destination.path().to_path_buf())
+        .expect_err("config save should fail");
+
+    assert!(error.contains("Failed to save config after remapping source"));
+    assert_eq!(controller.library.sources[0].root, source.root);
+    assert!(legacy.is_file(), "legacy database name must be restored");
+    assert!(!current.exists());
+}
+
+#[test]
 fn remapping_source_rejects_destination_owned_by_pending_add() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "one.wav",
