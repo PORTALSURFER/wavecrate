@@ -9,14 +9,20 @@ impl AppController {
             .pending_remap
             .as_ref()
             .is_some_and(|pending| !pending.canceled && pending.source.id == source_id);
-        if live_remap_owns_source && trigger.cancels_pending_remap() {
-            self.cancel_pending_source_remap_for_mutation(&source_id);
-        } else if live_remap_owns_source {
-            tracing::debug!(
-                source_id = %source_id,
-                "Skipping analysis enqueue while source remap is pending"
-            );
-            return;
+        if live_remap_owns_source {
+            match trigger.remap_conflict_policy() {
+                RemapConflictPolicy::CancelRemap => {
+                    self.cancel_pending_source_remap_for_mutation(&source_id);
+                }
+                RemapConflictPolicy::BlockWithStatus => {
+                    tracing::debug!(
+                        source_id = %source_id,
+                        "Blocking manual analysis enqueue while source remap is pending"
+                    );
+                    self.set_status("Source remap in progress", StatusTone::Info);
+                    return;
+                }
+            }
         }
         let enqueue_guard = self.runtime.analysis.begin_source_enqueue(source_id);
         let tx = self.runtime.jobs.message_sender();

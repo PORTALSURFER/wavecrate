@@ -104,6 +104,12 @@ enum AnalysisTrigger {
     },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RemapConflictPolicy {
+    CancelRemap,
+    BlockWithStatus,
+}
+
 impl AnalysisTrigger {
     fn source_id(&self) -> &SourceId {
         match self {
@@ -113,8 +119,15 @@ impl AnalysisTrigger {
         }
     }
 
-    fn cancels_pending_remap(&self) -> bool {
-        matches!(self, Self::ChangedSamples { .. })
+    fn remap_conflict_policy(&self) -> RemapConflictPolicy {
+        match self {
+            Self::ChangedSamples { .. }
+            | Self::UserRequestedReanalysis {
+                action: ManualReanalysisAction::SimilarityPrepBootstrap { .. },
+                ..
+            } => RemapConflictPolicy::CancelRemap,
+            Self::UserRequestedReanalysis { .. } => RemapConflictPolicy::BlockWithStatus,
+        }
     }
 }
 
