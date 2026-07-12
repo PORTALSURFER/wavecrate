@@ -401,6 +401,7 @@ fn publish_prepared_database(
     if !root.is_dir() {
         return Err(String::from("Remap destination is no longer available"));
     }
+    let artifact_snapshot = DatabaseArtifactSnapshot::new(root);
     let destination = crate::sample_sources::database_path_for(root);
     let legacy_destination = root.join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
     if let Some(staged) = staged_database {
@@ -413,10 +414,13 @@ fn publish_prepared_database(
         publish_staged_database_without_replace(staged, &destination)
             .map_err(|error| format!("Failed to publish source database snapshot: {error}"))?;
         if let Err(error) = SourceDatabase::open_for_source_write(root) {
-            remove_database_artifacts_if_created(root, true);
+            artifact_snapshot.remove_created();
             return Err(format!("Failed to prepare database: {error}"));
         }
-        return Ok(PublishedRemapDatabase::new(root, true));
+        return Ok(PublishedRemapDatabase {
+            artifact_snapshot,
+            legacy_migration: LegacyDatabaseMigrationSnapshot::new(root),
+        });
     }
     if !destination_database_preexisting
         && (database_artifact_present(&destination)
@@ -429,34 +433,66 @@ fn publish_prepared_database(
     let legacy_migration = LegacyDatabaseMigrationSnapshot::new(root);
     if let Err(error) = SourceDatabase::open_for_source_write(root) {
         legacy_migration.restore_original_names();
+        artifact_snapshot.remove_created();
         return Err(format!("Failed to prepare database: {error}"));
     }
     Ok(PublishedRemapDatabase {
-        root: root.to_path_buf(),
-        artifacts_created: !destination_database_preexisting,
+        artifact_snapshot,
         legacy_migration,
     })
 }
 
 #[derive(Debug)]
 struct PublishedRemapDatabase {
-    root: PathBuf,
-    artifacts_created: bool,
+    artifact_snapshot: DatabaseArtifactSnapshot,
     legacy_migration: LegacyDatabaseMigrationSnapshot,
 }
 
 impl PublishedRemapDatabase {
-    fn new(root: &Path, artifacts_created: bool) -> Self {
-        Self {
-            root: root.to_path_buf(),
-            artifacts_created,
-            legacy_migration: LegacyDatabaseMigrationSnapshot::new(root),
-        }
-    }
-
     fn rollback(self) {
         self.legacy_migration.restore_original_names();
-        remove_database_artifacts_if_created(&self.root, self.artifacts_created);
+        self.artifact_snapshot.remove_created();
+    }
+}
+
+#[derive(Debug)]
+struct DatabaseArtifactSnapshot {
+    artifacts: Vec<(PathBuf, bool)>,
+}
+
+impl DatabaseArtifactSnapshot {
+    fn new(root: &Path) -> Self {
+        let database = crate::sample_sources::database_path_for(root);
+        let artifacts = [
+            database.clone(),
+            path_with_suffix(&database, "-wal"),
+            path_with_suffix(&database, "-shm"),
+            path_with_suffix(&database, "-journal"),
+        ]
+        .into_iter()
+        .map(|path| {
+            let existed = database_artifact_present(&path);
+            (path, existed)
+        })
+        .collect();
+        Self { artifacts }
+    }
+
+    fn remove_created(&self) {
+        for (path, existed) in &self.artifacts {
+            if *existed {
+                continue;
+            }
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => tracing::warn!(
+                    path = %path.display(),
+                    error = %error,
+                    "Failed to remove remap-created database artifact"
+                ),
+            }
+        }
     }
 }
 
@@ -553,27 +589,6 @@ fn remove_staged_database(staged_database: Option<&Path>) {
                 error = %error,
                 "Failed to remove staged remap snapshot artifact"
             ),
-        }
-    }
-}
-
-fn remove_database_artifacts_if_created(root: &Path, artifacts_created: bool) {
-    if !artifacts_created {
-        return;
-    }
-    let database = crate::sample_sources::database_path_for(root);
-    for path in [
-        database.clone(),
-        path_with_suffix(&database, "-wal"),
-        path_with_suffix(&database, "-shm"),
-        path_with_suffix(&database, "-journal"),
-    ] {
-        match fs::remove_file(path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                tracing::warn!(error = %error, "Failed to remove remap snapshot artifact")
-            }
         }
     }
 }
@@ -677,6 +692,24 @@ mod tests {
 
         assert_eq!(fs::read(&destination).unwrap(), b"late owner");
         assert_eq!(fs::read(&staged).unwrap(), b"snapshot");
+    }
+
+    #[test]
+    fn rollback_preserves_preexisting_sidecars_and_removes_created_artifacts() {
+        let root = tempfile::tempdir().expect("destination root");
+        let database = crate::sample_sources::database_path_for(root.path());
+        let wal = path_with_suffix(&database, "-wal");
+        let shm = path_with_suffix(&database, "-shm");
+        fs::write(&wal, b"preexisting wal").expect("preexisting wal");
+        let snapshot = DatabaseArtifactSnapshot::new(root.path());
+        fs::write(&database, b"created database").expect("created database");
+        fs::write(&shm, b"created shm").expect("created shm");
+
+        snapshot.remove_created();
+
+        assert!(!database.exists());
+        assert!(!shm.exists());
+        assert_eq!(fs::read(wal).unwrap(), b"preexisting wal");
     }
 }
 
