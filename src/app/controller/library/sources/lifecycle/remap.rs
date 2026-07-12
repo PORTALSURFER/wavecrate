@@ -114,7 +114,8 @@ impl AppController {
             let publication = publish_prepared_database(
                 &prepared.new_root,
                 prepared.staged_database.as_deref(),
-                prepared.destination_database_preexisting,
+                prepared.destination_current_database_preexisting,
+                prepared.destination_legacy_database_preexisting,
             )?;
             let result = self.commit_remapped_source(RemappedSource {
                 index,
@@ -202,7 +203,8 @@ impl AppController {
                             publish_prepared_database(
                                 &message.new_root,
                                 message.staged_database.as_deref(),
-                                message.destination_database_preexisting,
+                                message.destination_current_database_preexisting,
+                                message.destination_legacy_database_preexisting,
                             )
                         })
                         .and_then(|published| {
@@ -307,8 +309,10 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
         .new_root
         .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
     let legacy_migration = LegacyDatabaseMigrationSnapshot::new(&job.new_root);
+    let destination_current_database_preexisting = database_artifact_present(&destination);
+    let destination_legacy_database_preexisting = database_artifact_present(&legacy_destination);
     let destination_database_preexisting =
-        database_artifact_present(&destination) || database_artifact_present(&legacy_destination);
+        destination_current_database_preexisting || destination_legacy_database_preexisting;
     let mut staged_database = None;
     let mut write_fence = None;
     let result = (|| {
@@ -346,7 +350,8 @@ fn run_source_remap_prepare(job: SourceRemapJob) -> SourceRemapPreparedResult {
         source: job.source,
         new_root: job.new_root,
         staged_database,
-        destination_database_preexisting,
+        destination_current_database_preexisting,
+        destination_legacy_database_preexisting,
         write_fence,
         result,
     }
@@ -396,7 +401,8 @@ impl LegacyDatabaseMigrationSnapshot {
 fn publish_prepared_database(
     root: &Path,
     staged_database: Option<&Path>,
-    destination_database_preexisting: bool,
+    destination_current_database_preexisting: bool,
+    destination_legacy_database_preexisting: bool,
 ) -> Result<PublishedRemapDatabase, String> {
     if !root.is_dir() {
         return Err(String::from("Remap destination is no longer available"));
@@ -422,9 +428,8 @@ fn publish_prepared_database(
             legacy_migration: LegacyDatabaseMigrationSnapshot::new(root),
         });
     }
-    if !destination_database_preexisting
-        && (database_artifact_present(&destination)
-            || database_artifact_present(&legacy_destination))
+    if database_artifact_present(&destination) != destination_current_database_preexisting
+        || database_artifact_present(&legacy_destination) != destination_legacy_database_preexisting
     {
         return Err(String::from(
             "Destination database changed while the remap was running",
@@ -638,7 +643,7 @@ mod tests {
         let staged = staged_database_path(&destination, 1);
         fs::write(&staged, b"not a sqlite database").expect("invalid staged database");
 
-        let error = publish_prepared_database(root.path(), Some(&staged), false)
+        let error = publish_prepared_database(root.path(), Some(&staged), false, false)
             .expect_err("invalid snapshot must fail validation");
 
         assert!(error.contains("Failed to prepare database"));
@@ -653,7 +658,7 @@ mod tests {
         let destination = crate::sample_sources::database_path_for(root.path());
         fs::write(&destination, b"other owner").expect("create competing database");
 
-        let error = publish_prepared_database(root.path(), None, false)
+        let error = publish_prepared_database(root.path(), None, false, false)
             .expect_err("new destination must not be claimed");
 
         assert!(error.contains("changed while the remap was running"));
@@ -671,12 +676,39 @@ mod tests {
             .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
         fs::write(&legacy, b"legacy owner").expect("create competing legacy database");
 
-        let error = publish_prepared_database(root.path(), Some(&staged), false)
+        let error = publish_prepared_database(root.path(), Some(&staged), false, false)
             .expect_err("new legacy destination must not be claimed");
 
         assert!(error.contains("changed while the remap was running"));
         assert_eq!(fs::read(legacy).unwrap(), b"legacy owner");
         assert!(!destination.exists());
+    }
+
+    #[test]
+    fn no_snapshot_publish_rejects_removed_preexisting_destination() {
+        let root = tempfile::tempdir().expect("destination root");
+        let destination = crate::sample_sources::database_path_for(root.path());
+
+        let error = publish_prepared_database(root.path(), None, true, false)
+            .expect_err("removed destination must not be recreated");
+
+        assert!(error.contains("changed while the remap was running"));
+        assert!(!destination.exists());
+    }
+
+    #[test]
+    fn no_snapshot_publish_rejects_removed_preexisting_legacy_destination() {
+        let root = tempfile::tempdir().expect("destination root");
+        let legacy = root
+            .path()
+            .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
+
+        let error = publish_prepared_database(root.path(), None, false, true)
+            .expect_err("removed legacy destination must not be replaced");
+
+        assert!(error.contains("changed while the remap was running"));
+        assert!(!legacy.exists());
+        assert!(!crate::sample_sources::database_path_for(root.path()).exists());
     }
 
     #[test]

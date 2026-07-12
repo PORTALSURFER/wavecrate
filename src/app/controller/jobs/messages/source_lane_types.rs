@@ -83,8 +83,10 @@ pub(crate) struct SourceRemapPreparedResult {
     pub(crate) new_root: PathBuf,
     /// Request-owned snapshot staged outside the destination database path.
     pub(crate) staged_database: Option<PathBuf>,
-    /// Whether the destination already owned a current or legacy database before preparation.
-    pub(crate) destination_database_preexisting: bool,
+    /// Whether the destination already owned the current database before preparation.
+    pub(crate) destination_current_database_preexisting: bool,
+    /// Whether the destination already owned the legacy database before preparation.
+    pub(crate) destination_legacy_database_preexisting: bool,
     /// Source writer reservation retained until this result is published or discarded.
     pub(crate) write_fence: Option<crate::sample_sources::db::SourceDatabaseWriteFence>,
     /// Preparation outcome.
