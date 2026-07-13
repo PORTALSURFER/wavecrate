@@ -72,6 +72,7 @@ pub(in crate::native_app) use model::{
 };
 pub(in crate::native_app) use preview::{PreviewAuditionClip, decode_wav_preview_clip};
 pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
+pub(in crate::native_app) use visual_bands::VisualBandNormalization;
 #[cfg(test)]
 pub(super) use visual_bands::split_frequency_bands;
 pub(in crate::native_app) use visual_preview::{

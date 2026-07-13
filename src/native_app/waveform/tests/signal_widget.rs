@@ -27,6 +27,11 @@ fn zoomed_long_wav_refines_visible_range_independently_of_total_duration() {
     let key = state
         .desired_detail_key()
         .expect("coarse overview should refine");
+    assert_eq!(
+        key.visual_band_normalization,
+        state.file().visual_band_normalization,
+        "detail refinement must retain the full-sample color normalization"
+    );
     state.mark_detail_pending(key.clone());
 
     let result = super::super::load_wav_detail_summary(key);
@@ -168,6 +173,39 @@ fn waveform_detail_requests_are_single_flight_and_reject_stale_source_identity()
     assert!(
         state.desired_detail_key().is_none(),
         "a failed identity should not create a completion/retry loop"
+    );
+}
+
+#[test]
+fn waveform_detail_rejects_a_stale_color_normalization_profile() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("stale-detail-normalization.wav");
+    write_test_wav_i16(&path, &vec![1_i16; 4096]);
+    let file =
+        super::super::load_wav_waveform_summary_from_path_with_progress(path, &|_| {}, &|| false)
+            .unwrap();
+    let mut state = WaveformState::from_cached_file(Arc::new(file));
+    state.viewport = WaveformViewport { start: 0, end: 256 };
+    let key = state.desired_detail_key().unwrap();
+    state.mark_detail_pending(key.clone());
+    let summary = state.file.gpu_signal_summary.clone();
+
+    let mut updated_file = (*state.file).clone();
+    updated_file.visual_band_normalization =
+        super::super::audio_file::VisualBandNormalization::from_gains([1.1, 1.0, 1.0]).unwrap();
+    state.file = Arc::new(updated_file);
+    state.apply_detail_result(super::super::WaveformDetailResult {
+        key,
+        summary: Ok(summary),
+    });
+
+    assert!(state.render_detail().is_none());
+    assert_eq!(
+        state
+            .desired_detail_key()
+            .expect("the updated color profile should request fresh detail")
+            .visual_band_normalization,
+        state.file.visual_band_normalization
     );
 }
 

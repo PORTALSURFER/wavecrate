@@ -78,7 +78,13 @@ pub(in crate::native_app) fn load_wav_detail_summary(
                 }
             }
         }
-        let summary = builder.finish(0.0, 1.0, &|_| {}, &|| false)?;
+        let summary = builder.finish_with_normalization(
+            key.visual_band_normalization,
+            0.0,
+            1.0,
+            &|_| {},
+            &|| false,
+        )?;
         let metadata_after = std::fs::metadata(&key.path)
             .map_err(|error| format!("failed to revalidate detail WAV: {error}"))?;
         let revision_after = content_revision_for_path_metadata(
@@ -222,7 +228,7 @@ fn finish_streaming_summary_file(
         return Err(String::from("cancelled"));
     }
     let summary_started_at = Instant::now();
-    let summary = builder.finish(
+    let (summary, visual_band_normalization) = builder.finish(
         STREAMING_WAV_SUMMARY_READ_END,
         STREAMING_WAV_SUMMARY_BUILD_END,
         progress,
@@ -247,6 +253,7 @@ fn finish_streaming_summary_file(
         sample_rate,
         channels,
         frames,
+        visual_band_normalization,
         gpu_signal_summary: Arc::new(summary),
     })
 }

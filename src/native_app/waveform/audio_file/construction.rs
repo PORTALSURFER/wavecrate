@@ -117,14 +117,15 @@ pub(in crate::native_app::waveform) fn waveform_file_from_mono_samples_with_prog
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
 ) -> Result<WaveformFile, String> {
-    let gpu_signal_samples = split_frequency_bands_with_progress_and_cancel(
-        &mono_samples,
-        sample_rate,
-        0.62,
-        0.9,
-        progress,
-        cancelled,
-    )?;
+    let (gpu_signal_samples, visual_band_normalization) =
+        split_frequency_bands_with_progress_and_cancel(
+            &mono_samples,
+            sample_rate,
+            0.62,
+            0.9,
+            progress,
+            cancelled,
+        )?;
     let gpu_signal_summary = Arc::new(gpu_signal_summary_with_progress_and_cancel(
         &gpu_signal_samples,
         mono_samples.len(),
@@ -142,6 +143,7 @@ pub(in crate::native_app::waveform) fn waveform_file_from_mono_samples_with_prog
         sample_rate,
         channels,
         frames: mono_samples.len(),
+        visual_band_normalization,
         gpu_signal_summary,
     })
 }

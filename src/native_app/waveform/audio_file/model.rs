@@ -7,6 +7,8 @@ use std::{
     time::SystemTime,
 };
 
+use super::visual_bands::VisualBandNormalization;
+
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformFile {
     pub(in crate::native_app::waveform) path: PathBuf,
@@ -17,6 +19,7 @@ pub(in crate::native_app) struct WaveformFile {
     pub(in crate::native_app::waveform) sample_rate: u32,
     pub(in crate::native_app::waveform) channels: usize,
     pub(in crate::native_app::waveform) frames: usize,
+    pub(in crate::native_app::waveform) visual_band_normalization: VisualBandNormalization,
     pub(in crate::native_app::waveform) gpu_signal_summary: Arc<GpuSignalSummary>,
 }
 

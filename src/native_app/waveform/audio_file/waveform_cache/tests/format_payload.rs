@@ -23,6 +23,10 @@ fn waveform_cache_round_trips_summary_payload() {
     assert_eq!(cached.path, path);
     assert_eq!(cached.sample_rate, file.sample_rate);
     assert_eq!(cached.frames, file.frames);
+    assert_eq!(
+        cached.visual_band_normalization,
+        file.visual_band_normalization
+    );
     assert_eq!(cached.gpu_signal_summary, file.gpu_signal_summary);
     assert!(cached.playback_samples.is_none());
     assert!(cached.playback_cache_file.is_none());

@@ -2077,6 +2077,8 @@ If exact loading progress is temporarily unavailable, the waveform surface shoul
 
 Waveform rendering should preserve the current multiband visual style rather than falling back to a plain single-envelope waveform. The waveform should distinguish useful frequency or energy bands so users can visually scan transients, bass-heavy material, noisy textures, tonal material, and quiet sections faster.
 
+Multiband normalization is a file-level visual contract. Overview and viewport-detail summaries for the same audio identity must reuse the same normalization profile so progressive refinement and zoom-level changes do not recolor the waveform or introduce visible band-color flicker. Cache identity and format versioning must invalidate summaries that do not carry the required profile.
+
 Waveform visual quality should improve where practical through antialiasing, cleaner band blending, stable peak rendering, and other polish that makes the waveform easier to read. These improvements must not compromise interaction latency. Zooming, panning, playhead updates, selection dragging, fade-handle dragging, envelope previews, hover feedback, and edit overlays should remain realtime-feeling.
 
 The hard performance target is interaction first: if a visual improvement causes noticeable latency in zoom, scroll, selection, fade handles, or playback-position feedback, the implementation should use cached levels of detail, GPU primitives, simplified preview rendering, or disable that enhancement at the current zoom level rather than making waveform interaction feel slow.

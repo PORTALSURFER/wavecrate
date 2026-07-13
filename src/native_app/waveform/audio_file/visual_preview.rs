@@ -163,6 +163,8 @@ mod tests {
             sample_rate: 48_000,
             channels: 1,
             frames: 1,
+            visual_band_normalization:
+                crate::native_app::waveform::audio_file::VisualBandNormalization::IDENTITY,
             gpu_signal_summary: Arc::new(GpuSignalSummary {
                 frames: 1,
                 band_count: 1,
