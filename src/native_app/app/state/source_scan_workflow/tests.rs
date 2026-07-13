@@ -397,6 +397,25 @@ fn latest_deferred_selection_is_refreshed_first() {
 }
 
 #[test]
+fn deferred_selection_is_refreshed_before_newer_watcher_work() {
+    let mut workflow = SourceScanWorkflow::new();
+    let selected_source = String::from("selected-source");
+    let watcher_source = String::from("watcher-source");
+
+    workflow.queue_pending_selection(selected_source.clone());
+    workflow.queue_required_refresh(watcher_source.clone());
+
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(selected_source)
+    );
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(watcher_source)
+    );
+}
+
+#[test]
 fn deferred_selection_missing_before_execution_is_dropped() {
     let first = temp_dir_with_wav();
     let second = temp_dir_with_wav();

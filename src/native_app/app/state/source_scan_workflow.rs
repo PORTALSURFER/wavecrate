@@ -235,8 +235,13 @@ impl SourceScanWorkflow {
         if self.active() {
             return None;
         }
-        self.pending_refreshes
-            .pop_back()
+        let pending_selection = self
+            .pending_refreshes
+            .iter()
+            .rposition(|pending| pending.selection_requested);
+        pending_selection
+            .and_then(|index| self.pending_refreshes.remove(index))
+            .or_else(|| self.pending_refreshes.pop_back())
             .map(|pending| pending.source_id)
     }
 
