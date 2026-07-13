@@ -31,7 +31,7 @@ pub(crate) fn collect_changed_sample_updates(
 }
 
 pub(crate) fn collect_backfill_updates(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     job_type: &str,
     force_full: bool,
 ) -> Result<BackfillUpdates, String> {
@@ -65,7 +65,7 @@ pub(crate) fn collect_backfill_updates(
 }
 
 pub(crate) fn build_backfill_plan(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     staged_samples: &[db::SampleMetadata],
     job_type: &str,
     force_full: bool,

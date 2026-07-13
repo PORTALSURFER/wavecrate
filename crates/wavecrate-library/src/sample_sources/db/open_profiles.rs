@@ -11,6 +11,8 @@ use super::SourceDatabaseOpenMode;
 pub enum SourceDatabaseConnectionRole {
     /// Read-only connection profile for cached UI queries and progress polling.
     UiRead,
+    /// Read-only connection profile for background queries that may wait behind writers.
+    BackgroundRead,
     /// Read-write profile for analysis enqueue/claim/finalization workers.
     JobWorker,
     /// Read-write profile for deliberate user-authored source metadata updates.
@@ -25,6 +27,7 @@ impl SourceDatabaseConnectionRole {
     pub(super) fn label(self) -> &'static str {
         match self {
             Self::UiRead => "ui_read",
+            Self::BackgroundRead => "background_read",
             Self::JobWorker => "job_worker",
             Self::UserMetadataWrite => "user_metadata_write",
             Self::PlaybackHistoryWrite => "playback_history_write",
@@ -34,7 +37,7 @@ impl SourceDatabaseConnectionRole {
 
     pub(super) fn open_flags(self) -> OpenFlags {
         match self {
-            Self::UiRead => OpenFlags::SQLITE_OPEN_READ_ONLY,
+            Self::UiRead | Self::BackgroundRead => OpenFlags::SQLITE_OPEN_READ_ONLY,
             Self::JobWorker
             | Self::UserMetadataWrite
             | Self::PlaybackHistoryWrite
@@ -47,6 +50,7 @@ impl SourceDatabaseConnectionRole {
     pub(super) fn open_mode(self) -> SourceDatabaseOpenMode {
         match self {
             Self::UiRead
+            | Self::BackgroundRead
             | Self::JobWorker
             | Self::UserMetadataWrite
             | Self::PlaybackHistoryWrite => SourceDatabaseOpenMode::Fast,
@@ -55,14 +59,17 @@ impl SourceDatabaseConnectionRole {
     }
 
     pub(super) fn uses_read_only_connection(self) -> bool {
-        matches!(self, Self::UiRead)
+        matches!(self, Self::UiRead | Self::BackgroundRead)
     }
 
     pub(super) fn busy_timeout_ms(self) -> u64 {
         match self {
             Self::UiRead => 25,
             Self::PlaybackHistoryWrite => 100,
-            Self::JobWorker | Self::UserMetadataWrite | Self::Maintenance => 5_000,
+            Self::BackgroundRead
+            | Self::JobWorker
+            | Self::UserMetadataWrite
+            | Self::Maintenance => 5_000,
         }
     }
 }

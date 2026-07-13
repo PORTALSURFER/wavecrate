@@ -1,5 +1,4 @@
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
-use rusqlite::Connection;
 use std::collections::HashMap;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -42,7 +41,7 @@ fn run_compute_worker(context: ComputeWorkerContext) {
     let log_jobs = logging::analysis_log_enabled();
     let log_queue = logging::analysis_log_queue_enabled();
     let mut last_queue_log = Instant::now();
-    let mut connections: HashMap<std::path::PathBuf, Connection> = HashMap::new();
+    let mut connections = db::AnalysisConnections::new();
     let mut deferred_updates: Vec<db::DeferredJobUpdate> = Vec::new();
     let embedding_batch_max = wavecrate_analysis::similarity::SIMILARITY_BATCH_MAX;
     loop {

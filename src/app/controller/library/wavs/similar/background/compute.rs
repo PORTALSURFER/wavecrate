@@ -88,7 +88,9 @@ pub(crate) fn compute_focused_similarity(
 pub(crate) fn compute_loaded_similarity_query(
     job: LoadedSimilarityQueryJob,
 ) -> Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String> {
-    let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
+    let conn = crate::app::controller::library::analysis_jobs::open_source_db_background_read(
+        &job.source_root,
+    )?;
     let request = loaded::build_loaded_similarity_request(
         &job.source_id,
         &job.relative_path,
@@ -229,7 +231,6 @@ mod tests {
             ],
         )
         .expect("insert embedding");
-        wavecrate_analysis::rebuild_ann_index(&conn).expect("rebuild ann index");
     }
 
     fn set_fast_similarity_metadata(
@@ -264,8 +265,14 @@ mod tests {
         .expect("count jobs")
     }
 
+    fn count_ann_index_metadata(source: &crate::sample_sources::SampleSource) -> i64 {
+        let conn = analysis_jobs::open_source_db_ui_read(&source.root).expect("open source db");
+        conn.query_row("SELECT COUNT(*) FROM ann_index_meta", [], |row| row.get(0))
+            .expect("count ANN metadata")
+    }
+
     #[test]
-    fn compute_focused_similarity_stays_read_only_with_fast_prep_rows() {
+    fn compute_focused_similarity_rebuilds_missing_ann_index_without_enqueuing_jobs() {
         let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
             sample_entry("anchor.wav", Rating::NEUTRAL),
             sample_entry("near.wav", Rating::NEUTRAL),
@@ -275,6 +282,7 @@ mod tests {
         insert_similarity_embedding(&source, "anchor.wav", 1.0, 0.0);
         insert_similarity_embedding(&source, "near.wav", 0.95, 0.05);
         let sample_id = set_fast_similarity_metadata(&source, "anchor.wav", fast_sample_rate);
+        assert_eq!(count_ann_index_metadata(&source), 0);
 
         let result = compute_focused_similarity(FocusedSimilarityJob {
             request_id: 1,
@@ -287,6 +295,7 @@ mod tests {
         .expect("focused similarity");
 
         assert!(result.is_some());
+        assert_eq!(count_ann_index_metadata(&source), 1);
         assert_eq!(count_analysis_jobs(&source, &sample_id), 0);
     }
 }

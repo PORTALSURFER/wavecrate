@@ -73,6 +73,8 @@ impl ControllerJobs {
             pending_playback: None,
             pending_recording_waveform: None,
             pending_slice_batch_export: None,
+            pending_umap_build: None,
+            pending_umap_cluster_build: None,
             request_counters: JobRequestCounters::default(),
             in_progress: JobInProgressState::default(),
             active_scan_source: None,

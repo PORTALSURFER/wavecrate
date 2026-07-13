@@ -1,5 +1,4 @@
-use crate::app::controller::library::analysis_jobs::db;
-use rusqlite::Connection;
+use crate::app::controller::library::{analysis_jobs::db, source_write_priority};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -9,7 +8,7 @@ use super::SOURCE_REFRESH_INTERVAL;
 pub(super) struct ProgressSourceDb {
     pub(super) source_id: crate::sample_sources::SourceId,
     pub(super) source_root: std::path::PathBuf,
-    pub(super) conn: Connection,
+    pub(super) conn: db::AnalysisMaintenanceSession,
 }
 
 /// Refresh the open source list on the poller's periodic cadence.
@@ -46,9 +45,12 @@ pub(super) fn refresh_sources(
         {
             continue;
         }
+        if source_write_priority::file_op_write_priority_active(&source.id) {
+            continue;
+        }
         let conn = match reusable.remove(&(source.id.clone(), source.root.clone())) {
             Some(conn) => conn,
-            None => match db::open_source_db_ui_read(&source.root) {
+            None => match db::open_source_db_maintenance(&source.root) {
                 Ok(conn) => conn,
                 Err(_) => continue,
             },
