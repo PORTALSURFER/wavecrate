@@ -21,6 +21,10 @@ impl WaveformPlaybackScenario {
         Self::loaded_with_player("loaded-playback.wav", &[0, 1024, -2048, 4096, -1024, 512])
     }
 
+    pub(super) fn retarget_loaded_with_player() -> Option<Self> {
+        Self::loaded_with_player("retarget-playback.wav", &[0; 48_000])
+    }
+
     pub(super) fn loaded_with_player(name: &str, samples: &[i16]) -> Option<Self> {
         let (mut state, source_root, selected_file) = native_app_state_with_temp_sample(name);
         write_test_wav_i16(&PathBuf::from(&selected_file), samples);
@@ -103,11 +107,27 @@ impl WaveformPlaybackScenario {
         self.apply_waveform(WaveformInteraction::FinishSelection { visible_ratio: to });
     }
 
-    pub(super) fn apply_frame(&mut self) {
-        self.state.apply_message(
-            crate::native_app::test_support::state::GuiMessage::Frame,
-            &mut self.context,
-        );
+    pub(super) fn flush_playmark_retarget(&mut self) {
+        self.state.flush_pending_play_selection_playback_retarget();
+    }
+
+    pub(super) fn set_retarget_playhead_ratio(&mut self, ratio: f32) {
+        self.state.waveform.current.set_playhead_ratio(ratio);
+        self.state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+            active: true,
+            elapsed: Some(std::time::Duration::ZERO),
+            looping: self.state.audio.loop_playback,
+            progress: Some(ratio),
+            error: None,
+        };
+        self.state
+            .audio
+            .reset_playback_visual_progress(ratio, self.state.audio.loop_playback);
+    }
+
+    pub(super) fn settle_playmark_retarget(&mut self) {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        self.apply_playback_frame();
     }
 
     pub(super) fn apply_playback_frame(&mut self) {
