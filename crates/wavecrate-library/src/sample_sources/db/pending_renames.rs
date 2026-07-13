@@ -10,16 +10,21 @@ use super::{
 
 const DELETE_PENDING_RENAME_SQL: &str = "DELETE FROM pending_wav_renames WHERE path = ?1";
 const LIST_PENDING_RENAMES_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
      FROM pending_wav_renames
      ORDER BY path ASC";
 const TAKE_PENDING_RENAME_BY_HASH_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
      FROM pending_wav_renames
      WHERE content_hash = ?1
      LIMIT 2";
+const TAKE_PENDING_RENAME_BY_FILE_IDENTITY_SQL: &str =
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+     FROM pending_wav_renames
+     WHERE file_identity = ?1 AND file_size = ?2 AND modified_ns = ?3
+     LIMIT 2";
 const TAKE_PENDING_RENAME_BY_FACTS_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
      FROM pending_wav_renames
      WHERE file_size = ?1 AND modified_ns = ?2
      LIMIT 2";
@@ -36,6 +41,8 @@ pub struct PendingRenameEntry {
     pub modified_ns: i64,
     /// Last known content hash, if one was computed before pruning.
     pub content_hash: Option<String>,
+    /// Stable filesystem-object identity captured before pruning, when supported.
+    pub file_identity: Option<String>,
     /// Current rating/tag for the file.
     pub tag: Rating,
     /// Whether the sample was marked looped.
@@ -112,6 +119,7 @@ impl SourceDatabase {
                     file_size,
                     modified_ns: row.get(2)?,
                     content_hash: row.get(3)?,
+                    file_identity: row.get(14)?,
                     tag: Rating::from_i64(row.get::<_, i64>(4)?),
                     looped: row.get::<_, i64>(5)? != 0,
                     sound_type: row
@@ -144,6 +152,16 @@ impl<'conn> SourceWriteBatch<'conn> {
     pub fn stage_pending_rename(&mut self, entry: &WavEntry) -> Result<(), SourceDbError> {
         let path = normalize_relative_path(&entry.relative_path)?;
         let normal_tags = encode_normal_tags(&self.tag_labels_for_path(&entry.relative_path)?)?;
+        let file_identity = self
+            .tx
+            .query_row(
+                "SELECT file_identity FROM wav_files WHERE path = ?1",
+                params![path.as_str()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten();
         let collection = self
             .tx
             .query_row(
@@ -162,8 +180,8 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.tx
             .prepare_cached(
                 "INSERT INTO pending_wav_renames (
-                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
                  ON CONFLICT(path) DO UPDATE SET
                      file_size = excluded.file_size,
                      modified_ns = excluded.modified_ns,
@@ -177,7 +195,8 @@ impl<'conn> SourceWriteBatch<'conn> {
                      user_tag = excluded.user_tag,
                      normal_tags = excluded.normal_tags,
                      collection = excluded.collection,
-                     tag_named = excluded.tag_named",
+                     tag_named = excluded.tag_named,
+                     file_identity = excluded.file_identity",
             )
             .map_err(map_sql_error)?
             .execute(params![
@@ -195,6 +214,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 normal_tags.as_deref(),
                 collection.map(SampleCollection::as_i64),
                 entry.tag_named as i64,
+                file_identity,
             ])
             .map_err(map_sql_error)?;
         Ok(())
@@ -236,6 +256,19 @@ impl<'conn> SourceWriteBatch<'conn> {
         hash: &str,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
         self.take_unique_pending_rename(TAKE_PENDING_RENAME_BY_HASH_SQL, params![hash])
+    }
+
+    /// Claim one unique retained rename candidate by stable filesystem identity.
+    pub fn take_pending_rename_by_file_identity(
+        &mut self,
+        file_identity: &str,
+        file_size: u64,
+        modified_ns: i64,
+    ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
+        self.take_unique_pending_rename(
+            TAKE_PENDING_RENAME_BY_FILE_IDENTITY_SQL,
+            params![file_identity, file_size as i64, modified_ns],
+        )
     }
 
     /// Claim one unique retained rename candidate by file facts.
@@ -282,6 +315,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                     file_size,
                     modified_ns: row.get(2)?,
                     content_hash: row.get(3)?,
+                    file_identity: row.get(14)?,
                     tag: Rating::from_i64(row.get::<_, i64>(4)?),
                     looped: row.get::<_, i64>(5)? != 0,
                     sound_type: row

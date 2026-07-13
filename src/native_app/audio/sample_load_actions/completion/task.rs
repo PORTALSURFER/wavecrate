@@ -82,6 +82,11 @@ impl NativeAppState {
                 );
             }
             SampleLoadCompletion::Failed { path, label, error } => {
+                if self.audio.active_sample_playback_matches(path.as_str()) {
+                    self.stop_current_sample_playback_for_load();
+                    self.audio.clear_playback_progress();
+                }
+                self.clear_failed_playback_visual_handoff(Path::new(&path));
                 self.clear_sample_loading_state();
                 self.waveform
                     .load

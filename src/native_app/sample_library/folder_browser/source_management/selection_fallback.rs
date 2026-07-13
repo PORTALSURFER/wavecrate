@@ -4,6 +4,15 @@ impl FolderBrowserState {
     pub(in crate::native_app::sample_library::folder_browser) fn park_selected_source_tree(
         &mut self,
     ) {
+        if !self.source.selected_tree_loaded
+            && self
+                .tree
+                .folders
+                .first()
+                .is_none_or(|root| root.children.is_empty() && root.files.is_empty())
+        {
+            return;
+        }
         let selected_source = self.source.selected_source.clone();
         let Some(index) = self
             .source
@@ -16,6 +25,7 @@ impl FolderBrowserState {
         let Some(active_root) = self.tree.folders.pop() else {
             return;
         };
+        self.source.sources[index].parked_tree_loaded = self.source.selected_tree_loaded;
         self.source.sources[index].root_folder = Some(active_root);
     }
 

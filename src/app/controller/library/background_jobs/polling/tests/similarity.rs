@@ -1,12 +1,83 @@
 use super::*;
 use crate::app::controller::jobs::{
     FocusedSimilarityPaths, FocusedSimilarityResult, LoadedSimilarityQueryResult,
+    StarmapWriteOutcome, UmapBuildJob, UmapBuildResult, UmapClusterBuildJob,
+    UmapClusterBuildResult,
 };
-use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+use crate::app::controller::library::source_write_priority::FileOpWritePriorityGuard;
+use crate::app::controller::test_support::{
+    dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
+};
 use crate::app::state::{SampleBrowserSort, SimilarQuery, empty_similarity_aspect_score_rows};
 use crate::sample_sources::Rating;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+#[test]
+fn deferred_starmap_writes_requeue_only_after_file_op_priority_clears() {
+    let (mut controller, source) = dummy_controller();
+    let layout_job = UmapBuildJob {
+        model_id: "model-v1".to_string(),
+        umap_version: "umap-v1".to_string(),
+        source_id: source.id.clone(),
+    };
+    let cluster_job = UmapClusterBuildJob {
+        model_id: "model-v1".to_string(),
+        umap_version: "umap-v1".to_string(),
+        source_id: Some(source.id.clone()),
+    };
+    let guard = FileOpWritePriorityGuard::new(&source.id);
+
+    controller.apply_background_job_message_for_tests(JobMessage::UmapBuilt(UmapBuildResult {
+        job: layout_job.clone(),
+        result: Ok(StarmapWriteOutcome::DeferredForFileOp),
+    }));
+    controller.apply_background_job_message_for_tests(JobMessage::UmapClustersBuilt(
+        UmapClusterBuildResult {
+            job: cluster_job.clone(),
+            result: Ok(StarmapWriteOutcome::DeferredForFileOp),
+        },
+    ));
+
+    assert!(controller.runtime.jobs.umap_build_in_progress());
+    assert!(controller.runtime.jobs.umap_cluster_build_in_progress());
+    assert!(
+        controller
+            .runtime
+            .jobs
+            .take_ready_deferred_umap_build_for_tests()
+            .is_none()
+    );
+    assert!(
+        controller
+            .runtime
+            .jobs
+            .take_ready_deferred_umap_cluster_build_for_tests()
+            .is_none()
+    );
+    assert!(!controller.ui.status.text.contains("failed"));
+
+    drop(guard);
+
+    let resumed_layout = controller
+        .runtime
+        .jobs
+        .take_ready_deferred_umap_build_for_tests()
+        .expect("layout job should become ready after file-op priority clears");
+    let resumed_cluster = controller
+        .runtime
+        .jobs
+        .take_ready_deferred_umap_cluster_build_for_tests()
+        .expect("cluster job should become ready after file-op priority clears");
+    assert_eq!(resumed_layout.model_id, layout_job.model_id);
+    assert_eq!(resumed_layout.umap_version, layout_job.umap_version);
+    assert_eq!(resumed_layout.source_id, layout_job.source_id);
+    assert_eq!(resumed_cluster.model_id, cluster_job.model_id);
+    assert_eq!(resumed_cluster.umap_version, cluster_job.umap_version);
+    assert_eq!(resumed_cluster.source_id, cluster_job.source_id);
+    assert!(!controller.runtime.jobs.umap_build_in_progress());
+    assert!(!controller.runtime.jobs.umap_cluster_build_in_progress());
+}
 
 #[test]
 fn focused_similarity_message_ignores_stale_result_then_applies_matching_highlight() {

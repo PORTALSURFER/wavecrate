@@ -43,6 +43,7 @@ pub(in crate::native_app) struct SourceEntry {
     pub(in crate::native_app) metadata_storage: SourceMetadataStorage,
     pub(in crate::native_app) primary_import_folder: PathBuf,
     pub(super) root_folder: Option<FolderEntry>,
+    pub(super) parked_tree_loaded: bool,
     pub(super) missing_collection_snapshot: MissingCollectionSnapshot,
     pub(in crate::native_app) loading_task: Option<u64>,
 }
@@ -63,6 +64,7 @@ impl SourceEntry {
             metadata_storage: SourceMetadataStorage::SourceFolder,
             primary_import_folder: wavecrate::sample_sources::default_primary_import_folder(),
             root_folder: None,
+            parked_tree_loaded: false,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
         }
@@ -89,6 +91,7 @@ impl SourceEntry {
             metadata_storage: source.metadata_storage,
             primary_import_folder: source.primary_import_folder.clone(),
             root_folder: None,
+            parked_tree_loaded: false,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
         }

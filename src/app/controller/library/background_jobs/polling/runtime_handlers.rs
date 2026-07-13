@@ -125,7 +125,7 @@ impl AppController {
     pub(super) fn handle_umap_built_message(&mut self, message: UmapBuildResult) {
         self.runtime.jobs.clear_umap_build();
         match message.result {
-            Ok(()) => {
+            Ok(crate::app::controller::jobs::StarmapWriteOutcome::Completed(())) => {
                 self.ui.map.bounds = None;
                 self.ui.map.cached_bounds_source_id = None;
                 self.ui.map.cached_bounds_umap_version = None;
@@ -136,9 +136,12 @@ impl AppController {
                 self.mark_map_dataset_projection_revision_dirty();
                 self.mark_map_query_projection_revision_dirty();
                 self.set_status(
-                    format!("Starmap layout {} built", message.umap_version),
+                    format!("Starmap layout {} built", message.job.umap_version),
                     StatusTone::Info,
                 );
+            }
+            Ok(crate::app::controller::jobs::StarmapWriteOutcome::DeferredForFileOp) => {
+                self.runtime.jobs.defer_umap_build(message.job);
             }
             Err(err) => {
                 self.set_status(
@@ -153,7 +156,7 @@ impl AppController {
     pub(super) fn handle_umap_clusters_built_message(&mut self, message: UmapClusterBuildResult) {
         self.runtime.jobs.clear_umap_cluster_build();
         match message.result {
-            Ok(stats) => {
+            Ok(crate::app::controller::jobs::StarmapWriteOutcome::Completed(stats)) => {
                 self.ui.map.last_query = None;
                 self.ui.map.cached_points.clear();
                 self.ui.map.cached_points_source_id = None;
@@ -164,6 +167,7 @@ impl AppController {
                 self.mark_map_dataset_projection_revision_dirty();
                 self.mark_map_query_projection_revision_dirty();
                 let scope = message
+                    .job
                     .source_id
                     .as_ref()
                     .map(|id| id.as_str())
@@ -176,6 +180,9 @@ impl AppController {
                     ),
                     StatusTone::Info,
                 );
+            }
+            Ok(crate::app::controller::jobs::StarmapWriteOutcome::DeferredForFileOp) => {
+                self.runtime.jobs.defer_umap_cluster_build(message.job);
             }
             Err(err) => {
                 self.set_status(format!("Cluster build failed: {err}"), StatusTone::Error);

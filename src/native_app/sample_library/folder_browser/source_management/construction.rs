@@ -29,6 +29,7 @@ impl FolderBrowserState {
                     scan_cache.source_snapshot_for_source(source.id.as_str(), &source.root)
                 {
                     entry.root_folder = Some(snapshot.root_folder);
+                    entry.parked_tree_loaded = true;
                     entry.missing_collection_snapshot = snapshot.missing_collection_snapshot;
                 }
                 entry

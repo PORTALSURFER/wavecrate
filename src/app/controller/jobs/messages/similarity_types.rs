@@ -10,11 +10,20 @@ pub(crate) struct UmapBuildJob {
     pub(crate) source_id: SourceId,
 }
 
+/// Completion state for a Starmap write attempt.
+#[derive(Debug)]
+pub(crate) enum StarmapWriteOutcome<T> {
+    /// The write completed and produced its result.
+    Completed(T),
+    /// A same-source file operation owns write priority; retain and retry the job.
+    DeferredForFileOp,
+}
+
 /// Result of one UMAP build attempt.
 #[derive(Debug)]
 pub(crate) struct UmapBuildResult {
-    pub(crate) umap_version: String,
-    pub(crate) result: Result<(), String>,
+    pub(crate) job: UmapBuildJob,
+    pub(crate) result: Result<StarmapWriteOutcome<()>, String>,
 }
 
 /// Request to cluster the current UMAP projection.
@@ -28,8 +37,9 @@ pub(crate) struct UmapClusterBuildJob {
 /// Result of one UMAP clustering pass.
 #[derive(Debug)]
 pub(crate) struct UmapClusterBuildResult {
-    pub(crate) source_id: Option<SourceId>,
-    pub(crate) result: Result<wavecrate_analysis::hdbscan::HdbscanStats, String>,
+    pub(crate) job: UmapClusterBuildJob,
+    pub(crate) result:
+        Result<StarmapWriteOutcome<wavecrate_analysis::hdbscan::HdbscanStats>, String>,
 }
 
 /// Final prepared similarity payload applied back to controller state.

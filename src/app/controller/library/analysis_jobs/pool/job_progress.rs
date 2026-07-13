@@ -27,6 +27,7 @@ mod tests {
     use crate::app::controller::library::analysis_jobs::types::{
         AnalysisJobMessage, AnalysisProgress,
     };
+    use crate::app::controller::library::source_write_priority::FileOpWritePriorityGuard;
     use radiant::gui::repaint::SharedRepaintSignal;
     use std::sync::{Arc, RwLock};
     use std::time::{Duration, Instant};
@@ -38,7 +39,7 @@ mod tests {
     #[test]
     fn cleanup_runs_without_workers() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         let now = now_epoch_seconds();
         conn.execute(
             "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, running_at)
@@ -77,9 +78,70 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_skips_retained_session_during_file_op_priority() {
+        let dir = TempDir::new().unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
+        let now = now_epoch_seconds();
+        conn.execute(
+            "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, running_at)
+             VALUES (?1, ?2, 'running', 1, ?3, ?4)",
+            rusqlite::params![
+                "source::stale.wav",
+                db::ANALYZE_SAMPLE_JOB_TYPE,
+                now,
+                now - 120
+            ],
+        )
+        .unwrap();
+        let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
+        let mut sources = vec![ProgressSourceDb {
+            source_id: source_id.clone(),
+            source_root: dir.path().to_path_buf(),
+            conn,
+        }];
+        let cache = Arc::new(RwLock::new(ProgressCache::default()));
+        let (tx, _rx) = std::sync::mpsc::sync_channel(1);
+        let tx = JobMessageSender::new(tx);
+        let stale_before = now - 10;
+        let signal = Arc::new(SharedRepaintSignal::default());
+
+        {
+            let _guard = FileOpWritePriorityGuard::new(&source_id);
+
+            assert_eq!(
+                cleanup_stale_jobs(&mut sources, stale_before, &cache, &tx, &signal),
+                0
+            );
+            let status: String = sources[0]
+                .conn
+                .query_row(
+                    "SELECT status FROM analysis_jobs WHERE sample_id = ?1",
+                    rusqlite::params!["source::stale.wav"],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(status, "running");
+        }
+
+        assert_eq!(
+            cleanup_stale_jobs(&mut sources, stale_before, &cache, &tx, &signal),
+            1
+        );
+        let status: String = sources[0]
+            .conn
+            .query_row(
+                "SELECT status FROM analysis_jobs WHERE sample_id = ?1",
+                rusqlite::params!["source::stale.wav"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "failed");
+    }
+
+    #[test]
     fn cleanup_updates_cache_and_emits_message() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         conn.execute(
             "INSERT INTO wav_files (path, file_size, modified_ns, missing)
              VALUES (?1, 1, 0, 0)",
@@ -128,7 +190,7 @@ mod tests {
     #[test]
     fn current_progress_all_reuses_cache_without_db_refresh() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
         let sources = vec![ProgressSourceDb {
             source_id: source_id.clone(),
@@ -161,7 +223,7 @@ mod tests {
     #[test]
     fn seed_missing_progress_populates_only_missing_sources() {
         let dir = TempDir::new().unwrap();
-        let conn = db::open_source_db(dir.path()).unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
         conn.execute(
             "INSERT INTO wav_files (path, file_size, modified_ns, missing)
              VALUES (?1, 1, 0, 0)",
@@ -198,7 +260,8 @@ mod tests {
         let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
         let source_dir = TempDir::new().unwrap();
         let source = crate::sample_sources::SampleSource::new(source_dir.path().to_path_buf());
-        crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+        crate::sample_sources::SourceDatabase::open_for_source_write(&source.root)
+            .expect("seed source db");
         crate::sample_sources::library::save(&crate::sample_sources::library::LibraryState {
             sources: vec![source.clone()],
         })
@@ -218,6 +281,46 @@ mod tests {
             crate::sample_sources::db::test_source_db_open_total_count(&source.root),
             0,
             "periodic progress refresh must reuse the existing UI-read connection"
+        );
+    }
+
+    #[test]
+    fn refresh_sources_drops_tracked_maintenance_session_during_file_op_priority() {
+        let config_dir = TempDir::new().unwrap();
+        let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
+        let source_dir = TempDir::new().unwrap();
+        let source = crate::sample_sources::SampleSource::new(source_dir.path().to_path_buf());
+        crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+        crate::sample_sources::library::save(&crate::sample_sources::library::LibraryState {
+            sources: vec![source.clone()],
+        })
+        .unwrap();
+        let mut sources = Vec::<ProgressSourceDb>::new();
+        let mut last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+        assert!(refresh_sources(&mut sources, &mut last_refresh, None));
+        assert_eq!(sources.len(), 1);
+        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+
+        {
+            let _guard = FileOpWritePriorityGuard::new(&source.id);
+            last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+
+            assert!(refresh_sources(&mut sources, &mut last_refresh, None));
+            assert!(sources.is_empty());
+            assert_eq!(
+                crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+                0,
+                "progress discovery must drop the tracked session without opening a replacement"
+            );
+        }
+
+        last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+        assert!(refresh_sources(&mut sources, &mut last_refresh, None));
+        assert_eq!(sources.len(), 1);
+        assert_eq!(
+            crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+            1,
+            "progress discovery should reopen maintenance after file-op priority clears"
         );
     }
 

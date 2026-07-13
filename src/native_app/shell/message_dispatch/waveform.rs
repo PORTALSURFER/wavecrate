@@ -44,6 +44,7 @@ impl NativeAppState {
             return;
         }
         self.waveform.current.apply_interaction(message);
+        self.queue_waveform_detail_refinement(context);
         if matches!(message, WaveformInteraction::FinishSampleSlide { .. })
             && let Some(frame_offset) = self
                 .waveform
@@ -95,6 +96,26 @@ impl NativeAppState {
             self.maybe_open_audio_player(context);
             self.play_waveform_from_ratio(start_ratio, context);
         }
+    }
+
+    pub(super) fn finish_waveform_detail_refinement(
+        &mut self,
+        result: crate::native_app::waveform::WaveformDetailResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.waveform.current.apply_detail_result(result);
+        self.queue_waveform_detail_refinement(context);
+    }
+
+    fn queue_waveform_detail_refinement(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        let Some(key) = self.waveform.current.desired_detail_key() else {
+            return;
+        };
+        self.waveform.current.mark_detail_pending(key.clone());
+        context.business().background("gui-waveform-detail").run(
+            move |_| crate::native_app::waveform::load_wav_detail_summary(key),
+            GuiMessage::WaveformDetailRefined,
+        );
     }
 
     fn play_selection_transaction_begin_snapshot(

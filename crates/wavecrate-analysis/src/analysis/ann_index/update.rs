@@ -1,8 +1,8 @@
 use super::container;
 use super::state::AnnIndexState;
 use super::storage::{hnsw_dump_paths, upsert_meta};
-use hnsw_rs::api::AnnT;
 use rusqlite::Connection;
+use std::collections::HashSet;
 use std::time::Duration;
 use tempfile::Builder;
 
@@ -45,8 +45,11 @@ pub(crate) fn upsert_embeddings_batch<'a, I>(
 where
     I: IntoIterator<Item = (&'a str, &'a [f32])>,
 {
+    let mut batch_ids = HashSet::new();
+    let mut staged = Vec::new();
+
     for (sample_id, embedding) in items {
-        if state.id_lookup.contains_key(sample_id) {
+        if state.id_lookup.contains_key(sample_id) || !batch_ids.insert(sample_id) {
             continue;
         }
         if embedding.len() != state.params.dim {
@@ -56,6 +59,10 @@ where
                 embedding.len()
             ));
         }
+        staged.push((sample_id, embedding));
+    }
+
+    for (sample_id, embedding) in staged {
         let id = state.id_map.len();
         state.id_map.push(sample_id.to_string());
         state.id_lookup.insert(sample_id.to_string(), id);

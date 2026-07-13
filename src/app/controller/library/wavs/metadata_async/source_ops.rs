@@ -6,7 +6,8 @@ use tracing::info;
 
 pub(super) fn run_source_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let started_at = Instant::now();
-    let db = SourceDatabase::open_fast(&job.source_root).map_err(|err| err.to_string())?;
+    let db =
+        SourceDatabase::open_for_background_job(&job.source_root).map_err(|err| err.to_string())?;
     let resolved_ops = job
         .source_ops
         .iter()

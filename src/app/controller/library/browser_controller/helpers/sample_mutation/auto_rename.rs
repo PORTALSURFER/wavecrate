@@ -13,10 +13,7 @@ pub(crate) fn run_sample_auto_rename_job(
         .iter()
         .map(|request| request.old_relative.clone())
         .collect::<Vec<_>>();
-    let db = match crate::sample_sources::SourceDatabase::open_with_role(
-        &source.root,
-        crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
-    ) {
+    let db = match crate::sample_sources::SourceDatabase::open_for_background_job(&source.root) {
         Ok(db) => db,
         Err(err) => {
             return SampleAutoRenameResult {

@@ -1,5 +1,6 @@
 use crate::native_app::{
-    sample_library::context_menu_target::target_available,
+    app_chrome::browser_context_menu::open_target_message,
+    sample_library::context_menu_target::{target_available, validate_open_target},
     test_support::{
         context_menu::{BrowserContextMenu, BrowserContextTargetKind, WaveformContextMenu},
         state::{FolderBrowserMessage, GuiMessage, NativeAppState, default_gui_shortcuts},
@@ -133,6 +134,82 @@ fn context_menu_availability_does_not_probe_disk() {
     std::fs::remove_file(&sample).expect("remove sample");
     assert!(target_available(&BrowserContextTargetKind::Sample, &sample));
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn context_target_validation_rejects_missing_and_wrong_kind_paths() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-context-validation-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&root).expect("create temp root");
+    let sample = root.join("kick.wav");
+    std::fs::write(&sample, [0_u8; 8]).expect("write sample");
+
+    assert_eq!(
+        validate_open_target(&BrowserContextTargetKind::Folder, &root),
+        Ok(())
+    );
+    assert_eq!(
+        validate_open_target(&BrowserContextTargetKind::Sample, &sample),
+        Ok(())
+    );
+    assert!(
+        validate_open_target(&BrowserContextTargetKind::Folder, &sample)
+            .expect_err("file cannot be opened as folder")
+            .starts_with("Not a folder:")
+    );
+    assert_eq!(
+        validate_open_target(&BrowserContextTargetKind::Folder, &root.join("missing")),
+        Err(String::from("Folder is missing"))
+    );
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_open_message_captures_the_right_clicked_target() {
+    let right_clicked = PathBuf::from("C:\\samples\\drums");
+    let menu = BrowserContextMenu {
+        kind: BrowserContextTargetKind::Folder,
+        path: right_clicked.clone(),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Normal,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("drums"),
+    };
+
+    assert_eq!(
+        open_target_message(&menu),
+        GuiMessage::OpenContextTarget {
+            kind: BrowserContextTargetKind::Folder,
+            path: right_clicked,
+        }
+    );
+}
+
+#[test]
+fn folder_open_closes_the_menu_before_validation_completes() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.browser_interaction.context_menu = Some(sample_context_menu("unrelated.wav"));
+
+    state.open_context_target(
+        BrowserContextTargetKind::Folder,
+        PathBuf::from("C:\\samples\\drums"),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert_eq!(state.ui.browser_interaction.context_menu, None);
 }
 
 #[test]

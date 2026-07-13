@@ -3,7 +3,7 @@ use crate::app::controller::library::analysis_jobs::db::telemetry;
 use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
 
 pub(crate) fn write_changed_samples(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     source_root: &std::path::Path,
     sample_metadata: &[db::SampleMetadata],
     invalidate: &[String],
@@ -31,7 +31,7 @@ pub(crate) fn write_changed_samples(
 }
 
 pub(crate) fn write_backfill_samples(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     source_root: &std::path::Path,
     sample_metadata: &[db::SampleMetadata],
     invalidate: &[String],
@@ -54,7 +54,7 @@ pub(crate) fn write_backfill_samples(
 }
 
 pub(crate) fn stage_backfill_samples(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     samples: &[db::SampleMetadata],
 ) -> Result<(), String> {
     prepare_backfill_staging(conn)?;
@@ -89,7 +89,7 @@ pub(crate) fn stage_backfill_samples(
     Ok(())
 }
 
-fn prepare_backfill_staging(conn: &mut rusqlite::Connection) -> Result<(), String> {
+fn prepare_backfill_staging(conn: &mut db::AnalysisJobSession) -> Result<(), String> {
     conn.execute_batch(
         "CREATE TEMP TABLE IF NOT EXISTS temp_backfill_samples (
             sample_id TEXT PRIMARY KEY,

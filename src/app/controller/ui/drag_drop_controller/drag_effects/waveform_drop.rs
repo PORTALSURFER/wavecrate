@@ -53,6 +53,7 @@ impl DragDropController<'_> {
             self.set_status("Source not available", StatusTone::Error);
             return;
         };
+        self.cancel_pending_source_remap_for_mutation(&source.id);
         let absolute = source.root.join(&relative_path);
         if !absolute.exists() {
             self.set_status(

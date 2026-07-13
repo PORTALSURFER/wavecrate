@@ -1,4 +1,39 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::scan_types::FolderScanItem;
+
+#[test]
+fn switching_away_from_pending_source_does_not_cache_its_placeholder() {
+    let first_root = temp_source_root("wavecrate-pending-source-first");
+    let second_root = temp_source_root("wavecrate-pending-source-second");
+    let mut browser = FolderBrowserState::load_default();
+    let first_request = browser
+        .begin_add_source_path(first_root.clone(), 41)
+        .expect("first source scan");
+
+    browser
+        .begin_add_source_path(second_root.clone(), 42)
+        .expect("second source scan");
+
+    let first = browser
+        .source
+        .sources
+        .iter()
+        .find(|source| source.id == first_request.source_id)
+        .expect("first source");
+    assert_eq!(first.root_folder, None);
+
+    assert!(
+        browser
+            .begin_select_source(first_request.source_id.clone(), 43)
+            .is_none()
+    );
+    assert_eq!(browser.selected_source_id(), first_request.source_id);
+    assert!(!browser.selected_source_loaded());
+
+    let _ = fs::remove_dir_all(first_root);
+    let _ = fs::remove_dir_all(second_root);
+}
+
 #[test]
 fn source_scan_installs_finished_tree_after_placeholder_selection() {
     let root = temp_source_root("wavecrate-gui-source-scan");
@@ -122,6 +157,51 @@ fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
             .tag,
         Rating::KEEP_3
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn source_scan_publishes_restored_rating_after_large_rename() {
+    let root = temp_source_root("wavecrate-gui-large-rename");
+    let old_path = root.join("old.wav");
+    let new_path = root.join("new.wav");
+    fs::write(&old_path, vec![7_u8; 9 * 1024 * 1024]).expect("write large wav");
+    let mut browser = FolderBrowserState::load_default();
+    let initial_request = browser
+        .begin_add_source_path(root.clone(), 42)
+        .expect("new source should request scan");
+    assert!(browser.apply_scan_finished(scan_source_with_progress(
+        initial_request,
+        |_| {},
+        |_| {}
+    )));
+
+    let db = SourceDatabase::open(&root).expect("source db");
+    db.set_tag(std::path::Path::new("old.wav"), Rating::KEEP_1)
+        .expect("rate original file");
+    fs::rename(&old_path, &new_path).expect("rename large wav");
+
+    let request = browser
+        .begin_selected_source_scan(43)
+        .expect("selected source refresh should queue");
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    let renamed = result
+        .folder
+        .all_files()
+        .into_iter()
+        .find(|file| file.name == "new.wav")
+        .expect("renamed file");
+
+    assert_eq!(result.source_db_error, None);
+    assert_eq!(renamed.rating, Rating::KEEP_1);
+    assert_eq!(
+        db.entry_for_path(std::path::Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+    assert!(db.list_pending_renames().unwrap().is_empty());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -327,6 +407,10 @@ fn batched_scan_discoveries_clone_selected_tree_once_per_batch() {
 
     let mut discovery_events = Vec::new();
     let result = scan_source_with_progress(request, |_| {}, |event| discovery_events.push(event));
+    assert!(matches!(
+        discovery_events.first().map(|event| &event.item),
+        Some(FolderScanItem::ResetFolder)
+    ));
     assert!(
         browser.apply_scan_discovered_batch(FolderScanDiscoveryBatch {
             task_id: 88,

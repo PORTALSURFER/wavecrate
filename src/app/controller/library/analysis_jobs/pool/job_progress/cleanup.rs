@@ -1,7 +1,7 @@
 use super::source_discovery::ProgressSourceDb;
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
-use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
+use crate::app::controller::library::{analysis_jobs::db, source_write_priority};
 use radiant::gui::repaint::SharedRepaintSignal;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -20,6 +20,9 @@ pub(super) fn cleanup_stale_jobs(
     let mut changed = 0;
     let mut touched_sources = std::collections::HashSet::new();
     for source in &mut *sources {
+        if source_write_priority::file_op_write_priority_active(&source.source_id) {
+            continue;
+        }
         if let Ok((updated, source_ids)) =
             db::fail_stale_running_jobs_with_sources(&source.conn, stale_before)
             && updated > 0

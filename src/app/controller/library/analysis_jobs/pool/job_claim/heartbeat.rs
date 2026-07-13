@@ -1,12 +1,11 @@
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
-use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use super::db::open_connection_with_retry;
+use super::db::{AnalysisConnections, open_connection_with_retry};
 
 struct DecodeHeartbeatState {
     counter: u64,
@@ -143,7 +142,7 @@ pub(crate) fn spawn_decode_heartbeat_worker(
 }
 
 fn run_decode_heartbeat_worker(tracker: Arc<DecodeHeartbeatTracker>) {
-    let mut connections = HashMap::<PathBuf, Connection>::new();
+    let mut connections = AnalysisConnections::new();
     let mut seen_counter = 0u64;
     let mut last_touch = Instant::now() - tracker.interval;
     loop {

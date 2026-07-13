@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use rusqlite::{Connection, Transaction};
+use std::fmt;
 
 mod error;
 /// Persistent file operation journal for crash recovery.
@@ -11,6 +13,7 @@ mod open_profiles;
 mod pending_renames;
 /// Read-only database queries for sample sources.
 pub mod read;
+mod rename_destinations;
 /// SQLite schema management for sample source databases.
 pub mod schema;
 /// Durable per-source tag catalog and sample assignment helpers.
@@ -24,6 +27,8 @@ pub mod write;
 pub mod util;
 
 mod rating_tests;
+#[cfg(test)]
+mod role_contract_tests;
 
 pub use error::SourceDbError;
 pub(crate) use open::SourceDatabaseOpenMode;
@@ -36,6 +41,10 @@ pub use open_profiles::SourceDatabaseConnectionRole;
 pub use pending_renames::PendingRenameEntry;
 pub use types::{Rating, SampleCollection, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
 pub use util::normalize_relative_path;
+pub use write::{
+    SourceCollectionWrite, SourceContentHashWrite, SourceFileWrite, SourceTagWrite,
+    SourceWriteCommand,
+};
 
 /// Hidden filename used for per-source databases.
 pub const DB_FILE_NAME: &str = ".wavecrate.db";
@@ -62,6 +71,25 @@ pub struct SourceDatabase {
     telemetry_label: &'static str,
 }
 
+/// Owned source-database writer reservation retained across an asynchronous snapshot handoff.
+///
+/// Dropping the fence releases the SQLite `BEGIN IMMEDIATE` transaction without changing data.
+pub struct SourceDatabaseWriteFence {
+    connection: Connection,
+}
+
+impl fmt::Debug for SourceDatabaseWriteFence {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("SourceDatabaseWriteFence").finish()
+    }
+}
+
+impl Drop for SourceDatabaseWriteFence {
+    fn drop(&mut self) {
+        let _ = self.connection.execute_batch("ROLLBACK");
+    }
+}
+
 /// Groups multiple database writes into one transaction using cached statements.
 pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
@@ -71,14 +99,123 @@ pub struct SourceWriteBatch<'conn> {
 }
 
 impl SourceDatabase {
-    /// Open (or create) the database that lives inside the source folder.
-    pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+    /// Open a writable source database for general source-owned mutations.
+    ///
+    /// This preserves the complete schema and cleanup behavior used by the
+    /// legacy `open` entrypoint while making write intent explicit to callers.
+    pub fn open_for_source_write(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         let root = root.as_ref();
         open::open_source_database(
             root,
             open::should_open_source_db_read_only(),
             open::SourceDatabaseOpenMode::Full,
         )
+    }
+
+    /// Open (or create) the database that lives inside the source folder.
+    pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_source_write(root)
+    }
+
+    /// Write a transactionally consistent SQLite snapshot to a new database file.
+    ///
+    /// SQLite's online backup API coordinates with source-local writers and includes committed
+    /// WAL-resident pages without requiring a global checkpoint. The destination must not exist.
+    pub fn snapshot_to_path(&self, destination: &Path) -> Result<(), SourceDbError> {
+        self.snapshot_to_path_with_write_fence(destination)
+            .map(drop)
+    }
+
+    /// Write a consistent snapshot while retaining the source writer reservation.
+    ///
+    /// The returned fence must remain alive until the caller either publishes or abandons the
+    /// snapshot. This closes the post-snapshot window where a later source mutation could commit
+    /// to the old root before an asynchronous remap result is applied.
+    pub fn snapshot_to_path_with_write_fence(
+        &self,
+        destination: &Path,
+    ) -> Result<SourceDatabaseWriteFence, SourceDbError> {
+        let fence = self.acquire_snapshot_write_fence()?;
+        self.snapshot_to_path_with_held_write_fence(destination)?;
+        Ok(fence)
+    }
+
+    /// Install the source writer reservation before copying snapshot pages.
+    ///
+    /// The installer takes ownership of the fence before the backup starts, allowing a caller's
+    /// cancellation path to release blocked source writers immediately during a long snapshot.
+    pub fn snapshot_to_path_with_write_fence_install(
+        &self,
+        destination: &Path,
+        install: impl FnOnce(SourceDatabaseWriteFence) -> bool,
+    ) -> Result<(), SourceDbError> {
+        let fence = self.acquire_snapshot_write_fence()?;
+        if !install(fence) {
+            return Err(SourceDbError::Canceled);
+        }
+        self.snapshot_to_path_with_held_write_fence(destination)
+    }
+
+    fn acquire_snapshot_write_fence(&self) -> Result<SourceDatabaseWriteFence, SourceDbError> {
+        let database_root =
+            self.db_path
+                .parent()
+                .ok_or_else(|| SourceDbError::UnsafeSourceDatabasePath {
+                    path: self.db_path.clone(),
+                    reason: "source database path has no parent directory",
+                })?;
+        let validated = open::open_source_database_with_database_root(
+            &self.root,
+            database_root,
+            false,
+            open::SourceDatabaseOpenMode::Full,
+        )?;
+        let writer_connection = validated.connection;
+        writer_connection
+            .execute_batch("BEGIN IMMEDIATE")
+            .map_err(SourceDbError::from)?;
+        Ok(SourceDatabaseWriteFence {
+            connection: writer_connection,
+        })
+    }
+
+    fn snapshot_to_path_with_held_write_fence(
+        &self,
+        destination: &Path,
+    ) -> Result<(), SourceDbError> {
+        if let Some(parent) = destination.parent()
+            && !parent.is_dir()
+        {
+            return Err(SourceDbError::CreateDir {
+                path: parent.to_path_buf(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "snapshot destination directory is unavailable",
+                ),
+            });
+        }
+        let reservation = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(destination)
+            .map_err(|source| SourceDbError::InspectSourceDatabasePath {
+                path: destination.to_path_buf(),
+                source,
+            })?;
+        drop(reservation);
+        let result = (|| -> Result<(), SourceDbError> {
+            let mut destination_connection = rusqlite::Connection::open(destination)?;
+            let backup =
+                rusqlite::backup::Backup::new(&self.connection, &mut destination_connection)?;
+            backup.run_to_completion(128, Duration::from_millis(5), None)?;
+            drop(backup);
+            destination_connection.close().map_err(|(_, error)| error)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            remove_snapshot_artifacts(destination);
+        }
+        result
     }
 
     /// Open (or create) a source database stored outside the source root.
@@ -97,17 +234,21 @@ impl SourceDatabase {
         )
     }
 
-    /// Open (or create) the database using startup-friendly schema work only.
-    ///
-    /// This preserves required table/index compatibility while deferring expensive
-    /// path validation/cleanup to a background maintenance job.
-    pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
-        let root = root.as_ref();
+    /// Open a writable external source database for general source-owned mutations.
+    pub fn open_for_source_write_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_with_database_root(root, database_root)
+    }
+
+    /// Open a startup-friendly database for a background job.
+    pub fn open_for_background_job(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         Self::open_with_role(root, SourceDatabaseConnectionRole::JobWorker)
     }
 
-    /// Open a startup-friendly source database stored outside the source root.
-    pub fn open_fast_with_database_root(
+    /// Open a startup-friendly external database for a background job.
+    pub fn open_for_background_job_with_database_root(
         root: impl AsRef<Path>,
         database_root: impl AsRef<Path>,
     ) -> Result<Self, SourceDbError> {
@@ -118,13 +259,26 @@ impl SourceDatabase {
         )
     }
 
-    /// Open an existing database in read-only mode without applying schema migrations.
-    pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+    /// Open a startup-friendly database owned by source scanning.
+    pub fn open_for_scan(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job(root)
+    }
+
+    /// Open a startup-friendly external database owned by source scanning.
+    pub fn open_for_scan_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job_with_database_root(root, database_root)
+    }
+
+    /// Open an existing database for UI-owned read access.
+    pub fn open_for_ui_read(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         Self::open_with_role(root, SourceDatabaseConnectionRole::UiRead)
     }
 
-    /// Open an external source database in read-only mode.
-    pub fn open_read_only_with_database_root(
+    /// Open an external database for UI-owned read access.
+    pub fn open_for_ui_read_with_database_root(
         root: impl AsRef<Path>,
         database_root: impl AsRef<Path>,
     ) -> Result<Self, SourceDbError> {
@@ -133,6 +287,40 @@ impl SourceDatabase {
             database_root,
             SourceDatabaseConnectionRole::UiRead,
         )
+    }
+
+    /// Open a source database for deferred schema and cleanup maintenance.
+    pub fn open_for_maintenance(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_with_role(root, SourceDatabaseConnectionRole::Maintenance)
+    }
+
+    /// Open (or create) the database using startup-friendly schema work only.
+    ///
+    /// This preserves required table/index compatibility while deferring expensive
+    /// path validation/cleanup to a background maintenance job.
+    pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job(root)
+    }
+
+    /// Open a startup-friendly source database stored outside the source root.
+    pub fn open_fast_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_for_background_job_with_database_root(root, database_root)
+    }
+
+    /// Open an existing database in read-only mode without applying schema migrations.
+    pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        Self::open_for_ui_read(root)
+    }
+
+    /// Open an external source database in read-only mode.
+    pub fn open_read_only_with_database_root(
+        root: impl AsRef<Path>,
+        database_root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
+        Self::open_for_ui_read_with_database_root(root, database_root)
     }
 
     /// Open a source database using one explicit runtime role profile.
@@ -299,6 +487,31 @@ impl SourceDatabase {
     fn into_connection(self) -> Connection {
         self.connection
     }
+}
+
+fn remove_snapshot_artifacts(database: &Path) {
+    for path in [
+        database.to_path_buf(),
+        snapshot_sidecar_path(database, "-wal"),
+        snapshot_sidecar_path(database, "-shm"),
+        snapshot_sidecar_path(database, "-journal"),
+    ] {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => tracing::warn!(
+                path = %path.display(),
+                error = %error,
+                "Failed to clean incomplete SQLite snapshot artifact"
+            ),
+        }
+    }
+}
+
+fn snapshot_sidecar_path(database: &Path, suffix: &str) -> PathBuf {
+    let mut path = database.as_os_str().to_os_string();
+    path.push(suffix);
+    PathBuf::from(path)
 }
 
 /// Unit tests for source-database open, migration, and metadata invariants.

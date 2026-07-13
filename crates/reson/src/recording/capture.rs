@@ -1,12 +1,13 @@
 //! CPAL recording bootstrap and capture-loop wiring.
 
 use std::path::Path;
-use std::sync::mpsc;
+use std::sync::Arc;
 
 use cpal::Stream;
 
-use super::monitor::{MonitorSenderSlot, forward_monitor_samples, new_monitor_sender_slot};
-use super::writer::{RecorderCommand, RecorderWriter};
+use super::health::RecordingHealthState;
+use super::monitor::{RecordingMonitor, start_recording_monitor};
+use super::writer::RecorderWriter;
 use crate::input::{
     AudioInputConfig, AudioInputError, ResolvedInput, StreamChannelSelection, build_input_stream,
     resolve_input_stream_config,
@@ -17,7 +18,8 @@ pub(super) struct RecordingRuntime {
     pub(super) stream: Stream,
     pub(super) writer: RecorderWriter,
     pub(super) resolved: ResolvedInput,
-    pub(super) monitor_sender: MonitorSenderSlot,
+    pub(super) monitor: RecordingMonitor,
+    pub(super) health: Arc<RecordingHealthState>,
 }
 
 /// Resolve input settings, start the WAV writer, and build the live capture stream.
@@ -28,31 +30,33 @@ pub(super) fn start_recording_runtime(
     let resolved = resolve_input_stream_config(config)?;
     let selection =
         StreamChannelSelection::new(resolved.stream_config.channels, &resolved.selected_channels);
-    let (sender, receiver) = mpsc::channel();
-    let monitor_sender = new_monitor_sender_slot();
-    let writer = RecorderWriter::spawn(
+    let health = Arc::new(RecordingHealthState::default());
+    let (writer, mut writer_capture) = RecorderWriter::spawn(
         path.to_path_buf(),
         resolved.resolved.sample_rate,
         resolved.resolved.recorded_channel_count,
-        receiver,
-        sender.clone(),
+        Arc::clone(&health),
     )?;
-    let sender_clone = sender.clone();
-    let monitor_sender_clone = monitor_sender.clone();
+    let (monitor, mut monitor_capture) = start_recording_monitor(
+        resolved.resolved.sample_rate,
+        resolved.resolved.recorded_channel_count,
+        Arc::clone(&health),
+    );
     let stream = build_input_stream(
         &resolved.device,
         &resolved.stream_config,
         resolved.sample_format,
         selection,
         move |samples| {
-            forward_monitor_samples(&monitor_sender_clone, &samples);
-            let _ = sender_clone.send(RecorderCommand::Samples(samples));
+            writer_capture.submit(samples);
+            monitor_capture.submit(samples);
         },
     )?;
     Ok(RecordingRuntime {
         stream,
         writer,
         resolved: resolved.resolved,
-        monitor_sender,
+        monitor,
+        health,
     })
 }

@@ -54,6 +54,9 @@ impl AppController {
     }
 
     fn handle_selection_export_finished_result(&mut self, message: SelectionExportResult) {
+        self.runtime
+            .jobs
+            .finish_selection_export(message.request_id());
         match message {
             SelectionExportResult::Clip {
                 request_id: _,

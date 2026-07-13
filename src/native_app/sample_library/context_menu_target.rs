@@ -4,6 +4,8 @@ use radiant::gui::types::Point;
 use std::path::{Path, PathBuf};
 use wavecrate::sample_sources::{SampleCollection, SourceRole};
 
+mod validation_worker;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum BrowserContextTargetKind {
     Source,
@@ -74,6 +76,13 @@ pub(in crate::native_app) fn target_available(
     _path: &Path,
 ) -> bool {
     true
+}
+
+pub(in crate::native_app) fn validate_open_target(
+    kind: &BrowserContextTargetKind,
+    path: &Path,
+) -> Result<(), String> {
+    validation_worker::validate_open_target(kind, path)
 }
 
 pub(in crate::native_app) fn missing_target_message(

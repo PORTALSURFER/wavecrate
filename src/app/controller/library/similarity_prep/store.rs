@@ -24,7 +24,7 @@ pub(crate) trait SimilarityPrepStore {
     fn open_source_db_for_similarity(
         &self,
         source_id: &SourceId,
-    ) -> Result<rusqlite::Connection, String>;
+    ) -> Result<analysis_jobs::AnalysisJobSession, String>;
     fn count_umap_layout_rows(
         &self,
         conn: &rusqlite::Connection,
@@ -80,7 +80,7 @@ impl SimilarityPrepStore for DbSimilarityPrepStore {
     fn open_source_db_for_similarity(
         &self,
         source_id: &SourceId,
-    ) -> Result<rusqlite::Connection, String> {
+    ) -> Result<analysis_jobs::AnalysisJobSession, String> {
         db::open_source_db_for_similarity(source_id)
     }
 

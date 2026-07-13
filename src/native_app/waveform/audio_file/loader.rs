@@ -270,6 +270,10 @@ fn complete_wav_playback_ready_from_summary_cache(
         return;
     }
     if let Ok(samples) = wav_decode::read_wav_playback_samples(bytes) {
+        let source_modified = path
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok());
         let playback_samples = Arc::from(samples);
         playback_ready(WaveformPlaybackReady {
             path: path.to_path_buf(),
@@ -278,6 +282,8 @@ fn complete_wav_playback_ready_from_summary_cache(
             sample_rate: file.sample_rate,
             channels: file.channels,
             frames: file.frames,
+            source_len: bytes.len() as u64,
+            source_modified,
         });
         file.playback_samples = Some(playback_samples);
         if persist_cache {

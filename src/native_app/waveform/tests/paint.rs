@@ -219,8 +219,8 @@ fn playmark_resize_handle_hover_paints_bright_overlay() {
     let plan = runtime_overlay_plan(&widget, bounds);
     let fills = fill_rects(&plan);
     assert!(fills.iter().any(|fill| {
-        (fill.rect.min.x - 116.5).abs() < 0.001
-            && (fill.rect.max.x - 123.5).abs() < 0.001
+        (fill.rect.min.x - 115.5).abs() < 0.001
+            && (fill.rect.max.x - 124.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
             && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 255)
@@ -338,15 +338,15 @@ fn playmark_resize_handles_paint_above_boundary_and_play_start_lines() {
             && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (204, 255, 255, 245)
     });
     let left_handle = fill_index(&fills, "left playmark resize handle", |fill| {
-        (fill.rect.min.x - 36.5).abs() < 0.001
-            && (fill.rect.max.x - 43.5).abs() < 0.001
+        (fill.rect.min.x - 35.5).abs() < 0.001
+            && (fill.rect.max.x - 44.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
             && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 220)
     });
     let right_handle = fill_index(&fills, "right playmark resize handle", |fill| {
-        (fill.rect.min.x - 116.5).abs() < 0.001
-            && (fill.rect.max.x - 123.5).abs() < 0.001
+        (fill.rect.min.x - 115.5).abs() < 0.001
+            && (fill.rect.max.x - 124.5).abs() < 0.001
             && (fill.rect.min.y - 0.0).abs() < 0.001
             && (fill.rect.max.y - 22.0).abs() < 0.001
             && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 220)
@@ -918,8 +918,8 @@ fn playmark_resize_drag_ghost_paints_active_handle_without_double_painting_selec
 
     assert!(
         runtime_fills.iter().any(|fill| {
-            (fill.rect.min.x - 156.5).abs() < 0.001
-                && (fill.rect.max.x - 163.5).abs() < 0.001
+            (fill.rect.min.x - 155.5).abs() < 0.001
+                && (fill.rect.max.x - 164.5).abs() < 0.001
                 && (fill.rect.min.y - 0.0).abs() < 0.001
                 && (fill.rect.max.y - 22.0).abs() < 0.001
                 && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 202, 112, 178)

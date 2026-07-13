@@ -2683,7 +2683,7 @@ fn extraction_path_for_loaded_sample(scenario: &WaveformPlaybackScenario) -> Pat
 
 #[test]
 fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario.start_full_sample_loop();
@@ -2705,35 +2705,38 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
 
     assert_playback_span_state(&scenario.state, 0.25, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.25, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.595);
-    scenario.apply_frame();
+    scenario.set_retarget_playhead_ratio(0.595);
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.10, 0.60);
     assert_waveform_progress_near(&scenario.state, 0.10);
     scenario.finish_play_range_drag(0.10);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.10, 0.60);
+    assert_waveform_progress_inside_span(&scenario.state, 0.10, 0.60);
 }
 
 #[test]
 fn looped_playback_retarget_keeps_current_cycle_when_playhead_still_fits() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario.start_full_sample_loop();
     scenario.select_play_range(0.20, 0.60);
     scenario.begin_play_range_end_resize(0.60);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.50);
+    scenario.set_retarget_playhead_ratio(0.50);
     let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.80);
 
     assert_playback_span_state(&scenario.state, 0.20, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_eq!(
         pending_runtime_playback_start_id(&scenario.state),
@@ -2743,19 +2746,19 @@ fn looped_playback_retarget_keeps_current_cycle_when_playhead_still_fits() {
     assert_waveform_progress_near(&scenario.state, 0.50);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.595);
-    scenario.apply_frame();
+    scenario.set_retarget_playhead_ratio(0.595);
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.20, 0.80);
     assert_waveform_progress_near(&scenario.state, 0.595);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.50);
+    scenario.set_retarget_playhead_ratio(0.50);
     let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.65);
 
     assert_playback_span_state(&scenario.state, 0.20, 0.80);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_eq!(
         pending_runtime_playback_start_id(&scenario.state),
@@ -2764,8 +2767,8 @@ fn looped_playback_retarget_keeps_current_cycle_when_playhead_still_fits() {
     assert_playback_span_state(&scenario.state, 0.20, 0.80);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.645);
-    scenario.apply_frame();
+    scenario.set_retarget_playhead_ratio(0.645);
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.20, 0.65);
     assert_eq!(
@@ -2775,24 +2778,27 @@ fn looped_playback_retarget_keeps_current_cycle_when_playhead_still_fits() {
     assert_playback_span_state(&scenario.state, 0.20, 0.65);
     assert_waveform_progress_near(&scenario.state, 0.20);
     scenario.finish_play_range_drag(0.65);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.20, 0.65);
+    assert_waveform_progress_inside_span(&scenario.state, 0.20, 0.65);
 }
 
 #[test]
 fn looped_playback_retarget_waits_until_playhead_reaches_new_end() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario.start_full_sample_loop();
     scenario.select_play_range(0.20, 0.80);
     scenario.begin_play_range_end_resize(0.80);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.40);
+    scenario.set_retarget_playhead_ratio(0.40);
     let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.55);
 
     assert_playback_span_state(&scenario.state, 0.20, 0.80);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_eq!(
         pending_runtime_playback_start_id(&scenario.state),
@@ -2802,17 +2808,20 @@ fn looped_playback_retarget_waits_until_playhead_reaches_new_end() {
     assert_waveform_progress_near(&scenario.state, 0.40);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.545);
-    scenario.apply_frame();
+    scenario.set_retarget_playhead_ratio(0.545);
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.20, 0.55);
     assert_waveform_progress_near(&scenario.state, 0.20);
     scenario.finish_play_range_drag(0.55);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.20, 0.55);
+    assert_waveform_progress_inside_span(&scenario.state, 0.20, 0.55);
 }
 
 #[test]
 fn one_shot_playback_retargets_when_playmark_selection_is_created_and_resized() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario
@@ -2837,7 +2846,7 @@ fn one_shot_playback_retargets_when_playmark_selection_is_created_and_resized() 
 
     assert_playback_span_state(&scenario.state, 0.25, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.25, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
@@ -2846,11 +2855,14 @@ fn one_shot_playback_retargets_when_playmark_selection_is_created_and_resized() 
 
     assert_playback_span_state(&scenario.state, 0.10, 0.60);
     assert_waveform_progress_near(&scenario.state, 0.25);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.10, 0.60);
+    assert_waveform_progress_inside_span(&scenario.state, 0.10, 0.60);
 }
 
 #[test]
 fn one_shot_playback_retarget_keeps_current_pass_when_playhead_still_fits() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario.select_play_range(0.20, 0.60);
@@ -2860,13 +2872,13 @@ fn one_shot_playback_retarget_keeps_current_pass_when_playhead_still_fits() {
         .expect("playmark playback starts");
     scenario.begin_play_range_end_resize(0.60);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.50);
+    scenario.set_retarget_playhead_ratio(0.50);
     let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.80);
 
     assert_playback_span_state(&scenario.state, 0.20, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_eq!(
         pending_runtime_playback_start_id(&scenario.state),
@@ -2876,13 +2888,13 @@ fn one_shot_playback_retarget_keeps_current_pass_when_playhead_still_fits() {
     assert_waveform_progress_near(&scenario.state, 0.50);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.50);
+    scenario.set_retarget_playhead_ratio(0.50);
     let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.65);
 
     assert_playback_span_state(&scenario.state, 0.20, 0.60);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_eq!(
         pending_runtime_playback_start_id(&scenario.state),
@@ -2900,11 +2912,14 @@ fn one_shot_playback_retarget_keeps_current_pass_when_playhead_still_fits() {
     );
     assert_playback_span_state(&scenario.state, 0.20, 0.65);
     assert_waveform_progress_near(&scenario.state, 0.50);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.20, 0.65);
+    assert_waveform_progress_inside_span(&scenario.state, 0.20, 0.65);
 }
 
 #[test]
 fn one_shot_playback_retarget_waits_when_live_drag_excludes_playhead() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario.select_play_range(0.20, 0.80);
@@ -2914,13 +2929,13 @@ fn one_shot_playback_retarget_waits_when_live_drag_excludes_playhead() {
         .expect("playmark playback starts");
     scenario.begin_play_range_end_resize(0.80);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.70);
+    scenario.set_retarget_playhead_ratio(0.70);
     let playback_start_id = pending_runtime_playback_start_id(&scenario.state);
     scenario.update_play_range_drag(0.55);
 
     assert_playback_span_state(&scenario.state, 0.20, 0.80);
     assert!(scenario.state.waveform.pending_play_selection_retarget);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_eq!(
         pending_runtime_playback_start_id(&scenario.state),
@@ -2934,24 +2949,30 @@ fn one_shot_playback_retarget_waits_when_live_drag_excludes_playhead() {
 
     assert_playback_span_state(&scenario.state, 0.20, 0.55);
     assert_waveform_progress_near(&scenario.state, 0.20);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.20, 0.55);
+    assert_waveform_progress_inside_span(&scenario.state, 0.20, 0.55);
 }
 
 #[test]
 fn looped_playback_retarget_restarts_when_playhead_is_already_beyond_new_end() {
-    let Some(mut scenario) = WaveformPlaybackScenario::default_loaded_with_player() else {
+    let Some(mut scenario) = WaveformPlaybackScenario::retarget_loaded_with_player() else {
         return;
     };
     scenario.start_full_sample_loop();
     scenario.select_play_range(0.20, 0.80);
     scenario.begin_play_range_end_resize(0.80);
 
-    scenario.state.waveform.current.set_playhead_ratio(0.70);
+    scenario.set_retarget_playhead_ratio(0.70);
     scenario.update_play_range_drag(0.55);
-    scenario.apply_frame();
+    scenario.flush_playmark_retarget();
 
     assert_playback_span_state(&scenario.state, 0.20, 0.55);
     assert_waveform_progress_near(&scenario.state, 0.20);
     scenario.finish_play_range_drag(0.55);
+    scenario.settle_playmark_retarget();
+    assert_playback_span_state(&scenario.state, 0.20, 0.55);
+    assert_waveform_progress_inside_span(&scenario.state, 0.20, 0.55);
 }
 
 fn pending_runtime_playback_start_id(state: &NativeAppState) -> Option<u64> {
@@ -2960,7 +2981,6 @@ fn pending_runtime_playback_start_id(state: &NativeAppState) -> Option<u64> {
         .sample_playback_session
         .as_ref()
         .and_then(|session| session.runtime_request_id)
-        .map(|id| id.get())
 }
 
 fn assert_playback_span_state(state: &NativeAppState, expected_start: f32, expected_end: f32) {

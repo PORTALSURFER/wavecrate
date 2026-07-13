@@ -1,6 +1,4 @@
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
-use rusqlite::Connection;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -44,7 +42,7 @@ fn run_decoder_worker(context: DecoderWorkerContext) {
     lower_worker_priority();
     let log_jobs = logging::analysis_log_enabled();
     let decode_queue_target = decode_queue_target.max(1);
-    let mut connections: HashMap<std::path::PathBuf, Connection> = HashMap::new();
+    let mut connections = db::AnalysisConnections::new();
     let mut wake_counter = 0u64;
     loop {
         if shutdown.load(Ordering::Relaxed) {
@@ -157,7 +155,7 @@ fn claim_next_job(
 }
 
 fn release_disallowed_job(
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
+    connections: &mut db::AnalysisConnections,
     job: &analysis_db::ClaimedJob,
 ) {
     if let Ok(conn) = db::open_connection_with_retry(connections, &job.source_root) {

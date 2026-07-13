@@ -3,7 +3,7 @@ use crate::app::controller::library::analysis_jobs::db;
 use rusqlite::params;
 
 pub(super) fn fetch_failed_backfill_jobs(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     job_type: &str,
     source_id: &str,
 ) -> Result<Vec<String>, String> {
@@ -32,7 +32,7 @@ pub(super) fn fetch_failed_backfill_jobs(
 }
 
 pub(super) fn fetch_force_backfill_jobs(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     job_type: &str,
 ) -> Result<QueuedBackfillJobs, String> {
     let mut sample_metadata = Vec::new();
@@ -81,7 +81,7 @@ pub(super) fn fetch_force_backfill_jobs(
 }
 
 pub(super) fn fetch_backfill_invalidations(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     current_version: &str,
 ) -> Result<Vec<String>, String> {
     let mut invalidate = Vec::new();
@@ -112,7 +112,7 @@ pub(super) fn fetch_backfill_invalidations(
 }
 
 pub(super) fn fetch_backfill_jobs(
-    conn: &mut rusqlite::Connection,
+    conn: &mut db::AnalysisJobSession,
     current_version: &str,
     job_type: &str,
     model_id: &str,

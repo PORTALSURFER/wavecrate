@@ -43,15 +43,13 @@ impl WaveformState {
         old_path: &std::path::Path,
         new_path: &std::path::Path,
     ) -> bool {
-        if self.file.path == old_path {
-            Arc::make_mut(&mut self.file).path = new_path.to_path_buf();
-            return true;
+        if !Arc::make_mut(&mut self.file).rewrite_path_prefix(old_path, new_path) {
+            return false;
         }
-        if let Ok(relative) = self.file.path.strip_prefix(old_path) {
-            Arc::make_mut(&mut self.file).path = new_path.join(relative);
-            return true;
-        }
-        false
+        self.detail_summary = None;
+        self.pending_detail_key = None;
+        self.failed_detail_key = None;
+        true
     }
 
     pub(in crate::native_app) fn has_loaded_sample(&self) -> bool {

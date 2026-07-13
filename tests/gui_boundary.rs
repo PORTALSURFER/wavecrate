@@ -817,6 +817,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "folder creation worker",
         ),
         (
+            "src/native_app/sample_library/context_menu_target/validation_worker.rs",
+            "context-menu target validation worker",
+        ),
+        (
             "src/native_app/sample_library/folder_browser/source_scan_cache.rs",
             "source scan cache worker",
         ),

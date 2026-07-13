@@ -1,9 +1,7 @@
 use std::time::{Duration, Instant};
 
 use super::{
-    PlaybackIntent,
-    diagnostics::PlayheadProgressSource,
-    span::{playback_span_matches_selection, retarget_offset_for_selection},
+    PlaybackIntent, diagnostics::PlayheadProgressSource, span::playback_span_matches_selection,
 };
 use crate::native_app::app::{NativeAppState, PendingPlaySelectionRetargetCycle, emit_gui_action};
 use wavecrate::audio::{AudioPlayer, PlaybackRuntimeSpanUpdate};
@@ -270,7 +268,11 @@ impl NativeAppState {
             .unwrap_or_else(|| selection.start());
         let current_inside_selection =
             current >= selection.start() && current < selection.end() - LIVE_LOOP_BOUNDARY_EPSILON;
-        let offset = retarget_offset_for_selection(current, selection);
+        let offset = if current_inside_selection {
+            current
+        } else {
+            selection.start()
+        };
         let seek_to_offset = seek_when_outside && !current_inside_selection;
         let looped = self.audio.loop_playback;
         match self.retarget_active_playback_span(
@@ -417,19 +419,21 @@ impl NativeAppState {
         let metronome = self.playback_metronome_config_for_span(start, end, offset);
         let (playback_gain, playback_gain_normalization) =
             self.runtime_playback_gain_for_span(start, end);
-        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
-            runtime
-                .try_retarget_span(PlaybackRuntimeSpanUpdate {
-                    start: f64::from(start),
-                    end: f64::from(end),
-                    offset: f64::from(offset),
-                    seek_to_offset,
-                    looped,
-                    playback_gain,
-                    playback_gain_normalization,
-                    metronome,
-                })
-                .map_err(|err| format!("submit playback retarget request: {err:?}"))?;
+        let runtime_request_id = if let Some(runtime) = self.audio.playback_runtime.as_ref() {
+            Some(
+                runtime
+                    .try_retarget_span(PlaybackRuntimeSpanUpdate {
+                        start: f64::from(start),
+                        end: f64::from(end),
+                        offset: f64::from(offset),
+                        seek_to_offset,
+                        looped,
+                        playback_gain,
+                        playback_gain_normalization,
+                        metronome,
+                    })
+                    .map_err(|err| format!("submit playback retarget request: {err:?}"))?,
+            )
         } else {
             let playback_gain = self.normalized_audition_gain_for_span(start, end);
             if let Some(player) = self.audio.player.as_mut() {
@@ -454,6 +458,13 @@ impl NativeAppState {
             } else {
                 return Err(String::from("audio player did not initialize"));
             }
+            None
+        };
+
+        if let Some(request_id) = runtime_request_id
+            && let Some(session) = self.audio.sample_playback_session.as_mut()
+        {
+            session.record_span_retarget(request_id, (start, end));
         }
 
         self.audio.current_playback_span = Some((start, end));
@@ -504,9 +515,33 @@ fn interpolate_runtime_progress_ratio(
 
 #[cfg(test)]
 mod tests {
+    use crate::native_app::app::PendingPlaySelectionRetargetCycle;
     use crate::native_app::test_support::state::NativeAppStateFixture;
     use std::time::{Duration, Instant};
     use wavecrate::audio::PlaybackRuntimeProgress;
+
+    #[test]
+    fn pending_live_retarget_uses_latest_shortened_end_as_boundary() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.pending_play_selection_retarget_cycle =
+            Some(PendingPlaySelectionRetargetCycle::new(0.80, Some(0.40)));
+
+        assert!(!state.pending_play_selection_retarget_boundary_reached(0.50, 0.55));
+        assert!(state.pending_play_selection_retarget_boundary_reached(0.545, 0.55));
+    }
+
+    #[test]
+    fn pending_live_retarget_detects_old_loop_wrap_for_moved_range() {
+        let mut state = NativeAppStateFixture::default()
+            .with_synthetic_waveform()
+            .build();
+        state.waveform.pending_play_selection_retarget_cycle =
+            Some(PendingPlaySelectionRetargetCycle::new(0.60, Some(0.59)));
+
+        assert!(state.pending_play_selection_retarget_boundary_reached(0.21, 0.80));
+    }
 
     #[test]
     fn runtime_waveform_progress_interpolates_between_snapshots() {

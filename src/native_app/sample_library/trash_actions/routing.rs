@@ -1,6 +1,9 @@
 use std::{path::PathBuf, time::Instant};
 
-use super::movement::{move_path_to_configured_trash, move_paths_to_configured_trash};
+use super::movement::{
+    TrashMoveOutcome, TrashMoveResult, move_path_to_configured_trash,
+    move_paths_to_configured_trash,
+};
 use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingFolderDelete, TrashMoveTarget, emit_gui_action,
     sample_path_label,
@@ -184,15 +187,17 @@ impl NativeAppState {
             {
                 let path = path.clone();
                 move |_| {
-                    move_path_to_configured_trash(&path, trash_folder.as_deref())
-                        .map(|destination| vec![destination])
+                    vec![move_path_to_configured_trash(
+                        &path,
+                        trash_folder.as_deref(),
+                    )]
                 }
             },
-            move |result| GuiMessage::TrashMoveFinished {
+            move |outcomes| GuiMessage::TrashMoveFinished {
                 target: TrashMoveTarget::Folder(path),
                 action,
                 started_at,
-                result,
+                outcomes,
             },
         );
     }
@@ -202,22 +207,31 @@ impl NativeAppState {
         target: TrashMoveTarget,
         action: &'static str,
         started_at: Instant,
-        result: Result<Vec<PathBuf>, String>,
+        outcomes: Vec<TrashMoveOutcome>,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
-        match (target, result) {
-            (TrashMoveTarget::Folder(path), Ok(moved)) => {
-                let destination = moved.first().cloned().unwrap_or_else(|| path.clone());
-                self.finish_folder_trash_move(path, destination, action, started_at);
+        match target {
+            TrashMoveTarget::Folder(path) => {
+                match outcomes.first().map(|outcome| &outcome.result) {
+                    Some(TrashMoveResult::Moved { destination }) => {
+                        self.finish_folder_trash_move(path, destination.clone(), action, started_at)
+                    }
+                    Some(TrashMoveResult::Missing) => {
+                        self.finish_folder_trash_move_missing(path, action, started_at);
+                    }
+                    Some(TrashMoveResult::Failed { error }) => {
+                        self.finish_trash_move_error(Some(path), action, started_at, error.clone())
+                    }
+                    None => self.finish_trash_move_error(
+                        Some(path),
+                        action,
+                        started_at,
+                        String::from("Trash move produced no outcome"),
+                    ),
+                }
             }
-            (TrashMoveTarget::Files(paths), Ok(moved)) => {
-                self.finish_file_trash_move(paths, moved.len(), action, started_at, context);
-            }
-            (TrashMoveTarget::Folder(path), Err(error)) => {
-                self.finish_folder_trash_move_error(path, action, started_at, error);
-            }
-            (TrashMoveTarget::Files(_), Err(error)) => {
-                self.finish_trash_move_error(None, action, started_at, error);
+            TrashMoveTarget::Files(_) => {
+                self.finish_file_trash_move(outcomes, action, started_at, context);
             }
         }
     }
@@ -246,24 +260,57 @@ impl NativeAppState {
 
     fn finish_file_trash_move(
         &mut self,
-        paths: Vec<PathBuf>,
-        moved_count: usize,
+        outcomes: Vec<TrashMoveOutcome>,
         action: &'static str,
         started_at: Instant,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
+        let reconciled_paths = outcomes
+            .iter()
+            .filter(|outcome| {
+                matches!(
+                    outcome.result,
+                    TrashMoveResult::Moved { .. } | TrashMoveResult::Missing
+                )
+            })
+            .map(|outcome| outcome.source.clone())
+            .collect::<Vec<_>>();
+        let moved_count = outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome.result, TrashMoveResult::Moved { .. }))
+            .count();
+        let missing_count = outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome.result, TrashMoveResult::Missing))
+            .count();
+        let failed_paths = outcomes
+            .iter()
+            .filter(|outcome| matches!(outcome.result, TrashMoveResult::Failed { .. }))
+            .map(|outcome| outcome.source.clone())
+            .collect::<Vec<_>>();
+        let failures = outcomes
+            .iter()
+            .filter_map(|outcome| match &outcome.result {
+                TrashMoveResult::Failed { error } => Some(error.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         let previous_selected = self
             .library
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
-        let loaded_removed = paths
+        let loaded_removed = reconciled_paths
             .iter()
             .any(|path| self.waveform.current.path() == path.as_path());
         let discarded = self
             .library
             .folder_browser
-            .discard_trashed_file_paths_matching_tags(&paths, &self.metadata.tags_by_file);
+            .discard_trashed_file_paths_matching_tags_preserving_selection(
+                &reconciled_paths,
+                &self.metadata.tags_by_file,
+                &failed_paths,
+            );
         let selected_after_trash = if discarded {
             self.library
                 .folder_browser
@@ -274,7 +321,7 @@ impl NativeAppState {
         };
         let focus_changed =
             discarded && previous_selected.as_deref() != selected_after_trash.as_deref();
-        for path in &paths {
+        for path in &reconciled_paths {
             self.clear_loaded_sample_if_exact(path);
         }
         self.load_selected_sample_after_trash_if_needed(
@@ -283,15 +330,17 @@ impl NativeAppState {
             loaded_removed,
             context,
         );
+        let (status, outcome) =
+            trash_batch_completion(moved_count, missing_count, &failures, action);
+        self.ui.status.sample = status;
         let noun = if moved_count == 1 { "file" } else { "files" };
-        self.ui.status.sample = trash_move_finished_status(moved_count, noun, action);
         emit_gui_action(
             action,
             Some("browser"),
             Some(&format!("{moved_count} {noun}")),
-            "success",
+            outcome,
             started_at,
-            None,
+            failures.first().copied(),
         );
     }
 
@@ -329,32 +378,27 @@ impl NativeAppState {
         self.load_navigation_sample(selected, context);
     }
 
-    fn finish_folder_trash_move_error(
+    fn finish_folder_trash_move_missing(
         &mut self,
         path: PathBuf,
         action: &'static str,
         started_at: Instant,
-        error: String,
     ) {
-        if is_missing_trash_move_error(&error) {
-            self.library
-                .folder_browser
-                .discard_trashed_folder_path(&path);
-            self.clear_loaded_sample_if_path_within(&path);
-            let label = sample_path_label(&path);
-            self.ui.status.sample =
-                format!("Folder {label} no longer exists; removed it from the browser");
-            emit_gui_action(
-                action,
-                Some("folder_browser"),
-                Some(label.as_str()),
-                "reconciled",
-                started_at,
-                Some("folder missing"),
-            );
-            return;
-        }
-        self.finish_trash_move_error(Some(path), action, started_at, error);
+        self.library
+            .folder_browser
+            .discard_trashed_folder_path(&path);
+        self.clear_loaded_sample_if_path_within(&path);
+        let label = sample_path_label(&path);
+        self.ui.status.sample =
+            format!("Folder {label} no longer exists; removed it from the browser");
+        emit_gui_action(
+            action,
+            Some("folder_browser"),
+            Some(label.as_str()),
+            "reconciled",
+            started_at,
+            Some("folder missing"),
+        );
     }
 
     fn finish_trash_move_error(
@@ -407,11 +451,11 @@ impl NativeAppState {
                 let paths = paths.clone();
                 move |_| move_paths_to_configured_trash(&paths, trash_folder.as_deref())
             },
-            move |result| GuiMessage::TrashMoveFinished {
+            move |outcomes| GuiMessage::TrashMoveFinished {
                 target: TrashMoveTarget::Files(paths),
                 action,
                 started_at,
-                result,
+                outcomes,
             },
         );
     }
@@ -423,6 +467,86 @@ impl NativeAppState {
         } else {
             vec![path]
         }
+    }
+}
+
+fn trash_batch_completion(
+    moved_count: usize,
+    missing_count: usize,
+    failures: &[&str],
+    action: &str,
+) -> (String, &'static str) {
+    let noun = if moved_count == 1 { "file" } else { "files" };
+    let failure_summary = bounded_failure_summary(failures);
+    if moved_count == 0 && !failures.is_empty() {
+        return (
+            format!(
+                "Failed to move {} files to trash: {failure_summary}",
+                failures.len()
+            ),
+            "error",
+        );
+    }
+    if !failures.is_empty() {
+        return (
+            format!(
+                "Moved {moved_count} {noun} to trash; {} failed: {failure_summary}",
+                failures.len()
+            ),
+            "partial",
+        );
+    }
+    if moved_count == 0 && missing_count > 0 {
+        let noun = if missing_count == 1 { "file" } else { "files" };
+        return (
+            format!("Removed {missing_count} missing {noun} from the browser"),
+            "reconciled",
+        );
+    }
+    (
+        trash_move_finished_status(moved_count, noun, action),
+        "success",
+    )
+}
+
+fn bounded_failure_summary(failures: &[&str]) -> String {
+    const MAX_VISIBLE_FAILURES: usize = 3;
+    let mut summary = failures
+        .iter()
+        .take(MAX_VISIBLE_FAILURES)
+        .copied()
+        .collect::<Vec<_>>()
+        .join("; ");
+    let remaining = failures.len().saturating_sub(MAX_VISIBLE_FAILURES);
+    if remaining > 0 {
+        summary.push_str(&format!("; and {remaining} more"));
+    }
+    summary
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_failed_batch_reports_error_and_caps_details() {
+        let failures = ["one", "two", "three", "four", "five"];
+
+        let (status, outcome) = trash_batch_completion(0, 0, &failures, "trash");
+
+        assert_eq!(outcome, "error");
+        assert_eq!(
+            status,
+            "Failed to move 5 files to trash: one; two; three; and 2 more"
+        );
+    }
+
+    #[test]
+    fn missing_only_batch_reports_reconciliation() {
+        let (status, outcome) = trash_batch_completion(0, 2, &[], "trash");
+
+        assert_eq!(outcome, "reconciled");
+        assert_eq!(status, "Removed 2 missing files from the browser");
     }
 }
 
@@ -444,8 +568,4 @@ fn trash_move_finished_status(count: usize, noun: &str, action: &str) -> String 
         return format!("Moved {count} {noun} to trash after fourth negative rating");
     }
     format!("Moved {count} {noun} to trash")
-}
-
-fn is_missing_trash_move_error(error: &str) -> bool {
-    error.starts_with("Trash move failed: ") && error.ends_with(" is missing")
 }

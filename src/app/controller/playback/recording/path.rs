@@ -58,6 +58,7 @@ pub(crate) fn register_recording_in_browser(
     recording_path: &PathBuf,
 ) -> Result<(), String> {
     let (source, relative_path) = resolve_recording_target(controller, target, recording_path)?;
+    controller.cancel_pending_source_remap_for_mutation(&source.id);
     let (file_size, modified_ns) =
         crate::app::controller::library::wav_io::file_metadata(recording_path)?;
     let db = controller
@@ -106,7 +107,7 @@ fn ensure_recordings_source(
             SampleSource::new(root.clone())
         }
     };
-    SourceDatabase::open(&root)
+    SourceDatabase::open_for_source_write(&root)
         .map_err(|err| format!("Failed to create recordings database: {err}"))?;
     let _ = controller.cache_db(&source);
     controller.library.sources.push(source.clone());
@@ -165,7 +166,7 @@ fn source_by_id(controller: &AppController, source_id: &SourceId) -> Option<Samp
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::controller::test_support::dummy_controller;
+    use crate::app::controller::test_support::{dummy_controller, write_test_wav};
     use tempfile::tempdir;
 
     #[test]
@@ -188,5 +189,54 @@ mod tests {
         let absolute = root.path().join("subdir");
         let resolved = resolve_recording_folder(root.path(), Some(absolute)).unwrap();
         assert_eq!(resolved, PathBuf::from("subdir"));
+    }
+
+    #[test]
+    fn recording_registration_cancels_remap_before_source_db_write() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        let relative_path = PathBuf::from("recording.wav");
+        let absolute_path = source.root.join(&relative_path);
+        write_test_wav(&absolute_path, &[0.1, -0.1]);
+        let target = RecordingTarget {
+            source_id: source.id.clone(),
+            relative_path: relative_path.clone(),
+            absolute_path: absolute_path.clone(),
+            last_refresh_at: None,
+            last_file_len: 0,
+            loaded_once: false,
+        };
+        controller.runtime.source_lane.pending_remap =
+            Some(crate::app::controller::state::runtime::PendingSourceRemap {
+                request_id: 74,
+                source: source.clone(),
+                new_root: tempfile::tempdir().expect("remap target").keep(),
+                queued_at: std::time::Instant::now(),
+                canceled: false,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
+            });
+
+        register_recording_in_browser(&mut controller, Some(&target), &absolute_path)
+            .expect("recording registration");
+
+        assert!(
+            controller
+                .runtime
+                .source_lane
+                .pending_remap
+                .as_ref()
+                .is_some_and(|pending| pending.canceled)
+        );
+        assert!(
+            controller
+                .database_for(&source)
+                .expect("source db")
+                .entry_for_path(&relative_path)
+                .expect("recording query")
+                .is_some()
+        );
     }
 }

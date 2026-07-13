@@ -1,4 +1,5 @@
 use super::*;
+use rusqlite::Connection;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use tracing::warn;
 
@@ -22,7 +23,7 @@ pub(super) type DecodedBatchMap =
     HashMap<std::path::PathBuf, Vec<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>>;
 
 struct BatchProcessContext<'a> {
-    connections: &'a mut HashMap<std::path::PathBuf, Connection>,
+    connections: &'a mut db::AnalysisConnections,
     allowed_source_ids: &'a AllowedSourceIds,
     log_jobs: bool,
     settings: &'a BatchSettings,
@@ -59,7 +60,7 @@ pub(super) fn current_batch_settings(
 
 pub(super) fn process_batch(
     batch: Vec<DecodedWork>,
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
+    connections: &mut db::AnalysisConnections,
     allowed_source_ids: &AllowedSourceIds,
     log_jobs: bool,
     settings: &BatchSettings,
@@ -137,7 +138,7 @@ impl BatchProcessContext<'_> {
 
 fn run_work_item(
     work: DecodedWork,
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
+    connections: &mut db::AnalysisConnections,
     settings: &BatchSettings,
     batch_job: &mut Option<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>,
     immediate_job: &mut Option<(analysis_db::ClaimedJob, Result<(), String>)>,
@@ -214,7 +215,7 @@ fn handle_analysis_work(
 
 pub(super) fn immediate_jobs_with_decoded_batches(
     decoded_batches: DecodedBatchMap,
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
+    connections: &mut db::AnalysisConnections,
     settings: &BatchSettings,
 ) -> Vec<ImmediateJob> {
     let mut immediate_jobs = Vec::new();
@@ -233,7 +234,7 @@ pub(super) fn immediate_jobs_with_decoded_batches(
 fn run_decoded_batch(
     source_root: std::path::PathBuf,
     jobs: Vec<(analysis_db::ClaimedJob, wavecrate_analysis::AnalysisAudio)>,
-    connections: &mut HashMap<std::path::PathBuf, Connection>,
+    connections: &mut db::AnalysisConnections,
     settings: &BatchSettings,
     immediate_jobs: &mut Vec<ImmediateJob>,
 ) {

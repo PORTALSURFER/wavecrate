@@ -124,6 +124,80 @@ mod tests {
     }
 
     #[test]
+    fn manual_scan_is_blocked_while_source_remap_is_pending() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        controller.runtime.source_lane.pending_remap =
+            Some(crate::app::controller::state::runtime::PendingSourceRemap {
+                request_id: 44,
+                source: source.clone(),
+                new_root: tempfile::tempdir().expect("destination").keep(),
+                queued_at: std::time::Instant::now(),
+                canceled: false,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
+            });
+
+        controller.request_quick_sync_for_source(&source.id);
+
+        assert!(!controller.runtime.jobs.scan_in_progress());
+        assert_eq!(controller.ui.status.text, "Source remap in progress");
+    }
+
+    #[test]
+    fn canceled_source_remap_does_not_block_manual_scan() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        controller.runtime.source_lane.pending_remap =
+            Some(crate::app::controller::state::runtime::PendingSourceRemap {
+                request_id: 45,
+                source: source.clone(),
+                new_root: tempfile::tempdir().expect("destination").keep(),
+                queued_at: std::time::Instant::now(),
+                canceled: true,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
+            });
+
+        controller.request_quick_sync_for_source(&source.id);
+
+        assert!(controller.runtime.jobs.scan_in_progress());
+    }
+
+    #[test]
+    fn canceled_source_remap_does_not_block_auto_scan() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        controller.runtime.source_lane.pending_remap =
+            Some(crate::app::controller::state::runtime::PendingSourceRemap {
+                request_id: 46,
+                source: source.clone(),
+                new_root: tempfile::tempdir().expect("destination").keep(),
+                queued_at: std::time::Instant::now(),
+                canceled: true,
+                write_fence: std::sync::Arc::new(
+                    crate::app::controller::jobs::SourceRemapWriteFence::default(),
+                ),
+            });
+
+        controller.request_auto_quick_sync_for_source_if_due(&source.id, Duration::from_secs(0));
+
+        assert!(controller.runtime.jobs.scan_in_progress());
+        assert!(
+            controller
+                .runtime
+                .source_sync
+                .auto_sync_last_by_source
+                .contains_key(&source.id)
+        );
+    }
+
+    #[test]
     fn auto_quick_sync_respects_recent_internal_file_mutation_grace() {
         let (mut controller, source) = dummy_controller();
         controller.library.sources.push(source.clone());

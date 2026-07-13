@@ -23,6 +23,8 @@ impl BrowserController<'_> {
         ) {
             return Ok(());
         }
+        self.controller
+            .cancel_pending_source_remap_for_mutation(&ctx.source.id);
         if cfg!(test) {
             return self.normalize_browser_sample_sync(ctx);
         }
@@ -41,6 +43,8 @@ impl BrowserController<'_> {
             relative_path: ctx.entry.relative_path.clone(),
             absolute_path: ctx.absolute_path.clone(),
         };
+        self.controller
+            .begin_pending_file_mutation(&ctx.source.id, [ctx.entry.relative_path.clone()]);
 
         if !self
             .controller

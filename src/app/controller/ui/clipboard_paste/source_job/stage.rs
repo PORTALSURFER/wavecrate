@@ -17,13 +17,15 @@ pub(super) fn stage_source_copy(
 ) -> Result<StagedSourcePaste, Vec<String>> {
     let journal_entry = match file_ops_journal::FileOpJournalEntry::new_copy(
         prepared.op_id.clone(),
-        prepared.relative.clone(),
-        prepared.staged_relative.clone(),
-        Rating::NEUTRAL,
-        false,
-        false,
-        None,
-        None,
+        file_ops_journal::CopyJournalEntryInit {
+            target_relative: prepared.relative.clone(),
+            staged_relative: prepared.staged_relative.clone(),
+            tag: Rating::NEUTRAL,
+            looped: false,
+            locked: false,
+            last_played_at: None,
+            last_curated_at: None,
+        },
     ) {
         Ok(entry) => entry,
         Err(err) => return Err(vec![format!("Failed to stage copy journal: {err}")]),

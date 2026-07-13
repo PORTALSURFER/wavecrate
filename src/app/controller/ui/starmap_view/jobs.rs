@@ -2,7 +2,7 @@
 
 use crate::app::controller::library::similarity_prep::DEFAULT_CLUSTER_MIN_SIZE;
 
-use super::connections::open_source_db_for_id;
+use super::connections::{StarmapWriteSession, open_source_db_for_id};
 use super::*;
 
 impl AppController {
@@ -18,6 +18,10 @@ impl AppController {
             });
             return;
         };
+        if self.live_remap_blocks_starmap_job(&source_id) {
+            self.set_status("Source remap in progress", StatusTone::Info);
+            return;
+        }
         self.runtime
             .jobs
             .begin_umap_build(super::super::jobs::UmapBuildJob {
@@ -35,6 +39,13 @@ impl AppController {
             return;
         }
         let source_id = self.current_source().map(|source| source.id);
+        if source_id
+            .as_ref()
+            .is_some_and(|source_id| self.live_remap_blocks_starmap_job(source_id))
+        {
+            self.set_status("Source remap in progress", StatusTone::Info);
+            return;
+        }
         self.runtime
             .jobs
             .begin_umap_cluster_build(super::super::jobs::UmapClusterBuildJob {
@@ -44,27 +55,42 @@ impl AppController {
             });
         self.set_status_message(StatusMessage::BuildingClusters);
     }
+
+    fn live_remap_blocks_starmap_job(&self, source_id: &SourceId) -> bool {
+        self.runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| !pending.canceled && &pending.source.id == source_id)
+    }
 }
 
 pub(crate) fn run_umap_build(
     model_id: &str,
     umap_version: &str,
     source_id: &SourceId,
-) -> Result<(), String> {
-    let mut conn = open_source_db_for_id(source_id)?;
+) -> Result<super::super::jobs::StarmapWriteOutcome<()>, String> {
+    let StarmapWriteSession::Ready(mut conn) = open_source_db_for_id(source_id)? else {
+        return Ok(super::super::jobs::StarmapWriteOutcome::DeferredForFileOp);
+    };
     wavecrate_analysis::build_map_layout(&mut conn, model_id, umap_version, 0, 0.95)?;
-    Ok(())
+    Ok(super::super::jobs::StarmapWriteOutcome::Completed(()))
 }
 
 pub(crate) fn run_umap_cluster_build(
     model_id: &str,
     umap_version: &str,
     source_id: Option<&SourceId>,
-) -> Result<wavecrate_analysis::hdbscan::HdbscanStats, String> {
+) -> Result<
+    super::super::jobs::StarmapWriteOutcome<wavecrate_analysis::hdbscan::HdbscanStats>,
+    String,
+> {
     let Some(source_id) = source_id else {
         return Err("Missing source for cluster build".to_string());
     };
-    let mut conn = open_source_db_for_id(source_id)?;
+    let StarmapWriteSession::Ready(mut conn) = open_source_db_for_id(source_id)? else {
+        return Ok(super::super::jobs::StarmapWriteOutcome::DeferredForFileOp);
+    };
     let sample_id_prefix = Some(format!("{}::%", source_id.as_str()));
     wavecrate_analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
         &mut conn,
@@ -78,4 +104,5 @@ pub(crate) fn run_umap_cluster_build(
             allow_single_cluster: false,
         },
     )
+    .map(super::super::jobs::StarmapWriteOutcome::Completed)
 }

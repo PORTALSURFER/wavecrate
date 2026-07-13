@@ -124,13 +124,15 @@ pub(super) fn prepare_staged_copy(
         .map_err(|err| format!("Failed to build staging path: {err}"))?;
     let journal_entry = file_ops_journal::FileOpJournalEntry::new_copy(
         op_id.clone(),
-        target_relative.to_path_buf(),
-        staged_relative.clone(),
-        metadata.tag,
-        metadata.looped,
-        metadata.locked,
-        metadata.last_played_at,
-        metadata.last_curated_at,
+        file_ops_journal::CopyJournalEntryInit {
+            target_relative: target_relative.to_path_buf(),
+            staged_relative: staged_relative.clone(),
+            tag: metadata.tag,
+            looped: metadata.looped,
+            locked: metadata.locked,
+            last_played_at: metadata.last_played_at,
+            last_curated_at: metadata.last_curated_at,
+        },
     )
     .map_err(|err| format!("Failed to stage copy journal: {err}"))?;
     file_ops_journal::insert_entry(journal_db, &journal_entry)

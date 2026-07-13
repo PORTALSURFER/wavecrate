@@ -2,11 +2,23 @@
 
 use super::*;
 use crate::app::controller::AppController;
+use crate::app::controller::library::source_write_priority;
 
 impl ControllerJobs {
     /// Return whether deferred source DB maintenance is currently running.
     pub(in super::super) fn source_db_maintenance_in_progress(&self) -> bool {
         self.in_progress.source_db_maintenance
+    }
+
+    /// Return whether deferred maintenance currently owns `source_id`.
+    pub(in super::super) fn source_db_maintenance_in_progress_for(
+        &self,
+        source_id: &SourceId,
+    ) -> bool {
+        self.in_progress.source_db_maintenance
+            && self
+                .active_source_db_maintenance_sources
+                .contains(source_id)
     }
 
     /// Run startup-deferred source DB maintenance in the background.
@@ -18,6 +30,8 @@ impl ControllerJobs {
             return;
         }
         self.in_progress.source_db_maintenance = true;
+        self.active_source_db_maintenance_sources =
+            jobs.iter().map(|job| job.source_id.clone()).collect();
         self.spawn_one_shot_job(
             true,
             move || {
@@ -34,6 +48,7 @@ impl ControllerJobs {
     /// Clear the in-progress state for deferred source DB maintenance.
     pub(in super::super) fn clear_source_db_maintenance(&mut self) {
         self.in_progress.source_db_maintenance = false;
+        self.active_source_db_maintenance_sources.clear();
     }
 
     /// Return whether an update-check request is currently running.
@@ -48,12 +63,29 @@ impl ControllerJobs {
 
     /// Return whether a UMAP build is currently running.
     pub(in super::super) fn umap_build_in_progress(&self) -> bool {
-        self.in_progress.umap_build
+        self.in_progress.umap_build || self.pending_umap_build.is_some()
+    }
+
+    /// Return whether the active UMAP layout build belongs to `source_id`.
+    pub(in super::super) fn umap_build_in_progress_for(&self, source_id: &SourceId) -> bool {
+        self.in_progress.umap_build && self.active_umap_build_source.as_ref() == Some(source_id)
     }
 
     /// Return whether a UMAP cluster build is currently running.
     pub(in super::super) fn umap_cluster_build_in_progress(&self) -> bool {
+        self.in_progress.umap_cluster_build || self.pending_umap_cluster_build.is_some()
+    }
+
+    /// Return whether the active UMAP cluster build can write `source_id`.
+    pub(in super::super) fn umap_cluster_build_in_progress_for(
+        &self,
+        source_id: &SourceId,
+    ) -> bool {
         self.in_progress.umap_cluster_build
+            && self
+                .active_umap_cluster_build_source
+                .as_ref()
+                .is_none_or(|active_source| active_source == source_id)
     }
 
     /// Start one UMAP build if no existing build is active.
@@ -61,7 +93,9 @@ impl ControllerJobs {
         if self.in_progress.umap_build {
             return;
         }
+        self.pending_umap_build = None;
         self.in_progress.umap_build = true;
+        self.active_umap_build_source = Some(job.source_id.clone());
         self.spawn_one_shot_job(
             true,
             move || {
@@ -70,10 +104,7 @@ impl ControllerJobs {
                     &job.umap_version,
                     &job.source_id,
                 );
-                UmapBuildResult {
-                    umap_version: job.umap_version,
-                    result,
-                }
+                UmapBuildResult { job, result }
             },
             JobMessage::UmapBuilt,
         );
@@ -82,6 +113,12 @@ impl ControllerJobs {
     /// Clear UMAP build in-progress state.
     pub(in super::super) fn clear_umap_build(&mut self) {
         self.in_progress.umap_build = false;
+        self.active_umap_build_source = None;
+    }
+
+    /// Retain a layout build that yielded to a same-source file operation.
+    pub(in super::super) fn defer_umap_build(&mut self, job: UmapBuildJob) {
+        self.pending_umap_build = Some(job);
     }
 
     /// Start one UMAP cluster build if no existing build is active.
@@ -89,7 +126,9 @@ impl ControllerJobs {
         if self.in_progress.umap_cluster_build {
             return;
         }
+        self.pending_umap_cluster_build = None;
         self.in_progress.umap_cluster_build = true;
+        self.active_umap_cluster_build_source = job.source_id.clone();
         self.spawn_one_shot_job(
             true,
             move || {
@@ -98,10 +137,7 @@ impl ControllerJobs {
                     &job.umap_version,
                     job.source_id.as_ref(),
                 );
-                UmapClusterBuildResult {
-                    source_id: job.source_id,
-                    result,
-                }
+                UmapClusterBuildResult { job, result }
             },
             JobMessage::UmapClustersBuilt,
         );
@@ -110,6 +146,58 @@ impl ControllerJobs {
     /// Clear UMAP cluster build in-progress state.
     pub(in super::super) fn clear_umap_cluster_build(&mut self) {
         self.in_progress.umap_cluster_build = false;
+        self.active_umap_cluster_build_source = None;
+    }
+
+    /// Retain a cluster build that yielded to a same-source file operation.
+    pub(in super::super) fn defer_umap_cluster_build(&mut self, job: UmapClusterBuildJob) {
+        self.pending_umap_cluster_build = Some(job);
+    }
+
+    /// Resume Starmap writes whose source-local file-op priority window cleared.
+    pub(in super::super) fn resume_deferred_starmap_writes(&mut self) {
+        if let Some(job) = self.take_ready_deferred_umap_build() {
+            self.begin_umap_build(job);
+        }
+        if let Some(job) = self.take_ready_deferred_umap_cluster_build() {
+            self.begin_umap_cluster_build(job);
+        }
+    }
+
+    fn take_ready_deferred_umap_build(&mut self) -> Option<UmapBuildJob> {
+        if self.in_progress.umap_build
+            || self.pending_umap_build.as_ref().is_some_and(|job| {
+                source_write_priority::file_op_write_priority_active(&job.source_id)
+            })
+        {
+            return None;
+        }
+        self.pending_umap_build.take()
+    }
+
+    fn take_ready_deferred_umap_cluster_build(&mut self) -> Option<UmapClusterBuildJob> {
+        if self.in_progress.umap_cluster_build
+            || self
+                .pending_umap_cluster_build
+                .as_ref()
+                .and_then(|job| job.source_id.as_ref())
+                .is_some_and(source_write_priority::file_op_write_priority_active)
+        {
+            return None;
+        }
+        self.pending_umap_cluster_build.take()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_ready_deferred_umap_build_for_tests(&mut self) -> Option<UmapBuildJob> {
+        self.take_ready_deferred_umap_build()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_ready_deferred_umap_cluster_build_for_tests(
+        &mut self,
+    ) -> Option<UmapClusterBuildJob> {
+        self.take_ready_deferred_umap_cluster_build()
     }
 
     /// Start one update check if no existing check is active.
@@ -147,7 +235,9 @@ impl ControllerJobs {
     }
 
     /// Start one non-blocking selection-export job.
-    pub(in super::super) fn begin_selection_export(&self, job: SelectionExportJob) {
+    pub(in super::super) fn begin_selection_export(&mut self, job: SelectionExportJob) {
+        self.active_selection_export_sources
+            .insert(job.request_id(), job.destination_source_id().clone());
         self.spawn_one_shot_job(
             true,
             move || {
@@ -158,7 +248,9 @@ impl ControllerJobs {
     }
 
     /// Start one streamed background slice-batch export job.
-    pub(in super::super) fn begin_selection_slice_batch_export(&self, job: SelectionExportJob) {
+    pub(in super::super) fn begin_selection_slice_batch_export(&mut self, job: SelectionExportJob) {
+        self.active_selection_export_sources
+            .insert(job.request_id(), job.destination_source_id().clone());
         let (tx, rx) = std::sync::mpsc::channel();
         self.start_progress_stream(
             rx,
@@ -168,6 +260,18 @@ impl ControllerJobs {
         thread::spawn(move || {
             crate::app::controller::library::selection_export::run_slice_batch_export_job(job, &tx);
         });
+    }
+
+    /// Return whether a selection export still owns writes for one source.
+    pub(in super::super) fn selection_export_in_progress_for(&self, source_id: &SourceId) -> bool {
+        self.active_selection_export_sources
+            .values()
+            .any(|active_source_id| active_source_id == source_id)
+    }
+
+    /// Release source-write ownership for a completed selection export.
+    pub(in super::super) fn finish_selection_export(&mut self, request_id: u64) {
+        self.active_selection_export_sources.remove(&request_id);
     }
 
     /// Start a one-shot audio normalization job.
