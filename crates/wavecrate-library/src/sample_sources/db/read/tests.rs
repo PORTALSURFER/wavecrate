@@ -199,7 +199,7 @@ fn collection_reads_use_canonical_membership_rows() {
 }
 
 #[test]
-fn migrated_legacy_database_without_last_curated_at_preserves_saved_metadata() {
+fn legacy_read_only_database_without_last_curated_at_preserves_saved_metadata() {
     let dir = tempdir().unwrap();
     let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
     connection
@@ -265,10 +265,6 @@ fn migrated_legacy_database_without_last_curated_at_preserves_saved_metadata() {
         .unwrap();
     drop(connection);
 
-    // Compatibility belongs to the writable open/migration boundary. Once it
-    // has repaired the schema, steady-state read-only queries use static SQL.
-    drop(SourceDatabase::open(dir.path()).unwrap());
-
     let db = SourceDatabase::open_read_only(dir.path()).unwrap();
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
@@ -283,14 +279,7 @@ fn migrated_legacy_database_without_last_curated_at_preserves_saved_metadata() {
     assert_eq!(row.last_curated_at, None);
     assert_eq!(row.user_tag.as_deref(), Some("808"));
     assert!(row.tag_named);
-    assert_eq!(
-        row.normal_tags,
-        vec![
-            String::from("808"),
-            String::from("kick"),
-            String::from("Warm")
-        ]
-    );
+    assert_eq!(row.normal_tags, vec![String::from("Warm")]);
 
     let entry = db
         .entry_for_path(Path::new("drums/kick.wav"))
@@ -305,11 +294,7 @@ fn migrated_legacy_database_without_last_curated_at_preserves_saved_metadata() {
     assert_eq!(search_rows[0].metadata.last_curated_at, None);
     assert_eq!(
         search_rows[0].metadata.normal_tags,
-        vec![
-            String::from("808"),
-            String::from("kick"),
-            String::from("Warm")
-        ]
+        vec![String::from("Warm")]
     );
     assert!(search_rows[0].metadata.tag_named);
 

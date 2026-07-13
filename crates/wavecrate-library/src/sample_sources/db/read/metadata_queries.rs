@@ -7,6 +7,7 @@ use super::super::{
     META_WAV_PATHS_REVISION, Rating, SampleCollection, SampleSoundType, SourceDatabase,
     SourceDbError,
 };
+use super::decode::wav_file_has_column;
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
     if !crate::sample_sources::is_supported_audio(path) {
@@ -163,6 +164,9 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(None);
         };
+        if !wav_file_has_column(self, "last_curated_at")? {
+            return Ok(None);
+        }
         let value: Option<i64> = self
             .connection
             .query_row(
