@@ -1,6 +1,6 @@
 //! Connection helpers for map-view queries and background layout jobs.
 
-use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::library::{analysis_jobs, source_write_priority};
 use rusqlite::Connection;
 
 use super::*;
@@ -45,6 +45,9 @@ pub(super) fn open_cached_source_db<'a>(
 pub(super) fn open_source_db_for_id(
     source_id: &SourceId,
 ) -> Result<analysis_jobs::AnalysisJobSession, String> {
+    if source_write_priority::file_op_write_priority_active(source_id) {
+        return Err("Starmap write deferred while a source file operation is active".to_string());
+    }
     let state = crate::sample_sources::library::load().map_err(|err| err.to_string())?;
     let source = state
         .sources
@@ -52,4 +55,46 @@ pub(super) fn open_source_db_for_id(
         .find(|source| &source.id == source_id)
         .ok_or_else(|| "Source not found".to_string())?;
     analysis_jobs::open_source_db(&source.root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::library::source_write_priority::FileOpWritePriorityGuard;
+    use tempfile::TempDir;
+
+    #[test]
+    fn writable_starmap_session_defers_during_same_source_file_op() {
+        let config_dir = TempDir::new().expect("create config dir");
+        let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
+        let source_dir = TempDir::new().expect("create source dir");
+        let source = crate::sample_sources::SampleSource::new(source_dir.path().to_path_buf());
+        crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+        crate::sample_sources::library::save(&crate::sample_sources::library::LibraryState {
+            sources: vec![source.clone()],
+        })
+        .expect("save source library");
+        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+
+        {
+            let _guard = FileOpWritePriorityGuard::new(&source.id);
+            let err = open_source_db_for_id(&source.id)
+                .err()
+                .expect("Starmap writer should defer during a same-source file op");
+
+            assert!(err.contains("Starmap write deferred"));
+            assert_eq!(
+                crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+                0,
+                "Starmap writer must not open the source DB during file-op priority"
+            );
+        }
+
+        let _session = open_source_db_for_id(&source.id)
+            .expect("Starmap writer should open after file-op priority clears");
+        assert_eq!(
+            crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+            1
+        );
+    }
 }
