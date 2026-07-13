@@ -90,7 +90,7 @@ impl SourceScanWorkflow {
             if let Some(source_id) = browser.source_id_for_root_path(&root) {
                 let _ = self.begin_select_source(browser, source_id, task_id);
             } else if let Some(source_id) = browser.defer_add_source_path(root, true) {
-                self.queue_required_refresh(source_id);
+                self.queue_selected_required_refresh(source_id);
             }
             return None;
         }
@@ -268,6 +268,10 @@ impl SourceScanWorkflow {
 
     fn queue_required_refresh(&mut self, source_id: String) {
         self.queue_pending_refresh(source_id, false, true);
+    }
+
+    fn queue_selected_required_refresh(&mut self, source_id: String) {
+        self.queue_pending_refresh(source_id, true, true);
     }
 
     fn queue_pending_refresh(

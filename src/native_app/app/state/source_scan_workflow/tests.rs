@@ -472,6 +472,8 @@ fn new_source_add_is_registered_and_deferred_during_active_scan() {
         .source_id_for_root_path(second.path())
         .expect("deferred source registered");
     assert!(workflow.pending_refresh_contains_for_tests(&deferred_id));
+    let watcher_source = String::from("newer-watcher-source");
+    workflow.queue_required_refresh(watcher_source.clone());
 
     let result = scan_source_with_progress(active, |_| {}, |_| {});
     assert!(matches!(
@@ -481,6 +483,10 @@ fn new_source_add_is_registered_and_deferred_during_active_scan() {
     assert_eq!(
         workflow.next_pending_refresh_if_idle(),
         Some(deferred_id.clone())
+    );
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(watcher_source)
     );
     assert!(matches!(
         workflow.begin_filesystem_refresh(&mut browser, deferred_id, 102),
