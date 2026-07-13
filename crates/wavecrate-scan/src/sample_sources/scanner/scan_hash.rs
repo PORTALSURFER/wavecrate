@@ -310,29 +310,10 @@ fn apply_deep_rename(
         present_entry.file_size,
         present_entry.modified_ns,
         hash,
-        pending_entry.tag,
+        pending_entry.metadata.tag,
         false,
     )?;
-    if pending_entry.looped {
-        batch.set_looped(&present_entry.relative_path, pending_entry.looped)?;
-    }
-    if pending_entry.sound_type.is_some() {
-        batch.set_sound_type(&present_entry.relative_path, pending_entry.sound_type)?;
-    }
-    if pending_entry.locked {
-        batch.set_locked(&present_entry.relative_path, pending_entry.locked)?;
-    }
-    if let Some(last_played_at) = pending_entry.last_played_at {
-        batch.set_last_played_at(&present_entry.relative_path, last_played_at)?;
-    }
-    if pending_entry.user_tag.is_some() {
-        batch.set_user_tag(
-            &present_entry.relative_path,
-            pending_entry.user_tag.as_deref(),
-        )?;
-    }
-    batch.set_tag_named(&present_entry.relative_path, pending_entry.tag_named)?;
-    batch.replace_tags_for_path(&present_entry.relative_path, &pending_entry.normal_tags)?;
+    batch.restore_rename_metadata(&present_entry.relative_path, &pending_entry.metadata)?;
     batch.remap_analysis_sample_identity(
         &pending_entry.relative_path,
         &present_entry.relative_path,

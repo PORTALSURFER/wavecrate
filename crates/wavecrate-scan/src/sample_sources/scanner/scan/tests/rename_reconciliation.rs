@@ -1,5 +1,5 @@
 use super::*;
-use crate::sample_sources::db::SampleSoundType;
+use crate::sample_sources::db::{SampleCollection, SampleSoundType};
 use crate::sync_paths;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -24,6 +24,21 @@ fn scan_detects_rename_and_preserves_tag() {
         .unwrap();
     db.assign_tag_to_path(Path::new("one.wav"), "Analog Kick")
         .unwrap();
+    let historical_curation = 1_650_000_123;
+    let expected_collections = [
+        SampleCollection::new(1).unwrap(),
+        SampleCollection::new(4).unwrap(),
+    ];
+    let mut batch = db.write_batch().unwrap();
+    for collection in expected_collections {
+        batch
+            .add_collection(Path::new("one.wav"), collection)
+            .unwrap();
+    }
+    batch
+        .set_last_curated_at(Path::new("one.wav"), historical_curation)
+        .unwrap();
+    batch.commit().unwrap();
     insert_analysis_artifacts(dir.path(), "source::one.wav", "one.wav");
 
     std::fs::rename(&first_path, &second_path).unwrap();
@@ -41,6 +56,11 @@ fn scan_detects_rename_and_preserves_tag() {
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Kick));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Vintage FX"));
     assert_eq!(rows[0].normal_tags, vec!["Analog Kick"]);
+    assert_eq!(rows[0].last_curated_at, Some(historical_curation));
+    assert_eq!(
+        db.collections_for_path(Path::new("two.wav")).unwrap(),
+        expected_collections
+    );
     assert!(!rows[0].missing);
     assert_eq!(
         sample_id_count(dir.path(), "features", "source::one.wav"),
@@ -53,6 +73,31 @@ fn scan_detects_rename_and_preserves_tag() {
     assert_eq!(
         analysis_job_relative_path(dir.path(), "source::two.wav"),
         "two.wav"
+    );
+}
+
+#[test]
+fn scan_detected_rename_preserves_unset_curation_timestamp() {
+    let dir = tempdir().unwrap();
+    let old_path = dir.path().join("old.wav");
+    let new_path = dir.path().join("new.wav");
+    std::fs::write(&old_path, b"same sample").unwrap();
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    db.clear_last_curated_at(Path::new("old.wav")).unwrap();
+
+    std::fs::rename(old_path, new_path).unwrap();
+    let stats = scan_once(&db).unwrap();
+
+    assert_eq!(stats.renames_reconciled, 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .last_curated_at,
+        None
     );
 }
 
@@ -109,7 +154,7 @@ fn pending_rename_staging_refreshes_metadata_changed_during_discovery() {
         .iter()
         .find(|entry| entry.relative_path == Path::new("removed.wav"))
         .expect("removed path must be staged");
-    assert_eq!(removed.tag, Rating::KEEP_1);
+    assert_eq!(removed.metadata.tag, Rating::KEEP_1);
 }
 
 #[test]
@@ -191,6 +236,21 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
         .unwrap();
     db.assign_tag_to_path(Path::new("one.wav"), "Night Pad")
         .unwrap();
+    let historical_curation = 1_640_000_456;
+    let expected_collections = [
+        SampleCollection::new(0).unwrap(),
+        SampleCollection::new(5).unwrap(),
+    ];
+    let mut batch = db.write_batch().unwrap();
+    for collection in expected_collections {
+        batch
+            .add_collection(Path::new("one.wav"), collection)
+            .unwrap();
+    }
+    batch
+        .set_last_curated_at(Path::new("one.wav"), historical_curation)
+        .unwrap();
+    batch.commit().unwrap();
     insert_analysis_artifacts(dir.path(), "source::one.wav", "one.wav");
 
     std::fs::rename(&first_path, &second_path).unwrap();
@@ -237,6 +297,11 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Texture));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Night Pad"));
     assert_eq!(rows[0].normal_tags, vec!["Night Pad"]);
+    assert_eq!(rows[0].last_curated_at, Some(historical_curation));
+    assert_eq!(
+        db.collections_for_path(Path::new("two.wav")).unwrap(),
+        expected_collections
+    );
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_some());
     assert!(db.list_pending_renames().unwrap().is_empty());
@@ -439,8 +504,8 @@ fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
     let pending = db.list_pending_renames().unwrap();
     assert!(pending.iter().any(|entry| {
         entry.relative_path == Path::new("old.wav")
-            && entry.tag == Rating::KEEP_1
-            && entry.user_tag.as_deref() == Some("Must stay pending")
+            && entry.metadata.tag == Rating::KEEP_1
+            && entry.metadata.user_tag.as_deref() == Some("Must stay pending")
     }));
     assert_eq!(
         sample_id_count(dir.path(), "features", "source::old.wav"),
@@ -487,9 +552,15 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
 
     let pending_before_deep = db.list_pending_renames().unwrap();
     assert_eq!(pending_before_deep.len(), 1);
-    assert_eq!(pending_before_deep[0].sound_type, Some(SampleSoundType::Fx));
-    assert_eq!(pending_before_deep[0].user_tag.as_deref(), Some("Sweep"));
-    assert_eq!(pending_before_deep[0].normal_tags, vec!["Sweep"]);
+    assert_eq!(
+        pending_before_deep[0].metadata.sound_type,
+        Some(SampleSoundType::Fx)
+    );
+    assert_eq!(
+        pending_before_deep[0].metadata.user_tag.as_deref(),
+        Some("Sweep")
+    );
+    assert_eq!(pending_before_deep[0].metadata.normal_tags, vec!["Sweep"]);
 
     let deep_stats = crate::sample_sources::scanner::scan_hash::deep_hash_scan(
         &db,
@@ -892,9 +963,9 @@ fn quick_scan_avoids_ambiguous_large_rename() {
     assert_eq!(rows[0].tag, Rating::NEUTRAL);
     let pending = db.list_pending_renames().unwrap();
     assert_eq!(pending.len(), 2);
-    assert!(pending
-        .iter()
-        .any(|entry| entry.relative_path == Path::new("one.wav") && entry.tag == Rating::KEEP_1));
+    assert!(pending.iter().any(|entry| {
+        entry.relative_path == Path::new("one.wav") && entry.metadata.tag == Rating::KEEP_1
+    }));
 }
 
 fn insert_analysis_artifacts(root: &Path, sample_id: &str, relative_path: &str) {

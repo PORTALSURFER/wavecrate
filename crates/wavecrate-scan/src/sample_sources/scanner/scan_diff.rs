@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
+use crate::sample_sources::db::{RenameMetadataSnapshot, SourceWriteBatch, WavEntry};
 
 use super::scan::{
     ChangedSample, RenamedSample, ScanContext, ScanError, ScanMode, ScanStats, UpdatedSample,
@@ -121,7 +121,15 @@ pub(super) fn apply_diff(
                     &hash,
                 )? {
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, Some(&hash), entry, None)?;
+                    let metadata = batch.snapshot_rename_metadata(&entry.relative_path)?;
+                    apply_rename(
+                        batch,
+                        &path,
+                        &facts,
+                        Some(&hash),
+                        &old_relative_path,
+                        &metadata,
+                    )?;
                     batch.set_file_identity(&path, facts.file_identity.as_deref())?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
@@ -135,10 +143,15 @@ pub(super) fn apply_diff(
                     return Ok(());
                 }
                 if let Some(entry) = batch.take_pending_rename_by_hash(&hash)? {
-                    let normal_tags = entry.normal_tags.clone();
-                    let entry = entry.into_wav_entry();
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, Some(&hash), entry, Some(&normal_tags))?;
+                    apply_rename(
+                        batch,
+                        &path,
+                        &facts,
+                        Some(&hash),
+                        &old_relative_path,
+                        &entry.metadata,
+                    )?;
                     batch.set_file_identity(&path, facts.file_identity.as_deref())?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
@@ -177,10 +190,15 @@ pub(super) fn apply_diff(
                         facts.modified_ns,
                     )?
                 {
-                    let normal_tags = entry.normal_tags.clone();
-                    let entry = entry.into_wav_entry();
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, None, entry, Some(&normal_tags))?;
+                    apply_rename(
+                        batch,
+                        &path,
+                        &facts,
+                        None,
+                        &old_relative_path,
+                        &entry.metadata,
+                    )?;
                     batch.set_file_identity(&path, Some(file_identity))?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
@@ -240,8 +258,8 @@ fn apply_rename(
     new_path: &Path,
     facts: &FileFacts,
     hash: Option<&str>,
-    entry: WavEntry,
-    retained_normal_tags: Option<&[String]>,
+    old_path: &Path,
+    metadata: &RenameMetadataSnapshot,
 ) -> Result<(), ScanError> {
     if let Some(hash) = hash {
         batch.upsert_file_with_hash_and_tag(
@@ -249,7 +267,7 @@ fn apply_rename(
             facts.size,
             facts.modified_ns,
             hash,
-            entry.tag,
+            metadata.tag,
             false,
         )?;
     } else {
@@ -257,33 +275,13 @@ fn apply_rename(
             new_path,
             facts.size,
             facts.modified_ns,
-            entry.tag,
+            metadata.tag,
             false,
         )?;
     }
-    if entry.looped {
-        batch.set_looped(new_path, entry.looped)?;
-    }
-    if entry.sound_type.is_some() {
-        batch.set_sound_type(new_path, entry.sound_type)?;
-    }
-    if entry.locked {
-        batch.set_locked(new_path, entry.locked)?;
-    }
-    if let Some(last_played_at) = entry.last_played_at {
-        batch.set_last_played_at(new_path, last_played_at)?;
-    }
-    if entry.user_tag.is_some() {
-        batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
-    }
-    batch.set_tag_named(new_path, entry.tag_named)?;
-    if let Some(normal_tags) = retained_normal_tags {
-        batch.replace_tags_for_path(new_path, normal_tags)?;
-    } else {
-        batch.copy_tags_between_paths(&entry.relative_path, new_path)?;
-    }
-    batch.remove_file(&entry.relative_path)?;
-    batch.remap_analysis_sample_identity(&entry.relative_path, new_path)?;
+    batch.restore_rename_metadata(new_path, metadata)?;
+    batch.remove_file(old_path)?;
+    batch.remap_analysis_sample_identity(old_path, new_path)?;
     Ok(())
 }
 

@@ -14,6 +14,7 @@ mod pending_renames;
 /// Read-only database queries for sample sources.
 pub mod read;
 mod rename_destinations;
+mod rename_metadata;
 /// SQLite schema management for sample source databases.
 pub mod schema;
 /// Durable per-source tag catalog and sample assignment helpers.
@@ -39,6 +40,7 @@ pub use open::{test_reset_source_db_open_total_count, test_source_db_open_total_
 pub use open_profiles::SourceDatabaseConnectionRole;
 /// Metadata retained for a pruned row so later scans can recover rename state.
 pub use pending_renames::PendingRenameEntry;
+pub use rename_metadata::RenameMetadataSnapshot;
 pub use types::{Rating, SampleCollection, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
 pub use util::normalize_relative_path;
 pub use write::{

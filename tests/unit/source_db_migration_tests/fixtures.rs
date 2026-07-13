@@ -228,6 +228,7 @@ pub(super) const SOURCE_DB_SCHEMA_CONTRACT: &[TableContract] = &[
             "user_tag",
             "normal_tags",
             "collection",
+            "collections",
             "tag_named",
         ],
     },

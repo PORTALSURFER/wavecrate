@@ -4,23 +4,23 @@ use rusqlite::{OptionalExtension, params};
 
 use super::util::{map_sql_error, normalize_relative_path, parse_relative_path_from_db};
 use super::{
-    Rating, SampleCollection, SampleSoundType, SourceDatabase, SourceDbError, SourceWriteBatch,
-    WavEntry,
+    Rating, RenameMetadataSnapshot, SampleCollection, SampleSoundType, SourceDatabase,
+    SourceDbError, SourceWriteBatch, WavEntry,
 };
 
 const DELETE_PENDING_RENAME_SQL: &str = "DELETE FROM pending_wav_renames WHERE path = ?1";
 const TAKE_PENDING_RENAME_BY_HASH_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, collections, tag_named, file_identity
      FROM pending_wav_renames
      WHERE content_hash = ?1
      LIMIT 2";
 const TAKE_PENDING_RENAME_BY_FILE_IDENTITY_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, collections, tag_named, file_identity
      FROM pending_wav_renames
      WHERE file_identity = ?1 AND file_size = ?2 AND modified_ns = ?3
      LIMIT 2";
 const TAKE_PENDING_RENAME_BY_FACTS_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, collections, tag_named, file_identity
      FROM pending_wav_renames
      WHERE file_size = ?1 AND modified_ns = ?2
      LIMIT 2";
@@ -39,48 +39,8 @@ pub struct PendingRenameEntry {
     pub content_hash: Option<String>,
     /// Stable filesystem-object identity captured before pruning, when supported.
     pub file_identity: Option<String>,
-    /// Current rating/tag for the file.
-    pub tag: Rating,
-    /// Whether the sample was marked looped.
-    pub looped: bool,
-    /// Last known canonical sound classification, if present.
-    pub sound_type: Option<SampleSoundType>,
-    /// Whether the sample was marked locked.
-    pub locked: bool,
-    /// Epoch seconds of the most recent playback, if available.
-    pub last_played_at: Option<i64>,
-    /// Epoch seconds of the most recent explicit curation decision, if available.
-    pub last_curated_at: Option<i64>,
-    /// Last known user-authored custom tag, if present.
-    pub user_tag: Option<String>,
-    /// Last known normal library tag labels assigned to this sample.
-    pub normal_tags: Vec<String>,
-    /// Last known fixed collection slot assigned to this sample.
-    pub collection: Option<SampleCollection>,
-    /// Whether the sample filename was known to be tag-derived.
-    pub tag_named: bool,
-}
-
-impl PendingRenameEntry {
-    /// Convert the retained metadata back into a wav-entry snapshot.
-    pub fn into_wav_entry(self) -> WavEntry {
-        WavEntry {
-            relative_path: self.relative_path,
-            file_size: self.file_size,
-            modified_ns: self.modified_ns,
-            content_hash: self.content_hash,
-            tag: self.tag,
-            looped: self.looped,
-            sound_type: self.sound_type,
-            locked: self.locked,
-            missing: false,
-            last_played_at: self.last_played_at,
-            last_curated_at: self.last_curated_at,
-            user_tag: self.user_tag,
-            normal_tags: self.normal_tags,
-            tag_named: self.tag_named,
-        }
-    }
+    /// Complete user metadata restored when the rename is reconciled.
+    pub metadata: RenameMetadataSnapshot,
 }
 
 impl SourceDatabase {
@@ -115,22 +75,8 @@ impl SourceDatabase {
                     file_size,
                     modified_ns: row.get(2)?,
                     content_hash: row.get(3)?,
-                    file_identity: row.get(14)?,
-                    tag: Rating::from_i64(row.get::<_, i64>(4)?),
-                    looped: row.get::<_, i64>(5)? != 0,
-                    sound_type: row
-                        .get::<_, Option<String>>(6)?
-                        .as_deref()
-                        .and_then(SampleSoundType::from_token),
-                    locked: row.get::<_, i64>(7)? != 0,
-                    last_played_at: row.get(8)?,
-                    last_curated_at: row.get(9)?,
-                    user_tag: row.get(10)?,
-                    normal_tags: decode_normal_tags(row.get(11)?),
-                    collection: row
-                        .get::<_, Option<i64>>(12)?
-                        .and_then(SampleCollection::from_i64),
-                    tag_named: row.get::<_, i64>(13)? != 0,
+                    file_identity: row.get(15)?,
+                    metadata: metadata_from_row(row)?,
                 }))
             })
             .map_err(map_sql_error)?
@@ -159,10 +105,11 @@ fn pending_rename_list_query(
     let user_tag = optional_column("user_tag", "NULL AS user_tag");
     let normal_tags = optional_column("normal_tags", "NULL AS normal_tags");
     let collection = optional_column("collection", "NULL AS collection");
+    let collections = optional_column("collections", "NULL AS collections");
     let tag_named = optional_column("tag_named", "0 AS tag_named");
     let file_identity = optional_column("file_identity", "NULL AS file_identity");
     Ok(Some(format!(
-        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type}, locked, last_played_at, {last_curated_at}, {user_tag}, {normal_tags}, {collection}, {tag_named}, {file_identity}
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type}, locked, last_played_at, {last_curated_at}, {user_tag}, {normal_tags}, {collection}, {collections}, {tag_named}, {file_identity}
          FROM pending_wav_renames
          ORDER BY path ASC"
     )))
@@ -175,7 +122,10 @@ impl<'conn> SourceWriteBatch<'conn> {
     /// quick scan can reconcile path changes without losing user metadata.
     pub fn stage_pending_rename(&mut self, entry: &WavEntry) -> Result<(), SourceDbError> {
         let path = normalize_relative_path(&entry.relative_path)?;
-        let normal_tags = encode_normal_tags(&self.tag_labels_for_path(&entry.relative_path)?)?;
+        let metadata = self.snapshot_rename_metadata(&entry.relative_path)?;
+        let normal_tags = encode_normal_tags(&metadata.normal_tags)?;
+        let collections = encode_collections(&metadata.collections)?;
+        let legacy_collection = metadata.collections.first().copied();
         let file_identity = self
             .tx
             .query_row(
@@ -186,26 +136,11 @@ impl<'conn> SourceWriteBatch<'conn> {
             .optional()
             .map_err(map_sql_error)?
             .flatten();
-        let collection = self
-            .tx
-            .query_row(
-                "SELECT collection
-                 FROM wav_file_collections
-                 WHERE path = ?1
-                 ORDER BY collection ASC
-                 LIMIT 1",
-                params![path.as_str()],
-                |row| row.get::<_, Option<i64>>(0),
-            )
-            .optional()
-            .map_err(map_sql_error)?
-            .flatten()
-            .and_then(SampleCollection::from_i64);
         self.tx
             .prepare_cached(
                 "INSERT INTO pending_wav_renames (
-                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, collections, tag_named, file_identity
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
                  ON CONFLICT(path) DO UPDATE SET
                      file_size = excluded.file_size,
                      modified_ns = excluded.modified_ns,
@@ -219,6 +154,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                      user_tag = excluded.user_tag,
                      normal_tags = excluded.normal_tags,
                      collection = excluded.collection,
+                     collections = excluded.collections,
                      tag_named = excluded.tag_named,
                      file_identity = excluded.file_identity",
             )
@@ -228,16 +164,17 @@ impl<'conn> SourceWriteBatch<'conn> {
                 entry.file_size as i64,
                 entry.modified_ns,
                 entry.content_hash.as_deref(),
-                entry.tag.as_i64(),
-                entry.looped as i64,
-                entry.sound_type.map(SampleSoundType::token),
-                entry.locked as i64,
-                entry.last_played_at,
-                entry.last_curated_at,
-                entry.user_tag.as_deref(),
+                metadata.tag.as_i64(),
+                metadata.looped as i64,
+                metadata.sound_type.map(SampleSoundType::token),
+                metadata.locked as i64,
+                metadata.last_played_at,
+                metadata.last_curated_at,
+                metadata.user_tag.as_deref(),
                 normal_tags.as_deref(),
-                collection.map(SampleCollection::as_i64),
-                entry.tag_named as i64,
+                legacy_collection.map(SampleCollection::as_i64),
+                collections.as_deref(),
+                metadata.tag_named as i64,
                 file_identity,
             ])
             .map_err(map_sql_error)?;
@@ -339,22 +276,8 @@ impl<'conn> SourceWriteBatch<'conn> {
                     file_size,
                     modified_ns: row.get(2)?,
                     content_hash: row.get(3)?,
-                    file_identity: row.get(14)?,
-                    tag: Rating::from_i64(row.get::<_, i64>(4)?),
-                    looped: row.get::<_, i64>(5)? != 0,
-                    sound_type: row
-                        .get::<_, Option<String>>(6)?
-                        .as_deref()
-                        .and_then(SampleSoundType::from_token),
-                    locked: row.get::<_, i64>(7)? != 0,
-                    last_played_at: row.get(8)?,
-                    last_curated_at: row.get(9)?,
-                    user_tag: row.get(10)?,
-                    normal_tags: decode_normal_tags(row.get(11)?),
-                    collection: row
-                        .get::<_, Option<i64>>(12)?
-                        .and_then(SampleCollection::from_i64),
-                    tag_named: row.get::<_, i64>(13)? != 0,
+                    file_identity: row.get(15)?,
+                    metadata: metadata_from_row(row)?,
                 })
             })
             .map_err(map_sql_error)?
@@ -370,6 +293,24 @@ impl<'conn> SourceWriteBatch<'conn> {
     }
 }
 
+fn metadata_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RenameMetadataSnapshot> {
+    Ok(RenameMetadataSnapshot {
+        tag: Rating::from_i64(row.get::<_, i64>(4)?),
+        looped: row.get::<_, i64>(5)? != 0,
+        sound_type: row
+            .get::<_, Option<String>>(6)?
+            .as_deref()
+            .and_then(SampleSoundType::from_token),
+        locked: row.get::<_, i64>(7)? != 0,
+        last_played_at: row.get(8)?,
+        last_curated_at: row.get(9)?,
+        user_tag: row.get(10)?,
+        normal_tags: decode_normal_tags(row.get(11)?),
+        collections: decode_collections(row.get(13)?, row.get(12)?),
+        tag_named: row.get::<_, i64>(14)? != 0,
+    })
+}
+
 fn encode_normal_tags(labels: &[String]) -> Result<Option<String>, SourceDbError> {
     if labels.is_empty() {
         return Ok(None);
@@ -383,4 +324,34 @@ fn decode_normal_tags(value: Option<String>) -> Vec<String> {
     value
         .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
         .unwrap_or_default()
+}
+
+fn encode_collections(collections: &[SampleCollection]) -> Result<Option<String>, SourceDbError> {
+    let values = collections
+        .iter()
+        .copied()
+        .map(SampleCollection::as_i64)
+        .collect::<Vec<_>>();
+    serde_json::to_string(&values)
+        .map(Some)
+        .map_err(|_| SourceDbError::Unexpected)
+}
+
+fn decode_collections(
+    value: Option<String>,
+    legacy_collection: Option<i64>,
+) -> Vec<SampleCollection> {
+    let Some(values) = value.and_then(|raw| serde_json::from_str::<Vec<i64>>(&raw).ok()) else {
+        return legacy_collection
+            .and_then(SampleCollection::from_i64)
+            .into_iter()
+            .collect();
+    };
+    let mut collections = values
+        .into_iter()
+        .filter_map(SampleCollection::from_i64)
+        .collect::<Vec<_>>();
+    collections.sort_by_key(|collection| collection.index());
+    collections.dedup();
+    collections
 }

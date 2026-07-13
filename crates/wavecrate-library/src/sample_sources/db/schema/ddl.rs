@@ -219,6 +219,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         user_tag TEXT,
         normal_tags TEXT,
         collection INTEGER,
+        collections TEXT,
         tag_named INTEGER NOT NULL DEFAULT 0,
         file_identity TEXT
     );

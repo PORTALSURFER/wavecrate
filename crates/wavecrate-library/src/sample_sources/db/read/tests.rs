@@ -267,12 +267,14 @@ fn legacy_read_only_pending_renames_project_optional_defaults() {
                 tag INTEGER NOT NULL,
                 looped INTEGER NOT NULL,
                 locked INTEGER NOT NULL,
-                last_played_at INTEGER
+                last_played_at INTEGER,
+                collection INTEGER
             );
             INSERT INTO pending_wav_renames (
-                path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
+                path, file_size, modified_ns, content_hash, tag, looped, locked,
+                last_played_at, collection
             ) VALUES (
-                'legacy.wav', 10, 5, 'hash-a', 1, 1, 1, 42
+                'legacy.wav', 10, 5, 'hash-a', 1, 1, 1, 42, 2
             );",
         )
         .unwrap();
@@ -287,16 +289,19 @@ fn legacy_read_only_pending_renames_project_optional_defaults() {
     assert_eq!(entry.modified_ns, 5);
     assert_eq!(entry.content_hash.as_deref(), Some("hash-a"));
     assert_eq!(entry.file_identity, None);
-    assert_eq!(entry.tag, Rating::KEEP_1);
-    assert!(entry.looped);
-    assert!(entry.locked);
-    assert_eq!(entry.last_played_at, Some(42));
-    assert_eq!(entry.sound_type, None);
-    assert_eq!(entry.last_curated_at, None);
-    assert_eq!(entry.user_tag, None);
-    assert!(entry.normal_tags.is_empty());
-    assert_eq!(entry.collection, None);
-    assert!(!entry.tag_named);
+    assert_eq!(entry.metadata.tag, Rating::KEEP_1);
+    assert!(entry.metadata.looped);
+    assert!(entry.metadata.locked);
+    assert_eq!(entry.metadata.last_played_at, Some(42));
+    assert_eq!(entry.metadata.sound_type, None);
+    assert_eq!(entry.metadata.last_curated_at, None);
+    assert_eq!(entry.metadata.user_tag, None);
+    assert!(entry.metadata.normal_tags.is_empty());
+    assert_eq!(
+        entry.metadata.collections,
+        vec![SampleCollection::new(2).unwrap()]
+    );
+    assert!(!entry.metadata.tag_named);
 }
 
 #[test]
