@@ -235,6 +235,25 @@ fn legacy_read_only_collection_query_falls_back_to_wav_files_column() {
 }
 
 #[test]
+fn legacy_read_only_database_without_pending_renames_returns_empty_list() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE wav_files (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL
+            );",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    assert_eq!(db.list_pending_renames().unwrap(), Vec::new());
+}
+
+#[test]
 fn legacy_read_only_pending_renames_project_optional_defaults() {
     let dir = tempdir().unwrap();
     let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
