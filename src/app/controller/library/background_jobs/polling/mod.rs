@@ -22,11 +22,13 @@ impl AppController {
         let mut applied = 0usize;
         while applied < MAX_BACKGROUND_MESSAGES_PER_POLL {
             let Some(message) = self.try_next_background_job_message() else {
+                self.runtime.jobs.resume_deferred_starmap_writes();
                 return;
             };
             self.handle_background_job_message(message);
             applied += 1;
         }
+        self.runtime.jobs.resume_deferred_starmap_writes();
         self.runtime.jobs.request_repaint();
     }
 
