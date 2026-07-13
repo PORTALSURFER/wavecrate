@@ -6,7 +6,10 @@ use super::{
     signal_summary::{
         BaseSignalSummaryLevel, gpu_signal_summary_from_base_buckets_with_progress_and_cancel,
     },
-    visual_bands::{VisualBandFrameProcessor, normalize_visual_band_summary_buckets},
+    visual_bands::{
+        VisualBandFrameProcessor, VisualBandNormalization,
+        apply_visual_band_normalization_to_summary_buckets, normalize_visual_band_summary_buckets,
+    },
 };
 
 pub(super) const STREAMING_WAV_SUMMARY_READ_END: f32 = 0.88;
@@ -71,9 +74,39 @@ impl StreamingWavSummaryBuilder {
         end: f32,
         progress: &impl Fn(f32),
         cancelled: &impl Fn() -> bool,
+    ) -> Result<(radiant::runtime::GpuSignalSummary, VisualBandNormalization), String> {
+        self.flush_current_bucket();
+        let normalization =
+            normalize_visual_band_summary_buckets(&mut self.buckets, BAND_COUNT, cancelled)?;
+        let summary = self.finish_summary(start, end, progress, cancelled)?;
+        Ok((summary, normalization))
+    }
+
+    pub(super) fn finish_with_normalization(
+        mut self,
+        normalization: VisualBandNormalization,
+        start: f32,
+        end: f32,
+        progress: &impl Fn(f32),
+        cancelled: &impl Fn() -> bool,
     ) -> Result<radiant::runtime::GpuSignalSummary, String> {
         self.flush_current_bucket();
-        normalize_visual_band_summary_buckets(&mut self.buckets, BAND_COUNT, cancelled)?;
+        apply_visual_band_normalization_to_summary_buckets(
+            &mut self.buckets,
+            BAND_COUNT,
+            normalization,
+            cancelled,
+        )?;
+        self.finish_summary(start, end, progress, cancelled)
+    }
+
+    fn finish_summary(
+        self,
+        start: f32,
+        end: f32,
+        progress: &impl Fn(f32),
+        cancelled: &impl Fn() -> bool,
+    ) -> Result<radiant::runtime::GpuSignalSummary, String> {
         let base = Arc::<[GpuSignalSummaryBucket]>::from(self.buckets);
         gpu_signal_summary_from_base_buckets_with_progress_and_cancel(
             BaseSignalSummaryLevel {
@@ -114,4 +147,77 @@ fn empty_summary_bucket() -> Vec<GpuSignalSummaryBucket> {
         };
         BAND_COUNT
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn viewport_summary_reuses_full_sample_band_normalization() {
+        let sample_rate = 48_000;
+        let low = tone(sample_rate, 70.0, 4_800);
+        let high = tone(sample_rate, 7_200.0, 4_800);
+        let full = low
+            .into_iter()
+            .chain(high.iter().copied())
+            .collect::<Vec<_>>();
+        let (_, full_normalization) = finish(&full, None);
+        let (_, viewport_normalization) = finish(&high, None);
+
+        assert_ne!(
+            full_normalization, viewport_normalization,
+            "the regression fixture must distinguish full-sample and viewport-local color gains"
+        );
+
+        let (first, _) = finish(&high, Some(full_normalization));
+        let (second, _) = finish(&high, Some(full_normalization));
+        assert_eq!(first, second);
+
+        let (identity, _) = finish(&high, Some(VisualBandNormalization::IDENTITY));
+        for (band, gain) in full_normalization.gains().into_iter().enumerate() {
+            let expected = (summary_peak(&identity, band) * gain).min(1.0);
+            let actual = summary_peak(&first, band);
+            assert!(
+                (actual - expected).abs() < 0.000_1,
+                "band {band} should use the retained full-sample gain: expected {expected}, got {actual}"
+            );
+        }
+    }
+
+    fn finish(
+        samples: &[f32],
+        normalization: Option<VisualBandNormalization>,
+    ) -> (radiant::runtime::GpuSignalSummary, VisualBandNormalization) {
+        let mut builder = StreamingWavSummaryBuilder::new(48_000, 8);
+        for sample in samples {
+            builder.push_peak(*sample);
+        }
+        match normalization {
+            Some(normalization) => (
+                builder
+                    .finish_with_normalization(normalization, 0.0, 1.0, &|_| {}, &|| false)
+                    .unwrap(),
+                normalization,
+            ),
+            None => builder.finish(0.0, 1.0, &|_| {}, &|| false).unwrap(),
+        }
+    }
+
+    fn tone(sample_rate: u32, frequency: f32, frames: usize) -> Vec<f32> {
+        (0..frames)
+            .map(|frame| {
+                let time = frame as f32 / sample_rate as f32;
+                (std::f32::consts::TAU * frequency * time).sin() * 0.8
+            })
+            .collect()
+    }
+
+    fn summary_peak(summary: &radiant::runtime::GpuSignalSummary, band: usize) -> f32 {
+        summary.levels[0]
+            .buckets
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[band].min.abs().max(frame[band].max.abs()))
+            .fold(0.0_f32, f32::max)
+    }
 }

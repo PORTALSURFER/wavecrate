@@ -5,7 +5,10 @@ use std::{
 
 use wavecrate::selection::SelectionRange;
 
-use super::{WaveformDrag, WaveformFile, WaveformViewport, similar_sections::SimilarSectionsState};
+use super::{
+    WaveformDrag, WaveformFile, WaveformViewport, audio_file::VisualBandNormalization,
+    similar_sections::SimilarSectionsState,
+};
 use radiant::runtime::GpuSignalSummary;
 
 const DETAIL_MAX_BUCKETS: usize = 65_536;
@@ -17,6 +20,7 @@ pub(in crate::native_app) struct WaveformDetailKey {
     pub content_revision: u64,
     pub start_frame: usize,
     pub end_frame: usize,
+    pub visual_band_normalization: VisualBandNormalization,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -87,6 +91,7 @@ impl WaveformState {
             content_revision: self.file.content_revision(),
             start_frame: range.start,
             end_frame: range.end,
+            visual_band_normalization: self.file.visual_band_normalization,
         };
         if self
             .detail_summary
@@ -121,6 +126,7 @@ impl WaveformState {
                 .viewport
                 .clamped_index_viewport(self.file.frames, super::MIN_VISIBLE_FRAMES)
                 .end,
+            visual_band_normalization: self.file.visual_band_normalization,
         };
         if current != result.key {
             return;
@@ -142,6 +148,7 @@ impl WaveformState {
             !self.viewport.extends_beyond_audio(self.file.frames)
                 && detail.key.path == self.file.path
                 && detail.key.content_revision == self.file.content_revision()
+                && detail.key.visual_band_normalization == self.file.visual_band_normalization
                 && detail.key.start_frame
                     == self
                         .viewport

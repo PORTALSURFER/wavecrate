@@ -9,11 +9,11 @@ use super::identity::{
     CacheIdentity, cache_path_for_identity, playback_sidecar_path, playback_sidecar_valid,
 };
 use crate::native_app::waveform::audio_file::{
-    PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformFile,
+    PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, VisualBandNormalization, WaveformFile,
     content_revision_for_audio_bytes,
 };
 
-pub(super) const CACHE_FORMAT_VERSION: u32 = 3;
+pub(super) const CACHE_FORMAT_VERSION: u32 = 4;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(super) struct CachedWaveformFile {
@@ -25,6 +25,7 @@ pub(super) struct CachedWaveformFile {
     sample_rate: u32,
     channels: usize,
     frames: usize,
+    visual_band_normalization: VisualBandNormalization,
     summary: CachedGpuSignalSummary,
     pub(super) playback_cache: Option<CachedPlaybackCacheFile>,
 }
@@ -81,6 +82,7 @@ impl CachedWaveformFile {
             sample_rate: file.sample_rate,
             channels: file.channels,
             frames: file.frames,
+            visual_band_normalization: file.visual_band_normalization,
             summary: CachedGpuSignalSummary::from_summary(&file.gpu_signal_summary),
             playback_cache,
         }
@@ -106,6 +108,7 @@ impl CachedWaveformFile {
             sample_rate: self.sample_rate,
             channels: self.channels,
             frames: self.frames,
+            visual_band_normalization: self.visual_band_normalization,
             gpu_signal_summary: Arc::new(self.summary.into_summary()?),
         })
     }
@@ -131,6 +134,7 @@ impl CachedWaveformFile {
             sample_rate: self.sample_rate,
             channels: self.channels,
             frames: self.frames,
+            visual_band_normalization: self.visual_band_normalization,
             gpu_signal_summary: Arc::new(self.summary.into_summary()?),
         })
     }
@@ -154,6 +158,7 @@ impl CachedWaveformFile {
             sample_rate: self.sample_rate,
             channels: self.channels,
             frames: self.frames,
+            visual_band_normalization: self.visual_band_normalization,
             gpu_signal_summary: Arc::new(self.summary.into_summary()?),
         })
     }
@@ -166,6 +171,7 @@ impl CachedWaveformFile {
             && self.sample_rate != 0
             && self.channels != 0
             && self.frames != 0
+            && self.visual_band_normalization.is_valid()
     }
 
     pub(super) fn playback_cache_file(

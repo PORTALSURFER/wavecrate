@@ -1,7 +1,40 @@
 use radiant::runtime::GpuSignalSummaryBucket;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use super::super::BAND_COUNT;
+
+const VISUAL_BAND_COUNT: usize = 3;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub(in crate::native_app) struct VisualBandNormalization {
+    gain_bits: [u32; VISUAL_BAND_COUNT],
+}
+
+impl VisualBandNormalization {
+    pub(in crate::native_app::waveform) const IDENTITY: Self = Self {
+        gain_bits: [1.0_f32.to_bits(); VISUAL_BAND_COUNT],
+    };
+
+    pub(in crate::native_app::waveform) fn from_gains(
+        gains: [f32; VISUAL_BAND_COUNT],
+    ) -> Option<Self> {
+        gains
+            .iter()
+            .all(|gain| gain.is_finite() && *gain > 0.0 && *gain <= 4.0)
+            .then(|| Self {
+                gain_bits: gains.map(f32::to_bits),
+            })
+    }
+
+    pub(in crate::native_app::waveform) fn gains(self) -> [f32; VISUAL_BAND_COUNT] {
+        self.gain_bits.map(f32::from_bits)
+    }
+
+    pub(in crate::native_app::waveform) fn is_valid(self) -> bool {
+        Self::from_gains(self.gains()).is_some()
+    }
+}
 
 #[cfg(test)]
 pub(in crate::native_app::waveform) fn split_frequency_bands(
@@ -12,6 +45,7 @@ pub(in crate::native_app::waveform) fn split_frequency_bands(
         false
     })
     .expect("non-cancellable band split cannot be cancelled")
+    .0
 }
 
 pub(in crate::native_app::waveform) fn split_frequency_bands_with_progress_and_cancel(
@@ -21,9 +55,9 @@ pub(in crate::native_app::waveform) fn split_frequency_bands_with_progress_and_c
     end: f32,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
-) -> Result<Arc<[f32]>, String> {
+) -> Result<(Arc<[f32]>, VisualBandNormalization), String> {
     if samples.is_empty() {
-        return Ok(Arc::from([]));
+        return Ok((Arc::from([]), VisualBandNormalization::IDENTITY));
     }
     let filter_end = start + (end - start) * 0.76;
     let normalize_end = start + (end - start) * 0.98;
@@ -43,7 +77,7 @@ pub(in crate::native_app::waveform) fn split_frequency_bands_with_progress_and_c
         );
     }
     progress(filter_end);
-    normalize_visual_band_peaks_with_progress(
+    let normalization = normalize_visual_band_peaks_with_progress(
         &mut bands,
         filter_end,
         normalize_end,
@@ -51,7 +85,7 @@ pub(in crate::native_app::waveform) fn split_frequency_bands_with_progress_and_c
         cancelled,
     )?;
     progress(end);
-    Ok(bands.into())
+    Ok((bands.into(), normalization))
 }
 
 pub(in crate::native_app::waveform) struct VisualBandFrameProcessor {
@@ -109,36 +143,36 @@ pub(in crate::native_app::waveform) fn normalize_visual_band_summary_buckets(
     buckets: &mut [GpuSignalSummaryBucket],
     band_count: usize,
     cancelled: &impl Fn() -> bool,
-) -> Result<(), String> {
+) -> Result<VisualBandNormalization, String> {
     if band_count < BAND_COUNT || buckets.is_empty() {
-        return Ok(());
+        return Ok(VisualBandNormalization::IDENTITY);
     }
     let raw_peak = summary_band_peak(buckets, band_count, 3, cancelled)?;
-    if raw_peak <= 0.000_01 || !raw_peak.is_finite() {
-        return Ok(());
-    }
     let peaks = [
         summary_band_peak(buckets, band_count, 0, cancelled)?,
         summary_band_peak(buckets, band_count, 1, cancelled)?,
         summary_band_peak(buckets, band_count, 2, cancelled)?,
     ];
-    let spectral_total = peaks.iter().copied().sum::<f32>().max(0.000_01);
-    let targets = [raw_peak * 0.98, raw_peak * 0.74, raw_peak * 0.34];
-    let boost_thresholds = [raw_peak * 0.08, raw_peak * 0.05, raw_peak * 0.035];
-    let max_gains = [2.6_f32, 2.8, 2.4];
-    for band in 0..3 {
-        let peak = peaks[band];
-        if peak <= 0.000_01 || !peak.is_finite() {
-            continue;
-        }
-        let energy_share = peak / spectral_total;
-        let target = targets[band] * smoothstep_scalar(0.12, 0.55, energy_share);
-        let max_gain = if peak < boost_thresholds[band] {
-            1.0
-        } else {
-            max_gains[band]
-        };
-        let gain = (target / peak).clamp(0.25, max_gain);
+    let normalization = visual_band_normalization(raw_peak, peaks);
+    apply_visual_band_normalization_to_summary_buckets(
+        buckets,
+        band_count,
+        normalization,
+        cancelled,
+    )?;
+    Ok(normalization)
+}
+
+pub(in crate::native_app::waveform) fn apply_visual_band_normalization_to_summary_buckets(
+    buckets: &mut [GpuSignalSummaryBucket],
+    band_count: usize,
+    normalization: VisualBandNormalization,
+    cancelled: &impl Fn() -> bool,
+) -> Result<(), String> {
+    if band_count < BAND_COUNT || buckets.is_empty() || !normalization.is_valid() {
+        return Ok(());
+    }
+    for (band, gain) in normalization.gains().into_iter().enumerate() {
         for (index, frame) in buckets.chunks_exact_mut(band_count).enumerate() {
             if cancelled() {
                 return Err(String::from("cancelled"));
@@ -176,33 +210,15 @@ fn normalize_visual_band_peaks_with_progress(
     end: f32,
     progress: &impl Fn(f32),
     cancelled: &impl Fn() -> bool,
-) -> Result<(), String> {
+) -> Result<VisualBandNormalization, String> {
     let raw_peak = raw_band_peak(bands, cancelled)?;
-    if raw_peak <= 0.000_01 || !raw_peak.is_finite() {
-        return Ok(());
-    }
     let peaks = [
         visual_band_peak(bands, 0, cancelled)?,
         visual_band_peak(bands, 1, cancelled)?,
         visual_band_peak(bands, 2, cancelled)?,
     ];
-    let spectral_total = peaks.iter().copied().sum::<f32>().max(0.000_01);
-    let targets = [raw_peak * 0.98, raw_peak * 0.74, raw_peak * 0.34];
-    let boost_thresholds = [raw_peak * 0.08, raw_peak * 0.05, raw_peak * 0.035];
-    let max_gains = [2.6_f32, 2.8, 2.4];
-    for band in 0..3 {
-        let peak = peaks[band];
-        if peak <= 0.000_01 || !peak.is_finite() {
-            continue;
-        }
-        let energy_share = peak / spectral_total;
-        let target = targets[band] * smoothstep_scalar(0.12, 0.55, energy_share);
-        let max_gain = if peak < boost_thresholds[band] {
-            1.0
-        } else {
-            max_gains[band]
-        };
-        let gain = (target / peak).clamp(0.25, max_gain);
+    let normalization = visual_band_normalization(raw_peak, peaks);
+    for (band, gain) in normalization.gains().into_iter().enumerate() {
         let frame_count = bands.len() / BAND_COUNT;
         for (index, frame) in bands.chunks_exact_mut(BAND_COUNT).enumerate() {
             if cancelled() {
@@ -221,7 +237,36 @@ fn normalize_visual_band_peaks_with_progress(
         }
     }
     progress(end);
-    Ok(())
+    Ok(normalization)
+}
+
+fn visual_band_normalization(
+    raw_peak: f32,
+    peaks: [f32; VISUAL_BAND_COUNT],
+) -> VisualBandNormalization {
+    if raw_peak <= 0.000_01 || !raw_peak.is_finite() {
+        return VisualBandNormalization::IDENTITY;
+    }
+    let spectral_total = peaks.iter().copied().sum::<f32>().max(0.000_01);
+    let targets = [raw_peak * 0.98, raw_peak * 0.74, raw_peak * 0.34];
+    let boost_thresholds = [raw_peak * 0.08, raw_peak * 0.05, raw_peak * 0.035];
+    let max_gains = [2.6_f32, 2.8, 2.4];
+    let mut gains = [1.0; VISUAL_BAND_COUNT];
+    for band in 0..VISUAL_BAND_COUNT {
+        let peak = peaks[band];
+        if peak <= 0.000_01 || !peak.is_finite() {
+            continue;
+        }
+        let energy_share = peak / spectral_total;
+        let target = targets[band] * smoothstep_scalar(0.12, 0.55, energy_share);
+        let max_gain = if peak < boost_thresholds[band] {
+            1.0
+        } else {
+            max_gains[band]
+        };
+        gains[band] = (target / peak).clamp(0.25, max_gain);
+    }
+    VisualBandNormalization::from_gains(gains).unwrap_or(VisualBandNormalization::IDENTITY)
 }
 
 fn raw_band_peak(bands: &[f32], cancelled: &impl Fn() -> bool) -> Result<f32, String> {
