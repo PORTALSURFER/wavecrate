@@ -739,7 +739,10 @@ fn reserve_empty_database_path(
         .open(destination)?;
     let metadata = reservation.metadata()?;
     Ok(crate::app::controller::jobs::SourceRemapArtifactIdentity {
-        stable_id: stable_database_artifact_id(&metadata),
+        stable_id: wavecrate_library::filesystem_identity::stable_filesystem_identity(
+            destination,
+            &metadata,
+        ),
         len: metadata.len(),
         modified_ns: metadata
             .modified()
@@ -806,7 +809,9 @@ fn database_artifact_identity(
         .map(|duration| duration.as_nanos());
     Ok(Some(
         crate::app::controller::jobs::SourceRemapArtifactIdentity {
-            stable_id: stable_database_artifact_id(&metadata),
+            stable_id: wavecrate_library::filesystem_identity::stable_filesystem_identity(
+                path, &metadata,
+            ),
             len: metadata.len(),
             modified_ns,
             is_symlink: metadata.file_type().is_symlink(),
@@ -841,29 +846,6 @@ fn database_artifact_is_same_file(
         (None, None) => !claimed.is_symlink && !current.is_symlink,
         _ => false,
     }
-}
-
-#[cfg(unix)]
-fn stable_database_artifact_id(metadata: &fs::Metadata) -> Option<String> {
-    use std::os::unix::fs::MetadataExt;
-
-    Some(format!("unix:{}:{}", metadata.dev(), metadata.ino()))
-}
-
-#[cfg(windows)]
-fn stable_database_artifact_id(metadata: &fs::Metadata) -> Option<String> {
-    use std::os::windows::fs::MetadataExt;
-
-    Some(format!(
-        "windows:{}:{}",
-        metadata.volume_serial_number()?,
-        metadata.file_index()?
-    ))
-}
-
-#[cfg(not(any(unix, windows)))]
-fn stable_database_artifact_id(_metadata: &fs::Metadata) -> Option<String> {
-    None
 }
 
 fn staged_database_path(destination: &Path, request_id: u64) -> PathBuf {

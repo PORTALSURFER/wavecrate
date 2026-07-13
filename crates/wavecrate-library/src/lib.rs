@@ -8,6 +8,8 @@ pub mod app_dirs;
 /// Shared structured debug diagnostics helpers for storage-owned seams.
 pub mod diagnostics;
 mod env_flags;
+/// Stable cross-platform filesystem-object identity helpers.
+pub mod filesystem_identity;
 /// Sample-source identifiers and persistent storage helpers.
 pub mod sample_sources;
 /// Optional SQLite extension loader shared by storage code.
