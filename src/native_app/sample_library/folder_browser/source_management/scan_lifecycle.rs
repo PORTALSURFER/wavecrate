@@ -361,6 +361,8 @@ impl FolderBrowserState {
         &mut self,
         batch: FolderScanDiscoveryBatch,
     ) -> bool {
+        let preserve_selected_tree =
+            self.source.selected_source == batch.source_id && self.source.selected_tree_loaded;
         let Some(source) = self
             .source
             .sources
@@ -370,6 +372,9 @@ impl FolderBrowserState {
             return false;
         };
         if source.loading_task != Some(batch.task_id) {
+            return false;
+        }
+        if preserve_selected_tree {
             return false;
         }
 
