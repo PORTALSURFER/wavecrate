@@ -9,10 +9,6 @@ use super::{
 };
 
 const DELETE_PENDING_RENAME_SQL: &str = "DELETE FROM pending_wav_renames WHERE path = ?1";
-const LIST_PENDING_RENAMES_SQL: &str =
-    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
-     FROM pending_wav_renames
-     ORDER BY path ASC";
 const TAKE_PENDING_RENAME_BY_HASH_SQL: &str =
     "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
      FROM pending_wav_renames
@@ -90,10 +86,8 @@ impl PendingRenameEntry {
 impl SourceDatabase {
     /// List pending rename candidates retained after immediate pruning.
     pub fn list_pending_renames(&self) -> Result<Vec<PendingRenameEntry>, SourceDbError> {
-        let mut stmt = self
-            .connection
-            .prepare(LIST_PENDING_RENAMES_SQL)
-            .map_err(map_sql_error)?;
+        let query = pending_rename_list_query(&self.connection)?;
+        let mut stmt = self.connection.prepare(&query).map_err(map_sql_error)?;
         let rows = stmt
             .query_map([], |row| {
                 let stored_path: String = row.get(0)?;
@@ -142,6 +136,29 @@ impl SourceDatabase {
             .map_err(map_sql_error)?;
         Ok(rows.into_iter().flatten().collect())
     }
+}
+
+fn pending_rename_list_query(connection: &rusqlite::Connection) -> Result<String, SourceDbError> {
+    let columns = super::schema::table_columns(connection, "pending_wav_renames")?;
+    let optional_column = |column: &'static str, fallback: &'static str| {
+        if columns.contains(column) {
+            column
+        } else {
+            fallback
+        }
+    };
+    let sound_type = optional_column("sound_type", "NULL AS sound_type");
+    let last_curated_at = optional_column("last_curated_at", "NULL AS last_curated_at");
+    let user_tag = optional_column("user_tag", "NULL AS user_tag");
+    let normal_tags = optional_column("normal_tags", "NULL AS normal_tags");
+    let collection = optional_column("collection", "NULL AS collection");
+    let tag_named = optional_column("tag_named", "0 AS tag_named");
+    let file_identity = optional_column("file_identity", "NULL AS file_identity");
+    Ok(format!(
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type}, locked, last_played_at, {last_curated_at}, {user_tag}, {normal_tags}, {collection}, {tag_named}, {file_identity}
+         FROM pending_wav_renames
+         ORDER BY path ASC"
+    ))
 }
 
 impl<'conn> SourceWriteBatch<'conn> {

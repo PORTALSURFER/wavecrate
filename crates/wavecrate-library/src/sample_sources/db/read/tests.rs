@@ -235,6 +235,52 @@ fn legacy_read_only_collection_query_falls_back_to_wav_files_column() {
 }
 
 #[test]
+fn legacy_read_only_pending_renames_project_optional_defaults() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE pending_wav_renames (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL,
+                content_hash TEXT,
+                tag INTEGER NOT NULL,
+                looped INTEGER NOT NULL,
+                locked INTEGER NOT NULL,
+                last_played_at INTEGER
+            );
+            INSERT INTO pending_wav_renames (
+                path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
+            ) VALUES (
+                'legacy.wav', 10, 5, 'hash-a', 1, 1, 1, 42
+            );",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let pending = db.list_pending_renames().unwrap();
+    assert_eq!(pending.len(), 1);
+    let entry = &pending[0];
+    assert_eq!(entry.relative_path, Path::new("legacy.wav"));
+    assert_eq!(entry.file_size, 10);
+    assert_eq!(entry.modified_ns, 5);
+    assert_eq!(entry.content_hash.as_deref(), Some("hash-a"));
+    assert_eq!(entry.file_identity, None);
+    assert_eq!(entry.tag, Rating::KEEP_1);
+    assert!(entry.looped);
+    assert!(entry.locked);
+    assert_eq!(entry.last_played_at, Some(42));
+    assert_eq!(entry.sound_type, None);
+    assert_eq!(entry.last_curated_at, None);
+    assert_eq!(entry.user_tag, None);
+    assert!(entry.normal_tags.is_empty());
+    assert_eq!(entry.collection, None);
+    assert!(!entry.tag_named);
+}
+
+#[test]
 fn legacy_read_only_database_without_last_curated_at_preserves_saved_metadata() {
     let dir = tempdir().unwrap();
     let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
