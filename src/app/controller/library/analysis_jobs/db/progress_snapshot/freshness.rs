@@ -46,3 +46,38 @@ fn current_wav_paths_revision(conn: &Connection) -> Result<Option<String>, Strin
     .optional()
     .map_err(|err| err.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn freshness_tracks_revision_changes_and_missing_revision_state() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);")
+            .unwrap();
+        conn.execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, '7')",
+            params![META_WAV_PATHS_REVISION],
+        )
+        .unwrap();
+
+        store_analyze_snapshot_wav_paths_revision(&conn).unwrap();
+        assert!(analyze_snapshot_is_fresh(&conn).unwrap());
+
+        conn.execute(
+            "UPDATE metadata SET value = '8' WHERE key = ?1",
+            params![META_WAV_PATHS_REVISION],
+        )
+        .unwrap();
+        assert!(!analyze_snapshot_is_fresh(&conn).unwrap());
+
+        conn.execute(
+            "DELETE FROM metadata WHERE key = ?1",
+            params![META_WAV_PATHS_REVISION],
+        )
+        .unwrap();
+        store_analyze_snapshot_wav_paths_revision(&conn).unwrap();
+        assert!(analyze_snapshot_is_fresh(&conn).unwrap());
+    }
+}
