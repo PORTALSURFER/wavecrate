@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{Connection, params};
 use tempfile::tempdir;
 
-use super::super::{DB_FILE_NAME, Rating, SampleSoundType, SourceDatabase};
+use super::super::{DB_FILE_NAME, Rating, SampleCollection, SampleSoundType, SourceDatabase};
 
 #[test]
 fn list_files_page_orders_supported_audio_and_applies_offsets() {
@@ -172,6 +172,112 @@ fn sound_type_round_trips_for_path_queries() {
         db.sound_type_for_path(Path::new("drums/kick.wav")).unwrap(),
         Some(SampleSoundType::Kick)
     );
+}
+
+#[test]
+fn collection_reads_use_canonical_membership_rows() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    db.upsert_file(Path::new("two.wav"), 10, 5).unwrap();
+    db.connection
+        .execute(
+            "UPDATE wav_files SET collection = 1 WHERE path IN ('one.wav', 'two.wav')",
+            [],
+        )
+        .unwrap();
+    db.connection
+        .execute(
+            "INSERT INTO wav_file_collections (path, collection) VALUES ('one.wav', 2)",
+            [],
+        )
+        .unwrap();
+
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        vec![SampleCollection::new(2).unwrap()]
+    );
+    assert!(
+        db.collections_for_path(Path::new("two.wav"))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn legacy_read_only_collection_query_falls_back_to_wav_files_column() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE wav_files (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL,
+                collection INTEGER
+            );
+            INSERT INTO wav_files (path, file_size, modified_ns, collection)
+            VALUES ('one.wav', 10, 5, 3);",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let expected = SampleCollection::new(3).unwrap();
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        vec![expected]
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("one.wav")).unwrap(),
+        Some(expected)
+    );
+}
+
+#[test]
+fn legacy_read_only_pending_renames_project_optional_defaults() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE pending_wav_renames (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL,
+                content_hash TEXT,
+                tag INTEGER NOT NULL,
+                looped INTEGER NOT NULL,
+                locked INTEGER NOT NULL,
+                last_played_at INTEGER
+            );
+            INSERT INTO pending_wav_renames (
+                path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
+            ) VALUES (
+                'legacy.wav', 10, 5, 'hash-a', 1, 1, 1, 42
+            );",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let pending = db.list_pending_renames().unwrap();
+    assert_eq!(pending.len(), 1);
+    let entry = &pending[0];
+    assert_eq!(entry.relative_path, Path::new("legacy.wav"));
+    assert_eq!(entry.file_size, 10);
+    assert_eq!(entry.modified_ns, 5);
+    assert_eq!(entry.content_hash.as_deref(), Some("hash-a"));
+    assert_eq!(entry.file_identity, None);
+    assert_eq!(entry.tag, Rating::KEEP_1);
+    assert!(entry.looped);
+    assert!(entry.locked);
+    assert_eq!(entry.last_played_at, Some(42));
+    assert_eq!(entry.sound_type, None);
+    assert_eq!(entry.last_curated_at, None);
+    assert_eq!(entry.user_tag, None);
+    assert!(entry.normal_tags.is_empty());
+    assert_eq!(entry.collection, None);
+    assert!(!entry.tag_named);
 }
 
 #[test]
@@ -347,4 +453,13 @@ fn legacy_read_only_minimal_wav_files_schema_reads_with_defaults() {
         1
     );
     assert_eq!(db.list_search_entry_metadata().unwrap().len(), 1);
+    assert!(
+        db.collections_for_path(Path::new("nested/One.WAV"))
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("nested/One.WAV")).unwrap(),
+        None
+    );
 }

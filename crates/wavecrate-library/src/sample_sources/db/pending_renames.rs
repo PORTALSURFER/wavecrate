@@ -9,6 +9,21 @@ use super::{
 };
 
 const DELETE_PENDING_RENAME_SQL: &str = "DELETE FROM pending_wav_renames WHERE path = ?1";
+const TAKE_PENDING_RENAME_BY_HASH_SQL: &str =
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+     FROM pending_wav_renames
+     WHERE content_hash = ?1
+     LIMIT 2";
+const TAKE_PENDING_RENAME_BY_FILE_IDENTITY_SQL: &str =
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+     FROM pending_wav_renames
+     WHERE file_identity = ?1 AND file_size = ?2 AND modified_ns = ?3
+     LIMIT 2";
+const TAKE_PENDING_RENAME_BY_FACTS_SQL: &str =
+    "SELECT path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, last_curated_at, user_tag, normal_tags, collection, tag_named, file_identity
+     FROM pending_wav_renames
+     WHERE file_size = ?1 AND modified_ns = ?2
+     LIMIT 2";
 
 /// Metadata retained for a recently pruned sample row so later scans can
 /// preserve user annotations when the file reappears at a new path.
@@ -71,7 +86,7 @@ impl PendingRenameEntry {
 impl SourceDatabase {
     /// List pending rename candidates retained after immediate pruning.
     pub fn list_pending_renames(&self) -> Result<Vec<PendingRenameEntry>, SourceDbError> {
-        let query = pending_rename_select_query(&self.connection)?;
+        let query = pending_rename_list_query(&self.connection)?;
         let mut stmt = self.connection.prepare(&query).map_err(map_sql_error)?;
         let rows = stmt
             .query_map([], |row| {
@@ -123,6 +138,29 @@ impl SourceDatabase {
     }
 }
 
+fn pending_rename_list_query(connection: &rusqlite::Connection) -> Result<String, SourceDbError> {
+    let columns = super::schema::table_columns(connection, "pending_wav_renames")?;
+    let optional_column = |column: &'static str, fallback: &'static str| {
+        if columns.contains(column) {
+            column
+        } else {
+            fallback
+        }
+    };
+    let sound_type = optional_column("sound_type", "NULL AS sound_type");
+    let last_curated_at = optional_column("last_curated_at", "NULL AS last_curated_at");
+    let user_tag = optional_column("user_tag", "NULL AS user_tag");
+    let normal_tags = optional_column("normal_tags", "NULL AS normal_tags");
+    let collection = optional_column("collection", "NULL AS collection");
+    let tag_named = optional_column("tag_named", "0 AS tag_named");
+    let file_identity = optional_column("file_identity", "NULL AS file_identity");
+    Ok(format!(
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type}, locked, last_played_at, {last_curated_at}, {user_tag}, {normal_tags}, {collection}, {tag_named}, {file_identity}
+         FROM pending_wav_renames
+         ORDER BY path ASC"
+    ))
+}
+
 impl<'conn> SourceWriteBatch<'conn> {
     /// Retain metadata for a pruned file row so later scans can recover tags on rename.
     ///
@@ -144,7 +182,11 @@ impl<'conn> SourceWriteBatch<'conn> {
         let collection = self
             .tx
             .query_row(
-                "SELECT collection FROM wav_files WHERE path = ?1",
+                "SELECT collection
+                 FROM wav_file_collections
+                 WHERE path = ?1
+                 ORDER BY collection ASC
+                 LIMIT 1",
                 params![path.as_str()],
                 |row| row.get::<_, Option<i64>>(0),
             )
@@ -230,8 +272,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         &mut self,
         hash: &str,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
-        let sql = pending_rename_select_with_where(&self.tx, "content_hash = ?1 LIMIT 2")?;
-        self.take_unique_pending_rename(&sql, params![hash])
+        self.take_unique_pending_rename(TAKE_PENDING_RENAME_BY_HASH_SQL, params![hash])
     }
 
     /// Claim one unique retained rename candidate by stable filesystem identity.
@@ -241,11 +282,10 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
-        let sql = pending_rename_select_with_where(
-            &self.tx,
-            "file_identity = ?1 AND file_size = ?2 AND modified_ns = ?3 LIMIT 2",
-        )?;
-        self.take_unique_pending_rename(&sql, params![file_identity, file_size as i64, modified_ns])
+        self.take_unique_pending_rename(
+            TAKE_PENDING_RENAME_BY_FILE_IDENTITY_SQL,
+            params![file_identity, file_size as i64, modified_ns],
+        )
     }
 
     /// Claim one unique retained rename candidate by file facts.
@@ -254,11 +294,10 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
-        let sql = pending_rename_select_with_where(
-            &self.tx,
-            "file_size = ?1 AND modified_ns = ?2 LIMIT 2",
-        )?;
-        self.take_unique_pending_rename(&sql, params![file_size as i64, modified_ns])
+        self.take_unique_pending_rename(
+            TAKE_PENDING_RENAME_BY_FACTS_SQL,
+            params![file_size as i64, modified_ns],
+        )
     }
 
     fn take_unique_pending_rename(
@@ -322,57 +361,6 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.clear_pending_rename(&entry.relative_path)?;
         Ok(Some(entry))
     }
-}
-
-fn pending_rename_select_query(connection: &rusqlite::Connection) -> Result<String, SourceDbError> {
-    pending_rename_select_with_where(connection, "1 = 1 ORDER BY path ASC")
-}
-
-fn pending_rename_select_with_where(
-    connection: &rusqlite::Connection,
-    predicate_sql: &str,
-) -> Result<String, SourceDbError> {
-    let columns = super::schema::table_columns(connection, "pending_wav_renames")?;
-    let sound_type_column = if columns.contains("sound_type") {
-        "sound_type".to_string()
-    } else {
-        "NULL AS sound_type".to_string()
-    };
-    let user_tag_column = if columns.contains("user_tag") {
-        "user_tag".to_string()
-    } else {
-        "NULL AS user_tag".to_string()
-    };
-    let last_curated_at_column = if columns.contains("last_curated_at") {
-        "last_curated_at".to_string()
-    } else {
-        "NULL AS last_curated_at".to_string()
-    };
-    let normal_tags_column = if columns.contains("normal_tags") {
-        "normal_tags".to_string()
-    } else {
-        "NULL AS normal_tags".to_string()
-    };
-    let tag_named_column = if columns.contains("tag_named") {
-        "tag_named".to_string()
-    } else {
-        "0 AS tag_named".to_string()
-    };
-    let collection_column = if columns.contains("collection") {
-        "collection".to_string()
-    } else {
-        "NULL AS collection".to_string()
-    };
-    let file_identity_column = if columns.contains("file_identity") {
-        "file_identity".to_string()
-    } else {
-        "NULL AS file_identity".to_string()
-    };
-    Ok(format!(
-        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {last_curated_at_column}, {user_tag_column}, {normal_tags_column}, {collection_column}, {tag_named_column}, {file_identity_column}
-         FROM pending_wav_renames
-         WHERE {predicate_sql}"
-    ))
 }
 
 fn encode_normal_tags(labels: &[String]) -> Result<Option<String>, SourceDbError> {
