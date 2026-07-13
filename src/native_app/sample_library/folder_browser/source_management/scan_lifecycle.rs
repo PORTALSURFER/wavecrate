@@ -266,6 +266,21 @@ impl FolderBrowserState {
             || (self.source.selected_tree_loaded && self.tree.folders.first().is_some())
     }
 
+    pub(in crate::native_app) fn source_tree_loaded(&self, source_id: &str) -> bool {
+        let Some(source) = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+        else {
+            return false;
+        };
+        if self.source.selected_source == source_id {
+            return self.source.selected_tree_loaded && self.tree.folders.first().is_some();
+        }
+        source.parked_tree_loaded && source.root_folder.is_some()
+    }
+
     pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
         let Some(source_index) = self
             .source
