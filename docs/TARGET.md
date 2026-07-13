@@ -1196,6 +1196,8 @@ When a file disappears, Wavecrate should retain metadata as unavailable state un
 
 When reconciliation determines that a file was renamed outside Wavecrate, Wavecrate should keep the same Sample ID where file identity matches and update the disk path/filename state without changing the label.
 
+Scan-based rename reconciliation should preserve the complete user-metadata snapshot atomically, including every collection membership and the exact prior curation timestamp. Reconciliation is not a new curation event: an unset curation timestamp should remain unset, and metadata staged for deferred rename recovery should remain durable across restart and schema migration.
+
 External filesystem changes detected by file watching or rescan should be reconciled as external state changes, not added to the Wavecrate undo stack. This includes external renames, moves, deletes, additions, and overwrites. Undo should only cover actions initiated inside Wavecrate.
 
 When a file is changed outside Wavecrate, Wavecrate should invalidate stale waveform, audio-analysis, BPM, transient, silence, similarity, embedded-ID, and display-name-derived state as needed. It should not silently reuse stale analysis for changed audio.

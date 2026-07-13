@@ -107,6 +107,11 @@ pub(super) fn ensure_pending_rename_optional_columns(
     add_column_if_missing(
         connection,
         &columns,
+        OptionalColumn::new("pending_wav_renames", "collections", "TEXT"),
+    )?;
+    add_column_if_missing(
+        connection,
+        &columns,
         OptionalColumn::new(
             "pending_wav_renames",
             "tag_named",
