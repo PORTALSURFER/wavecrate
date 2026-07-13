@@ -179,9 +179,10 @@ fn collection_reads_use_canonical_membership_rows() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    db.upsert_file(Path::new("two.wav"), 10, 5).unwrap();
     db.connection
         .execute(
-            "UPDATE wav_files SET collection = 1 WHERE path = 'one.wav'",
+            "UPDATE wav_files SET collection = 1 WHERE path IN ('one.wav', 'two.wav')",
             [],
         )
         .unwrap();
@@ -195,6 +196,41 @@ fn collection_reads_use_canonical_membership_rows() {
     assert_eq!(
         db.collections_for_path(Path::new("one.wav")).unwrap(),
         vec![SampleCollection::new(2).unwrap()]
+    );
+    assert!(
+        db.collections_for_path(Path::new("two.wav"))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn legacy_read_only_collection_query_falls_back_to_wav_files_column() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE wav_files (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL,
+                collection INTEGER
+            );
+            INSERT INTO wav_files (path, file_size, modified_ns, collection)
+            VALUES ('one.wav', 10, 5, 3);",
+        )
+        .unwrap();
+    drop(connection);
+
+    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let expected = SampleCollection::new(3).unwrap();
+    assert_eq!(
+        db.collections_for_path(Path::new("one.wav")).unwrap(),
+        vec![expected]
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("one.wav")).unwrap(),
+        Some(expected)
     );
 }
 
@@ -371,4 +407,13 @@ fn legacy_read_only_minimal_wav_files_schema_reads_with_defaults() {
         1
     );
     assert_eq!(db.list_search_entry_metadata().unwrap().len(), 1);
+    assert!(
+        db.collections_for_path(Path::new("nested/One.WAV"))
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        db.collection_for_path(Path::new("nested/One.WAV")).unwrap(),
+        None
+    );
 }

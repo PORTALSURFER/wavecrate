@@ -7,7 +7,7 @@ use super::super::{
     META_WAV_PATHS_REVISION, Rating, SampleCollection, SampleSoundType, SourceDatabase,
     SourceDbError,
 };
-use super::decode::wav_file_has_column;
+use super::decode::{table_has_columns, wav_file_has_column};
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
     if !crate::sample_sources::is_supported_audio(path) {
@@ -196,27 +196,45 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(Vec::new());
         };
-        let mut stmt = self
+        if table_has_columns(self, "wav_file_collections", &["path", "collection"])? {
+            let mut stmt = self
+                .connection
+                .prepare(
+                    "SELECT collection
+                     FROM wav_file_collections
+                     WHERE path = ?1
+                     ORDER BY collection ASC",
+                )
+                .map_err(map_sql_error)?;
+            return stmt
+                .query_map(rusqlite::params![path_str.as_str()], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .map_err(map_sql_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(map_sql_error)
+                .map(|collections| {
+                    collections
+                        .into_iter()
+                        .filter_map(SampleCollection::from_i64)
+                        .collect()
+                });
+        }
+        if !wav_file_has_column(self, "collection")? {
+            return Ok(Vec::new());
+        }
+        let collection = self
             .connection
-            .prepare(
-                "SELECT collection
-                 FROM wav_file_collections
-                 WHERE path = ?1
-                 ORDER BY collection ASC",
+            .query_row(
+                "SELECT collection FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get::<_, Option<i64>>(0),
             )
-            .map_err(map_sql_error)?;
-        stmt.query_map(rusqlite::params![path_str.as_str()], |row| {
-            row.get::<_, i64>(0)
-        })
-        .map_err(map_sql_error)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(map_sql_error)
-        .map(|collections| {
-            collections
-                .into_iter()
-                .filter_map(SampleCollection::from_i64)
-                .collect()
-        })
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten()
+            .and_then(SampleCollection::from_i64);
+        Ok(collection.into_iter().collect())
     }
 
     /// Read a metadata value by key from the database.

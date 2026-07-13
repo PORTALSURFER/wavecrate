@@ -102,7 +102,7 @@ fn optional_column_expr<'a>(
     }
 }
 
-fn table_has_columns(
+pub(super) fn table_has_columns(
     db: &SourceDatabase,
     table: &str,
     required_columns: &[&str],
