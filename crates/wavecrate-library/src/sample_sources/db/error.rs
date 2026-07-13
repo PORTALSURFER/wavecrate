@@ -28,6 +28,9 @@ pub enum SourceDbError {
     /// Database is locked or busy.
     #[error("Database is busy, please retry")]
     Busy,
+    /// A caller canceled an in-progress database operation.
+    #[error("Database operation canceled")]
+    Canceled,
     /// SQLite returned an unexpected result.
     #[error("SQLite returned an unexpected result")]
     Unexpected,

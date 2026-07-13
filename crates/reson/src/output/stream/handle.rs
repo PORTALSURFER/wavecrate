@@ -143,6 +143,7 @@ impl CpalAudioStream {
 }
 
 /// A bridge for input monitoring that mimics a Sink-like interface.
+#[derive(Clone)]
 pub struct MonitorSink {
     command_sender: SyncSender<StreamCommand>,
     clear_pending: Arc<AtomicBool>,

@@ -41,5 +41,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+impl AppController {
+    /// Queue one selection export while retaining source-write ownership until completion.
+    pub(crate) fn queue_selection_export_job(&mut self, job: SelectionExportJob) {
+        let source_id = job.destination_source_id().clone();
+        self.cancel_pending_source_remap_for_mutation(&source_id);
+        self.runtime.jobs.begin_selection_export(job);
+    }
+
+    /// Queue one slice batch while retaining source-write ownership until completion.
+    pub(crate) fn queue_selection_slice_batch_export_job(&mut self, job: SelectionExportJob) {
+        let source_id = job.destination_source_id().clone();
+        self.cancel_pending_source_remap_for_mutation(&source_id);
+        self.runtime.jobs.begin_selection_slice_batch_export(job);
+    }
+}
+
 #[cfg(test)]
 mod selection_export_tests;

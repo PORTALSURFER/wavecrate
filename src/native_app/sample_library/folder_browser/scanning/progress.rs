@@ -20,7 +20,13 @@ pub(in crate::native_app) fn scan_source_with_progress(
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
-    let ratings = if request.root.is_dir() {
+    let source_root_available = request.root.is_dir();
+    let source_db_error = if source_root_available {
+        sync_source_database(&request, &mut progress)
+    } else {
+        None
+    };
+    let ratings = if source_root_available {
         source_rating_map_with_rating_decay(
             &request.root,
             &request.database_root,
@@ -48,18 +54,6 @@ pub(in crate::native_app) fn scan_source_with_progress(
     let file_count = scan.counter.files;
     let folder_count = scan.counter.folders;
     drop(scan);
-    let source_db_error = if request.root.is_dir() {
-        sync_source_database(&request, &mut progress)
-    } else {
-        None
-    };
-    let source_root_available = request.root.is_dir();
-    discovered(FolderScanDiscovery {
-        task_id: request.task_id,
-        source_id: request.source_id.clone(),
-        parent_id: path_id(&request.root),
-        item: FolderScanItem::CompletedFolder(folder.clone()),
-    });
     FolderScanResult {
         task_id: request.task_id,
         source_id: request.source_id,
@@ -77,11 +71,13 @@ fn sync_source_database(
     request: &FolderScanRequest,
     progress: &mut impl FnMut(FolderScanProgress),
 ) -> Option<String> {
-    let db =
-        match SourceDatabase::open_fast_with_database_root(&request.root, &request.database_root) {
-            Ok(db) => db,
-            Err(err) => return Some(format!("open source index: {err}")),
-        };
+    let db = match SourceDatabase::open_for_background_job_with_database_root(
+        &request.root,
+        &request.database_root,
+    ) {
+        Ok(db) => db,
+        Err(err) => return Some(format!("open source index: {err}")),
+    };
     let mut sync_progress = |completed: usize, path: &Path| {
         progress(FolderScanProgress {
             task_id: request.task_id,
@@ -93,18 +89,26 @@ fn sync_source_database(
             detail: path.display().to_string(),
         });
     };
-    match scanner::scan_with_progress(&db, scanner::ScanMode::Quick, None, &mut sync_progress) {
-        Ok(stats) => {
-            if stats.hashes_pending > 0 {
-                scanner::schedule_deep_hash_scan_with_database_root(
-                    request.root.clone(),
-                    request.database_root.clone(),
-                );
-            }
-            None
-        }
-        Err(err) => Some(format!("sync source index: {err}")),
+    let stats = match scanner::scan_with_progress(
+        &db,
+        scanner::ScanMode::Quick,
+        None,
+        &mut sync_progress,
+    ) {
+        Ok(stats) => stats,
+        Err(err) => return Some(format!("sync source index: {err}")),
+    };
+    let completed = match scanner::complete_deferred_rename_candidates(&db, stats) {
+        Ok(completed) => completed,
+        Err(err) => return Some(format!("finish deferred rename hashing: {err}")),
+    };
+    if completed.hashes_pending > 0 {
+        scanner::schedule_deep_hash_scan_with_database_root(
+            request.root.clone(),
+            request.database_root.clone(),
+        );
     }
+    None
 }
 
 struct ScanProgressCounter {
@@ -154,6 +158,15 @@ where
         });
     }
 
+    fn record_folder_snapshot_start(&mut self, folder_id: &str) {
+        (self.discovered)(FolderScanDiscovery {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            parent_id: folder_id.to_string(),
+            item: FolderScanItem::ResetFolder,
+        });
+    }
+
     fn record_file(&mut self, path: &Path, parent_id: &str, file: FileEntry) {
         self.counter.completed += 1;
         self.counter.files += 1;
@@ -163,15 +176,6 @@ where
             source_id: self.request.source_id.clone(),
             parent_id: parent_id.to_string(),
             item: FolderScanItem::File(file),
-        });
-    }
-
-    fn record_completed_folder(&mut self, parent_id: &str, folder: FolderEntry) {
-        (self.discovered)(FolderScanDiscovery {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            parent_id: parent_id.to_string(),
-            item: FolderScanItem::CompletedFolder(folder),
         });
     }
 
@@ -200,14 +204,13 @@ where
 {
     let entries = read_sorted_entries(path)?;
     let parent_id = path_id(path);
+    scan.record_folder_snapshot_start(&parent_id);
     let children = entries
         .iter()
         .filter(|entry| entry.is_dir())
         .filter_map(|entry| {
             scan.record_folder(entry, &parent_id);
-            let child = load_folder_with_progress(entry, scan)?;
-            scan.record_completed_folder(&parent_id, child.clone());
-            Some(child)
+            load_folder_with_progress(entry, scan)
         })
         .collect::<Vec<_>>();
     let files = entries

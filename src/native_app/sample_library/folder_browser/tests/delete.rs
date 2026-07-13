@@ -218,6 +218,37 @@ fn trashed_explicit_file_selection_focuses_next_sample_after_focused_row() {
 }
 
 #[test]
+fn partial_trash_keeps_failed_selected_file_selected_for_retry() {
+    let root = temp_source_root("wavecrate-gui-file-trash-partial-selection");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let moved = drums.join("a.wav");
+    let unselected = drums.join("b.wav");
+    let failed = drums.join("c.wav");
+    for file in [&moved, &unselected, &failed] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.selection.selected_file = Some(path_id(&moved));
+    browser.selection.selected_file_ids = [path_id(&moved), path_id(&failed)].into_iter().collect();
+    browser.selection.selected_file_ids_explicit = true;
+
+    assert!(
+        browser.discard_trashed_file_paths_matching_tags_preserving_selection(
+            std::slice::from_ref(&moved),
+            &std::collections::HashMap::new(),
+            std::slice::from_ref(&failed),
+        )
+    );
+
+    assert_eq!(browser.selected_file_id(), Some(path_id(&failed).as_str()));
+    assert_eq!(browser.selected_file_paths(), vec![failed.clone()]);
+    assert!(!browser.is_file_selected(path_id(&unselected).as_str()));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn root_folder_delete_is_rejected_from_tree() {
     let root = temp_source_root("wavecrate-gui-root-delete");
     let browser = FolderBrowserState::from_root(root.clone());

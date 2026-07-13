@@ -202,6 +202,19 @@ impl NativeAppState {
         }
         let mut remaining = Vec::new();
         for path in pending {
+            let source_loaded = self
+                .library
+                .folder_browser
+                .sample_source_for_file_path(&path)
+                .is_some_and(|(source, _)| {
+                    self.library
+                        .folder_browser
+                        .source_tree_loaded(source.id.as_str())
+                });
+            if !source_loaded {
+                remaining.push(path);
+                continue;
+            }
             if !self.focus_and_load_audio_document(&path, context, started_at) {
                 remaining.push(path);
             }

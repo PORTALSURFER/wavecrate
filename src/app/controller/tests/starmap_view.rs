@@ -1,6 +1,63 @@
 use super::super::test_support::{dummy_controller, sample_entry, write_test_wav};
 use std::path::{Path, PathBuf};
 
+fn install_pending_remap(
+    controller: &mut crate::app::controller::AppController,
+    source: &crate::sample_sources::SampleSource,
+    canceled: bool,
+) {
+    controller.runtime.source_lane.pending_remap =
+        Some(crate::app::controller::state::runtime::PendingSourceRemap {
+            request_id: 1,
+            source: source.clone(),
+            new_root: tempfile::tempdir().expect("remap target").keep(),
+            queued_at: std::time::Instant::now(),
+            canceled,
+            write_fence: std::sync::Arc::new(
+                crate::app::controller::jobs::SourceRemapWriteFence::default(),
+            ),
+        });
+}
+
+#[test]
+fn pending_remap_blocks_starmap_layout_build() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    install_pending_remap(&mut controller, &source, false);
+
+    controller.build_umap_layout("test-model", "test-version");
+
+    assert!(!controller.runtime.jobs.umap_build_in_progress());
+    assert_eq!(controller.ui.status.text, "Source remap in progress");
+}
+
+#[test]
+fn pending_remap_blocks_starmap_cluster_build() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    install_pending_remap(&mut controller, &source, false);
+
+    controller.build_umap_clusters("test-model", "test-version");
+
+    assert!(!controller.runtime.jobs.umap_cluster_build_in_progress());
+    assert_eq!(controller.ui.status.text, "Source remap in progress");
+}
+
+#[test]
+fn canceled_remap_allows_starmap_layout_build() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    install_pending_remap(&mut controller, &source, true);
+
+    controller.build_umap_layout("test-model", "test-version");
+
+    assert!(controller.runtime.jobs.umap_build_in_progress());
+    controller.runtime.jobs.clear_umap_build();
+}
+
 #[test]
 fn map_focus_queues_async_load_without_sync_preview_decode() {
     let (mut controller, source) = dummy_controller();

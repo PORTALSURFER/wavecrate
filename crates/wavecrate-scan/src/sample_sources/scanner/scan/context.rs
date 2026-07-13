@@ -2,24 +2,15 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
-use crate::sample_sources::db::WavEntry;
+use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 
 use super::{ScanError, ScanMode, ScanStats};
 
 pub(crate) struct ScanContext {
     pub(crate) existing: HashMap<PathBuf, WavEntry>,
-    /// On-demand rename candidate paths keyed by content hash.
-    ///
-    /// Unlike the previous full in-memory hash index, this cache only stores
-    /// keys encountered during the current walk.
-    pub(crate) rename_candidates_by_hash: HashMap<String, Vec<PathBuf>>,
-    /// On-demand rename candidate paths keyed by `(file_size, modified_ns)`.
-    ///
-    /// This keeps quick-scan reconciliation incremental and avoids triplicating
-    /// all row mappings in memory.
-    pub(crate) rename_candidates_by_facts: HashMap<(u64, i64), Vec<PathBuf>>,
     pub(crate) stats: ScanStats,
     pub(crate) mode: ScanMode,
+    pub(crate) rename_candidate_generation: Option<u64>,
 }
 
 impl ScanContext {
@@ -34,11 +25,26 @@ impl ScanContext {
     ) -> Self {
         Self {
             existing,
-            rename_candidates_by_hash: HashMap::new(),
-            rename_candidates_by_facts: HashMap::new(),
             stats: ScanStats::default(),
             mode,
+            rename_candidate_generation: None,
         }
+    }
+
+    pub(in crate::sample_sources::scanner) fn ensure_rename_candidate_generation(
+        &mut self,
+        batch: &mut SourceWriteBatch<'_>,
+    ) -> Result<(), ScanError> {
+        if self.rename_candidate_generation.is_some() || self.mode == ScanMode::Hard {
+            return Ok(());
+        }
+        let generation = match self.mode {
+            ScanMode::Targeted => batch.begin_targeted_scan_generation()?,
+            ScanMode::Quick => batch.begin_quick_scan_rename_candidates()?,
+            ScanMode::Hard => unreachable!("hard scans do not track rename destinations"),
+        };
+        self.rename_candidate_generation = Some(generation);
+        Ok(())
     }
 }
 

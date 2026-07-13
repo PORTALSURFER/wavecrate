@@ -27,6 +27,7 @@ pub(in crate::native_app) use metadata::MetadataAppState;
 pub(in crate::native_app) use source_scan_worker::{FolderScanWorkerEvent, run_folder_scan_worker};
 pub(in crate::native_app) use source_scan_workflow::{
     SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
+    SourceSelectionRequest,
 };
 pub(in crate::native_app) use transactions::TransactionState;
 #[cfg(test)]
@@ -42,7 +43,7 @@ pub(in crate::native_app) use ui_state::{
 };
 pub(in crate::native_app) use waveform::{
     PendingPlaySelectionRetargetCycle, WaveformAppState, WaveformEditSelectionSnapshot,
-    WaveformPlaySelectionSnapshot,
+    WaveformPlaySelectionSnapshot, WaveformVisualSnapshot,
 };
 
 pub(in crate::native_app) struct NativeAppState {

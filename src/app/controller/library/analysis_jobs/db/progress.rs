@@ -60,6 +60,19 @@ pub(crate) fn current_running_jobs(
     telemetry::finish_query("analysis_running_jobs", source_root, started_at, Ok(out))
 }
 
+pub(crate) fn has_pending_or_running_jobs(conn: &Connection) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1
+             FROM analysis_jobs
+             WHERE status IN ('pending', 'running')
+         )",
+        [],
+        |row| row.get::<_, bool>(0),
+    )
+    .map_err(|error| format!("Failed to inspect active analysis jobs: {error}"))
+}
+
 fn current_progress_for_job_type(
     conn: &Connection,
     source_root: &Path,

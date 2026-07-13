@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::app::{GuiMessage, NativeAppState, SourceSelectionRequest, emit_gui_action};
 use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 impl NativeAppState {
@@ -14,18 +14,34 @@ impl NativeAppState {
         let started_at = Instant::now();
         let requested_id = id.clone();
         let task_id = self.next_folder_task_id();
-        if let Some(request) = self.library.begin_select_source(id, task_id) {
-            let label = request.label.clone();
-            emit_gui_action(
-                "folder_browser.select_source",
-                Some("folder_browser"),
-                Some(&label),
-                "scan_queued",
-                started_at,
-                None,
-            );
-            self.launch_folder_scan(request, context);
-        } else if self.library.folder_browser.selected_source_id() == requested_id
+        match self.library.begin_select_source(id, task_id) {
+            SourceSelectionRequest::Queued(request) => {
+                let label = request.label.clone();
+                emit_gui_action(
+                    "folder_browser.select_source",
+                    Some("folder_browser"),
+                    Some(&label),
+                    "scan_queued",
+                    started_at,
+                    None,
+                );
+                self.launch_folder_scan(request, context);
+                return;
+            }
+            SourceSelectionRequest::Deferred => {
+                emit_gui_action(
+                    "folder_browser.select_source",
+                    Some("folder_browser"),
+                    Some(&requested_id),
+                    "deferred",
+                    started_at,
+                    Some("scan_already_running"),
+                );
+                return;
+            }
+            SourceSelectionRequest::Settled => {}
+        }
+        if self.library.folder_browser.selected_source_id() == requested_id
             && self.library.folder_browser.selected_source_loaded()
         {
             emit_gui_action(

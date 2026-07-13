@@ -130,6 +130,25 @@ pub struct MoveJournalEntryInit {
     pub last_curated_at: Option<i64>,
 }
 
+/// Initialization payload for creating copy journal entries without wide signatures.
+#[derive(Debug, Clone)]
+pub struct CopyJournalEntryInit {
+    /// Final target-relative destination path.
+    pub target_relative: PathBuf,
+    /// Temporary staged path used before finalization.
+    pub staged_relative: PathBuf,
+    /// Stored keep/trash rating that should survive reconciliation.
+    pub tag: Rating,
+    /// Stored loop marker that should survive reconciliation.
+    pub looped: bool,
+    /// Stored lock marker that should survive reconciliation.
+    pub locked: bool,
+    /// Stored playback timestamp that should survive reconciliation.
+    pub last_played_at: Option<i64>,
+    /// Stored curation timestamp that should survive reconciliation.
+    pub last_curated_at: Option<i64>,
+}
+
 impl FileOpJournalEntry {
     /// Build a new journal entry for a move operation.
     pub fn new_move(id: String, init: MoveJournalEntryInit) -> Result<Self, SourceDbError> {
@@ -153,31 +172,22 @@ impl FileOpJournalEntry {
     }
 
     /// Build a new journal entry for a copy operation.
-    pub fn new_copy(
-        id: String,
-        target_relative: PathBuf,
-        staged_relative: PathBuf,
-        tag: Rating,
-        looped: bool,
-        locked: bool,
-        last_played_at: Option<i64>,
-        last_curated_at: Option<i64>,
-    ) -> Result<Self, SourceDbError> {
+    pub fn new_copy(id: String, init: CopyJournalEntryInit) -> Result<Self, SourceDbError> {
         Ok(Self {
             id,
             kind: FileOpKind::Copy,
             stage: FileOpStage::Intent,
             source_root: None,
             source_relative: None,
-            target_relative,
-            staged_relative: Some(staged_relative),
+            target_relative: init.target_relative,
+            staged_relative: Some(init.staged_relative),
             file_size: None,
             modified_ns: None,
-            tag: Some(tag),
-            looped: Some(looped),
-            locked: Some(locked),
-            last_played_at,
-            last_curated_at,
+            tag: Some(init.tag),
+            looped: Some(init.looped),
+            locked: Some(init.locked),
+            last_played_at: init.last_played_at,
+            last_curated_at: init.last_curated_at,
             created_at: now_epoch_seconds()?,
         })
     }

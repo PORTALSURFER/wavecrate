@@ -100,7 +100,7 @@ fn load_entries_with_options(
     job: &WavLoadJob,
     options: LoadEntriesOptions,
 ) -> (Result<Vec<WavEntry>, LoadEntriesError>, usize) {
-    let db = match SourceDatabase::open_fast(&job.root) {
+    let db = match SourceDatabase::open_for_background_job(&job.root) {
         Ok(db) => db,
         Err(err) => return (Err(LoadEntriesError::Db(err)), 0),
     };

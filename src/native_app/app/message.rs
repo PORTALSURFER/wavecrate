@@ -32,14 +32,16 @@ use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FileMoveConflictResolutionRequest, FolderMoveCompletion,
 };
 use crate::native_app::sample_library::folder_browser::scan::{
-    FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult, FolderTreeRefreshResult,
-    FolderVerifyResult,
+    FolderScanDiscoveryBatch, FolderScanProgress, FolderTreeRefreshResult, FolderVerifyResult,
+    PreparedFolderScanResult,
 };
+use crate::native_app::sample_library::folder_scan_actions::FolderScanMaintenanceResult;
 use crate::native_app::sample_library::native_file_open_actions::NativeAudioDocumentOpenValidation;
 use crate::native_app::sample_library::similarity_prep::{
     SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
 };
 use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult;
+use crate::native_app::sample_library::trash_actions::movement::TrashMoveOutcome;
 use crate::native_app::waveform::WaveformInteraction;
 use crate::native_app::waveform::{SimilarSectionsResult, WaveformExtractionCompletion};
 use crate::native_app::waveform_edits::WaveformDestructiveEditResult;
@@ -68,7 +70,8 @@ pub(in crate::native_app) enum GuiMessage {
     },
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
-    FolderScanFinished(FolderScanResult),
+    FolderScanFinished(PreparedFolderScanResult),
+    FolderScanMaintenanceFinished(FolderScanMaintenanceResult),
     FolderTreeRefreshFinished(ui::TaskCompletion<FolderTreeRefreshResult>),
     SelectedFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
     SourceFilesystemChanged {
@@ -237,7 +240,15 @@ pub(in crate::native_app) enum GuiMessage {
     },
     CancelFileMoveConflicts,
     CopyContextPath,
-    OpenContextTarget,
+    OpenContextTarget {
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+    },
+    ContextTargetOpenValidated {
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+        result: Result<(), String>,
+    },
     CreateFolderAtContextTarget,
     RenameContextFolder,
     ContextFolderCreateFinished {
@@ -255,7 +266,7 @@ pub(in crate::native_app) enum GuiMessage {
         target: TrashMoveTarget,
         action: &'static str,
         started_at: Instant,
-        result: Result<Vec<PathBuf>, String>,
+        outcomes: Vec<TrashMoveOutcome>,
     },
     RefreshContextSource,
     ProcessContextSource,
@@ -359,6 +370,7 @@ pub(in crate::native_app) enum GuiMessage {
     CancelBrowserDragOnSampleList,
     DropWaveformSelectionOnSampleList,
     Waveform(WaveformInteraction),
+    WaveformDetailRefined(crate::native_app::waveform::WaveformDetailResult),
     WaveformFileDrop(NativeFileDrop),
     Frame,
 }
@@ -367,7 +379,12 @@ pub(in crate::native_app) enum GuiMessage {
 pub(in crate::native_app) struct SourceFilesystemSyncResult {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) changed_count: usize,
-    pub(in crate::native_app) result: Result<(), String>,
+    pub(in crate::native_app) result: Result<SourceFilesystemSyncSuccess, String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
+    pub(in crate::native_app) renames_reconciled: usize,
 }
 
 #[derive(Clone, Debug)]

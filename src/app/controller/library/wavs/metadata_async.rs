@@ -32,6 +32,7 @@ impl AppController {
         if source_ops.is_empty() && analysis_ops.is_empty() {
             return;
         }
+        self.cancel_pending_source_remap_for_mutation(&source.id);
         let paths = metadata_mutation_paths(&source_ops, &analysis_ops);
         #[cfg(test)]
         let queue_depth_before = self.runtime.source_lane.mutations.pending_metadata_count();

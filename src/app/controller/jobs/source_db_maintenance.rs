@@ -1,9 +1,9 @@
 use super::retry_policy::{DEFERRED_MAINTENANCE_MAX_ATTEMPTS, DEFERRED_MAINTENANCE_RETRY_DELAY};
 use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome, SourceDbMaintenanceRefresh};
 use crate::app::controller::library::analysis_jobs;
+use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::file_ops_journal;
-use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
-use crate::sample_sources::{SourceDatabase, SourceDatabaseConnectionRole};
+use crate::sample_sources::scanner::{ScanStats, complete_deferred_hashes, scan_once};
 
 mod markers;
 mod refresh;
@@ -92,7 +92,7 @@ fn run_source_db_maintenance_with_retries(
 }
 
 fn open_maintenance_probe(job: &SourceDbMaintenanceJob) -> Result<SourceDatabase, String> {
-    SourceDatabase::open_with_role(&job.source_root, SourceDatabaseConnectionRole::Maintenance)
+    SourceDatabase::open_for_maintenance(&job.source_root)
         .map_err(|err| format!("Open source DB failed: {err}"))
 }
 
@@ -128,12 +128,24 @@ fn rescan_empty_source(
     job: &SourceDbMaintenanceJob,
     probe: &SourceDatabase,
 ) -> Result<bool, String> {
-    let stats =
+    let committed =
         scan_once(probe).map_err(|err| format!("Deferred empty-source scan failed: {err}"))?;
-    if stats.hashes_pending > 0 {
-        schedule_deep_hash_scan(job.source_root.clone());
+    match complete_deferred_hashes(probe, committed.clone()) {
+        Ok(completed) => Ok(scan_changed_after_deferred(&committed, Some(&completed))),
+        Err(error) => {
+            tracing::warn!(
+                source_id = %job.source_id,
+                source_root = %job.source_root.display(),
+                %error,
+                "Deferred hashing failed after the empty-source scan committed"
+            );
+            Ok(scan_changed_after_deferred(&committed, None))
+        }
     }
-    Ok(scan_changed_source(&stats))
+}
+
+fn scan_changed_after_deferred(committed: &ScanStats, completed: Option<&ScanStats>) -> bool {
+    scan_changed_source(completed.unwrap_or(committed))
 }
 
 fn maintenance_error(

@@ -226,27 +226,24 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     );
     assert_eq!(icon_control(1).icon, ToolbarIcon::Loop);
     assert!(icon_control(1).active);
-    assert_eq!(icon_control(2).icon, ToolbarIcon::Random);
-    assert!(icon_control(2).enabled);
+    assert_eq!(icon_control(1).tooltip, "Loop");
+    assert_eq!(icon_control(2).icon, ToolbarIcon::SimilarSections);
+    assert!(icon_control(2).icon_enabled);
     assert!(icon_control(2).active);
-    assert!(icon_control(2).tooltip.contains("Shift-click"));
-    assert_eq!(icon_control(3).icon, ToolbarIcon::SimilarSections);
-    assert!(icon_control(3).icon_enabled);
+    assert_eq!(icon_control(3).icon, ToolbarIcon::ZeroCrossingSnap);
     assert!(icon_control(3).active);
-    assert_eq!(icon_control(4).icon, ToolbarIcon::ZeroCrossingSnap);
-    assert!(icon_control(4).active);
     assert_eq!(
-        icon_control(4).tooltip,
+        icon_control(3).tooltip,
         "Snap play and edit mark edges to nearby zero crossings."
     );
     assert_eq!(
-        icon_control(4).id,
+        icon_control(3).id,
         crate::native_app::test_support::toolbar::TOOLBAR_ZERO_CROSSING_SNAP_ID
     );
-    assert_eq!(icon_control(5).icon, ToolbarIcon::BeatGuides);
-    assert!(icon_control(5).active);
+    assert_eq!(icon_control(4).icon, ToolbarIcon::BeatGuides);
+    assert!(icon_control(4).active);
     assert!(matches!(
-        projection.controls[6],
+        projection.controls[5],
         ToolbarControlProjection::BeatGuideCountField {
             count: 8,
             id: crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID,
@@ -254,27 +251,32 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             tooltip: "Beat guide divisions.",
         }
     ));
-    assert_eq!(icon_control(7).icon, ToolbarIcon::Metronome);
+    assert_eq!(icon_control(6).icon, ToolbarIcon::Metronome);
     assert_eq!(
-        icon_control(7).id,
+        icon_control(6).id,
         crate::native_app::test_support::toolbar::TOOLBAR_METRONOME_ID
     );
-    assert!(icon_control(7).active);
+    assert!(icon_control(6).active);
     assert_eq!(
-        icon_control(7).tooltip,
+        icon_control(6).tooltip,
         "Play a metronome from the beat guide divisions."
     );
 
     assert!(matches!(
-        projection.controls[8],
+        projection.controls[7],
         ToolbarControlProjection::ApplyEditMarkEdits {
             id: crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
             tooltip: "Apply edit mark gain and fade edits.",
         }
     ));
 
+    assert_eq!(icon_control(8).icon, ToolbarIcon::Random);
+    assert!(icon_control(8).enabled);
+    assert!(icon_control(8).active);
+    assert!(icon_control(8).tooltip.starts_with("Play random section"));
     assert_eq!(icon_control(9).icon, ToolbarIcon::Play);
     assert!(!icon_control(9).active);
+    assert_eq!(icon_control(9).tooltip, "Play");
     assert_eq!(icon_control(10).icon, ToolbarIcon::Stop);
     assert_eq!(
         icon_control(10).id,
@@ -333,7 +335,7 @@ fn random_toolbar_help_tooltip_paints_multiline_guidance() {
     runtime.dispatch_event(Event::pointer_move(random.center()));
 
     let frame = runtime.frame_with_default_theme();
-    assert!(frame.paint_plan.contains_text("Random section playback"));
+    assert!(frame.paint_plan.contains_text("Play random section"));
     assert!(
         frame
             .paint_plan

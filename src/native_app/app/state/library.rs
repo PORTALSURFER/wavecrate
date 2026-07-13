@@ -8,6 +8,7 @@ use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
 
 use super::{
     SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
+    SourceSelectionRequest,
 };
 
 pub(in crate::native_app) struct LibraryAppState {
@@ -65,7 +66,7 @@ impl LibraryAppState {
         &mut self,
         id: String,
         task_id: u64,
-    ) -> Option<FolderScanRequest> {
+    ) -> SourceSelectionRequest {
         self.source_scan
             .begin_select_source(&mut self.folder_browser, id, task_id)
     }

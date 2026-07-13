@@ -81,16 +81,23 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_source_filesystem_sync(
         &mut self,
         result: SourceFilesystemSyncResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if let Err(error) = result.result {
-            tracing::warn!(
-                source_id = %result.source_id,
-                changed_count = result.changed_count,
-                error = %error,
-                "Failed to sync source database after filesystem change"
-            );
-            if result.source_id == self.library.folder_browser.selected_source_id() {
-                self.ui.status.sample = format!("Source sync failed: {error}");
+        match result.result {
+            Ok(success) if success.renames_reconciled > 0 => {
+                self.queue_filesystem_source_refresh(result.source_id, Instant::now(), context);
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(
+                    source_id = %result.source_id,
+                    changed_count = result.changed_count,
+                    error = %error,
+                    "Failed to sync source database after filesystem change"
+                );
+                if result.source_id == self.library.folder_browser.selected_source_id() {
+                    self.ui.status.sample = format!("Source sync failed: {error}");
+                }
             }
         }
     }
@@ -135,6 +142,16 @@ impl NativeAppState {
                     "deferred",
                     started_at,
                     Some("source_not_queued"),
+                );
+            }
+            SourceRefreshRequest::IgnoredMissing { source_id } => {
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&source_id),
+                    "ignored_missing",
+                    started_at,
+                    Some("source_root_missing"),
                 );
             }
         }
