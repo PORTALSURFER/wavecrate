@@ -370,6 +370,7 @@ pub(in crate::native_app) enum GuiMessage {
     CancelBrowserDragOnSampleList,
     DropWaveformSelectionOnSampleList,
     Waveform(WaveformInteraction),
+    WaveformDetailRefined(crate::native_app::waveform::WaveformDetailResult),
     WaveformFileDrop(NativeFileDrop),
     Frame,
 }

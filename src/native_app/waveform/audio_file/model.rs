@@ -86,9 +86,37 @@ impl WaveformFile {
             return None;
         }
         let mut file = self.clone();
-        file.path = mapped_path;
+        file.apply_remapped_path(mapped_path);
         file.playback_cache_file = None;
         Some(file)
+    }
+
+    pub(in crate::native_app::waveform) fn rewrite_path_prefix(
+        &mut self,
+        old_path: &Path,
+        new_path: &Path,
+    ) -> bool {
+        let Some(mapped_path) = remapped_waveform_path(&self.path, old_path, new_path) else {
+            return false;
+        };
+        if mapped_path == self.path {
+            return false;
+        }
+        self.apply_remapped_path(mapped_path);
+        true
+    }
+
+    fn apply_remapped_path(&mut self, mapped_path: PathBuf) {
+        self.path = mapped_path;
+        if let Ok(metadata) = std::fs::metadata(&self.path) {
+            self.content_revision = content_revision_for_path_metadata(
+                &self.path,
+                &metadata,
+                self.sample_rate,
+                self.channels,
+                self.frames,
+            );
+        }
     }
 
     pub(in crate::native_app::waveform) fn has_loaded_sample_metadata(&self) -> bool {
@@ -124,6 +152,32 @@ impl WaveformFile {
     pub(in crate::native_app::waveform) fn content_revision(&self) -> u64 {
         self.content_revision
     }
+}
+
+pub(super) fn content_revision_for_path_metadata(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    sample_rate: u32,
+    channels: usize,
+    frames: usize,
+) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    metadata.len().hash(&mut hasher);
+    modified_ns(metadata).hash(&mut hasher);
+    sample_rate.hash(&mut hasher);
+    channels.hash(&mut hasher);
+    frames.hash(&mut hasher);
+    hasher.finish().max(1)
+}
+
+fn modified_ns(metadata: &std::fs::Metadata) -> u128 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default()
 }
 
 fn remapped_waveform_path(path: &Path, old_path: &Path, new_path: &Path) -> Option<PathBuf> {

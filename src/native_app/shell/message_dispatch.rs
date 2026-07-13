@@ -252,6 +252,9 @@ impl NativeAppState {
                 self.apply_navigation_dispatch(message, context);
             }
             GuiMessage::Waveform(message) => self.apply_waveform_message(message, context),
+            GuiMessage::WaveformDetailRefined(result) => {
+                self.finish_waveform_detail_refinement(result, context);
+            }
             GuiMessage::Frame => self.apply_frame_message(context),
         }
     }

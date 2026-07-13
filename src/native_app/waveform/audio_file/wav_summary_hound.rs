@@ -123,7 +123,7 @@ fn read_i32_summary<R: std::io::Read>(
     Ok(())
 }
 
-fn read_float_frame_peak<R: std::io::Read>(
+pub(super) fn read_float_frame_peak<R: std::io::Read>(
     samples: &mut hound::WavSamples<'_, R, f32>,
     channels: usize,
 ) -> Result<f32, String> {
@@ -142,7 +142,7 @@ fn read_float_frame_peak<R: std::io::Read>(
     Ok(peak.clamp(-1.0, 1.0))
 }
 
-fn read_i16_frame_peak<R: std::io::Read>(
+pub(super) fn read_i16_frame_peak<R: std::io::Read>(
     samples: &mut hound::WavSamples<'_, R, i16>,
     channels: usize,
     max: f32,
@@ -162,7 +162,7 @@ fn read_i16_frame_peak<R: std::io::Read>(
     Ok(peak.clamp(-1.0, 1.0))
 }
 
-fn read_i32_frame_peak<R: std::io::Read>(
+pub(super) fn read_i32_frame_peak<R: std::io::Read>(
     samples: &mut hound::WavSamples<'_, R, i32>,
     channels: usize,
     max: f32,
