@@ -37,7 +37,7 @@ pub(crate) use cleanup::{
 };
 pub(crate) use connection::{
     AnalysisJobSession, AnalysisMaintenanceSession, AnalysisReadSession, open_source_db,
-    open_source_db_maintenance, open_source_db_ui_read,
+    open_source_db_background_read, open_source_db_maintenance, open_source_db_ui_read,
 };
 #[cfg(test)]
 pub(crate) use constants::DEFAULT_JOB_TYPE;

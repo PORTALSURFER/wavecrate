@@ -7,7 +7,7 @@ use std::{
 /// Writable source-database session for analysis workers and enqueue operations.
 pub(crate) struct AnalysisJobSession(Connection);
 
-/// Read-only source-database session for UI progress and side-effect-free cached queries.
+/// Read-only source-database session for side-effect-free queries.
 pub(crate) struct AnalysisReadSession(Connection);
 
 /// Writable source-database session for deferred cleanup and schema-sensitive work.
@@ -66,6 +66,18 @@ pub(crate) fn open_source_db_ui_read(source_root: &Path) -> Result<AnalysisReadS
     .map_err(|err| format!("Open source DB failed: {err}"))
 }
 
+/// Open a read-only source DB connection for background queries that may wait behind writers.
+pub(crate) fn open_source_db_background_read(
+    source_root: &Path,
+) -> Result<AnalysisReadSession, String> {
+    crate::sample_sources::SourceDatabase::open_connection_with_role(
+        source_root,
+        crate::sample_sources::SourceDatabaseConnectionRole::BackgroundRead,
+    )
+    .map(AnalysisReadSession)
+    .map_err(|err| format!("Open source DB failed: {err}"))
+}
+
 /// Open a full maintenance connection for cleanup and deferred schema-sensitive work.
 pub(crate) fn open_source_db_maintenance(
     source_root: &Path,
@@ -94,6 +106,19 @@ mod tests {
         let reader = open_source_db_ui_read(root.path()).expect("read session");
         let write_error = reader.execute("INSERT INTO role_probe (value) VALUES (1)", []);
         assert!(write_error.is_err(), "UI-read sessions must reject writes");
+
+        let background_reader =
+            open_source_db_background_read(root.path()).expect("background read session");
+        let busy_timeout: i64 = background_reader
+            .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+            .expect("background read timeout");
+        assert_eq!(busy_timeout, 5_000);
+        let write_error =
+            background_reader.execute("INSERT INTO role_probe (value) VALUES (1)", []);
+        assert!(
+            write_error.is_err(),
+            "background-read sessions must reject writes"
+        );
 
         let maintenance = open_source_db_maintenance(root.path()).expect("maintenance session");
         maintenance

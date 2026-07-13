@@ -88,8 +88,9 @@ pub(crate) fn compute_focused_similarity(
 pub(crate) fn compute_loaded_similarity_query(
     job: LoadedSimilarityQueryJob,
 ) -> Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String> {
-    let conn =
-        crate::app::controller::library::analysis_jobs::open_source_db_ui_read(&job.source_root)?;
+    let conn = crate::app::controller::library::analysis_jobs::open_source_db_background_read(
+        &job.source_root,
+    )?;
     let request = loaded::build_loaded_similarity_request(
         &job.source_id,
         &job.relative_path,

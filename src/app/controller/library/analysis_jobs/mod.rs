@@ -12,8 +12,8 @@ pub(crate) use db::sample_bpm;
 #[cfg(test)]
 pub(crate) use db::update_sample_bpm;
 pub(crate) use db::{
-    AnalysisJobSession, AnalysisReadSession, open_source_db, open_source_db_maintenance,
-    open_source_db_ui_read,
+    AnalysisJobSession, AnalysisReadSession, open_source_db, open_source_db_background_read,
+    open_source_db_maintenance, open_source_db_ui_read,
 };
 pub(crate) use db::{
     SampleMetadata, build_sample_id, parse_sample_id, update_sample_duration,
