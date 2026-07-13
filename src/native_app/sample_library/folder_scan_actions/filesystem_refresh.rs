@@ -144,6 +144,16 @@ impl NativeAppState {
                     Some("source_not_queued"),
                 );
             }
+            SourceRefreshRequest::IgnoredMissing { source_id } => {
+                emit_gui_action(
+                    "folder_browser.source.filesystem_change",
+                    Some("sources"),
+                    Some(&source_id),
+                    "ignored_missing",
+                    started_at,
+                    Some("source_root_missing"),
+                );
+            }
         }
     }
 

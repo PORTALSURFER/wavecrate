@@ -1,4 +1,5 @@
 use super::*;
+use crate::native_app::sample_library::folder_browser::scan_types::FolderScanItem;
 use crate::native_app::sample_library::folder_browser::{
     refreshed_file_entries_for_paths, scan::verify_direct_folder,
 };
@@ -433,11 +434,7 @@ fn folder_tree_refresh_ignores_stale_source_result() {
         .expect("second source scan can queue");
     let second_result = scan_source_with_progress(second_scan, |_| {}, |_| {});
     assert!(browser.apply_scan_finished(second_result));
-    assert!(
-        browser
-            .begin_select_source(String::from("second"), 43)
-            .is_none()
-    );
+    assert!(browser.select_source_without_scan(String::from("second")));
     fs::remove_dir_all(&stale_first).expect("remove first child");
 
     let stale_result = refresh_folder_tree_only(FolderTreeRefreshRequest {
@@ -487,8 +484,82 @@ fn selected_source_refresh_prunes_deleted_cached_files_on_finish() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
 #[test]
-fn completed_scan_discovery_prunes_deleted_root_child_before_finish() {
+fn reselecting_loaded_source_reconciles_disk_without_clearing_cached_tree() {
+    let root = temp_source_root("wavecrate-gui-source-reselect-reconcile");
+    let drums = root.join("drums");
+    let stale_sample = drums.join("stale.wav");
+    let fresh_sample = drums.join("fresh.wav");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::write(&stale_sample, [0_u8; 8]).expect("write stale sample");
+
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    let source_id = browser.selected_source_id().to_string();
+    fs::remove_file(&stale_sample).expect("remove stale sample");
+    fs::write(&fresh_sample, [0_u8; 8]).expect("write fresh sample");
+
+    let request = browser
+        .begin_select_source(source_id.clone(), 95)
+        .expect("reselecting a loaded source should queue reconciliation");
+    assert_eq!(browser.selected_folder_path(), Some(drums.clone()));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["stale.wav"],
+        "the cached listing should remain visible while reconciliation runs"
+    );
+    assert!(
+        browser.begin_select_source(source_id.clone(), 96).is_none(),
+        "repeated selection must not queue a duplicate scan"
+    );
+
+    let mut discoveries = Vec::new();
+    let result = scan_source_with_progress(request, |_| {}, |event| discoveries.push(event));
+    assert!(matches!(
+        discoveries.first().map(|event| &event.item),
+        Some(FolderScanItem::ResetFolder)
+    ));
+    assert!(
+        !browser.apply_scan_discovered_batch(FolderScanDiscoveryBatch {
+            task_id: 95,
+            source_id: source_id.clone(),
+            events: discoveries,
+        }),
+        "background discoveries must not mutate a fully loaded selected tree"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["stale.wav"],
+        "the cached listing should remain visible after discovery batches arrive"
+    );
+    assert!(browser.apply_scan_finished(result));
+    assert_eq!(
+        browser.selected_folder_path(),
+        Some(drums.clone()),
+        "reconciliation should preserve a selected folder that still exists"
+    );
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["fresh.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn completed_scan_discovery_preserves_cached_root_until_finish() {
     let root = temp_source_root("wavecrate-gui-source-discovery-prune-root");
     let keep = root.join("keep");
     let stale = root.join("stale");
@@ -510,15 +581,16 @@ fn completed_scan_discovery_prunes_deleted_root_child_before_finish() {
     }
     assert!(browser.find_folder(&path_id(&keep)).is_some());
     assert!(
-        browser.find_folder(&path_id(&stale)).is_none(),
-        "completed root discovery should replace cached root children before final scan finish"
+        browser.find_folder(&path_id(&stale)).is_some(),
+        "root discovery should preserve cached children until the scan finishes"
     );
 
     assert!(browser.apply_scan_finished(result));
+    assert!(browser.find_folder(&path_id(&stale)).is_none());
     let _ = fs::remove_dir_all(root);
 }
 #[test]
-fn completed_scan_discovery_prunes_deleted_nested_child_before_finish() {
+fn completed_scan_discovery_preserves_cached_nested_child_until_finish() {
     let root = temp_source_root("wavecrate-gui-source-discovery-prune-nested");
     let parent = root.join("drums");
     let keep = parent.join("keep");
@@ -538,16 +610,14 @@ fn completed_scan_discovery_prunes_deleted_nested_child_before_finish() {
 
     for event in discovery_events {
         browser.apply_scan_discovered(event);
-        if browser.find_folder(&path_id(&stale)).is_none() {
-            break;
-        }
     }
     assert!(browser.find_folder(&path_id(&keep)).is_some());
     assert!(
-        browser.find_folder(&path_id(&stale)).is_none(),
-        "completed nested-folder discovery should replace stale cached children without waiting for final finish"
+        browser.find_folder(&path_id(&stale)).is_some(),
+        "nested-folder discovery should preserve cached children until the scan finishes"
     );
 
     assert!(browser.apply_scan_finished(result));
+    assert!(browser.find_folder(&path_id(&stale)).is_none());
     let _ = fs::remove_dir_all(root);
 }

@@ -353,6 +353,7 @@ mod tests {
                     collections: SampleCollection::new(0).into_iter().collect(),
                 }],
             }),
+            parked_tree_loaded: false,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
         };

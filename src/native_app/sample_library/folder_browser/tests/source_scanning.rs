@@ -1,5 +1,39 @@
 use super::*;
 use crate::native_app::sample_library::folder_browser::scan_types::FolderScanItem;
+
+#[test]
+fn switching_away_from_pending_source_does_not_cache_its_placeholder() {
+    let first_root = temp_source_root("wavecrate-pending-source-first");
+    let second_root = temp_source_root("wavecrate-pending-source-second");
+    let mut browser = FolderBrowserState::load_default();
+    let first_request = browser
+        .begin_add_source_path(first_root.clone(), 41)
+        .expect("first source scan");
+
+    browser
+        .begin_add_source_path(second_root.clone(), 42)
+        .expect("second source scan");
+
+    let first = browser
+        .source
+        .sources
+        .iter()
+        .find(|source| source.id == first_request.source_id)
+        .expect("first source");
+    assert_eq!(first.root_folder, None);
+
+    assert!(
+        browser
+            .begin_select_source(first_request.source_id.clone(), 43)
+            .is_none()
+    );
+    assert_eq!(browser.selected_source_id(), first_request.source_id);
+    assert!(!browser.selected_source_loaded());
+
+    let _ = fs::remove_dir_all(first_root);
+    let _ = fs::remove_dir_all(second_root);
+}
+
 #[test]
 fn source_scan_installs_finished_tree_after_placeholder_selection() {
     let root = temp_source_root("wavecrate-gui-source-scan");
