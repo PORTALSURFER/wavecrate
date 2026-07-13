@@ -78,6 +78,67 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_skips_retained_session_during_file_op_priority() {
+        let dir = TempDir::new().unwrap();
+        let conn = db::open_source_db_maintenance(dir.path()).unwrap();
+        let now = now_epoch_seconds();
+        conn.execute(
+            "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, running_at)
+             VALUES (?1, ?2, 'running', 1, ?3, ?4)",
+            rusqlite::params![
+                "source::stale.wav",
+                db::ANALYZE_SAMPLE_JOB_TYPE,
+                now,
+                now - 120
+            ],
+        )
+        .unwrap();
+        let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
+        let mut sources = vec![ProgressSourceDb {
+            source_id: source_id.clone(),
+            source_root: dir.path().to_path_buf(),
+            conn,
+        }];
+        let cache = Arc::new(RwLock::new(ProgressCache::default()));
+        let (tx, _rx) = std::sync::mpsc::sync_channel(1);
+        let tx = JobMessageSender::new(tx);
+        let stale_before = now - 10;
+        let signal = Arc::new(SharedRepaintSignal::default());
+
+        {
+            let _guard = FileOpWritePriorityGuard::new(&source_id);
+
+            assert_eq!(
+                cleanup_stale_jobs(&mut sources, stale_before, &cache, &tx, &signal),
+                0
+            );
+            let status: String = sources[0]
+                .conn
+                .query_row(
+                    "SELECT status FROM analysis_jobs WHERE sample_id = ?1",
+                    rusqlite::params!["source::stale.wav"],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(status, "running");
+        }
+
+        assert_eq!(
+            cleanup_stale_jobs(&mut sources, stale_before, &cache, &tx, &signal),
+            1
+        );
+        let status: String = sources[0]
+            .conn
+            .query_row(
+                "SELECT status FROM analysis_jobs WHERE sample_id = ?1",
+                rusqlite::params!["source::stale.wav"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "failed");
+    }
+
+    #[test]
     fn cleanup_updates_cache_and_emits_message() {
         let dir = TempDir::new().unwrap();
         let conn = db::open_source_db_maintenance(dir.path()).unwrap();
