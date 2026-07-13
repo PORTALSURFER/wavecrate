@@ -2620,6 +2620,29 @@ Updater behavior is intentionally conservative:
 
 See `docs/TROUBLESHOOTING.md` and `docs/ENV_VARS.md` for diagnostics and overrides.
 
+### Release Lifecycle
+
+Wavecrate uses continuous development on `main`. All ordinary development,
+including stabilization fixes, continues through the normal PR pipeline.
+
+Publishing the first RC for a target version is the explicit boundary that
+starts stabilization. It changes the scope of release-train work toward bugs,
+regressions, reliability, performance, packaging, and release blockers; it does
+not freeze `main` or automatically authorize a stable release. New features
+should wait until stabilization ends unless the release scope is explicitly
+changed.
+
+The remote `release/X.Y` branch is a persistent coordination ref for the latest
+candidate snapshot. When stabilization changes intended for the release land
+on `main`, update that ref and publish another RC. A stable release must promote
+the exact commit already published and reviewed as the latest RC, never newer
+un-RCed release work from `main`.
+
+Stable publication is a separate explicit product decision. PR approval,
+`approved`, sign-off, or RC acceptance can authorize merge and cleanup, but none
+of them authorize a stable release unless the user explicitly asks to release
+or promote the version as stable.
+
 ### Data-Format Notes
 
 Keep these formats stable unless there is a coordinated migration:

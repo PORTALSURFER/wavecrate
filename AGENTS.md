@@ -49,6 +49,29 @@ likely to miss important reasoning.
 - Linear project: `Wavecrate` — https://linear.app/boostnlvp/project/wavecrate-7230ebfad82d
 - Primary docs entrypoint: `docs/README.md`
 
+## Release Lifecycle
+- Normal development always lands through dedicated PRs into `main`.
+- Publishing the first `vX.Y.Z-rc.1` is an explicit decision to enter the
+  stabilization phase for `X.Y.Z`. It does not freeze `main` or stop the normal
+  PR pipeline. Development continues through PRs into `main`, but release-train
+  scope should be limited to stability work such as bug fixes, regressions,
+  reliability, performance, packaging, and release blockers. New feature work
+  waits until the stabilization phase ends unless the user explicitly changes
+  the release scope.
+- `release/X.Y` is a persistent release coordination branch, not a disposable
+  feature branch. Preserve its remote branch when an RC preparation PR merges.
+- If stability changes intended for `X.Y.Z` land on `main` after the latest RC, advance
+  `release/X.Y` from the current `main` commit and publish the next RC before a
+  stable release. Stable must promote the exact commit already published and
+  reviewed as the latest `vX.Y.Z-rc.N`; it must never silently include newer,
+  un-RCed commits from `main`.
+- A stable release requires an explicit user instruction such as "release
+  X.Y.Z stable" or "promote RC N to stable." PR approval, `approved`, sign-off,
+  or acceptance of an RC authorizes the applicable PR merge and cleanup only;
+  it never authorizes dispatching the stable release workflow.
+- See `docs/TEST.md` for the operator sequence and `docs/ENV_VARS.md` for the
+  release commands and invariants.
+
 ## Planning System
 - Linear is the source of truth for planning and backlog state in this repo.
 - When a plan is needed, create or update Linear issues in the `Wavecrate` project under the `PORTALSURFER` team.
