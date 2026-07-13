@@ -5,6 +5,11 @@ use rusqlite::Connection;
 
 use super::*;
 
+pub(super) enum StarmapWriteSession {
+    Ready(analysis_jobs::AnalysisJobSession),
+    DeferredForFileOp,
+}
+
 /// Return a cached per-source map-query connection, opening it on first use.
 pub(super) fn open_cached_source_db<'a>(
     controller: &'a mut AppController,
@@ -42,11 +47,9 @@ pub(super) fn open_cached_source_db<'a>(
         .ok_or_else(|| "Map query connection missing after open".to_string())
 }
 
-pub(super) fn open_source_db_for_id(
-    source_id: &SourceId,
-) -> Result<analysis_jobs::AnalysisJobSession, String> {
+pub(super) fn open_source_db_for_id(source_id: &SourceId) -> Result<StarmapWriteSession, String> {
     if source_write_priority::file_op_write_priority_active(source_id) {
-        return Err("Starmap write deferred while a source file operation is active".to_string());
+        return Ok(StarmapWriteSession::DeferredForFileOp);
     }
     let state = crate::sample_sources::library::load().map_err(|err| err.to_string())?;
     let source = state
@@ -54,7 +57,7 @@ pub(super) fn open_source_db_for_id(
         .iter()
         .find(|source| &source.id == source_id)
         .ok_or_else(|| "Source not found".to_string())?;
-    analysis_jobs::open_source_db(&source.root)
+    analysis_jobs::open_source_db(&source.root).map(StarmapWriteSession::Ready)
 }
 
 #[cfg(test)]
@@ -78,11 +81,10 @@ mod tests {
 
         {
             let _guard = FileOpWritePriorityGuard::new(&source.id);
-            let err = open_source_db_for_id(&source.id)
-                .err()
-                .expect("Starmap writer should defer during a same-source file op");
+            let session = open_source_db_for_id(&source.id)
+                .expect("Starmap file-op deferral should not be reported as a failure");
 
-            assert!(err.contains("Starmap write deferred"));
+            assert!(matches!(session, StarmapWriteSession::DeferredForFileOp));
             assert_eq!(
                 crate::sample_sources::db::test_source_db_open_total_count(&source.root),
                 0,
@@ -90,8 +92,9 @@ mod tests {
             );
         }
 
-        let _session = open_source_db_for_id(&source.id)
+        let session = open_source_db_for_id(&source.id)
             .expect("Starmap writer should open after file-op priority clears");
+        assert!(matches!(session, StarmapWriteSession::Ready(_)));
         assert_eq!(
             crate::sample_sources::db::test_source_db_open_total_count(&source.root),
             1

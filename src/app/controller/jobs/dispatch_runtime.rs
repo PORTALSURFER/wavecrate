@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::app::controller::AppController;
+use crate::app::controller::library::source_write_priority;
 
 impl ControllerJobs {
     /// Return whether deferred source DB maintenance is currently running.
@@ -48,12 +49,12 @@ impl ControllerJobs {
 
     /// Return whether a UMAP build is currently running.
     pub(in super::super) fn umap_build_in_progress(&self) -> bool {
-        self.in_progress.umap_build
+        self.in_progress.umap_build || self.pending_umap_build.is_some()
     }
 
     /// Return whether a UMAP cluster build is currently running.
     pub(in super::super) fn umap_cluster_build_in_progress(&self) -> bool {
-        self.in_progress.umap_cluster_build
+        self.in_progress.umap_cluster_build || self.pending_umap_cluster_build.is_some()
     }
 
     /// Start one UMAP build if no existing build is active.
@@ -61,6 +62,7 @@ impl ControllerJobs {
         if self.in_progress.umap_build {
             return;
         }
+        self.pending_umap_build = None;
         self.in_progress.umap_build = true;
         self.spawn_one_shot_job(
             true,
@@ -70,10 +72,7 @@ impl ControllerJobs {
                     &job.umap_version,
                     &job.source_id,
                 );
-                UmapBuildResult {
-                    umap_version: job.umap_version,
-                    result,
-                }
+                UmapBuildResult { job, result }
             },
             JobMessage::UmapBuilt,
         );
@@ -84,11 +83,17 @@ impl ControllerJobs {
         self.in_progress.umap_build = false;
     }
 
+    /// Retain a layout build that yielded to a same-source file operation.
+    pub(in super::super) fn defer_umap_build(&mut self, job: UmapBuildJob) {
+        self.pending_umap_build = Some(job);
+    }
+
     /// Start one UMAP cluster build if no existing build is active.
     pub(in super::super) fn begin_umap_cluster_build(&mut self, job: UmapClusterBuildJob) {
         if self.in_progress.umap_cluster_build {
             return;
         }
+        self.pending_umap_cluster_build = None;
         self.in_progress.umap_cluster_build = true;
         self.spawn_one_shot_job(
             true,
@@ -98,10 +103,7 @@ impl ControllerJobs {
                     &job.umap_version,
                     job.source_id.as_ref(),
                 );
-                UmapClusterBuildResult {
-                    source_id: job.source_id,
-                    result,
-                }
+                UmapClusterBuildResult { job, result }
             },
             JobMessage::UmapClustersBuilt,
         );
@@ -110,6 +112,57 @@ impl ControllerJobs {
     /// Clear UMAP cluster build in-progress state.
     pub(in super::super) fn clear_umap_cluster_build(&mut self) {
         self.in_progress.umap_cluster_build = false;
+    }
+
+    /// Retain a cluster build that yielded to a same-source file operation.
+    pub(in super::super) fn defer_umap_cluster_build(&mut self, job: UmapClusterBuildJob) {
+        self.pending_umap_cluster_build = Some(job);
+    }
+
+    /// Resume Starmap writes whose source-local file-op priority window cleared.
+    pub(in super::super) fn resume_deferred_starmap_writes(&mut self) {
+        if let Some(job) = self.take_ready_deferred_umap_build() {
+            self.begin_umap_build(job);
+        }
+        if let Some(job) = self.take_ready_deferred_umap_cluster_build() {
+            self.begin_umap_cluster_build(job);
+        }
+    }
+
+    fn take_ready_deferred_umap_build(&mut self) -> Option<UmapBuildJob> {
+        if self.in_progress.umap_build
+            || self.pending_umap_build.as_ref().is_some_and(|job| {
+                source_write_priority::file_op_write_priority_active(&job.source_id)
+            })
+        {
+            return None;
+        }
+        self.pending_umap_build.take()
+    }
+
+    fn take_ready_deferred_umap_cluster_build(&mut self) -> Option<UmapClusterBuildJob> {
+        if self.in_progress.umap_cluster_build
+            || self
+                .pending_umap_cluster_build
+                .as_ref()
+                .and_then(|job| job.source_id.as_ref())
+                .is_some_and(source_write_priority::file_op_write_priority_active)
+        {
+            return None;
+        }
+        self.pending_umap_cluster_build.take()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_ready_deferred_umap_build_for_tests(&mut self) -> Option<UmapBuildJob> {
+        self.take_ready_deferred_umap_build()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn take_ready_deferred_umap_cluster_build_for_tests(
+        &mut self,
+    ) -> Option<UmapClusterBuildJob> {
+        self.take_ready_deferred_umap_cluster_build()
     }
 
     /// Start one update check if no existing check is active.

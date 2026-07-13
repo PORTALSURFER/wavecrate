@@ -107,6 +107,8 @@ pub(crate) struct ControllerJobs {
     pub(super) pending_playback: Option<PendingPlayback>,
     pub(super) pending_recording_waveform: Option<PendingRecordingWaveform>,
     pub(super) pending_slice_batch_export: Option<PendingSliceBatchExport>,
+    pending_umap_build: Option<UmapBuildJob>,
+    pending_umap_cluster_build: Option<UmapClusterBuildJob>,
     request_counters: JobRequestCounters,
     in_progress: JobInProgressState,
     cancel_handles: JobCancelHandles,

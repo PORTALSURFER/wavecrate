@@ -2,7 +2,7 @@
 
 use crate::app::controller::library::similarity_prep::DEFAULT_CLUSTER_MIN_SIZE;
 
-use super::connections::open_source_db_for_id;
+use super::connections::{StarmapWriteSession, open_source_db_for_id};
 use super::*;
 
 impl AppController {
@@ -50,21 +50,28 @@ pub(crate) fn run_umap_build(
     model_id: &str,
     umap_version: &str,
     source_id: &SourceId,
-) -> Result<(), String> {
-    let mut conn = open_source_db_for_id(source_id)?;
+) -> Result<super::super::jobs::StarmapWriteOutcome<()>, String> {
+    let StarmapWriteSession::Ready(mut conn) = open_source_db_for_id(source_id)? else {
+        return Ok(super::super::jobs::StarmapWriteOutcome::DeferredForFileOp);
+    };
     wavecrate_analysis::build_map_layout(&mut conn, model_id, umap_version, 0, 0.95)?;
-    Ok(())
+    Ok(super::super::jobs::StarmapWriteOutcome::Completed(()))
 }
 
 pub(crate) fn run_umap_cluster_build(
     model_id: &str,
     umap_version: &str,
     source_id: Option<&SourceId>,
-) -> Result<wavecrate_analysis::hdbscan::HdbscanStats, String> {
+) -> Result<
+    super::super::jobs::StarmapWriteOutcome<wavecrate_analysis::hdbscan::HdbscanStats>,
+    String,
+> {
     let Some(source_id) = source_id else {
         return Err("Missing source for cluster build".to_string());
     };
-    let mut conn = open_source_db_for_id(source_id)?;
+    let StarmapWriteSession::Ready(mut conn) = open_source_db_for_id(source_id)? else {
+        return Ok(super::super::jobs::StarmapWriteOutcome::DeferredForFileOp);
+    };
     let sample_id_prefix = Some(format!("{}::%", source_id.as_str()));
     wavecrate_analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
         &mut conn,
@@ -78,4 +85,5 @@ pub(crate) fn run_umap_cluster_build(
             allow_single_cluster: false,
         },
     )
+    .map(super::super::jobs::StarmapWriteOutcome::Completed)
 }
