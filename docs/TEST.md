@@ -36,6 +36,44 @@ GitHub Actions owns release packaging, upload, and the release workflow
 validation gates. Local wrappers remain the primary validation contract for
 development and release-risk checks:
 
+### Release lifecycle and promotion policy
+
+Wavecrate develops continuously on `main` through the normal PR pipeline. The
+first RC for a version is a project decision to enter stabilization, not a
+branch freeze or an automatic precursor to an immediate stable release.
+
+1. Develop normally through PRs into `main`.
+2. When the current product is ready for stabilization, prepare `release/X.Y`
+   from `main` and publish `vX.Y.Z-rc.1`.
+3. Continue normal PRs into `main`, limiting the release train to stability
+   work: bug fixes, regression fixes, reliability, performance, packaging, and
+   release blockers. Feature work waits until stabilization ends unless the
+   release scope is explicitly changed.
+4. When fixes have landed after an RC, move the release branch to the current
+   `main` commit with the same target version and publish the next RC:
+
+   ```bash
+   scripts/internal/release/prepare_release_train.py \
+     --version X.Y.Z \
+     --source-ref main \
+     --push
+   scripts/release.sh rc \
+     --version X.Y.Z \
+     --rc-number N \
+     --branch release/X.Y \
+     --dispatch
+   ```
+
+5. Trigger stable only after an explicit stable-release decision. The stable
+   workflow promotes the exact latest RC commit; if later changes intended for
+   `X.Y.Z` have not been published as an RC, publish another RC first. PR
+   approval, `approved`, sign-off, or RC acceptance does not authorize stable
+   publication.
+
+Keep the remote `release/X.Y` branch as the release coordination ref. It is not
+a disposable feature branch and must remain available for subsequent RCs and
+the eventual explicit stable promotion.
+
 | Lane | GitHub job | Local command | Policy |
 | --- | --- | --- | --- |
 | Format and guardrails | none | `scripts/ci.* local` includes the required guardrails; use `scripts/check.* <name>` for focused reruns | Run locally before broad/risky changes |

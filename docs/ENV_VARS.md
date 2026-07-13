@@ -63,6 +63,30 @@ Wavecrate has four public release workflows:
 - `.github/workflows/release-stable.yml`
   - manual stable releases from `release/X.Y`
 
+### Release lifecycle policy
+
+Development is continuous on `main` through ordinary PRs. Publishing the first
+RC for `X.Y.Z` signals that the project has entered stabilization for that
+version; it does not freeze `main`, stop PRs, or authorize stable publication.
+From that point, release-train work should focus on stability: bug fixes,
+regressions, reliability, performance, packaging, and release blockers. New
+features wait until stabilization ends unless the release scope is explicitly
+changed.
+
+The remote `release/X.Y` branch is the persistent coordination ref for the
+candidate being tested. Preserve it when an RC preparation PR merges. If fixes
+land on `main` after RC1, update `release/X.Y` from the current `main` commit at
+the same target version and publish RC2 (and later RCs as needed). The stable
+workflow deliberately requires the latest `vX.Y.Z-rc.N` tag and
+`release/X.Y` to point at the same commit, so stable cannot silently include
+changes that were never published as an RC.
+
+Stable publication requires an explicit operator decision such as "release
+X.Y.Z stable" or "promote RC N to stable." PR approval, `approved`, sign-off,
+or acceptance of an RC only authorizes the relevant PR merge and cleanup. None
+of those phrases alone authorizes `release-stable.yml` or
+`scripts/release.sh stable --dispatch`.
+
 Nightly runs publish rolling `nightly` builds for Windows x86_64 plus macOS
 x86_64/aarch64 assets from the current `main` commit. The schedule is
 `19:30 UTC` (evening in Europe/Amsterdam), and `workflow_dispatch` provides a
@@ -114,9 +138,21 @@ scripts/internal/release/prepare_release_train.py \
 
 Use the workflow dry run first when preparing a new train, then re-run with
 `push_branch=true` once the source commit and version are correct. After prep,
-run the RC workflow against the prepared `release/X.Y` branch. Stable promotion
-then runs against the same release branch after the latest `vX.Y.Z-rc.N` tag has
-passed review.
+run the RC workflow against the prepared `release/X.Y` branch. After later
+stability PRs merge to `main`, update the same release branch at the unchanged
+target version with:
+
+```bash
+scripts/internal/release/prepare_release_train.py \
+  --version X.Y.Z \
+  --source-ref main \
+  --push
+```
+
+Publish the next RC from that updated branch. Passing review makes the latest
+RC eligible for promotion; it does not dispatch stable. Stable promotion runs
+against the same release branch only after a separate explicit stable-release
+instruction.
 
 The release workflows keep channel policy in YAML but share operational helpers
 under `scripts/internal/release/`:
