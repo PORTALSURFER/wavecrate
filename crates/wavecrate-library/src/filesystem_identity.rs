@@ -15,8 +15,18 @@ pub fn stable_filesystem_identity(path: &Path, metadata: &fs::Metadata) -> Optio
 #[cfg(unix)]
 fn stable_filesystem_identity_impl(_path: &Path, metadata: &fs::Metadata) -> Option<String> {
     use std::os::unix::fs::MetadataExt;
+    use std::time::UNIX_EPOCH;
 
-    Some(format!("unix:{}:{}", metadata.dev(), metadata.ino()))
+    // Device and inode alone are not sufficient: filesystems may immediately reuse an
+    // inode after deletion. The creation timestamp remains stable across a rename and
+    // distinguishes a replacement that inherits the same device/inode pair.
+    let created = metadata.created().ok()?.duration_since(UNIX_EPOCH).ok()?;
+    Some(format!(
+        "unix-v2:{}:{}:{}",
+        metadata.dev(),
+        metadata.ino(),
+        created.as_nanos()
+    ))
 }
 
 #[cfg(windows)]
@@ -43,9 +53,11 @@ fn stable_filesystem_identity_impl(path: &Path, metadata: &fs::Metadata) -> Opti
     unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut information) }.ok()?;
     let file_index =
         (u64::from(information.nFileIndexHigh) << 32) | u64::from(information.nFileIndexLow);
+    let creation_time = (u64::from(information.ftCreationTime.dwHighDateTime) << 32)
+        | u64::from(information.ftCreationTime.dwLowDateTime);
     Some(format!(
-        "windows:{}:{}",
-        information.dwVolumeSerialNumber, file_index
+        "windows-v2:{}:{}:{}",
+        information.dwVolumeSerialNumber, file_index, creation_time
     ))
 }
 
@@ -75,5 +87,23 @@ mod tests {
 
         assert_eq!(identity(&original), identity(&linked));
         assert_ne!(identity(&original), identity(&distinct));
+    }
+
+    #[test]
+    fn rename_preserves_identity() {
+        let temp = tempfile::tempdir().expect("create identity fixture");
+        let original = temp.path().join("original.wav");
+        let renamed = temp.path().join("renamed.wav");
+        fs::write(&original, b"original").expect("write original fixture");
+
+        let original_metadata = fs::symlink_metadata(&original).expect("read original metadata");
+        let original_identity = stable_filesystem_identity(&original, &original_metadata)
+            .expect("read original identity");
+        fs::rename(&original, &renamed).expect("rename fixture");
+        let renamed_metadata = fs::symlink_metadata(&renamed).expect("read renamed metadata");
+        let renamed_identity =
+            stable_filesystem_identity(&renamed, &renamed_metadata).expect("read renamed identity");
+
+        assert_eq!(original_identity, renamed_identity);
     }
 }
