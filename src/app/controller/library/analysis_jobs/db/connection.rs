@@ -7,7 +7,7 @@ use std::{
 /// Writable source-database session for analysis workers and enqueue operations.
 pub(crate) struct AnalysisJobSession(Connection);
 
-/// Read-only source-database session for UI progress and similarity queries.
+/// Read-only source-database session for UI progress and side-effect-free cached queries.
 pub(crate) struct AnalysisReadSession(Connection);
 
 /// Writable source-database session for deferred cleanup and schema-sensitive work.

@@ -55,12 +55,30 @@ fn resolve_sample_id_for_entry(
 pub(crate) fn open_source_db_for_id(
     controller: &AppController,
     source_id: &SourceId,
-) -> Result<analysis_jobs::AnalysisReadSession, String> {
+) -> Result<analysis_jobs::AnalysisJobSession, String> {
     let source = controller
         .library
         .sources
         .iter()
         .find(|source| &source.id == source_id)
         .ok_or_else(|| "Source not found".to_string())?;
-    analysis_jobs::open_source_db_ui_read(&source.root)
+    analysis_jobs::open_source_db(&source.root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+    use crate::sample_sources::Rating;
+
+    #[test]
+    fn foreground_similarity_session_allows_ann_metadata_writes() {
+        let (controller, source) =
+            prepare_with_source_and_wav_entries(vec![sample_entry("anchor.wav", Rating::NEUTRAL)]);
+
+        let conn = open_source_db_for_id(&controller, &source.id).expect("similarity session");
+
+        conn.execute("DELETE FROM ann_index_meta", [])
+            .expect("ANN-backed similarity requires a writable session");
+    }
 }
