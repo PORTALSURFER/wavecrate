@@ -223,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn refresh_sources_defers_new_maintenance_open_during_file_op_priority() {
+    fn refresh_sources_drops_tracked_maintenance_session_during_file_op_priority() {
         let config_dir = TempDir::new().unwrap();
         let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
         let source_dir = TempDir::new().unwrap();
@@ -233,25 +233,33 @@ mod tests {
             sources: vec![source.clone()],
         })
         .unwrap();
-        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
         let mut sources = Vec::<ProgressSourceDb>::new();
         let mut last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+        assert!(refresh_sources(&mut sources, &mut last_refresh, None));
+        assert_eq!(sources.len(), 1);
+        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
 
         {
             let _guard = FileOpWritePriorityGuard::new(&source.id);
+            last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
 
-            assert!(!refresh_sources(&mut sources, &mut last_refresh, None));
+            assert!(refresh_sources(&mut sources, &mut last_refresh, None));
             assert!(sources.is_empty());
             assert_eq!(
                 crate::sample_sources::db::test_source_db_open_total_count(&source.root),
                 0,
-                "progress discovery must not open maintenance while a file op owns the source"
+                "progress discovery must drop the tracked session without opening a replacement"
             );
         }
 
         last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
         assert!(refresh_sources(&mut sources, &mut last_refresh, None));
         assert_eq!(sources.len(), 1);
+        assert_eq!(
+            crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+            1,
+            "progress discovery should reopen maintenance after file-op priority clears"
+        );
     }
 
     #[test]
