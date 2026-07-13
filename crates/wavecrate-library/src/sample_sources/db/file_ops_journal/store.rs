@@ -1,44 +1,40 @@
-use std::path::PathBuf;
-
 use rusqlite::params;
 
-use super::super::util::{map_sql_error, normalize_relative_path, parse_relative_path_from_db};
-use super::super::{Rating, SourceDatabase, SourceDbError};
-use super::entry::{FileOpJournalEntry, FileOpKind, FileOpStage};
+use super::super::util::{map_sql_error, normalize_relative_path};
+use super::super::{SourceDatabase, SourceDbError};
+use super::decode::{ListedJournalEntries, decode_journal_row};
+use super::entry::{FileOpJournalEntry, FileOpStage};
 
-/// Result of loading journal rows, partitioned by valid and malformed entries.
-#[derive(Debug, Default)]
-pub struct ListedJournalEntries {
-    /// Well-formed entries ready for reconciliation.
-    pub entries: Vec<FileOpJournalEntry>,
-    /// Malformed rows that could not be decoded safely.
-    pub malformed: Vec<MalformedJournalEntry>,
+/// Narrow persistence boundary for durable file-operation journal rows.
+pub(crate) struct FileOpJournalStore<'a> {
+    db: &'a SourceDatabase,
 }
 
-/// Description of one malformed journal row that cannot be reconciled safely.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MalformedJournalEntry {
-    /// Journal row id when one could be decoded.
-    pub id: Option<String>,
-    /// Human-readable explanation of what was malformed.
-    pub detail: String,
-}
-
-impl MalformedJournalEntry {
-    /// Build one malformed-row descriptor with optional row id context.
-    pub(super) fn new(id: Option<String>, detail: impl Into<String>) -> Self {
-        Self {
-            id,
-            detail: detail.into(),
-        }
+impl<'a> FileOpJournalStore<'a> {
+    pub(crate) fn new(db: &'a SourceDatabase) -> Self {
+        Self { db }
     }
 
-    /// Render one human-readable malformed-row error message for reconcile summaries.
-    pub(super) fn describe(&self) -> String {
-        match self.id.as_deref() {
-            Some(id) => format!("Malformed file-ops journal entry {id}: {}", self.detail),
-            None => format!("Malformed file-ops journal entry: {}", self.detail),
-        }
+    pub(crate) fn insert(&self, entry: &FileOpJournalEntry) -> Result<(), SourceDbError> {
+        insert_entry(self.db, entry)
+    }
+
+    pub(crate) fn update_stage(
+        &self,
+        id: &str,
+        stage: FileOpStage,
+        file_size: Option<u64>,
+        modified_ns: Option<i64>,
+    ) -> Result<(), SourceDbError> {
+        update_stage(self.db, id, stage, file_size, modified_ns)
+    }
+
+    pub(crate) fn remove(&self, id: &str) -> Result<(), SourceDbError> {
+        remove_entry(self.db, id)
+    }
+
+    pub(crate) fn list(&self) -> Result<ListedJournalEntries, SourceDbError> {
+        list_entries(self.db)
     }
 }
 
@@ -147,145 +143,4 @@ pub(crate) fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, 
         }
     }
     Ok(listed)
-}
-
-/// Decode one persisted journal row into a typed recovery entry.
-fn decode_journal_row(
-    row: &rusqlite::Row<'_>,
-) -> Result<FileOpJournalEntry, MalformedJournalEntry> {
-    let id: String = row
-        .get(0)
-        .map_err(|err| malformed_column_error(None, "id", err))?;
-    let op_type: String = row
-        .get(1)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "op_type", err))?;
-    let stage_text: String = row
-        .get(2)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "stage", err))?;
-    let kind = FileOpKind::from_str(op_type.as_str()).ok_or_else(|| {
-        MalformedJournalEntry::new(
-            Some(id.clone()),
-            format!("unknown op_type value `{op_type}`"),
-        )
-    })?;
-    let stage = FileOpStage::from_str(stage_text.as_str()).ok_or_else(|| {
-        MalformedJournalEntry::new(
-            Some(id.clone()),
-            format!("unknown stage value `{stage_text}`"),
-        )
-    })?;
-    let source_root: Option<String> = row
-        .get(3)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "source_root", err))?;
-    let source_relative_raw: Option<String> = row
-        .get(4)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "source_relative", err))?;
-    let target_relative_raw: String = row
-        .get(5)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "target_relative", err))?;
-    let staged_relative_raw: Option<String> = row
-        .get(6)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "staged_relative", err))?;
-    let file_size = row
-        .get::<_, Option<i64>>(7)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "file_size", err))?
-        .map(|size| {
-            if size < 0 {
-                Err(MalformedJournalEntry::new(
-                    Some(id.clone()),
-                    format!("file_size must be non-negative, got {size}"),
-                ))
-            } else {
-                Ok(size as u64)
-            }
-        })
-        .transpose()?;
-    let modified_ns: Option<i64> = row
-        .get(8)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "modified_ns", err))?;
-    let tag = row
-        .get::<_, Option<i64>>(9)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "tag", err))?
-        .map(Rating::from_i64);
-    let looped = row
-        .get::<_, Option<i64>>(10)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "looped", err))?
-        .map(|flag| flag != 0);
-    let locked = row
-        .get::<_, Option<i64>>(11)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "locked", err))?
-        .map(|flag| flag != 0);
-    let last_played_at: Option<i64> = row
-        .get(12)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "last_played_at", err))?;
-    let last_curated_at: Option<i64> = row
-        .get(13)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "last_curated_at", err))?;
-    let created_at: i64 = row
-        .get(14)
-        .map_err(|err| malformed_column_error(Some(id.as_str()), "created_at", err))?;
-    let source_relative =
-        parse_optional_relative_path_column(id.as_str(), "source_relative", source_relative_raw)?;
-    let target_relative =
-        parse_required_relative_path_column(id.as_str(), "target_relative", target_relative_raw)?;
-    let staged_relative =
-        parse_optional_relative_path_column(id.as_str(), "staged_relative", staged_relative_raw)?;
-    Ok(FileOpJournalEntry {
-        id,
-        kind,
-        stage,
-        source_root: source_root.map(PathBuf::from),
-        source_relative,
-        target_relative,
-        staged_relative,
-        file_size,
-        modified_ns,
-        tag,
-        looped,
-        locked,
-        last_played_at,
-        last_curated_at,
-        created_at,
-    })
-}
-
-/// Map one sqlite column read failure to a malformed-row descriptor.
-fn malformed_column_error(
-    id: Option<&str>,
-    column: &str,
-    err: rusqlite::Error,
-) -> MalformedJournalEntry {
-    let detail = format!("invalid `{column}` column: {err}");
-    MalformedJournalEntry::new(id.map(str::to_string), detail)
-}
-
-/// Parse one optional relative-path column while preserving row-id context.
-fn parse_optional_relative_path_column(
-    id: &str,
-    column: &str,
-    value: Option<String>,
-) -> Result<Option<PathBuf>, MalformedJournalEntry> {
-    match value {
-        Some(path) => parse_relative_path_from_db(&path).map(Some).map_err(|err| {
-            MalformedJournalEntry::new(
-                Some(id.to_string()),
-                format!("invalid `{column}` path `{path}`: {err}"),
-            )
-        }),
-        None => Ok(None),
-    }
-}
-
-/// Parse one required relative-path column while preserving row-id context.
-fn parse_required_relative_path_column(
-    id: &str,
-    column: &str,
-    value: String,
-) -> Result<PathBuf, MalformedJournalEntry> {
-    parse_relative_path_from_db(&value).map_err(|err| {
-        MalformedJournalEntry::new(
-            Some(id.to_string()),
-            format!("invalid `{column}` path `{value}`: {err}"),
-        )
-    })
 }

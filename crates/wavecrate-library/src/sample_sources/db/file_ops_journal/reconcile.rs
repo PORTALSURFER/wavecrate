@@ -4,7 +4,18 @@ use std::time::UNIX_EPOCH;
 use super::super::SourceDatabase;
 use super::FileOpJournalEntry;
 use super::entry::{FileOpKind, FileOpStage};
-use super::store::{list_entries, remove_entry};
+use super::recovery_io::{
+    RecoveryFilesystem, RecoverySourceDatabases, SourceDatabaseRecoveryAccess,
+    SystemRecoveryFilesystem,
+};
+use super::store::FileOpJournalStore;
+
+struct FileOpRecoveryCoordinator<'a, F, D> {
+    target_db: &'a SourceDatabase,
+    journal: FileOpJournalStore<'a>,
+    filesystem: F,
+    source_databases: D,
+}
 
 /// Summary of reconciliation work performed for pending file ops.
 #[derive(Debug, Default)]
@@ -19,58 +30,85 @@ pub struct FileOpReconcileSummary {
 
 /// Reconcile all pending file ops against the filesystem and database.
 pub fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
-    let listed = list_entries(db).map_err(|err| err.to_string())?;
-    let mut summary = FileOpReconcileSummary {
-        total: listed.entries.len() + listed.malformed.len(),
-        completed: 0,
-        errors: Vec::new(),
-    };
-    for malformed in listed.malformed {
-        let message = malformed.describe();
-        if let Some(id) = malformed.id.as_deref() {
-            match remove_entry(db, id) {
-                Ok(()) => summary
-                    .errors
-                    .push(format!("{message}; dropped malformed journal row")),
-                Err(err) => summary.errors.push(format!(
-                    "{message}; failed to drop malformed row {id}: {err}"
-                )),
-            }
-        } else {
-            summary.errors.push(message);
-        }
+    FileOpRecoveryCoordinator {
+        target_db: db,
+        journal: FileOpJournalStore::new(db),
+        filesystem: SystemRecoveryFilesystem,
+        source_databases: SourceDatabaseRecoveryAccess,
     }
-    for entry in listed.entries {
-        match reconcile_entry(db, &entry) {
-            Ok(()) => {
-                if let Err(err) = remove_entry(db, &entry.id) {
-                    summary.errors.push(format!(
-                        "Failed to remove journal entry {}: {err}",
-                        entry.id
-                    ));
-                } else {
-                    summary.completed += 1;
-                }
-            }
-            Err(err) => summary.errors.push(err),
-        }
-    }
-    Ok(summary)
+    .reconcile()
 }
 
-fn reconcile_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<(), String> {
+impl<F: RecoveryFilesystem, D: RecoverySourceDatabases> FileOpRecoveryCoordinator<'_, F, D> {
+    fn reconcile(&self) -> Result<FileOpReconcileSummary, String> {
+        let listed = self.journal.list().map_err(|err| err.to_string())?;
+        let mut summary = FileOpReconcileSummary {
+            total: listed.entries.len() + listed.malformed.len(),
+            completed: 0,
+            errors: Vec::new(),
+        };
+        for malformed in listed.malformed {
+            let message = malformed.describe();
+            if let Some(id) = malformed.id.as_deref() {
+                match self.journal.remove(id) {
+                    Ok(()) => summary
+                        .errors
+                        .push(format!("{message}; dropped malformed journal row")),
+                    Err(err) => summary.errors.push(format!(
+                        "{message}; failed to drop malformed row {id}: {err}"
+                    )),
+                }
+            } else {
+                summary.errors.push(message);
+            }
+        }
+        for entry in listed.entries {
+            match reconcile_entry(
+                self.target_db,
+                &entry,
+                &self.filesystem,
+                &self.source_databases,
+            ) {
+                Ok(()) => {
+                    if let Err(err) = self.journal.remove(&entry.id) {
+                        summary.errors.push(format!(
+                            "Failed to remove journal entry {}: {err}",
+                            entry.id
+                        ));
+                    } else {
+                        summary.completed += 1;
+                    }
+                }
+                Err(err) => summary.errors.push(err),
+            }
+        }
+        Ok(summary)
+    }
+}
+
+fn reconcile_entry(
+    db: &SourceDatabase,
+    entry: &FileOpJournalEntry,
+    filesystem: &impl RecoveryFilesystem,
+    source_databases: &impl RecoverySourceDatabases,
+) -> Result<(), String> {
     let target_root = db.root();
     let target_absolute = target_root.join(&entry.target_relative);
     let staged_absolute = entry
         .staged_relative
         .as_ref()
         .map(|path| target_root.join(path));
-    validate_staged_file_identity(entry, staged_absolute.as_deref())?;
-    validate_existing_target_identity(entry, staged_absolute.as_deref(), &target_absolute)?;
-    reconcile_staged_file(staged_absolute.as_deref(), &target_absolute)?;
-    let target_exists = reconcile_target_entry(db, entry, &target_absolute)?;
+    validate_staged_file_identity(entry, staged_absolute.as_deref(), filesystem)?;
+    validate_existing_target_identity(
+        entry,
+        staged_absolute.as_deref(),
+        &target_absolute,
+        filesystem,
+    )?;
+    reconcile_staged_file(staged_absolute.as_deref(), &target_absolute, filesystem)?;
+    let target_exists = reconcile_target_entry(db, entry, &target_absolute, filesystem)?;
     if entry.kind == FileOpKind::Move {
-        reconcile_source_entry(db, entry, target_exists)?;
+        reconcile_source_entry(db, entry, target_exists, filesystem, source_databases)?;
     }
     Ok(())
 }
@@ -79,22 +117,26 @@ fn reconcile_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<()
 fn reconcile_staged_file(
     staged_absolute: Option<&Path>,
     target_absolute: &Path,
+    filesystem: &impl RecoveryFilesystem,
 ) -> Result<(), String> {
     let Some(staged_absolute) = staged_absolute else {
         return Ok(());
     };
-    if !staged_absolute.is_file() {
+    if !filesystem.is_file(staged_absolute) {
         return Ok(());
     }
-    if !target_absolute.is_file() {
+    if !filesystem.is_file(target_absolute) {
         if let Some(parent) = target_absolute.parent() {
-            std::fs::create_dir_all(parent)
+            filesystem
+                .create_dir_all(parent)
                 .map_err(|err| format!("Failed to create target dir: {err}"))?;
         }
-        std::fs::rename(staged_absolute, target_absolute)
+        filesystem
+            .rename(staged_absolute, target_absolute)
             .map_err(|err| format!("Failed to finalize staged file: {err}"))?;
     } else {
-        std::fs::remove_file(staged_absolute)
+        filesystem
+            .remove_file(staged_absolute)
             .map_err(|err| format!("Failed to remove staged file: {err}"))?;
     }
     Ok(())
@@ -103,11 +145,12 @@ fn reconcile_staged_file(
 fn validate_staged_file_identity(
     entry: &FileOpJournalEntry,
     staged_absolute: Option<&Path>,
+    filesystem: &impl RecoveryFilesystem,
 ) -> Result<(), String> {
     let Some(staged_absolute) = staged_absolute else {
         return Ok(());
     };
-    if !staged_absolute.is_file() {
+    if !filesystem.is_file(staged_absolute) {
         return Ok(());
     }
     validate_identity_match(
@@ -115,6 +158,7 @@ fn validate_staged_file_identity(
         staged_absolute,
         "staged",
         "staged file no longer matches the recorded journal metadata",
+        filesystem,
     )
 }
 
@@ -122,8 +166,9 @@ fn validate_existing_target_identity(
     entry: &FileOpJournalEntry,
     staged_absolute: Option<&Path>,
     target_absolute: &Path,
+    filesystem: &impl RecoveryFilesystem,
 ) -> Result<(), String> {
-    if !target_absolute.is_file() {
+    if !filesystem.is_file(target_absolute) {
         return Ok(());
     }
     if entry.file_size.is_none() || entry.modified_ns.is_none() {
@@ -131,7 +176,7 @@ fn validate_existing_target_identity(
             "Deferred file-op recovery for {}: target file {} exists but journaled identity is incomplete; {}",
             entry.id,
             target_absolute.display(),
-            staged_copy_resolution_suffix(staged_absolute)
+            staged_copy_resolution_suffix(staged_absolute, filesystem)
         ));
     }
     validate_identity_match(
@@ -140,13 +185,17 @@ fn validate_existing_target_identity(
         "target",
         &format!(
             "target path was reused before recovery replay{}",
-            staged_copy_resolution_suffix(staged_absolute)
+            staged_copy_resolution_suffix(staged_absolute, filesystem)
         ),
+        filesystem,
     )
 }
 
-fn staged_copy_resolution_suffix(staged_absolute: Option<&Path>) -> String {
-    if staged_absolute.is_some_and(Path::is_file) {
+fn staged_copy_resolution_suffix(
+    staged_absolute: Option<&Path>,
+    filesystem: &impl RecoveryFilesystem,
+) -> String {
+    if staged_absolute.is_some_and(|path| filesystem.is_file(path)) {
         format!(
             "; leaving staged copy at {} intact",
             staged_absolute.expect("checked above").display()
@@ -161,6 +210,7 @@ fn validate_identity_match(
     path: &Path,
     location: &str,
     mismatch_reason: &str,
+    filesystem: &impl RecoveryFilesystem,
 ) -> Result<(), String> {
     let Some(expected_file_size) = entry.file_size else {
         return Ok(());
@@ -168,7 +218,7 @@ fn validate_identity_match(
     let Some(expected_modified_ns) = entry.modified_ns else {
         return Ok(());
     };
-    let actual = file_metadata(path)?;
+    let actual = file_metadata(path, filesystem)?;
     if actual == (expected_file_size, expected_modified_ns) {
         return Ok(());
     }
@@ -190,9 +240,10 @@ fn reconcile_target_entry(
     db: &SourceDatabase,
     entry: &FileOpJournalEntry,
     target_absolute: &Path,
+    filesystem: &impl RecoveryFilesystem,
 ) -> Result<bool, String> {
-    if target_absolute.is_file() {
-        let (file_size, modified_ns) = file_metadata(target_absolute)?;
+    if filesystem.is_file(target_absolute) {
+        let (file_size, modified_ns) = file_metadata(target_absolute, filesystem)?;
         let mut batch = db.write_batch().map_err(|err| err.to_string())?;
         match entry.kind {
             FileOpKind::Copy => batch
@@ -248,6 +299,8 @@ fn reconcile_source_entry(
     target_db: &SourceDatabase,
     entry: &FileOpJournalEntry,
     target_exists: bool,
+    filesystem: &impl RecoveryFilesystem,
+    source_databases: &impl RecoverySourceDatabases,
 ) -> Result<(), String> {
     let Some(source_root) = entry.source_root.as_ref() else {
         return Ok(());
@@ -266,12 +319,11 @@ fn reconcile_source_entry(
         return Ok(());
     }
     let source_absolute = source_root.join(source_relative);
-    if source_absolute.is_file() && !target_exists {
+    if filesystem.is_file(&source_absolute) && !target_exists {
         return Ok(());
     }
-    let source_db = SourceDatabase::open(source_root)
-        .map_err(|err| format!("Failed to open source DB for recovery: {err}"))?;
-    if !source_absolute.is_file() {
+    let source_db = source_databases.open(source_root)?;
+    if !filesystem.is_file(&source_absolute) {
         source_db
             .remove_file(source_relative)
             .map_err(|err| format!("Failed to drop source DB row: {err}"))?;
@@ -289,8 +341,9 @@ fn should_defer_source_cleanup(entry: &FileOpJournalEntry, target_exists: bool) 
     target_exists && entry.stage != FileOpStage::SourceDb
 }
 
-fn file_metadata(path: &Path) -> Result<(u64, i64), String> {
-    let metadata = std::fs::metadata(path)
+fn file_metadata(path: &Path, filesystem: &impl RecoveryFilesystem) -> Result<(u64, i64), String> {
+    let metadata = filesystem
+        .metadata(path)
         .map_err(|err| format!("Failed to read {}: {err}", path.display()))?;
     let modified_ns = metadata
         .modified()
