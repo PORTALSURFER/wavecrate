@@ -300,6 +300,7 @@ impl FolderBrowserState {
             }
         } else {
             self.source.sources[source_index].root_folder = Some(result.folder);
+            self.source.sources[source_index].parked_tree_loaded = true;
             self.bump_file_content_revision();
             self.refresh_missing_collection_state();
         }

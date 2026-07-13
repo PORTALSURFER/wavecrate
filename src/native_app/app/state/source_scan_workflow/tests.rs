@@ -213,6 +213,45 @@ fn active_source_reselection_preserves_visible_tree() {
 }
 
 #[test]
+fn selecting_background_rescan_owner_keeps_completed_scan_tree_loaded() {
+    let first = temp_dir_with_wav();
+    let second = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+
+    let first_request = workflow
+        .begin_add_source_path(&mut browser, first.path().to_path_buf(), 43)
+        .expect("first source scan");
+    workflow.start_scan(&first_request);
+    let first_result = scan_source_with_progress(first_request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, first_result);
+
+    let second_request = workflow
+        .begin_add_source_path_preserving_selection(&mut browser, second.path().to_path_buf(), 44)
+        .expect("background source scan");
+    let second_id = second_request.source_id.clone();
+    workflow.start_scan(&second_request);
+    let second_result = scan_source_with_progress(second_request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, second_result);
+
+    let rescan = workflow
+        .begin_source_scan(&mut browser, second_id.clone(), 45)
+        .expect("background source rescan");
+    workflow.start_scan(&rescan);
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, second_id.clone(), 46),
+        SourceSelectionRequest::Settled
+    ));
+    assert_eq!(browser.selected_source_id(), second_id);
+    assert!(browser.selected_source_loaded());
+    assert!(
+        !browser.selected_audio_files().is_empty(),
+        "selecting the scan owner should keep its completed tree visible and loaded"
+    );
+}
+
+#[test]
 fn missing_selected_source_reselection_replaces_stale_tree_during_another_scan() {
     let selected_root = temp_dir_with_wav();
     let scanning_root = temp_dir_with_wav();

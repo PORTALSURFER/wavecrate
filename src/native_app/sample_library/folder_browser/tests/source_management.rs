@@ -140,6 +140,58 @@ fn deferred_sample_sources_reuse_persisted_scan_cache() {
 }
 
 #[test]
+fn selecting_cached_source_during_background_rescan_keeps_tree_loaded() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let first_root = temp_source_root("wavecrate-gui-cached-rescan-first");
+    let second_root = temp_source_root("wavecrate-gui-cached-rescan-second");
+    let second_sample = second_root.join("cached.wav");
+    fs::write(&second_sample, [0_u8; 8]).expect("write cached sample");
+    let sources = [
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string(
+                first_root.to_string_lossy().to_string(),
+            ),
+            first_root.clone(),
+        ),
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string(
+                second_root.to_string_lossy().to_string(),
+            ),
+            second_root.clone(),
+        ),
+    ];
+    let second_id = sources[1].id.as_str().to_string();
+    let mut seeded = FolderBrowserState::from_sample_sources(&sources);
+    let request = seeded
+        .begin_select_source(second_id.clone(), 8)
+        .expect("second source scan");
+    assert!(seeded.apply_scan_finished(scan_source_with_progress(request, |_| {}, |_| {})));
+    seeded
+        .save_source_scan_cache()
+        .expect("persist both source trees");
+
+    let mut reloaded = FolderBrowserState::from_sample_sources_deferred(&sources);
+    reloaded
+        .begin_source_scan(second_id.clone(), 9)
+        .expect("cached background rescan");
+    assert!(reloaded.select_source_without_scan(second_id.clone()));
+
+    assert_eq!(reloaded.selected_source_id(), second_id);
+    assert!(reloaded.selected_source_loaded());
+    assert_eq!(
+        reloaded
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>(),
+        vec![second_sample.to_string_lossy().to_string()]
+    );
+    let _ = fs::remove_dir_all(first_root);
+    let _ = fs::remove_dir_all(second_root);
+}
+
+#[test]
 fn deferred_missing_source_keeps_cached_tree_and_blocks_refresh() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
