@@ -1,4 +1,4 @@
-use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::{analysis_jobs::db, source_write_priority};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -47,10 +47,15 @@ pub(super) fn refresh_sources(
         }
         let conn = match reusable.remove(&(source.id.clone(), source.root.clone())) {
             Some(conn) => conn,
-            None => match db::open_source_db_maintenance(&source.root) {
-                Ok(conn) => conn,
-                Err(_) => continue,
-            },
+            None => {
+                if source_write_priority::file_op_write_priority_active(&source.id) {
+                    continue;
+                }
+                match db::open_source_db_maintenance(&source.root) {
+                    Ok(conn) => conn,
+                    Err(_) => continue,
+                }
+            }
         };
         next.push(ProgressSourceDb {
             source_id: source.id.clone(),

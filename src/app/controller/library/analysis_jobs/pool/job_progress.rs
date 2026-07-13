@@ -27,6 +27,7 @@ mod tests {
     use crate::app::controller::library::analysis_jobs::types::{
         AnalysisJobMessage, AnalysisProgress,
     };
+    use crate::app::controller::library::source_write_priority::FileOpWritePriorityGuard;
     use radiant::gui::repaint::SharedRepaintSignal;
     use std::sync::{Arc, RwLock};
     use std::time::{Duration, Instant};
@@ -219,6 +220,38 @@ mod tests {
             0,
             "periodic progress refresh must reuse the existing UI-read connection"
         );
+    }
+
+    #[test]
+    fn refresh_sources_defers_new_maintenance_open_during_file_op_priority() {
+        let config_dir = TempDir::new().unwrap();
+        let _config_guard = crate::app_dirs::ConfigBaseGuard::set(config_dir.path().to_path_buf());
+        let source_dir = TempDir::new().unwrap();
+        let source = crate::sample_sources::SampleSource::new(source_dir.path().to_path_buf());
+        crate::sample_sources::SourceDatabase::open(&source.root).expect("seed source db");
+        crate::sample_sources::library::save(&crate::sample_sources::library::LibraryState {
+            sources: vec![source.clone()],
+        })
+        .unwrap();
+        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+        let mut sources = Vec::<ProgressSourceDb>::new();
+        let mut last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+
+        {
+            let _guard = FileOpWritePriorityGuard::new(&source.id);
+
+            assert!(!refresh_sources(&mut sources, &mut last_refresh, None));
+            assert!(sources.is_empty());
+            assert_eq!(
+                crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+                0,
+                "progress discovery must not open maintenance while a file op owns the source"
+            );
+        }
+
+        last_refresh = Instant::now() - SOURCE_REFRESH_INTERVAL;
+        assert!(refresh_sources(&mut sources, &mut last_refresh, None));
+        assert_eq!(sources.len(), 1);
     }
 
     #[test]
