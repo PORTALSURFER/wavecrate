@@ -14,8 +14,9 @@ use super::{
     widget_geometry::{
         EDIT_GAIN_HANDLE_HEIGHT, EDIT_GAIN_HANDLE_WIDTH, SELECTION_RESIZE_HANDLE_STRIP_HEIGHT,
         edit_gain_handle_rect_for_geometry, edit_selection_resize_edge_bounds,
-        edit_selection_resize_edge_visible, selection_export_handle_style,
-        selection_move_handle_style, selection_resize_edge_style, waveform_selection_edge_role,
+        edit_selection_resize_edge_visible, play_selection_resize_edge_style,
+        selection_export_handle_style, selection_move_handle_style, selection_resize_edge_style,
+        waveform_selection_edge_role,
     },
 };
 
@@ -198,7 +199,7 @@ impl WaveformWidget {
             handle_paint,
             geometry,
             CanvasSelectionAffordanceStyle::new()
-                .with_edge(selection_resize_edge_style())
+                .with_edge(play_selection_resize_edge_style())
                 .with_body(selection_move_handle_style())
                 .with_trailing_control(selection_export_handle_style()),
             style.affordance_paint_parts(
@@ -317,7 +318,7 @@ impl WaveformWidget {
                     &mut paint,
                     geometry,
                     CanvasSelectionAffordanceStyle::new()
-                        .with_edge(selection_resize_edge_style())
+                        .with_edge(play_selection_resize_edge_style())
                         .with_body(selection_move_handle_style())
                         .with_trailing_control(selection_export_handle_style()),
                     style.affordance_paint_parts(
@@ -398,6 +399,7 @@ impl WaveformWidget {
             edge_bounds,
             role,
             PLAY_HANDLE_ACTION_HOVER_COLOR.with_alpha(PLAY_HANDLE_DRAG_GHOST_ALPHA),
+            play_selection_resize_edge_style(),
         );
     }
 
@@ -636,6 +638,7 @@ impl WaveformWidget {
                     bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
                     hover.role,
                     play_selection_handle_hover_color(hover.role),
+                    play_selection_resize_edge_style(),
                 );
             }
             super::WaveformSelectionKind::Edit => {
@@ -656,6 +659,7 @@ impl WaveformWidget {
                     edge_bounds,
                     hover.role,
                     EDIT_SELECTION_COLOR.with_alpha(HANDLE_HOVER_ALPHA),
+                    selection_resize_edge_style(),
                 );
             }
         }
@@ -747,6 +751,7 @@ impl WaveformWidget {
         edge_bounds: Rect,
         role: DragHandleRole,
         color: Rgba8,
+        edge_style: radiant::gui::visualization::CanvasSelectionEdgeVisualStyle,
     ) {
         let widget_id = paint.widget_id();
         match role {
@@ -761,7 +766,7 @@ impl WaveformWidget {
                 geometry.push_edge_visual_fill(
                     paint.primitives_mut(),
                     widget_id,
-                    selection_resize_edge_style().paint_parts(edge_bounds, role, color),
+                    edge_style.paint_parts(edge_bounds, role, color),
                 );
             }
             DragHandleRole::TrailingControl => {

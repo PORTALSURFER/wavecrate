@@ -18,6 +18,10 @@ impl AppController {
             });
             return;
         };
+        if self.live_remap_blocks_starmap_job(&source_id) {
+            self.set_status("Source remap in progress", StatusTone::Info);
+            return;
+        }
         self.runtime
             .jobs
             .begin_umap_build(super::super::jobs::UmapBuildJob {
@@ -35,6 +39,13 @@ impl AppController {
             return;
         }
         let source_id = self.current_source().map(|source| source.id);
+        if source_id
+            .as_ref()
+            .is_some_and(|source_id| self.live_remap_blocks_starmap_job(source_id))
+        {
+            self.set_status("Source remap in progress", StatusTone::Info);
+            return;
+        }
         self.runtime
             .jobs
             .begin_umap_cluster_build(super::super::jobs::UmapClusterBuildJob {
@@ -43,6 +54,14 @@ impl AppController {
                 source_id,
             });
         self.set_status_message(StatusMessage::BuildingClusters);
+    }
+
+    fn live_remap_blocks_starmap_job(&self, source_id: &SourceId) -> bool {
+        self.runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| !pending.canceled && &pending.source.id == source_id)
     }
 }
 

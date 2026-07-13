@@ -25,6 +25,24 @@ pub struct ScanStats {
     pub renamed_samples: Vec<RenamedSample>,
     /// Detailed list of changed samples.
     pub changed_samples: Vec<ChangedSample>,
+    /// Newly inserted paths from this scan that are eligible as rename destinations.
+    #[doc(hidden)]
+    pub rename_candidate_paths: Vec<PathBuf>,
+}
+
+impl ScanStats {
+    pub(super) fn merge_deferred_hashes(&mut self, mut deferred: Self) {
+        self.hashes_computed += deferred.hashes_computed;
+        self.hashes_pending = self.hashes_pending.saturating_sub(deferred.hashes_computed);
+        self.renames_reconciled += deferred.renames_reconciled;
+        self.updated_samples.append(&mut deferred.updated_samples);
+        self.renamed_samples.append(&mut deferred.renamed_samples);
+        self.changed_samples.append(&mut deferred.changed_samples);
+    }
+
+    pub(crate) fn record_rename_candidate(&mut self, path: PathBuf) {
+        self.rename_candidate_paths.push(path);
+    }
 }
 
 /// Metadata describing a sample whose tracked file facts changed without moving.

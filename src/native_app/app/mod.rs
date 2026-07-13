@@ -19,7 +19,8 @@ pub(in crate::native_app) use loading::{
 };
 pub(in crate::native_app) use message::{
     GuiMessage, MetadataMessage, SettingsMessage, SimilaritySettingsPersistResult,
-    SourceFilesystemSyncResult, TrashMoveTarget, VolumeSettingsPersistResult,
+    SourceFilesystemSyncResult, SourceFilesystemSyncSuccess, TrashMoveTarget,
+    VolumeSettingsPersistResult,
 };
 pub(in crate::native_app) use progress::{
     FileMoveProgress, NormalizationFailure, NormalizationHarvestDerivation, NormalizationProgress,
@@ -42,10 +43,11 @@ pub(in crate::native_app) use state::{
     SamplePlaybackIntent, SamplePlaybackNormalization, SamplePlaybackRequest,
     SamplePlaybackSession, SamplePlaybackSessionState, SamplePlaybackSourceProbe,
     SamplePlaybackVisibility, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
-    SourceScanFinish, StarmapAuditionDragState, StarmapViewport, StarmapViewportChange,
-    StartupState, StatusState, UiAppState, WaveformAppState, WaveformDestructiveEditKind,
-    WaveformDestructiveEditPrompt, WaveformDestructiveEditTarget, WaveformDestructiveEditUiContext,
-    WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot, run_folder_scan_worker,
+    SourceScanFinish, SourceSelectionRequest, StarmapAuditionDragState, StarmapViewport,
+    StarmapViewportChange, StartupState, StatusState, UiAppState, WaveformAppState,
+    WaveformDestructiveEditKind, WaveformDestructiveEditPrompt, WaveformDestructiveEditTarget,
+    WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot,
+    WaveformVisualSnapshot, run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;

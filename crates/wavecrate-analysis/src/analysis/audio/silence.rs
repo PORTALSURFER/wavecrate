@@ -36,7 +36,7 @@ pub(super) fn trim_silence_with_hysteresis(samples: &[f32], sample_rate: u32) ->
         if !active {
             if rms_value >= threshold_on {
                 active = true;
-                active_start = Some(window_start);
+                active_start.get_or_insert(window_start);
                 active_end = Some(window_end);
             }
         } else if rms_value >= threshold_off {
@@ -243,6 +243,47 @@ mod tests {
             .map(|v| v.abs())
             .fold(0.0_f32, f32::max);
         assert!(max >= off_amp * 0.9);
+    }
+
+    #[test]
+    fn silence_trim_preserves_two_audible_islands_and_interior_silence() {
+        let sample_rate = 1000;
+        let window_size = 20;
+        let audible = db_to_linear(SILENCE_THRESHOLD_ON_DB) * 2.0;
+        let mut samples = Vec::new();
+        samples.extend(std::iter::repeat_n(0.0, window_size * 2));
+        samples.extend(std::iter::repeat_n(audible, window_size));
+        samples.extend(std::iter::repeat_n(0.0, window_size * 2));
+        samples.extend(std::iter::repeat_n(audible, window_size));
+        samples.extend(std::iter::repeat_n(0.0, window_size * 2));
+
+        let trimmed = trim_silence_with_hysteresis(&samples, sample_rate);
+
+        assert_eq!(trimmed.len(), 95);
+        assert_eq!(
+            trimmed.iter().filter(|sample| **sample == audible).count(),
+            40
+        );
+        assert!(trimmed[30..70].iter().all(|sample| *sample == 0.0));
+    }
+
+    #[test]
+    fn silence_trim_preserves_one_sample_island_with_roll_bounds() {
+        let sample_rate = 1000;
+        let mut samples = vec![0.0; 100];
+        samples[45] = 1.0;
+
+        let trimmed = trim_silence_with_hysteresis(&samples, sample_rate);
+
+        assert_eq!(trimmed.len(), 35);
+        assert_eq!(trimmed.iter().filter(|sample| **sample == 1.0).count(), 1);
+    }
+
+    #[test]
+    fn silence_trim_preserves_all_silent_input() {
+        let samples = vec![0.0; 100];
+
+        assert_eq!(trim_silence_with_hysteresis(&samples, 1000), samples);
     }
 
     #[test]

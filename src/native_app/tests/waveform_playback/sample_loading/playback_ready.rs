@@ -95,6 +95,11 @@ fn playback_ready_message_starts_audio_before_waveform_completion() {
                     sample_rate: 48_000,
                     channels: 1,
                     frames: 4,
+                    source_len: fs::metadata(&sample_path).expect("sample metadata").len(),
+                    source_modified: fs::metadata(&sample_path)
+                        .expect("sample metadata")
+                        .modified()
+                        .ok(),
                 },
                 true,
             ),

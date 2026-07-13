@@ -36,7 +36,7 @@ pub(in crate::native_app) use state_extraction::{
 };
 mod state_file;
 mod state_interaction;
-pub(in crate::native_app) use state::WaveformState;
+pub(in crate::native_app) use state::{WaveformDetailKey, WaveformDetailResult, WaveformState};
 mod state_loading;
 mod state_marked_ranges;
 mod state_playback;
@@ -67,8 +67,9 @@ pub(in crate::native_app) use audio_file::{
     flush_background_waveform_cache_stores_for_shutdown, instant_waveform_head_preview_from_clip,
     invalidate_persisted_waveform_cache_path, invalidate_persisted_waveform_cache_paths,
     load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor_sidecar,
-    mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
-    should_use_file_backed_wav_decode, should_use_file_backed_wav_decode_for_entry,
+    load_wav_detail_summary, mark_cached_waveform_file_source_warm_attempted,
+    remap_persisted_waveform_cache_after_move, should_use_file_backed_wav_decode,
+    should_use_file_backed_wav_decode_for_entry,
 };
 #[cfg(test)]
 pub(super) use audio_file::{
@@ -77,6 +78,8 @@ pub(super) use audio_file::{
 };
 
 mod similar_sections;
+#[cfg(test)]
+use audio_file::load_wav_waveform_summary_from_path_with_progress;
 #[cfg(test)]
 use audio_file::{downmix_to_mono, split_frequency_bands, waveform_file_from_mono_samples};
 pub(in crate::native_app) use similar_sections::{

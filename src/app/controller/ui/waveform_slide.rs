@@ -162,7 +162,7 @@ impl AppController {
             );
             let (tx, rx) = std::sync::mpsc::channel();
             let cancel = Arc::new(AtomicBool::new(false));
-            self.runtime.jobs.start_file_ops(rx, cancel.clone());
+            self.start_file_ops_with_remap_cancellation(rx, cancel.clone());
             std::thread::spawn(move || {
                 let result = run_waveform_slide_job(state, rotated, cancel);
                 let _ = tx.send(FileOpMessage::Finished(FileOpResult::WaveformSlideCommit(

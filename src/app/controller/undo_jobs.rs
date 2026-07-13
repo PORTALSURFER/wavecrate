@@ -268,7 +268,8 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
 }
 
 fn open_source_db(source_root: &Path) -> Result<SourceDatabase, String> {
-    SourceDatabase::open(source_root).map_err(|err| format!("Database unavailable: {err}"))
+    SourceDatabase::open_for_source_write(source_root)
+        .map_err(|err| format!("Database unavailable: {err}"))
 }
 
 fn delete_sample_file_if_present(path: &Path) -> Result<(), String> {

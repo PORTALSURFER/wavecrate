@@ -3,6 +3,22 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 impl AppController {
+    pub(crate) fn cancel_pending_source_remap_for_mutation(&mut self, source_id: &SourceId) {
+        let Some(pending) = self.runtime.source_lane.pending_remap.as_mut() else {
+            return;
+        };
+        if pending.source.id != *source_id || pending.canceled {
+            return;
+        }
+        pending.canceled = true;
+        pending.write_fence.cancel();
+        tracing::info!(
+            source_id = %source_id,
+            request_id = pending.request_id,
+            "Canceling pending source remap before source mutation"
+        );
+    }
+
     pub(crate) fn selected_source_claim_pause_grace_active(&mut self, now: Instant) -> bool {
         let Some(source_id) = self.selected_source_id() else {
             return false;
@@ -100,6 +116,7 @@ impl AppController {
         source_id: &SourceId,
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
+        self.cancel_pending_source_remap_for_mutation(source_id);
         let paths = paths.into_iter().collect::<Vec<_>>();
         let source_became_active = self
             .runtime

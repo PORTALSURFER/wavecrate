@@ -60,7 +60,7 @@ pub(super) fn record_clip_entry(
         snapshot.target_tag.unwrap_or(Rating::NEUTRAL),
         snapshot.looped,
     )?;
-    let db = SourceDatabase::open_fast(&source.root)
+    let db = SourceDatabase::open_for_background_job(&source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
         .map_err(|err| format!("Failed to register clip: {err}"))?;
@@ -92,7 +92,7 @@ pub(super) fn record_crop_entry(
     entry.looped = false;
     entry.tag = snapshot.target_tag.unwrap_or(Rating::NEUTRAL);
     let source = sample_source(snapshot);
-    let db = SourceDatabase::open_fast(&source.root)
+    let db = SourceDatabase::open_for_background_job(&source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
         .map_err(|err| format!("Failed to sync database entry: {err}"))?;
@@ -114,7 +114,7 @@ pub(super) fn record_slice_batch_entry(
     )?;
     let source =
         SampleSource::new_with_id(snapshot.source_id.clone(), snapshot.source_root.clone());
-    let db = SourceDatabase::open_fast(&source.root)
+    let db = SourceDatabase::open_for_background_job(&source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&entry.relative_path, entry.file_size, entry.modified_ns)
         .map_err(|err| format!("Failed to register slice: {err}"))?;

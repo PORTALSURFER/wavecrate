@@ -12,6 +12,38 @@ use super::super::{
 };
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn defer_add_source_path(
+        &mut self,
+        root: PathBuf,
+        select_source: bool,
+    ) -> Option<String> {
+        if let Some(source) = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.root == root)
+        {
+            return Some(source.id.clone());
+        }
+        let id = path_id(&root);
+        let label = folder_label(&root);
+        self.source
+            .sources
+            .push(SourceEntry::new(id.clone(), label, root.clone()));
+        if select_source {
+            self.park_selected_source_tree();
+            self.select_pending_source(id.clone(), placeholder_folder(&root));
+        }
+        Some(id)
+    }
+
+    pub(in crate::native_app) fn source_exists(&self, source_id: &str) -> bool {
+        self.source
+            .sources
+            .iter()
+            .any(|source| source.id == source_id)
+    }
+
     pub(in crate::native_app) fn begin_add_source_path(
         &mut self,
         root: PathBuf,
@@ -52,6 +84,9 @@ impl FolderBrowserState {
         let mut source = SourceEntry::new(id.clone(), label.clone(), root.clone());
         source.loading_task = Some(task_id);
         let database_root = source.database_root.clone();
+        if select_source {
+            self.park_selected_source_tree();
+        }
         self.source.sources.push(source);
         if select_source {
             self.select_pending_source(id.clone(), placeholder_folder(&root));
@@ -111,15 +146,40 @@ impl FolderBrowserState {
             self.select_cached_or_placeholder_source(index);
             return None;
         }
-        if self.source.selected_source == id && self.selected_source_loaded() {
-            return None;
+        let selected_loaded = self.source.selected_source == id && self.selected_source_loaded();
+        if selected_loaded {
+            if self.source.sources[index].loading_task.is_some() {
+                return None;
+            }
+            self.source.sources[index].loading_task = Some(task_id);
+            let source = self.source.sources[index].clone();
+            return Some(FolderScanRequest {
+                task_id,
+                source_id: source.id,
+                label: source.label,
+                root: source.root,
+                database_root: source.database_root,
+                rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
+            });
         }
         if self.source.selected_source != id {
             self.park_selected_source_tree();
         }
         if let Some(root_folder) = self.source.sources[index].root_folder.take() {
             self.select_loaded_source(id, root_folder);
-            return None;
+            if self.source.sources[index].loading_task.is_some() {
+                return None;
+            }
+            self.source.sources[index].loading_task = Some(task_id);
+            let source = self.source.sources[index].clone();
+            return Some(FolderScanRequest {
+                task_id,
+                source_id: source.id,
+                label: source.label,
+                root: source.root,
+                database_root: source.database_root,
+                rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
+            });
         }
         if self.source.sources[index].loading_task.is_some() {
             let root = self.source.sources[index].root.clone();
@@ -137,6 +197,25 @@ impl FolderBrowserState {
             database_root: source.database_root,
             rating_decay_weeks: FolderScanRequest::default_rating_decay_weeks(),
         })
+    }
+
+    pub(in crate::native_app) fn select_source_without_scan(&mut self, id: String) -> bool {
+        let Some(index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == id)
+        else {
+            return false;
+        };
+        let source_missing = self.source.sources[index]
+            .refresh_availability_from_disk()
+            .is_missing();
+        if self.source.selected_source == id && self.selected_source_loaded() && !source_missing {
+            return true;
+        }
+        self.select_cached_or_placeholder_source(index);
+        true
     }
 
     pub(in crate::native_app) fn begin_selected_source_scan(
@@ -187,6 +266,21 @@ impl FolderBrowserState {
             || (self.source.selected_tree_loaded && self.tree.folders.first().is_some())
     }
 
+    pub(in crate::native_app) fn source_tree_loaded(&self, source_id: &str) -> bool {
+        let Some(source) = self
+            .source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+        else {
+            return false;
+        };
+        if self.source.selected_source == source_id {
+            return self.source.selected_tree_loaded && self.tree.folders.first().is_some();
+        }
+        source.parked_tree_loaded && source.root_folder.is_some()
+    }
+
     pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
         let Some(source_index) = self
             .source
@@ -221,6 +315,7 @@ impl FolderBrowserState {
             }
         } else {
             self.source.sources[source_index].root_folder = Some(result.folder);
+            self.source.sources[source_index].parked_tree_loaded = true;
             self.bump_file_content_revision();
             self.refresh_missing_collection_state();
         }
@@ -281,6 +376,8 @@ impl FolderBrowserState {
         &mut self,
         batch: FolderScanDiscoveryBatch,
     ) -> bool {
+        let preserve_selected_tree =
+            self.source.selected_source == batch.source_id && self.source.selected_tree_loaded;
         let Some(source) = self
             .source
             .sources
@@ -290,6 +387,9 @@ impl FolderBrowserState {
             return false;
         };
         if source.loading_task != Some(batch.task_id) {
+            return false;
+        }
+        if preserve_selected_tree {
             return false;
         }
 
@@ -330,7 +430,13 @@ impl FolderBrowserState {
             self.park_selected_source_tree();
         }
         if let Some(root_folder) = self.source.sources[source_index].root_folder.take() {
-            self.select_loaded_source(source_id, root_folder);
+            let parked_tree_loaded = self.source.sources[source_index].parked_tree_loaded;
+            self.source.sources[source_index].parked_tree_loaded = false;
+            if self.source.sources[source_index].loading_task.is_some() && !parked_tree_loaded {
+                self.select_pending_source(source_id, root_folder);
+            } else {
+                self.select_loaded_source(source_id, root_folder);
+            }
         } else {
             self.select_pending_source(source_id, placeholder_folder(&source_root));
         }

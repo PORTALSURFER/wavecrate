@@ -9,92 +9,125 @@ pub(crate) fn build_input_stream(
     config: &cpal::StreamConfig,
     sample_format: cpal::SampleFormat,
     selection: StreamChannelSelection,
-    mut on_samples: impl FnMut(Vec<f32>) + Send + 'static,
+    mut on_samples: impl FnMut(&[f32]) + Send + 'static,
 ) -> Result<cpal::Stream, AudioInputError> {
     let err_fn = move |err| {
         warn!("Audio input stream error: {err}");
     };
+    let scratch_capacity = capture_scratch_capacity(config, &selection);
     let selection = std::sync::Arc::new(selection);
     match sample_format {
-        cpal::SampleFormat::F32 => device
-            .build_input_stream(
-                config,
-                move |data: &[f32], _| {
-                    let samples = extract_selected_samples(data, &selection, |sample| *sample);
-                    on_samples(samples);
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|source| AudioInputError::OpenStream { source }),
-        cpal::SampleFormat::I16 => device
-            .build_input_stream(
-                config,
-                move |data: &[i16], _| {
-                    let samples = extract_selected_samples(data, &selection, |sample| {
-                        *sample as f32 / i16::MAX as f32
-                    });
-                    on_samples(samples);
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|source| AudioInputError::OpenStream { source }),
-        cpal::SampleFormat::U16 => device
-            .build_input_stream(
-                config,
-                move |data: &[u16], _| {
-                    let samples = extract_selected_samples(data, &selection, |sample| {
-                        (*sample as f32 - 32_768.0) / 32_768.0
-                    });
-                    on_samples(samples);
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|source| AudioInputError::OpenStream { source }),
-        cpal::SampleFormat::I32 => device
-            .build_input_stream(
-                config,
-                move |data: &[i32], _| {
-                    let samples = extract_selected_samples(data, &selection, |sample| {
-                        *sample as f32 / i32::MAX as f32
-                    });
-                    on_samples(samples);
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|source| AudioInputError::OpenStream { source }),
-        cpal::SampleFormat::U32 => device
-            .build_input_stream(
-                config,
-                move |data: &[u32], _| {
-                    let samples = extract_selected_samples(data, &selection, |sample| {
-                        (*sample as f32 - 2_147_483_648.0) / 2_147_483_648.0
-                    });
-                    on_samples(samples);
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|source| AudioInputError::OpenStream { source }),
-        cpal::SampleFormat::F64 => device
-            .build_input_stream(
-                config,
-                move |data: &[f64], _| {
-                    let samples =
-                        extract_selected_samples(data, &selection, |sample| *sample as f32);
-                    on_samples(samples);
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|source| AudioInputError::OpenStream { source }),
+        cpal::SampleFormat::F32 => {
+            let mut samples = Vec::with_capacity(scratch_capacity);
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[f32], _| {
+                        extract_selected_samples(data, &selection, &mut samples, |sample| *sample);
+                        on_samples(&samples);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|source| AudioInputError::OpenStream { source })
+        }
+        cpal::SampleFormat::I16 => {
+            let mut samples = Vec::with_capacity(scratch_capacity);
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[i16], _| {
+                        extract_selected_samples(data, &selection, &mut samples, |sample| {
+                            *sample as f32 / i16::MAX as f32
+                        });
+                        on_samples(&samples);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|source| AudioInputError::OpenStream { source })
+        }
+        cpal::SampleFormat::U16 => {
+            let mut samples = Vec::with_capacity(scratch_capacity);
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[u16], _| {
+                        extract_selected_samples(data, &selection, &mut samples, |sample| {
+                            (*sample as f32 - 32_768.0) / 32_768.0
+                        });
+                        on_samples(&samples);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|source| AudioInputError::OpenStream { source })
+        }
+        cpal::SampleFormat::I32 => {
+            let mut samples = Vec::with_capacity(scratch_capacity);
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[i32], _| {
+                        extract_selected_samples(data, &selection, &mut samples, |sample| {
+                            *sample as f32 / i32::MAX as f32
+                        });
+                        on_samples(&samples);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|source| AudioInputError::OpenStream { source })
+        }
+        cpal::SampleFormat::U32 => {
+            let mut samples = Vec::with_capacity(scratch_capacity);
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[u32], _| {
+                        extract_selected_samples(data, &selection, &mut samples, |sample| {
+                            (*sample as f32 - 2_147_483_648.0) / 2_147_483_648.0
+                        });
+                        on_samples(&samples);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|source| AudioInputError::OpenStream { source })
+        }
+        cpal::SampleFormat::F64 => {
+            let mut samples = Vec::with_capacity(scratch_capacity);
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[f64], _| {
+                        extract_selected_samples(data, &selection, &mut samples, |sample| {
+                            *sample as f32
+                        });
+                        on_samples(&samples);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|source| AudioInputError::OpenStream { source })
+        }
         format => Err(AudioInputError::RecordingFailed {
             detail: format!("Unsupported input sample format {format:?}"),
         }),
     }
+}
+
+fn capture_scratch_capacity(
+    config: &cpal::StreamConfig,
+    selection: &StreamChannelSelection,
+) -> usize {
+    let frames = match config.buffer_size {
+        cpal::BufferSize::Fixed(frames) => frames as usize,
+        cpal::BufferSize::Default => (config.sample_rate as usize / 10).max(4_096),
+    };
+    frames
+        .saturating_mul(selection.selected_channels.len())
+        .max(1)
 }
 
 #[derive(Clone)]
@@ -125,11 +158,10 @@ impl StreamChannelSelection {
 fn extract_selected_samples<T>(
     data: &[T],
     selection: &StreamChannelSelection,
+    samples: &mut Vec<f32>,
     mut convert: impl FnMut(&T) -> f32,
-) -> Vec<f32> {
-    let mut samples = Vec::with_capacity(
-        data.len() / selection.stream_channels.max(1) * selection.selected_channels.len(),
-    );
+) {
+    samples.clear();
     for frame in data.chunks(selection.stream_channels.max(1)) {
         for &channel_idx in &selection.selected_channels {
             if let Some(sample) = frame.get(channel_idx) {
@@ -137,5 +169,24 @@ fn extract_selected_samples<T>(
             }
         }
     }
-    samples
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_sample_extraction_reuses_preallocated_storage() {
+        let selection = StreamChannelSelection::new(2, &[1]);
+        let mut samples = Vec::with_capacity(4);
+        let allocation = samples.as_ptr();
+
+        extract_selected_samples(&[0.1_f32, 0.2, 0.3, 0.4], &selection, &mut samples, |v| *v);
+        assert_eq!(samples, vec![0.1, 0.3]);
+        assert_eq!(samples.as_ptr(), allocation);
+
+        extract_selected_samples(&[0.5_f32, 0.6], &selection, &mut samples, |v| *v);
+        assert_eq!(samples, vec![0.5]);
+        assert_eq!(samples.as_ptr(), allocation);
+    }
 }

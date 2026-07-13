@@ -33,7 +33,7 @@ fn prepare_auto_rename_requests_from_snapshot(
     progress: &FileOpProgressSender,
 ) -> Result<Vec<SampleAutoRenameRequest>, String> {
     let started_at = Instant::now();
-    let db = crate::sample_sources::SourceDatabase::open_read_only(&snapshot.source.root)
+    let db = crate::sample_sources::SourceDatabase::open_for_ui_read(&snapshot.source.root)
         .map_err(|err| format!("Database unavailable: {err}"))?;
     let bpm_sample_ids = snapshot
         .paths

@@ -1,4 +1,16 @@
 use super::*;
+
+type ReopenedDerivationRow = (
+    String,
+    Option<f64>,
+    Option<f64>,
+    Option<f64>,
+    Option<String>,
+    Option<i64>,
+    String,
+    Option<String>,
+    String,
+);
 use crate::sample_sources::{SourceId, SourceMetadataStorage, SourceRole};
 use rusqlite::{Connection, OptionalExtension};
 use std::collections::HashSet;
@@ -401,17 +413,7 @@ fn harvest_derivation_graph_survives_reopen_and_marks_parent_touched() {
         assert_eq!(reopened_child.0, child.file_size.map(|value| value as i64));
         assert_eq!(reopened_child.1, child.modified_ns);
         assert_eq!(reopened_child.2.as_deref(), child.content_hash.as_deref());
-        let reopened_edge: (
-            String,
-            Option<f64>,
-            Option<f64>,
-            Option<f64>,
-            Option<String>,
-            Option<i64>,
-            String,
-            Option<String>,
-            String,
-        ) = reopened
+        let reopened_edge: ReopenedDerivationRow = reopened
             .query_row(
                 "SELECT operation, source_range_start, source_range_end,
                     output_duration_seconds, destination_folder, inherited_rating,

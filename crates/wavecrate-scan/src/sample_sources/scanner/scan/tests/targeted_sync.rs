@@ -77,6 +77,36 @@ fn targeted_sync_adds_new_file_inside_requested_folder() {
 }
 
 #[test]
+fn targeted_sync_does_not_claim_unrelated_missing_rename_source() {
+    let dir = tempdir().unwrap();
+    let unrelated = dir.path().join("unrelated.wav");
+    std::fs::write(&unrelated, b"same").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("unrelated.wav"), Rating::KEEP_1)
+        .unwrap();
+
+    std::fs::remove_file(&unrelated).unwrap();
+    std::fs::write(dir.path().join("requested.wav"), b"same").unwrap();
+    let stats = sync_paths(&db, &[PathBuf::from("requested.wav")]).unwrap();
+
+    assert_eq!(stats.renames_reconciled, 0);
+    assert_eq!(stats.added, 1);
+    assert!(
+        db.entry_for_path(Path::new("unrelated.wav"))
+            .unwrap()
+            .is_some()
+    );
+    assert_eq!(
+        db.entry_for_path(Path::new("requested.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
+}
+
+#[test]
 fn targeted_sync_ignores_appledouble_sidecars() {
     let dir = tempdir().unwrap();
     let drums = dir.path().join("drums");

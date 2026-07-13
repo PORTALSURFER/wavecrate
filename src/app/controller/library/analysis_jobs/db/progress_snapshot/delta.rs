@@ -89,4 +89,25 @@ mod tests {
         assert_eq!(deltas.get("analyze"), Some(&(-1, 1, 1, 0)));
         assert_eq!(deltas.get("embed"), Some(&(0, 0, 0, -1)));
     }
+
+    #[test]
+    fn state_deltas_cancel_intermediate_states_across_one_batch() {
+        let deltas = state_deltas([
+            (
+                Some(state("analyze", "pending", true)),
+                Some(state("analyze", "running", true)),
+            ),
+            (
+                Some(state("analyze", "running", true)),
+                Some(state("analyze", "done", true)),
+            ),
+            (
+                Some(state("embed", "failed", true)),
+                Some(state("embed", "failed", false)),
+            ),
+        ]);
+
+        assert_eq!(deltas.get("analyze"), Some(&(-1, 0, 1, 0)));
+        assert_eq!(deltas.get("embed"), Some(&(0, 0, 0, -1)));
+    }
 }

@@ -24,7 +24,7 @@ pub(in crate::native_app::sample_library::folder_browser) type SourceMetadataMap
 >;
 
 pub(super) fn source_rating_map(root: &Path, database_root: &Path) -> SourceMetadataMap {
-    let Ok(db) = SourceDatabase::open_read_only_with_database_root(root, database_root) else {
+    let Ok(db) = SourceDatabase::open_for_ui_read_with_database_root(root, database_root) else {
         return HashMap::new();
     };
     let Ok(entries) = db.list_files() else {
@@ -303,7 +303,7 @@ fn source_file_metadata(
     Option<i64>,
 )> {
     let relative = path.strip_prefix(source_root).ok()?;
-    let db = SourceDatabase::open_read_only_with_database_root(source_root, source_database_root)
+    let db = SourceDatabase::open_for_ui_read_with_database_root(source_root, source_database_root)
         .ok()?;
     let entry = db.entry_for_path(relative).ok()??;
     let collections = db.collections_for_path(relative).unwrap_or_default();

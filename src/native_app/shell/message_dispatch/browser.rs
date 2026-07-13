@@ -54,6 +54,9 @@ impl NativeAppState {
                 self.apply_folder_scan_discovery_batch(batch);
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result, context),
+            GuiMessage::FolderScanMaintenanceFinished(result) => {
+                self.finish_folder_scan_maintenance(result)
+            }
             GuiMessage::FolderTreeRefreshFinished(completion) => {
                 self.finish_folder_tree_refresh(completion, context);
             }
@@ -68,7 +71,7 @@ impl NativeAppState {
                 self.refresh_source_after_filesystem_change(source_id, paths, overflowed, context);
             }
             GuiMessage::SourceFilesystemSyncFinished(result) => {
-                self.finish_source_filesystem_sync(result);
+                self.finish_source_filesystem_sync(result, context);
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);

@@ -3,10 +3,20 @@
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
+
+use ringbuf::{HeapRb, traits::*};
 
 use crate::input::AudioInputError;
+
+use super::health::RecordingHealthState;
+
+const WRITER_BUFFER_SECONDS: usize = 2;
+const WRITER_DRAIN_SAMPLES: usize = 4_096;
+const IDLE_POLL_INTERVAL: Duration = Duration::from_millis(1);
 
 /// Writer-thread result summary returned when recording stops cleanly.
 #[derive(Clone, Copy)]
@@ -14,14 +24,31 @@ pub(super) struct RecordingStats {
     pub(super) frames: u64,
 }
 
-/// Commands sent from the capture callback into the WAV writer worker.
-pub(super) enum RecorderCommand {
-    Samples(Vec<f32>),
+/// Lock-free producer owned exclusively by the capture callback.
+pub(super) struct RecorderCapture {
+    producer: ringbuf::HeapProd<f32>,
+    health: Arc<RecordingHealthState>,
+}
+
+impl RecorderCapture {
+    pub(super) fn submit(&mut self, samples: &[f32]) {
+        if self.producer.vacant_len() < samples.len() {
+            self.health
+                .writer_dropped_samples
+                .fetch_add(samples.len() as u64, Ordering::Relaxed);
+            self.health
+                .writer_overrun_events
+                .fetch_add(1, Ordering::Relaxed);
+            return;
+        }
+        let pushed = self.producer.push_slice(samples);
+        debug_assert_eq!(pushed, samples.len());
+    }
 }
 
 /// Joinable WAV writer worker bound to one active recording session.
 pub(super) struct RecorderWriter {
-    sender: Option<Sender<RecorderCommand>>,
+    stop: Arc<AtomicBool>,
     join: Option<JoinHandle<Result<RecordingStats, AudioInputError>>>,
 }
 
@@ -30,21 +57,35 @@ impl RecorderWriter {
         path: PathBuf,
         sample_rate: u32,
         channels: u16,
-        receiver: Receiver<RecorderCommand>,
-        sender: Sender<RecorderCommand>,
-    ) -> Result<Self, AudioInputError> {
+        health: Arc<RecordingHealthState>,
+    ) -> Result<(Self, RecorderCapture), AudioInputError> {
         let writer = WavSampleWriter::new(&path, sample_rate, channels)?;
-        let join = thread::spawn(move || writer_loop(writer, receiver));
-        Ok(Self {
-            sender: Some(sender),
-            join: Some(join),
-        })
+        let capacity = (sample_rate as usize)
+            .saturating_mul(channels.max(1) as usize)
+            .saturating_mul(WRITER_BUFFER_SECONDS)
+            .max(1);
+        let ring = HeapRb::<f32>::new(capacity);
+        let (producer, consumer) = ring.split();
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = Arc::clone(&stop);
+        let worker_health = Arc::clone(&health);
+        let join = thread::spawn(move || {
+            let result = writer_loop(writer, consumer, &worker_stop);
+            record_writer_result(&result, &worker_health);
+            result
+        });
+        Ok((
+            Self {
+                stop,
+                join: Some(join),
+            },
+            RecorderCapture { producer, health },
+        ))
     }
 
-    /// Close the writer-owned sender so the worker can drain any in-flight
-    /// callback samples before finalizing the WAV file.
+    /// Ask the writer to drain its bounded ring and finalize the WAV file.
     pub(super) fn stop(&mut self) {
-        let _ = self.sender.take();
+        self.stop.store(true, Ordering::Release);
     }
 
     pub(super) fn join(&mut self) -> Result<RecordingStats, AudioInputError> {
@@ -62,14 +103,40 @@ impl RecorderWriter {
     }
 }
 
+impl Drop for RecorderWriter {
+    fn drop(&mut self) {
+        self.stop();
+        if let Some(handle) = self.join.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn record_writer_result(
+    result: &Result<RecordingStats, AudioInputError>,
+    health: &RecordingHealthState,
+) {
+    if result.is_err() {
+        health.writer_failed.store(true, Ordering::Release);
+    }
+}
+
 fn writer_loop(
     mut writer: WavSampleWriter,
-    receiver: Receiver<RecorderCommand>,
+    mut consumer: ringbuf::HeapCons<f32>,
+    stop: &AtomicBool,
 ) -> Result<RecordingStats, AudioInputError> {
-    while let Ok(command) = receiver.recv() {
-        match command {
-            RecorderCommand::Samples(samples) => writer.write_samples(&samples)?,
+    let mut samples = vec![0.0; WRITER_DRAIN_SAMPLES];
+    loop {
+        let popped = consumer.pop_slice(&mut samples);
+        if popped > 0 {
+            writer.write_samples(&samples[..popped])?;
+            continue;
         }
+        if stop.load(Ordering::Acquire) {
+            break;
+        }
+        thread::sleep(IDLE_POLL_INTERVAL);
     }
     writer.finalize()
 }
@@ -154,18 +221,13 @@ mod tests {
     fn recorder_stop_drains_in_flight_callback_samples() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("recording.wav");
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let callback_sender = sender.clone();
-        let mut writer = RecorderWriter::spawn(path.clone(), 48_000, 2, receiver, sender).unwrap();
+        let health = Arc::new(RecordingHealthState::default());
+        let (mut writer, mut capture) =
+            RecorderWriter::spawn(path.clone(), 48_000, 2, health).unwrap();
 
-        callback_sender
-            .send(RecorderCommand::Samples(vec![0.0, 0.25]))
-            .unwrap();
+        capture.submit(&[0.0, 0.25]);
+        capture.submit(&[-0.25, 0.5]);
         writer.stop();
-        callback_sender
-            .send(RecorderCommand::Samples(vec![-0.25, 0.5]))
-            .unwrap();
-        drop(callback_sender);
 
         let stats = writer.join().unwrap();
         assert_eq!(stats.frames, 2);
@@ -176,5 +238,53 @@ mod tests {
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
         assert_eq!(samples, vec![0.0, 0.25, -0.25, 0.5]);
+    }
+
+    #[test]
+    fn recorder_drop_stops_worker_and_finalizes_file() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("recording.wav");
+        let health = Arc::new(RecordingHealthState::default());
+        let (writer, mut capture) = RecorderWriter::spawn(path.clone(), 48_000, 1, health).unwrap();
+        capture.submit(&[0.25, -0.25]);
+        drop(capture);
+
+        drop(writer);
+
+        let samples = hound::WavReader::open(&path)
+            .unwrap()
+            .into_samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(samples, vec![0.25, -0.25]);
+    }
+
+    #[test]
+    fn stalled_writer_consumer_has_bounded_nonblocking_submission() {
+        let ring = HeapRb::<f32>::new(4);
+        let (producer, _consumer) = ring.split();
+        let health = Arc::new(RecordingHealthState::default());
+        let mut capture = RecorderCapture {
+            producer,
+            health: Arc::clone(&health),
+        };
+
+        capture.submit(&[0.0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+
+        let snapshot = health.snapshot();
+        assert_eq!(snapshot.writer_dropped_samples, 6);
+        assert_eq!(snapshot.writer_overrun_events, 1);
+    }
+
+    #[test]
+    fn writer_failure_is_visible_in_health_snapshot() {
+        let health = RecordingHealthState::default();
+        let result = Err(AudioInputError::RecordingFailed {
+            detail: "synthetic writer failure".into(),
+        });
+
+        record_writer_result(&result, &health);
+
+        assert!(health.snapshot().writer_failed);
     }
 }

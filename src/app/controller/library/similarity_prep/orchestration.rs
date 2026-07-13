@@ -4,6 +4,7 @@ use super::store::DbSimilarityPrepStore;
 use crate::app::controller::AppController;
 use crate::app::controller::StatusTone;
 use crate::app::controller::ui::status_message::StatusMessage;
+use crate::sample_sources::SourceId;
 
 impl AppController {
     /// Run similarity prep for the selected source using current settings.
@@ -90,6 +91,16 @@ impl AppController {
             || self.runtime.jobs.scan_in_progress()
             || self.runtime.jobs.umap_build_in_progress()
             || self.runtime.jobs.umap_cluster_build_in_progress()
+    }
+
+    /// Return whether similarity preparation or finalization still owns one source.
+    pub(crate) fn similarity_prep_in_progress_for_source(&self, source_id: &SourceId) -> bool {
+        self.runtime
+            .similarity
+            .prep
+            .as_ref()
+            .is_some_and(|prep| &prep.source_id == source_id)
+            || self.runtime.similarity.finalize_in_progress_for(source_id)
     }
 
     /// Return true if the last similarity prep run recorded an error.

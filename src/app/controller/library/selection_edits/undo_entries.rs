@@ -163,7 +163,7 @@ fn capture_current_restore_metadata(
             normal_tags: entry.normal_tags.clone(),
         };
     }
-    if let Ok(db) = crate::sample_sources::SourceDatabase::open_fast(&source.root) {
+    if let Ok(db) = crate::sample_sources::SourceDatabase::open_for_background_job(&source.root) {
         if let Ok(Some(tag)) = db.tag_for_path(relative_path) {
             metadata.tag = tag;
         }

@@ -2,15 +2,41 @@ use super::*;
 
 impl AppController {
     pub(super) fn spawn_analysis_trigger(&mut self, trigger: AnalysisTrigger) {
+        let source_id = trigger.source_id().clone();
+        let live_remap_owns_source = self
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .is_some_and(|pending| !pending.canceled && pending.source.id == source_id);
+        if live_remap_owns_source {
+            match trigger.remap_conflict_policy() {
+                RemapConflictPolicy::CancelRemap => {
+                    self.cancel_pending_source_remap_for_mutation(&source_id);
+                }
+                RemapConflictPolicy::BlockWithStatus => {
+                    tracing::debug!(
+                        source_id = %source_id,
+                        "Blocking manual analysis enqueue while source remap is pending"
+                    );
+                    self.set_status("Source remap in progress", StatusTone::Info);
+                    return;
+                }
+            }
+        }
+        let enqueue_guard = self.runtime.analysis.begin_source_enqueue(source_id);
         let tx = self.runtime.jobs.message_sender();
-        std::thread::spawn(move || match trigger {
-            AnalysisTrigger::ChangedSamples {
-                source,
-                changed_samples,
-                announce,
-            } => enqueue_changed_samples(tx, source, changed_samples, announce),
-            AnalysisTrigger::UserRequestedReanalysis { source, action } => {
-                enqueue_manual_reanalysis(tx, source, action);
+        std::thread::spawn(move || {
+            let _enqueue_guard = enqueue_guard;
+            match trigger {
+                AnalysisTrigger::ChangedSamples {
+                    source,
+                    changed_samples,
+                    announce,
+                } => enqueue_changed_samples(tx, source, changed_samples, announce),
+                AnalysisTrigger::UserRequestedReanalysis { source, action } => {
+                    enqueue_manual_reanalysis(tx, source, action);
+                }
             }
         });
     }

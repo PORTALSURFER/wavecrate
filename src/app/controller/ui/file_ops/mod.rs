@@ -18,6 +18,25 @@ mod edit_apply;
 mod folder_apply;
 
 impl AppController {
+    /// Start a source-writing file-op stream after canceling any live remap generation.
+    pub(crate) fn start_file_ops_with_remap_cancellation(
+        &mut self,
+        rx: std::sync::mpsc::Receiver<FileOpMessage>,
+        cancel: Arc<AtomicBool>,
+    ) {
+        if let Some(source_id) = self
+            .runtime
+            .source_lane
+            .pending_remap
+            .as_ref()
+            .filter(|pending| !pending.canceled)
+            .map(|pending| pending.source.id.clone())
+        {
+            self.cancel_pending_source_remap_for_mutation(&source_id);
+        }
+        self.runtime.jobs.start_file_ops(rx, cancel);
+    }
+
     /// Apply a completed background file operation to controller state.
     pub(crate) fn apply_file_op_result(&mut self, result: FileOpResult) {
         match result {
@@ -67,7 +86,7 @@ impl AppController {
         self.show_status_progress(crate::app::state::ProgressTaskKind::FileOps, title, 1, true);
         let (tx, rx) = std::sync::mpsc::channel();
         let cancel = Arc::new(AtomicBool::new(false));
-        self.runtime.jobs.start_file_ops(rx, cancel.clone());
+        self.start_file_ops_with_remap_cancellation(rx, cancel.clone());
         std::thread::spawn(move || {
             let result = undo_jobs::run_undo_file_job(job, cancel, Some(&tx));
             let _ = tx.send(FileOpMessage::Finished(FileOpResult::UndoFile(result)));
