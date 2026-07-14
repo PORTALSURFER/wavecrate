@@ -158,7 +158,7 @@ fn native_pointer_shell_preserves_waveform_drag_after_playback_frame_refresh() {
         harness.mouse_pressed(MouseButton::Left),
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
-    harness.runtime.bridge_mut().queue_animation_frame();
+    harness.runtime.host_queue_animation_frame();
     harness.runtime.drain_runtime_messages();
     assert_eq!(
         harness.cursor_moved_logical(drag),

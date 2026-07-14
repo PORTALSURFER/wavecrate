@@ -276,7 +276,7 @@ fn scene_frame_clock_runs_at_60hz_even_when_idle() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     apply_strict_update_diagnostics(&mut runtime);
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_frame_message());
     assert_eq!(activity.target_fps(), Some(60));
@@ -293,7 +293,7 @@ fn scene_playback_overlay_and_frame_messages_share_native_cadence() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     apply_strict_update_diagnostics(&mut runtime);
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_frame_message());
     assert_eq!(
@@ -312,21 +312,25 @@ fn scene_playback_overlay_and_frame_messages_share_native_cadence() {
 fn scene_frame_clock_queues_gui_frame_message() {
     let mut state = gui_state_for_span_tests();
     state.ui.startup.source_scan_pending = true;
+    let messages = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let captured_messages = std::rc::Rc::clone(&messages);
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
-        .handle_message(apply_gui_message_for_presentation_test)
+        .handle_message(move |state, message, context| {
+            captured_messages.borrow_mut().push(message.clone());
+            apply_gui_message_for_presentation_test(state, message, context);
+        })
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     apply_strict_update_diagnostics(&mut runtime);
 
-    let activity = runtime.bridge_mut().animation_activity();
+    let activity = runtime.host_animation_activity();
 
     assert!(activity.needs_frame_message());
-    assert!(runtime.bridge_mut().queue_animation_frame());
-    assert_eq!(
-        runtime.bridge_mut().take_runtime_messages(),
-        vec![crate::native_app::test_support::state::GuiMessage::Frame]
-    );
+    assert!(runtime.host_queue_animation_frame());
+    let outcome = runtime.drain_runtime_messages();
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert_eq!(*messages.borrow(), vec![GuiMessage::Frame]);
 }
 
 #[test]
@@ -344,13 +348,8 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     apply_strict_update_diagnostics(&mut runtime);
 
-    assert!(
-        runtime
-            .bridge_mut()
-            .animation_activity()
-            .needs_frame_message()
-    );
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_frame_message());
+    assert!(runtime.host_queue_animation_frame());
     let command = runtime
         .bridge_mut()
         .update(crate::native_app::test_support::state::GuiMessage::Frame);
@@ -372,8 +371,8 @@ fn scene_installs_playback_cursor_transient_overlay() {
     let frame = runtime.frame(&theme);
     let mut primitives = Vec::new();
 
-    assert!(runtime.bridge_mut().has_transient_overlay_painter());
-    runtime.bridge_mut().paint_transient_overlay(
+    assert!(runtime.has_transient_overlay_host());
+    runtime.host_paint_transient_overlay(
         TransientOverlayContext::new(
             &frame.paint_plan,
             Vector2::new(900.0, 620.0),
@@ -403,7 +402,16 @@ fn scene_installs_starmap_active_audition_transient_overlay() {
     crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source(
         &mut state,
     );
+    crate::native_app::test_support::sample_browser::prepare_sample_browser_view(&mut state);
     state.ui.chrome.starmap_audition_queue.active_file_id = Some(selected_file);
+    assert!(state.active_starmap_audition_file_id().is_some());
+    assert!(
+        state
+            .library
+            .folder_browser
+            .cached_starmap_projection()
+            .is_some()
+    );
     let theme = radiant::theme::ThemeTokens::default();
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
@@ -414,7 +422,14 @@ fn scene_installs_starmap_active_audition_transient_overlay() {
     let frame = runtime.frame(&theme);
     let mut primitives = Vec::new();
 
-    runtime.bridge_mut().paint_transient_overlay(
+    assert!(runtime.has_transient_overlay_host());
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect_by_priority([crate::native_app::ui::ids::SAMPLE_BROWSER_MAP_ID])
+            .is_some()
+    );
+    runtime.host_paint_transient_overlay(
         TransientOverlayContext::new(
             &frame.paint_plan,
             Vector2::new(900.0, 620.0),
@@ -450,7 +465,7 @@ fn shortcut_help_modal_suppresses_waveform_transient_overlay() {
     let frame = runtime.frame(&theme);
     let mut primitives = Vec::new();
 
-    runtime.bridge_mut().paint_transient_overlay(
+    runtime.host_paint_transient_overlay(
         TransientOverlayContext::new(
             &frame.paint_plan,
             Vector2::new(900.0, 620.0),
@@ -493,7 +508,7 @@ fn waveform_context_menu_suppresses_waveform_transient_overlay() {
     let frame = runtime.frame(&theme);
     let mut primitives = Vec::new();
 
-    runtime.bridge_mut().paint_transient_overlay(
+    runtime.host_paint_transient_overlay(
         TransientOverlayContext::new(
             &frame.paint_plan,
             Vector2::new(900.0, 620.0),
