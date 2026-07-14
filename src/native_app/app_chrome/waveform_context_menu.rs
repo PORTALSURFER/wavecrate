@@ -8,7 +8,10 @@ use crate::native_app::waveform::{WaveformContextMenu, WaveformInteraction};
 pub(in crate::native_app) fn overlay(menu: &WaveformContextMenu) -> ui::View<GuiMessage> {
     let commands = playmark_context_menu_commands(menu.extract_to_harvest_destination);
     let size = overlay_size(&menu.title, &commands);
-    ui::message_context_menu_overlay(menu.anchor, size, menu.title.clone(), commands)
+    ui::context_menu(menu.title.clone(), commands)
+        .anchor(menu.anchor)
+        .size(size)
+        .view()
 }
 
 pub(in crate::native_app) fn overlay_rect(menu: &WaveformContextMenu) -> ui::Rect {
