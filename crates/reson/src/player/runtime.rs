@@ -589,6 +589,7 @@ fn run_playback_runtime(
     events: mpsc::Sender<PlaybackRuntimeEvent>,
 ) {
     let mut pending = VecDeque::new();
+    let mut latest_span_retarget_id = None;
     while let Some(command) = next_runtime_command(&commands, &mut pending) {
         match coalesce_command(command, &commands, &events, &mut pending) {
             CoalescedCommand::Play { id, request } => {
@@ -611,6 +612,10 @@ fn run_playback_runtime(
             }
             CoalescedCommand::CancelPendingPlayback => {}
             CoalescedCommand::RetargetSpan { id, update } => {
+                if latest_span_retarget_id.is_some_and(|latest| id <= latest) {
+                    continue;
+                }
+                latest_span_retarget_id = Some(id);
                 let event = match executor.retarget_span(update) {
                     Ok(_) => PlaybackRuntimeEvent::Progress {
                         id,
@@ -777,7 +782,12 @@ fn coalesce_span_retarget_command(
     loop {
         match pending.front() {
             Some(PlaybackRuntimeCommand::RetargetSpan { .. }) => {
-                current = pending.pop_front().expect("pending span retarget");
+                let next = pending.pop_front().expect("pending span retarget");
+                let current_id = span_retarget_id(&current).expect("current span retarget");
+                let next_id = span_retarget_id(&next).expect("next span retarget");
+                if next_id > current_id {
+                    current = next;
+                }
             }
             Some(PlaybackRuntimeCommand::Play { .. }) => {
                 return pending.pop_front().expect("pending play command");
@@ -799,6 +809,13 @@ fn coalesce_span_retarget_command(
             Some(PlaybackRuntimeCommand::SetVolume { .. }) | None => return current,
             Some(PlaybackRuntimeCommand::SetPlaybackGain { .. }) => return current,
         }
+    }
+}
+
+fn span_retarget_id(command: &PlaybackRuntimeCommand) -> Option<PlaybackRequestId> {
+    match command {
+        PlaybackRuntimeCommand::RetargetSpan { id, .. } => Some(*id),
+        _ => None,
     }
 }
 
@@ -1469,6 +1486,24 @@ mod tests {
     }
 
     #[test]
+    fn coalescing_span_retarget_ignores_a_late_stale_command() {
+        let latest_id = PlaybackRequestId(9);
+        let stale_id = PlaybackRequestId(8);
+        let (coalesced, pending, events) = coalesce_for_test(
+            retarget_command(latest_id, 0.2, 0.7),
+            vec![retarget_command(stale_id, 0.1, 0.5)],
+        );
+
+        assert!(matches!(
+            coalesced,
+            CoalescedCommand::RetargetSpan { id, update }
+                if id == latest_id && update.start == 0.2 && update.end == 0.7
+        ));
+        assert!(pending.is_empty());
+        assert!(events.is_empty());
+    }
+
+    #[test]
     fn playback_runtime_executes_span_retarget() {
         let executor = FakeExecutor::new(vec![]);
         let retargeted = executor.retargeted();
@@ -1487,6 +1522,49 @@ mod tests {
             } if event_id == id && progress.active
         ));
         assert_eq!(retargeted.lock().expect("retargeted").as_slice(), &[update]);
+    }
+
+    #[test]
+    fn playback_runtime_does_not_apply_an_out_of_order_stale_retarget() {
+        let executor = FakeExecutor::new(vec![]);
+        let retargeted = executor.retargeted();
+        let runtime =
+            spawn_executor(executor, PlaybackRuntimeConfig::default()).expect("spawn runtime");
+        let latest = span_update(0.3, 0.9, true);
+        let stale = span_update(0.1, 0.4, true);
+
+        runtime
+            .handle
+            .commands
+            .send(PlaybackRuntimeCommand::RetargetSpan {
+                id: PlaybackRequestId(9),
+                update: latest,
+            })
+            .expect("latest retarget");
+        assert!(matches!(
+            runtime.events.recv().expect("latest event"),
+            PlaybackRuntimeEvent::Progress {
+                id: PlaybackRequestId(9),
+                ..
+            }
+        ));
+        runtime
+            .handle
+            .commands
+            .send(PlaybackRuntimeCommand::RetargetSpan {
+                id: PlaybackRequestId(8),
+                update: stale,
+            })
+            .expect("stale retarget");
+
+        assert!(
+            runtime
+                .events
+                .recv_timeout(Duration::from_millis(50))
+                .is_err(),
+            "stale retarget should be discarded without producing a false progress event"
+        );
+        assert_eq!(retargeted.lock().expect("retargeted").as_slice(), &[latest]);
     }
 
     #[test]
