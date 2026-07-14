@@ -1,4 +1,6 @@
-use super::SamplePlaybackSession;
+use super::{
+    AudioAppState, SamplePlaybackSession, SamplePlaybackSessionState, SamplePlaybackVisibility,
+};
 use wavecrate::audio::PlaybackRequestId;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -48,6 +50,10 @@ impl SamplePlaybackSession {
         !self.span_retarget.pending.is_empty()
     }
 
+    pub(in crate::native_app) fn confirmed_span(&self) -> (f32, f32) {
+        self.span_retarget.confirmed_span
+    }
+
     pub(in crate::native_app) fn confirm_span_retarget(
         &mut self,
         request_id: PlaybackRequestId,
@@ -55,7 +61,7 @@ impl SamplePlaybackSession {
         self.confirm_span_retarget_id(request_id.get())
     }
 
-    fn confirm_span_retarget_id(&mut self, request_id: u64) -> bool {
+    pub(super) fn confirm_span_retarget_id(&mut self, request_id: u64) -> bool {
         let Some(index) = self
             .span_retarget
             .pending
@@ -102,6 +108,46 @@ impl SamplePlaybackSession {
     }
 }
 
+impl AudioAppState {
+    pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(
+        &mut self,
+        path: &str,
+    ) -> bool {
+        let Some(session) = self.sample_playback_session.as_mut() else {
+            return false;
+        };
+        if session.request.path != path || session.source_kind == "preview_samples" {
+            return false;
+        }
+        session.request.visibility = SamplePlaybackVisibility::Waveform;
+        session.state = SamplePlaybackSessionState::WaveformVisible;
+        true
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn record_span_retarget_for_tests(
+        &mut self,
+        request_id: u64,
+        span: (f32, f32),
+    ) {
+        self.sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .record_span_retarget_id(request_id, span);
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn confirm_span_retarget_for_tests(
+        &mut self,
+        request_id: u64,
+    ) -> bool {
+        self.sample_playback_session
+            .as_mut()
+            .expect("sample playback session")
+            .confirm_span_retarget_id(request_id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
@@ -138,6 +184,7 @@ mod tests {
 
         assert_eq!(session.request.span, (0.25, 0.60));
         assert!(session.has_pending_span_retarget());
+        assert_eq!(session.confirmed_span(), (0.0, 1.0));
     }
 
     #[test]

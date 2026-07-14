@@ -69,10 +69,16 @@ impl NativeAppState {
             }
             PlaybackRuntimeEvent::Stopped { .. } => {}
             PlaybackRuntimeEvent::Progress { id, progress } => {
-                if let Some(session) = self.audio.sample_playback_session.as_mut() {
-                    session.confirm_span_retarget(id);
+                let confirmed_retarget = self
+                    .audio
+                    .sample_playback_session
+                    .as_mut()
+                    .is_some_and(|session| session.confirm_span_retarget(id));
+                if confirmed_retarget {
+                    self.apply_authoritative_runtime_playback_progress(progress);
+                } else {
+                    self.apply_runtime_playback_progress(progress);
                 }
-                self.apply_runtime_playback_progress(progress)
             }
         }
     }
@@ -82,6 +88,13 @@ impl NativeAppState {
             return;
         }
         self.audio.set_playback_progress(progress);
+    }
+
+    fn apply_authoritative_runtime_playback_progress(&mut self, progress: PlaybackRuntimeProgress) {
+        if self.audio.active_sample_playback_pending_runtime() {
+            return;
+        }
+        self.audio.set_authoritative_playback_progress(progress);
     }
 
     fn finish_runtime_playback_started(&mut self, started: PlaybackRuntimeStarted) {
@@ -141,7 +154,7 @@ impl NativeAppState {
         self.audio.output_resolved = Some(output);
         self.audio.current_playback_span = source_updates_waveform.then_some(span);
         self.audio
-            .set_started_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
+            .set_authoritative_playback_progress(wavecrate::audio::PlaybackRuntimeProgress {
                 active: true,
                 elapsed: Some(Duration::ZERO),
                 looping: self.audio.loop_playback,
@@ -293,58 +306,5 @@ impl NativeAppState {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{path::PathBuf, sync::Arc};
-
-    use super::*;
-    use crate::native_app::{
-        app::{SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackRequest},
-        test_support::state::{NativeAppStateFixture, WaveformState},
-        waveform::test_decoded_waveform_file_from_mono_samples,
-    };
-
-    #[test]
-    fn late_original_start_preserves_newer_live_retarget_span_and_anchor() {
-        let path = PathBuf::from("late-start-retarget.wav");
-        let file =
-            test_decoded_waveform_file_from_mono_samples(path.clone(), vec![0.0, 0.5, -0.5, 0.0]);
-        let mut state = NativeAppStateFixture::default().build();
-        state.waveform.current = WaveformState::from_cached_file(Arc::new(file));
-        state.waveform.current.start_playback(0.0);
-        state.audio.current_playback_span = Some((0.0, 1.0));
-        let request = SamplePlaybackRequest::waveform(
-            path.display().to_string(),
-            (0.0, 1.0),
-            SamplePlaybackIntent::WaveformSpan,
-            "waveform",
-            SamplePlaybackHistory::Record,
-        );
-        state
-            .audio
-            .start_resolving_sample_playback_session(request, "decoded_samples");
-        state
-            .audio
-            .sample_playback_session
-            .as_mut()
-            .expect("sample playback session")
-            .runtime_request_id = Some(1);
-        state.audio.record_span_retarget_for_tests(2, (0.25, 0.60));
-        state.audio.current_playback_span = Some((0.25, 0.60));
-        state.audio.reset_playback_visual_progress(0.25, true);
-        state.waveform.current.start_playback(0.25);
-
-        state.finish_runtime_playback_started_parts(1, ResolvedOutput::default(), 0.0);
-
-        assert_eq!(state.audio.current_playback_span, Some((0.25, 0.60)));
-        assert_eq!(state.audio.playback_progress.progress, Some(0.25));
-        assert_eq!(state.waveform.current.playhead_ratio(), Some(0.25));
-        assert!(matches!(
-            state
-                .audio
-                .sample_playback_session
-                .as_ref()
-                .map(|session| &session.state),
-            Some(SamplePlaybackSessionState::WaveformVisible)
-        ));
-    }
-}
+#[path = "events_tests.rs"]
+mod tests;
