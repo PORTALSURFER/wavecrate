@@ -25,29 +25,29 @@ pub(in crate::native_app) fn tag_completion_overlay(
         .collect::<Vec<_>>();
     let hover_option_values = option_values.clone();
     let parts = tag_completion_options(options, content_width);
-    ui::compact_option_list_anchored_with_interaction(
-        ui::CompactOptionListAnchoredParts::new(
-            parts,
-            content_width,
-            ui::LayerHorizontalAnchor::Start,
-            ui::LayerVerticalAnchor::End,
-            inset_x,
-            inset_y,
-        ),
-        move |index| {
+    ui::compact_option_list(parts)
+        .filter_map_activate(move |index| {
             option_values
                 .get(index)
                 .cloned()
                 .map(|tag| GuiMessage::Metadata(MetadataMessage::SelectMetadataTagCompletion(tag)))
-        },
-        move |index| {
+        })
+        .filter_map_hover(move |index| {
             hover_option_values
                 .get(index)
                 .cloned()
                 .map(|tag| GuiMessage::Metadata(MetadataMessage::HoverMetadataTagCompletion(tag)))
-        },
-    )
-    .key("metadata-tag-completion-overlay")
+        })
+        .anchored(
+            ui::CompactOptionListAnchor::new(
+                content_width,
+                ui::LayerHorizontalAnchor::Start,
+                ui::LayerVerticalAnchor::End,
+            )
+            .inset(inset_x, inset_y),
+        )
+        .view()
+        .key("metadata-tag-completion-overlay")
 }
 
 fn tag_completion_options(
