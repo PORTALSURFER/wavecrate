@@ -200,12 +200,18 @@ fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
     let pending = db.list_pending_renames().unwrap();
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].relative_path, PathBuf::from("one.wav"));
-    assert_eq!(pending[0].tag, crate::sample_sources::Rating::KEEP_1);
     assert_eq!(
-        pending[0].sound_type,
+        pending[0].metadata.tag,
+        crate::sample_sources::Rating::KEEP_1
+    );
+    assert_eq!(
+        pending[0].metadata.sound_type,
         Some(crate::sample_sources::SampleSoundType::Seq)
     );
-    assert_eq!(pending[0].user_tag.as_deref(), Some("Recovered Tag"));
+    assert_eq!(
+        pending[0].metadata.user_tag.as_deref(),
+        Some("Recovered Tag")
+    );
 }
 
 #[test]
