@@ -1,7 +1,4 @@
-use std::{
-    sync::mpsc::Receiver,
-    time::{Duration, Instant},
-};
+use std::{sync::mpsc::Receiver, time::Instant};
 
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
@@ -16,11 +13,11 @@ use crate::native_app::audio::{
 };
 
 mod span_retarget;
+mod visual_progress;
 
 pub(in crate::native_app) use span_retarget::PlaybackSpanRetargetRejection;
 use span_retarget::PlaybackSpanRetargetState;
-
-const PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE: Duration = Duration::from_millis(8);
+use visual_progress::PlaybackVisualProgress;
 
 pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) player: Option<AudioPlayer>,
@@ -49,15 +46,6 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
     pub(in crate::native_app) playback_visual_progress: Option<PlaybackVisualProgress>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::native_app) struct PlaybackVisualProgress {
-    pub(in crate::native_app) anchor_ratio: f32,
-    pub(in crate::native_app) anchor_at: Instant,
-    pub(in crate::native_app) anchor_animation_time: Option<Duration>,
-    pub(in crate::native_app) span: Option<(f32, f32)>,
-    pub(in crate::native_app) looping: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -346,93 +334,6 @@ impl AudioAppState {
         self.sample_playback_session = None;
     }
 
-    pub(in crate::native_app) fn set_playback_progress(
-        &mut self,
-        progress: PlaybackRuntimeProgress,
-    ) {
-        self.playback_progress = progress;
-        self.sync_playback_visual_progress(false);
-    }
-
-    pub(in crate::native_app) fn set_started_playback_progress(
-        &mut self,
-        progress: PlaybackRuntimeProgress,
-    ) {
-        self.playback_progress = progress;
-        self.sync_playback_visual_progress(true);
-    }
-
-    pub(in crate::native_app) fn clear_playback_progress(&mut self) {
-        self.playback_progress = PlaybackRuntimeProgress::default();
-        self.playback_visual_progress = None;
-    }
-
-    pub(in crate::native_app) fn reset_playback_visual_progress(
-        &mut self,
-        anchor_ratio: f32,
-        looping: bool,
-    ) {
-        self.playback_visual_progress = Some(PlaybackVisualProgress {
-            anchor_ratio: anchor_ratio.clamp(0.0, 1.0),
-            anchor_at: Instant::now(),
-            anchor_animation_time: None,
-            span: self.current_playback_span,
-            looping,
-        });
-    }
-
-    fn sync_playback_visual_progress(&mut self, force: bool) {
-        if !self.playback_progress.active {
-            self.playback_visual_progress = None;
-            return;
-        }
-        let Some(progress) = self.playback_progress.progress else {
-            return;
-        };
-        let span = self.current_playback_span;
-        let looping = self.playback_progress.looping;
-        let clock_mismatch = self
-            .playback_visual_progress
-            .is_some_and(|clock| clock.span != span || clock.looping != looping);
-        let delayed_unpainted_anchor = self.delayed_unpainted_playback_anchor_needs_refresh();
-        if force
-            || self.playback_visual_progress.is_none()
-            || clock_mismatch
-            || delayed_unpainted_anchor
-        {
-            self.reset_playback_visual_progress(progress, looping);
-        }
-    }
-
-    fn delayed_unpainted_playback_anchor_needs_refresh(&self) -> bool {
-        let Some(clock) = self.playback_visual_progress else {
-            return false;
-        };
-        if clock.anchor_animation_time.is_some() {
-            return false;
-        }
-        let Some(runtime_elapsed) = self.playback_progress.elapsed else {
-            return false;
-        };
-        runtime_elapsed.saturating_add(PLAYBACK_VISUAL_PROGRESS_ELAPSED_TOLERANCE)
-            >= clock.anchor_at.elapsed()
-    }
-
-    pub(in crate::native_app) fn promote_sample_playback_session_to_waveform(
-        &mut self,
-        path: &str,
-    ) -> bool {
-        let Some(session) = self.sample_playback_session.as_mut() else {
-            return false;
-        };
-        if session.request.path != path || session.source_kind == "preview_samples" {
-            return false;
-        }
-        session.request.visibility = SamplePlaybackVisibility::Waveform;
-        session.state = SamplePlaybackSessionState::WaveformVisible;
-        true
-    }
-
     pub(in crate::native_app) fn active_sample_playback_path(&self) -> Option<&str> {
         self.sample_playback_session
             .as_ref()
@@ -490,17 +391,5 @@ impl AudioAppState {
         if let Some(session) = self.sample_playback_session.as_mut() {
             session.set_confirmed_span(span);
         }
-    }
-
-    #[cfg(test)]
-    pub(in crate::native_app) fn record_span_retarget_for_tests(
-        &mut self,
-        request_id: u64,
-        span: (f32, f32),
-    ) {
-        self.sample_playback_session
-            .as_mut()
-            .expect("sample playback session")
-            .record_span_retarget_id(request_id, span);
     }
 }

@@ -9,32 +9,21 @@ impl AudioPlayer {
     /// Current playback progress as a 0-1 fraction.
     pub fn progress(&self) -> Option<f32> {
         let duration = self.track_duration?;
-        let started_at = self.started_at?;
         if duration <= 0.0 {
             return None;
         }
 
-        let elapsed = self.elapsed_since(started_at);
-        if let (Some(sample_rate), Some(track_frames), Some((span_start, span_end))) = (
-            self.sample_rate,
-            self.track_total_frames,
-            self.play_span_frames,
-        ) {
-            let span_frames = span_end.saturating_sub(span_start).max(1);
-            let elapsed_frames = duration_to_frames_floor(elapsed, sample_rate);
-            let base_offset = self.loop_offset_frames.unwrap_or(0).min(span_frames);
-            let within_span = if self.looping {
-                (base_offset % span_frames).saturating_add(elapsed_frames) % span_frames
-            } else {
-                base_offset.saturating_add(elapsed_frames).min(span_frames)
-            };
-            let absolute_frame = span_start.saturating_add(within_span).min(track_frames);
+        if let (Some(track_frames), Some(absolute_frame)) =
+            (self.track_total_frames, self.progress_frame())
+        {
             if track_frames == 0 {
                 return None;
             }
             return Some(((absolute_frame as f64 / track_frames as f64) as f32).clamp(0.0, 1.0));
         }
 
+        let started_at = self.started_at?;
+        let elapsed = self.elapsed_since(started_at);
         let (span_start, span_end) = self.play_span.unwrap_or((0.0, duration));
         let span_length_secs = (span_end - span_start).max(f32::EPSILON);
         let span_length = duration_from_secs_f32(span_length_secs);
@@ -49,6 +38,22 @@ impl AudioPlayer {
         };
         let absolute_secs = span_start as f64 + within_span.as_secs_f64();
         Some(((absolute_secs / duration as f64) as f32).clamp(0.0, 1.0))
+    }
+
+    pub(super) fn progress_frame(&self) -> Option<u64> {
+        let started_at = self.started_at?;
+        let sample_rate = self.sample_rate?;
+        let track_frames = self.track_total_frames?;
+        let (span_start, span_end) = self.play_span_frames?;
+        let span_frames = span_end.saturating_sub(span_start).max(1);
+        let elapsed_frames = duration_to_frames_floor(self.elapsed_since(started_at), sample_rate);
+        let base_offset = self.loop_offset_frames.unwrap_or(0).min(span_frames);
+        let within_span = if self.looping {
+            (base_offset % span_frames).saturating_add(elapsed_frames) % span_frames
+        } else {
+            base_offset.saturating_add(elapsed_frames).min(span_frames)
+        };
+        Some(span_start.saturating_add(within_span).min(track_frames))
     }
 
     /// True while the sink is still playing the queued audio.

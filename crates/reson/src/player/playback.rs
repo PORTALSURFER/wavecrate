@@ -235,8 +235,17 @@ impl AudioPlayer {
                 .saturating_add(plan.seek_offset_frames())
                 .min(plan.end_frame().saturating_sub(1)),
         );
+        // Preserve the runtime-time source position, not the request-time UI
+        // offset: command queue latency otherwise becomes permanent clock drift.
+        let current_frame = if seek_to_offset {
+            None
+        } else {
+            self.progress_frame()
+        };
+        let progress_offset_frames =
+            live_retarget_progress_offset_frames(&plan, seek_to_offset, current_frame);
         playback_span.update_from_plan(&plan, seek_frame);
-        self.finish_span_playback(&plan, Some(plan.seek_offset_frames()));
+        self.finish_span_playback(&plan, Some(progress_offset_frames));
         self.active_playback_span = Some(playback_span);
         Ok(())
     }
@@ -616,6 +625,26 @@ impl AudioPlayer {
             .unwrap_or("none")
     }
 }
+
+fn live_retarget_progress_offset_frames(
+    plan: &PlaybackSpanPlan,
+    seek_to_offset: bool,
+    current_frame: Option<u64>,
+) -> u64 {
+    if seek_to_offset {
+        return plan.seek_offset_frames();
+    }
+    match current_frame {
+        Some(frame) if (plan.start_frame()..plan.end_frame()).contains(&frame) => {
+            frame.saturating_sub(plan.start_frame())
+        }
+        Some(_) => 0,
+        None => plan.seek_offset_frames(),
+    }
+}
+
+#[cfg(test)]
+mod retarget_progress_tests;
 
 fn source_with_metronome(
     source: Box<dyn Source<Item = f32> + Send>,
