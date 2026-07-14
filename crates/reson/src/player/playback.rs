@@ -244,7 +244,7 @@ impl AudioPlayer {
         };
         let progress_offset_frames =
             live_retarget_progress_offset_frames(&plan, seek_to_offset, current_frame);
-        playback_span.update_from_plan(&plan, seek_frame);
+        playback_span.update_from_plan(&plan, seek_frame, metronome);
         self.finish_span_playback(&plan, Some(progress_offset_frames));
         self.active_playback_span = Some(playback_span);
         Ok(())
@@ -358,7 +358,7 @@ impl AudioPlayer {
             let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
                 self.playback_samples.as_ref().cloned()
             {
-                let playback_span = PlaybackSpanHandle::from_plan(&plan);
+                let playback_span = PlaybackSpanHandle::from_plan_with_metronome(&plan, metronome);
                 let source = SpanSamplesSource::new(
                     channels,
                     sample_rate,
@@ -401,7 +401,8 @@ impl AudioPlayer {
         } else {
             let source: Box<dyn Source<Item = f32> + Send> =
                 if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                    let playback_span = PlaybackSpanHandle::from_plan(&plan);
+                    let playback_span =
+                        PlaybackSpanHandle::from_plan_with_metronome(&plan, metronome);
                     let source = SpanSamplesSource::new(
                         channels,
                         sample_rate,
@@ -436,7 +437,8 @@ impl AudioPlayer {
                 EditFadeSource::new(source, self.edit_fade_handle.clone(), plan.start_seconds());
             Box::new(editable)
         };
-        let final_source = source_with_metronome(final_source, metronome, &plan);
+        let final_source =
+            source_with_metronome(final_source, metronome, &plan, active_playback_span.clone());
         log_playback_stage(
             "source_construction",
             source_started_at,
@@ -517,7 +519,7 @@ impl AudioPlayer {
         let diagnostic: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
             self.playback_samples.as_ref().cloned()
         {
-            let playback_span = PlaybackSpanHandle::from_plan(&plan);
+            let playback_span = PlaybackSpanHandle::from_plan_with_metronome(&plan, metronome);
             let source = SpanSamplesSource::new(
                 channels,
                 sample_rate,
@@ -560,7 +562,8 @@ impl AudioPlayer {
                 plan.sample_count(),
             ))
         };
-        let diagnostic = source_with_metronome(diagnostic, metronome, &plan);
+        let diagnostic =
+            source_with_metronome(diagnostic, metronome, &plan, active_playback_span.clone());
         log_playback_stage("source_construction", source_started_at, source_kind, true);
 
         let (handle, format) = self.build_sink_with_fade(diagnostic, replace_policy)?;
@@ -650,15 +653,17 @@ fn source_with_metronome(
     source: Box<dyn Source<Item = f32> + Send>,
     metronome: Option<PlaybackMetronomeConfig>,
     plan: &PlaybackSpanPlan,
+    live_control: Option<PlaybackSpanHandle>,
 ) -> Box<dyn Source<Item = f32> + Send> {
-    match metronome {
-        Some(config) => Box::new(MetronomeSource::new(
+    match (live_control, metronome) {
+        (Some(control), _) => Box::new(MetronomeSource::new_live(source, control)),
+        (None, Some(config)) => Box::new(MetronomeSource::new(
             source,
             config,
             plan.frame_count(),
             plan.seek_offset_frames(),
         )),
-        None => source,
+        (None, None) => source,
     }
 }
 

@@ -1620,6 +1620,14 @@ The audio engine should support:
 - clear error reporting for unsupported files, decode failures, device failures, metadata write failures, and playback failures
 - diagnostic events that make playback, decode, seek, loop, warp, render, and device bugs traceable
 
+Decoded-sample playback should keep ordinary live span edits on the existing
+source graph. Its control handoff must be non-blocking and allocation-free on
+the audio callback, and each published update must carry span bounds, explicit
+seek intent, and metronome beat/cycle/phase state as one coherent transaction.
+Rapid or out-of-order retarget commands must converge on the newest complete
+request without exposing torn state or forcing avoidable source fades and
+rebuilds.
+
 The audio engine should be designed with future extraction in mind. Wavecrate can drive its immediate requirements, but the core engine should avoid unnecessary dependency on Wavecrate-specific UI, metadata, tag, similarity, naming, or source-management concepts.
 
 The practical target is a clean internal boundary today that allows reusable audio-engine components to become their own standalone library later without rewriting the playback, editing, and extraction stack.

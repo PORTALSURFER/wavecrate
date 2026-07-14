@@ -2,6 +2,8 @@ use std::{f32::consts::TAU, time::Duration};
 
 use crate::Source;
 
+use super::PlaybackSpanHandle;
+
 const BEAT_AMPLITUDE: f32 = 0.22;
 const OFFBEAT_AMPLITUDE: f32 = 0.13;
 const BEAT_FREQUENCY_HZ: f32 = 2_400.0;
@@ -67,11 +69,14 @@ impl PlaybackMetronomeConfig {
 pub(super) struct MetronomeSource<S> {
     inner: S,
     config: PlaybackMetronomeConfig,
+    enabled: bool,
     cycle_frames: u64,
     cycle_offset_frames: u64,
     sample_index: u64,
     channels: u16,
     sample_rate: u32,
+    live_control: Option<PlaybackSpanHandle>,
+    live_revision: u64,
 }
 
 impl<S> MetronomeSource<S>
@@ -90,15 +95,56 @@ where
         Self {
             inner,
             config,
+            enabled: true,
             cycle_frames,
             cycle_offset_frames,
             sample_index: 0,
             channels,
             sample_rate,
+            live_control: None,
+            live_revision: 0,
         }
     }
 
+    pub(super) fn new_live(inner: S, live_control: PlaybackSpanHandle) -> Self {
+        let applied = live_control.applied_metronome();
+        let channels = inner.channels().max(1);
+        let sample_rate = inner.sample_rate().max(1);
+        Self {
+            inner,
+            config: PlaybackMetronomeConfig::new(applied.beat_count()),
+            enabled: applied.enabled(),
+            cycle_frames: applied.cycle_frames().max(1),
+            cycle_offset_frames: applied.phase_frames() % applied.cycle_frames().max(1),
+            sample_index: 0,
+            channels,
+            sample_rate,
+            live_control: Some(live_control),
+            live_revision: applied.revision(),
+        }
+    }
+
+    fn refresh_live_control(&mut self) {
+        let Some(control) = self.live_control.as_ref() else {
+            return;
+        };
+        let revision = control.applied_metronome_revision();
+        if revision == self.live_revision {
+            return;
+        }
+        let applied = control.applied_metronome();
+        self.live_revision = applied.revision();
+        self.enabled = applied.enabled();
+        self.config = PlaybackMetronomeConfig::new(applied.beat_count());
+        self.cycle_frames = applied.cycle_frames().max(1);
+        self.cycle_offset_frames = applied.phase_frames() % self.cycle_frames;
+        self.sample_index = 0;
+    }
+
     fn click_value(&self, frame_index: u64) -> f32 {
+        if !self.enabled {
+            return 0.0;
+        }
         let frame_in_cycle = (self.cycle_offset_frames + frame_index) % self.cycle_frames.max(1);
         let beat_interval = self.cycle_frames as f64 / f64::from(self.config.beat_count());
         if beat_interval <= f64::EPSILON {
@@ -139,10 +185,17 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let dry = self.inner.next()?;
+        if self.sample_index.is_multiple_of(u64::from(self.channels)) {
+            self.refresh_live_control();
+        }
         let frame_index = self.sample_index / u64::from(self.channels);
         let click = self.click_value(frame_index);
         self.sample_index = self.sample_index.saturating_add(1);
-        Some((dry + click).clamp(-1.0, 1.0))
+        if self.enabled {
+            Some((dry + click).clamp(-1.0, 1.0))
+        } else {
+            Some(dry)
+        }
     }
 }
 

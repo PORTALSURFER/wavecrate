@@ -118,6 +118,8 @@ fn ramp_up_gain(offset: usize, fade_frames: usize) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
 
     #[test]
@@ -143,5 +145,86 @@ mod tests {
         assert_eq!(samples[10], samples[11]);
         assert_eq!(samples[0], 0.0);
         assert_eq!(samples[10], 0.0);
+    }
+
+    #[test]
+    fn playback_retarget_real_output_survives_rapid_span_and_metronome_updates() {
+        let Ok(player) = AudioPlayer::new() else {
+            return;
+        };
+        let runtime = PlaybackRuntime::spawn(player, PlaybackRuntimeConfig::default())
+            .expect("playback runtime");
+        let request = PlaybackRuntimeRequest {
+            source: PlaybackRuntimeSource::DecodedSamples {
+                audio_bytes: Arc::<[u8]>::from([]),
+                samples: Arc::<[f32]>::from(vec![0.0; 48_000]),
+                duration: 1.0,
+                sample_rate: 48_000,
+                channels: 1,
+            },
+            mode: PlaybackRuntimeMode::Looped {
+                start: 0.0,
+                end: 1.0,
+                offset: 0.0,
+            },
+            stream_policy: PlaybackRuntimeStreamPolicy::full(),
+            volume: 1.0,
+            playback_gain: 1.0,
+            playback_gain_normalization: None,
+            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
+            edit_fade: None,
+            metronome: Some(PlaybackMetronomeConfig::new(4).with_cycle(48_000, 0)),
+        };
+        let started_id = runtime.handle.try_play(request).expect("start playback");
+        assert!(matches!(
+            runtime
+                .events
+                .recv_timeout(Duration::from_secs(2))
+                .expect("started event"),
+            PlaybackRuntimeEvent::Started(PlaybackRuntimeStarted { id, .. }) if id == started_id
+        ));
+
+        let mut latest_retarget_id = started_id;
+        for update in 0..128_u64 {
+            let start = (update % 20) as f64 / 100.0;
+            let end = (start + 0.5).min(1.0);
+            latest_retarget_id = runtime
+                .handle
+                .try_retarget_span(PlaybackRuntimeSpanUpdate {
+                    start,
+                    end,
+                    offset: start,
+                    seek_to_offset: update % 3 == 0,
+                    looped: true,
+                    playback_gain: 1.0,
+                    playback_gain_normalization: None,
+                    metronome: (update % 5 != 0).then(|| {
+                        PlaybackMetronomeConfig::new((update % 7 + 1) as u16)
+                            .with_cycle(24_000 + update, update * 17)
+                    }),
+                })
+                .expect("retarget playback");
+        }
+        let mut saw_latest_retarget = false;
+        while !saw_latest_retarget {
+            match runtime
+                .events
+                .recv_timeout(Duration::from_secs(2))
+                .expect("retarget event")
+            {
+                PlaybackRuntimeEvent::Progress { id, progress } if id == latest_retarget_id => {
+                    saw_latest_retarget = true;
+                    assert!(progress.looping);
+                    assert!(progress.error.is_none());
+                }
+                PlaybackRuntimeEvent::Progress { .. } => {}
+                other => panic!("unexpected playback runtime event: {other:?}"),
+            }
+        }
+        assert!(
+            saw_latest_retarget,
+            "rapid retargeting must converge on the newest complete request"
+        );
+        runtime.handle.try_shutdown().expect("shutdown runtime");
     }
 }
