@@ -188,13 +188,8 @@ fn app_bridge_scene_preserves_waveform_drag_during_playback_frame_refresh() {
         runtime.dispatch_event(Event::primary_press(press)),
         Some(crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID)
     );
-    assert!(
-        runtime
-            .bridge_mut()
-            .animation_activity()
-            .needs_frame_message()
-    );
-    assert!(runtime.bridge_mut().queue_animation_frame());
+    assert!(runtime.host_animation_activity().needs_frame_message());
+    assert!(runtime.host_queue_animation_frame());
     runtime.drain_runtime_messages();
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(drag)),
