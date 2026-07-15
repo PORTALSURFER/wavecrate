@@ -582,15 +582,29 @@ fn validate_manifest_membership(
     tx: &Transaction<'_>,
     targets: &[ReadinessTarget],
 ) -> Result<(), ReadinessError> {
-    let desired = targets
-        .iter()
-        .filter(|target| {
-            target.scope_kind == ReadinessScopeKind::File
-                && target.stage == ReadinessStage::IndexedIdentity
-                && target.eligibility != super::super::model::ReadinessEligibility::Deleted
-        })
-        .map(|target| target.scope_id.clone())
-        .collect::<BTreeSet<_>>();
+    let mut desired = BTreeMap::<String, String>::new();
+    for target in targets.iter().filter(|target| {
+        target.scope_kind == ReadinessScopeKind::File
+            && target.eligibility != super::super::model::ReadinessEligibility::Deleted
+    }) {
+        let path = target
+            .relative_path
+            .as_deref()
+            .filter(|path| !path.trim().is_empty())
+            .ok_or_else(|| ReadinessError::InvalidRelativePath {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+            })?;
+        if desired
+            .insert(target.scope_id.clone(), path.to_string())
+            .is_some_and(|current| current != path)
+        {
+            return Err(ReadinessError::InconsistentTargetPath {
+                identity: target.scope_id.clone(),
+            });
+        }
+    }
     let filter = crate::sample_sources::supported_audio_where_clause();
     let mut statement = tx.prepare(&format!(
         "SELECT path, file_identity
@@ -601,21 +615,47 @@ fn validate_manifest_membership(
     let rows = statement.query_map([], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
     })?;
-    let mut manifest = BTreeSet::new();
+    let mut manifest = BTreeMap::<String, String>::new();
     for row in rows {
         let (path, identity) = row?;
         let Some(identity) = identity.filter(|identity| !identity.trim().is_empty()) else {
             return Err(ReadinessError::ManifestIdentityUnavailable { path });
         };
-        manifest.insert(identity);
+        if let Some(first_path) = manifest.insert(identity.clone(), path.clone()) {
+            return Err(ReadinessError::DuplicateManifestIdentity {
+                identity,
+                first_path,
+                second_path: path,
+            });
+        }
     }
-    if manifest == desired {
-        return Ok(());
+    let manifest_identities = manifest.keys().cloned().collect::<BTreeSet<_>>();
+    let desired_identities = desired.keys().cloned().collect::<BTreeSet<_>>();
+    if manifest_identities != desired_identities {
+        return Err(ReadinessError::ManifestMembershipMismatch {
+            missing: manifest_identities
+                .difference(&desired_identities)
+                .cloned()
+                .collect(),
+            unexpected: desired_identities
+                .difference(&manifest_identities)
+                .cloned()
+                .collect(),
+        });
     }
-    Err(ReadinessError::ManifestMembershipMismatch {
-        missing: manifest.difference(&desired).cloned().collect(),
-        unexpected: desired.difference(&manifest).cloned().collect(),
-    })
+    for (identity, expected) in manifest {
+        let supplied = desired
+            .get(&identity)
+            .expect("identity sets were compared before paths");
+        if supplied != &expected {
+            return Err(ReadinessError::ManifestPathMismatch {
+                identity,
+                expected,
+                supplied: supplied.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn insert_target(

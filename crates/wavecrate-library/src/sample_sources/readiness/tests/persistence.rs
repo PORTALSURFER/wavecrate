@@ -446,6 +446,77 @@ fn desired_targets_must_cover_every_current_manifest_identity() {
 }
 
 #[test]
+fn desired_targets_must_match_authoritative_manifest_paths_one_to_one() {
+    let (_root, mut connection) = open_fixture();
+    let seed = file_target("renamed", ReadinessStage::IndexedIdentity, 1);
+    let targets = complete_targets(1, std::slice::from_ref(&seed));
+    sync_manifest(&connection, &targets);
+    connection
+        .execute(
+            "UPDATE wav_files SET path = 'Pack/current-name.wav' WHERE file_identity = 'renamed'",
+            [],
+        )
+        .expect("rename manifest path");
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &targets,
+        10,
+    )
+    .expect_err("reject stale target path after rename");
+    assert!(matches!(error, ReadinessError::ManifestPathMismatch { .. }));
+
+    sync_manifest(&connection, &targets);
+    connection
+        .execute(
+            "INSERT INTO wav_files (
+                path, file_size, modified_ns, extension, missing, file_identity
+             ) VALUES ('Pack/hard-link.wav', 1, 1, 'wav', 0, 'renamed')",
+            [],
+        )
+        .expect("seed duplicate current identity");
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &targets,
+        11,
+    )
+    .expect_err("reject duplicate current identity");
+    assert!(matches!(
+        error,
+        ReadinessError::DuplicateManifestIdentity { .. }
+    ));
+
+    sync_manifest(&connection, &targets);
+    let mut inconsistent = targets;
+    inconsistent
+        .iter_mut()
+        .find(|target| target.stage == ReadinessStage::PlaybackSummary)
+        .expect("playback target")
+        .relative_path = Some("Pack/another-name.wav".to_string());
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &inconsistent,
+        12,
+    )
+    .expect_err("reject inconsistent stage paths");
+    assert!(matches!(
+        error,
+        ReadinessError::InconsistentTargetPath { .. }
+    ));
+}
+
+#[test]
 fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("inactive", ReadinessStage::PlaybackSummary, 1);

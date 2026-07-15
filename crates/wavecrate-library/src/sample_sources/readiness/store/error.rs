@@ -130,6 +130,32 @@ pub enum ReadinessError {
         /// Source-relative manifest path lacking an identity.
         path: String,
     },
+    /// Two current manifest paths claimed the same stable file identity.
+    #[error("Current source manifest has duplicate identity {identity}: {first_path}, {second_path}")]
+    DuplicateManifestIdentity {
+        /// Duplicated stable identity.
+        identity: String,
+        /// First source-relative path.
+        first_path: String,
+        /// Second source-relative path.
+        second_path: String,
+    },
+    /// Desired stages for one current identity disagreed about its executable path.
+    #[error("Readiness targets disagree on the path for identity {identity}")]
+    InconsistentTargetPath {
+        /// Stable file identity.
+        identity: String,
+    },
+    /// A desired file path did not match the current manifest path for its identity.
+    #[error("Readiness path for {identity} is stale; expected {expected}, got {supplied}")]
+    ManifestPathMismatch {
+        /// Stable file identity.
+        identity: String,
+        /// Current authoritative source-relative path.
+        expected: String,
+        /// Supplied source-relative path.
+        supplied: String,
+    },
     /// No desired readiness state has been published for the source.
     #[error("No readiness state exists for source {0}")]
     UnknownSource(String),
