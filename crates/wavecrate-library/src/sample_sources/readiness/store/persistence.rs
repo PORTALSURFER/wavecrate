@@ -174,14 +174,19 @@ pub fn persist_readiness_deficits(
         let Some(current_target) = current_actionable_target(&tx, target)? else {
             continue;
         };
-        if !target_needs_persistence(&tx, &current_target, created_at)? {
-            continue;
-        }
         let sample_id = match current_target.scope_kind {
             ReadinessScopeKind::File => current_target.scope_id.clone(),
             ReadinessScopeKind::Source => format!("{}::__source__", current_target.source_id),
         };
-        changed += persist_deficit(&tx, &current_target, &sample_id, created_at)?;
+        changed += match target_persistence_action(&tx, &current_target, created_at)? {
+            TargetPersistenceAction::Persist => {
+                persist_deficit(&tx, &current_target, &sample_id, created_at)?
+            }
+            TargetPersistenceAction::RefreshMetadata => {
+                refresh_work_metadata(&tx, &current_target)?
+            }
+            TargetPersistenceAction::Skip => 0,
+        };
     }
     tx.commit()?;
     Ok(changed)
@@ -227,11 +232,18 @@ fn current_actionable_target(
     }))
 }
 
-fn target_needs_persistence(
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TargetPersistenceAction {
+    Persist,
+    RefreshMetadata,
+    Skip,
+}
+
+fn target_persistence_action(
     tx: &Transaction<'_>,
     target: &ReadinessTarget,
     now: i64,
-) -> Result<bool, rusqlite::Error> {
+) -> Result<TargetPersistenceAction, rusqlite::Error> {
     let artifact_is_current = tx.query_row(
         "SELECT EXISTS(
             SELECT 1
@@ -256,12 +268,13 @@ fn target_needs_persistence(
         |row| row.get::<_, bool>(0),
     )?;
     if artifact_is_current {
-        return Ok(false);
+        return Ok(TargetPersistenceAction::Skip);
     }
 
     let matching_work = tx
         .query_row(
-            "SELECT status, retry_at, failure_kind, lease_expires_at
+            "SELECT status, retry_at, failure_kind, lease_expires_at,
+                    relative_path, source_generation
              FROM analysis_jobs
              WHERE source_id = ?1
                AND readiness_managed = 1
@@ -286,14 +299,18 @@ fn target_needs_persistence(
                     row.get::<_, Option<i64>>(1)?,
                     row.get::<_, Option<String>>(2)?,
                     row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<i64>>(5)?,
                 ))
             },
         )
         .optional()?;
-    let Some((status, retry_at, failure_kind, lease_expires_at)) = matching_work else {
-        return Ok(true);
+    let Some((status, retry_at, failure_kind, lease_expires_at, relative_path, source_generation)) =
+        matching_work
+    else {
+        return Ok(TargetPersistenceAction::Persist);
     };
-    Ok(match status.as_str() {
+    let is_actionable = match status.as_str() {
         "pending" => false,
         "running" => lease_expires_at.is_none_or(|deadline| deadline <= now),
         "failed" => match failure_kind.as_deref() {
@@ -301,7 +318,46 @@ fn target_needs_persistence(
             _ => retry_at.is_none_or(|deadline| deadline <= now),
         },
         _ => true,
+    };
+    if is_actionable {
+        return Ok(TargetPersistenceAction::Persist);
+    }
+    let metadata_is_current = relative_path == target.relative_path.as_deref().unwrap_or("")
+        && source_generation == Some(target.source_generation);
+    Ok(if metadata_is_current {
+        TargetPersistenceAction::Skip
+    } else {
+        TargetPersistenceAction::RefreshMetadata
     })
+}
+
+fn refresh_work_metadata(
+    tx: &Transaction<'_>,
+    target: &ReadinessTarget,
+) -> Result<usize, rusqlite::Error> {
+    tx.execute(
+        "UPDATE analysis_jobs
+         SET relative_path = ?1,
+             source_generation = ?2
+         WHERE source_id = ?3
+           AND readiness_managed = 1
+           AND readiness_scope_kind = ?4
+           AND readiness_scope_id = ?5
+           AND readiness_stage = ?6
+           AND artifact_version = ?7
+           AND content_generation = ?8
+           AND (?4 = 'file' OR source_generation = ?2)",
+        params![
+            target.relative_path.as_deref().unwrap_or(""),
+            target.source_generation,
+            target.source_id,
+            target.scope_kind.as_str(),
+            target.scope_id,
+            target.stage.as_str(),
+            target.required_version,
+            target.content_generation,
+        ],
+    )
 }
 
 fn persist_deficit(

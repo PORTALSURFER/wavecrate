@@ -298,6 +298,58 @@ fn stale_content_deficit_cannot_reset_newer_running_work() {
 }
 
 #[test]
+fn path_only_rename_refreshes_running_work_without_losing_lease() {
+    let (_root, mut connection) = open_fixture();
+    let original = file_target("renamed", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&original));
+    let original_snapshot =
+        reconcile_readiness(&connection, SOURCE_ID, 10).expect("original snapshot");
+    persist_readiness_deficits(&mut connection, &original_snapshot.deficits, 10)
+        .expect("persist original work");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'running', running_at = 11, lease_expires_at = 50
+             WHERE readiness_managed = 1",
+            [],
+        )
+        .expect("claim original work");
+
+    let mut renamed = original;
+    renamed.source_generation = 2;
+    renamed.relative_path = Some("Renamed/current.wav".to_string());
+    replace(&mut connection, 2, &[renamed]);
+    assert_eq!(
+        persist_readiness_deficits(&mut connection, &original_snapshot.deficits, 20)
+            .expect("refresh current ownership"),
+        1
+    );
+
+    let state: (String, i64, String, Option<i64>, Option<i64>) = connection
+        .query_row(
+            "SELECT relative_path, source_generation, status, running_at, lease_expires_at
+             FROM analysis_jobs
+             WHERE readiness_managed = 1",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .expect("read refreshed work");
+    assert_eq!(state.0, "Renamed/current.wav");
+    assert_eq!(state.1, 2);
+    assert_eq!(state.2, "running");
+    assert_eq!(state.3, Some(11));
+    assert_eq!(state.4, Some(50));
+}
+
+#[test]
 fn running_lease_expiry_becomes_an_actionable_retry() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("leased", ReadinessStage::PlaybackSummary, 2);
