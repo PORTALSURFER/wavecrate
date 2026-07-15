@@ -88,6 +88,10 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
                 eligibility TEXT NOT NULL,
                 updated_at INTEGER NOT NULL,
+                CHECK (
+                    (stage = 'similarity_layout' AND scope_kind = 'source')
+                    OR (stage <> 'similarity_layout' AND scope_kind = 'file')
+                ),
                 PRIMARY KEY (source_id, scope_kind, scope_id, stage)
             ) WITHOUT ROWID;
             CREATE TABLE IF NOT EXISTS source_readiness_artifacts (
@@ -99,6 +103,10 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 source_generation INTEGER NOT NULL,
                 content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
                 completed_at INTEGER NOT NULL,
+                CHECK (
+                    (stage = 'similarity_layout' AND scope_kind = 'source')
+                    OR (stage <> 'similarity_layout' AND scope_kind = 'file')
+                ),
                 PRIMARY KEY (source_id, scope_kind, scope_id, stage)
             ) WITHOUT ROWID;
             CREATE INDEX IF NOT EXISTS idx_analysis_jobs_readiness_state

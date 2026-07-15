@@ -170,6 +170,56 @@ fn empty_content_generations_are_rejected_before_persistence() {
 }
 
 #[test]
+fn invalid_stage_scope_pairings_are_rejected() {
+    let (_root, mut connection) = open_fixture();
+    let invalid_file = file_target("layout", ReadinessStage::SimilarityLayout, 1);
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[invalid_file],
+        10,
+    )
+    .expect_err("reject file-scoped layout");
+    assert!(matches!(error, ReadinessError::InvalidStageScope { .. }));
+
+    let invalid_source = ReadinessTarget::source(
+        SOURCE_ID,
+        ReadinessStage::PlaybackSummary,
+        "v1",
+        1,
+        "membership-v1",
+    );
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[invalid_source],
+        11,
+    )
+    .expect_err("reject source-scoped file stage");
+    assert!(matches!(error, ReadinessError::InvalidStageScope { .. }));
+
+    assert!(
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 ) VALUES (?1, 'file', 'raw-layout', 'raw.wav', 'similarity_layout',
+                           'v1', 1, 'content-v1', 'eligible', 12)",
+                [SOURCE_ID],
+            )
+            .is_err(),
+        "schema must reject an invalid stage/scope pairing"
+    );
+}
+
+#[test]
 fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("inactive", ReadinessStage::PlaybackSummary, 1);

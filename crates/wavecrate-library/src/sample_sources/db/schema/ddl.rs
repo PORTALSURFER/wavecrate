@@ -97,6 +97,10 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
         eligibility TEXT NOT NULL,
         updated_at INTEGER NOT NULL,
+        CHECK (
+            (stage = 'similarity_layout' AND scope_kind = 'source')
+            OR (stage <> 'similarity_layout' AND scope_kind = 'file')
+        ),
         PRIMARY KEY (source_id, scope_kind, scope_id, stage)
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS source_readiness_artifacts (
@@ -108,6 +112,10 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         source_generation INTEGER NOT NULL,
         content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
         completed_at INTEGER NOT NULL,
+        CHECK (
+            (stage = 'similarity_layout' AND scope_kind = 'source')
+            OR (stage <> 'similarity_layout' AND scope_kind = 'file')
+        ),
         PRIMARY KEY (source_id, scope_kind, scope_id, stage)
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS samples (

@@ -3,7 +3,9 @@ use std::collections::BTreeSet;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
 use super::super::{
-    model::{ReadinessArtifact, ReadinessScopeKind, ReadinessTarget, SourceAvailability},
+    model::{
+        ReadinessArtifact, ReadinessScopeKind, ReadinessStage, ReadinessTarget, SourceAvailability,
+    },
     snapshot::{ArtifactPublishOutcome, ReadinessDeficit},
 };
 use super::error::ReadinessError;
@@ -476,6 +478,18 @@ fn validate_targets(
                 source_id: target.source_id.clone(),
                 scope_id: target.scope_id.clone(),
                 stage: target.stage,
+            });
+        }
+        let scope_is_valid = match target.stage {
+            ReadinessStage::SimilarityLayout => target.scope_kind == ReadinessScopeKind::Source,
+            _ => target.scope_kind == ReadinessScopeKind::File,
+        };
+        if !scope_is_valid {
+            return Err(ReadinessError::InvalidStageScope {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+                scope_kind: target.scope_kind,
             });
         }
         if !keys.insert(target.key()) {

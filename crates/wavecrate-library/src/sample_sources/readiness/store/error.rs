@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::super::model::ReadinessStage;
+use super::super::model::{ReadinessScopeKind, ReadinessStage};
 
 /// Errors returned by the durable readiness contract.
 #[derive(Debug, Error)]
@@ -65,6 +65,18 @@ pub enum ReadinessError {
         scope_id: String,
         /// Readiness stage requiring the generation.
         stage: ReadinessStage,
+    },
+    /// A stage was assigned to the wrong durable ownership scope.
+    #[error("Invalid readiness scope {scope_kind:?} for {source_id}:{scope_id}:{stage:?}")]
+    InvalidStageScope {
+        /// Source identity.
+        source_id: String,
+        /// File or source scope identity.
+        scope_id: String,
+        /// Readiness stage whose ownership is invalid.
+        stage: ReadinessStage,
+        /// Supplied ownership scope.
+        scope_kind: ReadinessScopeKind,
     },
     /// No desired readiness state has been published for the source.
     #[error("No readiness state exists for source {0}")]
