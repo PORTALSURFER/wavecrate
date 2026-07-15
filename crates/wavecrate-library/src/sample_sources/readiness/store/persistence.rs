@@ -174,6 +174,9 @@ pub fn persist_readiness_deficits(
         let Some(current_target) = current_actionable_target(&tx, target)? else {
             continue;
         };
+        if !target_needs_persistence(&tx, &current_target, created_at)? {
+            continue;
+        }
         let sample_id = match current_target.scope_kind {
             ReadinessScopeKind::File => current_target.scope_id.clone(),
             ReadinessScopeKind::Source => format!("{}::__source__", current_target.source_id),
@@ -222,6 +225,83 @@ fn current_actionable_target(
         current_target.source_generation = source_generation;
         current_target
     }))
+}
+
+fn target_needs_persistence(
+    tx: &Transaction<'_>,
+    target: &ReadinessTarget,
+    now: i64,
+) -> Result<bool, rusqlite::Error> {
+    let artifact_is_current = tx.query_row(
+        "SELECT EXISTS(
+            SELECT 1
+            FROM source_readiness_artifacts
+            WHERE source_id = ?1
+              AND scope_kind = ?2
+              AND scope_id = ?3
+              AND stage = ?4
+              AND artifact_version = ?5
+              AND content_generation = ?6
+              AND (?2 = 'file' OR source_generation = ?7)
+        )",
+        params![
+            target.source_id,
+            target.scope_kind.as_str(),
+            target.scope_id,
+            target.stage.as_str(),
+            target.required_version,
+            target.content_generation,
+            target.source_generation,
+        ],
+        |row| row.get::<_, bool>(0),
+    )?;
+    if artifact_is_current {
+        return Ok(false);
+    }
+
+    let matching_work = tx
+        .query_row(
+            "SELECT status, retry_at, failure_kind, lease_expires_at
+             FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_managed = 1
+               AND readiness_scope_kind = ?2
+               AND readiness_scope_id = ?3
+               AND readiness_stage = ?4
+               AND artifact_version = ?5
+               AND content_generation = ?6
+               AND (?2 = 'file' OR source_generation = ?7)",
+            params![
+                target.source_id,
+                target.scope_kind.as_str(),
+                target.scope_id,
+                target.stage.as_str(),
+                target.required_version,
+                target.content_generation,
+                target.source_generation,
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((status, retry_at, failure_kind, lease_expires_at)) = matching_work else {
+        return Ok(true);
+    };
+    Ok(match status.as_str() {
+        "pending" => false,
+        "running" => lease_expires_at.is_none_or(|deadline| deadline <= now),
+        "failed" => match failure_kind.as_deref() {
+            Some("permanent" | "unsupported") => false,
+            _ => retry_at.is_none_or(|deadline| deadline <= now),
+        },
+        _ => true,
+    })
 }
 
 fn persist_deficit(

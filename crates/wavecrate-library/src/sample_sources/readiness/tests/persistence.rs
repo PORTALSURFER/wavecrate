@@ -228,6 +228,103 @@ fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
 }
 
 #[test]
+fn delayed_deficit_cannot_recreate_completed_work() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("completed", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&target));
+    let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("pending snapshot");
+    publish_readiness_artifact(&mut connection, &ReadinessArtifact::for_target(&target, 11))
+        .expect("publish completion");
+
+    assert_eq!(
+        persist_readiness_deficits(&mut connection, &pending.deficits, 12)
+            .expect("ignore completed deficit"),
+        0
+    );
+    let jobs: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 1",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count readiness work");
+    assert_eq!(jobs, 0);
+    let current = reconcile_readiness(&connection, SOURCE_ID, 13).expect("current snapshot");
+    assert!(current.is_fully_ready());
+    assert!(current.is_idle());
+}
+
+#[test]
+fn delayed_deficit_preserves_terminal_failure_and_future_retry() {
+    let (_root, mut connection) = open_fixture();
+    let targets = [
+        file_target("permanent", ReadinessStage::AnalysisFeatures, 1),
+        file_target("retry", ReadinessStage::AnalysisFeatures, 1),
+    ];
+    replace(&mut connection, 1, &targets);
+    let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("pending snapshot");
+    persist_readiness_deficits(&mut connection, &pending.deficits, 10)
+        .expect("persist initial work");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'failed', failure_kind = 'permanent', last_error = 'bad audio'
+             WHERE readiness_scope_id = 'permanent'",
+            [],
+        )
+        .expect("record permanent failure");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'failed', failure_kind = 'retryable', retry_at = 50,
+                 last_error = 'source busy'
+             WHERE readiness_scope_id = 'retry'",
+            [],
+        )
+        .expect("record future retry");
+
+    assert_eq!(
+        persist_readiness_deficits(&mut connection, &pending.deficits, 20)
+            .expect("ignore non-actionable work"),
+        0
+    );
+    let states: Vec<(String, String, Option<String>, Option<i64>)> = {
+        let mut statement = connection
+            .prepare(
+                "SELECT readiness_scope_id, status, failure_kind, retry_at
+                 FROM analysis_jobs
+                 WHERE readiness_managed = 1
+                 ORDER BY readiness_scope_id",
+            )
+            .expect("prepare state query");
+        statement
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .expect("query work state")
+            .collect::<Result<_, _>>()
+            .expect("collect work state")
+    };
+    assert_eq!(
+        states,
+        vec![
+            (
+                "permanent".to_string(),
+                "failed".to_string(),
+                Some("permanent".to_string()),
+                None,
+            ),
+            (
+                "retry".to_string(),
+                "failed".to_string(),
+                Some("retryable".to_string()),
+                Some(50),
+            ),
+        ]
+    );
+}
+
+#[test]
 fn read_only_reconciliation_never_enqueues_work() {
     let (root, mut connection) = open_fixture();
     let target = file_target("read-only", ReadinessStage::PlaybackSummary, 1);
