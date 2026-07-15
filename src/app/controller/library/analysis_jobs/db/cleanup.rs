@@ -4,12 +4,14 @@ use rusqlite::{Connection, params};
 
 pub(crate) fn reset_running_to_pending(conn: &Connection) -> Result<usize, String> {
     progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
-    let counts = progress_snapshot::running_counts_by_job_type(conn, "1 = 1", Vec::new())?;
+    let counts =
+        progress_snapshot::running_counts_by_job_type(conn, "readiness_managed = 0", Vec::new())?;
     let changed = conn
         .execute(
             "UPDATE analysis_jobs
          SET status = 'pending', running_at = NULL
-         WHERE status = 'running'",
+         WHERE status = 'running'
+           AND readiness_managed = 0",
             [],
         )
         .map_err(|err| format!("Failed to reset running analysis jobs: {err}"))?;
@@ -41,7 +43,7 @@ pub(crate) fn fail_stale_running_jobs(
     progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
     let counts = progress_snapshot::running_counts_by_job_type(
         conn,
-        "running_at IS NOT NULL AND running_at <= ?1",
+        "readiness_managed = 0 AND running_at IS NOT NULL AND running_at <= ?1",
         vec![rusqlite::types::Value::from(stale_before_epoch)],
     )?;
     let changed = conn
@@ -51,6 +53,7 @@ pub(crate) fn fail_stale_running_jobs(
              last_error = 'Timed out while running',
              running_at = NULL
          WHERE status = 'running'
+           AND readiness_managed = 0
            AND running_at IS NOT NULL
            AND running_at <= ?1",
             rusqlite::params![stale_before_epoch],
@@ -87,6 +90,7 @@ pub(crate) fn fail_stale_running_jobs_with_sources(
             "SELECT DISTINCT source_id
              FROM analysis_jobs
              WHERE status = 'running'
+               AND readiness_managed = 0
                AND running_at IS NOT NULL
                AND running_at <= ?1
                AND source_id != ''",

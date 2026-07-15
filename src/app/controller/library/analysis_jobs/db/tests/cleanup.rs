@@ -81,6 +81,59 @@ fn fail_stale_running_jobs_marks_failed() {
 }
 
 #[test]
+/// Keeps readiness leases outside every legacy reset and stale-cleanup path.
+fn legacy_cleanup_preserves_readiness_managed_running_jobs() {
+    let db = TestDb::new();
+    db.insert_job(
+        JobRow::new("legacy::old.wav", "x", "running")
+            .with_attempts(1)
+            .with_running_at(10)
+            .with_source("legacy", "old.wav"),
+    );
+    db.insert_job(
+        JobRow::new(
+            "readiness::leased.wav",
+            "readiness_playback_summary_v1",
+            "running",
+        )
+        .with_attempts(1)
+        .with_running_at(10)
+        .with_source("readiness", "leased.wav"),
+    );
+    db.conn
+        .execute(
+            "UPDATE analysis_jobs
+             SET readiness_managed = 1, lease_expires_at = 1000
+             WHERE sample_id = 'readiness::leased.wav'",
+            [],
+        )
+        .unwrap();
+
+    assert_eq!(reset_running_to_pending(&db.conn).unwrap(), 1);
+    db.conn
+        .execute(
+            "UPDATE analysis_jobs SET status = 'running', running_at = 10
+             WHERE sample_id = 'legacy::old.wav'",
+            [],
+        )
+        .unwrap();
+    let (changed, sources) = fail_stale_running_jobs_with_sources(&db.conn, 20).unwrap();
+
+    assert_eq!(changed, 1);
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].as_str(), "legacy");
+    let readiness_status: String = db
+        .conn
+        .query_row(
+            "SELECT status FROM analysis_jobs WHERE sample_id = 'readiness::leased.wav'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(readiness_status, "running");
+}
+
+#[test]
 fn prune_jobs_for_missing_sources_removes_orphans() {
     let db = TestDb::new();
     db.insert_wav_file("a.wav");

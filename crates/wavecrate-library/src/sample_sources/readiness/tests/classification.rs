@@ -124,6 +124,44 @@ fn source_level_similarity_requires_the_exact_membership_generation() {
 }
 
 #[test]
+fn unrelated_manifest_change_preserves_current_file_artifacts() {
+    let (_root, mut connection) = open_fixture();
+    let unchanged = file_target("unchanged", ReadinessStage::AnalysisFeatures, 1);
+    let changed = file_target("changed", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, &[unchanged.clone(), changed.clone()]);
+    publish_readiness_artifact(
+        &mut connection,
+        &ReadinessArtifact::for_target(&unchanged, 100),
+    )
+    .expect("publish unchanged artifact");
+
+    let mut unchanged_after_manifest_change = unchanged;
+    unchanged_after_manifest_change.source_generation = 2;
+    let changed_after_manifest_change = file_target("changed", ReadinessStage::AnalysisFeatures, 2);
+    replace(
+        &mut connection,
+        2,
+        &[
+            unchanged_after_manifest_change,
+            changed_after_manifest_change,
+        ],
+    );
+
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 101).expect("snapshot");
+    let unchanged_entry = snapshot
+        .entries
+        .iter()
+        .find(|entry| entry.target.scope_id == "unchanged")
+        .expect("unchanged entry");
+    assert_eq!(
+        unchanged_entry.classification,
+        ReadinessClassification::Current
+    );
+    assert_eq!(snapshot.deficits.len(), 1);
+    assert_eq!(snapshot.deficits[0].target.scope_id, "changed");
+}
+
+#[test]
 fn persisted_work_deduplicates_and_survives_restart() {
     let (root, mut connection) = open_fixture();
     let targets = [

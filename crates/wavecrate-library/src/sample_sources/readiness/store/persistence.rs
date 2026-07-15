@@ -80,7 +80,7 @@ pub fn publish_readiness_artifact(
               AND target.scope_id = ?3
               AND target.stage = ?4
               AND target.required_version = ?5
-              AND target.source_generation = ?6
+              AND (?2 = 'file' OR target.source_generation = ?6)
               AND target.content_generation IS ?7
               AND target.eligibility = 'eligible'
               AND source.source_generation = target.source_generation
@@ -186,7 +186,10 @@ fn persist_deficit(
             content_hash = excluded.content_hash,
             status = CASE
                 WHEN analysis_jobs.artifact_version = excluded.artifact_version
-                 AND analysis_jobs.source_generation = excluded.source_generation
+                 AND (
+                    excluded.readiness_scope_kind = 'file'
+                    OR analysis_jobs.source_generation = excluded.source_generation
+                 )
                  AND analysis_jobs.content_generation IS excluded.content_generation
                  AND (
                     analysis_jobs.status = 'pending'
@@ -198,17 +201,26 @@ fn persist_deficit(
                 THEN analysis_jobs.status ELSE 'pending' END,
             attempts = CASE
                 WHEN analysis_jobs.artifact_version = excluded.artifact_version
-                 AND analysis_jobs.source_generation = excluded.source_generation
+                 AND (
+                    excluded.readiness_scope_kind = 'file'
+                    OR analysis_jobs.source_generation = excluded.source_generation
+                 )
                  AND analysis_jobs.content_generation IS excluded.content_generation
                 THEN analysis_jobs.attempts ELSE 0 END,
             created_at = CASE
                 WHEN analysis_jobs.artifact_version = excluded.artifact_version
-                 AND analysis_jobs.source_generation = excluded.source_generation
+                 AND (
+                    excluded.readiness_scope_kind = 'file'
+                    OR analysis_jobs.source_generation = excluded.source_generation
+                 )
                  AND analysis_jobs.content_generation IS excluded.content_generation
                 THEN analysis_jobs.created_at ELSE excluded.created_at END,
             running_at = CASE
                 WHEN analysis_jobs.artifact_version = excluded.artifact_version
-                 AND analysis_jobs.source_generation = excluded.source_generation
+                 AND (
+                    excluded.readiness_scope_kind = 'file'
+                    OR analysis_jobs.source_generation = excluded.source_generation
+                 )
                  AND analysis_jobs.content_generation IS excluded.content_generation
                  AND analysis_jobs.status = 'running'
                  AND analysis_jobs.lease_expires_at > excluded.created_at

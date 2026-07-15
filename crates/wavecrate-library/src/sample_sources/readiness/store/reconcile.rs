@@ -323,14 +323,28 @@ fn classify_failure(work: &StoredWork, now: i64) -> ReadinessClassification {
 
 fn artifact_matches(target: &ReadinessTarget, artifact: &StoredArtifact) -> bool {
     artifact.artifact_version == target.required_version
-        && artifact.source_generation == target.source_generation
+        && source_generation_matches(
+            target.scope_kind,
+            target.source_generation,
+            artifact.source_generation,
+        )
         && artifact.content_generation == target.content_generation
 }
 
 fn work_matches(target: &ReadinessTarget, work: &StoredWork) -> bool {
     work.artifact_version.as_deref() == Some(target.required_version.as_str())
-        && work.source_generation == Some(target.source_generation)
+        && work.source_generation.is_some_and(|generation| {
+            source_generation_matches(target.scope_kind, target.source_generation, generation)
+        })
         && work.content_generation == target.content_generation
+}
+
+fn source_generation_matches(
+    scope_kind: ReadinessScopeKind,
+    target_generation: i64,
+    stored_generation: i64,
+) -> bool {
+    scope_kind == ReadinessScopeKind::File || stored_generation == target_generation
 }
 
 fn record_count(
