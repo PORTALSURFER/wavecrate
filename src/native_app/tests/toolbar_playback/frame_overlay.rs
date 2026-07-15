@@ -6,7 +6,7 @@ fn playback_frame_uses_paint_only_when_only_playhead_changes() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
@@ -79,7 +79,7 @@ fn early_runtime_playback_handoff_still_uses_paint_only_frames() {
     state.audio.playback_progress.active = true;
     state.audio.playback_progress.progress = Some(0.25);
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
@@ -93,11 +93,13 @@ fn playback_restart_refreshes_projection_to_clear_stale_playhead_visuals() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.62);
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
     state.waveform.current.start_playback(0.12);
+    state.finish_frame_surface_revision_tracking(guard);
 
     assert_eq!(
-        state.frame_scope_since(before),
+        state.frame_surface_revisions().repaint_scope_since(before),
         RepaintScope::Projection,
         "retriggering playback should reproject paint state without relayout"
     );
@@ -107,7 +109,7 @@ fn playback_restart_refreshes_projection_to_clear_stale_playhead_visuals() {
 fn idle_frame_uses_paint_only_when_frame_state_is_stable() {
     let mut state = gui_state_for_span_tests();
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
@@ -123,7 +125,7 @@ fn loading_frame_uses_paint_only_when_progress_advances() {
     state.waveform.load.progress = 0.25;
     state.waveform.load.target_progress = 0.8;
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
@@ -136,7 +138,7 @@ fn loading_frame_uses_paint_only_when_progress_advances() {
 fn loading_frame_repaints_surface_when_loading_state_changes() {
     let mut state = gui_state_for_span_tests();
 
-    let before_start = state.capture_frame_surface_revisions();
+    let before_start = state.capture_frame_surface_inputs();
     state.waveform.load.label = Some(String::from("kick.wav"));
     assert_eq!(
         state.frame_scope_since(before_start),
@@ -144,7 +146,7 @@ fn loading_frame_repaints_surface_when_loading_state_changes() {
         "starting loading changes structural overlay/input state and needs a full repaint"
     );
 
-    let before_stop = state.capture_frame_surface_revisions();
+    let before_stop = state.capture_frame_surface_inputs();
     state.waveform.load.label = None;
     assert_eq!(
         state.frame_scope_since(before_stop),
@@ -159,7 +161,7 @@ fn source_cache_progress_frame_refreshes_projection_for_status_bar_animation() {
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
     state.waveform.cache.active_folder_warm_total = 10;
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert_eq!(
@@ -190,7 +192,7 @@ fn paused_source_cache_progress_does_not_force_playback_surface_frames() {
     );
     assert_eq!(state.waveform.cache.active_folder_warm_total, 0);
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
@@ -208,7 +210,7 @@ fn copy_flash_frame_refreshes_projection_while_countdown_changes() {
         .folder_browser
         .flash_copied_file_paths([selected_file]);
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert_eq!(
@@ -234,7 +236,7 @@ fn normalization_progress_frame_uses_paint_only_when_progress_is_stable() {
         },
     );
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
     assert!(
@@ -248,11 +250,13 @@ fn playback_frame_repaints_surface_when_playback_state_changes() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
     state.waveform.current.stop_playback();
+    state.finish_frame_surface_revision_tracking(guard);
 
     assert_eq!(
-        state.frame_scope_since(before),
+        state.frame_surface_revisions().repaint_scope_since(before),
         RepaintScope::Surface,
         "stopping playback changes toolbar/status surface state and needs a full repaint"
     );
@@ -261,7 +265,7 @@ fn playback_frame_repaints_surface_when_playback_state_changes() {
 #[test]
 fn audio_output_sample_rate_change_requests_layout_refresh() {
     let mut state = gui_state_for_span_tests();
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.audio.output_resolved = Some(crate::native_app::test_support::audio::ResolvedOutput {
         host_id: String::from("core-audio"),
         device_name: String::from("Studio"),
@@ -282,7 +286,7 @@ fn audio_output_sample_rate_change_requests_layout_refresh() {
 fn audio_output_error_repaints_surface_for_top_bar_badge() {
     let mut state = gui_state_for_span_tests();
 
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.audio.settings_error = Some(String::from(
         "Audio output stream error: output device disconnected",
     ));
@@ -367,22 +371,34 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
     state.waveform.current.start_playback(0.25);
     let bridge = radiant::app(state)
         .view(crate::native_app::test_support::state::view)
-        .handle_message(|state, message, _context| {
-            if message == GuiMessage::Frame {
-                state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
-            }
-        })
+        .handle_message(apply_gui_message_for_presentation_test)
         .into_bridge();
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     apply_strict_update_diagnostics(&mut runtime);
+    let broad_observations = NativeAppState::broad_frame_revision_observations();
 
     assert!(runtime.host_animation_activity().needs_frame_message());
     assert!(runtime.host_queue_animation_frame());
-    let command = runtime
-        .bridge_mut()
-        .update(crate::native_app::test_support::state::GuiMessage::Frame);
+    let outcome = runtime.drain_runtime_messages();
 
-    assert!(command.requests_paint_only());
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert!(outcome.paint_only_requested);
+    assert_eq!(
+        NativeAppState::broad_frame_revision_observations(),
+        broad_observations,
+        "steady playback should read the stable revision keys without rebuilding broad inputs"
+    );
+
+    assert!(runtime.host_queue_animation_frame());
+    let outcome = runtime.drain_runtime_messages();
+
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert!(outcome.paint_only_requested);
+    assert_eq!(
+        NativeAppState::broad_frame_revision_observations(),
+        broad_observations,
+        "repeated playback frames must remain on the revision fast path"
+    );
 }
 
 #[test]
@@ -995,7 +1011,7 @@ fn state_with_runtime_playback(
 }
 
 fn assert_active_playback_frame_is_paint_only(state: &mut NativeAppState) {
-    let before = state.capture_frame_surface_revisions();
+    let before = state.capture_frame_surface_inputs();
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
     assert!(
         state.frame_can_use_paint_only_since(before),

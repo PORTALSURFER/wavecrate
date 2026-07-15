@@ -1,3 +1,5 @@
+#[cfg(test)]
+use std::cell::Cell;
 use std::time::Duration;
 
 use radiant::runtime::{RepaintScope, SurfaceRevisions};
@@ -10,15 +12,21 @@ use crate::native_app::{
     },
 };
 
+#[cfg(test)]
+thread_local! {
+    static BROAD_FRAME_REVISION_OBSERVATIONS: Cell<u64> = const { Cell::new(0) };
+}
+
 #[derive(Default)]
 /// Converts frame-relevant application state into monotonic runtime revision keys.
 pub(in crate::native_app) struct FrameSurfaceRevisionTracker {
     last: Option<FrameSurfaceRevisionInputs>,
     revisions: SurfaceRevisions,
+    playback_fast_path_active: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct FrameSurfaceRevisionInputs {
+pub(in crate::native_app) struct FrameSurfaceRevisionInputs {
     structure: FrameStructureState,
     layout: FrameLayoutState,
     projection: FrameProjectionState,
@@ -55,45 +63,128 @@ struct FrameProjectionState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct FrameSurfaceRevisionSample {
-    revisions: SurfaceRevisions,
-    scope: RepaintScope,
-    playback_involved: bool,
+pub(in crate::native_app) struct FrameSurfaceRevisionGuard {
+    before: Option<PlaybackFrameRevisionInputs>,
+    forced_surface: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlaybackFrameRevisionInputs {
+    structure: PlaybackFrameStructureState,
+    layout: FrameLayoutState,
+    projection: PlaybackFrameProjectionState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlaybackFrameStructureState {
+    drag_hover_auto_expand_pending: bool,
+    source_cache_progress_active: bool,
+    sample_loading: bool,
+    audio_opening: bool,
+    audio_settings_error_active: bool,
+    pending_playback_start: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PlaybackFrameProjectionState {
+    playback_visual_generation: u64,
+    play_selection_flash_active: bool,
+    copy_flash_frames: u8,
+    protected_source_error_flash_frames: u8,
+    progress_tick_bits: u32,
 }
 
 impl NativeAppState {
     pub(in crate::native_app) fn frame_surface_revisions(&mut self) -> SurfaceRevisions {
-        let inputs = FrameSurfaceRevisionInputs::from_state(self);
-        let sample = self.frame_surface_revision_tracker.observe(inputs);
-        if sample.playback_involved {
-            self.playhead_frame_diagnostics
-                .record_frame_message(PlayheadFrameMessageDiagnostics {
-                    paint_only: sample.scope.is_paint_only(),
-                    reason: frame_repaint_reason(sample.scope),
-                });
+        let playing = self.playback_visual_activity_active();
+        if playing
+            || self
+                .frame_surface_revision_tracker
+                .playback_fast_path_active
+        {
+            if playing {
+                self.frame_surface_revision_tracker
+                    .playback_fast_path_active = true;
+            }
+            return self.frame_surface_revision_tracker.revisions;
         }
-        sample.revisions
+        let inputs = FrameSurfaceRevisionInputs::from_state(self);
+        self.frame_surface_revision_tracker.observe(inputs)
     }
 
     #[cfg(test)]
-    pub(in crate::native_app) fn capture_frame_surface_revisions(&mut self) -> SurfaceRevisions {
-        self.frame_surface_revisions()
+    pub(in crate::native_app) fn capture_frame_surface_inputs(&self) -> FrameSurfaceRevisionInputs {
+        FrameSurfaceRevisionInputs::from_state(self)
     }
 
     #[cfg(test)]
     pub(in crate::native_app) fn frame_can_use_paint_only_since(
-        &mut self,
-        before: SurfaceRevisions,
+        &self,
+        before: FrameSurfaceRevisionInputs,
     ) -> bool {
         self.frame_scope_since(before).is_paint_only()
     }
 
     #[cfg(test)]
     pub(in crate::native_app) fn frame_scope_since(
-        &mut self,
-        before: SurfaceRevisions,
+        &self,
+        before: FrameSurfaceRevisionInputs,
     ) -> RepaintScope {
-        self.frame_surface_revisions().repaint_scope_since(before)
+        FrameSurfaceRevisionInputs::from_state(self).repaint_scope_since(before)
+    }
+
+    pub(in crate::native_app) fn begin_frame_surface_revision_tracking(
+        &mut self,
+    ) -> FrameSurfaceRevisionGuard {
+        let playing = self.playback_visual_activity_active();
+        let forced_surface = self
+            .frame_surface_revision_tracker
+            .playback_fast_path_active
+            && !playing;
+        if forced_surface {
+            self.frame_surface_revision_tracker
+                .bump(RepaintScope::Surface);
+            self.frame_surface_revision_tracker
+                .playback_fast_path_active = false;
+        }
+        FrameSurfaceRevisionGuard {
+            before: playing.then(|| PlaybackFrameRevisionInputs::from_state(self)),
+            forced_surface,
+        }
+    }
+
+    pub(in crate::native_app) fn finish_frame_surface_revision_tracking(
+        &mut self,
+        guard: FrameSurfaceRevisionGuard,
+    ) {
+        let playing = self.playback_visual_activity_active();
+        let after = playing.then(|| PlaybackFrameRevisionInputs::from_state(self));
+        let scope = if guard.forced_surface || guard.before.is_some() != after.is_some() {
+            RepaintScope::Surface
+        } else {
+            match (guard.before, after) {
+                (Some(before), Some(after)) => after.repaint_scope_since(before),
+                (None, None) => RepaintScope::PaintOnly,
+                _ => unreachable!("playback presence mismatch handled above"),
+            }
+        };
+        if !guard.forced_surface {
+            self.frame_surface_revision_tracker.bump(scope);
+        }
+        self.frame_surface_revision_tracker
+            .playback_fast_path_active = playing;
+        if guard.before.is_some() || after.is_some() || guard.forced_surface {
+            self.playhead_frame_diagnostics
+                .record_frame_message(PlayheadFrameMessageDiagnostics {
+                    paint_only: scope.is_paint_only(),
+                    reason: frame_repaint_reason(scope),
+                });
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn broad_frame_revision_observations() -> u64 {
+        BROAD_FRAME_REVISION_OBSERVATIONS.get()
     }
 
     pub(in crate::native_app) fn observe_playhead_native_frame_diagnostics(
@@ -153,16 +244,19 @@ fn duration_ms(duration: Duration) -> f64 {
 }
 
 impl FrameSurfaceRevisionTracker {
-    fn observe(&mut self, current: FrameSurfaceRevisionInputs) -> FrameSurfaceRevisionSample {
-        let (scope, playback_involved) = self.last.map_or(
-            (RepaintScope::PaintOnly, current.structure.playing),
-            |previous| {
-                (
-                    current.repaint_scope_since(previous),
-                    previous.structure.playing || current.structure.playing,
-                )
-            },
-        );
+    fn observe(&mut self, current: FrameSurfaceRevisionInputs) -> SurfaceRevisions {
+        #[cfg(test)]
+        BROAD_FRAME_REVISION_OBSERVATIONS
+            .set(BROAD_FRAME_REVISION_OBSERVATIONS.get().wrapping_add(1));
+        let scope = self.last.map_or(RepaintScope::PaintOnly, |previous| {
+            current.repaint_scope_since(previous)
+        });
+        self.bump(scope);
+        self.last = Some(current);
+        self.revisions
+    }
+
+    fn bump(&mut self, scope: RepaintScope) {
         match scope {
             RepaintScope::Surface => {
                 self.revisions.structure = self.revisions.structure.wrapping_add(1);
@@ -174,12 +268,6 @@ impl FrameSurfaceRevisionTracker {
                 self.revisions.projection = self.revisions.projection.wrapping_add(1);
             }
             RepaintScope::PaintOnly => {}
-        }
-        self.last = Some(current);
-        FrameSurfaceRevisionSample {
-            revisions: self.revisions,
-            scope,
-            playback_involved,
         }
     }
 }
@@ -255,6 +343,62 @@ impl FrameSurfaceRevisionInputs {
             || self.structure.startup_source_scan_pending
             || self.structure.startup_auto_load_pending
             || self.structure.pending_playback_start
+    }
+}
+
+impl PlaybackFrameRevisionInputs {
+    fn from_state(state: &NativeAppState) -> Self {
+        Self {
+            structure: PlaybackFrameStructureState {
+                drag_hover_auto_expand_pending: state
+                    .library
+                    .folder_browser
+                    .drag_hover_auto_expand_pending(),
+                source_cache_progress_active: state
+                    .waveform
+                    .cache
+                    .active_folder_warm_folder_id
+                    .is_some(),
+                sample_loading: state.active_sample_load_task().is_some(),
+                audio_opening: state.background.audio_open.active().is_some(),
+                audio_settings_error_active: state.audio.settings_error.is_some(),
+                pending_playback_start: state.audio.pending_playback_start.is_some(),
+            },
+            layout: FrameLayoutState {
+                audio_output_sample_rate: state
+                    .audio
+                    .output_resolved
+                    .as_ref()
+                    .map(|output| output.sample_rate),
+            },
+            projection: PlaybackFrameProjectionState {
+                playback_visual_generation: state.waveform.current.playback_visual_generation(),
+                play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
+                copy_flash_frames: state
+                    .library
+                    .folder_browser
+                    .copy_flash_frames()
+                    .max(state.waveform.current.copy_flash_frames()),
+                protected_source_error_flash_frames: state
+                    .library
+                    .folder_browser
+                    .protected_source_error_flash_frames()
+                    .max(state.waveform.current.protected_source_error_flash_frames()),
+                progress_tick_bits: state.background.progress_tick.to_bits(),
+            },
+        }
+    }
+
+    fn repaint_scope_since(self, previous: Self) -> RepaintScope {
+        if self.structure != previous.structure {
+            RepaintScope::Surface
+        } else if self.layout != previous.layout {
+            RepaintScope::Layout
+        } else if self.projection != previous.projection {
+            RepaintScope::Projection
+        } else {
+            RepaintScope::PaintOnly
+        }
     }
 }
 
