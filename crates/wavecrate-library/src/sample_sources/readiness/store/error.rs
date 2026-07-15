@@ -46,6 +46,26 @@ pub enum ReadinessError {
         /// Current persisted generation.
         current: i64,
     },
+    /// A caller attempted to replace desired state using an already-consumed publication revision.
+    #[error("Stale readiness revision {attempted} for {source_id}; current revision is {current}")]
+    StaleReadinessRevision {
+        /// Source identity.
+        source_id: String,
+        /// Revision supplied by the caller.
+        attempted: i64,
+        /// Current persisted revision.
+        current: i64,
+    },
+    /// A target or artifact omitted its exact content or membership generation.
+    #[error("Readiness generation must be non-empty for {source_id}:{scope_id}:{stage:?}")]
+    InvalidContentGeneration {
+        /// Source identity.
+        source_id: String,
+        /// File or source scope identity.
+        scope_id: String,
+        /// Readiness stage requiring the generation.
+        stage: ReadinessStage,
+    },
     /// No desired readiness state has been published for the source.
     #[error("No readiness state exists for source {0}")]
     UnknownSource(String),

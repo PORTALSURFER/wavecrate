@@ -13,41 +13,51 @@ pub fn replace_readiness_targets(
     connection: &mut Connection,
     source_id: &str,
     source_generation: i64,
+    readiness_revision: i64,
     availability: SourceAvailability,
     targets: &[ReadinessTarget],
     updated_at: i64,
 ) -> Result<(), ReadinessError> {
     validate_targets(source_id, source_generation, targets)?;
     let tx = connection.transaction()?;
-    let current_generation = tx
+    let current_state = tx
         .query_row(
-            "SELECT source_generation
+            "SELECT source_generation, readiness_revision
              FROM source_readiness_sources
              WHERE source_id = ?1",
             [source_id],
-            |row| row.get::<_, i64>(0),
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
         )
         .optional()?;
-    if let Some(current) = current_generation
-        && source_generation < current
-    {
-        return Err(ReadinessError::StaleSourceGeneration {
-            source_id: source_id.to_string(),
-            attempted: source_generation,
-            current,
-        });
+    if let Some((current_generation, current_revision)) = current_state {
+        if source_generation < current_generation {
+            return Err(ReadinessError::StaleSourceGeneration {
+                source_id: source_id.to_string(),
+                attempted: source_generation,
+                current: current_generation,
+            });
+        }
+        if readiness_revision <= current_revision {
+            return Err(ReadinessError::StaleReadinessRevision {
+                source_id: source_id.to_string(),
+                attempted: readiness_revision,
+                current: current_revision,
+            });
+        }
     }
     tx.execute(
         "INSERT INTO source_readiness_sources (
-            source_id, source_generation, availability, updated_at
-         ) VALUES (?1, ?2, ?3, ?4)
+            source_id, source_generation, readiness_revision, availability, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(source_id) DO UPDATE SET
             source_generation = excluded.source_generation,
+            readiness_revision = excluded.readiness_revision,
             availability = excluded.availability,
             updated_at = excluded.updated_at",
         params![
             source_id,
             source_generation,
+            readiness_revision,
             availability.as_str(),
             updated_at
         ],
@@ -68,6 +78,13 @@ pub fn publish_readiness_artifact(
     connection: &mut Connection,
     artifact: &ReadinessArtifact,
 ) -> Result<ArtifactPublishOutcome, ReadinessError> {
+    if artifact.content_generation.trim().is_empty() {
+        return Err(ReadinessError::InvalidContentGeneration {
+            source_id: artifact.source_id.clone(),
+            scope_id: artifact.scope_id.clone(),
+            stage: artifact.stage,
+        });
+    }
     let tx = connection.transaction()?;
     let is_current = tx.query_row(
         "SELECT EXISTS(
@@ -273,6 +290,13 @@ fn validate_targets(
             return Err(ReadinessError::TargetGenerationMismatch {
                 source_id: source_id.to_string(),
                 generation: source_generation,
+            });
+        }
+        if target.content_generation.trim().is_empty() {
+            return Err(ReadinessError::InvalidContentGeneration {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
             });
         }
         if !keys.insert(target.key()) {

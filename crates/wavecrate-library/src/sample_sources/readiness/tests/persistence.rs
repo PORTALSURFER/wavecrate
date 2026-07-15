@@ -51,6 +51,7 @@ fn target_replacement_is_failure_atomic() {
             &mut connection,
             SOURCE_ID,
             2,
+            2,
             SourceAvailability::Active,
             &[broken],
             2,
@@ -62,6 +63,110 @@ fn target_replacement_is_failure_atomic() {
     assert_eq!(snapshot.source_generation, 1);
     assert_eq!(snapshot.entries.len(), 1);
     assert_eq!(snapshot.entries[0].target.scope_id, "original");
+}
+
+#[test]
+fn stale_same_generation_publication_cannot_reactivate_disabled_source() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("guarded", ReadinessStage::PlaybackSummary, 1);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        std::slice::from_ref(&target),
+        10,
+    )
+    .expect("publish active state");
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        2,
+        SourceAvailability::Disabled,
+        std::slice::from_ref(&target),
+        11,
+    )
+    .expect("disable source");
+
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[target],
+        12,
+    )
+    .expect_err("reject stale active publication");
+    assert!(matches!(
+        error,
+        ReadinessError::StaleReadinessRevision {
+            attempted: 1,
+            current: 2,
+            ..
+        }
+    ));
+
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 13).expect("disabled snapshot");
+    assert_eq!(snapshot.readiness_revision, 2);
+    assert_eq!(snapshot.availability, SourceAvailability::Disabled);
+    assert!(snapshot.deficits.is_empty());
+}
+
+#[test]
+fn empty_content_generations_are_rejected_before_persistence() {
+    let (_root, mut connection) = open_fixture();
+    let mut invalid_target = file_target("invalid", ReadinessStage::AnalysisFeatures, 1);
+    invalid_target.content_generation.clear();
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[invalid_target],
+        10,
+    )
+    .expect_err("reject empty target generation");
+    assert!(matches!(
+        error,
+        ReadinessError::InvalidContentGeneration { .. }
+    ));
+    assert!(
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 ) VALUES (?1, 'file', 'raw-invalid', 'raw.wav', 'analysis_features',
+                           'v1', 1, NULL, 'eligible', 10)",
+                [SOURCE_ID],
+            )
+            .is_err(),
+        "schema must reject a NULL readiness generation"
+    );
+
+    let target = file_target("valid", ReadinessStage::AnalysisFeatures, 1);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        std::slice::from_ref(&target),
+        11,
+    )
+    .expect("publish valid target");
+    let mut invalid_artifact = ReadinessArtifact::for_target(&target, 12);
+    invalid_artifact.content_generation.clear();
+    let error = publish_readiness_artifact(&mut connection, &invalid_artifact)
+        .expect_err("reject empty artifact generation");
+    assert!(matches!(
+        error,
+        ReadinessError::InvalidContentGeneration { .. }
+    ));
 }
 
 #[test]

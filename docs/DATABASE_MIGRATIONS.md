@@ -10,7 +10,7 @@ the old data can be interpreted safely.
 - Source databases live in each indexed source folder as `.wavecrate.db`.
   They own source-local file metadata, tags assigned to files in that source,
   ratings, curation state, scan status, pending rename records, file-operation
-  recovery state, versioned readiness targets/artifact completions, readiness-owned
+  recovery state, revision-fenced versioned readiness targets/artifact completions, readiness-owned
   job metadata, and source-local analysis/cache references.
 - The global library database lives under Wavecrate's app config directory as
   `library.db`. It owns configured source references and global analysis/cache

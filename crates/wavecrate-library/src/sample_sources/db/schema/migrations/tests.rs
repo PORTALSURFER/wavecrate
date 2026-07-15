@@ -150,7 +150,13 @@ fn readiness_schema_repairs_current_stamped_analysis_storage() {
             attempts INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             UNIQUE(sample_id, job_type)
-        );",
+        );
+        CREATE TABLE source_readiness_sources (
+            source_id TEXT PRIMARY KEY,
+            source_generation INTEGER NOT NULL,
+            availability TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        ) WITHOUT ROWID;",
     )
     .unwrap();
 
@@ -161,6 +167,8 @@ fn readiness_schema_repairs_current_stamped_analysis_storage() {
     assert!(job_columns.contains("readiness_managed"));
     assert!(job_columns.contains("source_generation"));
     assert!(job_columns.contains("lease_expires_at"));
+    let source_columns = table_columns(&conn, "source_readiness_sources").unwrap();
+    assert!(source_columns.contains("readiness_revision"));
     for table in [
         "source_readiness_sources",
         "source_readiness_targets",

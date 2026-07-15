@@ -90,6 +90,7 @@ fn source_level_similarity_requires_the_exact_membership_generation() {
         &mut connection,
         SOURCE_ID,
         7,
+        7,
         SourceAvailability::Active,
         std::slice::from_ref(&target),
         100,
@@ -97,7 +98,7 @@ fn source_level_similarity_requires_the_exact_membership_generation() {
     .unwrap();
 
     let mut stale = ReadinessArtifact::for_target(&target, 100);
-    stale.content_generation = Some("membership-v6".to_string());
+    stale.content_generation = "membership-v6".to_string();
     connection
         .execute(
             "INSERT INTO source_readiness_artifacts (
@@ -374,6 +375,7 @@ fn offline_and_unsupported_targets_remain_observable_without_work() {
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
+        1,
         1,
         SourceAvailability::Offline,
         std::slice::from_ref(&unsupported),

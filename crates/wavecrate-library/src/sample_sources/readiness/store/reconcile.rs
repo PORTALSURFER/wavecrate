@@ -23,13 +23,19 @@ pub fn reconcile_readiness(
     if !readiness_schema_available(connection)? {
         return Err(ReadinessError::SchemaUnavailable);
     }
-    let (source_generation, availability) = connection
+    let (source_generation, readiness_revision, availability) = connection
         .query_row(
-            "SELECT source_generation, availability
+            "SELECT source_generation, readiness_revision, availability
              FROM source_readiness_sources
              WHERE source_id = ?1",
             [source_id],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
         )
         .optional()?
         .ok_or_else(|| ReadinessError::UnknownSource(source_id.to_string()))?;
@@ -39,13 +45,17 @@ pub fn reconcile_readiness(
             value: availability,
         }
     })?;
+    let source_state = StoredSourceState {
+        generation: source_generation,
+        readiness_revision,
+        availability,
+    };
     let targets = load_targets(connection, source_id)?;
     let artifacts = load_artifacts(connection, source_id)?;
     let work = load_work(connection, source_id)?;
     Ok(build_snapshot(
         source_id,
-        source_generation,
-        availability,
+        source_state,
         targets,
         artifacts,
         work,
@@ -69,10 +79,17 @@ fn readiness_schema_available(connection: &Connection) -> Result<bool, rusqlite:
 }
 
 #[derive(Clone, Debug)]
+struct StoredSourceState {
+    generation: i64,
+    readiness_revision: i64,
+    availability: SourceAvailability,
+}
+
+#[derive(Clone, Debug)]
 struct StoredArtifact {
     artifact_version: String,
     source_generation: i64,
-    content_generation: Option<String>,
+    content_generation: String,
 }
 
 #[derive(Clone, Debug)]
@@ -187,8 +204,7 @@ fn load_work(
 
 fn build_snapshot(
     source_id: &str,
-    source_generation: i64,
-    availability: SourceAvailability,
+    source_state: StoredSourceState,
     targets: Vec<ReadinessTarget>,
     artifacts: BTreeMap<ReadinessKey, StoredArtifact>,
     work: BTreeMap<ReadinessKey, StoredWork>,
@@ -201,7 +217,7 @@ fn build_snapshot(
         let key = target.key();
         let classification = classify_target(
             &target,
-            availability,
+            source_state.availability,
             artifacts.get(&key),
             work.get(&key),
             now,
@@ -221,8 +237,9 @@ fn build_snapshot(
     let activity = resolve_activity(&entries, &deficits, now);
     ReadinessSnapshot {
         source_id: source_id.to_string(),
-        source_generation,
-        availability,
+        source_generation: source_state.generation,
+        readiness_revision: source_state.readiness_revision,
+        availability: source_state.availability,
         entries,
         deficits,
         stage_counts,
@@ -336,7 +353,7 @@ fn work_matches(target: &ReadinessTarget, work: &StoredWork) -> bool {
         && work.source_generation.is_some_and(|generation| {
             source_generation_matches(target.scope_kind, target.source_generation, generation)
         })
-        && work.content_generation == target.content_generation
+        && work.content_generation.as_deref() == Some(target.content_generation.as_str())
 }
 
 fn source_generation_matches(

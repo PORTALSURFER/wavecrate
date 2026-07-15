@@ -82,6 +82,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
     CREATE TABLE IF NOT EXISTS source_readiness_sources (
         source_id TEXT PRIMARY KEY,
         source_generation INTEGER NOT NULL,
+        readiness_revision INTEGER NOT NULL,
         availability TEXT NOT NULL,
         updated_at INTEGER NOT NULL
     ) WITHOUT ROWID;
@@ -93,7 +94,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         stage TEXT NOT NULL,
         required_version TEXT NOT NULL,
         source_generation INTEGER NOT NULL,
-        content_generation TEXT,
+        content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
         eligibility TEXT NOT NULL,
         updated_at INTEGER NOT NULL,
         PRIMARY KEY (source_id, scope_kind, scope_id, stage)
@@ -105,7 +106,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         stage TEXT NOT NULL,
         artifact_version TEXT NOT NULL,
         source_generation INTEGER NOT NULL,
-        content_generation TEXT,
+        content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
         completed_at INTEGER NOT NULL,
         PRIMARY KEY (source_id, scope_kind, scope_id, stage)
     ) WITHOUT ROWID;

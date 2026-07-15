@@ -31,6 +31,7 @@ fn replace(connection: &mut Connection, generation: i64, targets: &[ReadinessTar
         connection,
         SOURCE_ID,
         generation,
+        generation + 100,
         SourceAvailability::Active,
         targets,
         100,

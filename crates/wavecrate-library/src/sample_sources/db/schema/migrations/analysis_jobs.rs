@@ -73,6 +73,7 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
             "CREATE TABLE IF NOT EXISTS source_readiness_sources (
                 source_id TEXT PRIMARY KEY,
                 source_generation INTEGER NOT NULL,
+                readiness_revision INTEGER NOT NULL,
                 availability TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
             ) WITHOUT ROWID;
@@ -84,7 +85,7 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 stage TEXT NOT NULL,
                 required_version TEXT NOT NULL,
                 source_generation INTEGER NOT NULL,
-                content_generation TEXT,
+                content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
                 eligibility TEXT NOT NULL,
                 updated_at INTEGER NOT NULL,
                 PRIMARY KEY (source_id, scope_kind, scope_id, stage)
@@ -96,7 +97,7 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 stage TEXT NOT NULL,
                 artifact_version TEXT NOT NULL,
                 source_generation INTEGER NOT NULL,
-                content_generation TEXT,
+                content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
                 completed_at INTEGER NOT NULL,
                 PRIMARY KEY (source_id, scope_kind, scope_id, stage)
             ) WITHOUT ROWID;
@@ -114,6 +115,16 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 ON source_readiness_artifacts (source_id, source_generation, stage);",
         )
         .map_err(map_sql_error)?;
+    let source_columns = table_columns(connection, "source_readiness_sources")?;
+    if !source_columns.contains("readiness_revision") {
+        connection
+            .execute(
+                "ALTER TABLE source_readiness_sources
+                 ADD COLUMN readiness_revision INTEGER NOT NULL DEFAULT 0",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
     Ok(())
 }
 

@@ -116,6 +116,8 @@ pub struct ReadinessSnapshot {
     pub source_id: String,
     /// Current committed source generation.
     pub source_generation: i64,
+    /// Monotonic desired-state publication revision used to fence concurrent writers.
+    pub readiness_revision: i64,
     /// Durable source availability.
     pub availability: SourceAvailability,
     /// Every desired target with its authoritative classification.

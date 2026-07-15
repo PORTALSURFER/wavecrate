@@ -150,8 +150,8 @@ pub struct ReadinessTarget {
     pub required_version: String,
     /// Committed source-manifest generation that owns this target.
     pub source_generation: i64,
-    /// Content generation for file-scoped work, or membership generation for source work.
-    pub content_generation: Option<String>,
+    /// Non-empty content generation for file-scoped work, or membership generation for source work.
+    pub content_generation: String,
     /// Whether this target may produce actionable work.
     pub eligibility: ReadinessEligibility,
 }
@@ -175,7 +175,7 @@ impl ReadinessTarget {
             stage,
             required_version: required_version.into(),
             source_generation,
-            content_generation: Some(content_generation.into()),
+            content_generation: content_generation.into(),
             eligibility: ReadinessEligibility::Eligible,
         }
     }
@@ -197,7 +197,7 @@ impl ReadinessTarget {
             stage,
             required_version: required_version.into(),
             source_generation,
-            content_generation: Some(membership_generation.into()),
+            content_generation: membership_generation.into(),
             eligibility: ReadinessEligibility::Eligible,
         }
     }
@@ -233,8 +233,8 @@ pub struct ReadinessArtifact {
     pub artifact_version: String,
     /// Source generation captured by the work.
     pub source_generation: i64,
-    /// File content or source membership generation captured by the work.
-    pub content_generation: Option<String>,
+    /// Non-empty file content or source membership generation captured by the work.
+    pub content_generation: String,
     /// Completion timestamp used for diagnostics only.
     pub completed_at: i64,
 }
