@@ -170,6 +170,64 @@ fn empty_content_generations_are_rejected_before_persistence() {
 }
 
 #[test]
+fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("inactive", ReadinessStage::PlaybackSummary, 1);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        std::slice::from_ref(&target),
+        10,
+    )
+    .expect("publish active target");
+    let active_snapshot = reconcile_readiness(&connection, SOURCE_ID, 11).expect("active snapshot");
+
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        2,
+        SourceAvailability::Disabled,
+        std::slice::from_ref(&target),
+        12,
+    )
+    .expect("disable source");
+    assert_eq!(
+        persist_readiness_deficits(&mut connection, &active_snapshot.deficits, 13)
+            .expect("ignore disabled deficit"),
+        0
+    );
+
+    let deleted = target.with_eligibility(ReadinessEligibility::Deleted);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        3,
+        SourceAvailability::Active,
+        &[deleted],
+        14,
+    )
+    .expect("publish deleted target");
+    assert_eq!(
+        persist_readiness_deficits(&mut connection, &active_snapshot.deficits, 15)
+            .expect("ignore deleted deficit"),
+        0
+    );
+    let jobs: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 1",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count readiness work");
+    assert_eq!(jobs, 0);
+}
+
+#[test]
 fn read_only_reconciliation_never_enqueues_work() {
     let (root, mut connection) = open_fixture();
     let target = file_target("read-only", ReadinessStage::PlaybackSummary, 1);

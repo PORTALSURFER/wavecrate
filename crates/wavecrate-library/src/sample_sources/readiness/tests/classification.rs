@@ -241,6 +241,63 @@ fn overlapping_manifest_snapshots_preserve_unchanged_file_lease() {
 }
 
 #[test]
+fn stale_content_deficit_cannot_reset_newer_running_work() {
+    let (_root, mut connection) = open_fixture();
+    let original = file_target("changed", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&original));
+    let stale_snapshot = reconcile_readiness(&connection, SOURCE_ID, 10).expect("stale snapshot");
+
+    let current = file_target("changed", ReadinessStage::PlaybackSummary, 2);
+    replace(&mut connection, 2, std::slice::from_ref(&current));
+    let current_snapshot =
+        reconcile_readiness(&connection, SOURCE_ID, 11).expect("current snapshot");
+    persist_readiness_deficits(&mut connection, &current_snapshot.deficits, 11)
+        .expect("persist current deficit");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'running', running_at = 12, lease_expires_at = 50
+             WHERE readiness_managed = 1",
+            [],
+        )
+        .expect("claim current work");
+
+    assert_eq!(
+        persist_readiness_deficits(&mut connection, &stale_snapshot.deficits, 20)
+            .expect("ignore stale deficit"),
+        0
+    );
+    let state: (
+        String,
+        Option<i64>,
+        Option<i64>,
+        Option<i64>,
+        Option<String>,
+    ) = connection
+        .query_row(
+            "SELECT status, source_generation, running_at, lease_expires_at, content_generation
+             FROM analysis_jobs
+             WHERE readiness_managed = 1",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .expect("read current work");
+    assert_eq!(state.0, "running");
+    assert_eq!(state.1, Some(2));
+    assert_eq!(state.2, Some(12));
+    assert_eq!(state.3, Some(50));
+    assert_eq!(state.4.as_deref(), Some("content-changed-2"));
+}
+
+#[test]
 fn running_lease_expiry_becomes_an_actionable_retry() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("leased", ReadinessStage::PlaybackSummary, 2);

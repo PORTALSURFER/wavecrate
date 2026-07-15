@@ -171,14 +171,57 @@ pub fn persist_readiness_deficits(
         )) {
             continue;
         }
-        let sample_id = match target.scope_kind {
-            ReadinessScopeKind::File => target.scope_id.clone(),
-            ReadinessScopeKind::Source => format!("{}::__source__", target.source_id),
+        let Some(current_target) = current_actionable_target(&tx, target)? else {
+            continue;
         };
-        changed += persist_deficit(&tx, target, &sample_id, created_at)?;
+        let sample_id = match current_target.scope_kind {
+            ReadinessScopeKind::File => current_target.scope_id.clone(),
+            ReadinessScopeKind::Source => format!("{}::__source__", current_target.source_id),
+        };
+        changed += persist_deficit(&tx, &current_target, &sample_id, created_at)?;
     }
     tx.commit()?;
     Ok(changed)
+}
+
+fn current_actionable_target(
+    tx: &Transaction<'_>,
+    target: &ReadinessTarget,
+) -> Result<Option<ReadinessTarget>, rusqlite::Error> {
+    let current = tx
+        .query_row(
+            "SELECT current.relative_path, current.source_generation
+            FROM source_readiness_sources AS source
+            JOIN source_readiness_targets AS current
+              ON current.source_id = source.source_id
+            WHERE current.source_id = ?1
+              AND current.scope_kind = ?2
+              AND current.scope_id = ?3
+              AND current.stage = ?4
+              AND current.required_version = ?5
+              AND current.content_generation = ?6
+              AND current.eligibility = 'eligible'
+              AND source.availability = 'active'
+              AND source.source_generation = current.source_generation
+              AND (?2 = 'file' OR current.source_generation = ?7)",
+            params![
+                target.source_id,
+                target.scope_kind.as_str(),
+                target.scope_id,
+                target.stage.as_str(),
+                target.required_version,
+                target.content_generation,
+                target.source_generation,
+            ],
+            |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()?;
+    Ok(current.map(|(relative_path, source_generation)| {
+        let mut current_target = target.clone();
+        current_target.relative_path = relative_path;
+        current_target.source_generation = source_generation;
+        current_target
+    }))
 }
 
 fn persist_deficit(
