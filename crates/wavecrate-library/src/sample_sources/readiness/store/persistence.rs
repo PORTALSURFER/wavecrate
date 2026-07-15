@@ -47,6 +47,7 @@ pub fn replace_readiness_targets(
             });
         }
     }
+    validate_manifest_membership(&tx, targets)?;
     tx.execute(
         "INSERT INTO source_readiness_sources (
             source_id, source_generation, readiness_revision, availability, updated_at
@@ -575,6 +576,46 @@ fn validate_targets(
         });
     }
     Ok(())
+}
+
+fn validate_manifest_membership(
+    tx: &Transaction<'_>,
+    targets: &[ReadinessTarget],
+) -> Result<(), ReadinessError> {
+    let desired = targets
+        .iter()
+        .filter(|target| {
+            target.scope_kind == ReadinessScopeKind::File
+                && target.stage == ReadinessStage::IndexedIdentity
+                && target.eligibility != super::super::model::ReadinessEligibility::Deleted
+        })
+        .map(|target| target.scope_id.clone())
+        .collect::<BTreeSet<_>>();
+    let filter = crate::sample_sources::supported_audio_where_clause();
+    let mut statement = tx.prepare(&format!(
+        "SELECT path, file_identity
+         FROM wav_files
+         WHERE missing = 0 AND {filter}
+         ORDER BY path"
+    ))?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+    })?;
+    let mut manifest = BTreeSet::new();
+    for row in rows {
+        let (path, identity) = row?;
+        let Some(identity) = identity.filter(|identity| !identity.trim().is_empty()) else {
+            return Err(ReadinessError::ManifestIdentityUnavailable { path });
+        };
+        manifest.insert(identity);
+    }
+    if manifest == desired {
+        return Ok(());
+    }
+    Err(ReadinessError::ManifestMembershipMismatch {
+        missing: manifest.difference(&desired).cloned().collect(),
+        unexpected: desired.difference(&manifest).cloned().collect(),
+    })
 }
 
 fn insert_target(

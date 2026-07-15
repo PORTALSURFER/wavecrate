@@ -116,6 +116,20 @@ pub enum ReadinessError {
         /// Required stage missing from the publication.
         stage: ReadinessStage,
     },
+    /// The desired file identities did not exactly match the committed source manifest.
+    #[error("Readiness identities do not match the current source manifest")]
+    ManifestMembershipMismatch {
+        /// Current manifest identities omitted from desired readiness state.
+        missing: Vec<String>,
+        /// Desired identities absent from the current manifest.
+        unexpected: Vec<String>,
+    },
+    /// A current supported manifest row did not yet have a stable file identity.
+    #[error("Current source file has no stable identity: {path}")]
+    ManifestIdentityUnavailable {
+        /// Source-relative manifest path lacking an identity.
+        path: String,
+    },
     /// No desired readiness state has been published for the source.
     #[error("No readiness state exists for source {0}")]
     UnknownSource(String),

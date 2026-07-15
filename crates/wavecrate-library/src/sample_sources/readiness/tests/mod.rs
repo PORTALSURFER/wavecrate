@@ -50,7 +50,11 @@ fn complete_targets(generation: i64, targets: &[ReadinessTarget]) -> Vec<Readine
             let mut terminal = seed.clone();
             terminal.stage = stage;
             terminal.required_version = "test-unsupported-v1".to_string();
-            terminal.eligibility = ReadinessEligibility::Unsupported;
+            terminal.eligibility = if seed.eligibility == ReadinessEligibility::Deleted {
+                ReadinessEligibility::Deleted
+            } else {
+                ReadinessEligibility::Unsupported
+            };
             complete.push(terminal);
         }
     }
@@ -72,8 +76,33 @@ fn complete_targets(generation: i64, targets: &[ReadinessTarget]) -> Vec<Readine
     complete
 }
 
+fn sync_manifest(connection: &Connection, targets: &[ReadinessTarget]) {
+    connection
+        .execute("DELETE FROM wav_files", [])
+        .expect("clear test manifest");
+    let mut identities = std::collections::BTreeSet::new();
+    for target in targets.iter().filter(|target| {
+        target.scope_kind == ReadinessScopeKind::File
+            && target.stage == ReadinessStage::IndexedIdentity
+            && target.eligibility != ReadinessEligibility::Deleted
+    }) {
+        if !identities.insert(target.scope_id.clone()) {
+            continue;
+        }
+        connection
+            .execute(
+                "INSERT INTO wav_files (
+                    path, file_size, modified_ns, extension, missing, file_identity
+                 ) VALUES (?1, 1, 1, 'wav', 0, ?2)",
+                rusqlite::params![target.relative_path, target.scope_id],
+            )
+            .expect("seed test manifest identity");
+    }
+}
+
 fn replace(connection: &mut Connection, generation: i64, targets: &[ReadinessTarget]) {
     let targets = complete_targets(generation, targets);
+    sync_manifest(connection, &targets);
     replace_readiness_targets(
         connection,
         SOURCE_ID,

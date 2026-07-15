@@ -46,6 +46,7 @@ fn target_replacement_is_failure_atomic() {
         .expect("create failure trigger");
     let broken = file_target("broken", ReadinessStage::IndexedIdentity, 2);
     let broken_targets = complete_targets(2, std::slice::from_ref(&broken));
+    sync_manifest(&connection, &broken_targets);
 
     assert!(
         replace_readiness_targets(
@@ -73,6 +74,7 @@ fn stale_same_generation_publication_cannot_reactivate_disabled_source() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("guarded", ReadinessStage::PlaybackSummary, 1);
     let complete = complete_targets(1, std::slice::from_ref(&target));
+    sync_manifest(&connection, &complete);
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
@@ -154,6 +156,7 @@ fn empty_content_generations_are_rejected_before_persistence() {
 
     let target = file_target("valid", ReadinessStage::AnalysisFeatures, 1);
     let complete = complete_targets(1, std::slice::from_ref(&target));
+    sync_manifest(&connection, &complete);
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
@@ -210,6 +213,7 @@ fn empty_artifact_versions_are_rejected_before_persistence() {
 
     let target = file_target("valid-version", ReadinessStage::AnalysisFeatures, 1);
     let complete = complete_targets(1, std::slice::from_ref(&target));
+    sync_manifest(&connection, &complete);
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
@@ -416,10 +420,37 @@ fn incomplete_target_matrices_are_rejected() {
 }
 
 #[test]
+fn desired_targets_must_cover_every_current_manifest_identity() {
+    let (_root, mut connection) = open_fixture();
+    let included = file_target("included", ReadinessStage::IndexedIdentity, 1);
+    let omitted = file_target("omitted", ReadinessStage::IndexedIdentity, 1);
+    let full_manifest = complete_targets(1, &[included.clone(), omitted]);
+    sync_manifest(&connection, &full_manifest);
+    let incomplete = complete_targets(1, &[included]);
+
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &incomplete,
+        10,
+    )
+    .expect_err("reject omitted current file identity");
+    assert!(matches!(
+        error,
+        ReadinessError::ManifestMembershipMismatch { missing, unexpected }
+            if missing == ["omitted"] && unexpected.is_empty()
+    ));
+}
+
+#[test]
 fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("inactive", ReadinessStage::PlaybackSummary, 1);
     let complete = complete_targets(1, std::slice::from_ref(&target));
+    sync_manifest(&connection, &complete);
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
@@ -449,13 +480,15 @@ fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
     );
 
     let deleted = target.with_eligibility(ReadinessEligibility::Deleted);
+    let deleted_targets = complete_targets(1, &[deleted]);
+    sync_manifest(&connection, &deleted_targets);
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
         1,
         3,
         SourceAvailability::Active,
-        &complete_targets(1, &[deleted]),
+        &deleted_targets,
         14,
     )
     .expect("publish deleted target");

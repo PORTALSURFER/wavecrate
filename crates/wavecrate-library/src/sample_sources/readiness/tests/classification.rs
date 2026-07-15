@@ -521,6 +521,7 @@ fn offline_and_unsupported_targets_remain_observable_without_work() {
     let unsupported = file_target("unsupported", ReadinessStage::AnalysisFeatures, 1)
         .with_eligibility(ReadinessEligibility::Unsupported);
     let complete = complete_targets(1, std::slice::from_ref(&unsupported));
+    sync_manifest(&connection, &complete);
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
