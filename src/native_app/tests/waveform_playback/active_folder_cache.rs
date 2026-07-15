@@ -1041,10 +1041,10 @@ fn running_active_folder_cache_warm_pause_for_playback_clears_progress_immediate
         "playback pause should abandon deferred source-cache work immediately"
     );
 
-    let before = state.frame_repaint_scope_before_update();
+    let before = state.capture_frame_surface_revisions();
     state.advance_frame(&mut ui::UiUpdateContext::default());
     assert!(
-        state.frame_can_use_paint_only(before),
+        state.frame_can_use_paint_only_since(before),
         "a cancelled running source-cache warm must not force playback surface frames"
     );
 

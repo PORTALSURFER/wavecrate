@@ -65,6 +65,7 @@ impl NativeAppState {
             audio,
             transactions: Default::default(),
             metadata: MetadataAppState::from_settings(&config.core),
+            frame_surface_revision_tracker: Default::default(),
             playhead_frame_diagnostics: Default::default(),
         };
         emit_gui_action(

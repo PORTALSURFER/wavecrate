@@ -27,6 +27,7 @@ pub(in crate::native_app) use planner::{
 pub(in crate::native_app) use policy::{
     TaggedPlaybackMode, tagged_playback_mode_for_tag, tagged_playback_mode_for_tags,
 };
+pub(in crate::native_app) use progress::FrameSurfaceRevisionTracker;
 pub(in crate::native_app) use random_audition::RandomAuditionUnits;
 #[cfg(test)]
 pub(in crate::native_app) use random_audition::{
