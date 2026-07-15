@@ -23,10 +23,7 @@ fn frame_clock() -> ui::FrameClock<NativeAppState, GuiMessage> {
         .fps_with(|state: &mut NativeAppState| {
             (!state.playback_visual_activity_active()).then_some(APP_FRAME_CLOCK_FPS)
         })
-        .repaint_scope(
-            |state: &mut NativeAppState| state.frame_repaint_scope_before_update(),
-            |state, scope| state.frame_can_use_paint_only(scope),
-        )
+        .surface_revisions(|state: &mut NativeAppState| state.frame_surface_revisions())
 }
 
 fn app_transient_overlay() -> ui::TransientOverlay<NativeAppState> {

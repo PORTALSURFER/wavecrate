@@ -54,6 +54,8 @@ pub(in crate::native_app) struct NativeAppState {
     pub(in crate::native_app) audio: AudioAppState,
     pub(in crate::native_app) transactions: TransactionState,
     pub(in crate::native_app) metadata: MetadataAppState,
+    pub(in crate::native_app) frame_surface_revision_tracker:
+        crate::native_app::audio::playback::FrameSurfaceRevisionTracker,
     pub(in crate::native_app) playhead_frame_diagnostics:
         crate::native_app::audio::playback::PlayheadFrameDiagnosticsState,
 }

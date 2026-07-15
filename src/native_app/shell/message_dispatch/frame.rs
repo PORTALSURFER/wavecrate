@@ -23,10 +23,12 @@ struct FrameDispatchProfile {
 
 impl NativeAppState {
     pub(super) fn apply_frame_message(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        let revision_guard = self.begin_frame_surface_revision_tracking();
         if self.playback_visual_activity_active() {
             self.pause_background_work_for_playback_frame();
             self.flush_pending_play_selection_playback_retarget();
             self.advance_frame(context);
+            self.finish_frame_surface_revision_tracking(revision_guard);
             return;
         }
         if !super::ui_message_diagnostics_enabled() {
@@ -42,6 +44,7 @@ impl NativeAppState {
             self.maybe_start_preview_audition_warm(context);
             self.flush_pending_play_selection_playback_retarget();
             self.advance_frame(context);
+            self.finish_frame_surface_revision_tracking(revision_guard);
             return;
         }
         let total_started_at = Instant::now();
@@ -68,6 +71,7 @@ impl NativeAppState {
             measure_frame_phase(|| self.flush_pending_play_selection_playback_retarget());
         profile.advance_frame_ms = measure_frame_phase(|| self.advance_frame(context));
         self.log_slow_frame_dispatch_profile(total_started_at.elapsed(), &profile);
+        self.finish_frame_surface_revision_tracking(revision_guard);
     }
 
     fn maybe_install_application_icon(&mut self) {
