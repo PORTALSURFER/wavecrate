@@ -310,6 +310,28 @@ Cache payloads should live under the global `.wavecrate` folder in the current t
 
 Browser row cache-ready indicators should mean a sample can be auditioned without fresh source decoding. Playback-ready sidecars qualify, and large WAV summary caches qualify when playback can stream from the original file, but source-prep markers alone must not reuse that visual state.
 
+### Durable Source Readiness and Convergence
+
+Every enabled, available source should converge automatically in background work after application startup, a committed source scan, a committed file-watch reconciliation, an internal file mutation, an artifact-contract version change, or a due retry. Normal correctness must not depend on selecting a source or folder, opening similarity, pressing Process/Refresh, or visiting a row. Explicit Process, Refresh, rebuild, and retry actions may remain as repair or priority controls, but they are not the source of truth for whether work is required.
+
+The source-local database is the authoritative durable coordination boundary. It should store desired versioned readiness targets, exact artifact completion generations, source availability, and readiness-owned work metadata. Readiness work must reuse the existing source-local persistent analysis/job storage rather than introducing an unrelated queue format. App-global cache payloads may remain app-global, but their source/file identity, artifact version, and completion generation must be projected into the source readiness contract.
+
+For every current eligible file, the readiness stages are:
+
+1. the committed source index contains the current file identity and content generation;
+2. a bounded playback descriptor plus compact waveform/summary artifact is current, without requiring decoded PCM to remain resident for every file;
+3. the required analysis feature version is current;
+4. the required embedding model and aspect-descriptor version are current; and
+5. the source-level similarity membership, ANN/index, layout, and cluster generation covers exactly the current eligible identities.
+
+Each target and completion must carry the committed source generation, the file content generation or source-membership generation, and the stage's artifact-contract version. A late completion may publish only when all of those values still match the current desired target. Timestamps, total row counts, source-prep markers, or the existence of some artifacts are diagnostic inputs only; they must never make a source look ready when a current eligible identity lacks an exact artifact or when stale/deleted identities are still the only covered rows.
+
+The readiness classifier must distinguish current, pending, running with a lease, retryable failure with a retry deadline, permanent failure, unsupported terminal state, offline, disabled, deleted, and stale-by-generation. Unsupported, deleted, and permanent-failure targets remain observable but do not spin. Offline and disabled sources retain desired state without being scheduled until they become active and available. Expired leases and due retryable failures become actionable deficits after restart or worker interruption.
+
+One revision-aware reconciler owns source completeness. It compares the complete desired target set with persisted artifacts and readiness-owned work, deduplicates deficits by source, scope identity, stage, version, and generation, and exposes per-source/per-stage counts, current work, retry/failure state, and diagnostic generations. It must not report idle while an actionable deficit exists. Source completeness is computed from the exact current eligible identity set plus the current source-level target, never from row counts or timestamps alone.
+
+Detection and execution stay off UI, render, and latency-sensitive read paths. UI and read paths may observe a side-effect-free readiness snapshot and request priority, repair, or retry, but they must not discover a missing artifact by directly enqueueing hidden work. Lifecycle writers publish committed desired generations and wake the background coordinator only after their authoritative transaction succeeds.
+
 If a source database is missing, corrupt, locked, or unreadable, Wavecrate should keep the user's audio files untouched, report the source database problem clearly, and offer repair/rebuild/reindex options where safe.
 
 ## Audio Format and Channel Target
@@ -2586,26 +2608,13 @@ Durability rules:
 3. reconcile by checking filesystem state again instead of trusting the journal blindly
 4. prefer data preservation when observed state is ambiguous
 
-### Analysis Enqueue Triggers
+### Analysis and Readiness Triggers
 
-`src/app/controller/library/analysis_backfill.rs` owns the explicit controller contract for scheduling analysis work.
+`src/app/controller/library/analysis_backfill.rs` owns explicit controller analysis requests, while the durable source-readiness reconciler owns automatic lifecycle catch-up. Sample addition, destructive audio-content edits, user-requested reanalysis, and explicit similarity repair may still request analysis directly through the controller boundary.
 
-Allowed enqueue reasons:
+Committed scan completion, watcher/auto-sync reconciliation, internal rename/move/edit completion, deferred maintenance, startup catch-up, and artifact-version changes must publish or refresh desired readiness and wake the coordinator. A wakeup is not permission to recompute every artifact: the reconciler compares exact identity, version, and generation state and emits only real deficits. A path-only rename may require playback/cache ownership repair while leaving content-derived analysis current.
 
-* sample added to a source
-* destructive audio-content edit
-* user-requested reanalysis
-* explicit similarity-prep bootstrap
-
-Forbidden implicit reasons:
-
-* scan completion
-* watcher or auto-sync follow-up
-* deferred maintenance or startup catch-up
-* rename or move without audio-byte changes
-* similarity browsing or read-path resolution
-
-When analysis-trigger behavior changes, update this contract and route controller call sites through that module instead of adding a new direct enqueue path.
+Similarity browsing, row rendering, source selection, folder activation, status reads, and other UI/read-path resolution must not enqueue work directly. They may observe readiness and raise priority for already-authoritative deficits. When trigger behavior changes, update this contract and route lifecycle call sites through the coordinator rather than adding a hidden enqueue path.
 
 ### Folder-Delete Recovery
 

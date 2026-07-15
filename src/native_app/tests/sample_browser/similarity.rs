@@ -626,7 +626,8 @@ fn sample_browser_similarity_ignores_stale_score_results() {
 }
 
 #[test]
-fn automatic_source_prep_does_not_start_similarity_jobs() {
+/// Confirms source selection observes state without directly scheduling heavy work.
+fn source_selection_ui_path_does_not_directly_enqueue_heavy_readiness_work() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
     let drums = source_root.path().join("drums");
@@ -660,7 +661,7 @@ fn automatic_source_prep_does_not_start_similarity_jobs() {
 
     assert_eq!(
         state.library.similarity_prep.summary, None,
-        "automatic source prep should not show transient similarity prep footer text"
+        "the UI/read path should not show transient similarity prep footer text"
     );
     assert_eq!(state.waveform.cache.active_folder_warm_total, 0);
     assert!(
@@ -670,14 +671,14 @@ fn automatic_source_prep_does_not_start_similarity_jobs() {
             .active_folder_warm_plan_task
             .active()
             .is_none(),
-        "automatic source prep should not launch source-wide waveform cache warming"
+        "the UI/read path should not directly launch source-wide cache warming"
     );
 
     super::super::run_command_for_tests(&mut state, context.into_command());
 
     assert_ne!(
         state.ui.status.sample, "Similarity ready",
-        "automatic source prep should not leave ready text in the bottom status bar"
+        "the UI/read path should not claim convergence before the coordinator runs"
     );
     assert_eq!(
         source_jobs_by_status(source_root.path(), "wav_metadata_v1", "pending"),

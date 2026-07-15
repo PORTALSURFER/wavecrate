@@ -1,0 +1,320 @@
+use rusqlite::params;
+
+use super::*;
+
+#[test]
+fn readiness_classifies_missing_pending_current_and_stale_generations() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("one", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&target));
+
+    let missing = reconcile_readiness(&connection, SOURCE_ID, 100).expect("missing snapshot");
+    assert_eq!(missing.activity, ReadinessActivity::Actionable);
+    assert!(!missing.is_idle());
+    assert_eq!(missing.deficits.len(), 1);
+    assert_eq!(
+        missing.entries[0].classification,
+        ReadinessClassification::Pending
+    );
+
+    assert_eq!(
+        publish_readiness_artifact(
+            &mut connection,
+            &ReadinessArtifact::for_target(&target, 101)
+        )
+        .expect("publish current artifact"),
+        ArtifactPublishOutcome::Recorded
+    );
+    let current = reconcile_readiness(&connection, SOURCE_ID, 102).expect("current snapshot");
+    assert_eq!(
+        current.entries[0].classification,
+        ReadinessClassification::Current
+    );
+    assert!(current.is_idle());
+    assert!(current.is_fully_ready());
+
+    let changed = file_target("one", ReadinessStage::PlaybackSummary, 2);
+    replace(&mut connection, 2, std::slice::from_ref(&changed));
+    let stale = reconcile_readiness(&connection, SOURCE_ID, 103).expect("stale snapshot");
+    assert_eq!(
+        stale.entries[0].classification,
+        ReadinessClassification::StaleByGeneration
+    );
+    assert_eq!(stale.deficits.len(), 1);
+    assert!(!stale.is_idle());
+}
+
+#[test]
+fn equal_row_counts_cannot_hide_missing_current_identities() {
+    let (_root, mut connection) = open_fixture();
+    let targets = [
+        file_target("current-a", ReadinessStage::AnalysisFeatures, 4),
+        file_target("current-b", ReadinessStage::AnalysisFeatures, 4),
+    ];
+    replace(&mut connection, 4, &targets);
+    for obsolete in ["obsolete-a", "obsolete-b"] {
+        connection
+            .execute(
+                "INSERT INTO source_readiness_artifacts (
+                    source_id, scope_kind, scope_id, stage, artifact_version,
+                    source_generation, content_generation, completed_at
+                 ) VALUES (?1, 'file', ?2, 'analysis_features', 'v1', 4, ?3, 999)",
+                params![SOURCE_ID, obsolete, format!("content-{obsolete}-4")],
+            )
+            .expect("seed obsolete artifact");
+    }
+
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 1_000).expect("snapshot");
+
+    assert_eq!(snapshot.deficits.len(), 2);
+    assert!(
+        snapshot
+            .entries
+            .iter()
+            .all(|entry| entry.classification == ReadinessClassification::Pending)
+    );
+    assert!(!snapshot.is_fully_ready());
+}
+
+#[test]
+fn source_level_similarity_requires_the_exact_membership_generation() {
+    let (_root, mut connection) = open_fixture();
+    let target = ReadinessTarget::source(
+        SOURCE_ID,
+        ReadinessStage::SimilarityLayout,
+        "layout-v2",
+        7,
+        "membership-v7",
+    );
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        7,
+        SourceAvailability::Active,
+        std::slice::from_ref(&target),
+        100,
+    )
+    .unwrap();
+
+    let mut stale = ReadinessArtifact::for_target(&target, 100);
+    stale.content_generation = Some("membership-v6".to_string());
+    connection
+        .execute(
+            "INSERT INTO source_readiness_artifacts (
+                source_id, scope_kind, scope_id, stage, artifact_version,
+                source_generation, content_generation, completed_at
+             ) VALUES (?1, 'source', ?1, 'similarity_layout', ?2, ?3, ?4, ?5)",
+            params![
+                stale.source_id,
+                stale.artifact_version,
+                stale.source_generation,
+                stale.content_generation,
+                stale.completed_at
+            ],
+        )
+        .unwrap();
+
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 100).unwrap();
+    assert_eq!(
+        snapshot.entries[0].classification,
+        ReadinessClassification::StaleByGeneration
+    );
+    assert_eq!(snapshot.deficits.len(), 1);
+    assert!(!snapshot.is_fully_ready());
+}
+
+#[test]
+fn persisted_work_deduplicates_and_survives_restart() {
+    let (root, mut connection) = open_fixture();
+    let targets = [
+        file_target("a", ReadinessStage::AnalysisFeatures, 7),
+        file_target("b", ReadinessStage::EmbeddingAspects, 7),
+    ];
+    replace(&mut connection, 7, &targets);
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 20).expect("initial snapshot");
+    let mut duplicate_deficits = snapshot.deficits.clone();
+    duplicate_deficits.extend(snapshot.deficits.clone());
+
+    persist_readiness_deficits(&mut connection, &duplicate_deficits, 20).expect("persist deficits");
+    let count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 1",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count jobs");
+    assert_eq!(count, 2);
+    drop(connection);
+
+    let reopened = SourceDatabase::open_connection(root.path()).expect("reopen source db");
+    let restarted = reconcile_readiness(&reopened, SOURCE_ID, 21).expect("restart snapshot");
+    assert_eq!(restarted.source_generation, 7);
+    assert_eq!(restarted.deficits.len(), 2);
+    assert!(
+        restarted
+            .entries
+            .iter()
+            .all(|entry| entry.classification == ReadinessClassification::Pending)
+    );
+}
+
+#[test]
+fn running_lease_expiry_becomes_an_actionable_retry() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("leased", ReadinessStage::PlaybackSummary, 2);
+    replace(&mut connection, 2, std::slice::from_ref(&target));
+    let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("pending snapshot");
+    persist_readiness_deficits(&mut connection, &pending.deficits, 10).expect("persist work");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'running', running_at = 10, lease_expires_at = 50
+             WHERE readiness_managed = 1",
+            [],
+        )
+        .expect("claim work");
+
+    let running = reconcile_readiness(&connection, SOURCE_ID, 49).expect("running snapshot");
+    assert_eq!(running.activity, ReadinessActivity::Running);
+    assert_eq!(
+        running.entries[0].classification,
+        ReadinessClassification::Running {
+            lease_expires_at: 50
+        }
+    );
+    assert!(running.deficits.is_empty());
+
+    let expired = reconcile_readiness(&connection, SOURCE_ID, 50).expect("expired snapshot");
+    assert_eq!(expired.activity, ReadinessActivity::Actionable);
+    assert_eq!(expired.deficits.len(), 1);
+    assert_eq!(
+        expired.entries[0].classification,
+        ReadinessClassification::RetryableFailure {
+            retry_at: 50,
+            reason: "lease_expired".to_string(),
+        }
+    );
+
+    persist_readiness_deficits(&mut connection, &expired.deficits, 50)
+        .expect("persist expired lease deficit");
+    let (status, running_at, lease_expires_at): (String, Option<i64>, Option<i64>) = connection
+        .query_row(
+            "SELECT status, running_at, lease_expires_at
+             FROM analysis_jobs
+             WHERE readiness_managed = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read reclaimed lease");
+    assert_eq!(status, "pending");
+    assert_eq!(running_at, None);
+    assert_eq!(lease_expires_at, None);
+}
+
+#[test]
+fn future_retry_waits_and_terminal_states_do_not_spin() {
+    let (_root, mut connection) = open_fixture();
+    let targets = [
+        file_target("retry", ReadinessStage::AnalysisFeatures, 3),
+        file_target("permanent", ReadinessStage::AnalysisFeatures, 3),
+        file_target("unsupported", ReadinessStage::EmbeddingAspects, 3),
+        file_target("deleted", ReadinessStage::PlaybackSummary, 3)
+            .with_eligibility(ReadinessEligibility::Deleted),
+    ];
+    replace(&mut connection, 3, &targets);
+    let initial = reconcile_readiness(&connection, SOURCE_ID, 20).expect("initial snapshot");
+    persist_readiness_deficits(&mut connection, &initial.deficits, 20).expect("persist work");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'failed', failure_kind = 'retryable', retry_at = 40,
+                 last_error = 'database busy'
+             WHERE readiness_scope_id = 'retry'",
+            [],
+        )
+        .expect("seed retryable failure");
+    connection
+        .execute(
+            "UPDATE analysis_jobs SET status = 'failed', failure_kind = 'permanent',
+                 last_error = 'malformed audio' WHERE readiness_scope_id = 'permanent'",
+            [],
+        )
+        .expect("seed permanent failure");
+    connection
+        .execute(
+            "UPDATE analysis_jobs SET status = 'failed', failure_kind = 'unsupported',
+                 last_error = 'unsupported format' WHERE readiness_scope_id = 'unsupported'",
+            [],
+        )
+        .expect("seed unsupported failure");
+
+    let waiting = reconcile_readiness(&connection, SOURCE_ID, 30).expect("waiting snapshot");
+    assert_eq!(waiting.activity, ReadinessActivity::WaitingForRetry);
+    assert!(waiting.deficits.is_empty());
+    assert!(waiting.entries.iter().any(|entry| matches!(
+        entry.classification,
+        ReadinessClassification::PermanentFailure { .. }
+    )));
+    assert!(!waiting.is_converged());
+    assert!(!waiting.is_fully_ready());
+    assert!(waiting.entries.iter().any(|entry| {
+        entry.target.scope_id == "unsupported"
+            && entry.classification == ReadinessClassification::Unsupported
+    }));
+    assert!(waiting.entries.iter().any(|entry| {
+        entry.target.scope_id == "deleted"
+            && entry.classification == ReadinessClassification::Deleted
+    }));
+
+    let due = reconcile_readiness(&connection, SOURCE_ID, 40).expect("due snapshot");
+    assert_eq!(due.activity, ReadinessActivity::Actionable);
+    assert_eq!(due.deficits.len(), 1);
+    assert_eq!(due.deficits[0].target.scope_id, "retry");
+
+    connection
+        .execute(
+            "UPDATE analysis_jobs SET failure_kind = 'permanent', retry_at = NULL
+             WHERE readiness_scope_id = 'retry'",
+            [],
+        )
+        .expect("make final failure terminal");
+    let terminal = reconcile_readiness(&connection, SOURCE_ID, 41).expect("terminal snapshot");
+    assert_eq!(terminal.activity, ReadinessActivity::Idle);
+    assert!(terminal.deficits.is_empty());
+    assert!(terminal.is_converged());
+    assert!(!terminal.is_fully_ready());
+}
+
+#[test]
+fn offline_and_unsupported_targets_remain_observable_without_work() {
+    let (_root, mut connection) = open_fixture();
+    let unsupported = file_target("unsupported", ReadinessStage::AnalysisFeatures, 1)
+        .with_eligibility(ReadinessEligibility::Unsupported);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        SourceAvailability::Offline,
+        std::slice::from_ref(&unsupported),
+        1,
+    )
+    .expect("replace offline source");
+
+    let offline = reconcile_readiness(&connection, SOURCE_ID, 2).expect("offline snapshot");
+    assert_eq!(
+        offline.entries[0].classification,
+        ReadinessClassification::Offline
+    );
+    assert!(offline.deficits.is_empty());
+    assert!(offline.is_idle());
+    assert!(!offline.is_fully_ready());
+
+    replace(&mut connection, 1, &[unsupported]);
+    let active = reconcile_readiness(&connection, SOURCE_ID, 3).expect("active snapshot");
+    assert_eq!(
+        active.entries[0].classification,
+        ReadinessClassification::Unsupported
+    );
+    assert!(active.deficits.is_empty());
+    assert!(active.is_fully_ready());
+}

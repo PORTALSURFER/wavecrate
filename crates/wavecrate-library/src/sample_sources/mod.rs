@@ -8,6 +8,8 @@ mod audio_support;
 pub mod db;
 /// Global library database helpers.
 pub mod library;
+/// Durable source-readiness and convergence coordination contracts.
+pub mod readiness;
 
 pub use audio_support::{
     is_apple_double_sidecar, is_supported_audio, supported_audio_where_clause,

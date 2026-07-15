@@ -219,6 +219,7 @@ const SCHEMA_SQL: &str = "CREATE TABLE analysis_jobs (
         created_at INTEGER NOT NULL,
         running_at INTEGER,
         last_error TEXT,
+        readiness_managed INTEGER NOT NULL DEFAULT 0,
         UNIQUE(sample_id, job_type)
     );
     CREATE TABLE samples (

@@ -56,6 +56,16 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         created_at INTEGER NOT NULL,
         running_at INTEGER,
         last_error TEXT,
+        readiness_managed INTEGER NOT NULL DEFAULT 0,
+        readiness_scope_kind TEXT,
+        readiness_scope_id TEXT,
+        readiness_stage TEXT,
+        artifact_version TEXT,
+        source_generation INTEGER,
+        content_generation TEXT,
+        retry_at INTEGER,
+        failure_kind TEXT,
+        lease_expires_at INTEGER,
         UNIQUE(sample_id, job_type)
     );
     CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status_created_id
@@ -68,6 +78,36 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         running INTEGER NOT NULL DEFAULT 0,
         done INTEGER NOT NULL DEFAULT 0,
         failed INTEGER NOT NULL DEFAULT 0
+    ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS source_readiness_sources (
+        source_id TEXT PRIMARY KEY,
+        source_generation INTEGER NOT NULL,
+        availability TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+    ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS source_readiness_targets (
+        source_id TEXT NOT NULL,
+        scope_kind TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        relative_path TEXT,
+        stage TEXT NOT NULL,
+        required_version TEXT NOT NULL,
+        source_generation INTEGER NOT NULL,
+        content_generation TEXT,
+        eligibility TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (source_id, scope_kind, scope_id, stage)
+    ) WITHOUT ROWID;
+    CREATE TABLE IF NOT EXISTS source_readiness_artifacts (
+        source_id TEXT NOT NULL,
+        scope_kind TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        stage TEXT NOT NULL,
+        artifact_version TEXT NOT NULL,
+        source_generation INTEGER NOT NULL,
+        content_generation TEXT,
+        completed_at INTEGER NOT NULL,
+        PRIMARY KEY (source_id, scope_kind, scope_id, stage)
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS samples (
         sample_id TEXT PRIMARY KEY,
@@ -248,6 +288,18 @@ const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON analysis_jobs (job_type, relative_path, status);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_job_status
          ON analysis_jobs (job_type, status);
+     CREATE INDEX IF NOT EXISTS idx_analysis_jobs_readiness_state
+         ON analysis_jobs (
+             source_id,
+             readiness_managed,
+             readiness_stage,
+             status,
+             retry_at
+         );
+     CREATE INDEX IF NOT EXISTS idx_source_readiness_targets_generation
+         ON source_readiness_targets (source_id, source_generation, stage);
+     CREATE INDEX IF NOT EXISTS idx_source_readiness_artifacts_generation
+         ON source_readiness_artifacts (source_id, source_generation, stage);
      CREATE INDEX IF NOT EXISTS idx_file_ops_journal_stage
          ON file_ops_journal (stage);";
 

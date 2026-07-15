@@ -150,6 +150,39 @@ fn claim_next_job_marks_running_and_increments_attempts() {
 }
 
 #[test]
+/// Keeps readiness-owned rows reserved for the convergence supervisor.
+fn legacy_analysis_claimant_ignores_readiness_managed_work() {
+    let mut db = TestDb::new();
+    let jobs = vec![
+        ("s::legacy.wav".to_string(), "legacy-hash".to_string()),
+        ("s::readiness.wav".to_string(), "readiness-hash".to_string()),
+    ];
+    enqueue_jobs(&mut db.conn, &jobs, DEFAULT_JOB_TYPE, 123, "s").unwrap();
+    db.conn
+        .execute(
+            "UPDATE analysis_jobs
+             SET readiness_managed = 1
+             WHERE sample_id = 's::readiness.wav'",
+            [],
+        )
+        .unwrap();
+
+    let claimed = claim_next_jobs(&mut db.conn, Path::new("/tmp"), 10).unwrap();
+
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].sample_id, "s::legacy.wav");
+    let readiness_status: String = db
+        .conn
+        .query_row(
+            "SELECT status FROM analysis_jobs WHERE sample_id = 's::readiness.wav'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(readiness_status, "pending");
+}
+
+#[test]
 fn empty_claim_path_stays_quiet_in_debug_logs() {
     let mut db = TestDb::new();
 

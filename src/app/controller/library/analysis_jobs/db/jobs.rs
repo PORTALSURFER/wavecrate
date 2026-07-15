@@ -55,6 +55,7 @@ pub(crate) fn claim_next_jobs(
                          ) AS rn
                      FROM analysis_jobs AS pending
                      WHERE pending.status = 'pending'
+                       AND pending.readiness_managed = 0
                        AND NOT EXISTS (
                            SELECT 1
                            FROM analysis_jobs AS running
