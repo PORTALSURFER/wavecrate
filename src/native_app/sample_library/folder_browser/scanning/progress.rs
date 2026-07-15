@@ -15,6 +15,9 @@ use super::{
 };
 use wavecrate::sample_sources::{SourceDatabase, scanner};
 
+/// Publish at most one source-index progress update per bounded file batch.
+pub(in crate::native_app) const INDEX_PROGRESS_REPORT_INTERVAL: usize = 128;
+
 pub(in crate::native_app) fn scan_source_with_progress(
     request: FolderScanRequest,
     mut progress: impl FnMut(FolderScanProgress),
@@ -79,6 +82,9 @@ fn sync_source_database(
         Err(err) => return Some(format!("open source index: {err}")),
     };
     let mut sync_progress = |completed: usize, path: &Path| {
+        if completed != 1 && !completed.is_multiple_of(INDEX_PROGRESS_REPORT_INTERVAL) {
+            return;
+        }
         progress(FolderScanProgress {
             task_id: request.task_id,
             source_id: request.source_id.clone(),

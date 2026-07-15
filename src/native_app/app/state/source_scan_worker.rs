@@ -90,7 +90,7 @@ mod tests {
     use std::{fs, sync::mpsc};
 
     use crate::native_app::sample_library::folder_browser::scan::{
-        FolderScanItem, FolderScanRequest,
+        FolderScanItem, FolderScanRequest, INDEX_PROGRESS_REPORT_INTERVAL,
     };
 
     use super::{DISCOVERY_BATCH_SIZE, FolderScanWorkerEvent, run_folder_scan_worker_with_emit};
@@ -150,24 +150,35 @@ mod tests {
 
     #[test]
     fn large_scan_worker_keeps_every_ui_discovery_message_bounded() {
-        let root = temp_source_with_wavs(DISCOVERY_BATCH_SIZE * 16);
+        let file_count = DISCOVERY_BATCH_SIZE * 16;
+        let root = temp_source_with_wavs(file_count);
         let (sender, receiver) = mpsc::channel();
 
         let result = run_folder_scan_worker_with_emit(scan_request(&root), move |event| {
             sender.send(event).is_ok()
         });
 
-        let batches = receiver
-            .try_iter()
+        let events = receiver.try_iter().collect::<Vec<_>>();
+        let batches = events
+            .iter()
             .filter_map(|message| match message {
-                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events),
+                FolderScanWorkerEvent::DiscoveryBatch(batch) => Some(batch.events.as_slice()),
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let batch_lengths = batches.iter().map(Vec::len).collect::<Vec<_>>();
+        let indexing_progress_count = events
+            .iter()
+            .filter(|message| {
+                matches!(
+                    message,
+                    FolderScanWorkerEvent::Progress(progress) if progress.phase == "Indexing"
+                )
+            })
+            .count();
+        let batch_lengths = batches.iter().map(|batch| batch.len()).collect::<Vec<_>>();
         let published_file_count = batches
             .iter()
-            .flatten()
+            .flat_map(|batch| batch.iter())
             .filter(|event| matches!(event.item, FolderScanItem::File(_)))
             .count();
         assert!(batch_lengths.len() > 1);
@@ -177,6 +188,11 @@ mod tests {
                 .all(|count| *count <= DISCOVERY_BATCH_SIZE)
         );
         assert_eq!(published_file_count, result.scan.file_count);
-        assert_eq!(result.audio_file_paths.len(), DISCOVERY_BATCH_SIZE * 16);
+        assert_eq!(result.audio_file_paths.len(), file_count);
+        assert_eq!(
+            indexing_progress_count,
+            1 + file_count / INDEX_PROGRESS_REPORT_INTERVAL,
+            "indexing progress must stay bounded so a large background scan cannot saturate the UI queue"
+        );
     }
 }
