@@ -104,8 +104,8 @@ fn job_details_popover_from_projection(
     )
     .spacing(5.0)
     .fill_width();
-    ui::closeable_dialog_layer_from_parts(
-        ui::DialogLayerParts::new(
+    radiant::application::closeable_dialog_layer_from_parts(
+        radiant::application::DialogLayerParts::new(
             projection.title,
             content,
             ui::WidgetTone::Neutral,

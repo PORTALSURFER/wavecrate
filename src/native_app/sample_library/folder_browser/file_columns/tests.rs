@@ -1,4 +1,3 @@
-use radiant::prelude as ui;
 use std::collections::HashMap;
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
@@ -201,9 +200,9 @@ fn typed_file_column_kinds_map_to_sort_behavior() {
 #[test]
 fn unknown_sort_id_falls_back_to_name_kind() {
     assert_eq!(
-        sort_kind_for_details_sort(&ui::DetailsSort::new(
+        sort_kind_for_details_sort(&radiant::application::DetailsSort::new(
             "missing-column",
-            ui::SortDirection::Ascending,
+            radiant::application::SortDirection::Ascending,
         )),
         FileColumnKind::Name
     );

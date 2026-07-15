@@ -32,7 +32,9 @@ pub(in crate::native_app) fn main_toolbar(model: MainToolbarViewModel) -> ui::Vi
         .map(|control| toolbar_control(*control, projection.help_tooltips_enabled))
         .collect::<Vec<_>>();
 
-    ui::toolbar_from_parts(ui::ToolbarParts::new(controls).alignment(ui::ToolbarAlignment::End))
+    radiant::application::toolbar_from_parts(
+        radiant::application::ToolbarParts::new(controls).alignment(ui::ToolbarAlignment::End),
+    )
 }
 
 fn toolbar_control(

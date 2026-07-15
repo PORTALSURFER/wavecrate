@@ -35,8 +35,8 @@ fn app_transient_overlay() -> ui::TransientOverlay<NativeAppState> {
 
 fn paint_app_transient_overlay(
     state: &mut NativeAppState,
-    context: ui::TransientOverlayContext<'_>,
-    primitives: &mut Vec<ui::PaintPrimitive>,
+    context: radiant::runtime::TransientOverlayContext<'_>,
+    primitives: &mut Vec<radiant::runtime::PaintPrimitive>,
 ) {
     state.paint_waveform_transient_overlay(context, primitives);
     paint_starmap_active_audition_overlay(state, context, primitives);
@@ -44,8 +44,8 @@ fn paint_app_transient_overlay(
 
 fn paint_starmap_active_audition_overlay(
     state: &mut NativeAppState,
-    context: ui::TransientOverlayContext<'_>,
-    primitives: &mut Vec<ui::PaintPrimitive>,
+    context: radiant::runtime::TransientOverlayContext<'_>,
+    primitives: &mut Vec<radiant::runtime::PaintPrimitive>,
 ) {
     let Some(active_file_id) = state.active_starmap_audition_file_id() else {
         return;

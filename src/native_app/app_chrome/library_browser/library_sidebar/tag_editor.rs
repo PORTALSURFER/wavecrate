@@ -71,7 +71,7 @@ fn tag_entry_field(field: TagEditorFieldProjection) -> ui::View<GuiMessage> {
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::resize_header(
+        radiant::application::PanelSectionHeaderParts::resize_header(
             "metadata-resize-header",
             SIDEBAR_PANEL_HEADER_HEIGHT,
             content,

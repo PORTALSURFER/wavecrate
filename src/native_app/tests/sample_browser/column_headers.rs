@@ -105,7 +105,10 @@ fn full_gui_column_header_click_toggles_sort_direction() {
     );
     let sort = runtime.bridge().state().library.folder_browser.file_sort();
     assert_eq!(sort.column_id, "size");
-    assert_eq!(sort.direction, radiant::prelude::SortDirection::Ascending);
+    assert_eq!(
+        sort.direction,
+        radiant::application::SortDirection::Ascending
+    );
     assert_eq!(
         rendered_sample_stems(&runtime.frame_with_default_theme(), &stems),
         ["gamma", "alpha", "beta"]
@@ -118,7 +121,10 @@ fn full_gui_column_header_click_toggles_sort_direction() {
     );
     let sort = runtime.bridge().state().library.folder_browser.file_sort();
     assert_eq!(sort.column_id, "size");
-    assert_eq!(sort.direction, radiant::prelude::SortDirection::Descending);
+    assert_eq!(
+        sort.direction,
+        radiant::application::SortDirection::Descending
+    );
     assert_eq!(
         rendered_sample_stems(&runtime.frame_with_default_theme(), &stems),
         ["beta", "alpha", "gamma"]

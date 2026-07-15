@@ -240,7 +240,7 @@ fn context_path_copy_completion_updates_status() {
     state.finish_context_path_copy(
         BrowserContextTargetKind::Sample,
         PathBuf::from("C:\\samples\\kick.wav"),
-        Ok(ui::PlatformResponse::Completed),
+        Ok(radiant::runtime::PlatformResponse::Completed),
     );
     assert_eq!(state.ui.status.sample, "Copied path");
 
@@ -262,7 +262,7 @@ fn context_target_open_completion_updates_status() {
     state.finish_context_target_open(
         BrowserContextTargetKind::Sample,
         PathBuf::from("C:\\samples\\kick.wav"),
-        Ok(ui::PlatformResponse::Completed),
+        Ok(radiant::runtime::PlatformResponse::Completed),
     );
     assert_eq!(state.ui.status.sample, "Revealed sample");
 

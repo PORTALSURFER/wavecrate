@@ -41,19 +41,21 @@ impl FolderBrowserState {
         }
     }
 
-    pub(in crate::native_app) fn external_drag_request(&self) -> Option<ui::ExternalDragRequest> {
+    pub(in crate::native_app) fn external_drag_request(
+        &self,
+    ) -> Option<radiant::runtime::ExternalDragRequest> {
         let drag = self.drag_drop.drag.as_ref()?;
         let label = self.drag_preview_label(drag)?;
         let FolderBrowserDrag::Files { file_ids, .. } = drag else {
             return match drag {
-                FolderBrowserDrag::ExtractedFile { path } => {
-                    Some(ui::ExternalDragRequest::files([path.clone()], label))
-                }
+                FolderBrowserDrag::ExtractedFile { path } => Some(
+                    radiant::runtime::ExternalDragRequest::files([path.clone()], label),
+                ),
                 _ => None,
             };
         };
         let paths = file_ids.iter().map(PathBuf::from).collect::<Vec<_>>();
-        Some(ui::ExternalDragRequest::files(paths, label))
+        Some(radiant::runtime::ExternalDragRequest::files(paths, label))
     }
 
     fn drag_preview_label(&self, drag: &FolderBrowserDrag) -> Option<String> {

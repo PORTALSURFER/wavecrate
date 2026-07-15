@@ -357,7 +357,7 @@ fn platform_copy_file_paths(
 ) -> Option<Vec<PathBuf>> {
     match command {
         radiant::runtime::Command::PlatformRequest {
-            request: ui::PlatformRequest::CopyFilePaths(paths),
+            request: radiant::runtime::PlatformRequest::CopyFilePaths(paths),
             ..
         } => Some(paths),
         radiant::runtime::Command::Batch(commands) => {
@@ -372,7 +372,7 @@ fn external_drag_file_paths(
 ) -> Option<Vec<PathBuf>> {
     match command {
         radiant::runtime::Command::BeginExternalDrag { request, .. } => match request.payload {
-            ui::ExternalDragPayload::Files(paths) => Some(paths),
+            radiant::runtime::ExternalDragPayload::Files(paths) => Some(paths),
         },
         radiant::runtime::Command::Batch(commands) => {
             commands.into_iter().find_map(external_drag_file_paths)

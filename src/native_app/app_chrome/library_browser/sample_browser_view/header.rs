@@ -30,7 +30,7 @@ const SAMPLE_BROWSER_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette
 
 pub(super) struct SampleBrowserHeaderBar<'a> {
     pub(super) columns: &'a [&'a FileColumn],
-    pub(super) sort: &'a ui::DetailsSort,
+    pub(super) sort: &'a radiant::application::DetailsSort,
     pub(super) drag_feedback: Option<&'a FileColumnDragFeedback>,
     pub(super) mode: SampleNameViewMode,
     pub(super) random_navigation_enabled: bool,
@@ -153,14 +153,14 @@ static MAP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
 
 fn sample_browser_header(
     columns: Vec<HeaderColumnProjection<'_>>,
-    sort: &ui::DetailsSort,
+    sort: &radiant::application::DetailsSort,
     drag_marker_x: Option<f32>,
     similarity_header: SampleSimilarityHeaderProjection,
 ) -> ui::View<GuiMessage> {
     let header_cells = columns
         .iter()
         .flat_map(|column| sample_header_cells(column, sort, &similarity_header));
-    let details_header = ui::compact_details_header_row(header_cells)
+    let details_header = radiant::application::compact_details_header_row(header_cells)
         .fill_width()
         .height(24.0);
     let details_header = match drag_marker_x {
@@ -190,14 +190,18 @@ fn column_drop_marker(x: f32) -> ui::View<GuiMessage> {
 
 fn sample_header_cell(
     projection: &HeaderColumnProjection<'_>,
-    sort: &ui::DetailsSort,
+    sort: &radiant::application::DetailsSort,
 ) -> ui::View<GuiMessage> {
     let column = projection.column;
     let sort_id = column.id.clone();
     let drag_id = column.id.clone();
     let resize_id = column.id.clone();
-    let label = ui::details_sort_label(column.label.as_str(), column.id.as_str(), Some(sort));
-    ui::compact_resizable_details_header_cell(
+    let label = radiant::application::details_sort_label(
+        column.label.as_str(),
+        column.id.as_str(),
+        Some(sort),
+    );
+    radiant::application::compact_resizable_details_header_cell(
         label,
         column.width,
         GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
@@ -216,7 +220,7 @@ fn sample_header_cell(
 
 fn sample_header_cells(
     column: &HeaderColumnProjection<'_>,
-    sort: &ui::DetailsSort,
+    sort: &radiant::application::DetailsSort,
     similarity_header: &SampleSimilarityHeaderProjection,
 ) -> Vec<ui::View<GuiMessage>> {
     let mut cells = vec![sample_header_cell(column, sort)];
@@ -247,7 +251,7 @@ fn sample_similarity_header_cell(
             .height(20.0)
             .fill_width(),
     );
-    ui::compact_details_cell(
+    radiant::application::compact_details_cell(
         ui::row(header_parts).spacing(3.0).height(20.0).fill_width(),
         Some(SAMPLE_SIMILARITY_SCORE_COLUMN_WIDTH),
     )

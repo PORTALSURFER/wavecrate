@@ -94,7 +94,7 @@ pub(in crate::native_app) enum GuiMessage {
         path: String,
         drag: DragHandleMessage,
     },
-    ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
+    ExternalDragCompleted(Result<radiant::runtime::ExternalDragOutcome, String>),
     ExternalWaveformFileDropFinished {
         source: PathBuf,
         started_at: Instant,

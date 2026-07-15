@@ -1,5 +1,3 @@
-use radiant::prelude as ui;
-
 use super::super::{FileColumn, FileColumnKind, FolderBrowserState};
 
 impl FolderBrowserState {
@@ -21,11 +19,13 @@ impl FolderBrowserState {
             .collect()
     }
 
-    pub(in crate::native_app) fn file_sort(&self) -> &ui::DetailsSort {
+    pub(in crate::native_app) fn file_sort(&self) -> &radiant::application::DetailsSort {
         &self.sample_list.file_sort
     }
 
-    pub(super) fn visible_file_column_placements(&self) -> Vec<ui::DetailsColumnPlacement> {
+    pub(super) fn visible_file_column_placements(
+        &self,
+    ) -> Vec<radiant::application::DetailsColumnPlacement> {
         details_column_placements(self.visible_file_columns())
     }
 }
@@ -46,9 +46,11 @@ pub(super) fn file_column_visible_in_context(
 
 pub(super) fn details_column_placements<'a>(
     columns: impl IntoIterator<Item = &'a FileColumn>,
-) -> Vec<ui::DetailsColumnPlacement> {
+) -> Vec<radiant::application::DetailsColumnPlacement> {
     columns
         .into_iter()
-        .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
+        .map(|column| {
+            radiant::application::DetailsColumnPlacement::new(column.id.as_str(), column.width)
+        })
         .collect()
 }

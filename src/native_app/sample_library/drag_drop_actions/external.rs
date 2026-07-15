@@ -378,7 +378,7 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn external_drag_completed(
         &mut self,
-        result: Result<ui::ExternalDragOutcome, String>,
+        result: Result<radiant::runtime::ExternalDragOutcome, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         tracing::debug!(
@@ -405,30 +405,33 @@ impl NativeAppState {
         self.clear_pending_internal_file_drag_paths();
         self.ui.status.sample = match result {
             Ok(outcome) if outcome.accepted() => match outcome.effect {
-                ui::ExternalDragEffect::Copy | ui::ExternalDragEffect::Link => {
+                radiant::runtime::ExternalDragEffect::Copy
+                | radiant::runtime::ExternalDragEffect::Link => {
                     let rating_error = if handoff_adds_keep_rating {
                         self.add_keep_rating_to_handoff_paths(&handoff_paths).err()
                     } else {
                         None
                     };
                     match (outcome.effect, rating_error) {
-                        (ui::ExternalDragEffect::Copy, None) => {
+                        (radiant::runtime::ExternalDragEffect::Copy, None) => {
                             String::from("Dragged item externally")
                         }
-                        (ui::ExternalDragEffect::Link, None) => {
+                        (radiant::runtime::ExternalDragEffect::Link, None) => {
                             String::from("Linked item externally")
                         }
-                        (ui::ExternalDragEffect::Copy, Some(error)) => {
+                        (radiant::runtime::ExternalDragEffect::Copy, Some(error)) => {
                             format!("Dragged item externally; rating update failed: {error}")
                         }
-                        (ui::ExternalDragEffect::Link, Some(error)) => {
+                        (radiant::runtime::ExternalDragEffect::Link, Some(error)) => {
                             format!("Linked item externally; rating update failed: {error}")
                         }
                         _ => unreachable!("only copy/link outcomes are matched"),
                     }
                 }
-                ui::ExternalDragEffect::Move => String::from("Moved item externally"),
-                ui::ExternalDragEffect::None => String::from("External drag cancelled"),
+                radiant::runtime::ExternalDragEffect::Move => String::from("Moved item externally"),
+                radiant::runtime::ExternalDragEffect::None => {
+                    String::from("External drag cancelled")
+                }
             },
             Ok(_) => String::from("External drag cancelled"),
             Err(error) => format!("External drag failed: {error}"),

@@ -53,7 +53,7 @@ pub(in crate::native_app) fn tag_completion_overlay(
 fn tag_completion_options(
     options: &[MetadataTagCompletionOption],
     content_width: f32,
-) -> ui::CompactOptionListParts {
+) -> radiant::application::CompactOptionListParts {
     let tag_width = (content_width * 0.48).clamp(70.0, 140.0);
     let items = options
         .iter()
@@ -63,7 +63,7 @@ fn tag_completion_options(
                 .selected(option.selected)
         })
         .collect::<Vec<_>>();
-    ui::CompactOptionListParts::new(items, tag_width)
+    radiant::application::CompactOptionListParts::new(items, tag_width)
         .max_visible_rows(MAX_TAG_COMPLETION_ROWS)
         .row_height(TAG_COMPLETION_ROW_HEIGHT)
         .vertical_chrome(TAG_COMPLETION_POPUP_VERTICAL_CHROME)

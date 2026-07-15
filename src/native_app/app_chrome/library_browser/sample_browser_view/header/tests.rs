@@ -81,7 +81,10 @@ fn header_bar_projection_collects_controls_columns_and_drag_marker() {
     let name = FileColumn::for_tests("name", "Name", 240.0);
     let size = FileColumn::for_tests("size", "Size", 78.0);
     let columns = [&name, &size];
-    let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+    let sort = radiant::application::DetailsSort::new(
+        "name",
+        radiant::application::SortDirection::Ascending,
+    );
     let drag_feedback = FileColumnDragFeedback {
         label: "Name".to_string(),
         pointer: ui::Point::new(42.0, 9.0),
@@ -119,7 +122,10 @@ fn header_bar_projection_hides_list_columns_in_map_mode() {
     let name = FileColumn::for_tests("name", "Name", 240.0);
     let size = FileColumn::for_tests("size", "Size", 78.0);
     let columns = [&name, &size];
-    let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+    let sort = radiant::application::DetailsSort::new(
+        "name",
+        radiant::application::SortDirection::Ascending,
+    );
     let drag_feedback = FileColumnDragFeedback {
         label: "Name".to_string(),
         pointer: ui::Point::new(42.0, 9.0),

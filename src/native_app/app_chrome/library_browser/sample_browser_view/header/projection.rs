@@ -1,5 +1,3 @@
-use radiant::prelude as ui;
-
 use crate::native_app::app::SampleNameViewMode;
 use crate::native_app::sample_library::folder_browser::model::{FileColumn, FileColumnKind};
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
@@ -15,7 +13,7 @@ pub(super) const STARMAP_VIEW_TOOLTIP: &str = "Switch between list and Starmap v
 
 pub(super) struct SampleBrowserHeaderProjection<'a> {
     pub(super) columns: Vec<HeaderColumnProjection<'a>>,
-    pub(super) sort: &'a ui::DetailsSort,
+    pub(super) sort: &'a radiant::application::DetailsSort,
     pub(super) drag_marker_x: Option<f32>,
     pub(super) random_navigation: RandomNavigationButtonProjection,
     pub(super) map_view: StarmapViewButtonProjection,
