@@ -237,7 +237,10 @@ fn persist_deficit(
             failure_kind = NULL,
             lease_expires_at = CASE
                 WHEN analysis_jobs.artifact_version = excluded.artifact_version
-                 AND analysis_jobs.source_generation = excluded.source_generation
+                 AND (
+                    excluded.readiness_scope_kind = 'file'
+                    OR analysis_jobs.source_generation = excluded.source_generation
+                 )
                  AND analysis_jobs.content_generation IS excluded.content_generation
                  AND analysis_jobs.status = 'running'
                  AND analysis_jobs.lease_expires_at > excluded.created_at

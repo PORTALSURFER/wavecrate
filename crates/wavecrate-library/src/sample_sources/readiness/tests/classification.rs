@@ -197,6 +197,49 @@ fn persisted_work_deduplicates_and_survives_restart() {
 }
 
 #[test]
+fn overlapping_manifest_snapshots_preserve_unchanged_file_lease() {
+    let (_root, mut connection) = open_fixture();
+    let original = file_target("leased", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&original));
+    let original_snapshot =
+        reconcile_readiness(&connection, SOURCE_ID, 10).expect("original snapshot");
+
+    let mut unchanged_after_manifest_change = original;
+    unchanged_after_manifest_change.source_generation = 2;
+    replace(
+        &mut connection,
+        2,
+        std::slice::from_ref(&unchanged_after_manifest_change),
+    );
+    let newer_snapshot = reconcile_readiness(&connection, SOURCE_ID, 11).expect("newer snapshot");
+    persist_readiness_deficits(&mut connection, &newer_snapshot.deficits, 11)
+        .expect("persist newer deficit");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET status = 'running', running_at = 12, lease_expires_at = 50
+             WHERE readiness_managed = 1",
+            [],
+        )
+        .expect("claim newer work");
+
+    persist_readiness_deficits(&mut connection, &original_snapshot.deficits, 20)
+        .expect("persist overlapping older deficit");
+    let (status, running_at, lease_expires_at): (String, Option<i64>, Option<i64>) = connection
+        .query_row(
+            "SELECT status, running_at, lease_expires_at
+             FROM analysis_jobs
+             WHERE readiness_managed = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read preserved lease");
+    assert_eq!(status, "running");
+    assert_eq!(running_at, Some(12));
+    assert_eq!(lease_expires_at, Some(50));
+}
+
+#[test]
 fn running_lease_expiry_becomes_an_actionable_retry() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("leased", ReadinessStage::PlaybackSummary, 2);
