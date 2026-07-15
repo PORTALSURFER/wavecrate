@@ -16,6 +16,8 @@ pub use snapshot::{
     ArtifactPublishOutcome, ReadinessActivity, ReadinessClassification, ReadinessDeficit,
     ReadinessEntry, ReadinessSnapshot, ReadinessStageCounts,
 };
+#[cfg(test)]
+pub(crate) use store::reconcile_readiness_with_hook;
 pub use store::{
     ReadinessError, persist_readiness_deficits, publish_readiness_artifact, reconcile_readiness,
     replace_readiness_targets,

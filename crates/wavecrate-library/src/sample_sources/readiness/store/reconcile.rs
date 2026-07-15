@@ -20,6 +20,31 @@ pub fn reconcile_readiness(
     source_id: &str,
     now: i64,
 ) -> Result<ReadinessSnapshot, ReadinessError> {
+    let tx = connection.unchecked_transaction()?;
+    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, || {})?;
+    tx.commit()?;
+    Ok(snapshot)
+}
+
+#[cfg(test)]
+pub(crate) fn reconcile_readiness_with_hook(
+    connection: &Connection,
+    source_id: &str,
+    now: i64,
+    after_source_state: impl FnOnce(),
+) -> Result<ReadinessSnapshot, ReadinessError> {
+    let tx = connection.unchecked_transaction()?;
+    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, after_source_state)?;
+    tx.commit()?;
+    Ok(snapshot)
+}
+
+fn reconcile_readiness_snapshot(
+    connection: &Connection,
+    source_id: &str,
+    now: i64,
+    after_source_state: impl FnOnce(),
+) -> Result<ReadinessSnapshot, ReadinessError> {
     if !readiness_schema_available(connection)? {
         return Err(ReadinessError::SchemaUnavailable);
     }
@@ -50,6 +75,7 @@ pub fn reconcile_readiness(
         readiness_revision,
         availability,
     };
+    after_source_state();
     let targets = load_targets(connection, source_id)?;
     let artifacts = load_artifacts(connection, source_id)?;
     let work = load_work(connection, source_id)?;

@@ -45,6 +45,31 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
 }
 
 #[test]
+fn reconciliation_reads_one_snapshot_during_concurrent_publication() {
+    let (root, mut connection) = open_fixture();
+    let generation_one = file_target("one", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&generation_one));
+    let mut writer = SourceDatabase::open_connection(root.path()).expect("writer connection");
+    let generation_two = file_target("two", ReadinessStage::PlaybackSummary, 2);
+
+    let snapshot = reconcile_readiness_with_hook(&connection, SOURCE_ID, 10, || {
+        replace(&mut writer, 2, std::slice::from_ref(&generation_two));
+    })
+    .expect("consistent snapshot");
+    assert_eq!(snapshot.source_generation, 1);
+    assert_eq!(snapshot.readiness_revision, 101);
+    assert_eq!(snapshot.entries.len(), 1);
+    assert_eq!(snapshot.entries[0].target.scope_id, "one");
+    assert_eq!(snapshot.entries[0].target.source_generation, 1);
+
+    let current = reconcile_readiness(&connection, SOURCE_ID, 11).expect("current snapshot");
+    assert_eq!(current.source_generation, 2);
+    assert_eq!(current.readiness_revision, 102);
+    assert_eq!(current.entries.len(), 1);
+    assert_eq!(current.entries[0].target.scope_id, "two");
+}
+
+#[test]
 fn equal_row_counts_cannot_hide_missing_current_identities() {
     let (_root, mut connection) = open_fixture();
     let targets = [
