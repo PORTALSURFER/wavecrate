@@ -101,6 +101,9 @@ impl NativeAppState {
                 Instant::now(),
             );
         }
+        self.background
+            .source_processing
+            .wake_source(&applied.source_id, "waveform_edit_commit");
         self.register_destructive_edit_transaction(active.request.prompt.edit, applied);
 
         let label = sample_path_label(&active.request.absolute_path);

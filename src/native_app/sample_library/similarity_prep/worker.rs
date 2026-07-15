@@ -1,6 +1,9 @@
+#![cfg_attr(test, allow(dead_code))]
+
 use std::{
     collections::HashSet,
     path::PathBuf,
+    sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
 
@@ -26,12 +29,11 @@ pub(in crate::native_app) use wavecrate::sample_sources::STARMAP_LAYOUT_UMAP_VER
 const NATIVE_SIMILARITY_CLUSTER_MIN_SIZE: usize = 10;
 const ANALYZE_SAMPLE_JOB_TYPE: &str = "wav_metadata_v1";
 const EMBEDDING_BACKFILL_JOB_TYPE: &str = "embedding_backfill_v1";
-const SIMILARITY_DRAIN_CLAIM_LIMIT: usize = 8;
 const SIMILARITY_BUSY_RETRY_ATTEMPTS: usize = 3;
 const SIMILARITY_BUSY_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct SimilarityPrepJobDrainSummary {
+pub(in crate::native_app) struct SimilarityPrepJobDrainSummary {
     pub(super) processed: usize,
     pub(super) failed: usize,
 }
@@ -65,14 +67,13 @@ fn enqueue_similarity_prep_once(
     }
     let analysis_inserted = enqueue_analysis_backfill(source)?;
     let embedding_inserted = enqueue_embedding_backfill(source)?;
-    let finalized = finalize_if_ready(source)?;
     let status = resolve_similarity_prep_status(source)?;
     Ok(SimilarityPrepEnqueueSummary {
         analysis_inserted,
         embedding_inserted,
         jobs_processed: 0,
         jobs_failed: 0,
-        finalized,
+        finalized: false,
         status,
     })
 }
@@ -111,7 +112,9 @@ fn is_transient_database_busy(error: &str) -> bool {
         || lowered.contains("sqlite_busy")
 }
 
-pub(super) fn finalize_similarity_prep_if_ready(source: &SampleSource) -> Result<bool, String> {
+pub(in crate::native_app) fn finalize_similarity_prep_if_ready(
+    source: &SampleSource,
+) -> Result<bool, String> {
     finalize_if_ready(source)
 }
 
@@ -172,42 +175,66 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
     Ok(true)
 }
 
-pub(super) fn drain_similarity_prep_jobs(
+pub(in crate::native_app) fn reset_interrupted_similarity_prep_jobs(
     source: &SampleSource,
+) -> Result<usize, String> {
+    let conn = open_source_db(source)?;
+    wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)
+}
+
+pub(in crate::native_app) fn run_similarity_prep_job_batch(
+    source: &SampleSource,
+    limit: usize,
+    cancel: &AtomicBool,
 ) -> Result<SimilarityPrepJobDrainSummary, String> {
     let mut conn = open_source_db(source)?;
-    wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)?;
     let settings = load_analysis_settings();
     let runtime = SimilarityPrepJobRuntime::from_settings(&settings);
     let mut summary = SimilarityPrepJobDrainSummary::default();
-    loop {
-        let jobs = wavecrate::internal_analysis_jobs::claim_next_jobs(
+    let jobs = wavecrate::internal_analysis_jobs::claim_next_jobs(&mut conn, &source.root, limit)?;
+    for job in jobs {
+        if cancel.load(Ordering::Acquire) {
+            wavecrate::internal_analysis_jobs::release(&conn, &job)?;
+            continue;
+        }
+        let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
             &mut conn,
-            &source.root,
-            SIMILARITY_DRAIN_CLAIM_LIMIT,
-        )?;
-        if jobs.is_empty() {
-            break;
+            &job,
+            true,
+            runtime.max_analysis_duration_seconds,
+            runtime.analysis_sample_rate,
+            runtime.analysis_version.as_str(),
+        );
+        if let Err(error) = outcome.as_ref() {
+            summary.failed += 1;
+            wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, error)?;
+        } else {
+            wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
         }
-        for job in jobs {
-            let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
-                &mut conn,
-                &job,
-                true,
-                runtime.max_analysis_duration_seconds,
-                runtime.analysis_sample_rate,
-                runtime.analysis_version.as_str(),
-            );
-            if let Err(error) = outcome.as_ref() {
-                summary.failed += 1;
-                wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, error)?;
-            } else {
-                wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
-            }
-            summary.processed += 1;
-        }
+        summary.processed += 1;
     }
     Ok(summary)
+}
+
+#[cfg(test)]
+pub(in crate::native_app) fn similarity_prep_has_pending_jobs(
+    source: &SampleSource,
+) -> Result<bool, String> {
+    source_has_active_similarity_prep_jobs(source)
+}
+
+pub(in crate::native_app) fn similarity_prep_needs_finalization(
+    source: &SampleSource,
+) -> Result<bool, String> {
+    if source_has_active_similarity_prep_jobs(source)? {
+        return Ok(false);
+    }
+    if resolve_similarity_prep_status(source)? == NativeSimilarityPrepStatus::UpToDate {
+        return Ok(false);
+    }
+    Ok((read_source_scan_timestamp(source)?.is_some()
+        && current_similarity_sample_ids(source)?.is_empty())
+        || (source_has_embeddings(source)? && source_has_aspect_descriptors(source)?))
 }
 
 pub(super) fn source_has_active_similarity_prep_jobs(
@@ -287,7 +314,7 @@ fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn resolve_similarity_prep_status(
+pub(in crate::native_app) fn resolve_similarity_prep_status(
     source: &SampleSource,
 ) -> Result<NativeSimilarityPrepStatus, String> {
     let facts = SimilarityPrepFacts {

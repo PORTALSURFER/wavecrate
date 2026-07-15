@@ -255,6 +255,165 @@ impl ReadinessArtifact {
     }
 }
 
+/// One durably claimed readiness unit tied to the exact target observed at claim time.
+///
+/// `attempt` is the claim generation. Every lease mutation and completion is fenced by it, so a
+/// worker whose lease expired cannot publish after another worker has reclaimed the same target.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ClaimedReadinessWork {
+    /// Exact desired target captured when the work was claimed.
+    pub target: ReadinessTarget,
+    /// Monotonic claim generation for this target's durable work row.
+    pub attempt: u32,
+    /// Current lease deadline captured by the claim operation.
+    pub lease_expires_at: i64,
+}
+
+impl ClaimedReadinessWork {
+    /// Exact target owned by this claim generation.
+    pub fn target(&self) -> &ReadinessTarget {
+        &self.target
+    }
+
+    /// Monotonic generation used to fence stale workers.
+    pub fn attempt(&self) -> u32 {
+        self.attempt
+    }
+
+    /// Current lease deadline captured by the claim operation.
+    pub fn lease_expires_at(&self) -> i64 {
+        self.lease_expires_at
+    }
+}
+
+/// Stable failure classes understood by readiness reconciliation and telemetry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessFailureClassification {
+    /// The operation may succeed after bounded backoff.
+    Retryable,
+    /// The exact target cannot complete without a content or product change.
+    Permanent,
+    /// The target's media or stage is not supported.
+    Unsupported,
+}
+
+impl ReadinessFailureClassification {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Retryable => "retryable",
+            Self::Permanent => "permanent",
+            Self::Unsupported => "unsupported",
+        }
+    }
+}
+
+/// Bounded exponential retry policy for readiness work.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReadinessRetryPolicy {
+    initial_delay_seconds: i64,
+    max_delay_seconds: i64,
+    max_attempts: u32,
+}
+
+impl ReadinessRetryPolicy {
+    /// Build a valid bounded policy.
+    ///
+    /// Returns `None` for zero/negative delays, an initial delay above the maximum, or zero
+    /// attempts.
+    pub fn new(
+        initial_delay_seconds: i64,
+        max_delay_seconds: i64,
+        max_attempts: u32,
+    ) -> Option<Self> {
+        (initial_delay_seconds > 0
+            && max_delay_seconds >= initial_delay_seconds
+            && max_attempts > 0)
+            .then_some(Self {
+                initial_delay_seconds,
+                max_delay_seconds,
+                max_attempts,
+            })
+    }
+
+    /// Maximum number of claims allowed before a retryable failure becomes terminal.
+    pub fn max_attempts(self) -> u32 {
+        self.max_attempts
+    }
+
+    /// Delay for a failed claim attempt, saturating at the configured maximum.
+    pub fn delay_for_attempt(self, attempt: u32) -> i64 {
+        let exponent = attempt.saturating_sub(1).min(62);
+        self.initial_delay_seconds
+            .checked_mul(1_i64 << exponent)
+            .unwrap_or(i64::MAX)
+            .min(self.max_delay_seconds)
+    }
+}
+
+/// Outcome of a generation-fenced work-state mutation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessWorkMutationOutcome {
+    /// The claimed row still belonged to the caller and was updated.
+    Recorded,
+    /// The target changed, the lease expired, or a newer claim generation owns the row.
+    RejectedStale,
+}
+
+/// Outcome of renewing a claimed readiness lease.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessLeaseRenewalOutcome {
+    /// The claim remains current through the returned deadline.
+    Renewed {
+        /// Persisted lease deadline after renewal.
+        lease_expires_at: i64,
+    },
+    /// The target changed, the lease expired, or a newer claim generation owns the row.
+    RejectedStale,
+}
+
+/// Outcome of recording a readiness failure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessFailureOutcome {
+    /// A retryable failure was scheduled at the returned deadline.
+    RetryScheduled {
+        /// Earliest time at which the exact target may be reclaimed.
+        retry_at: i64,
+    },
+    /// The worker explicitly classified the target as permanently failed.
+    Permanent,
+    /// The worker classified the target as unsupported.
+    Unsupported,
+    /// A retryable failure consumed the configured final attempt.
+    AttemptsExhausted,
+    /// The target changed, the lease expired, or a newer claim generation owns the row.
+    RejectedStale,
+}
+
+/// Current durable readiness queue state for telemetry.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReadinessWorkStats {
+    /// All readiness-managed work rows.
+    pub total: usize,
+    /// Immediately claimable pending rows.
+    pub pending: usize,
+    /// Rows with an unexpired lease.
+    pub running: usize,
+    /// Running rows whose lease has expired and may be recovered.
+    pub expired_leases: usize,
+    /// Retryable failures whose deadline has arrived.
+    pub retries_due: usize,
+    /// Retryable failures waiting for their deadline.
+    pub retries_waiting: usize,
+    /// Permanently failed rows.
+    pub permanent_failures: usize,
+    /// Unsupported rows.
+    pub unsupported: usize,
+    /// Pending rows most recently returned by explicit cancellation.
+    pub cancelled: usize,
+    /// Successfully completed rows retained for diagnostics.
+    pub completed: usize,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct ReadinessKey {
     pub(crate) source_id: String,

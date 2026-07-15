@@ -10,9 +10,11 @@ use crate::native_app::app::{
 };
 
 mod worker;
-use worker::{
-    drain_similarity_prep_jobs, enqueue_similarity_prep_inner, finalize_similarity_prep_if_ready,
-    resolve_similarity_prep_status,
+use worker::{enqueue_similarity_prep_inner, resolve_similarity_prep_status};
+
+pub(in crate::native_app) use worker::{
+    finalize_similarity_prep_if_ready, reset_interrupted_similarity_prep_jobs,
+    run_similarity_prep_job_batch, similarity_prep_needs_finalization,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -256,6 +258,9 @@ impl NativeAppState {
                 }
             }
         }
+        self.background
+            .source_processing
+            .wake_source(&result.source_id, "similarity_prep_commit");
         self.start_next_pending_similarity_prep(context);
     }
 
@@ -417,35 +422,7 @@ fn enqueue_similarity_prep(
         result: enqueue_similarity_prep_inner(
             &sample_source,
             trigger == SimilarityPrepTrigger::Automatic,
-        )
-        .and_then(|summary| finish_similarity_prep(summary, &sample_source, trigger)),
-    }
-}
-
-fn finish_similarity_prep(
-    mut summary: SimilarityPrepEnqueueSummary,
-    source: &SampleSource,
-    trigger: SimilarityPrepTrigger,
-) -> Result<SimilarityPrepEnqueueSummary, String> {
-    if !should_drain_similarity_prep_jobs(&summary, source, trigger)? {
-        return Ok(summary);
-    }
-    let drain = drain_similarity_prep_jobs(source)?;
-    summary.jobs_processed = drain.processed;
-    summary.jobs_failed = drain.failed;
-    summary.finalized |= finalize_similarity_prep_if_ready(source)?;
-    summary.status = resolve_similarity_prep_status(source)?;
-    Ok(summary)
-}
-
-fn should_drain_similarity_prep_jobs(
-    _summary: &SimilarityPrepEnqueueSummary,
-    _source: &SampleSource,
-    trigger: SimilarityPrepTrigger,
-) -> Result<bool, String> {
-    match trigger {
-        SimilarityPrepTrigger::UserRequested => Ok(true),
-        SimilarityPrepTrigger::Automatic => Ok(false),
+        ),
     }
 }
 

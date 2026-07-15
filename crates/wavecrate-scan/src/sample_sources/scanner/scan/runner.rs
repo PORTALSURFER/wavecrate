@@ -110,6 +110,7 @@ pub fn complete_deferred_rename_candidates(
         None,
         &rename_candidates,
         super::super::scan_hash::DeferredHashScope::RenameCandidates,
+        None,
     )?;
     stats.merge_deferred_hashes(deferred);
     Ok(stats)
@@ -138,9 +139,30 @@ pub fn complete_deferred_hashes_with_cancel(
     } else {
         super::super::scan_hash::DeferredHashScope::RenameCandidates
     };
-    let deferred = super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates, scope)?;
+    let deferred =
+        super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates, scope, None)?;
     stats.merge_deferred_hashes(deferred);
     Ok(stats)
+}
+
+/// Complete a bounded batch of pending deep-content hashes without launching an unowned worker.
+///
+/// Long-lived runtimes should call this from their owned source-processing supervisor so hashing
+/// shares cancellation, resource budgets, shutdown, retry policy, and cross-source fairness with
+/// other source work. Proven rename candidates are always reconciled even when the hash budget is
+/// exhausted.
+pub fn complete_pending_deep_hashes(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+) -> Result<ScanStats, ScanError> {
+    super::super::scan_hash::deep_hash_scan(
+        db,
+        cancel,
+        &HashSet::new(),
+        super::super::scan_hash::DeferredHashScope::AllUnhashed,
+        Some(max_hashes),
+    )
 }
 
 /// Spawn a detached deep-hash pass to backfill content hashes after quick scans.
@@ -161,6 +183,7 @@ pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: 
                 None,
                 &HashSet::new(),
                 super::super::scan_hash::DeferredHashScope::AllUnhashed,
+                None,
             )?;
             Ok(())
         })();

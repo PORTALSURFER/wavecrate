@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use crate::native_app::app::{
     NativeAppState, SampleBrowserDisplayMode, SampleNameViewMode, StarmapAuditionDragState,
@@ -209,6 +209,33 @@ pub(in crate::native_app) fn prepare_sample_browser_view(state: &mut NativeAppSt
             overscan_rows: SAMPLE_BROWSER_OVERSCAN_ROWS,
             guard_rows: SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
         });
+    let visible_paths = state
+        .library
+        .folder_browser
+        .prepared_visible_sample_file_ids_matching_tags(
+            &state.metadata.tags_by_file,
+            SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS
+                + SAMPLE_BROWSER_OVERSCAN_ROWS
+                + SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|file_id| {
+            state
+                .library
+                .folder_browser
+                .sample_source_for_file_path(Path::new(&file_id))
+        })
+        .map(|(source, relative_path)| {
+            (
+                source.id.as_str().to_owned(),
+                relative_path.to_string_lossy().into_owned(),
+            )
+        });
+    state
+        .background
+        .source_processing
+        .set_visible_paths(visible_paths);
     if state.ui.chrome.sample_browser_display == SampleBrowserDisplayMode::Map {
         state
             .library

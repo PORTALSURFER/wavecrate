@@ -865,6 +865,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "source watcher worker",
         ),
         (
+            "src/native_app/source_processing/supervisor.rs",
+            "owned source processing supervisor worker boundary",
+        ),
+        (
             "src/native_app/sample_library/trash_actions/movement.rs",
             "trash movement worker",
         ),

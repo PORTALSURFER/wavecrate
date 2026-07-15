@@ -33,6 +33,7 @@ pub(super) fn deep_hash_scan(
     cancel: Option<&AtomicBool>,
     rename_candidates: &HashSet<PathBuf>,
     scope: DeferredHashScope,
+    max_hashes: Option<usize>,
 ) -> Result<ScanStats, ScanError> {
     let root = ensure_root_dir(db)?;
     let entries = db.list_files()?;
@@ -107,6 +108,12 @@ pub(super) fn deep_hash_scan(
             continue;
         }
         let was_unhashed = entry.content_hash.is_none();
+        if was_unhashed
+            && !is_rename_candidate
+            && max_hashes.is_some_and(|limit| stats.hashes_computed >= limit)
+        {
+            continue;
+        }
         let absolute = root.join(&entry.relative_path);
         if !is_supported_regular_audio_file(&absolute) {
             continue;
@@ -345,8 +352,40 @@ mod tests {
             Some(&cancel),
             &HashSet::new(),
             DeferredHashScope::AllUnhashed,
+            None,
         );
 
         assert!(matches!(result, Err(ScanError::Canceled)));
+    }
+
+    #[test]
+    fn deep_hash_scan_respects_non_rename_batch_limit() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        for index in 0..5 {
+            let relative = PathBuf::from(format!("pending-{index}.wav"));
+            std::fs::write(dir.path().join(&relative), [index as u8; 32]).expect("write wav");
+            db.upsert_file(&relative, 32, index)
+                .expect("insert pending row");
+        }
+
+        let stats = deep_hash_scan(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(2),
+        )
+        .expect("bounded hash pass");
+
+        assert_eq!(stats.hashes_computed, 2);
+        assert_eq!(
+            db.list_files()
+                .expect("list files")
+                .iter()
+                .filter(|entry| entry.content_hash.is_some())
+                .count(),
+            2
+        );
     }
 }

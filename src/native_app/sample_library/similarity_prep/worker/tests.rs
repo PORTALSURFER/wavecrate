@@ -139,7 +139,13 @@ fn native_similarity_prepare_skips_unchanged_unsupported_files() {
 
     assert_eq!(summary.analysis_inserted, 0);
     assert_eq!(summary.embedding_inserted, 0);
-    assert_eq!(summary.status, NativeSimilarityPrepStatus::UpToDate);
+    assert_eq!(summary.status, NativeSimilarityPrepStatus::Outdated);
+    assert!(similarity_prep_needs_finalization(&source).expect("finalization needed"));
+    assert!(finalize_similarity_prep_if_ready(&source).expect("finalize unsupported source"));
+    assert_eq!(
+        resolve_similarity_prep_status(&source).expect("resolved status"),
+        NativeSimilarityPrepStatus::UpToDate
+    );
     assert_eq!(count_jobs_by_status(&source, "failed"), 1);
 }
 
@@ -179,13 +185,7 @@ fn automatic_native_similarity_finish_leaves_pending_jobs_for_background_process
     seed_similarity_artifacts_without_features(&source, "covered-c.wav");
     seed_similarity_artifacts_without_features(&source, "covered-d.wav");
 
-    let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
-    let finished = super::super::finish_similarity_prep(
-        summary,
-        &source,
-        super::super::SimilarityPrepTrigger::Automatic,
-    )
-    .expect("finish automatic prep");
+    let finished = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
 
     assert_eq!(finished.jobs_processed, 0);
     assert!(
@@ -210,16 +210,10 @@ fn automatic_native_similarity_finish_does_not_drain_pending_jobs_when_other_job
     enqueue_similarity_prep_inner(&source, false).expect("initial enqueue");
     seed_failed_analysis_job(&source, "failed.wav");
 
-    let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
+    let finished = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
     let pending_before_finish = count_jobs_by_status(&source, "pending");
     let pending_analysis_before_finish =
         count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "pending");
-    let finished = super::super::finish_similarity_prep(
-        summary,
-        &source,
-        super::super::SimilarityPrepTrigger::Automatic,
-    )
-    .expect("finish automatic prep");
 
     assert_eq!(finished.jobs_processed, 0);
     assert_eq!(
@@ -255,13 +249,19 @@ fn native_similarity_prep_recognizes_transient_database_busy_errors() {
 }
 
 #[test]
-fn native_similarity_user_drain_processes_valid_wav_jobs() {
+fn native_similarity_supervisor_batches_process_valid_wav_jobs() {
     let config_base = tempfile::tempdir().expect("config base");
     let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let (_dir, source) = source_with_valid_wav("valid.wav");
 
     let summary = enqueue_similarity_prep_inner(&source, false).expect("enqueue");
-    let drain = drain_similarity_prep_jobs(&source).expect("drain jobs");
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let mut drain = SimilarityPrepJobDrainSummary::default();
+    while similarity_prep_has_pending_jobs(&source).expect("pending jobs") {
+        let batch = run_similarity_prep_job_batch(&source, 1, &cancel).expect("run batch");
+        drain.processed += batch.processed;
+        drain.failed += batch.failed;
+    }
 
     assert_eq!(summary.analysis_inserted, 1);
     assert_eq!(summary.embedding_inserted, 1);

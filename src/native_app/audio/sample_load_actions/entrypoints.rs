@@ -340,6 +340,17 @@ impl NativeAppState {
         autoplay: bool,
         started_at: Instant,
     ) {
+        if let Some((source, relative_path)) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(std::path::Path::new(&path))
+        {
+            self.background.source_processing.prioritize_path(
+                source.id.as_str(),
+                &relative_path.to_string_lossy(),
+                true,
+            );
+        }
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {

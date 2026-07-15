@@ -54,6 +54,11 @@ pub fn mark_done(conn: &Connection, job: &ClaimedAnalysisJob) -> Result<(), Stri
     analysis_jobs::db::mark_done(conn, job.inner.id)
 }
 
+/// Return one claimed job to pending when its owning supervisor is cancelled.
+pub fn release(conn: &Connection, job: &ClaimedAnalysisJob) -> Result<(), String> {
+    analysis_jobs::db::mark_pending(conn, job.inner.id)
+}
+
 /// Mark one claimed analysis job as failed.
 pub fn mark_failed_with_reason(
     conn: &Connection,

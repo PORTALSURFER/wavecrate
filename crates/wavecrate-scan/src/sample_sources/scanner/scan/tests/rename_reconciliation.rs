@@ -285,6 +285,7 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
         None,
         &rename_candidates(&["two.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
     )
     .unwrap();
     assert_eq!(deep_stats.hashes_computed, 1);
@@ -401,6 +402,7 @@ fn detached_deep_hash_uses_persisted_quick_scan_destinations() {
         None,
         &HashSet::new(),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
     )
     .unwrap();
 
@@ -439,6 +441,7 @@ fn large_rename_reconciles_when_unchanged_duplicate_remains() {
         None,
         &rename_candidates(&["c.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
     )
     .unwrap();
     assert_eq!(deep.renames_reconciled, 1);
@@ -494,6 +497,7 @@ fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
         None,
         &rename_candidates(&["new.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
     )
     .unwrap();
 
@@ -567,6 +571,7 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
         None,
         &rename_candidates(&["two.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
     )
     .unwrap();
     assert_eq!(deep_stats.renames_reconciled, 1);
@@ -611,6 +616,7 @@ fn deep_hash_scan_uses_matching_facts_to_disambiguate_backfilled_duplicates() {
         None,
         &rename_candidates(&["b.wav", "c.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
     )
     .unwrap();
     assert_eq!(deep.hashes_computed, 2);
