@@ -9,6 +9,8 @@ pub(super) use discovery_merge::{merge_scan_discovery, upsert_file, upsert_folde
 pub(super) use file_entry_metadata::file_entry;
 pub(in crate::native_app::sample_library::folder_browser) use metadata::refreshed_file_entries_for_paths;
 pub(super) use metadata::{SourceMetadataMap, file_entry_for_source_path};
+#[cfg(test)]
+pub(in crate::native_app) use progress::INDEX_PROGRESS_REPORT_INTERVAL;
 pub(in crate::native_app) use progress::scan_source_with_progress;
 pub(in crate::native_app) use traversal::refresh_folder_tree_only;
 pub(super) use traversal::{load_folder_at_path, load_source_snapshot, placeholder_folder};
