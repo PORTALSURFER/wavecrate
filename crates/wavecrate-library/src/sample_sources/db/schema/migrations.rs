@@ -15,6 +15,7 @@ mod tag_catalog;
 
 use self::analysis_jobs::{
     ensure_analysis_job_progress_snapshots, ensure_analysis_jobs_optional_columns,
+    ensure_source_readiness_schema,
 };
 use self::aspect_descriptors::ensure_aspect_descriptor_tables;
 use self::columns::{
@@ -43,6 +44,7 @@ fn apply_structural_migrations(connection: &Connection) -> Result<(), SourceDbEr
     ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
     ensure_analysis_job_progress_snapshots(connection)?;
+    ensure_source_readiness_schema(connection)?;
     ensure_samples_optional_columns(connection)?;
     ensure_feature_metric_columns(connection, "features")?;
     ensure_feature_metric_columns(connection, "analysis_cache_features")?;

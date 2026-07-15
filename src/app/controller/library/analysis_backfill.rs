@@ -1,4 +1,4 @@
-//! Explicit analysis-trigger contract for controller-owned enqueue work.
+//! Analysis enqueue and readiness-reconciliation trigger contract.
 
 use super::*;
 use std::collections::BTreeMap;
@@ -24,6 +24,7 @@ enum AnalysisTriggerPolicy {
     ChangedSamples,
     UserRequestedReanalysis,
     SimilarityPrepBootstrap,
+    ReadinessReconciliation,
     Forbidden,
 }
 
@@ -36,8 +37,8 @@ impl AnalysisTriggerReason {
             Self::ScanCompleted
             | Self::WatcherAutoSync
             | Self::DeferredMaintenance
-            | Self::RenameWithoutContentChange
-            | Self::SimilarityReadPath => AnalysisTriggerPolicy::Forbidden,
+            | Self::RenameWithoutContentChange => AnalysisTriggerPolicy::ReadinessReconciliation,
+            Self::SimilarityReadPath => AnalysisTriggerPolicy::Forbidden,
         }
     }
 }

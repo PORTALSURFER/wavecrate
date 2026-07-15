@@ -62,7 +62,8 @@ fn prepare_manual_reanalysis_fixture(
 }
 
 #[test]
-fn trigger_policy_matrix_keeps_implicit_reasons_disabled() {
+/// Routes committed lifecycle events through readiness reconciliation.
+fn trigger_policy_matrix_routes_committed_lifecycle_events_to_reconciliation() {
     let cases = [
         (
             AnalysisTriggerReason::SampleAdded,
@@ -82,19 +83,19 @@ fn trigger_policy_matrix_keeps_implicit_reasons_disabled() {
         ),
         (
             AnalysisTriggerReason::ScanCompleted,
-            AnalysisTriggerPolicy::Forbidden,
+            AnalysisTriggerPolicy::ReadinessReconciliation,
         ),
         (
             AnalysisTriggerReason::WatcherAutoSync,
-            AnalysisTriggerPolicy::Forbidden,
+            AnalysisTriggerPolicy::ReadinessReconciliation,
         ),
         (
             AnalysisTriggerReason::DeferredMaintenance,
-            AnalysisTriggerPolicy::Forbidden,
+            AnalysisTriggerPolicy::ReadinessReconciliation,
         ),
         (
             AnalysisTriggerReason::RenameWithoutContentChange,
-            AnalysisTriggerPolicy::Forbidden,
+            AnalysisTriggerPolicy::ReadinessReconciliation,
         ),
         (
             AnalysisTriggerReason::SimilarityReadPath,

@@ -80,6 +80,7 @@ pub use starmap_layout::{
 pub use wavecrate_library::sample_sources::db::{SampleCollection, SampleSoundType};
 pub(crate) use wavecrate_library::sample_sources::is_supported_audio;
 pub use wavecrate_library::sample_sources::normalize_relative_path;
+pub use wavecrate_library::sample_sources::readiness;
 pub use wavecrate_library::sample_sources::{
     DB_FILE_NAME, HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity,
     HarvestFileKey, HarvestFileRecord, HarvestMetadataSnapshot, HarvestSourceRange, HarvestState,

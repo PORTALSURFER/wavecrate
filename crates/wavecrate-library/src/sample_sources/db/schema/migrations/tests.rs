@@ -135,3 +135,54 @@ fn aspect_descriptor_schema_creates_current_and_cache_tables() {
     assert_eq!(current_exists, 1);
     assert_eq!(cache_exists, 1);
 }
+
+#[test]
+fn readiness_schema_repairs_current_stamped_analysis_storage() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE analysis_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sample_id TEXT NOT NULL,
+            source_id TEXT NOT NULL DEFAULT '',
+            relative_path TEXT NOT NULL DEFAULT '',
+            job_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            UNIQUE(sample_id, job_type)
+        );
+        CREATE TABLE source_readiness_sources (
+            source_id TEXT PRIMARY KEY,
+            source_generation INTEGER NOT NULL,
+            availability TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        ) WITHOUT ROWID;",
+    )
+    .unwrap();
+
+    ensure_analysis_jobs_optional_columns(&conn).unwrap();
+    ensure_source_readiness_schema(&conn).unwrap();
+
+    let job_columns = table_columns(&conn, "analysis_jobs").unwrap();
+    assert!(job_columns.contains("readiness_managed"));
+    assert!(job_columns.contains("source_generation"));
+    assert!(job_columns.contains("lease_expires_at"));
+    let source_columns = table_columns(&conn, "source_readiness_sources").unwrap();
+    assert!(source_columns.contains("readiness_revision"));
+    for table in [
+        "source_readiness_sources",
+        "source_readiness_targets",
+        "source_readiness_artifacts",
+    ] {
+        let exists: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1
+                )",
+                [table],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(exists, "missing readiness table {table}");
+    }
+}
