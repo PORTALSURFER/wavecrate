@@ -59,8 +59,8 @@ pub(super) fn audio_settings_dropdown_overlay(
         SETTINGS_CONTENT_WIDTH,
         ui::dropdown_menu_height(options.len()),
     );
-    ui::anchored_popover_from_parts(
-        ui::AnchoredPopoverParts::below(ui::dropdown_menu(options), anchor, size)
+    radiant::application::anchored_popover_from_parts(
+        radiant::application::AnchoredPopoverParts::below(ui::dropdown_menu(options), anchor, size)
             .gap(AUDIO_SETTINGS_DROPDOWN_GAP),
     )
 }

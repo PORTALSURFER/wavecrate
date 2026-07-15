@@ -14,7 +14,7 @@ mod header;
 mod hit_target;
 #[cfg(test)]
 pub(in crate::native_app) use hit_target::{
-    sample_file_hit_target_for_tests, SampleFileHitTargetModel,
+    SampleFileHitTargetModel, sample_file_hit_target_for_tests,
 };
 mod cells;
 mod identity;
@@ -22,7 +22,7 @@ mod row_projection;
 mod row_widgets;
 mod rows;
 mod starmap_view;
-use header::{sample_browser_header_bar, sample_similarity_controls_bar, SampleBrowserHeaderBar};
+use header::{SampleBrowserHeaderBar, sample_browser_header_bar, sample_similarity_controls_bar};
 use rows::sample_browser_rows;
 pub(in crate::native_app) use starmap_view::paint_active_starmap_audition_overlay;
 use starmap_view::starmap_view;
@@ -182,14 +182,17 @@ mod tests {
     use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
     use crate::native_app::sample_library::folder_browser::projection::VisibleSampleList;
     use crate::native_app::sample_library::folder_browser::starmap::{
-        starmap_cluster_palette_color, StarmapItem, StarmapStatus,
+        StarmapItem, StarmapStatus, starmap_cluster_palette_color,
     };
     use crate::native_app::ui::ids as widget_ids;
 
     #[test]
     fn sample_list_stacked_pointer_targets_route_each_event_to_matching_domain_action() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
         let columns = Vec::new();
         let position = ui::Point::new(12.0, 12.0);
@@ -250,7 +253,10 @@ mod tests {
     #[test]
     fn starmap_mode_paints_search_input_bound_to_name_filter() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
         let columns = Vec::new();
 
@@ -312,7 +318,10 @@ mod tests {
     #[test]
     fn starmap_mode_paints_incomplete_similarity_status() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
 
         let frame = sample_browser(SampleBrowserViewModel {
@@ -373,7 +382,10 @@ mod tests {
     #[test]
     fn starmap_mode_paints_viewport_controls() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
 
         let frame = sample_browser(SampleBrowserViewModel {
@@ -535,7 +547,10 @@ mod tests {
     #[test]
     fn starmap_mode_empty_state_matches_curation_context() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
 
         let frame = sample_browser(SampleBrowserViewModel {
@@ -571,15 +586,20 @@ mod tests {
         .view_frame_at_size_with_default_theme(Vector2::new(520.0, 320.0));
 
         assert!(frame.paint_plan.contains_text("No files left to curate"));
-        assert!(!frame
-            .paint_plan
-            .contains_text("No audio files in selected folder"));
+        assert!(
+            !frame
+                .paint_plan
+                .contains_text("No audio files in selected folder")
+        );
     }
 
     #[test]
     fn starmap_status_overlay_does_not_block_node_selection() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
         let sample_path = String::from("/samples/kick.wav");
         let bridge = DeclarativeOwnedRuntimeBridge::new(
@@ -662,7 +682,10 @@ mod tests {
     #[test]
     fn starmap_status_overlay_does_not_block_wheel_zoom() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
         let bridge = DeclarativeOwnedRuntimeBridge::new(
             Vec::<GuiMessage>::new(),
@@ -723,8 +746,10 @@ mod tests {
         );
         let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(520.0, 320.0));
 
-        assert!(runtime
-            .wheel_or_scroll_at(ui::Point::new(260.0, 160.0), ui::Vector2::new(0.0, -120.0),));
+        assert!(
+            runtime
+                .wheel_or_scroll_at(ui::Point::new(260.0, 160.0), ui::Vector2::new(0.0, -120.0),)
+        );
 
         assert_eq!(
             runtime.bridge().state(),
@@ -740,7 +765,10 @@ mod tests {
     #[test]
     fn starmap_runtime_drag_auditions_each_crossed_node() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
         let left_path = String::from("/samples/kick.wav");
         let right_path = String::from("/samples/snare.wav");
@@ -848,7 +876,10 @@ mod tests {
     #[test]
     fn starmap_runtime_drag_overlay_tracks_deferred_pointer_move_before_surface_refresh() {
         let metadata_tags_by_file = HashMap::<String, Vec<String>>::new();
-        let sort = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
+        let sort = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
         let similarity_controls = SimilarityAspectSettings::default();
         let left_path = String::from("/samples/kick.wav");
         let right_path = String::from("/samples/snare.wav");

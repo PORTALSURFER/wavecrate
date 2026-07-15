@@ -25,7 +25,7 @@ const COLLECTIONS_RESIZE_HEADER_ID: u64 = widget_ids::COLLECTIONS_RESIZE_HEADER_
 pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::View<GuiMessage> {
     let rows = model.rows.iter().map(collection_row).collect::<Vec<_>>();
     ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::resize_header(
+        radiant::application::PanelSectionHeaderParts::resize_header(
             "collections-resize-header",
             SIDEBAR_PANEL_HEADER_HEIGHT,
             ui::scroll(

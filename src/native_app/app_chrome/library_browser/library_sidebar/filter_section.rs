@@ -32,7 +32,7 @@ const HARVEST_FILTER_ROW_INDEX: usize = 3;
 
 pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
     let panel = ui::panel_section_from_header_parts(
-        ui::PanelSectionHeaderParts::resize_header(
+        radiant::application::PanelSectionHeaderParts::resize_header(
             "filter-resize-header",
             SIDEBAR_PANEL_HEADER_HEIGHT,
             filter_controls(model),

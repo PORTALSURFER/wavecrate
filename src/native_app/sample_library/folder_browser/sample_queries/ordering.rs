@@ -1,4 +1,3 @@
-use radiant::prelude as ui;
 use std::collections::HashMap;
 
 use super::super::file_columns::{sort_file_indices_by_column_kind, sort_kind_for_details_sort};
@@ -34,7 +33,7 @@ fn sort_file_indices_with_tag_metadata(
         indices,
         tags_by_file,
     );
-    if state.sample_list.file_sort.direction == ui::SortDirection::Descending {
+    if state.sample_list.file_sort.direction == radiant::application::SortDirection::Descending {
         indices.reverse();
     }
     if state.filters.curation.enabled

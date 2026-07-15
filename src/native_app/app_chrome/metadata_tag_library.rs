@@ -23,8 +23,8 @@ fn panel_from_projection(projection: MetadataTagLibraryProjection) -> ui::View<G
         .into_iter()
         .map(category_group)
         .collect::<Vec<_>>();
-    ui::closeable_panel_section_from_parts(
-        ui::PanelSectionParts::new(
+    radiant::application::closeable_panel_section_from_parts(
+        radiant::application::PanelSectionParts::new(
             "Tag Editor",
             ui::scroll(ui::column(groups).spacing(3.0).fill_width())
                 .fill_width()

@@ -47,7 +47,7 @@ fn folder_tree_window(
     visible_folders: Vec<VisibleFolder>,
     window: ui::VirtualListWindow,
 ) -> ui::View<GuiMessage> {
-    ui::virtual_tree_list_windowed(
+    radiant::application::virtual_tree_list_windowed(
         window,
         TREE_ROW_HEIGHT,
         &folder_tree_guide_rows(&visible_folders),

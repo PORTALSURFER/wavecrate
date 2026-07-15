@@ -42,7 +42,7 @@ impl NativeAppState {
         let path_count = external
             .as_ref()
             .map(|request| match &request.payload {
-                ui::ExternalDragPayload::Files(paths) => paths.len(),
+                radiant::runtime::ExternalDragPayload::Files(paths) => paths.len(),
             })
             .unwrap_or_default();
         tracing::debug!(

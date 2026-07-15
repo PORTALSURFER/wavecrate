@@ -198,7 +198,7 @@ pub(super) fn folder_tree_palette_for_tests(theme: &ui::ThemeTokens) -> ui::Dens
 
 pub(super) fn folder_tree_selected_hover_marker() -> ui::DenseRowMarkerStyle {
     ui::DenseRowMarkerStyle::new(
-        ui::DenseRowMarkerParts::leading(FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH)
+        radiant::gui::list::DenseRowMarkerParts::leading(FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH)
             .edge_inset(1.0)
             .vertical_inset(3.0),
         ui::ThemeTokens::default()

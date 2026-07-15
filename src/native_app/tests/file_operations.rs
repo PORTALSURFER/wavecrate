@@ -286,8 +286,8 @@ fn accepted_external_file_drag_adds_keep_rating() {
     state.arm_browser_drag(&mut context);
 
     state.external_drag_completed(
-        Ok(ui::ExternalDragOutcome {
-            effect: ui::ExternalDragEffect::Copy,
+        Ok(radiant::runtime::ExternalDragOutcome {
+            effect: radiant::runtime::ExternalDragEffect::Copy,
         }),
         &mut context,
     );
@@ -359,8 +359,8 @@ fn accepted_waveform_selection_external_drag_does_not_add_whole_file_keep_rating
 
     let mut completion_context = ui::UiUpdateContext::default();
     state.external_drag_completed(
-        Ok(ui::ExternalDragOutcome {
-            effect: ui::ExternalDragEffect::Copy,
+        Ok(radiant::runtime::ExternalDragOutcome {
+            effect: radiant::runtime::ExternalDragEffect::Copy,
         }),
         &mut completion_context,
     );

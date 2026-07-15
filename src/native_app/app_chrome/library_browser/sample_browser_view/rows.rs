@@ -75,7 +75,8 @@ fn sample_browser_row(
             row.similarity_strength,
             help_tooltips_enabled,
         ),
-        ui::compact_details_row(row.columns.into_iter().map(sample_column_cell)).fill_width(),
+        radiant::application::compact_details_row(row.columns.into_iter().map(sample_column_cell))
+            .fill_width(),
     ])
     .spacing(0.0)
     .fill_width()

@@ -59,8 +59,8 @@ struct ControlSize {
 
 pub(in crate::native_app) fn top_control_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
     let projection = TopControlBarProjection::from_app_state(state);
-    ui::toolbar_from_parts(
-        ui::ToolbarParts::new([
+    radiant::application::toolbar_from_parts(
+        radiant::application::ToolbarParts::new([
             volume_slider(projection.volume.value)
                 .tooltip_if(projection.help_tooltips_enabled, projection.volume.tooltip),
             normalized_audition_button(projection.normalized_audition).tooltip_if(

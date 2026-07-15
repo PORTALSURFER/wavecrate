@@ -9,12 +9,7 @@ use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
 use super::*;
 use crate::native_app::sample_library::folder_browser::{FolderBrowserState, model::FileEntry};
-use radiant::{
-    layout::Vector2,
-    prelude::{self as ui, IntoView},
-    runtime::PaintPrimitive,
-    theme::ThemeTokens,
-};
+use radiant::{layout::Vector2, prelude::IntoView, runtime::PaintPrimitive, theme::ThemeTokens};
 use wavecrate::sample_sources::{Rating, SampleCollection};
 
 /// Builds a representative file entry for row rendering tests.
@@ -393,7 +388,7 @@ fn compact_column_content_stays_inside_adjacent_column_boundaries() {
     let harvest_start = rating_start + rating_width + column_spacing;
     let collection_start = harvest_start + harvest_width + column_spacing;
     let row_width = collection_start + collection_width + row_padding;
-    let frame = ui::compact_details_row([
+    let frame = radiant::application::compact_details_row([
         sample_file_cell(
             String::from("KAB1_0_AmenBreak_Original_FullStem"),
             name_width,

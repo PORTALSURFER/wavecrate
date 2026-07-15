@@ -113,7 +113,7 @@ fn render_playback_type_cell(label: String, available: bool, width: f32) -> ui::
 }
 
 fn sample_rename_cell(rename: FileRenameView, width: f32) -> ui::View<GuiMessage> {
-    ui::compact_details_cell(
+    radiant::application::compact_details_cell(
         ui::text_input(rename.draft)
             .selection(rename.selection_start, rename.selection_end)
             .message_event(|message| {
@@ -166,7 +166,7 @@ fn render_similarity_cell(
     } else {
         ui::text("N/A").muted_text().height(18.0).fill_width()
     };
-    ui::compact_details_cell(content, Some(width))
+    radiant::application::compact_details_cell(content, Some(width))
 }
 
 /// Render one passive similarity aspect indicator.
@@ -306,7 +306,7 @@ fn compact_text(text: impl Into<ui::TextContent>) -> ui::View<GuiMessage> {
 
 fn compact_column_content_cell(content: ui::View<GuiMessage>, width: f32) -> ui::View<GuiMessage> {
     let content_width = (width - COMPACT_COLUMN_CONTENT_TRAILING_GUTTER).max(0.0);
-    ui::compact_details_cell(
+    radiant::application::compact_details_cell(
         ui::row([content.width(content_width).height(20.0)])
             .spacing(0.0)
             .height(20.0),

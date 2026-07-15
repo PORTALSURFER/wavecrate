@@ -38,7 +38,7 @@ pub(in crate::native_app) struct VisibleSampleList<'a> {
     pub(in crate::native_app) window: ui::VirtualListWindow,
     pub(in crate::native_app) rows: Vec<VisibleSampleRow<'a>>,
     pub(in crate::native_app) columns: Vec<&'a FileColumn>,
-    pub(in crate::native_app) sort: &'a ui::DetailsSort,
+    pub(in crate::native_app) sort: &'a radiant::application::DetailsSort,
     pub(in crate::native_app) similarity_mode_active: bool,
     pub(in crate::native_app) similarity_controls: &'a SimilarityAspectSettings,
 }
@@ -72,9 +72,9 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
 #[derive(Clone, Debug)]
 pub(super) struct SampleListState {
     pub(super) file_columns: Vec<FileColumn>,
-    pub(super) file_sort: ui::DetailsSort,
-    pub(super) file_column_resize: Option<ui::DetailsColumnResizeDrag>,
-    pub(super) file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
+    pub(super) file_sort: radiant::application::DetailsSort,
+    pub(super) file_column_resize: Option<radiant::application::DetailsColumnResizeDrag>,
+    pub(super) file_column_reorder: Option<radiant::application::DetailsColumnReorderDrag>,
     pub(super) similarity_controls: SimilarityAspectSettings,
     pub(super) similarity: Option<SimilarityBrowserState>,
     pub(super) random_navigation: RandomNavigationState,
@@ -101,7 +101,10 @@ impl SampleListState {
     pub(super) fn new() -> Self {
         Self {
             file_columns: default_file_columns(),
-            file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            file_sort: radiant::application::DetailsSort::new(
+                "name",
+                radiant::application::SortDirection::Ascending,
+            ),
             file_column_resize: None,
             file_column_reorder: None,
             similarity_controls: SimilarityAspectSettings::default(),
@@ -382,7 +385,7 @@ pub(super) struct VisibleSampleProjectionRequest<'a> {
     rating_filter: &'a str,
     curation_filter: &'a str,
     listing_reveal_id: Option<&'a str>,
-    sort: &'a ui::DetailsSort,
+    sort: &'a radiant::application::DetailsSort,
     similarity_anchor_id: Option<&'a str>,
     content_revision: u64,
     playback_type_tag_sort: bool,
@@ -394,7 +397,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
         name_filter: &'a str,
         rating_filter: &'a str,
         curation_filter: &'a str,
-        sort: &'a ui::DetailsSort,
+        sort: &'a radiant::application::DetailsSort,
         similarity_anchor_id: Option<&'a str>,
         content_revision: u64,
     ) -> Self {
@@ -429,7 +432,7 @@ impl<'a> VisibleSampleProjectionRequest<'a> {
             self.curation_filter.to_owned(),
             self.listing_reveal_id.map(str::to_owned),
             self.sort.column_id.clone(),
-            self.sort.direction == ui::SortDirection::Descending,
+            self.sort.direction == radiant::application::SortDirection::Descending,
             self.similarity_anchor_id.map(str::to_owned),
             self.content_revision,
             self.playback_type_tag_sort,
@@ -881,8 +884,14 @@ mod tests {
 
     #[test]
     fn projection_request_key_tracks_query_and_revision_inputs() {
-        let ascending = ui::DetailsSort::new("name", ui::SortDirection::Ascending);
-        let descending = ui::DetailsSort::new("size", ui::SortDirection::Descending);
+        let ascending = radiant::application::DetailsSort::new(
+            "name",
+            radiant::application::SortDirection::Ascending,
+        );
+        let descending = radiant::application::DetailsSort::new(
+            "size",
+            radiant::application::SortDirection::Descending,
+        );
 
         assert_ne!(
             VisibleSampleProjectionRequest::new("folder", "kick", "", "", &ascending, None, 4)

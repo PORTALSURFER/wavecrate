@@ -31,8 +31,8 @@ pub(super) fn retained_sample_header_cell_id(column_id: &str) -> u64 {
 /// Radiant-derived child ids for a retained sample header cell.
 pub(super) fn retained_sample_header_child_ids(
     column_id: &str,
-) -> radiant::prelude::CompactDetailsHeaderCellIds {
-    radiant::prelude::CompactDetailsHeaderCellIds::from_cell_id(retained_sample_header_cell_id(
+) -> radiant::application::CompactDetailsHeaderCellIds {
+    radiant::application::CompactDetailsHeaderCellIds::from_cell_id(retained_sample_header_cell_id(
         column_id,
     ))
 }
@@ -94,13 +94,15 @@ mod tests {
 
         assert_eq!(
             child_ids.sort_drag,
-            Some(radiant::prelude::compact_details_header_sort_drag_id(
+            Some(radiant::application::compact_details_header_sort_drag_id(
                 cell_id
             ))
         );
         assert_eq!(
             child_ids.resize,
-            Some(radiant::prelude::compact_details_header_resize_id(cell_id))
+            Some(radiant::application::compact_details_header_resize_id(
+                cell_id
+            ))
         );
     }
 

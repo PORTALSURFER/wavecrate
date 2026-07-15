@@ -122,7 +122,7 @@ fn sample_file_hit_target_builder(
         .leading_marker_if(
             model.explicitly_selected || model.cut_pending || model.missing,
             ui::DenseRowMarkerStyle::new(
-                ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
+                radiant::gui::list::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
                 if model.missing {
                     MISSING_MARKER
                 } else if model.cut_pending {
@@ -134,7 +134,10 @@ fn sample_file_hit_target_builder(
         )
         .trailing_marker_if(
             model.cached && !model.explicitly_selected && !model.copy_flash && !model.cut_pending,
-            ui::DenseRowMarkerStyle::new(ui::DenseRowMarkerParts::trailing(2.0), CACHED_MARKER),
+            ui::DenseRowMarkerStyle::new(
+                radiant::gui::list::DenseRowMarkerParts::trailing(2.0),
+                CACHED_MARKER,
+            ),
         )
         .outline_if(model.focused, sample_file_focus_outline());
     if let Some(palette) = sample_file_row_palette(model) {
@@ -145,13 +148,13 @@ fn sample_file_hit_target_builder(
 }
 
 fn sample_file_row_policy(model: &SampleFileHitTargetModel<'_>) -> ui::DenseRowPolicy {
-    let visual_state = ui::InteractiveRowVisualStateParts {
+    let visual_state = radiant::widgets::InteractiveRowVisualStateParts {
         selected: model.explicitly_selected
             || model.copy_flash
             || model.protected_source_error_flash
             || model.cut_pending
             || model.missing,
-        ..ui::InteractiveRowVisualStateParts::default()
+        ..radiant::widgets::InteractiveRowVisualStateParts::default()
     };
     ui::DenseRowPolicy::with_visual_state(visual_state)
         .tracked_drag_source(model.drag_active, model.drag_source)

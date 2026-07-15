@@ -164,7 +164,7 @@ impl Widget for BeatGuideCountInputWidget {
 
     fn append_paint(
         &self,
-        primitives: &mut Vec<ui::PaintPrimitive>,
+        primitives: &mut Vec<radiant::runtime::PaintPrimitive>,
         bounds: ui::Rect,
         layout: &ui::LayoutOutput,
         theme: &ui::ThemeTokens,

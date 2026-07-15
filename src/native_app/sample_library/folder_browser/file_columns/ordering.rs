@@ -1,4 +1,3 @@
-use radiant::prelude as ui;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -16,8 +15,10 @@ impl FolderBrowserState {
         if self.sample_list.file_sort.column_id == column_id {
             self.sample_list.file_sort.direction = self.sample_list.file_sort.direction.toggled();
         } else {
-            self.sample_list.file_sort =
-                ui::DetailsSort::new(column_id.to_owned(), ui::SortDirection::Ascending);
+            self.sample_list.file_sort = radiant::application::DetailsSort::new(
+                column_id.to_owned(),
+                radiant::application::SortDirection::Ascending,
+            );
         }
     }
 
@@ -44,7 +45,7 @@ impl FolderBrowserState {
         } else {
             sort_file_refs_by_column_kind(kind, files, tags_by_file);
         }
-        if self.sample_list.file_sort.direction == ui::SortDirection::Descending {
+        if self.sample_list.file_sort.direction == radiant::application::SortDirection::Descending {
             files.reverse();
         }
         if self.filters.curation.enabled
@@ -134,7 +135,9 @@ pub(in crate::native_app) fn sort_file_indices_by_column_kind(
     }
 }
 
-pub(in crate::native_app) fn sort_kind_for_details_sort(sort: &ui::DetailsSort) -> FileColumnKind {
+pub(in crate::native_app) fn sort_kind_for_details_sort(
+    sort: &radiant::application::DetailsSort,
+) -> FileColumnKind {
     FileColumnKind::from_id(sort.column_id.as_str()).unwrap_or(FileColumnKind::Name)
 }
 

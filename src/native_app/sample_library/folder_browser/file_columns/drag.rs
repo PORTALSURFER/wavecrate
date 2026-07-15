@@ -1,4 +1,4 @@
-use radiant::{prelude as ui, widgets::DragHandleMessage};
+use radiant::widgets::DragHandleMessage;
 
 use super::super::{FileColumnDragFeedback, FileColumnKind, FolderBrowserState};
 use super::layout::file_column_visible_in_context;
@@ -12,7 +12,7 @@ impl FolderBrowserState {
         &self,
     ) -> Option<FileColumnDragFeedback> {
         let drag = self.sample_list.file_column_reorder.as_ref()?;
-        let feedback = ui::details_column_drag_feedback(
+        let feedback = radiant::application::details_column_drag_feedback(
             drag,
             &self.visible_file_column_placements(),
             FILE_COLUMN_GAP,
@@ -45,7 +45,7 @@ impl FolderBrowserState {
             .iter()
             .find(|column| column.kind == kind)
             .map(|column| column.width);
-        let Some(update) = ui::update_details_column_resize_drag(
+        let Some(update) = radiant::application::update_details_column_resize_drag(
             &mut self.sample_list.file_column_resize,
             kind.id().to_owned(),
             message,
@@ -78,7 +78,7 @@ impl FolderBrowserState {
         let collection_active = self.collection_focus_active();
         let curation_active = self.curation_mode_enabled();
         let harvest_active = self.harvest_mode_active();
-        ui::update_visible_details_column_reorder_drag(
+        radiant::application::update_visible_details_column_reorder_drag(
             &mut self.sample_list.file_column_reorder,
             &mut self.sample_list.file_columns,
             kind.id().to_owned(),
