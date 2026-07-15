@@ -57,9 +57,9 @@ pub(crate) use jobs::update_sample_bpm;
 #[cfg(test)]
 pub(crate) use jobs::update_sample_bpms;
 pub(crate) use jobs::{
-    SampleAnalysisState, claim_next_jobs, mark_done, mark_failed_with_reason, mark_pending,
-    sample_analysis_states, sample_content_hash, sample_ids_missing_duration, touch_running_at,
-    update_sample_bpms_in_tx,
+    SampleAnalysisState, claim_job_by_id, claim_next_jobs, mark_done, mark_failed_with_reason,
+    mark_pending, sample_analysis_states, sample_content_hash, sample_ids_missing_duration,
+    touch_running_at, update_sample_bpms_in_tx,
 };
 pub(crate) use progress::{
     current_embedding_backfill_progress, current_progress, current_running_jobs,

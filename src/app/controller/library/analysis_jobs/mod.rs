@@ -97,6 +97,7 @@ pub(crate) fn run_claimed_job(
     max_analysis_duration_seconds: f32,
     analysis_sample_rate: u32,
     analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
     pool::job_execution::run_job(
         conn,
@@ -105,5 +106,6 @@ pub(crate) fn run_claimed_job(
         max_analysis_duration_seconds,
         analysis_sample_rate,
         analysis_version,
+        cancel,
     )
 }

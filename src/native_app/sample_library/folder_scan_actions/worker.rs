@@ -44,10 +44,15 @@ impl NativeAppState {
             started_at,
             None,
         );
+        let budget = self.background.source_processing.budget_handle();
+        let source_id = request.source_id.clone();
         // Keep this stream fully ordered: discovery batches must not be
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
-            move |_context, events| run_folder_scan_worker(request, events),
+            move |_context, events| {
+                let _permit = budget.acquire_scan(&source_id);
+                run_folder_scan_worker(request, events)
+            },
             folder_scan_worker_event_message,
             GuiMessage::FolderScanFinished,
         );

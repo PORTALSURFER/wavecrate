@@ -9,7 +9,10 @@ mod report;
 mod storage;
 
 use rusqlite::Connection;
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use projection::compute_tsne;
 use report::validate_layout;
@@ -30,8 +33,27 @@ pub fn build_map_layout(
     seed: u64,
     min_coverage: f32,
 ) -> Result<MapLayoutReport, String> {
+    let cancel = AtomicBool::new(false);
+    build_map_layout_with_cancel(conn, model_id, layout_version, seed, min_coverage, &cancel)
+}
+
+/// Build a starmap layout while fencing durable publication when cancellation is requested.
+pub fn build_map_layout_with_cancel(
+    conn: &mut Connection,
+    model_id: &str,
+    layout_version: &str,
+    seed: u64,
+    min_coverage: f32,
+    cancel: &AtomicBool,
+) -> Result<MapLayoutReport, String> {
     let (sample_ids, vectors, dim) = load_embeddings(conn, model_id)?;
+    if cancel.load(Ordering::Acquire) {
+        return Err("Starmap layout cancelled before projection".to_string());
+    }
     let layout = build_layout(vectors, dim, seed)?;
+    if cancel.load(Ordering::Acquire) {
+        return Err("Starmap layout cancelled before publication".to_string());
+    }
     persist_and_validate_layout(conn, &sample_ids, &layout, model_id, layout_version)?;
     validate_layout(&layout, min_coverage)
 }

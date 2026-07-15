@@ -3,13 +3,19 @@
 use crate::app::controller::library::analysis_jobs::pool::job_execution::errors::ErrorCollector;
 use crate::app::controller::library::analysis_jobs::pool::job_execution::support::now_epoch_seconds;
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex, mpsc::Receiver, mpsc::channel};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+    mpsc::Receiver,
+    mpsc::channel,
+};
 
 use super::model::{AspectDescriptorData, EmbeddingComputation, EmbeddingResult, EmbeddingWork};
 
 pub(super) fn run_embedding_workers(
     work: Vec<EmbeddingWork>,
     analysis_sample_rate: u32,
+    cancel: Option<&AtomicBool>,
 ) -> (Vec<EmbeddingComputation>, Vec<String>) {
     if work.is_empty() {
         return (Vec::new(), Vec::new());
@@ -22,7 +28,7 @@ pub(super) fn run_embedding_workers(
         for _ in 0..worker_count {
             let queue = Arc::clone(&queue);
             let tx = tx.clone();
-            scope.spawn(move || run_worker_loop(queue, tx, analysis_sample_rate));
+            scope.spawn(move || run_worker_loop(queue, tx, analysis_sample_rate, cancel));
         }
         drop(tx);
     });
@@ -86,14 +92,21 @@ fn run_worker_loop(
     queue: Arc<Mutex<VecDeque<EmbeddingWork>>>,
     tx: std::sync::mpsc::Sender<Result<EmbeddingComputation, String>>,
     analysis_sample_rate: u32,
+    cancel: Option<&AtomicBool>,
 ) {
     let batch_max = wavecrate_analysis::similarity::SIMILARITY_BATCH_MAX;
     loop {
+        if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+            break;
+        }
         let batch = next_batch(&queue, batch_max);
         if batch.is_empty() {
             break;
         }
         for work in batch {
+            if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+                return;
+            }
             let result = compute_embedding(work, analysis_sample_rate);
             let _ = tx.send(result);
         }

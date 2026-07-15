@@ -4,6 +4,7 @@ use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::db::telemetry;
 use crate::app::controller::library::analysis_jobs::pool::job_execution::support::now_epoch_seconds;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -17,9 +18,13 @@ pub(super) fn write_backfill_results(
     job: &db::ClaimedJob,
     results: &[EmbeddingResult],
     analysis_version: &str,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), String> {
     const INSERT_BATCH: usize = 128;
     for chunk in results.chunks(INSERT_BATCH) {
+        if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+            return Err("Embedding backfill cancelled before publication".to_string());
+        }
         retry_backfill_write_with(
             &job.source_root,
             "embedding_backfill_write",

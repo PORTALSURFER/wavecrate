@@ -23,6 +23,7 @@ pub(crate) fn run_job(
     max_analysis_duration_seconds: f32,
     analysis_sample_rate: u32,
     analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
     let started_at = Instant::now();
     let source = job.source_root.display().to_string();
@@ -33,6 +34,7 @@ pub(crate) fn run_job(
                 max_analysis_duration_seconds,
                 analysis_sample_rate,
                 analysis_version,
+                cancel,
             };
             analysis::run_analysis_job(conn, job, &context)
         }
@@ -42,6 +44,7 @@ pub(crate) fn run_job(
             use_cache,
             analysis_sample_rate,
             analysis_version,
+            cancel,
         ),
         db::REBUILD_INDEX_JOB_TYPE => rebuild::run_rebuild_index_job(conn, job),
         _ => Err(format!("Unknown job type: {}", job.job_type)),

@@ -141,7 +141,10 @@ fn native_similarity_prepare_skips_unchanged_unsupported_files() {
     assert_eq!(summary.embedding_inserted, 0);
     assert_eq!(summary.status, NativeSimilarityPrepStatus::Outdated);
     assert!(similarity_prep_needs_finalization(&source).expect("finalization needed"));
-    assert!(finalize_similarity_prep_if_ready(&source).expect("finalize unsupported source"));
+    let cancel = AtomicBool::new(false);
+    assert!(
+        finalize_similarity_prep_if_ready(&source, &cancel).expect("finalize unsupported source")
+    );
     assert_eq!(
         resolve_similarity_prep_status(&source).expect("resolved status"),
         NativeSimilarityPrepStatus::UpToDate

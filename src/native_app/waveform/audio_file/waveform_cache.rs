@@ -11,7 +11,6 @@ pub(in crate::native_app) use playback_load::{
     load_cached_waveform_file_for_playback, load_cached_waveform_file_summary,
     load_cached_waveform_playback_descriptor_sidecar,
 };
-#[cfg(test)]
 pub(in crate::native_app) use read::cached_waveform_file_playback_ready_exists;
 #[cfg(test)]
 pub(in crate::native_app) use read::cached_waveform_file_source_ready_exists;

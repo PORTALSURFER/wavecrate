@@ -20,7 +20,6 @@ mod wav_summary_builder;
 mod wav_summary_hound;
 mod waveform_cache;
 
-#[cfg(test)]
 pub(in crate::native_app) use cache_facade::cached_waveform_file_playback_ready_exists;
 pub(in crate::native_app) use cache_facade::{
     cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,

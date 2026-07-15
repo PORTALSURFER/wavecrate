@@ -10,11 +10,12 @@ mod app_dirs;
 pub use analysis::LIGHT_DSP_VECTOR_LEN;
 pub use analysis::{
     FEATURE_VECTOR_LEN_V1, FEATURE_VERSION_V1, MapLayoutReport, build_map_layout,
-    compute_feature_vector_v1_for_decoded_audio, compute_feature_vector_v1_for_mono_samples,
-    compute_feature_vector_v1_for_path, compute_similarity_embedding_for_mono_samples,
-    compute_similarity_embedding_for_path, decode_f32_le_blob, default_layout_report_path,
-    flush_ann_index, infer_embedding, light_dsp_from_features_v1, preprocess_mono_for_embedding,
-    rebuild_ann_index, write_layout_report,
+    build_map_layout_with_cancel, compute_feature_vector_v1_for_decoded_audio,
+    compute_feature_vector_v1_for_mono_samples, compute_feature_vector_v1_for_path,
+    compute_similarity_embedding_for_mono_samples, compute_similarity_embedding_for_path,
+    decode_f32_le_blob, default_layout_report_path, flush_ann_index, infer_embedding,
+    light_dsp_from_features_v1, preprocess_mono_for_embedding, rebuild_ann_index,
+    write_layout_report,
 };
 pub use analysis::{ann_index, aspects, hdbscan, similarity, umap, vector};
 

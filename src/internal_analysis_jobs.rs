@@ -1,6 +1,7 @@
 //! Hidden bridge for native-runtime analysis job execution.
 
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 
 use rusqlite::Connection;
 
@@ -30,6 +31,16 @@ pub fn claim_next_jobs(
     })
 }
 
+/// Claim one exact pending analysis job selected by the source supervisor.
+pub fn claim_job_by_id(
+    conn: &mut Connection,
+    source_root: &Path,
+    job_id: i64,
+) -> Result<Option<ClaimedAnalysisJob>, String> {
+    analysis_jobs::db::claim_job_by_id(conn, source_root, job_id)
+        .map(|job| job.map(|inner| ClaimedAnalysisJob { inner }))
+}
+
 /// Execute one claimed analysis job with the shared Wavecrate analysis executor.
 pub fn run_claimed_job(
     conn: &mut Connection,
@@ -38,6 +49,7 @@ pub fn run_claimed_job(
     max_analysis_duration_seconds: f32,
     analysis_sample_rate: u32,
     analysis_version: &str,
+    cancel: &AtomicBool,
 ) -> Result<(), String> {
     analysis_jobs::run_claimed_job(
         conn,
@@ -46,6 +58,7 @@ pub fn run_claimed_job(
         max_analysis_duration_seconds,
         analysis_sample_rate,
         analysis_version,
+        Some(cancel),
     )
 }
 

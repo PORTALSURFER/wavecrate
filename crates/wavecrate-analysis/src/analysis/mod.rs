@@ -22,7 +22,8 @@ pub mod vector;
 pub(crate) mod version;
 
 pub use umap::{
-    MapLayoutReport, build_map_layout, default_layout_report_path, write_layout_report,
+    MapLayoutReport, build_map_layout, build_map_layout_with_cancel, default_layout_report_path,
+    write_layout_report,
 };
 pub use vector::decode_f32_le_blob;
 pub use vector::{FEATURE_VECTOR_LEN_V1, FEATURE_VERSION_V1};

@@ -2,7 +2,6 @@
 #![cfg_attr(test, allow(dead_code))]
 
 use std::collections::{BTreeMap, BTreeSet};
-#[cfg(test)]
 use wavecrate::sample_sources::readiness::{ReadinessStage, ReadinessTarget};
 
 /// Execution lane used to cap work with similar resource pressure.
@@ -29,7 +28,6 @@ impl ProcessingLane {
         Self::Cleanup,
     ];
 
-    #[cfg(test)]
     pub(crate) fn for_readiness_stage(stage: ReadinessStage) -> Self {
         match stage {
             ReadinessStage::IndexedIdentity => Self::Hashing,
@@ -44,7 +42,7 @@ impl ProcessingLane {
         match self {
             Self::Scan | Self::Cleanup => ResourceUse::new(0, 1, 1),
             Self::Hashing | Self::DecodeSummary => ResourceUse::new(1, 1, 1),
-            Self::FeatureAnalysis | Self::Embedding => ResourceUse::new(1, 0, 1),
+            Self::FeatureAnalysis | Self::Embedding => ResourceUse::new(1, 1, 1),
             Self::Finalization => ResourceUse::new(1, 1, 1),
         }
     }
@@ -262,7 +260,6 @@ pub(crate) struct WorkCandidate {
 }
 
 impl WorkCandidate {
-    #[cfg(test)]
     pub(crate) fn readiness(target: &ReadinessTarget, enqueued_at: i64) -> Self {
         Self {
             source_id: target.source_id.clone(),
@@ -285,6 +282,25 @@ impl WorkCandidate {
             scope_id: source_id.clone(),
             source_id,
             relative_path: None,
+            lane,
+            stage_rank,
+            enqueued_at,
+        }
+    }
+
+    pub(crate) fn file(
+        source_id: impl Into<String>,
+        relative_path: impl Into<String>,
+        lane: ProcessingLane,
+        stage_rank: u8,
+        enqueued_at: i64,
+    ) -> Self {
+        let source_id = source_id.into();
+        let relative_path = relative_path.into();
+        Self {
+            source_id,
+            scope_id: relative_path.clone(),
+            relative_path: Some(relative_path),
             lane,
             stage_rank,
             enqueued_at,
@@ -416,7 +432,6 @@ fn priority_weight(candidate: &WorkCandidate, context: &PriorityContext) -> u64 
     1
 }
 
-#[cfg(test)]
 fn stage_rank(stage: ReadinessStage) -> u8 {
     match stage {
         ReadinessStage::PlaybackSummary => 0,
@@ -522,7 +537,7 @@ mod tests {
         let second = tracker
             .try_acquire("two", ProcessingLane::FeatureAnalysis)
             .expect("independent lane");
-        assert_eq!(tracker.current_global(), ResourceUse::new(2, 1, 2));
+        assert_eq!(tracker.current_global(), ResourceUse::new(2, 2, 2));
         tracker.release(first);
         tracker.release(second);
         assert_eq!(tracker.current_global(), ResourceUse::default());

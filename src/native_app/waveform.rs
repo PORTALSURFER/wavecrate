@@ -54,7 +54,6 @@ mod audio_file;
 #[cfg(test)]
 pub(in crate::native_app) use audio_file::PersistedPlaybackCacheFile;
 pub(super) use audio_file::WaveformFile;
-#[cfg(test)]
 pub(in crate::native_app) use audio_file::cached_waveform_file_playback_ready_exists;
 #[cfg(test)]
 pub(super) use audio_file::store_cached_waveform_file_for_tests;

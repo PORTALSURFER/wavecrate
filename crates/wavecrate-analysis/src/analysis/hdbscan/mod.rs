@@ -5,6 +5,7 @@ mod mapping;
 mod validation;
 
 use rusqlite::Connection;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use self::engine::load_cluster_data;
 use self::mapping::{
@@ -77,13 +78,41 @@ pub fn build_hdbscan_clusters_for_sample_id_prefix(
     sample_id_prefix: Option<&str>,
     config: HdbscanConfig,
 ) -> Result<HdbscanStats, String> {
+    let cancel = AtomicBool::new(false);
+    build_hdbscan_clusters_for_sample_id_prefix_with_cancel(
+        conn,
+        model_id,
+        method,
+        umap_version,
+        sample_id_prefix,
+        config,
+        &cancel,
+    )
+}
+
+/// Build clusters while fencing durable publication when cancellation is requested.
+pub fn build_hdbscan_clusters_for_sample_id_prefix_with_cancel(
+    conn: &mut Connection,
+    model_id: &str,
+    method: HdbscanMethod,
+    umap_version: Option<&str>,
+    sample_id_prefix: Option<&str>,
+    config: HdbscanConfig,
+    cancel: &AtomicBool,
+) -> Result<HdbscanStats, String> {
     validate_request(method, umap_version, config)?;
+    if cancel.load(Ordering::Acquire) {
+        return Err("HDBSCAN cancelled before loading data".to_string());
+    }
     let (sample_ids, data) =
         load_cluster_data(conn, model_id, method, umap_version, sample_id_prefix)?;
     ensure_non_empty(&data)?;
     let mut labels = engine::run_hdbscan(&data, config)?;
     assign_all_points_to_clusters(&data, &mut labels);
     remap_labels_deterministic(&sample_ids, &mut labels)?;
+    if cancel.load(Ordering::Acquire) {
+        return Err("HDBSCAN cancelled before publication".to_string());
+    }
     let stats = summarize_labels(&labels);
     let version = umap_version.unwrap_or("");
     write_clusters(

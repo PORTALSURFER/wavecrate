@@ -120,7 +120,6 @@ fn cached_waveform_file_v3_exists(path: &Path, identity: &CacheIdentity) -> bool
     cache_path_for_identity(path, identity).is_ok_and(|path| path.is_file())
 }
 
-#[cfg(test)]
 pub(in crate::native_app) fn cached_waveform_file_playback_ready_exists(path: &Path) -> bool {
     let Ok(identity) = CacheIdentity::for_path(path) else {
         return false;

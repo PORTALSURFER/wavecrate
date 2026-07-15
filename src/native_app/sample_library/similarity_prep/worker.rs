@@ -114,11 +114,15 @@ fn is_transient_database_busy(error: &str) -> bool {
 
 pub(in crate::native_app) fn finalize_similarity_prep_if_ready(
     source: &SampleSource,
+    cancel: &AtomicBool,
 ) -> Result<bool, String> {
-    finalize_if_ready(source)
+    finalize_if_ready(source, cancel)
 }
 
-fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
+fn finalize_if_ready(source: &SampleSource, cancel: &AtomicBool) -> Result<bool, String> {
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     if source_has_active_similarity_prep_jobs(source)? {
         return Ok(false);
     }
@@ -133,13 +137,17 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
         return Ok(false);
     }
     let mut conn = open_source_db(source)?;
-    analysis::build_map_layout(
+    analysis::build_map_layout_with_cancel(
         &mut conn,
         SIMILARITY_MODEL_ID,
         NATIVE_SIMILARITY_UMAP_VERSION,
         0,
         0.95,
+        cancel,
     )?;
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     let layout_rows: i64 = conn
         .query_row(
@@ -156,7 +164,7 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
     if layout_rows == 0 {
         return Ok(false);
     }
-    analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
+    analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix_with_cancel(
         &mut conn,
         SIMILARITY_MODEL_ID,
         analysis::hdbscan::HdbscanMethod::Umap,
@@ -167,8 +175,15 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
             min_samples: None,
             allow_single_cluster: false,
         },
+        cancel,
     )?;
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     analysis::flush_ann_index(&conn)?;
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     if let Some(scan_completed_at) = read_source_scan_timestamp(source)? {
         set_source_prep_timestamp(source, scan_completed_at)?;
     }
@@ -182,6 +197,7 @@ pub(in crate::native_app) fn reset_interrupted_similarity_prep_jobs(
     wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn run_similarity_prep_job_batch(
     source: &SampleSource,
     limit: usize,
@@ -204,6 +220,7 @@ pub(in crate::native_app) fn run_similarity_prep_job_batch(
             runtime.max_analysis_duration_seconds,
             runtime.analysis_sample_rate,
             runtime.analysis_version.as_str(),
+            cancel,
         );
         if let Err(error) = outcome.as_ref() {
             summary.failed += 1;
@@ -212,6 +229,51 @@ pub(in crate::native_app) fn run_similarity_prep_job_batch(
             wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
         }
         summary.processed += 1;
+    }
+    Ok(summary)
+}
+
+pub(in crate::native_app) fn run_similarity_prep_job(
+    source: &SampleSource,
+    job_id: i64,
+    cancel: &AtomicBool,
+) -> Result<SimilarityPrepJobDrainSummary, String> {
+    let mut conn = open_source_db(source)?;
+    let settings = load_analysis_settings();
+    let runtime = SimilarityPrepJobRuntime::from_settings(&settings);
+    let Some(job) =
+        wavecrate::internal_analysis_jobs::claim_job_by_id(&mut conn, &source.root, job_id)?
+    else {
+        return Ok(SimilarityPrepJobDrainSummary::default());
+    };
+    if cancel.load(Ordering::Acquire) {
+        wavecrate::internal_analysis_jobs::release(&conn, &job)?;
+        return Ok(SimilarityPrepJobDrainSummary::default());
+    }
+    let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
+        &mut conn,
+        &job,
+        true,
+        runtime.max_analysis_duration_seconds,
+        runtime.analysis_sample_rate,
+        runtime.analysis_version.as_str(),
+        cancel,
+    );
+    if cancel.load(Ordering::Acquire) {
+        wavecrate::internal_analysis_jobs::release(&conn, &job)?;
+        return Ok(SimilarityPrepJobDrainSummary::default());
+    }
+    let mut summary = SimilarityPrepJobDrainSummary {
+        processed: 1,
+        failed: usize::from(outcome.is_err()),
+    };
+    if let Err(error) = outcome {
+        wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, &error)?;
+    } else {
+        wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
+    }
+    if cancel.load(Ordering::Acquire) {
+        summary.processed = 0;
     }
     Ok(summary)
 }

@@ -13,8 +13,9 @@ mod worker;
 use worker::{enqueue_similarity_prep_inner, resolve_similarity_prep_status};
 
 pub(in crate::native_app) use worker::{
-    finalize_similarity_prep_if_ready, reset_interrupted_similarity_prep_jobs,
-    run_similarity_prep_job_batch, similarity_prep_needs_finalization,
+    NATIVE_SIMILARITY_UMAP_VERSION, finalize_similarity_prep_if_ready,
+    reset_interrupted_similarity_prep_jobs, run_similarity_prep_job,
+    similarity_prep_needs_finalization,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
