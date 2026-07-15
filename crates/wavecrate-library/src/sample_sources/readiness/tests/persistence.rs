@@ -170,6 +170,69 @@ fn empty_content_generations_are_rejected_before_persistence() {
 }
 
 #[test]
+fn empty_artifact_versions_are_rejected_before_persistence() {
+    let (_root, mut connection) = open_fixture();
+    let mut invalid_target = file_target("invalid-version", ReadinessStage::AnalysisFeatures, 1);
+    invalid_target.required_version = "  ".to_string();
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[invalid_target],
+        10,
+    )
+    .expect_err("reject empty target version");
+    assert!(matches!(error, ReadinessError::InvalidArtifactVersion { .. }));
+
+    assert!(
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 ) VALUES (?1, 'file', 'raw-empty-version', 'raw.wav', 'analysis_features',
+                           ' ', 1, 'content-v1', 'eligible', 11)",
+                [SOURCE_ID],
+            )
+            .is_err(),
+        "schema must reject an empty target version"
+    );
+
+    let target = file_target("valid-version", ReadinessStage::AnalysisFeatures, 1);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        2,
+        SourceAvailability::Active,
+        std::slice::from_ref(&target),
+        12,
+    )
+    .expect("publish valid target");
+    let mut invalid_artifact = ReadinessArtifact::for_target(&target, 13);
+    invalid_artifact.artifact_version.clear();
+    let error = publish_readiness_artifact(&mut connection, &invalid_artifact)
+        .expect_err("reject empty artifact version");
+    assert!(matches!(error, ReadinessError::InvalidArtifactVersion { .. }));
+
+    assert!(
+        connection
+            .execute(
+                "INSERT INTO source_readiness_artifacts (
+                    source_id, scope_kind, scope_id, stage, artifact_version,
+                    source_generation, content_generation, completed_at
+                 ) VALUES (?1, 'file', 'raw-empty-version', 'analysis_features',
+                           '', 1, 'content-v1', 14)",
+                [SOURCE_ID],
+            )
+            .is_err(),
+        "schema must reject an empty artifact version"
+    );
+}
+
+#[test]
 fn invalid_stage_scope_pairings_are_rejected() {
     let (_root, mut connection) = open_fixture();
     let invalid_file = file_target("layout", ReadinessStage::SimilarityLayout, 1);

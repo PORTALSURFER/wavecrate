@@ -80,6 +80,13 @@ pub fn publish_readiness_artifact(
     connection: &mut Connection,
     artifact: &ReadinessArtifact,
 ) -> Result<ArtifactPublishOutcome, ReadinessError> {
+    if artifact.artifact_version.trim().is_empty() {
+        return Err(ReadinessError::InvalidArtifactVersion {
+            source_id: artifact.source_id.clone(),
+            scope_id: artifact.scope_id.clone(),
+            stage: artifact.stage,
+        });
+    }
     if artifact.content_generation.trim().is_empty() {
         return Err(ReadinessError::InvalidContentGeneration {
             source_id: artifact.source_id.clone(),
@@ -475,6 +482,13 @@ fn validate_targets(
         }
         if target.content_generation.trim().is_empty() {
             return Err(ReadinessError::InvalidContentGeneration {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+            });
+        }
+        if target.required_version.trim().is_empty() {
+            return Err(ReadinessError::InvalidArtifactVersion {
                 source_id: target.source_id.clone(),
                 scope_id: target.scope_id.clone(),
                 stage: target.stage,

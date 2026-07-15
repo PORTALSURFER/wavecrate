@@ -66,6 +66,16 @@ pub enum ReadinessError {
         /// Readiness stage requiring the generation.
         stage: ReadinessStage,
     },
+    /// A target or artifact omitted its versioned readiness contract identity.
+    #[error("Readiness artifact version must be non-empty for {source_id}:{scope_id}:{stage:?}")]
+    InvalidArtifactVersion {
+        /// Source identity.
+        source_id: String,
+        /// File or source scope identity.
+        scope_id: String,
+        /// Readiness stage requiring the version.
+        stage: ReadinessStage,
+    },
     /// A stage was assigned to the wrong durable ownership scope.
     #[error("Invalid readiness scope {scope_kind:?} for {source_id}:{scope_id}:{stage:?}")]
     InvalidStageScope {
