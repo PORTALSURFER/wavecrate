@@ -88,6 +88,34 @@ pub enum ReadinessError {
         /// Supplied ownership scope.
         scope_kind: ReadinessScopeKind,
     },
+    /// A target's durable identity did not match its ownership scope.
+    #[error("Invalid readiness identity {scope_id} for source {source_id} scope {scope_kind:?}")]
+    InvalidScopeIdentity {
+        /// Source identity.
+        source_id: String,
+        /// Supplied scope identity.
+        scope_id: String,
+        /// Supplied ownership scope.
+        scope_kind: ReadinessScopeKind,
+    },
+    /// Eligible file work omitted its executable source-relative path.
+    #[error("Eligible readiness target has no path for {source_id}:{scope_id}:{stage:?}")]
+    InvalidRelativePath {
+        /// Source identity.
+        source_id: String,
+        /// File identity.
+        scope_id: String,
+        /// Readiness stage requiring the path.
+        stage: ReadinessStage,
+    },
+    /// A complete desired-state publication omitted one required readiness stage.
+    #[error("Readiness target matrix for {scope_id} is missing {stage:?}")]
+    IncompleteTargetMatrix {
+        /// File identity, or source identity for source-level work.
+        scope_id: String,
+        /// Required stage missing from the publication.
+        stage: ReadinessStage,
+    },
     /// No desired readiness state has been published for the source.
     #[error("No readiness state exists for source {0}")]
     UnknownSource(String),

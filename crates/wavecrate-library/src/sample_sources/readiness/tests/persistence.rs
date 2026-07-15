@@ -24,7 +24,7 @@ fn stale_completion_cannot_overwrite_a_new_generation() {
     );
     let snapshot = reconcile_readiness(&connection, SOURCE_ID, 12).expect("snapshot");
     assert_eq!(
-        snapshot.entries[0].classification,
+        entry_for(&snapshot, "changed", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::Current
     );
 }
@@ -45,6 +45,7 @@ fn target_replacement_is_failure_atomic() {
         )
         .expect("create failure trigger");
     let broken = file_target("broken", ReadinessStage::IndexedIdentity, 2);
+    let broken_targets = complete_targets(2, std::slice::from_ref(&broken));
 
     assert!(
         replace_readiness_targets(
@@ -53,7 +54,7 @@ fn target_replacement_is_failure_atomic() {
             2,
             2,
             SourceAvailability::Active,
-            &[broken],
+            &broken_targets,
             2,
         )
         .is_err()
@@ -61,21 +62,24 @@ fn target_replacement_is_failure_atomic() {
 
     let snapshot = reconcile_readiness(&connection, SOURCE_ID, 3).expect("rolled back snapshot");
     assert_eq!(snapshot.source_generation, 1);
-    assert_eq!(snapshot.entries.len(), 1);
-    assert_eq!(snapshot.entries[0].target.scope_id, "original");
+    assert_eq!(snapshot.entries.len(), 5);
+    assert!(snapshot.entries.iter().all(|entry| {
+        entry.target.scope_id == "original" || entry.target.scope_kind == ReadinessScopeKind::Source
+    }));
 }
 
 #[test]
 fn stale_same_generation_publication_cannot_reactivate_disabled_source() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("guarded", ReadinessStage::PlaybackSummary, 1);
+    let complete = complete_targets(1, std::slice::from_ref(&target));
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
         1,
         1,
         SourceAvailability::Active,
-        std::slice::from_ref(&target),
+        &complete,
         10,
     )
     .expect("publish active state");
@@ -85,7 +89,7 @@ fn stale_same_generation_publication_cannot_reactivate_disabled_source() {
         1,
         2,
         SourceAvailability::Disabled,
-        std::slice::from_ref(&target),
+        &complete,
         11,
     )
     .expect("disable source");
@@ -96,7 +100,7 @@ fn stale_same_generation_publication_cannot_reactivate_disabled_source() {
         1,
         1,
         SourceAvailability::Active,
-        &[target],
+        &complete,
         12,
     )
     .expect_err("reject stale active publication");
@@ -149,13 +153,14 @@ fn empty_content_generations_are_rejected_before_persistence() {
     );
 
     let target = file_target("valid", ReadinessStage::AnalysisFeatures, 1);
+    let complete = complete_targets(1, std::slice::from_ref(&target));
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
         1,
         1,
         SourceAvailability::Active,
-        std::slice::from_ref(&target),
+        &complete,
         11,
     )
     .expect("publish valid target");
@@ -184,7 +189,10 @@ fn empty_artifact_versions_are_rejected_before_persistence() {
         10,
     )
     .expect_err("reject empty target version");
-    assert!(matches!(error, ReadinessError::InvalidArtifactVersion { .. }));
+    assert!(matches!(
+        error,
+        ReadinessError::InvalidArtifactVersion { .. }
+    ));
 
     assert!(
         connection
@@ -201,13 +209,14 @@ fn empty_artifact_versions_are_rejected_before_persistence() {
     );
 
     let target = file_target("valid-version", ReadinessStage::AnalysisFeatures, 1);
+    let complete = complete_targets(1, std::slice::from_ref(&target));
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
         1,
         2,
         SourceAvailability::Active,
-        std::slice::from_ref(&target),
+        &complete,
         12,
     )
     .expect("publish valid target");
@@ -215,7 +224,10 @@ fn empty_artifact_versions_are_rejected_before_persistence() {
     invalid_artifact.artifact_version.clear();
     let error = publish_readiness_artifact(&mut connection, &invalid_artifact)
         .expect_err("reject empty artifact version");
-    assert!(matches!(error, ReadinessError::InvalidArtifactVersion { .. }));
+    assert!(matches!(
+        error,
+        ReadinessError::InvalidArtifactVersion { .. }
+    ));
 
     assert!(
         connection
@@ -283,16 +295,138 @@ fn invalid_stage_scope_pairings_are_rejected() {
 }
 
 #[test]
+fn invalid_target_identities_and_paths_are_rejected() {
+    let (_root, mut connection) = open_fixture();
+    let mut invalid_source = ReadinessTarget::source(
+        SOURCE_ID,
+        ReadinessStage::SimilarityLayout,
+        "v1",
+        1,
+        "membership-v1",
+    );
+    invalid_source.scope_id = "another-source".to_string();
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[invalid_source],
+        10,
+    )
+    .expect_err("reject noncanonical source scope identity");
+    assert!(matches!(error, ReadinessError::InvalidScopeIdentity { .. }));
+
+    let mut invalid_path = file_target("missing-path", ReadinessStage::IndexedIdentity, 1);
+    invalid_path.relative_path = Some("  ".to_string());
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &[invalid_path],
+        11,
+    )
+    .expect_err("reject empty eligible file path");
+    assert!(matches!(error, ReadinessError::InvalidRelativePath { .. }));
+
+    assert!(
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 ) VALUES (?1, 'source', 'another-source', NULL, 'similarity_layout',
+                           'v1', 1, 'membership-v1', 'eligible', 12)",
+                [SOURCE_ID],
+            )
+            .is_err(),
+        "schema must reject noncanonical source scope identity"
+    );
+    assert!(
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 ) VALUES (?1, 'file', 'missing-path', '', 'indexed_identity',
+                           'v1', 1, 'content-v1', 'eligible', 13)",
+                [SOURCE_ID],
+            )
+            .is_err(),
+        "schema must reject an empty eligible file path"
+    );
+}
+
+#[test]
+fn incomplete_target_matrices_are_rejected() {
+    let (_root, mut connection) = open_fixture();
+    let seed = file_target("matrix", ReadinessStage::IndexedIdentity, 1);
+    let complete = complete_targets(1, std::slice::from_ref(&seed));
+
+    let without_similarity = complete
+        .iter()
+        .filter(|target| target.stage != ReadinessStage::SimilarityLayout)
+        .cloned()
+        .collect::<Vec<_>>();
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &without_similarity,
+        10,
+    )
+    .expect_err("reject matrix without source layout");
+    assert!(matches!(
+        error,
+        ReadinessError::IncompleteTargetMatrix {
+            stage: ReadinessStage::SimilarityLayout,
+            ..
+        }
+    ));
+
+    let without_embedding = complete
+        .iter()
+        .filter(|target| {
+            target.scope_kind != ReadinessScopeKind::File
+                || target.stage != ReadinessStage::EmbeddingAspects
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let error = replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &without_embedding,
+        11,
+    )
+    .expect_err("reject incomplete file stage matrix");
+    assert!(matches!(
+        error,
+        ReadinessError::IncompleteTargetMatrix {
+            stage: ReadinessStage::EmbeddingAspects,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
     let (_root, mut connection) = open_fixture();
     let target = file_target("inactive", ReadinessStage::PlaybackSummary, 1);
+    let complete = complete_targets(1, std::slice::from_ref(&target));
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
         1,
         1,
         SourceAvailability::Active,
-        std::slice::from_ref(&target),
+        &complete,
         10,
     )
     .expect("publish active target");
@@ -304,7 +438,7 @@ fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
         1,
         2,
         SourceAvailability::Disabled,
-        std::slice::from_ref(&target),
+        &complete,
         12,
     )
     .expect("disable source");
@@ -321,7 +455,7 @@ fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
         1,
         3,
         SourceAvailability::Active,
-        &[deleted],
+        &complete_targets(1, &[deleted]),
         14,
     )
     .expect("publish deleted target");

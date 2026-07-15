@@ -13,7 +13,7 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
     assert!(!missing.is_idle());
     assert_eq!(missing.deficits.len(), 1);
     assert_eq!(
-        missing.entries[0].classification,
+        entry_for(&missing, "one", ReadinessStage::PlaybackSummary).classification,
         ReadinessClassification::Pending
     );
 
@@ -27,7 +27,7 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
     );
     let current = reconcile_readiness(&connection, SOURCE_ID, 102).expect("current snapshot");
     assert_eq!(
-        current.entries[0].classification,
+        entry_for(&current, "one", ReadinessStage::PlaybackSummary).classification,
         ReadinessClassification::Current
     );
     assert!(current.is_idle());
@@ -37,7 +37,7 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
     replace(&mut connection, 2, std::slice::from_ref(&changed));
     let stale = reconcile_readiness(&connection, SOURCE_ID, 103).expect("stale snapshot");
     assert_eq!(
-        stale.entries[0].classification,
+        entry_for(&stale, "one", ReadinessStage::PlaybackSummary).classification,
         ReadinessClassification::StaleByGeneration
     );
     assert_eq!(stale.deficits.len(), 1);
@@ -58,15 +58,24 @@ fn reconciliation_reads_one_snapshot_during_concurrent_publication() {
     .expect("consistent snapshot");
     assert_eq!(snapshot.source_generation, 1);
     assert_eq!(snapshot.readiness_revision, 101);
-    assert_eq!(snapshot.entries.len(), 1);
-    assert_eq!(snapshot.entries[0].target.scope_id, "one");
-    assert_eq!(snapshot.entries[0].target.source_generation, 1);
+    assert_eq!(snapshot.entries.len(), 5);
+    assert_eq!(
+        entry_for(&snapshot, "one", ReadinessStage::PlaybackSummary)
+            .target
+            .source_generation,
+        1
+    );
 
     let current = reconcile_readiness(&connection, SOURCE_ID, 11).expect("current snapshot");
     assert_eq!(current.source_generation, 2);
     assert_eq!(current.readiness_revision, 102);
-    assert_eq!(current.entries.len(), 1);
-    assert_eq!(current.entries[0].target.scope_id, "two");
+    assert_eq!(current.entries.len(), 5);
+    assert_eq!(
+        entry_for(&current, "two", ReadinessStage::PlaybackSummary)
+            .target
+            .scope_id,
+        "two"
+    );
 }
 
 #[test]
@@ -96,6 +105,7 @@ fn equal_row_counts_cannot_hide_missing_current_identities() {
         snapshot
             .entries
             .iter()
+            .filter(|entry| entry.target.eligibility == ReadinessEligibility::Eligible)
             .all(|entry| entry.classification == ReadinessClassification::Pending)
     );
     assert!(!snapshot.is_fully_ready());
@@ -218,6 +228,7 @@ fn persisted_work_deduplicates_and_survives_restart() {
         restarted
             .entries
             .iter()
+            .filter(|entry| entry.target.eligibility == ReadinessEligibility::Eligible)
             .all(|entry| entry.classification == ReadinessClassification::Pending)
     );
 }
@@ -344,10 +355,13 @@ fn path_only_rename_refreshes_running_work_without_losing_lease() {
     renamed.source_generation = 2;
     renamed.relative_path = Some("Renamed/current.wav".to_string());
     replace(&mut connection, 2, &[renamed]);
+    let renamed_snapshot =
+        reconcile_readiness(&connection, SOURCE_ID, 20).expect("renamed snapshot");
+    assert!(renamed_snapshot.deficits.is_empty());
     assert_eq!(
-        persist_readiness_deficits(&mut connection, &original_snapshot.deficits, 20)
-            .expect("refresh current ownership"),
-        1
+        persist_readiness_deficits(&mut connection, &renamed_snapshot.deficits, 20)
+            .expect("current snapshot requires no repair"),
+        0
     );
 
     let state: (String, i64, String, Option<i64>, Option<i64>) = connection
@@ -393,7 +407,7 @@ fn running_lease_expiry_becomes_an_actionable_retry() {
     let running = reconcile_readiness(&connection, SOURCE_ID, 49).expect("running snapshot");
     assert_eq!(running.activity, ReadinessActivity::Running);
     assert_eq!(
-        running.entries[0].classification,
+        entry_for(&running, "leased", ReadinessStage::PlaybackSummary).classification,
         ReadinessClassification::Running {
             lease_expires_at: 50
         }
@@ -404,7 +418,7 @@ fn running_lease_expiry_becomes_an_actionable_retry() {
     assert_eq!(expired.activity, ReadinessActivity::Actionable);
     assert_eq!(expired.deficits.len(), 1);
     assert_eq!(
-        expired.entries[0].classification,
+        entry_for(&expired, "leased", ReadinessStage::PlaybackSummary).classification,
         ReadinessClassification::RetryableFailure {
             retry_at: 50,
             reason: "lease_expired".to_string(),
@@ -506,20 +520,21 @@ fn offline_and_unsupported_targets_remain_observable_without_work() {
     let (_root, mut connection) = open_fixture();
     let unsupported = file_target("unsupported", ReadinessStage::AnalysisFeatures, 1)
         .with_eligibility(ReadinessEligibility::Unsupported);
+    let complete = complete_targets(1, std::slice::from_ref(&unsupported));
     replace_readiness_targets(
         &mut connection,
         SOURCE_ID,
         1,
         1,
         SourceAvailability::Offline,
-        std::slice::from_ref(&unsupported),
+        &complete,
         1,
     )
     .expect("replace offline source");
 
     let offline = reconcile_readiness(&connection, SOURCE_ID, 2).expect("offline snapshot");
     assert_eq!(
-        offline.entries[0].classification,
+        entry_for(&offline, "unsupported", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::Offline
     );
     assert!(offline.deficits.is_empty());
@@ -529,7 +544,7 @@ fn offline_and_unsupported_targets_remain_observable_without_work() {
     replace(&mut connection, 1, &[unsupported]);
     let active = reconcile_readiness(&connection, SOURCE_ID, 3).expect("active snapshot");
     assert_eq!(
-        active.entries[0].classification,
+        entry_for(&active, "unsupported", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::Unsupported
     );
     assert!(active.deficits.is_empty());

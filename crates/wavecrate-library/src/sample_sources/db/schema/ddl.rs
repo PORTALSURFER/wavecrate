@@ -101,6 +101,17 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
             (stage = 'similarity_layout' AND scope_kind = 'source')
             OR (stage <> 'similarity_layout' AND scope_kind = 'file')
         ),
+        CHECK (length(trim(source_id)) > 0 AND length(trim(scope_id)) > 0),
+        CHECK (
+            (scope_kind = 'source' AND scope_id = source_id AND relative_path IS NULL)
+            OR (
+                scope_kind = 'file'
+                AND (
+                    eligibility <> 'eligible'
+                    OR (relative_path IS NOT NULL AND length(trim(relative_path)) > 0)
+                )
+            )
+        ),
         PRIMARY KEY (source_id, scope_kind, scope_id, stage)
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS source_readiness_artifacts (
@@ -116,6 +127,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
             (stage = 'similarity_layout' AND scope_kind = 'source')
             OR (stage <> 'similarity_layout' AND scope_kind = 'file')
         ),
+        CHECK (length(trim(source_id)) > 0 AND length(trim(scope_id)) > 0),
+        CHECK (scope_kind = 'file' OR (scope_kind = 'source' AND scope_id = source_id)),
         PRIMARY KEY (source_id, scope_kind, scope_id, stage)
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS samples (

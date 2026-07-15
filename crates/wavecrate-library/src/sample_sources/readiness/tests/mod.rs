@@ -26,15 +26,74 @@ fn file_target(identity: &str, stage: ReadinessStage, generation: i64) -> Readin
     )
 }
 
+fn complete_targets(generation: i64, targets: &[ReadinessTarget]) -> Vec<ReadinessTarget> {
+    let mut complete = targets.to_vec();
+    let file_targets = targets
+        .iter()
+        .filter(|target| target.scope_kind == ReadinessScopeKind::File)
+        .cloned()
+        .collect::<Vec<_>>();
+    for seed in file_targets {
+        for stage in [
+            ReadinessStage::IndexedIdentity,
+            ReadinessStage::PlaybackSummary,
+            ReadinessStage::AnalysisFeatures,
+            ReadinessStage::EmbeddingAspects,
+        ] {
+            if complete.iter().any(|target| {
+                target.scope_kind == ReadinessScopeKind::File
+                    && target.scope_id == seed.scope_id
+                    && target.stage == stage
+            }) {
+                continue;
+            }
+            let mut terminal = seed.clone();
+            terminal.stage = stage;
+            terminal.required_version = "test-unsupported-v1".to_string();
+            terminal.eligibility = ReadinessEligibility::Unsupported;
+            complete.push(terminal);
+        }
+    }
+    if !complete
+        .iter()
+        .any(|target| target.stage == ReadinessStage::SimilarityLayout)
+    {
+        complete.push(
+            ReadinessTarget::source(
+                SOURCE_ID,
+                ReadinessStage::SimilarityLayout,
+                "test-layout-v1",
+                generation,
+                format!("test-membership-{generation}"),
+            )
+            .with_eligibility(ReadinessEligibility::Unsupported),
+        );
+    }
+    complete
+}
+
 fn replace(connection: &mut Connection, generation: i64, targets: &[ReadinessTarget]) {
+    let targets = complete_targets(generation, targets);
     replace_readiness_targets(
         connection,
         SOURCE_ID,
         generation,
         generation + 100,
         SourceAvailability::Active,
-        targets,
+        &targets,
         100,
     )
     .expect("replace targets");
+}
+
+fn entry_for<'a>(
+    snapshot: &'a ReadinessSnapshot,
+    scope_id: &str,
+    stage: ReadinessStage,
+) -> &'a ReadinessEntry {
+    snapshot
+        .entries
+        .iter()
+        .find(|entry| entry.target.scope_id == scope_id && entry.target.stage == stage)
+        .expect("readiness entry")
 }

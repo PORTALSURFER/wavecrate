@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
@@ -70,6 +70,9 @@ pub fn replace_readiness_targets(
     )?;
     for target in targets {
         insert_target(&tx, target, updated_at)?;
+        if target.scope_kind == ReadinessScopeKind::File {
+            refresh_work_metadata(&tx, target)?;
+        }
     }
     tx.commit()?;
     Ok(())
@@ -473,6 +476,8 @@ fn validate_targets(
     targets: &[ReadinessTarget],
 ) -> Result<(), ReadinessError> {
     let mut keys = BTreeSet::new();
+    let mut file_stages = BTreeMap::<String, BTreeSet<ReadinessStage>>::new();
+    let mut has_similarity_layout = false;
     for target in targets {
         if target.source_id != source_id || target.source_generation != source_generation {
             return Err(ReadinessError::TargetGenerationMismatch {
@@ -506,6 +511,43 @@ fn validate_targets(
                 scope_kind: target.scope_kind,
             });
         }
+        match target.scope_kind {
+            ReadinessScopeKind::File => {
+                if target.scope_id.trim().is_empty() {
+                    return Err(ReadinessError::InvalidScopeIdentity {
+                        source_id: target.source_id.clone(),
+                        scope_id: target.scope_id.clone(),
+                        scope_kind: target.scope_kind,
+                    });
+                }
+                if target.eligibility == super::super::model::ReadinessEligibility::Eligible
+                    && target
+                        .relative_path
+                        .as_deref()
+                        .is_none_or(|path| path.trim().is_empty())
+                {
+                    return Err(ReadinessError::InvalidRelativePath {
+                        source_id: target.source_id.clone(),
+                        scope_id: target.scope_id.clone(),
+                        stage: target.stage,
+                    });
+                }
+                file_stages
+                    .entry(target.scope_id.clone())
+                    .or_default()
+                    .insert(target.stage);
+            }
+            ReadinessScopeKind::Source => {
+                if target.scope_id != source_id || target.relative_path.is_some() {
+                    return Err(ReadinessError::InvalidScopeIdentity {
+                        source_id: target.source_id.clone(),
+                        scope_id: target.scope_id.clone(),
+                        scope_kind: target.scope_kind,
+                    });
+                }
+                has_similarity_layout = true;
+            }
+        }
         if !keys.insert(target.key()) {
             return Err(ReadinessError::DuplicateTarget {
                 source_id: target.source_id.clone(),
@@ -513,6 +555,24 @@ fn validate_targets(
                 stage: target.stage,
             });
         }
+    }
+    for (scope_id, stages) in file_stages {
+        for stage in [
+            ReadinessStage::IndexedIdentity,
+            ReadinessStage::PlaybackSummary,
+            ReadinessStage::AnalysisFeatures,
+            ReadinessStage::EmbeddingAspects,
+        ] {
+            if !stages.contains(&stage) {
+                return Err(ReadinessError::IncompleteTargetMatrix { scope_id, stage });
+            }
+        }
+    }
+    if !has_similarity_layout {
+        return Err(ReadinessError::IncompleteTargetMatrix {
+            scope_id: source_id.to_string(),
+            stage: ReadinessStage::SimilarityLayout,
+        });
     }
     Ok(())
 }
