@@ -132,6 +132,9 @@ impl NativeAppState {
     ) {
         self.background
             .source_processing
+            .set_foreground_activity(self.waveform_sample_load_active());
+        self.background
+            .source_processing
             .set_playback_active(self.playback_visual_activity_active());
         if !ui_frame_diagnostics_enabled() {
             self.waveform

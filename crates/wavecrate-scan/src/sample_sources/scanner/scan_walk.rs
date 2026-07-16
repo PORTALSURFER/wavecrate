@@ -25,78 +25,58 @@ pub(super) fn walk_phase(
     on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
     context: &mut ScanContext,
 ) -> Result<(), ScanError> {
-    // Before the first commit cancellation is rollback-safe. After a bounded
-    // batch commits, finish the scan so callers never receive `Canceled` for a
-    // partially applied source state.
+    // Each committed batch is a valid checkpoint. Cancellation may stop the scan between batches;
+    // the completion metadata and missing-row reconciliation are not published, so a later scan
+    // resumes from the durable partial index without presenting it as a complete generation.
     let committed = Cell::new(false);
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
-    visit_dir_with_cancel_check(
-        root,
-        &mut || cancel_requested(cancel, committed.get()),
-        &mut |path| {
-            if cancel_requested(cancel, committed.get()) {
-                return Err(ScanError::Canceled);
-            }
-            let mut prepared = match prepare_diff(root, path, context) {
-                Ok(prepared) => prepared,
-                Err(error) if committed.get() => {
-                    if let Ok(relative) = path.strip_prefix(root)
-                        && is_supported_scannable_audio_file(root, relative)
-                    {
-                        context.existing.remove(relative);
-                    }
-                    tracing::warn!(
-                        path = %path.display(),
-                        error = %error,
-                        "Skipping file that changed after an earlier scan batch committed"
-                    );
-                    return Ok(());
+    visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
+        if cancel_requested(cancel) {
+            return Err(ScanError::Canceled);
+        }
+        let mut prepared = match prepare_diff(root, path, context) {
+            Ok(prepared) => prepared,
+            Err(error) if committed.get() => {
+                if let Ok(relative) = path.strip_prefix(root)
+                    && is_supported_scannable_audio_file(root, relative)
+                {
+                    context.existing.remove(relative);
                 }
-                Err(error) => return Err(error),
-            };
-            context.stats.total_files += 1;
-            if let Some(on_progress) = on_progress.as_mut() {
-                on_progress(context.stats.total_files, path);
-            }
-            if !prepared.requires_apply {
-                let Some(refreshed) =
-                    refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
-                else {
-                    return Ok(());
-                };
-                prepared = refreshed;
-            }
-            if !prepared.requires_apply {
-                skip_noop(context, &prepared);
+                tracing::warn!(
+                    path = %path.display(),
+                    error = %error,
+                    "Skipping file that changed after an earlier scan batch committed"
+                );
                 return Ok(());
             }
-            pending.push(prepared);
-            if pending.len() == APPLY_BATCH_SIZE {
-                let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-                if apply_batch(
-                    db,
-                    root,
-                    cancel.filter(|_| !committed.get()),
-                    context,
-                    files,
-                    committed.get(),
-                )? {
-                    committed.set(true);
-                }
+            Err(error) => return Err(error),
+        };
+        context.stats.total_files += 1;
+        if let Some(on_progress) = on_progress.as_mut() {
+            on_progress(context.stats.total_files, path);
+        }
+        if !prepared.requires_apply {
+            let Some(refreshed) =
+                refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
+            else {
+                return Ok(());
+            };
+            prepared = refreshed;
+        }
+        if !prepared.requires_apply {
+            skip_noop(context, &prepared);
+            return Ok(());
+        }
+        pending.push(prepared);
+        if pending.len() == APPLY_BATCH_SIZE {
+            let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
+            if apply_batch(db, root, cancel, context, files, committed.get())? {
+                committed.set(true);
             }
-            Ok(())
-        },
-    )?;
-    if !pending.is_empty()
-        && apply_batch(
-            db,
-            root,
-            cancel.filter(|_| !committed.get()),
-            context,
-            pending,
-            committed.get(),
-        )?
-    {
+        }
+        Ok(())
+    })?;
+    if !pending.is_empty() && apply_batch(db, root, cancel, context, pending, committed.get())? {
         committed.set(true);
     }
     Ok(())
@@ -212,6 +192,7 @@ fn apply_batch(
         let relative_path = file.facts.relative.clone();
         let outcome = match prepare_for_apply(db, root, cancel, file) {
             Ok(outcome) => outcome,
+            Err(ScanError::Canceled) => return Err(ScanError::Canceled),
             Err(error) if tolerate_file_errors => {
                 skip_changed_or_unavailable(context, root, &relative_path);
                 tracing::warn!(
@@ -234,7 +215,7 @@ fn apply_batch(
     if ready.is_empty() {
         return Ok(false);
     }
-    if cancel_requested(cancel, false) {
+    if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
@@ -320,8 +301,8 @@ fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> 
         && current.file_identity == prepared.facts.file_identity
 }
 
-fn cancel_requested(cancel: Option<&AtomicBool>, committed: bool) -> bool {
-    !committed && cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
+    cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
 }
 
 #[cfg(test)]

@@ -57,7 +57,7 @@ fn scan(
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
     walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
-    db_sync_phase(db, &mut context)?;
+    db_sync_phase(db, &mut context, cancel)?;
     Ok(context.stats)
 }
 

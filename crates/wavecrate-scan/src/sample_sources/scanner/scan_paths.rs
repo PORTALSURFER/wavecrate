@@ -39,8 +39,7 @@ pub fn sync_paths_with_progress(
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
     let mut committed = false;
     for relative_path in targets.current_files {
-        if !committed
-            && let Some(cancel) = cancel
+        if let Some(cancel) = cancel
             && cancel.load(Ordering::Relaxed)
         {
             return Err(ScanError::Canceled);
@@ -67,27 +66,13 @@ pub fn sync_paths_with_progress(
         if prepared.len() == TARGET_PREPARE_BATCH_SIZE {
             let chunk =
                 std::mem::replace(&mut prepared, Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE));
-            committed |= apply_prepared_chunk(
-                db,
-                &root,
-                cancel.filter(|_| !committed),
-                &mut context,
-                chunk,
-                committed,
-            )?;
+            committed |= apply_prepared_chunk(db, &root, cancel, &mut context, chunk, committed)?;
         }
     }
     if !prepared.is_empty() {
-        let _ = apply_prepared_chunk(
-            db,
-            &root,
-            cancel.filter(|_| !committed),
-            &mut context,
-            prepared,
-            committed,
-        )?;
+        let _ = apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed)?;
     }
-    db_sync_phase(db, &mut context)?;
+    db_sync_phase(db, &mut context, cancel)?;
     Ok(context.stats)
 }
 

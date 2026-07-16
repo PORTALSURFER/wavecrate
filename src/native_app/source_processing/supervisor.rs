@@ -43,7 +43,6 @@ const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
 const MAX_DISCOVERED_ANALYSIS_JOBS: i64 = 256;
-const EXTERNAL_SCAN_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
 const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v4";
 const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
@@ -80,7 +79,7 @@ impl SourceProcessingBudgetHandle {
             let mut control = self.shared.control();
             while !control.shutdown
                 && control.sources.contains_key(source_id)
-                && control.playback_active
+                && control.processing_paused()
             {
                 control = self
                     .shared
@@ -142,7 +141,7 @@ impl SourceProcessingBudgetPermit {
         }
         let control = self.shared.control();
         control.shutdown
-            || control.playback_active
+            || control.processing_paused()
             || self
                 .permit
                 .as_ref()
@@ -191,9 +190,10 @@ impl SourceProcessingSupervisor {
     }
 
     pub(in crate::native_app) fn replace_sources(&self, sources: Vec<SampleSource>) {
-        self.shared.work_cancel.store(true, Ordering::Release);
         let mut control = self.shared.control();
+        control.cancel_all_source_work();
         control.sources = sources_by_id(sources);
+        control.reset_source_work_tokens();
         let retained_source_ids = control.sources.keys().cloned().collect::<Vec<_>>();
         control.priority.immediate.clear();
         control.priority.visible.clear();
@@ -218,11 +218,16 @@ impl SourceProcessingSupervisor {
 
     pub(in crate::native_app) fn wake_source(&self, source_id: &str, reason: &'static str) {
         let mut control = self.shared.control();
-        if control.sources.contains_key(source_id) {
-            self.shared.work_cancel.store(true, Ordering::Release);
-            control.wake(reason);
-            self.shared.wake.notify_one();
+        if !control.sources.contains_key(source_id) {
+            return;
         }
+        control.cancel_source_work(source_id);
+        control.wake(reason);
+        drop(control);
+        self.shared
+            .cancel_external_scans(|registration| registration.source_id == source_id);
+        self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_one();
     }
 
     pub(in crate::native_app) fn set_selected_source(&self, source_id: Option<&str>) {
@@ -282,7 +287,11 @@ impl SourceProcessingSupervisor {
         let mut control = self.shared.control();
         if control.playback_active != active {
             control.playback_active = active;
-            self.shared.work_cancel.store(active, Ordering::Release);
+            if active {
+                control.cancel_all_source_work();
+            } else if !control.foreground_active {
+                control.reset_source_work_tokens();
+            }
             control.wake(if active {
                 "playback_pause"
             } else {
@@ -297,13 +306,37 @@ impl SourceProcessingSupervisor {
         }
     }
 
+    pub(in crate::native_app) fn set_foreground_activity(&self, active: bool) {
+        let mut control = self.shared.control();
+        if control.foreground_active == active {
+            return;
+        }
+        control.foreground_active = active;
+        if active {
+            control.cancel_all_source_work();
+        } else if !control.playback_active {
+            control.reset_source_work_tokens();
+        }
+        control.wake(if active {
+            "foreground_activity_pause"
+        } else {
+            "foreground_activity_resume"
+        });
+        drop(control);
+        if active {
+            self.shared.cancel_external_scans(|_| true);
+        }
+        self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_all();
+    }
+
     pub(in crate::native_app) fn shutdown(&mut self) -> Value {
         let started_at = Instant::now();
         self.shared.cancel.store(true, Ordering::Release);
-        self.shared.work_cancel.store(true, Ordering::Release);
         self.shared.cancel_external_scans(|_| true);
         {
             let mut control = self.shared.control();
+            control.cancel_all_source_work();
             control.shutdown = true;
             control.wake("shutdown");
         }
@@ -313,13 +346,11 @@ impl SourceProcessingSupervisor {
             .coordinator
             .take()
             .is_none_or(|coordinator| coordinator.join().is_ok());
-        let external_scans_joined = self
-            .shared
-            .wait_for_external_scans(EXTERNAL_SCAN_SHUTDOWN_TIMEOUT);
+        self.shared.wait_for_external_scans();
         let telemetry = self.shared.telemetry();
         serde_json::json!({
             "joined": joined,
-            "external_scans_joined": external_scans_joined,
+            "external_scans_joined": true,
             "elapsed_ms": started_at.elapsed().as_secs_f64() * 1_000.0,
             "sweeps": telemetry.sweeps,
             "claimed": telemetry.claimed,
@@ -350,7 +381,6 @@ struct Shared {
     state: Mutex<ControlState>,
     wake: Condvar,
     cancel: AtomicBool,
-    work_cancel: AtomicBool,
     telemetry: Mutex<SupervisorTelemetry>,
     budgets: Mutex<BudgetTracker>,
     budget_wake: Condvar,
@@ -361,18 +391,24 @@ struct Shared {
 
 impl Shared {
     fn new(sources: Vec<SampleSource>) -> Self {
+        let sources = sources_by_id(sources);
+        let source_work_cancels = sources
+            .keys()
+            .map(|source_id| (source_id.clone(), Arc::new(AtomicBool::new(false))))
+            .collect();
         Self {
             state: Mutex::new(ControlState {
-                sources: sources_by_id(sources),
+                sources,
+                source_work_cancels,
                 wake_generation: 1,
                 wake_reason: "startup",
                 playback_active: false,
+                foreground_active: false,
                 shutdown: false,
                 priority: PriorityContext::default(),
             }),
             wake: Condvar::new(),
             cancel: AtomicBool::new(false),
-            work_cancel: AtomicBool::new(false),
             telemetry: Mutex::new(SupervisorTelemetry::default()),
             budgets: Mutex::new(BudgetTracker::new(ProcessingBudgets::default())),
             budget_wake: Condvar::new(),
@@ -414,23 +450,23 @@ impl Shared {
         }
     }
 
-    fn wait_for_external_scans(&self, timeout: Duration) -> bool {
+    fn wait_for_external_scans(&self) {
         let registrations = self.external_scans();
-        let (registrations, _) = self
-            .external_scan_wake
-            .wait_timeout_while(registrations, timeout, |registrations| {
-                !registrations.is_empty()
-            })
-            .unwrap_or_else(|poison| poison.into_inner());
-        registrations.is_empty()
+        drop(
+            self.external_scan_wake
+                .wait_while(registrations, |registrations| !registrations.is_empty())
+                .unwrap_or_else(|poison| poison.into_inner()),
+        );
     }
 }
 
 struct ControlState {
     sources: BTreeMap<String, SampleSource>,
+    source_work_cancels: BTreeMap<String, Arc<AtomicBool>>,
     wake_generation: u64,
     wake_reason: &'static str,
     playback_active: bool,
+    foreground_active: bool,
     shutdown: bool,
     priority: PriorityContext,
 }
@@ -439,6 +475,31 @@ impl ControlState {
     fn wake(&mut self, reason: &'static str) {
         self.wake_generation = self.wake_generation.wrapping_add(1);
         self.wake_reason = reason;
+    }
+
+    fn processing_paused(&self) -> bool {
+        self.playback_active || self.foreground_active
+    }
+
+    fn cancel_source_work(&mut self, source_id: &str) {
+        if let Some(cancel) = self.source_work_cancels.get_mut(source_id) {
+            cancel.store(true, Ordering::Release);
+            *cancel = Arc::new(AtomicBool::new(false));
+        }
+    }
+
+    fn cancel_all_source_work(&mut self) {
+        for cancel in self.source_work_cancels.values() {
+            cancel.store(true, Ordering::Release);
+        }
+    }
+
+    fn reset_source_work_tokens(&mut self) {
+        self.source_work_cancels = self
+            .sources
+            .keys()
+            .map(|source_id| (source_id.clone(), Arc::new(AtomicBool::new(false))))
+            .collect();
     }
 }
 
@@ -505,7 +566,7 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut scheduler = FairScheduler::default();
     let mut reset_sources = BTreeMap::<String, bool>::new();
     loop {
-        let (sources, priority, playback_active, generation, reason) = {
+        let (sources, source_work_cancels, priority, processing_paused, generation, reason) = {
             let mut control = shared.control();
             while !control.shutdown && control.wake_generation == observed_generation {
                 let wait_duration = coordinator_wait_duration(next_retry_at, now_epoch_seconds());
@@ -527,20 +588,18 @@ fn run_coordinator(shared: Arc<Shared>) {
             if control.shutdown {
                 break;
             }
-            if !control.playback_active {
-                shared.work_cancel.store(false, Ordering::Release);
-            }
             (
                 control.sources.values().cloned().collect::<Vec<_>>(),
+                control.source_work_cancels.clone(),
                 control.priority.clone(),
-                control.playback_active,
+                control.processing_paused(),
                 control.wake_generation,
                 control.wake_reason,
             )
         };
         observed_generation = generation;
-        scheduler.set_paused(playback_active);
-        if playback_active {
+        scheduler.set_paused(processing_paused);
+        if processing_paused {
             tracing::debug!(
                 target: "wavecrate::source_processing",
                 event = "source_processing.paused",
@@ -597,7 +656,7 @@ fn run_coordinator(shared: Arc<Shared>) {
         while !candidates.is_empty() && !shared.cancel.load(Ordering::Acquire) {
             let control = shared.control();
             let interrupted =
-                control.playback_active || control.wake_generation != observed_generation;
+                control.processing_paused() || control.wake_generation != observed_generation;
             drop(control);
             if interrupted {
                 break;
@@ -620,7 +679,13 @@ fn run_coordinator(shared: Arc<Shared>) {
                 telemetry.contention = telemetry.contention.saturating_add(1);
                 break;
             };
-            let result = execute_candidate(&candidate, &shared.work_cancel);
+            let Some(candidate_cancel) = source_work_cancels.get(candidate.source.id.as_str())
+            else {
+                shared.budgets().release(permit);
+                shared.budget_wake.notify_all();
+                break;
+            };
+            let result = execute_candidate(&candidate, candidate_cancel.as_ref());
             shared.budgets().release(permit);
             shared.budget_wake.notify_all();
             let mut telemetry = shared.telemetry();
@@ -777,9 +842,28 @@ fn discover_source_candidates(
         SourceDatabaseConnectionRole::JobWorker,
     )
     .map_err(|error| error.to_string())?;
+    discover_source_candidates_with_connection(source, &mut connection, now)
+}
+
+fn discover_source_candidates_with_connection(
+    source: &SampleSource,
+    connection: &mut rusqlite::Connection,
+    now: i64,
+) -> Result<(Vec<RuntimeCandidate>, SourceDiscoveryStats), String> {
     let source_id = source.id.as_str();
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
+    if connection
+        .is_readonly(rusqlite::MAIN_DB)
+        .map_err(|error| error.to_string())?
+    {
+        tracing::debug!(
+            target: "wavecrate::source_processing",
+            source_id,
+            "Source processing is disabled for a read-only source database"
+        );
+        return Ok((candidates, stats));
+    }
     if !source_processing_schema_available(&connection)? {
         tracing::debug!(
             target: "wavecrate::source_processing",
@@ -788,7 +872,7 @@ fn discover_source_candidates(
         );
         return Ok((candidates, stats));
     }
-    publish_current_readiness_targets(&mut connection, source_id, now)?;
+    publish_current_readiness_targets(connection, source_id, now)?;
     let readiness_source_exists: bool = connection
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM source_readiness_sources WHERE source_id = ?1)",
@@ -799,7 +883,7 @@ fn discover_source_candidates(
     if readiness_source_exists {
         let snapshot =
             reconcile_readiness(&connection, source_id, now).map_err(|error| error.to_string())?;
-        persist_readiness_deficits(&mut connection, &snapshot.deficits, now)
+        persist_readiness_deficits(connection, &snapshot.deficits, now)
             .map_err(|error| error.to_string())?;
         stats.readiness_queue_depth = snapshot.deficits.len();
         candidates.extend(snapshot.deficits.iter().map(|deficit| RuntimeCandidate {
@@ -1733,6 +1817,98 @@ mod tests {
     }
 
     #[test]
+    fn source_wakes_cancel_only_that_sources_in_flight_generation() {
+        let (_first_directory, first) = unhashed_source("first");
+        let (_second_directory, second) = unhashed_source("second");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor.replace_sources(vec![first.clone(), second.clone()]);
+        let (first_generation, second_generation) = {
+            let control = supervisor.shared.control();
+            (
+                Arc::clone(&control.source_work_cancels[first.id.as_str()]),
+                Arc::clone(&control.source_work_cancels[second.id.as_str()]),
+            )
+        };
+        let first_scan = supervisor
+            .budget_handle()
+            .acquire_scan(first.id.as_str())
+            .expect("acquire first-source scan permit");
+        let first_scan_generation = first_scan.cancel_token();
+
+        supervisor.wake_source(first.id.as_str(), "test_source_wake");
+
+        assert!(first_generation.load(Ordering::Acquire));
+        assert!(first_scan_generation.load(Ordering::Acquire));
+        assert!(!second_generation.load(Ordering::Acquire));
+        let control = supervisor.shared.control();
+        assert!(!control.source_work_cancels[first.id.as_str()].load(Ordering::Acquire));
+        assert!(Arc::ptr_eq(
+            &second_generation,
+            &control.source_work_cancels[second.id.as_str()]
+        ));
+        drop(control);
+        drop(first_scan);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn foreground_activity_cancels_in_flight_work_without_reviving_old_generations() {
+        let (_directory, source) = unhashed_source("foreground");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor.replace_sources(vec![source.clone()]);
+        let source_generation = {
+            let control = supervisor.shared.control();
+            Arc::clone(&control.source_work_cancels[source.id.as_str()])
+        };
+        let scan_permit = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("acquire external scan permit");
+        let scan_generation = scan_permit.cancel_token();
+
+        supervisor.set_foreground_activity(true);
+
+        assert!(source_generation.load(Ordering::Acquire));
+        assert!(scan_generation.load(Ordering::Acquire));
+        assert!(supervisor.shared.control().processing_paused());
+        drop(scan_permit);
+
+        supervisor.set_foreground_activity(false);
+
+        assert!(
+            source_generation.load(Ordering::Acquire),
+            "resuming must not clear a token held by an interrupted worker"
+        );
+        let control = supervisor.shared.control();
+        assert!(!control.processing_paused());
+        assert!(!control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire));
+        drop(control);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn read_only_discovery_does_not_publish_or_mutate_work() {
+        let (_directory, source) = ready_analysis_source("read-only-discovery");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::UiRead,
+        )
+        .expect("open read-only source database");
+        assert!(connection.is_readonly(rusqlite::MAIN_DB).unwrap());
+        let counts_before = discovery_durable_counts(&connection);
+
+        let (candidates, stats) =
+            discover_source_candidates_with_connection(&source, &mut connection, 100)
+                .expect("skip read-only source processing");
+
+        assert!(candidates.is_empty());
+        assert_eq!(stats.readiness_queue_depth, 0);
+        assert_eq!(discovery_durable_counts(&connection), counts_before);
+    }
+
+    #[test]
     fn production_supervisor_publishes_claims_and_completes_readiness_without_manual_seed() {
         let (_directory, source) = ready_analysis_source("readiness");
 
@@ -2163,6 +2339,19 @@ mod tests {
             .expect("read pending file")
             .and_then(|entry| entry.content_hash)
             .is_some()
+    }
+
+    fn discovery_durable_counts(connection: &rusqlite::Connection) -> (i64, i64, i64) {
+        connection
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM source_readiness_targets),
+                    (SELECT COUNT(*) FROM analysis_jobs),
+                    (SELECT COUNT(*) FROM metadata WHERE key = ?1)",
+                [META_READINESS_TARGET_FINGERPRINT],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("read durable discovery counts")
     }
 
     fn wait_until(timeout: Duration, mut condition: impl FnMut() -> bool) {

@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::scan::{ScanContext, ScanError, ScanMode};
@@ -10,12 +11,16 @@ const MISSING_BATCH_SIZE: usize = 64;
 pub(super) fn db_sync_phase(
     db: &SourceDatabase,
     context: &mut ScanContext,
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), ScanError> {
     let mut existing = std::mem::take(&mut context.existing)
         .into_values()
         .collect::<Vec<_>>()
         .into_iter();
     loop {
+        if cancel_requested(cancel) {
+            return Err(ScanError::Canceled);
+        }
         let chunk = existing
             .by_ref()
             .take(MISSING_BATCH_SIZE)
@@ -26,9 +31,15 @@ pub(super) fn db_sync_phase(
         let mut batch = db.write_batch()?;
         context.ensure_rename_candidate_generation(&mut batch)?;
         mark_missing(db, &mut batch, chunk, &mut context.stats, context.mode)?;
+        if cancel_requested(cancel) {
+            return Err(ScanError::Canceled);
+        }
         batch.commit()?;
     }
 
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
     let mut batch = db.write_batch()?;
     context.ensure_rename_candidate_generation(&mut batch)?;
     if context.mode == ScanMode::Hard {
@@ -41,6 +52,13 @@ pub(super) fn db_sync_phase(
         .as_secs()
         .to_string();
     batch.set_metadata(META_LAST_SCAN_COMPLETED_AT, &timestamp)?;
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
     batch.commit()?;
     Ok(())
+}
+
+fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
+    cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
 }

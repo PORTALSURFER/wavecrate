@@ -120,6 +120,7 @@ impl NativeAppState {
         _modifiers: PointerModifiers,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.begin_interactive_sample_load(path.as_str());
         let total_started_at = starmap_telemetry::stage_timer();
         let started_at = Instant::now();
         let previous_selection = self
@@ -340,17 +341,7 @@ impl NativeAppState {
         autoplay: bool,
         started_at: Instant,
     ) {
-        if let Some((source, relative_path)) = self
-            .library
-            .folder_browser
-            .sample_source_for_file_path(std::path::Path::new(&path))
-        {
-            self.background.source_processing.prioritize_path(
-                source.id.as_str(),
-                &relative_path.to_string_lossy(),
-                true,
-            );
-        }
+        self.begin_interactive_sample_load(path.as_str());
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         if self.start_memory_cached_sample(path.as_str(), autoplay, context, started_at) {
@@ -383,6 +374,7 @@ impl NativeAppState {
         started_at: Instant,
         transient_navigation: bool,
     ) {
+        self.begin_interactive_sample_load(path.as_str());
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         self.audio.pending_sample_playback = None;
@@ -446,6 +438,7 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.begin_interactive_sample_load(path.as_str());
         self.yield_sample_cache_warm_for_foreground_load(context);
         self.cancel_inflight_sample_load_preserving_early_playback_for(path.as_str());
         let request = SampleLoadPathValidationRequest::new(path, intent);
@@ -509,6 +502,7 @@ impl NativeAppState {
             );
             return;
         }
+        self.begin_interactive_sample_load(path.as_str());
         if self
             .audio
             .promote_sample_playback_session_to_waveform(path.as_str())
@@ -579,6 +573,23 @@ impl NativeAppState {
             "settled_full_playback_queued",
             SampleLoadStrategy::CacheThenDecode,
         );
+    }
+
+    fn begin_interactive_sample_load(&mut self, path: &str) {
+        self.background
+            .source_processing
+            .set_foreground_activity(true);
+        if let Some((source, relative_path)) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(Path::new(path))
+        {
+            self.background.source_processing.prioritize_path(
+                source.id.as_str(),
+                &relative_path.to_string_lossy(),
+                true,
+            );
+        }
     }
 
     pub(in crate::native_app) fn finish_sample_load_path_validation(
