@@ -17,13 +17,13 @@ pub(super) fn sync_source_database_paths(
             let stats = scanner::sync_paths(&db, &paths)
                 .map_err(|err| format!("sync source index: {err}"))?;
             let committed = stats.clone();
-            let completed = match scanner::complete_deferred_hashes(&db, stats) {
+            let completed = match scanner::complete_deferred_rename_candidates(&db, stats) {
                 Ok(completed) => completed,
                 Err(error) => {
                     tracing::warn!(
                         source_id,
                         error = %error,
-                        "Deferred source hashing failed after filesystem sync committed"
+                        "Deferred rename reconciliation failed after filesystem sync committed"
                     );
                     committed
                 }
@@ -79,6 +79,37 @@ mod tests {
                 .unwrap()
                 .tag,
             Rating::KEEP_1
+        );
+    }
+
+    #[test]
+    fn filesystem_sync_leaves_non_rename_hashing_for_the_supervisor() {
+        let root = tempfile::tempdir().expect("source root");
+        let fresh = root.path().join("fresh.wav");
+        std::fs::write(&fresh, vec![7_u8; 9 * 1024 * 1024]).expect("large wav");
+
+        let result = sync_source_database_paths(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            root.path().to_path_buf(),
+            vec![PathBuf::from("fresh.wav")],
+            1,
+        );
+
+        assert_eq!(
+            result.result,
+            Ok(SourceFilesystemSyncSuccess {
+                renames_reconciled: 0
+            })
+        );
+        let db = SourceDatabase::open(root.path()).expect("source db");
+        assert!(
+            db.entry_for_path(Path::new("fresh.wav"))
+                .expect("read entry")
+                .expect("fresh entry")
+                .content_hash
+                .is_none(),
+            "ordinary deep hashing must remain queued for the supervisor"
         );
     }
 }

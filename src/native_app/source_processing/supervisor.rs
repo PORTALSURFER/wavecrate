@@ -29,7 +29,7 @@ use super::scheduler::{
     BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
 };
 use crate::native_app::sample_library::similarity_prep::{
-    NATIVE_SIMILARITY_UMAP_VERSION, finalize_similarity_prep_if_ready,
+    NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
     reset_interrupted_similarity_prep_jobs, run_similarity_prep_job,
     similarity_prep_needs_finalization,
 };
@@ -339,8 +339,12 @@ struct SupervisorTelemetry {
 #[derive(Clone, Debug)]
 enum RuntimeTask {
     DeepHash,
-    LegacyAnalysis { job_id: i64 },
-    FinalizeSimilarity,
+    LegacyAnalysis {
+        job_id: i64,
+    },
+    FinalizeSimilarity {
+        publication_fence: SimilarityPublicationFence,
+    },
     Readiness(ReadinessTarget),
 }
 
@@ -744,15 +748,31 @@ fn discover_source_candidates(
             task: RuntimeTask::LegacyAnalysis { job_id },
         });
     }
-    if candidates
-        .iter()
-        .all(|candidate| !matches!(&candidate.task, RuntimeTask::LegacyAnalysis { .. }))
+    if !readiness_source_exists
+        && candidates
+            .iter()
+            .all(|candidate| !matches!(&candidate.task, RuntimeTask::LegacyAnalysis { .. }))
         && similarity_prep_needs_finalization(source)?
     {
+        let paths_revision = connection
+            .query_row(
+                "SELECT COALESCE(
+                    (SELECT CAST(value AS INTEGER) FROM metadata
+                     WHERE key = 'wav_paths_revision_v1'),
+                    0
+                )",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|error| error.to_string())?;
         candidates.push(RuntimeCandidate {
             schedule: WorkCandidate::source(source_id, ProcessingLane::Finalization, 4, now),
             source: source.clone(),
-            task: RuntimeTask::FinalizeSimilarity,
+            task: RuntimeTask::FinalizeSimilarity {
+                publication_fence: SimilarityPublicationFence::legacy_paths_revision(
+                    paths_revision,
+                ),
+            },
         });
     }
     Ok((candidates, stats))
@@ -794,14 +814,16 @@ fn execute_candidate(
                 }
             })
         }
-        RuntimeTask::FinalizeSimilarity => {
-            finalize_similarity_prep_if_ready(&candidate.source, cancel).map(|finalized| {
-                if finalized {
-                    ExecutionOutcome::Completed
-                } else {
-                    ExecutionOutcome::NotClaimed
-                }
-            })
+        RuntimeTask::FinalizeSimilarity { publication_fence } => {
+            finalize_similarity_prep_if_ready(&candidate.source, publication_fence, cancel).map(
+                |finalized| {
+                    if finalized {
+                        ExecutionOutcome::Completed
+                    } else {
+                        ExecutionOutcome::NotClaimed
+                    }
+                },
+            )
         }
         RuntimeTask::Readiness(target) => {
             execute_readiness_target(&candidate.source, target, cancel)
@@ -1127,7 +1149,8 @@ fn run_readiness_stage(
                     "similarity finalization cancelled",
                 ));
             }
-            finalize_similarity_prep_if_ready(source, cancel).map(|finalized| {
+            let publication_fence = SimilarityPublicationFence::for_readiness_target(target)?;
+            finalize_similarity_prep_if_ready(source, &publication_fence, cancel).map(|finalized| {
                 if finalized {
                     ReadinessExecutionOutcome::Complete
                 } else {

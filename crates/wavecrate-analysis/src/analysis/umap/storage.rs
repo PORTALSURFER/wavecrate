@@ -1,7 +1,7 @@
 //! Similarity-map embedding load and persistence helpers.
 
 use crate::analysis::decode_f32_le_blob;
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, TransactionBehavior, params};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::LayoutPoint;
@@ -23,17 +23,23 @@ pub(super) fn load_embeddings(
 }
 
 /// Persist one projected layout into the legacy `layout_umap` compatibility table.
-pub(super) fn write_layout(
+pub(super) fn write_layout_with_publication_fence(
     conn: &mut Connection,
     sample_ids: &[String],
     layout: &[LayoutPoint],
     model_id: &str,
     umap_version: &str,
-) -> Result<usize, String> {
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<Option<usize>, String> {
     let now = current_unix_timestamp()?;
     let tx = conn
-        .transaction()
+        .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|err| format!("Start transaction failed: {err}"))?;
+    if !publication_fence(&tx)? {
+        tx.rollback()
+            .map_err(|err| format!("Roll back stale layout publication failed: {err}"))?;
+        return Ok(None);
+    }
     let mut stmt = tx
         .prepare(
             "INSERT INTO layout_umap (sample_id, model_id, umap_version, x, y, created_at)
@@ -60,7 +66,7 @@ pub(super) fn write_layout(
     drop(stmt);
     tx.commit()
         .map_err(|err| format!("Commit layout failed: {err}"))?;
-    Ok(sample_ids.len())
+    Ok(Some(sample_ids.len()))
 }
 
 fn count_embeddings(conn: &Connection, model_id: &str) -> Result<usize, String> {
@@ -161,4 +167,46 @@ fn current_unix_timestamp() -> Result<i64, String> {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .map_err(|_| "Invalid system time".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_generation_rejects_layout_rows_inside_publication_transaction() {
+        let mut connection = Connection::open_in_memory().expect("open database");
+        connection
+            .execute_batch(
+                "CREATE TABLE layout_umap (
+                    sample_id TEXT PRIMARY KEY,
+                    model_id TEXT NOT NULL,
+                    umap_version TEXT NOT NULL,
+                    x REAL NOT NULL,
+                    y REAL NOT NULL,
+                    created_at INTEGER NOT NULL
+                ) WITHOUT ROWID;",
+            )
+            .expect("create layout table");
+
+        let published = write_layout_with_publication_fence(
+            &mut connection,
+            &["source::sample".to_string()],
+            &[[0.25, -0.5]],
+            "model-v1",
+            "layout-v1",
+            &|_| Ok(false),
+        )
+        .expect("reject stale layout");
+
+        assert_eq!(published, None);
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM layout_umap", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("count layout rows"),
+            0
+        );
+    }
 }

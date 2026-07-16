@@ -17,7 +17,7 @@ pub(crate) mod update;
 mod update;
 
 use crate::analysis::{decode_f32_le_blob, similarity};
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, RwLock};
 
@@ -120,6 +120,32 @@ where
 /// Flush any buffered ANN insertions to the on-disk index.
 pub fn flush_pending_inserts(conn: &Connection) -> Result<(), String> {
     with_index_state_mut(conn, |state| update::flush_pending_inserts(conn, state))
+}
+
+/// Flush buffered ANN insertions only while a transactional generation fence is current.
+///
+/// The immediate SQLite transaction remains open while the index container and its database
+/// metadata are published, preventing a source mutation from crossing the generation check.
+pub fn flush_pending_inserts_with_publication_fence(
+    conn: &mut Connection,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<bool, String> {
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("Start ANN publication transaction failed: {err}"))?;
+    if !publication_fence(&tx)? {
+        tx.rollback()
+            .map_err(|err| format!("Roll back stale ANN publication failed: {err}"))?;
+        return Ok(false);
+    }
+    let state_arc = get_index_entry(&tx)?;
+    let mut state = state_arc
+        .write()
+        .map_err(|_| "ANN index state lock poisoned")?;
+    update::flush_pending_inserts(&tx, &mut state)?;
+    tx.commit()
+        .map_err(|err| format!("Commit ANN publication failed: {err}"))?;
+    Ok(true)
 }
 
 /// Find the `k` nearest neighbors for a stored sample id.
