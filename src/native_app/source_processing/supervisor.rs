@@ -783,6 +783,14 @@ fn discover_source_candidates(
     let source_id = source.id.as_str();
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
+    if !source_processing_schema_available(&connection)? {
+        tracing::debug!(
+            target: "wavecrate::source_processing",
+            source_id,
+            "Source processing is unavailable until the read-only source database is migrated"
+        );
+        return Ok((candidates, stats));
+    }
     publish_current_readiness_targets(&mut connection, source_id, now)?;
     let readiness_source_exists: bool = connection
         .query_row(
@@ -901,6 +909,64 @@ fn discover_source_candidates(
         });
     }
     Ok((candidates, stats))
+}
+
+fn source_processing_schema_available(connection: &rusqlite::Connection) -> Result<bool, String> {
+    for (table, required_columns) in [
+        (
+            "wav_files",
+            &[
+                "path",
+                "file_identity",
+                "content_hash",
+                "file_size",
+                "modified_ns",
+                "missing",
+            ][..],
+        ),
+        (
+            "analysis_jobs",
+            &[
+                "id",
+                "relative_path",
+                "job_type",
+                "created_at",
+                "status",
+                "readiness_managed",
+            ][..],
+        ),
+        ("metadata", &["key", "value"][..]),
+    ] {
+        let pragma = format!("PRAGMA table_info({table})");
+        let mut statement = connection
+            .prepare(&pragma)
+            .map_err(|error| error.to_string())?;
+        let columns = statement
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        if required_columns
+            .iter()
+            .any(|column| !columns.contains(*column))
+        {
+            return Ok(false);
+        }
+    }
+    connection
+        .query_row(
+            "SELECT COUNT(*) = 3
+             FROM sqlite_master
+             WHERE type = 'table'
+               AND name IN (
+                   'source_readiness_sources',
+                   'source_readiness_targets',
+                   'source_readiness_artifacts'
+               )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())
 }
 
 fn publish_current_readiness_targets(
@@ -1710,6 +1776,30 @@ mod tests {
         assert!(cached_waveform_file_audition_ready_exists(
             &source.root.join("ready.wav")
         ));
+    }
+
+    #[test]
+    fn legacy_source_schema_is_not_eligible_for_automatic_processing() {
+        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE wav_files (
+                    path TEXT PRIMARY KEY,
+                    file_size INTEGER NOT NULL,
+                    modified_ns INTEGER NOT NULL
+                 );
+                 CREATE TABLE analysis_jobs (
+                    id INTEGER PRIMARY KEY,
+                    relative_path TEXT NOT NULL,
+                    job_type TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    status TEXT NOT NULL
+                 );
+                 CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+            )
+            .unwrap();
+
+        assert!(!source_processing_schema_available(&connection).unwrap());
     }
 
     #[test]

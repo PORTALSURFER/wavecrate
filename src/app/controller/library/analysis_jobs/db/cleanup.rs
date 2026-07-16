@@ -3,6 +3,15 @@ use super::telemetry;
 use rusqlite::{Connection, params};
 
 pub(crate) fn reset_running_to_pending(conn: &Connection) -> Result<usize, String> {
+    if conn
+        .is_readonly(rusqlite::MAIN_DB)
+        .map_err(|err| format!("Failed to inspect analysis database mode: {err}"))?
+    {
+        return Ok(0);
+    }
+    if !analysis_jobs_has_column(conn, "readiness_managed")? {
+        return Ok(0);
+    }
     progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
     let counts =
         progress_snapshot::running_counts_by_job_type(conn, "readiness_managed = 0", Vec::new())?;
@@ -34,6 +43,22 @@ pub(crate) fn reset_running_to_pending(conn: &Connection) -> Result<usize, Strin
     }
     progress_snapshot::apply_state_transitions(conn, transitions)?;
     Ok(changed)
+}
+
+fn analysis_jobs_has_column(conn: &Connection, column: &str) -> Result<bool, String> {
+    let mut statement = conn
+        .prepare("PRAGMA table_info(analysis_jobs)")
+        .map_err(|err| format!("Failed to inspect analysis job schema: {err}"))?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| format!("Failed to inspect analysis job schema: {err}"))?;
+    for result in columns {
+        if result.map_err(|err| format!("Failed to inspect analysis job schema: {err}"))? == column
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 pub(crate) fn fail_stale_running_jobs(
