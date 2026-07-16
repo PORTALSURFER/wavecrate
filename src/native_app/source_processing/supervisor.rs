@@ -5,6 +5,7 @@ use std::{
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc::Sender,
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -30,6 +31,7 @@ use wavecrate::sample_sources::{
 use super::scheduler::{
     BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
 };
+use crate::native_app::app::GuiMessage;
 use crate::native_app::sample_library::similarity_prep::{
     NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
     reset_interrupted_similarity_prep_jobs, similarity_prep_needs_finalization,
@@ -245,12 +247,29 @@ impl Drop for SourceProcessingBudgetPermit {
 }
 
 impl SourceProcessingSupervisor {
+    #[cfg(test)]
     pub(in crate::native_app) fn start(sources: Vec<SampleSource>) -> Self {
         Self::start_with_playback_state(sources, false)
     }
 
+    pub(in crate::native_app) fn start_with_worker_sender(
+        sources: Vec<SampleSource>,
+        worker_sender: Sender<GuiMessage>,
+    ) -> Self {
+        Self::start_with_playback_state_and_sender(sources, false, Some(worker_sender))
+    }
+
+    #[cfg(test)]
     fn start_with_playback_state(sources: Vec<SampleSource>, playback_active: bool) -> Self {
-        let shared = Arc::new(Shared::new(sources));
+        Self::start_with_playback_state_and_sender(sources, playback_active, None)
+    }
+
+    fn start_with_playback_state_and_sender(
+        sources: Vec<SampleSource>,
+        playback_active: bool,
+        worker_sender: Option<Sender<GuiMessage>>,
+    ) -> Self {
+        let shared = Arc::new(Shared::new(sources, worker_sender));
         shared.control().playback_active = playback_active;
         let thread_shared = Arc::clone(&shared);
         let coordinator = thread::Builder::new()
@@ -266,7 +285,7 @@ impl SourceProcessingSupervisor {
     #[cfg(test)]
     pub(in crate::native_app) fn dormant() -> Self {
         Self {
-            shared: Arc::new(Shared::new(Vec::new())),
+            shared: Arc::new(Shared::new(Vec::new(), None)),
             coordinator: None,
         }
     }
@@ -648,10 +667,11 @@ struct Shared {
     next_external_scan_id: AtomicU64,
     in_flight_work: Mutex<BTreeMap<String, usize>>,
     in_flight_wake: Condvar,
+    worker_sender: Option<Sender<GuiMessage>>,
 }
 
 impl Shared {
-    fn new(sources: Vec<SampleSource>) -> Self {
+    fn new(sources: Vec<SampleSource>, worker_sender: Option<Sender<GuiMessage>>) -> Self {
         let sources = sources_by_id(sources);
         let source_work_cancels = sources
             .keys()
@@ -682,6 +702,7 @@ impl Shared {
             next_external_scan_id: AtomicU64::new(1),
             in_flight_work: Mutex::new(BTreeMap::new()),
             in_flight_wake: Condvar::new(),
+            worker_sender,
         }
     }
 
@@ -1131,7 +1152,11 @@ fn run_coordinator(shared: Arc<Shared>) {
                 candidates.push(candidate);
                 break;
             };
-            let result = execute_candidate(&candidate, candidate_cancel.as_ref());
+            let result = execute_candidate(
+                &candidate,
+                candidate_cancel.as_ref(),
+                shared.worker_sender.as_ref(),
+            );
             drop(in_flight_work);
             shared.budgets().release(permit);
             shared.budget_wake.notify_all();
@@ -1867,6 +1892,7 @@ fn readiness_target_fingerprint_with_cancel(
 fn execute_candidate(
     candidate: &RuntimeCandidate,
     cancel: &AtomicBool,
+    worker_sender: Option<&Sender<GuiMessage>>,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
         RuntimeTask::ManifestAudit => {
@@ -1900,6 +1926,14 @@ fn execute_candidate(
                     deleted = outcome.committed_delta.deleted.len(),
                     "Periodic source manifest audit committed"
                 );
+                if !outcome.committed_delta.is_empty()
+                    && let Some(worker_sender) = worker_sender
+                {
+                    let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
+                        source_id: candidate.source.id.as_str().to_string(),
+                        committed_delta: outcome.committed_delta,
+                    });
+                }
                 Ok(ExecutionOutcome::Completed)
             }
         }
@@ -3351,6 +3385,52 @@ mod tests {
     }
 
     #[test]
+    fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
+        let directory = tempfile::tempdir().expect("manifest audit source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("audit-browser-wake"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create source database");
+        std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
+            .expect("write missed watcher file");
+        let (sender, receiver) = std::sync::mpsc::channel();
+
+        let candidate = RuntimeCandidate {
+            schedule: WorkCandidate::source(
+                source.id.as_str(),
+                ProcessingLane::Scan,
+                0,
+                now_epoch_seconds(),
+            ),
+            source,
+            task: RuntimeTask::ManifestAudit,
+        };
+        assert_eq!(
+            execute_candidate(&candidate, &AtomicBool::new(false), Some(&sender))
+                .expect("execute manifest audit"),
+            ExecutionOutcome::Completed
+        );
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("audit should publish a browser projection wake");
+        let GuiMessage::SourceManifestAuditCommitted {
+            source_id,
+            committed_delta,
+        } = message
+        else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+
+        assert_eq!(source_id, "audit-browser-wake");
+        assert_eq!(committed_delta.created.len(), 1);
+        assert_eq!(
+            committed_delta.created[0].relative_path,
+            Path::new("missed.wav")
+        );
+    }
+
+    #[test]
     fn production_supervisor_publishes_claims_and_completes_readiness_without_manual_seed() {
         let (_directory, source) = ready_analysis_source("readiness");
 
@@ -3377,7 +3457,6 @@ mod tests {
                          AND artifact.stage = target.stage
                         WHERE source.source_id = ?1
                           AND source.availability = 'active'
-                          AND target.scope_id = 'identity-1'
                           AND target.stage IN (
                               'indexed_identity', 'playback_summary',
                               'analysis_features', 'embedding_aspects'
@@ -3432,13 +3511,37 @@ mod tests {
 
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
         wait_until(Duration::from_secs(10), || {
-            source
+            let good_hashed = source
                 .open_db()
                 .expect("open hash source")
                 .entry_for_path(Path::new("z-good.wav"))
                 .expect("read good hash row")
                 .and_then(|entry| entry.content_hash)
-                .is_some()
+                .is_some();
+            let failure_recorded = SourceDatabase::open_connection_with_role_and_database_root(
+                &source.root,
+                &database_root,
+                SourceDatabaseConnectionRole::JobWorker,
+            )
+            .ok()
+            .and_then(|connection| {
+                connection
+                    .query_row(
+                        "SELECT status
+                         FROM analysis_jobs
+                         WHERE readiness_managed = 1
+                           AND readiness_stage = 'indexed_identity'
+                           AND relative_path = 'a-unavailable.wav'",
+                        [],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                    .ok()
+                    .flatten()
+            })
+            .as_deref()
+                == Some("failed");
+            good_hashed && failure_recorded
         });
         assert_eq!(supervisor.shutdown()["joined"], true);
 
@@ -3492,7 +3595,7 @@ mod tests {
     #[test]
     fn real_hash_execution_waits_for_shared_scan_database_budget() {
         let (_directory, source) = unhashed_source("shared-budget");
-        let shared = Arc::new(Shared::new(vec![source.clone()]));
+        let shared = Arc::new(Shared::new(vec![source.clone()], None));
         let permit = SourceProcessingBudgetHandle {
             shared: Arc::clone(&shared),
         }

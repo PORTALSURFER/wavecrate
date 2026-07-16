@@ -17,8 +17,7 @@ pub(super) fn publish_committed_delta(
     stats: &mut ScanStats,
     before: Vec<SourceManifestEntry>,
 ) -> Result<(), ScanError> {
-    let after = capture_manifest(database)?;
-    let revision = database.get_revision()?;
+    let (revision, after) = database.manifest_snapshot_with_revision()?;
     stats.committed_delta = build_committed_delta(&before, &after, revision);
     stats.manifest_before = before;
     stats.manifest_after = after;

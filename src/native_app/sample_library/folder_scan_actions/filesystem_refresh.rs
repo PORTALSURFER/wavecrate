@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, path::PathBuf, time::Instant};
+use std::{path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
 
@@ -97,10 +97,6 @@ impl NativeAppState {
             Ok(success) => {
                 let renames_reconciled = success.renames_reconciled;
                 let delta = success.committed_delta;
-                if delta.is_empty() {
-                    return;
-                }
-                let projection_paths = committed_delta_paths(&delta);
                 tracing::info!(
                     source_id = %source_id,
                     revision = delta.revision,
@@ -111,22 +107,15 @@ impl NativeAppState {
                     renames_reconciled,
                     "Committed filesystem source delta"
                 );
-                self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
-                self.queue_source_prep(
-                    source_id.clone(),
-                    SourcePrepTrigger::FilesystemChanged,
-                    context,
-                );
-                if self
-                    .library
-                    .folder_browser
-                    .refresh_filesystem_paths(&source_id, &projection_paths)
-                {
-                    self.persist_user_configuration(
-                        "folder_browser.source.filesystem_commit",
-                        Instant::now(),
+                if !delta.is_empty() {
+                    self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
+                    self.queue_source_prep(
+                        source_id.clone(),
+                        SourcePrepTrigger::FilesystemChanged,
+                        context,
                     );
                 }
+                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }
             Err(error) => {
                 tracing::warn!(
@@ -141,6 +130,27 @@ impl NativeAppState {
                 self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }
         }
+    }
+
+    pub(in crate::native_app) fn finish_source_manifest_audit(
+        &mut self,
+        source_id: String,
+        committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if committed_delta.is_empty() || !self.library.folder_browser.source_exists(&source_id) {
+            return;
+        }
+        tracing::info!(
+            source_id = %source_id,
+            revision = committed_delta.revision,
+            created = committed_delta.created.len(),
+            changed = committed_delta.changed.len(),
+            moved = committed_delta.moved.len(),
+            deleted = committed_delta.deleted.len(),
+            "Refreshing browser projection after periodic source audit"
+        );
+        self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
     }
 
     pub(in crate::native_app) fn maybe_run_pending_source_refresh(
@@ -238,29 +248,4 @@ impl NativeAppState {
             GuiMessage::SourceFilesystemSyncFinished,
         );
     }
-}
-
-fn committed_delta_paths(
-    delta: &wavecrate::sample_sources::scanner::CommittedSourceDelta,
-) -> Vec<PathBuf> {
-    delta
-        .created
-        .iter()
-        .chain(&delta.changed)
-        .map(|identity| identity.relative_path.clone())
-        .chain(delta.moved.iter().flat_map(|identity| {
-            [
-                identity.old_relative_path.clone(),
-                identity.new_relative_path.clone(),
-            ]
-        }))
-        .chain(
-            delta
-                .deleted
-                .iter()
-                .map(|identity| identity.relative_path.clone()),
-        )
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
 }

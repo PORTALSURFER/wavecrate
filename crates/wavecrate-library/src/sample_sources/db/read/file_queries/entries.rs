@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use rusqlite::Params;
+use rusqlite::{OptionalExtension, Params};
 
 use super::super::super::util::map_sql_error;
 use super::super::super::{Rating, SourceDatabase, SourceDbError, SourceManifestEntry, WavEntry};
@@ -50,6 +50,60 @@ fn count_rows(db: &SourceDatabase, extra_predicate: &str) -> Result<usize, Sourc
 }
 
 impl SourceDatabase {
+    /// Fetch the committed live source manifest and revision from one SQLite read snapshot.
+    pub fn manifest_snapshot_with_revision(
+        &self,
+    ) -> Result<(u64, Vec<SourceManifestEntry>), SourceDbError> {
+        let filter = wav_file_supported_audio_filter(self)?;
+        let transaction = self
+            .connection
+            .unchecked_transaction()
+            .map_err(map_sql_error)?;
+        let revision = transaction
+            .query_row(
+                "SELECT value FROM metadata WHERE key = 'revision'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .map(|raw| raw.parse::<u64>().map_err(|_| SourceDbError::Unexpected))
+            .transpose()?
+            .unwrap_or_default();
+        let sql = format!(
+            "SELECT path, file_identity, content_hash, file_size, modified_ns
+             FROM wav_files
+             WHERE {filter} AND missing = 0
+             ORDER BY path ASC"
+        );
+        let entries = {
+            let mut statement = transaction.prepare(&sql).map_err(map_sql_error)?;
+            let rows = statement
+                .query_map([], |row| {
+                    let Some(relative_path) = decode_path_row(
+                        row,
+                        "Skipping source manifest row with invalid relative path",
+                    )?
+                    else {
+                        return Ok(None);
+                    };
+                    Ok(Some(SourceManifestEntry {
+                        relative_path,
+                        file_identity: row.get(1)?,
+                        content_hash: row.get(2)?,
+                        file_size: row.get::<_, i64>(3)?.max(0) as u64,
+                        modified_ns: row.get(4)?,
+                    }))
+                })
+                .map_err(map_sql_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(map_sql_error)?;
+            rows.into_iter().flatten().collect()
+        };
+        transaction.rollback().map_err(map_sql_error)?;
+        Ok((revision, entries))
+    }
+
     /// Fetch the committed live source manifest in deterministic path order.
     pub fn list_manifest_entries(&self) -> Result<Vec<SourceManifestEntry>, SourceDbError> {
         let filter = wav_file_supported_audio_filter(self)?;

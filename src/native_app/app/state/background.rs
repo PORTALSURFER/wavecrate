@@ -54,7 +54,8 @@ impl BackgroundTaskState {
         sources: Vec<wavecrate::sample_sources::SampleSource>,
     ) -> Self {
         #[cfg(not(test))]
-        let source_processing = SourceProcessingSupervisor::start(sources);
+        let source_processing =
+            SourceProcessingSupervisor::start_with_worker_sender(sources, worker_sender.clone());
         #[cfg(test)]
         let source_processing = {
             drop(sources);

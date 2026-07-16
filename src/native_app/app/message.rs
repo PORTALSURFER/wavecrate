@@ -80,6 +80,10 @@ pub(in crate::native_app) enum GuiMessage {
         overflowed: bool,
     },
     SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
+    SourceManifestAuditCommitted {
+        source_id: String,
+        committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
+    },
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),
     SelectSampleWithModifiers {

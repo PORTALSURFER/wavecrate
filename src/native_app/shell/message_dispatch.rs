@@ -84,6 +84,7 @@ impl NativeAppState {
             | GuiMessage::SelectedFolderVerifyFinished(_)
             | GuiMessage::SourceFilesystemChanged { .. }
             | GuiMessage::SourceFilesystemSyncFinished(_)
+            | GuiMessage::SourceManifestAuditCommitted { .. }
             | GuiMessage::NormalizationProgress(_)
             | GuiMessage::NormalizationFinished(_)
             | GuiMessage::SelectSampleWithModifiers { .. }
@@ -322,6 +323,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::SelectedFolderVerifyFinished(_) => "SelectedFolderVerifyFinished",
         GuiMessage::SourceFilesystemChanged { .. } => "SourceFilesystemChanged",
         GuiMessage::SourceFilesystemSyncFinished(_) => "SourceFilesystemSyncFinished",
+        GuiMessage::SourceManifestAuditCommitted { .. } => "SourceManifestAuditCommitted",
         GuiMessage::NormalizationProgress(_) => "NormalizationProgress",
         GuiMessage::NormalizationFinished(_) => "NormalizationFinished",
         GuiMessage::Waveform(_) => "Waveform",

@@ -343,7 +343,36 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
     let rows = db.list_files().expect("synced rows");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, std::path::Path::new("keep.wav"));
-    assert!(state.library.folder_progress().is_none());
+    let refresh_task = state
+        .library
+        .folder_progress()
+        .expect("post-commit projection refresh should run in the background")
+        .task_id;
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.clone())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav", "stale.wav"],
+        "the UI thread must retain owned projection data while background refresh runs"
+    );
+    let refreshed =
+        crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+            crate::native_app::sample_library::folder_browser::scan::FolderScanRequest {
+                task_id: refresh_task,
+                source_id,
+                label: String::from("source"),
+                root: source_root.path().to_path_buf(),
+                database_root: source_root.path().to_path_buf(),
+                rating_decay_weeks: crate::native_app::sample_library::folder_browser::scan::FolderScanRequest::default_rating_decay_weeks(),
+            },
+            |_| {},
+            |_| {},
+        );
+    state.finish_folder_scan(refreshed, &mut ui::UiUpdateContext::default());
     assert_eq!(
         state
             .library
@@ -353,7 +382,7 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
             .map(|file| file.name.clone())
             .collect::<Vec<_>>(),
         vec!["keep.wav"],
-        "the browser projection should refresh only from committed source state"
+        "the browser projection should refresh only from committed background state"
     );
 }
 

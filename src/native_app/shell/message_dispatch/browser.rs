@@ -73,6 +73,12 @@ impl NativeAppState {
             GuiMessage::SourceFilesystemSyncFinished(result) => {
                 self.finish_source_filesystem_sync(result, context);
             }
+            GuiMessage::SourceManifestAuditCommitted {
+                source_id,
+                committed_delta,
+            } => {
+                self.finish_source_manifest_audit(source_id, committed_delta, context);
+            }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);
             }
