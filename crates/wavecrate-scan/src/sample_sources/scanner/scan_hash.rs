@@ -34,11 +34,14 @@ pub(super) fn deep_hash_scan(
     rename_candidates: &HashSet<PathBuf>,
     scope: DeferredHashScope,
     max_hashes: Option<usize>,
+    exact_path: Option<&std::path::Path>,
 ) -> Result<ScanStats, ScanError> {
     let root = ensure_root_dir(db)?;
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
-    let entries = if scope == DeferredHashScope::AllUnhashed && rename_candidates.is_empty() {
+    let entries = if let Some(exact_path) = exact_path {
+        db.entry_for_path(exact_path)?.into_iter().collect()
+    } else if scope == DeferredHashScope::AllUnhashed && rename_candidates.is_empty() {
         db.list_pending_hash_files(max_hashes.unwrap_or(usize::MAX))?
     } else {
         db.list_files()?
@@ -357,6 +360,7 @@ mod tests {
             &HashSet::new(),
             DeferredHashScope::AllUnhashed,
             None,
+            None,
         );
 
         assert!(matches!(result, Err(ScanError::Canceled)));
@@ -379,6 +383,7 @@ mod tests {
             &HashSet::new(),
             DeferredHashScope::AllUnhashed,
             Some(8),
+            None,
         )
         .expect("bounded hash pass");
 
@@ -390,6 +395,42 @@ mod tests {
                 .filter(|entry| entry.content_hash.is_some())
                 .count(),
             8
+        );
+    }
+
+    #[test]
+    fn deep_hash_scan_exact_path_does_not_process_earlier_pending_rows() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        for relative in [Path::new("a-first.wav"), Path::new("z-target.wav")] {
+            std::fs::write(dir.path().join(relative), [9_u8; 32]).expect("write wav");
+            db.upsert_file(relative, 32, 1).expect("insert pending row");
+        }
+
+        let stats = deep_hash_scan(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(Path::new("z-target.wav")),
+        )
+        .expect("targeted hash pass");
+
+        assert_eq!(stats.hashes_computed, 1);
+        assert!(
+            db.entry_for_path(Path::new("a-first.wav"))
+                .unwrap()
+                .unwrap()
+                .content_hash
+                .is_none()
+        );
+        assert!(
+            db.entry_for_path(Path::new("z-target.wav"))
+                .unwrap()
+                .unwrap()
+                .content_hash
+                .is_some()
         );
     }
 }

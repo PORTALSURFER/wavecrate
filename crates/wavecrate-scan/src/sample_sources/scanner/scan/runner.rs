@@ -111,6 +111,7 @@ pub fn complete_deferred_rename_candidates(
         &rename_candidates,
         super::super::scan_hash::DeferredHashScope::RenameCandidates,
         None,
+        None,
     )?;
     stats.merge_deferred_hashes(deferred);
     Ok(stats)
@@ -140,16 +141,16 @@ pub fn complete_deferred_hashes_with_cancel(
         super::super::scan_hash::DeferredHashScope::RenameCandidates
     };
     let deferred =
-        super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates, scope, None)?;
+        super::super::scan_hash::deep_hash_scan(db, cancel, &rename_candidates, scope, None, None)?;
     stats.merge_deferred_hashes(deferred);
     Ok(stats)
 }
 
 /// Complete a bounded batch of pending deep-content hashes without launching an unowned worker.
 ///
-/// Long-lived runtimes should call this from their owned source-processing supervisor so hashing
-/// shares cancellation, resource budgets, shutdown, retry policy, and cross-source fairness with
-/// other source work. Proven rename candidates are always reconciled even when the hash budget is
+/// Explicit scan workflows may use this bounded batch helper. Long-lived runtimes should instead
+/// schedule [`complete_pending_deep_hash_for_path`] behind per-file durable work so failures cannot
+/// starve later paths. Proven rename candidates are always reconciled even when the hash budget is
 /// exhausted.
 pub fn complete_pending_deep_hashes(
     db: &SourceDatabase,
@@ -162,6 +163,26 @@ pub fn complete_pending_deep_hashes(
         &HashSet::new(),
         super::super::scan_hash::DeferredHashScope::AllUnhashed,
         Some(max_hashes),
+        None,
+    )
+}
+
+/// Complete the pending deep-content hash for one exact tracked source-relative path.
+///
+/// The caller owns scheduling, durable retry policy, cancellation, and resource budgets. Work for
+/// other paths is deliberately excluded so one failure cannot abort or starve a path-ordered batch.
+pub fn complete_pending_deep_hash_for_path(
+    db: &SourceDatabase,
+    relative_path: &std::path::Path,
+    cancel: Option<&AtomicBool>,
+) -> Result<ScanStats, ScanError> {
+    super::super::scan_hash::deep_hash_scan(
+        db,
+        cancel,
+        &HashSet::new(),
+        super::super::scan_hash::DeferredHashScope::AllUnhashed,
+        Some(1),
+        Some(relative_path),
     )
 }
 
@@ -183,6 +204,7 @@ pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: 
                 None,
                 &HashSet::new(),
                 super::super::scan_hash::DeferredHashScope::AllUnhashed,
+                None,
                 None,
             )?;
             Ok(())

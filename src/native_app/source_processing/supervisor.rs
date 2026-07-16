@@ -23,7 +23,7 @@ use wavecrate::sample_sources::{
         fail_readiness_work, persist_readiness_deficits, readiness_work_stats, reconcile_readiness,
         renew_readiness_lease, replace_readiness_targets,
     },
-    scanner::complete_pending_deep_hashes,
+    scanner::complete_pending_deep_hash_for_path,
 };
 
 use super::scheduler::{
@@ -39,7 +39,6 @@ use crate::native_app::waveform::{
 };
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
-const DEEP_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
@@ -462,7 +461,6 @@ struct SupervisorTelemetry {
 
 #[derive(Clone, Debug)]
 enum RuntimeTask {
-    DeepHash,
     LegacyAnalysis {
         job_id: i64,
     },
@@ -690,8 +688,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 continue;
             }
             let should_refresh = match (&candidate.task, execution_outcome) {
-                (RuntimeTask::DeepHash, Some(ExecutionOutcome::Completed))
-                | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
+                (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Failed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Retried { .. }))
@@ -826,24 +823,6 @@ fn discover_source_candidates(
         );
     }
 
-    let has_unhashed: bool = connection
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM wav_files
-                WHERE missing = 0 AND content_hash IS NULL
-                LIMIT 1
-             )",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|error| error.to_string())?;
-    if has_unhashed {
-        candidates.push(RuntimeCandidate {
-            schedule: WorkCandidate::source(source_id, ProcessingLane::Hashing, 1, now),
-            source: source.clone(),
-            task: RuntimeTask::DeepHash,
-        });
-    }
     let legacy_jobs = {
         let mut statement = connection
             .prepare(
@@ -1153,26 +1132,6 @@ fn execute_candidate(
     cancel: &AtomicBool,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
-        RuntimeTask::DeepHash => {
-            let database_root = candidate
-                .source
-                .database_root()
-                .map_err(|error| error.to_string())?;
-            let db = SourceDatabase::open_for_background_job_with_database_root(
-                &candidate.source.root,
-                database_root,
-            )
-            .map_err(|error| error.to_string())?;
-            complete_pending_deep_hashes(&db, Some(cancel), DEEP_HASH_BATCH)
-                .map(|stats| {
-                    if stats.hashes_computed > 0 {
-                        ExecutionOutcome::Completed
-                    } else {
-                        ExecutionOutcome::NotClaimed
-                    }
-                })
-                .map_err(|error| error.to_string())
-        }
         RuntimeTask::LegacyAnalysis { job_id } => {
             run_similarity_prep_job(&candidate.source, *job_id, cancel, 1).map(|summary| {
                 if summary.processed == 0 {
@@ -1436,7 +1395,50 @@ fn run_readiness_stage(
                 )
                 .map_err(|error| error.to_string())?;
             Ok(if current {
-                ReadinessExecutionOutcome::Complete
+                let has_content_hash: bool = connection
+                    .query_row(
+                        "SELECT EXISTS(
+                            SELECT 1 FROM wav_files
+                            WHERE file_identity = ?1 AND path = ?2 AND missing = 0
+                              AND content_hash IS NOT NULL AND content_hash != ''
+                        )",
+                        params![target.scope_id, relative_path],
+                        |row| row.get(0),
+                    )
+                    .map_err(|error| error.to_string())?;
+                if !has_content_hash {
+                    let database_root =
+                        source.database_root().map_err(|error| error.to_string())?;
+                    let db = SourceDatabase::open_for_background_job_with_database_root(
+                        &source.root,
+                        database_root,
+                    )
+                    .map_err(|error| error.to_string())?;
+                    complete_pending_deep_hash_for_path(
+                        &db,
+                        std::path::Path::new(relative_path),
+                        Some(cancel),
+                    )
+                    .map_err(|error| error.to_string())?;
+                }
+                let hash_is_current: bool = connection
+                    .query_row(
+                        "SELECT EXISTS(
+                            SELECT 1 FROM wav_files
+                            WHERE file_identity = ?1 AND path = ?2 AND missing = 0
+                              AND content_hash IS NOT NULL AND content_hash != ''
+                        )",
+                        params![target.scope_id, relative_path],
+                        |row| row.get(0),
+                    )
+                    .map_err(|error| error.to_string())?;
+                if hash_is_current {
+                    ReadinessExecutionOutcome::Complete
+                } else {
+                    ReadinessExecutionOutcome::Retry(
+                        "indexed identity content hash is not durable yet",
+                    )
+                }
             } else {
                 ReadinessExecutionOutcome::Retry("indexed identity is not committed yet")
             })
@@ -1779,6 +1781,72 @@ mod tests {
     }
 
     #[test]
+    fn unavailable_hash_path_backs_off_without_starving_later_files() {
+        let directory = tempfile::tempdir().expect("temporary hash source");
+        let good_path = directory.path().join("z-good.wav");
+        std::fs::write(&good_path, [7_u8; 64]).expect("write hashable sample");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("hash-fairness"),
+            directory.path().to_path_buf(),
+        );
+        let db = source.open_db().expect("open hash source database");
+        db.upsert_file(Path::new("a-unavailable.wav"), 64, 1)
+            .expect("insert unavailable hash row");
+        db.upsert_file(Path::new("z-good.wav"), 64, 1)
+            .expect("insert good hash row");
+        let database_root = source.database_root().expect("database root");
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open hash database");
+        connection
+            .execute_batch(
+                "UPDATE wav_files SET file_identity = 'identity-bad'
+                 WHERE path = 'a-unavailable.wav';
+                 UPDATE wav_files SET file_identity = 'identity-good'
+                 WHERE path = 'z-good.wav';",
+            )
+            .expect("assign hash identities");
+        drop(connection);
+
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        wait_until(Duration::from_secs(10), || {
+            source
+                .open_db()
+                .expect("open hash source")
+                .entry_for_path(Path::new("z-good.wav"))
+                .expect("read good hash row")
+                .and_then(|entry| entry.content_hash)
+                .is_some()
+        });
+        assert_eq!(supervisor.shutdown()["joined"], true);
+
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen hash database");
+        let failure: (String, Option<String>, Option<i64>, i64) = connection
+            .query_row(
+                "SELECT status, failure_kind, retry_at, attempts
+                 FROM analysis_jobs
+                 WHERE readiness_managed = 1
+                   AND readiness_stage = 'indexed_identity'
+                   AND relative_path = 'a-unavailable.wav'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("read durable hash failure");
+        assert_eq!(failure.0, "failed");
+        assert_eq!(failure.1.as_deref(), Some("retryable"));
+        assert!(failure.2.is_some());
+        assert_eq!(failure.3, 1);
+    }
+
+    #[test]
     fn legacy_source_schema_is_not_eligible_for_automatic_processing() {
         let connection = rusqlite::Connection::open_in_memory().unwrap();
         connection
@@ -2038,6 +2106,11 @@ mod tests {
         let db = source.open_db().expect("open source database");
         db.upsert_file(Path::new("pending.wav"), 64, 1)
             .expect("insert pending hash row");
+        let mut batch = db.write_batch().expect("open identity batch");
+        batch
+            .set_file_identity(Path::new("pending.wav"), Some(&format!("identity-{id}")))
+            .expect("assign pending identity");
+        batch.commit().expect("commit pending identity");
         (directory, source)
     }
 
