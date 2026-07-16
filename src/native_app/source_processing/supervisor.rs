@@ -108,7 +108,7 @@ impl SourceProcessingBudgetHandle {
         &self,
         source_id: &str,
     ) -> Option<SourceProcessingBudgetPermit> {
-        let (admission_id, admission_cancel) = {
+        {
             let mut control = self.shared.control();
             while !control.shutdown
                 && control.source_is_active(source_id)
@@ -126,6 +126,34 @@ impl SourceProcessingBudgetHandle {
             {
                 return None;
             }
+        }
+        // Hold the budget lock through admission publication. This closes the race where the
+        // coordinator could acquire the scan lane after we inspected it but before it observed the
+        // foreground reservation.
+        let budgets = self.shared.budgets();
+        let active_scan_sources = budgets.active_sources_for_lane(ProcessingLane::Scan);
+        let (admission_id, admission_cancel) = {
+            let mut control = self.shared.control();
+            if control.shutdown
+                || self.shared.cancel.load(Ordering::Acquire)
+                || !control.source_is_active(source_id)
+                || control.processing_paused()
+            {
+                return None;
+            }
+            for active_source_id in active_scan_sources {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id,
+                    preempted_source_id = active_source_id.as_str(),
+                    "Foreground source scan admission is reserving the occupied scan lane"
+                );
+                control.cancel_source_work(&active_source_id);
+                control.mark_source_dirty(
+                    &active_source_id,
+                    "foreground_scan_preempted_background_scan",
+                );
+            }
             let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
             if admission_cancel.load(Ordering::Acquire) {
                 return None;
@@ -140,6 +168,8 @@ impl SourceProcessingBudgetHandle {
                 .insert(admission_id, source_id.to_string());
             (admission_id, admission_cancel)
         };
+        drop(budgets);
+        self.shared.wake.notify_one();
         loop {
             let mut budgets = self.shared.budgets();
             if let Some(permit) = budgets.try_acquire(source_id, ProcessingLane::Scan) {
@@ -730,6 +760,10 @@ impl Shared {
             .unwrap_or_else(|poison| poison.into_inner())
     }
 
+    fn has_external_scan_admission(&self) -> bool {
+        !self.external_scans().admissions.is_empty()
+    }
+
     fn cancel_external_scans(&self, should_cancel: impl Fn(&ExternalScanRegistration) -> bool) {
         for registration in self.external_scans().registrations.values() {
             if should_cancel(registration) {
@@ -1120,15 +1154,19 @@ fn run_coordinator(shared: Arc<Shared>) {
             if interrupted {
                 break;
             }
-            let schedules = candidates
+            let external_scan_admitted = shared.has_external_scan_admission();
+            let eligible_indices = scheduler_candidate_indices(&candidates, external_scan_admitted);
+            let schedules = eligible_indices
                 .iter()
-                .map(|candidate| candidate.schedule.clone())
+                .map(|index| candidates[*index].schedule.clone())
                 .collect::<Vec<_>>();
-            let Some(index) = scheduler.choose(&schedules, &priority, &shared.budgets()) else {
+            let Some(schedule_index) = scheduler.choose(&schedules, &priority, &shared.budgets())
+            else {
                 let mut telemetry = shared.telemetry();
                 telemetry.contention = telemetry.contention.saturating_add(1);
                 break;
             };
+            let index = eligible_indices[schedule_index];
             let candidate = candidates.swap_remove(index);
             let Some(permit) = shared
                 .budgets()
@@ -1274,6 +1312,20 @@ fn run_coordinator(shared: Arc<Shared>) {
         );
         drop(telemetry);
     }
+}
+
+fn scheduler_candidate_indices(
+    candidates: &[RuntimeCandidate],
+    external_scan_admitted: bool,
+) -> Vec<usize> {
+    candidates
+        .iter()
+        .enumerate()
+        .filter_map(|(index, candidate)| {
+            (!(external_scan_admitted && candidate.schedule.lane == ProcessingLane::Scan))
+                .then_some(index)
+        })
+        .collect()
 }
 
 fn discover_candidates(
@@ -3265,6 +3317,70 @@ mod tests {
         let report = shutdown.join().expect("join supervisor shutdown");
         assert_eq!(report["joined"], true);
         assert_eq!(report["external_scans_joined"], true);
+    }
+
+    #[test]
+    fn foreground_scan_admission_preempts_the_background_scan_lane() {
+        let (_first_directory, first) = unhashed_source("background-holder");
+        let (_second_directory, second) = unhashed_source("foreground-waiter");
+        let shared = Arc::new(Shared::new(vec![first.clone(), second.clone()], None));
+        let background_cancel = {
+            let control = shared.control();
+            Arc::clone(&control.source_work_cancels[first.id.as_str()])
+        };
+        let background_permit = shared
+            .budgets()
+            .try_acquire(first.id.as_str(), ProcessingLane::Scan)
+            .expect("reserve scan lane for background work");
+        let waiting_shared = Arc::clone(&shared);
+        let foreground_source_id = second.id.to_string();
+        let waiting = thread::spawn(move || {
+            SourceProcessingBudgetHandle {
+                shared: waiting_shared,
+            }
+            .acquire_scan(&foreground_source_id)
+        });
+
+        wait_until(Duration::from_secs(2), || {
+            background_cancel.load(Ordering::Acquire)
+                && shared.external_scans().admissions.len() == 1
+        });
+        shared.budgets().release(background_permit);
+        shared.budget_wake.notify_all();
+
+        let foreground_permit = waiting
+            .join()
+            .expect("join foreground admission")
+            .expect("foreground scan acquires released lane");
+        assert_eq!(
+            foreground_permit
+                .permit
+                .as_ref()
+                .expect("owned budget permit")
+                .source_id(),
+            second.id.as_str()
+        );
+        drop(foreground_permit);
+    }
+
+    #[test]
+    fn foreground_scan_admission_reserves_scan_candidates_only() {
+        let (_directory, source) = unhashed_source("foreground-reservation");
+        let candidates = vec![
+            RuntimeCandidate {
+                schedule: WorkCandidate::source(source.id.as_str(), ProcessingLane::Scan, 0, 0),
+                source: source.clone(),
+                task: RuntimeTask::ManifestAudit,
+            },
+            RuntimeCandidate {
+                schedule: WorkCandidate::source(source.id.as_str(), ProcessingLane::Hashing, 0, 0),
+                source,
+                task: RuntimeTask::ManifestAudit,
+            },
+        ];
+
+        assert_eq!(scheduler_candidate_indices(&candidates, false), vec![0, 1]);
+        assert_eq!(scheduler_candidate_indices(&candidates, true), vec![1]);
     }
 
     #[test]

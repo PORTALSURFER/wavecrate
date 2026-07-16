@@ -50,7 +50,7 @@ impl NativeAppState {
             );
         }
         self.library.start_folder_scan(&request);
-        self.ui.status.sample = format!("Scanning source {}", request.label);
+        self.ui.status.sample = format!("Queued source scan for {}", request.label);
         tracing::info!(
             source = label,
             root = root,
