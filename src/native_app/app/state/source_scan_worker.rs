@@ -1,3 +1,8 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
 use radiant::prelude as ui;
 
 use crate::native_app::sample_library::folder_browser::scan::{
@@ -15,17 +20,31 @@ pub(in crate::native_app) enum FolderScanWorkerEvent {
 pub(in crate::native_app) fn run_folder_scan_worker(
     request: FolderScanRequest,
     events: ui::BusinessEventSink<FolderScanWorkerEvent>,
+    cancel: Arc<AtomicBool>,
 ) -> PreparedFolderScanResult {
-    run_folder_scan_worker_with_emit(request, move |event| events.emit(event))
+    run_folder_scan_worker_with_emit_and_cancel(
+        request,
+        move |event| events.emit(event),
+        cancel.as_ref(),
+    )
 }
 
+#[cfg(test)]
 fn run_folder_scan_worker_with_emit(
     request: FolderScanRequest,
     emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
 ) -> PreparedFolderScanResult {
+    run_folder_scan_worker_with_emit_and_cancel(request, emit, &AtomicBool::new(false))
+}
+
+fn run_folder_scan_worker_with_emit_and_cancel(
+    request: FolderScanRequest,
+    emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
+    cancel: &AtomicBool,
+) -> PreparedFolderScanResult {
     let mut discovery_transport =
         FolderScanDiscoveryTransport::new(emit.clone(), request.task_id, request.source_id.clone());
-    let scan = scan::scan_source_with_progress(
+    let scan = scan::scan_source_with_progress_cancellable(
         request,
         |progress| {
             let _ = emit(FolderScanWorkerEvent::Progress(progress));
@@ -33,8 +52,11 @@ fn run_folder_scan_worker_with_emit(
         |event| {
             discovery_transport.push(event);
         },
+        cancel,
     );
-    discovery_transport.flush();
+    if !cancel.load(Ordering::Acquire) {
+        discovery_transport.flush();
+    }
     let audio_file_paths = scan.audio_file_paths();
     let scan_cache_update = prepare_folder_scan_cache_update(&scan);
     PreparedFolderScanResult {
@@ -87,13 +109,23 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, sync::mpsc};
+    use std::{
+        fs,
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+            mpsc,
+        },
+    };
 
     use crate::native_app::sample_library::folder_browser::scan::{
         FolderScanItem, FolderScanRequest, INDEX_PROGRESS_REPORT_INTERVAL,
     };
 
-    use super::{DISCOVERY_BATCH_SIZE, FolderScanWorkerEvent, run_folder_scan_worker_with_emit};
+    use super::{
+        DISCOVERY_BATCH_SIZE, FolderScanWorkerEvent, run_folder_scan_worker_with_emit,
+        run_folder_scan_worker_with_emit_and_cancel,
+    };
 
     fn temp_source_with_wavs(count: usize) -> tempfile::TempDir {
         let root = tempfile::tempdir().expect("source root");
@@ -194,5 +226,27 @@ mod tests {
             1 + file_count / INDEX_PROGRESS_REPORT_INTERVAL,
             "indexing progress must stay bounded so a large background scan cannot saturate the UI queue"
         );
+    }
+
+    #[test]
+    fn active_scan_stops_when_supervisor_cancels_its_permit() {
+        let file_count = DISCOVERY_BATCH_SIZE * 4;
+        let root = temp_source_with_wavs(file_count);
+        let cancel = Arc::new(AtomicBool::new(false));
+        let callback_cancel = Arc::clone(&cancel);
+
+        let result = run_folder_scan_worker_with_emit_and_cancel(
+            scan_request(&root),
+            move |event| {
+                if matches!(event, FolderScanWorkerEvent::DiscoveryBatch(_)) {
+                    callback_cancel.store(true, Ordering::Release);
+                }
+                true
+            },
+            cancel.as_ref(),
+        );
+
+        assert!(result.scan.cancelled);
+        assert!(result.scan.file_count < file_count);
     }
 }

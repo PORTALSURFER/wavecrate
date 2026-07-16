@@ -144,6 +144,12 @@ pub(crate) struct BudgetPermit {
     demand: ResourceUse,
 }
 
+impl BudgetPermit {
+    pub(crate) fn source_id(&self) -> &str {
+        &self.source_id
+    }
+}
+
 /// Mutable accounting for all in-flight supervisor work.
 #[derive(Debug)]
 pub(crate) struct BudgetTracker {

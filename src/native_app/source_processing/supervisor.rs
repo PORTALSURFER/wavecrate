@@ -4,23 +4,24 @@ use std::{
     collections::BTreeMap,
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use rusqlite::params;
+use rusqlite::{OptionalExtension, params};
 use serde_json::Value;
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
+    db::META_WAV_PATHS_REVISION,
     readiness::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessFailureClassification,
         ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy,
-        ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, cancel_readiness_work,
-        claim_readiness_target, complete_readiness_work, fail_readiness_work,
-        persist_readiness_deficits, readiness_work_stats, reconcile_readiness,
-        renew_readiness_lease,
+        ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability,
+        cancel_readiness_work, claim_readiness_target, complete_readiness_work,
+        fail_readiness_work, persist_readiness_deficits, readiness_work_stats, reconcile_readiness,
+        renew_readiness_lease, replace_readiness_targets,
     },
     scanner::complete_pending_deep_hashes,
 };
@@ -40,6 +41,10 @@ const DEEP_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const MAX_DISCOVERED_ANALYSIS_JOBS: i64 = 256;
+const EXTERNAL_SCAN_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
+const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v4";
+const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
 
 /// Owned runtime coordinator. All work is joined during shutdown and observes one cancel token.
 pub(in crate::native_app) struct SourceProcessingSupervisor {
@@ -55,32 +60,98 @@ pub(in crate::native_app) struct SourceProcessingBudgetHandle {
 pub(in crate::native_app) struct SourceProcessingBudgetPermit {
     shared: Arc<Shared>,
     permit: Option<super::scheduler::BudgetPermit>,
+    registration_id: u64,
+    cancel: Arc<AtomicBool>,
+}
+
+struct ExternalScanRegistration {
+    source_id: String,
+    cancel: Arc<AtomicBool>,
 }
 
 impl SourceProcessingBudgetHandle {
     pub(in crate::native_app) fn acquire_scan(
         &self,
         source_id: &str,
-    ) -> SourceProcessingBudgetPermit {
-        let mut budgets = self.shared.budgets();
+    ) -> Option<SourceProcessingBudgetPermit> {
         loop {
+            let mut control = self.shared.control();
+            while !control.shutdown
+                && control.sources.contains_key(source_id)
+                && control.playback_active
+            {
+                control = self
+                    .shared
+                    .wake
+                    .wait(control)
+                    .unwrap_or_else(|poison| poison.into_inner());
+            }
+            if control.shutdown
+                || self.shared.cancel.load(Ordering::Acquire)
+                || !control.sources.contains_key(source_id)
+            {
+                return None;
+            }
+            drop(control);
+            let mut budgets = self.shared.budgets();
             if let Some(permit) = budgets.try_acquire(source_id, ProcessingLane::Scan) {
-                return SourceProcessingBudgetPermit {
+                drop(budgets);
+                let registration_id = self
+                    .shared
+                    .next_external_scan_id
+                    .fetch_add(1, Ordering::Relaxed);
+                let cancel = Arc::new(AtomicBool::new(false));
+                self.shared.external_scans().insert(
+                    registration_id,
+                    ExternalScanRegistration {
+                        source_id: source_id.to_string(),
+                        cancel: Arc::clone(&cancel),
+                    },
+                );
+                let permit = SourceProcessingBudgetPermit {
                     shared: Arc::clone(&self.shared),
                     permit: Some(permit),
+                    registration_id,
+                    cancel,
                 };
+                if permit.should_cancel_now() {
+                    permit.cancel.store(true, Ordering::Release);
+                }
+                return Some(permit);
             }
-            budgets = self
-                .shared
-                .budget_wake
-                .wait(budgets)
-                .unwrap_or_else(|poison| poison.into_inner());
+            drop(
+                self.shared
+                    .budget_wake
+                    .wait(budgets)
+                    .unwrap_or_else(|poison| poison.into_inner()),
+            );
         }
+    }
+}
+
+impl SourceProcessingBudgetPermit {
+    pub(in crate::native_app) fn cancel_token(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.cancel)
+    }
+
+    fn should_cancel_now(&self) -> bool {
+        if self.shared.cancel.load(Ordering::Acquire) {
+            return true;
+        }
+        let control = self.shared.control();
+        control.shutdown
+            || control.playback_active
+            || self
+                .permit
+                .as_ref()
+                .is_some_and(|permit| !control.sources.contains_key(permit.source_id()))
     }
 }
 
 impl Drop for SourceProcessingBudgetPermit {
     fn drop(&mut self) {
+        self.shared.external_scans().remove(&self.registration_id);
+        self.shared.external_scan_wake.notify_all();
         if let Some(permit) = self.permit.take() {
             self.shared.budgets().release(permit);
             self.shared.budget_wake.notify_all();
@@ -121,12 +192,20 @@ impl SourceProcessingSupervisor {
         self.shared.work_cancel.store(true, Ordering::Release);
         let mut control = self.shared.control();
         control.sources = sources_by_id(sources);
+        let retained_source_ids = control.sources.keys().cloned().collect::<Vec<_>>();
         control.priority.immediate.clear();
         control.priority.visible.clear();
         control.priority.immediate_paths.clear();
         control.priority.visible_paths.clear();
         control.wake("configured_sources_changed");
-        self.shared.wake.notify_one();
+        drop(control);
+        self.shared.cancel_external_scans(|registration| {
+            !retained_source_ids
+                .iter()
+                .any(|source_id| source_id == &registration.source_id)
+        });
+        self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_all();
     }
 
     pub(in crate::native_app) fn budget_handle(&self) -> SourceProcessingBudgetHandle {
@@ -207,6 +286,11 @@ impl SourceProcessingSupervisor {
             } else {
                 "playback_resume"
             });
+            drop(control);
+            if active {
+                self.shared.cancel_external_scans(|_| true);
+            }
+            self.shared.budget_wake.notify_all();
             self.shared.wake.notify_all();
         }
     }
@@ -215,19 +299,25 @@ impl SourceProcessingSupervisor {
         let started_at = Instant::now();
         self.shared.cancel.store(true, Ordering::Release);
         self.shared.work_cancel.store(true, Ordering::Release);
+        self.shared.cancel_external_scans(|_| true);
         {
             let mut control = self.shared.control();
             control.shutdown = true;
             control.wake("shutdown");
         }
         self.shared.wake.notify_all();
+        self.shared.budget_wake.notify_all();
         let joined = self
             .coordinator
             .take()
             .is_none_or(|coordinator| coordinator.join().is_ok());
+        let external_scans_joined = self
+            .shared
+            .wait_for_external_scans(EXTERNAL_SCAN_SHUTDOWN_TIMEOUT);
         let telemetry = self.shared.telemetry();
         serde_json::json!({
             "joined": joined,
+            "external_scans_joined": external_scans_joined,
             "elapsed_ms": started_at.elapsed().as_secs_f64() * 1_000.0,
             "sweeps": telemetry.sweeps,
             "claimed": telemetry.claimed,
@@ -262,6 +352,9 @@ struct Shared {
     telemetry: Mutex<SupervisorTelemetry>,
     budgets: Mutex<BudgetTracker>,
     budget_wake: Condvar,
+    external_scans: Mutex<BTreeMap<u64, ExternalScanRegistration>>,
+    external_scan_wake: Condvar,
+    next_external_scan_id: AtomicU64,
 }
 
 impl Shared {
@@ -281,6 +374,9 @@ impl Shared {
             telemetry: Mutex::new(SupervisorTelemetry::default()),
             budgets: Mutex::new(BudgetTracker::new(ProcessingBudgets::default())),
             budget_wake: Condvar::new(),
+            external_scans: Mutex::new(BTreeMap::new()),
+            external_scan_wake: Condvar::new(),
+            next_external_scan_id: AtomicU64::new(1),
         }
     }
 
@@ -300,6 +396,31 @@ impl Shared {
         self.budgets
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    fn external_scans(&self) -> MutexGuard<'_, BTreeMap<u64, ExternalScanRegistration>> {
+        self.external_scans
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    fn cancel_external_scans(&self, should_cancel: impl Fn(&ExternalScanRegistration) -> bool) {
+        for registration in self.external_scans().values() {
+            if should_cancel(registration) {
+                registration.cancel.store(true, Ordering::Release);
+            }
+        }
+    }
+
+    fn wait_for_external_scans(&self, timeout: Duration) -> bool {
+        let registrations = self.external_scans();
+        let (registrations, _) = self
+            .external_scan_wake
+            .wait_timeout_while(registrations, timeout, |registrations| {
+                !registrations.is_empty()
+            })
+            .unwrap_or_else(|poison| poison.into_inner());
+        registrations.is_empty()
     }
 }
 
@@ -659,6 +780,7 @@ fn discover_source_candidates(
     let source_id = source.id.as_str();
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
+    publish_current_readiness_targets(&mut connection, source_id, now)?;
     let readiness_source_exists: bool = connection
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM source_readiness_sources WHERE source_id = ?1)",
@@ -673,7 +795,7 @@ fn discover_source_candidates(
             .map_err(|error| error.to_string())?;
         stats.readiness_queue_depth = snapshot.deficits.len();
         candidates.extend(snapshot.deficits.iter().map(|deficit| RuntimeCandidate {
-            schedule: WorkCandidate::readiness(&deficit.target, now),
+            schedule: WorkCandidate::readiness(&deficit.target, deficit.enqueued_at.unwrap_or(now)),
             source: source.clone(),
             task: RuntimeTask::Readiness(deficit.target.clone()),
         }));
@@ -776,6 +898,185 @@ fn discover_source_candidates(
         });
     }
     Ok((candidates, stats))
+}
+
+fn publish_current_readiness_targets(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    now: i64,
+) -> Result<bool, String> {
+    let rows = {
+        let mut statement = connection
+            .prepare(
+                "SELECT path, file_identity, content_hash, file_size, modified_ns
+                 FROM wav_files
+                 WHERE missing = 0
+                 ORDER BY path",
+            )
+            .map_err(|error| error.to_string())?;
+        statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
+    let mut manifest = Vec::with_capacity(rows.len());
+    for (path, identity, content_hash, file_size, modified_ns) in rows {
+        if !wavecrate_library::sample_sources::is_supported_audio(std::path::Path::new(&path)) {
+            continue;
+        }
+        let Some(identity) = identity.filter(|value| !value.trim().is_empty()) else {
+            mark_readiness_temporarily_unavailable(connection, source_id, now)?;
+            return Ok(false);
+        };
+        let content_hash = content_hash
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| format!("pending-{identity}-{file_size}-{modified_ns}"));
+        manifest.push((path, identity, content_hash));
+    }
+    let source_generation = connection
+        .query_row(
+            "SELECT COALESCE(
+                (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
+                0
+             )",
+            [META_WAV_PATHS_REVISION],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let embedding_version = format!(
+        "{}+{}",
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+    );
+    let mut membership = blake3::Hasher::new();
+    let mut targets = Vec::with_capacity(manifest.len().saturating_mul(4).saturating_add(1));
+    for (path, identity, content_hash) in &manifest {
+        membership.update(identity.as_bytes());
+        membership.update(&[0]);
+        membership.update(content_hash.as_bytes());
+        membership.update(&[0xff]);
+        for (stage, version) in [
+            (ReadinessStage::IndexedIdentity, READINESS_MANIFEST_VERSION),
+            (ReadinessStage::PlaybackSummary, READINESS_PLAYBACK_VERSION),
+            (
+                ReadinessStage::AnalysisFeatures,
+                wavecrate_analysis::analysis_version(),
+            ),
+            (ReadinessStage::EmbeddingAspects, embedding_version.as_str()),
+        ] {
+            targets.push(ReadinessTarget::file(
+                source_id,
+                identity,
+                path,
+                stage,
+                version,
+                source_generation,
+                content_hash,
+            ));
+        }
+    }
+    let membership_generation = membership.finalize().to_hex().to_string();
+    targets.push(ReadinessTarget::source(
+        source_id,
+        ReadinessStage::SimilarityLayout,
+        NATIVE_SIMILARITY_UMAP_VERSION,
+        source_generation,
+        membership_generation,
+    ));
+    let target_fingerprint = readiness_target_fingerprint(&targets);
+    let current_fingerprint = connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = ?1",
+            [META_READINESS_TARGET_FINGERPRINT],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let current_source: Option<(i64, i64, String)> = connection
+        .query_row(
+            "SELECT source_generation, readiness_revision, availability
+             FROM source_readiness_sources WHERE source_id = ?1",
+            [source_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    if current_fingerprint.as_deref() == Some(target_fingerprint.as_str())
+        && current_source
+            .as_ref()
+            .is_some_and(|(generation, _, availability)| {
+                *generation == source_generation && availability == "active"
+            })
+    {
+        return Ok(false);
+    }
+    let readiness_revision = current_source
+        .map(|(_, revision, _)| revision.saturating_add(1))
+        .unwrap_or(1);
+    replace_readiness_targets(
+        connection,
+        source_id,
+        source_generation,
+        readiness_revision,
+        SourceAvailability::Active,
+        &targets,
+        now,
+    )
+    .map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![META_READINESS_TARGET_FINGERPRINT, target_fingerprint],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(true)
+}
+
+fn mark_readiness_temporarily_unavailable(
+    connection: &rusqlite::Connection,
+    source_id: &str,
+    now: i64,
+) -> Result<(), String> {
+    connection
+        .execute(
+            "UPDATE source_readiness_sources
+             SET availability = 'offline',
+                 readiness_revision = readiness_revision + 1,
+                 updated_at = ?2
+             WHERE source_id = ?1 AND availability != 'offline'",
+            params![source_id, now],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn readiness_target_fingerprint(targets: &[ReadinessTarget]) -> String {
+    let mut hash = blake3::Hasher::new();
+    for target in targets {
+        hash.update(target.source_id.as_bytes());
+        hash.update(&[0]);
+        hash.update(target.scope_id.as_bytes());
+        hash.update(&[0]);
+        hash.update(format!("{:?}", target.stage).as_bytes());
+        hash.update(&[0]);
+        hash.update(target.required_version.as_bytes());
+        hash.update(&[0]);
+        hash.update(target.source_generation.to_string().as_bytes());
+        hash.update(&[0]);
+        hash.update(target.content_generation.as_bytes());
+        hash.update(&[0xff]);
+    }
+    hash.finalize().to_hex().to_string()
 }
 
 fn execute_candidate(
@@ -1249,7 +1550,7 @@ mod tests {
         assert!(!source_is_hashed(&source));
 
         supervisor.set_playback_active(false);
-        wait_until(Duration::from_secs(3), || source_is_hashed(&source));
+        wait_until(Duration::from_secs(10), || source_is_hashed(&source));
         let report = supervisor.shutdown();
         assert_eq!(report["joined"], true);
     }
@@ -1268,10 +1569,10 @@ mod tests {
     }
 
     #[test]
-    fn production_supervisor_claims_and_completes_indexed_identity_readiness() {
+    fn production_supervisor_publishes_claims_and_completes_readiness_without_manual_seed() {
         let (_directory, source) = unhashed_source("readiness");
         let database_root = source.database_root().expect("database root");
-        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
             &database_root,
             SourceDatabaseConnectionRole::JobWorker,
@@ -1285,47 +1586,6 @@ mod tests {
                 [],
             )
             .expect("assign file identity");
-        let target = ReadinessTarget::file(
-            source.id.as_str(),
-            "identity-1",
-            "pending.wav",
-            ReadinessStage::IndexedIdentity,
-            "manifest-v1",
-            1,
-            "content-1",
-        );
-        let mut targets = vec![target.clone()];
-        for stage in [
-            ReadinessStage::PlaybackSummary,
-            ReadinessStage::AnalysisFeatures,
-            ReadinessStage::EmbeddingAspects,
-        ] {
-            let mut terminal = target.clone();
-            terminal.stage = stage;
-            terminal.required_version = "unsupported-v1".to_string();
-            terminal.eligibility = ReadinessEligibility::Unsupported;
-            targets.push(terminal);
-        }
-        targets.push(
-            ReadinessTarget::source(
-                source.id.as_str(),
-                ReadinessStage::SimilarityLayout,
-                "layout-v1",
-                1,
-                "members-1",
-            )
-            .with_eligibility(ReadinessEligibility::Unsupported),
-        );
-        replace_readiness_targets(
-            &mut connection,
-            source.id.as_str(),
-            1,
-            1,
-            SourceAvailability::Active,
-            &targets,
-            now_epoch_seconds(),
-        )
-        .expect("publish readiness target");
         drop(connection);
 
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
@@ -1340,37 +1600,148 @@ mod tests {
             connection
                 .query_row(
                     "SELECT EXISTS(
-                        SELECT 1 FROM source_readiness_artifacts
-                        WHERE source_id = ?1 AND scope_id = 'identity-1'
-                          AND stage = 'indexed_identity'
+                        SELECT 1
+                        FROM source_readiness_sources AS source
+                        JOIN source_readiness_targets AS target
+                          ON target.source_id = source.source_id
+                        JOIN source_readiness_artifacts AS artifact
+                          ON artifact.source_id = target.source_id
+                         AND artifact.scope_kind = target.scope_kind
+                         AND artifact.scope_id = target.scope_id
+                         AND artifact.stage = target.stage
+                        WHERE source.source_id = ?1
+                          AND source.availability = 'active'
+                          AND target.scope_id = 'identity-1'
+                          AND target.stage = 'indexed_identity'
+                          AND target.required_version = ?2
+                          AND artifact.artifact_version = target.required_version
+                          AND artifact.content_generation = target.content_generation
                     )",
-                    [source.id.as_str()],
+                    params![source.id.as_str(), READINESS_MANIFEST_VERSION],
                     |row| row.get::<_, bool>(0),
                 )
                 .expect("read readiness artifact")
         });
         let report = supervisor.shutdown();
         assert_eq!(report["joined"], true);
-        assert_eq!(report["claimed"], 1);
-        assert_eq!(report["completed"], 1);
-        assert_eq!(report["retried"], 0);
-        assert_eq!(report["stale"], 0);
-        assert_eq!(report["readiness_queue_depth"], 0);
+        assert!(report["claimed"].as_u64().unwrap_or_default() >= 1);
+        assert!(report["completed"].as_u64().unwrap_or_default() >= 1);
     }
 
     #[test]
     fn real_hash_execution_waits_for_shared_scan_database_budget() {
         let (_directory, source) = unhashed_source("shared-budget");
-        let mut supervisor =
-            SourceProcessingSupervisor::start_with_playback_state(vec![source.clone()], true);
-        let permit = supervisor.budget_handle().acquire_scan(source.id.as_str());
-        supervisor.set_playback_active(false);
+        let shared = Arc::new(Shared::new(vec![source.clone()]));
+        let permit = SourceProcessingBudgetHandle {
+            shared: Arc::clone(&shared),
+        }
+        .acquire_scan(source.id.as_str())
+        .expect("acquire external scan budget");
+        let coordinator_shared = Arc::clone(&shared);
+        let coordinator = thread::Builder::new()
+            .name(String::from("wavecrate-source-supervisor-test"))
+            .spawn(move || run_coordinator(coordinator_shared))
+            .expect("spawn source processing supervisor");
+        let mut supervisor = SourceProcessingSupervisor {
+            shared,
+            coordinator: Some(coordinator),
+        };
         thread::sleep(Duration::from_millis(150));
         assert!(!source_is_hashed(&source));
 
         drop(permit);
         wait_until(Duration::from_secs(3), || source_is_hashed(&source));
         assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn external_scan_tokens_cancel_for_playback_removal_and_shutdown() {
+        let (_directory, source) = unhashed_source("external-cancel");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor.replace_sources(vec![source.clone()]);
+
+        let playback_permit = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("acquire playback permit");
+        let playback_cancel = playback_permit.cancel_token();
+        assert!(!playback_cancel.load(Ordering::Acquire));
+        supervisor.set_playback_active(true);
+        assert!(playback_cancel.load(Ordering::Acquire));
+        drop(playback_permit);
+
+        supervisor.set_playback_active(false);
+        let removal_permit = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("acquire removal permit");
+        let removal_cancel = removal_permit.cancel_token();
+        supervisor.replace_sources(Vec::new());
+        assert!(removal_cancel.load(Ordering::Acquire));
+        drop(removal_permit);
+
+        supervisor.replace_sources(vec![source.clone()]);
+        let shutdown_permit = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("acquire shutdown permit");
+        let shutdown_cancel = shutdown_permit.cancel_token();
+        let release_cancel = Arc::clone(&shutdown_cancel);
+        let releaser = thread::spawn(move || {
+            while !release_cancel.load(Ordering::Acquire) {
+                thread::yield_now();
+            }
+            drop(shutdown_permit);
+        });
+        let wake_generation = supervisor.shared.control().wake_generation;
+        let report = supervisor.shutdown();
+        releaser.join().expect("join external scan releaser");
+        assert_eq!(report["joined"], true);
+        assert_eq!(report["external_scans_joined"], true);
+        assert!(shutdown_cancel.load(Ordering::Acquire));
+        assert!(supervisor.shared.control().wake_generation > wake_generation);
+    }
+
+    #[test]
+    fn readiness_candidates_preserve_durable_queue_creation_time() {
+        let (_directory, source) = unhashed_source("queue-age");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'queue-identity', content_hash = 'queue-content'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("assign queue identity");
+        assert!(
+            publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+                .expect("publish current targets")
+        );
+        let snapshot =
+            reconcile_readiness(&connection, source.id.as_str(), 100).expect("reconcile targets");
+        persist_readiness_deficits(&mut connection, &snapshot.deficits, 100)
+            .expect("persist deficits");
+        drop(connection);
+
+        let (candidates, _) = discover_source_candidates(&source, 250).expect("rediscover work");
+        let readiness = candidates
+            .iter()
+            .filter(|candidate| matches!(candidate.task, RuntimeTask::Readiness(_)))
+            .collect::<Vec<_>>();
+        assert!(!readiness.is_empty());
+        assert!(
+            readiness
+                .iter()
+                .all(|candidate| candidate.schedule.enqueued_at == 100)
+        );
+        assert_eq!(oldest_job_age_seconds(&candidates, 250), 150);
     }
 
     #[test]

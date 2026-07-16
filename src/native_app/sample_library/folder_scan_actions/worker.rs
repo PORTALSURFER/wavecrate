@@ -50,8 +50,14 @@ impl NativeAppState {
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
             move |_context, events| {
-                let _permit = budget.acquire_scan(&source_id);
-                run_folder_scan_worker(request, events)
+                let Some(permit) = budget.acquire_scan(&source_id) else {
+                    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                    return run_folder_scan_worker(request, events, cancel);
+                };
+                let cancel = permit.cancel_token();
+                let result = run_folder_scan_worker(request, events, cancel);
+                drop(permit);
+                result
             },
             folder_scan_worker_event_message,
             GuiMessage::FolderScanFinished,
@@ -104,6 +110,20 @@ impl NativeAppState {
                     started_at,
                     None,
                 );
+            }
+            SourceScanFinish::Cancelled { source_id, label } => {
+                self.ui.status.sample = format!("Paused source scan for {label}");
+                emit_gui_action(
+                    "folder_browser.scan.finish",
+                    Some("folder_browser"),
+                    Some(&label),
+                    "cancelled",
+                    started_at,
+                    Some("source_processing_cancelled"),
+                );
+                self.background
+                    .source_processing
+                    .wake_source(&source_id, "external_scan_cancelled");
             }
         }
     }

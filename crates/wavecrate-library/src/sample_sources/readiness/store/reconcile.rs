@@ -128,6 +128,7 @@ struct StoredWork {
     failure_kind: Option<String>,
     last_error: Option<String>,
     lease_expires_at: Option<i64>,
+    created_at: i64,
 }
 
 fn load_targets(
@@ -197,7 +198,7 @@ fn load_work(
     let mut statement = connection.prepare(
         "SELECT readiness_scope_kind, readiness_scope_id, readiness_stage, status,
                 artifact_version, source_generation, content_generation, retry_at,
-                failure_kind, last_error, lease_expires_at
+                failure_kind, last_error, lease_expires_at, created_at
          FROM analysis_jobs
          WHERE source_id = ?1 AND readiness_managed = 1
          ORDER BY id",
@@ -222,6 +223,7 @@ fn load_work(
                 failure_kind: row.get(8)?,
                 last_error: row.get(9)?,
                 lease_expires_at: row.get(10)?,
+                created_at: row.get(11)?,
             },
         );
     }
@@ -253,6 +255,7 @@ fn build_snapshot(
             deficits.push(ReadinessDeficit {
                 target: target.clone(),
                 reason: classification.clone(),
+                enqueued_at: work.get(&key).map(|work| work.created_at),
             });
         }
         entries.push(ReadinessEntry {

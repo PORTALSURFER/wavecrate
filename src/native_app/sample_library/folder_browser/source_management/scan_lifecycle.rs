@@ -322,6 +322,22 @@ impl FolderBrowserState {
         true
     }
 
+    pub(in crate::native_app) fn cancel_scan(&mut self, source_id: &str, task_id: u64) -> bool {
+        let Some(source) = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == source_id)
+        else {
+            return false;
+        };
+        if source.loading_task != Some(task_id) {
+            return false;
+        }
+        source.loading_task = None;
+        true
+    }
+
     pub(in crate::native_app) fn apply_folder_tree_refresh_result(
         &mut self,
         result: FolderTreeRefreshResult,

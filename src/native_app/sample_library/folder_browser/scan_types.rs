@@ -65,6 +65,7 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) folder_count: usize,
     pub(in crate::native_app) source_db_error: Option<String>,
     pub(in crate::native_app) source_root_available: bool,
+    pub(in crate::native_app) cancelled: bool,
 }
 
 impl FolderScanResult {

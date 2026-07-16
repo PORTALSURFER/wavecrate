@@ -94,6 +94,27 @@ fn pending_refresh_waits_for_active_scan() {
 }
 
 #[test]
+fn cancelled_scan_releases_ownership_and_requeues_the_source() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 22)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let mut result = scan_source_with_progress(request, |_| {}, |_| {});
+    result.cancelled = true;
+
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Cancelled { .. }
+    ));
+    assert!(!workflow.active());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
+}
+
+#[test]
 fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
     let first_root = temp_dir_with_wav();
     let second_root = temp_dir_with_wav();
