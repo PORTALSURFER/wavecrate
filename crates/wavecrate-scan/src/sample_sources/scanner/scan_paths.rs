@@ -33,6 +33,7 @@ pub fn sync_paths_with_progress(
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
 ) -> Result<ScanStats, ScanError> {
+    let manifest_before = super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
     let mut context = ScanContext::from_existing(targets.existing, ScanMode::Targeted);
@@ -73,6 +74,7 @@ pub fn sync_paths_with_progress(
         let _ = apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed)?;
     }
     db_sync_phase(db, &mut context, cancel)?;
+    super::manifest::publish_committed_delta(db, &mut context.stats, manifest_before)?;
     Ok(context.stats)
 }
 

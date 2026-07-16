@@ -25,10 +25,9 @@ pub(in crate::native_app) enum SourceFilesystemChangePlan {
     IgnoredSourceMissing {
         source_id: String,
     },
-    Patched {
+    SyncPaths {
         source_id: String,
         changed_count: usize,
-        changed: bool,
     },
     DeferredAlreadyRunning {
         source_id: String,
@@ -221,11 +220,9 @@ impl SourceScanWorkflow {
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         }
         if !overflowed && !paths.is_empty() {
-            let changed = browser.refresh_filesystem_paths(&source_id, paths);
-            return SourceFilesystemChangePlan::Patched {
+            return SourceFilesystemChangePlan::SyncPaths {
                 source_id,
                 changed_count: paths.len(),
-                changed,
             };
         }
         if self.active() {

@@ -14,7 +14,7 @@ use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde_json::Value;
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
-    db::META_WAV_PATHS_REVISION,
+    db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessFailureClassification,
         ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy,
@@ -24,7 +24,7 @@ use wavecrate::sample_sources::{
         reconcile_readiness_with_cancel, renew_readiness_lease,
         replace_readiness_targets_with_cancel,
     },
-    scanner::complete_pending_deep_hash_for_path,
+    scanner::{audit_source_and_record, complete_pending_deep_hash_for_path},
 };
 
 use super::scheduler::{
@@ -39,6 +39,8 @@ use crate::native_app::waveform::{
 };
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
+const MANIFEST_AUDIT_INTERVAL_SECONDS: i64 = 5 * 60;
+const MANIFEST_AUDIT_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
@@ -887,6 +889,7 @@ struct SupervisorTelemetry {
 
 #[derive(Clone, Debug)]
 enum RuntimeTask {
+    ManifestAudit,
     LegacyAnalysis {
         job_id: i64,
     },
@@ -1207,7 +1210,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                 continue;
             }
             let should_refresh = match (&candidate.task, execution_outcome) {
-                (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
+                (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Completed))
+                | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Failed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Retried { .. }))
@@ -1309,6 +1313,23 @@ fn discover_source_candidates(
         return Ok(Cancellable::Cancelled);
     }
     let database_root = source.database_root().map_err(|error| error.to_string())?;
+    if !source.root.is_dir() {
+        if database_root != source.root && database_root.is_dir() {
+            let connection = SourceDatabase::open_connection_with_role_and_database_root(
+                &source.root,
+                &database_root,
+                SourceDatabaseConnectionRole::JobWorker,
+            )
+            .map_err(|error| error.to_string())?;
+            if source_processing_schema_available(&connection)? {
+                mark_readiness_temporarily_unavailable(&connection, source.id.as_str(), now)?;
+            }
+        }
+        return Ok(Cancellable::Completed((
+            Vec::new(),
+            SourceDiscoveryStats::default(),
+        )));
+    }
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,
         &database_root,
@@ -1345,6 +1366,23 @@ fn discover_source_candidates_with_connection(
             "Source processing is unavailable until the read-only source database is migrated"
         );
         return Ok(Cancellable::Completed((candidates, stats)));
+    }
+    let last_manifest_audit_at = connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = ?1",
+            [META_LAST_MANIFEST_AUDIT_AT],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or_default();
+    if now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS {
+        candidates.push(RuntimeCandidate {
+            schedule: WorkCandidate::source(source_id, ProcessingLane::Scan, 0, now),
+            source: source.clone(),
+            task: RuntimeTask::ManifestAudit,
+        });
     }
     if matches!(
         publish_current_readiness_targets_with_cancel(connection, source_id, now, cancel)?,
@@ -1831,6 +1869,40 @@ fn execute_candidate(
     cancel: &AtomicBool,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
+        RuntimeTask::ManifestAudit => {
+            let database_root = candidate
+                .source
+                .database_root()
+                .map_err(|error| error.to_string())?;
+            let database = SourceDatabase::open_for_background_job_with_database_root(
+                &candidate.source.root,
+                database_root,
+            )
+            .map_err(|error| error.to_string())?;
+            let completed_at = now_epoch_seconds();
+            let outcome = audit_source_and_record(
+                &database,
+                Some(cancel),
+                MANIFEST_AUDIT_HASH_BATCH,
+                completed_at,
+            )
+            .map_err(|error| error.to_string())?;
+            if cancel.load(Ordering::Acquire) {
+                Ok(ExecutionOutcome::Cancelled)
+            } else {
+                tracing::debug!(
+                    target: "wavecrate::source_processing",
+                    source_id = candidate.source.id.as_str(),
+                    revision = outcome.committed_delta.revision,
+                    created = outcome.committed_delta.created.len(),
+                    changed = outcome.committed_delta.changed.len(),
+                    moved = outcome.committed_delta.moved.len(),
+                    deleted = outcome.committed_delta.deleted.len(),
+                    "Periodic source manifest audit committed"
+                );
+                Ok(ExecutionOutcome::Completed)
+            }
+        }
         RuntimeTask::LegacyAnalysis { job_id } => {
             super::worker::run_legacy_job(&candidate.source, *job_id, 1, cancel).map(
                 |(processed, failed)| {
@@ -3213,6 +3285,69 @@ mod tests {
         assert!(candidates.is_empty());
         assert_eq!(stats.readiness_queue_depth, 0);
         assert_eq!(discovery_durable_counts(&connection), counts_before);
+    }
+
+    #[test]
+    fn manifest_audit_is_scheduled_only_when_the_active_source_is_due() {
+        let directory = tempfile::tempdir().expect("manifest audit source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("manifest-audit"),
+            directory.path().to_path_buf(),
+        );
+        let db = source.open_db().expect("open manifest audit source");
+        let cancel = AtomicBool::new(false);
+
+        let Cancellable::Completed((due, _)) =
+            discover_source_candidates(&source, MANIFEST_AUDIT_INTERVAL_SECONDS, &cancel)
+                .expect("discover due manifest audit")
+        else {
+            panic!("manifest audit discovery unexpectedly cancelled");
+        };
+        assert!(
+            due.iter()
+                .any(|candidate| matches!(candidate.task, RuntimeTask::ManifestAudit))
+        );
+
+        db.set_metadata(
+            META_LAST_MANIFEST_AUDIT_AT,
+            &MANIFEST_AUDIT_INTERVAL_SECONDS.to_string(),
+        )
+        .expect("record manifest audit");
+        let Cancellable::Completed((not_due, _)) =
+            discover_source_candidates(&source, MANIFEST_AUDIT_INTERVAL_SECONDS * 2 - 1, &cancel)
+                .expect("discover recent manifest audit")
+        else {
+            panic!("manifest audit discovery unexpectedly cancelled");
+        };
+        assert!(
+            not_due
+                .iter()
+                .all(|candidate| !matches!(candidate.task, RuntimeTask::ManifestAudit))
+        );
+    }
+
+    #[test]
+    fn missing_source_discovery_does_not_recreate_the_source_root() {
+        let parent = tempfile::tempdir().expect("missing source parent");
+        let root = parent.path().join("source");
+        std::fs::create_dir(&root).expect("create source root");
+        let source =
+            SampleSource::new_with_id(SourceId::from_string("missing-source"), root.clone());
+        source.open_db().expect("create source database");
+        std::fs::remove_dir_all(&root).expect("remove source root");
+        let cancel = AtomicBool::new(false);
+
+        let Cancellable::Completed((candidates, _)) =
+            discover_source_candidates(&source, 100, &cancel).expect("discover unavailable source")
+        else {
+            panic!("missing source discovery unexpectedly cancelled");
+        };
+
+        assert!(candidates.is_empty());
+        assert!(
+            !root.exists(),
+            "discovery must not recreate a missing source"
+        );
     }
 
     #[test]

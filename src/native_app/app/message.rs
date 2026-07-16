@@ -386,6 +386,8 @@ pub(in crate::native_app) struct SourceFilesystemSyncResult {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
     pub(in crate::native_app) renames_reconciled: usize,
+    pub(in crate::native_app) committed_delta:
+        wavecrate::sample_sources::scanner::CommittedSourceDelta,
 }
 
 #[derive(Clone, Debug)]

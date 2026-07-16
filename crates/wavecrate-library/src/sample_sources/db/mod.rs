@@ -41,7 +41,10 @@ pub use open_profiles::SourceDatabaseConnectionRole;
 /// Metadata retained for a pruned row so later scans can recover rename state.
 pub use pending_renames::PendingRenameEntry;
 pub use rename_metadata::RenameMetadataSnapshot;
-pub use types::{Rating, SampleCollection, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
+pub use types::{
+    Rating, SampleCollection, SampleSoundType, SourceManifestEntry, SourceTag, SourceTagUsage,
+    WavEntry,
+};
 pub use util::normalize_relative_path;
 pub use write::{
     SourceCollectionWrite, SourceContentHashWrite, SourceFileWrite, SourceTagWrite,
@@ -54,6 +57,8 @@ pub const DB_FILE_NAME: &str = ".wavecrate.db";
 pub const LEGACY_DB_FILE_NAME: &str = ".wavecrate_samples.db";
 /// Metadata key for the last completed scan timestamp.
 pub const META_LAST_SCAN_COMPLETED_AT: &str = "last_scan_completed_at";
+/// Metadata key storing the last completed periodic source-manifest audit timestamp.
+pub const META_LAST_MANIFEST_AUDIT_AT: &str = "last_manifest_audit_at_v1";
 /// Metadata key for the last similarity-prep scan timestamp.
 pub const META_LAST_SIMILARITY_PREP_SCAN_AT: &str = "last_similarity_prep_scan_at";
 /// Metadata key storing the last data revision cleaned by deferred maintenance.

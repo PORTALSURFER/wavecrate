@@ -573,6 +573,39 @@ fn active_source_click_preserves_required_filesystem_refresh() {
 }
 
 #[test]
+fn targeted_watcher_hint_does_not_patch_browser_before_commit() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 125)
+        .expect("source scan");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, result);
+    fs::remove_file(root.path().join("sample.wav")).expect("remove sample");
+
+    assert!(matches!(
+        workflow.plan_filesystem_change(
+            &mut browser,
+            source_id,
+            &[PathBuf::from("sample.wav")],
+            false,
+        ),
+        SourceFilesystemChangePlan::SyncPaths {
+            changed_count: 1,
+            ..
+        }
+    ));
+    assert_eq!(
+        browser.selected_audio_files().len(),
+        1,
+        "the watcher path is only a hint until the source database commit completes"
+    );
+}
+
+#[test]
 fn switching_away_parks_live_discoveries_from_an_active_scan() {
     let first = temp_dir_with_wav();
     let second = temp_dir_with_wav();

@@ -37,6 +37,32 @@ pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
     scan(db, ScanMode::Hard, None, None)
 }
 
+/// Reconcile the full source manifest and verify a bounded rotating content batch.
+pub fn audit_source(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+) -> Result<ScanStats, ScanError> {
+    let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
+    let verified = super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None)?;
+    stats.merge_deferred_hashes(verified);
+    Ok(stats)
+}
+
+/// Reconcile a source audit and durably record its completion in the same final revision.
+pub fn audit_source_and_record(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+) -> Result<ScanStats, ScanError> {
+    let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
+    let verified =
+        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, Some(completed_at))?;
+    stats.merge_deferred_hashes(verified);
+    Ok(stats)
+}
+
 /// Scan with a progress callback, optionally honoring a cancel flag.
 pub fn scan_with_progress(
     db: &SourceDatabase,
@@ -54,10 +80,12 @@ fn scan(
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
 ) -> Result<ScanStats, ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
+    let manifest_before = super::super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
     walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
     db_sync_phase(db, &mut context, cancel)?;
+    super::super::manifest::publish_committed_delta(db, &mut context.stats, manifest_before)?;
     Ok(context.stats)
 }
 
@@ -193,33 +221,4 @@ pub fn complete_pending_deep_hash_for_path(
         Some(1),
         Some(relative_path),
     )
-}
-
-/// Spawn a detached deep-hash pass to backfill content hashes after quick scans.
-///
-/// This keeps incremental scans responsive by moving full hashing and rename
-/// reconciliation for large files to a best-effort background worker.
-pub fn schedule_deep_hash_scan(root: PathBuf) {
-    schedule_deep_hash_scan_with_database_root(root.clone(), root);
-}
-
-/// Spawn a detached deep-hash pass using a separate database root.
-pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: PathBuf) {
-    thread::spawn(move || {
-        let result = (|| -> Result<(), ScanError> {
-            let db = SourceDatabase::open_for_scan_with_database_root(root, database_root)?;
-            let _ = super::super::scan_hash::deep_hash_scan(
-                &db,
-                None,
-                &HashSet::new(),
-                super::super::scan_hash::DeferredHashScope::AllUnhashed,
-                None,
-                None,
-            )?;
-            Ok(())
-        })();
-        if let Err(err) = result {
-            tracing::warn!("Deferred deep-hash scan failed: {err}");
-        }
-    });
 }

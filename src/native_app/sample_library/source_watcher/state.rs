@@ -19,12 +19,7 @@ pub(super) struct GuiSourceWatchState {
 }
 
 impl GuiSourceWatchState {
-    pub(super) fn replace_sources(
-        &mut self,
-        sources: Vec<SampleSource>,
-        watcher: &mut RecommendedWatcher,
-    ) {
-        update_watched_roots(watcher, &mut self.watched_roots, &sources);
+    pub(super) fn set_sources(&mut self, sources: Vec<SampleSource>) {
         self.sources = sources;
         let allowed = self
             .sources
@@ -33,6 +28,53 @@ impl GuiSourceWatchState {
             .collect::<HashSet<_>>();
         self.pending
             .retain(|source_id, _| allowed.contains(source_id));
+    }
+
+    pub(super) fn refresh_watched_roots(
+        &mut self,
+        watcher: &mut RecommendedWatcher,
+        now: Instant,
+    ) -> (bool, bool) {
+        let update = update_watched_roots(watcher, &mut self.watched_roots, &self.sources);
+        for root in update.changed_roots {
+            let affected = self
+                .sources
+                .iter()
+                .filter(|source| source.root == root)
+                .map(|source| source.id.as_str().to_string())
+                .collect::<Vec<_>>();
+            for source_id in affected {
+                self.mark_source_overflowed(&source_id, now);
+            }
+        }
+        (update.has_unavailable_roots, update.watch_failed)
+    }
+
+    pub(super) fn reset_watches(&mut self, now: Instant) {
+        self.watched_roots.clear();
+        self.mark_all_overflowed(now);
+    }
+
+    pub(super) fn mark_all_overflowed(&mut self, now: Instant) {
+        let source_ids = self
+            .sources
+            .iter()
+            .map(|source| source.id.as_str().to_string())
+            .collect::<Vec<_>>();
+        for source_id in source_ids {
+            self.mark_source_overflowed(&source_id, now);
+        }
+    }
+
+    fn mark_source_overflowed(&mut self, source_id: &str, now: Instant) {
+        self.pending
+            .entry(source_id.to_string())
+            .and_modify(|pending| {
+                pending.last_event = now;
+                pending.overflowed = true;
+                pending.paths.clear();
+            })
+            .or_insert_with(|| PendingGuiSourceWatch::new(now, None));
     }
 
     pub(super) fn collect_event(&mut self, event: &Event, now: Instant) {

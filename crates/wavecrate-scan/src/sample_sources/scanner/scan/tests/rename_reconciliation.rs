@@ -185,6 +185,25 @@ fn quick_scan_defers_hash_for_large_file() {
 }
 
 #[test]
+fn owned_deferred_hash_publishes_a_new_committed_content_generation() {
+    let dir = tempdir().unwrap();
+    let file_path = dir.path().join("large.wav");
+    std::fs::write(&file_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let initial = scan_once(&db).unwrap();
+
+    let completed = complete_pending_deep_hash_for_path(&db, Path::new("large.wav"), None)
+        .expect("owned deferred hash completion");
+
+    assert!(completed.committed_delta.revision > initial.committed_delta.revision);
+    assert_eq!(completed.committed_delta.changed.len(), 1);
+    assert_eq!(
+        completed.committed_delta.changed[0].relative_path,
+        Path::new("large.wav")
+    );
+}
+
+#[test]
 fn canceled_deferred_hashing_reports_cancellation_after_quick_scan_commit() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("large.wav");
@@ -423,7 +442,7 @@ fn copy_delete_before_initial_hash_does_not_transfer_identity() {
 }
 
 #[test]
-fn detached_deep_hash_uses_persisted_quick_scan_destinations() {
+fn owned_deep_hash_uses_persisted_quick_scan_destinations() {
     let dir = tempdir().unwrap();
     let old = dir.path().join("old.wav");
     let new = dir.path().join("new.wav");

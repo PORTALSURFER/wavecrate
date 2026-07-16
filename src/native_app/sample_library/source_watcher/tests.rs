@@ -1,4 +1,5 @@
 use super::classification::path_is_source_refresh_candidate;
+use super::handle::doubled_backoff;
 use super::state::GuiSourceWatchState;
 use notify::{Event, EventKind, event::RemoveKind};
 use std::{path::PathBuf, time::Instant};
@@ -106,4 +107,70 @@ fn debounce_drain_waits_until_source_is_ready() {
     assert_eq!(ready[0].source_id, "source_id::samples");
     assert_eq!(ready[0].paths, vec![PathBuf::from("kick.wav")]);
     assert!(!ready[0].overflowed);
+}
+
+#[test]
+fn path_churn_is_bounded_and_escalates_to_full_refresh() {
+    let root = PathBuf::from(r"C:\samples");
+    let source =
+        SampleSource::new_with_id(SourceId::from_string("source_id::samples"), root.clone());
+    let mut state = GuiSourceWatchState {
+        sources: vec![source],
+        ..Default::default()
+    };
+    let started = Instant::now();
+    for index in 0..=super::MAX_PENDING_PATHS_PER_SOURCE {
+        state.collect_event(
+            &Event {
+                kind: EventKind::Create(notify::event::CreateKind::File),
+                paths: vec![root.join(format!("sample-{index}.wav"))],
+                attrs: Default::default(),
+            },
+            started,
+        );
+    }
+
+    let pending = state.pending.get("source_id::samples").unwrap();
+    assert!(pending.overflowed);
+    assert!(pending.paths.is_empty());
+}
+
+#[test]
+fn watcher_restart_marks_every_source_for_authoritative_refresh() {
+    let first = SampleSource::new_with_id(
+        SourceId::from_string("source_id::first"),
+        PathBuf::from(r"C:\first"),
+    );
+    let second = SampleSource::new_with_id(
+        SourceId::from_string("source_id::second"),
+        PathBuf::from(r"C:\second"),
+    );
+    let mut state = GuiSourceWatchState {
+        sources: vec![first, second],
+        ..Default::default()
+    };
+    let started = Instant::now();
+
+    state.mark_all_overflowed(started);
+    let mut ready = state.drain_ready_sources(
+        started + super::SOURCE_CHANGE_DEBOUNCE,
+        super::SOURCE_CHANGE_DEBOUNCE,
+    );
+    ready.sort_by(|left, right| left.source_id.cmp(&right.source_id));
+
+    assert_eq!(ready.len(), 2);
+    assert!(ready.iter().all(|event| event.overflowed));
+    assert!(ready.iter().all(|event| event.paths.is_empty()));
+}
+
+#[test]
+fn watcher_restart_backoff_is_bounded() {
+    assert_eq!(
+        doubled_backoff(super::WATCHER_RESTART_MIN),
+        super::WATCHER_RESTART_MIN * 2
+    );
+    assert_eq!(
+        doubled_backoff(super::WATCHER_RESTART_MAX),
+        super::WATCHER_RESTART_MAX
+    );
 }

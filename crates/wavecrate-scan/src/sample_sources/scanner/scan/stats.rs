@@ -1,8 +1,12 @@
 use std::path::PathBuf;
 
+use wavecrate_library::sample_sources::SourceManifestEntry;
+
 /// Summary of a scan run.
 #[derive(Debug, Default, Clone)]
 pub struct ScanStats {
+    /// Authoritative identity delta observed at the final committed source revision.
+    pub committed_delta: CommittedSourceDelta,
     /// Number of newly discovered files.
     pub added: usize,
     /// Number of files updated in-place.
@@ -28,6 +32,10 @@ pub struct ScanStats {
     /// Newly inserted paths from this scan that are eligible as rename destinations.
     #[doc(hidden)]
     pub rename_candidate_paths: Vec<PathBuf>,
+    #[doc(hidden)]
+    pub manifest_before: Vec<SourceManifestEntry>,
+    #[doc(hidden)]
+    pub manifest_after: Vec<SourceManifestEntry>,
 }
 
 impl ScanStats {
@@ -38,10 +46,67 @@ impl ScanStats {
         self.updated_samples.append(&mut deferred.updated_samples);
         self.renamed_samples.append(&mut deferred.renamed_samples);
         self.changed_samples.append(&mut deferred.changed_samples);
+        if !deferred.manifest_after.is_empty() || deferred.committed_delta.revision > 0 {
+            self.manifest_after = deferred.manifest_after;
+            self.committed_delta = super::super::manifest::build_committed_delta(
+                &self.manifest_before,
+                &self.manifest_after,
+                deferred.committed_delta.revision,
+            );
+        }
     }
 
     pub(crate) fn record_rename_candidate(&mut self, path: PathBuf) {
         self.rename_candidate_paths.push(path);
+    }
+}
+
+/// One current or retired identity in a committed source-manifest delta.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManifestIdentityDelta {
+    /// Stable identity used to fence downstream work.
+    pub identity: String,
+    /// Source-relative path at this revision.
+    pub relative_path: PathBuf,
+    /// Full hash or explicit pending generation for this identity.
+    pub content_generation: String,
+}
+
+/// One identity whose committed source-relative path changed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MovedManifestIdentity {
+    /// Stable identity used to fence downstream work.
+    pub identity: String,
+    /// Previous source-relative path.
+    pub old_relative_path: PathBuf,
+    /// Current source-relative path.
+    pub new_relative_path: PathBuf,
+    /// Current full hash or explicit pending generation.
+    pub content_generation: String,
+}
+
+/// Structured source-manifest delta published only after the authoritative commit.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CommittedSourceDelta {
+    /// Monotonic committed source-path revision.
+    pub revision: u64,
+    /// Identities newly present at this revision.
+    pub created: Vec<ManifestIdentityDelta>,
+    /// Identities whose content generation changed at this revision.
+    pub changed: Vec<ManifestIdentityDelta>,
+    /// Identities whose path changed without losing stable ownership.
+    pub moved: Vec<MovedManifestIdentity>,
+    /// Identities no longer present at this revision.
+    pub deleted: Vec<ManifestIdentityDelta>,
+}
+
+impl CommittedSourceDelta {
+    /// Return true when the committed manifest did not change.
+    pub fn is_empty(&self) -> bool {
+        self.created.is_empty()
+            && self.changed.is_empty()
+            && self.moved.is_empty()
+            && self.deleted.is_empty()
     }
 }
 

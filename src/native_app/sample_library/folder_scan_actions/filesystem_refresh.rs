@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Instant};
+use std::{collections::BTreeSet, path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
 
@@ -23,9 +23,16 @@ impl NativeAppState {
             .plan_filesystem_change(source_id, &paths, overflowed)
         {
             SourceFilesystemChangePlan::IgnoredSourceMissing { source_id } => {
+                self.background
+                    .source_processing
+                    .wake_source(&source_id, "source_root_availability_changed");
                 if source_id == self.library.folder_browser.selected_source_id() {
                     self.ui.status.sample = String::from("Source missing");
                 }
+                self.persist_user_configuration(
+                    "folder_browser.source.availability_changed",
+                    started_at,
+                );
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
@@ -35,29 +42,16 @@ impl NativeAppState {
                     Some("source_not_found"),
                 );
             }
-            SourceFilesystemChangePlan::Patched {
+            SourceFilesystemChangePlan::SyncPaths {
                 source_id,
                 changed_count,
-                changed,
             } => {
                 self.queue_source_filesystem_sync(source_id.clone(), paths, changed_count, context);
-                if changed {
-                    self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
-                    self.queue_source_prep_pending_commit(
-                        source_id.clone(),
-                        SourcePrepTrigger::FilesystemChanged,
-                        context,
-                    );
-                    self.persist_user_configuration(
-                        "folder_browser.source.filesystem_patch",
-                        started_at,
-                    );
-                }
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
                     Some(&source_id),
-                    "patched",
+                    "sync_queued",
                     started_at,
                     None,
                 );
@@ -85,6 +79,13 @@ impl NativeAppState {
     ) {
         let source_id = result.source_id;
         let changed_count = result.changed_count;
+        if !self.library.folder_browser.source_exists(&source_id) {
+            tracing::debug!(
+                source_id = %source_id,
+                "Ignoring stale filesystem sync completion for removed source"
+            );
+            return;
+        }
         if result.cancelled {
             self.background
                 .source_processing
@@ -93,19 +94,38 @@ impl NativeAppState {
             return;
         }
         match result.result {
-            Ok(success) if success.renames_reconciled > 0 => {
-                if changed_count > 0 {
-                    self.background
-                        .source_processing
-                        .wake_source(&source_id, "filesystem_sync_commit");
+            Ok(success) => {
+                let renames_reconciled = success.renames_reconciled;
+                let delta = success.committed_delta;
+                if delta.is_empty() {
+                    return;
                 }
-                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
-            }
-            Ok(_) => {
-                if changed_count > 0 {
-                    self.background
-                        .source_processing
-                        .wake_source(&source_id, "filesystem_sync_commit");
+                let projection_paths = committed_delta_paths(&delta);
+                tracing::info!(
+                    source_id = %source_id,
+                    revision = delta.revision,
+                    created = delta.created.len(),
+                    changed = delta.changed.len(),
+                    moved = delta.moved.len(),
+                    deleted = delta.deleted.len(),
+                    renames_reconciled,
+                    "Committed filesystem source delta"
+                );
+                self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
+                self.queue_source_prep(
+                    source_id.clone(),
+                    SourcePrepTrigger::FilesystemChanged,
+                    context,
+                );
+                if self
+                    .library
+                    .folder_browser
+                    .refresh_filesystem_paths(&source_id, &projection_paths)
+                {
+                    self.persist_user_configuration(
+                        "folder_browser.source.filesystem_commit",
+                        Instant::now(),
+                    );
                 }
             }
             Err(error) => {
@@ -118,6 +138,7 @@ impl NativeAppState {
                 if source_id == self.library.folder_browser.selected_source_id() {
                     self.ui.status.sample = format!("Source sync failed: {error}");
                 }
+                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }
         }
     }
@@ -217,4 +238,29 @@ impl NativeAppState {
             GuiMessage::SourceFilesystemSyncFinished,
         );
     }
+}
+
+fn committed_delta_paths(
+    delta: &wavecrate::sample_sources::scanner::CommittedSourceDelta,
+) -> Vec<PathBuf> {
+    delta
+        .created
+        .iter()
+        .chain(&delta.changed)
+        .map(|identity| identity.relative_path.clone())
+        .chain(delta.moved.iter().flat_map(|identity| {
+            [
+                identity.old_relative_path.clone(),
+                identity.new_relative_path.clone(),
+            ]
+        }))
+        .chain(
+            delta
+                .deleted
+                .iter()
+                .map(|identity| identity.relative_path.clone()),
+        )
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
 }

@@ -1210,9 +1210,11 @@ The watcher should cover ordinary source-folder changes, including:
 - audio files overwritten or modified by another application
 - source database files changed, locked, or unavailable
 
-File-watch events should be debounced and reconciled through the same source database rules as manual scans. The UI may show a short scanning/reconciling state while Wavecrate validates the change, but it should not wait for a full source rescan before showing obvious additions, removals, folder changes, or stale/missing states.
+File-watch events are bounded, debounced hints and must be reconciled through the same source database rules as manual scans. Targeted sync, full scans, and deferred hashing publish a monotonic committed source revision plus structured created, changed, moved, and deleted identity deltas. Browser projection and readiness reconciliation may update only after that authoritative commit. The UI may show a short scanning/reconciling state while Wavecrate validates the change, but it should not wait for a full source rescan before showing committed additions, removals, folder changes, or stale/missing states.
 
-If a burst of external changes is too large for immediate precise updates, Wavecrate should degrade into an incremental background rescan of the affected folder subtree while keeping the current browser usable and clearly indicating that reconciliation is in progress.
+Watcher ingress and per-source path accumulation must remain bounded. Events should coalesce by source and path; overflow, watcher restart, or irreducibly uncertain targeted sync must degrade to an authoritative background source scan while keeping the current browser usable and clearly indicating that reconciliation is in progress. Watch roots must be re-established with bounded backoff after runtime failure, and missing roots must be detected and reconciled when they disappear or reappear.
+
+Watcher delivery is not the correctness boundary. While Wavecrate is running, the source-processing coordinator should periodically audit each active source manifest and a bounded rotating content sample so closed-app changes, dropped events, and same-size in-place edits eventually repair themselves without high-frequency polling or UI-thread filesystem work.
 
 When a file disappears, Wavecrate should retain metadata as unavailable state until reconciliation determines whether it was moved, renamed, deleted, or temporarily inaccessible. The UI should distinguish missing, unavailable, unsupported, and failed-to-scan files.
 
@@ -2612,7 +2614,7 @@ Durability rules:
 
 `src/app/controller/library/analysis_backfill.rs` owns explicit controller analysis requests, while the durable source-readiness reconciler owns automatic lifecycle catch-up. Sample addition, destructive audio-content edits, user-requested reanalysis, and explicit similarity repair may still request analysis directly through the controller boundary.
 
-Committed scan completion, watcher/auto-sync reconciliation, internal rename/move/edit completion, deferred maintenance, startup catch-up, and artifact-version changes must publish or refresh desired readiness and wake the coordinator. A wakeup is not permission to recompute every artifact: the reconciler compares exact identity, version, and generation state and emits only real deficits. A path-only rename may require playback/cache ownership repair while leaving content-derived analysis current.
+Committed scan completion, watcher/auto-sync reconciliation, internal rename/move/edit completion, deferred hash completion, periodic source audit, startup catch-up, and artifact-version changes must publish or refresh desired readiness and wake the coordinator. Discovery-side wakeups occur only after the source transaction publishes its committed revision and structured identity delta. A wakeup is not permission to recompute every artifact: the reconciler compares exact identity, version, and generation state and emits only real deficits. A path-only rename may require playback/cache ownership repair while leaving content-derived analysis current.
 
 Similarity browsing, row rendering, source selection, folder activation, status reads, and other UI/read-path resolution must not enqueue work directly. They may observe readiness and raise priority for already-authoritative deficits. When trigger behavior changes, update this contract and route lifecycle call sites through the coordinator rather than adding a hidden enqueue path.
 

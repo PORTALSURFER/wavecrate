@@ -1,11 +1,17 @@
 use std::{
     path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
+    thread,
+    time::Duration,
 };
 
 use wavecrate::sample_sources::{SourceDatabase, scanner};
 
 use crate::native_app::app::{SourceFilesystemSyncResult, SourceFilesystemSyncSuccess};
+
+const MAX_SYNC_ATTEMPTS: usize = 3;
+const SYNC_RETRY_DELAYS: [Duration; MAX_SYNC_ATTEMPTS - 1] =
+    [Duration::from_millis(50), Duration::from_millis(200)];
 
 pub(super) fn sync_source_database_paths(
     source_id: String,
@@ -15,12 +21,47 @@ pub(super) fn sync_source_database_paths(
     changed_count: usize,
     cancel: &AtomicBool,
 ) -> SourceFilesystemSyncResult {
-    let result = SourceDatabase::open_for_background_job_with_database_root(&root, &database_root)
+    let mut result = Err(String::from("Source filesystem sync did not run"));
+    for attempt in 0..MAX_SYNC_ATTEMPTS {
+        result = sync_source_database_paths_once(&source_id, &root, &database_root, &paths, cancel);
+        if result.is_ok() || cancel.load(Ordering::Acquire) {
+            break;
+        }
+        let Some(delay) = SYNC_RETRY_DELAYS.get(attempt).copied() else {
+            break;
+        };
+        tracing::warn!(
+            source_id,
+            attempt = attempt + 1,
+            max_attempts = MAX_SYNC_ATTEMPTS,
+            delay_ms = delay.as_millis(),
+            error = %result.as_ref().expect_err("failed attempt"),
+            "Retrying targeted source sync"
+        );
+        if !wait_for_retry(cancel, delay) {
+            break;
+        }
+    }
+    SourceFilesystemSyncResult {
+        source_id,
+        changed_count,
+        cancelled: cancel.load(Ordering::Acquire),
+        result,
+    }
+}
+
+fn sync_source_database_paths_once(
+    source_id: &str,
+    root: &std::path::Path,
+    database_root: &std::path::Path,
+    paths: &[PathBuf],
+    cancel: &AtomicBool,
+) -> Result<SourceFilesystemSyncSuccess, String> {
+    SourceDatabase::open_for_background_job_with_database_root(root, database_root)
         .map_err(|err| format!("open source index: {err}"))
         .and_then(|db| {
-            let stats =
-                scanner::sync_paths_with_progress(&db, &paths, Some(cancel), &mut |_, _| {})
-                    .map_err(|err| format!("sync source index: {err}"))?;
+            let stats = scanner::sync_paths_with_progress(&db, paths, Some(cancel), &mut |_, _| {})
+                .map_err(|err| format!("sync source index: {err}"))?;
             let committed = stats.clone();
             let completed = match scanner::complete_deferred_rename_candidates_with_cancel(
                 &db,
@@ -40,14 +81,20 @@ pub(super) fn sync_source_database_paths(
             };
             Ok(SourceFilesystemSyncSuccess {
                 renames_reconciled: completed.renames_reconciled,
+                committed_delta: completed.committed_delta,
             })
-        });
-    SourceFilesystemSyncResult {
-        source_id,
-        changed_count,
-        cancelled: cancel.load(Ordering::Acquire),
-        result,
+        })
+}
+
+fn wait_for_retry(cancel: &AtomicBool, delay: Duration) -> bool {
+    let deadline = std::time::Instant::now() + delay;
+    while std::time::Instant::now() < deadline {
+        if cancel.load(Ordering::Acquire) {
+            return false;
+        }
+        thread::sleep(Duration::from_millis(10));
     }
+    true
 }
 
 #[cfg(test)]
@@ -59,7 +106,7 @@ mod tests {
 
     use wavecrate::sample_sources::{Rating, SourceDatabase, scanner};
 
-    use super::{SourceFilesystemSyncSuccess, sync_source_database_paths};
+    use super::sync_source_database_paths;
 
     #[test]
     fn filesystem_sync_returns_deferred_rename_results_for_refresh() {
@@ -82,12 +129,9 @@ mod tests {
             &AtomicBool::new(false),
         );
 
-        assert_eq!(
-            result.result,
-            Ok(SourceFilesystemSyncSuccess {
-                renames_reconciled: 1
-            })
-        );
+        let success = result.result.expect("sync result");
+        assert_eq!(success.renames_reconciled, 1);
+        assert_eq!(success.committed_delta.moved.len(), 1);
         assert_eq!(
             db.entry_for_path(Path::new("new.wav"))
                 .unwrap()
@@ -112,12 +156,9 @@ mod tests {
             &AtomicBool::new(false),
         );
 
-        assert_eq!(
-            result.result,
-            Ok(SourceFilesystemSyncSuccess {
-                renames_reconciled: 0
-            })
-        );
+        let success = result.result.expect("sync result");
+        assert_eq!(success.renames_reconciled, 0);
+        assert_eq!(success.committed_delta.created.len(), 1);
         let db = SourceDatabase::open(root.path()).expect("source db");
         assert!(
             db.entry_for_path(Path::new("fresh.wav"))
@@ -153,5 +194,33 @@ mod tests {
                 .expect("read entry")
                 .is_none()
         );
+    }
+
+    #[test]
+    fn filesystem_sync_retries_a_transient_database_root_failure() {
+        let root = tempfile::tempdir().expect("source root");
+        std::fs::write(root.path().join("fresh.wav"), b"fresh").expect("wav");
+        let database_parent = tempfile::tempdir().expect("database parent");
+        let database_root = database_parent.path().join("source-db");
+        std::fs::write(&database_root, b"temporarily blocked").expect("block database root");
+        let repaired_root = database_root.clone();
+        let repair = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(75));
+            std::fs::remove_file(&repaired_root).expect("remove transient blocker");
+            std::fs::create_dir(&repaired_root).expect("repair database root");
+        });
+
+        let result = sync_source_database_paths(
+            String::from("source-a"),
+            root.path().to_path_buf(),
+            database_root,
+            vec![PathBuf::from("fresh.wav")],
+            1,
+            &AtomicBool::new(false),
+        );
+        repair.join().expect("repair worker");
+
+        let success = result.result.expect("transient sync should converge");
+        assert_eq!(success.committed_delta.created.len(), 1);
     }
 }

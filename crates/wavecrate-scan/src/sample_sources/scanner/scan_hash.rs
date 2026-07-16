@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
 use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
-use super::scan::{RenamedSample, ScanError, ScanStats};
+use super::scan::{ChangedSample, RenamedSample, ScanError, ScanStats, UpdatedSample};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,6 +15,112 @@ struct HashBackfill {
     modified_ns: i64,
     content_hash: String,
     file_identity: Option<String>,
+}
+
+const META_CONTENT_AUDIT_CURSOR: &str = "source_content_audit_cursor_v1";
+
+fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
+    cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+}
+
+pub(super) fn verify_content_batch(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    audit_completed_at: Option<i64>,
+) -> Result<ScanStats, ScanError> {
+    let manifest_before = super::manifest::capture_manifest(db)?;
+    let root = ensure_root_dir(db)?;
+    let entries = db.list_manifest_entries()?;
+    let cursor = db
+        .get_metadata(META_CONTENT_AUDIT_CURSOR)?
+        .unwrap_or_default();
+    let start = entries
+        .iter()
+        .position(|entry| entry.relative_path.to_string_lossy().as_ref() > cursor.as_str())
+        .unwrap_or(0);
+    let selected = entries
+        .iter()
+        .cycle()
+        .skip(start)
+        .take(max_hashes.min(entries.len()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut stats = ScanStats::default();
+    let mut verified = Vec::new();
+    for entry in &selected {
+        if cancel_requested(cancel) {
+            return Err(ScanError::Canceled);
+        }
+        let absolute = root.join(&entry.relative_path);
+        if !is_supported_regular_audio_file(&absolute) {
+            continue;
+        }
+        let before_hash = read_facts(&root, &absolute)?;
+        let content_hash = compute_content_hash(&absolute, cancel)?;
+        let after_hash = read_facts(&root, &absolute)?;
+        if before_hash.size != after_hash.size
+            || before_hash.modified_ns != after_hash.modified_ns
+            || before_hash.file_identity != after_hash.file_identity
+        {
+            continue;
+        }
+        verified.push((entry.clone(), after_hash, content_hash));
+        stats.hashes_computed += 1;
+    }
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
+    if !selected.is_empty() || audit_completed_at.is_some() {
+        let mut batch = db.write_batch()?;
+        for (previous, facts, content_hash) in &verified {
+            if previous.content_hash.as_deref() == Some(content_hash.as_str())
+                && previous.file_size == facts.size
+                && previous.modified_ns == facts.modified_ns
+                && previous.file_identity == facts.file_identity
+            {
+                continue;
+            }
+            batch.upsert_file_with_hash(
+                &previous.relative_path,
+                facts.size,
+                facts.modified_ns,
+                content_hash,
+            )?;
+            batch.set_file_identity(&previous.relative_path, facts.file_identity.as_deref())?;
+            stats.updated += 1;
+            stats.updated_samples.push(UpdatedSample {
+                relative_path: previous.relative_path.clone(),
+                file_size: facts.size,
+                modified_ns: facts.modified_ns,
+                content_hash: Some(content_hash.clone()),
+            });
+            if previous.content_hash.as_deref() != Some(content_hash.as_str()) {
+                stats.content_changed += 1;
+                stats.changed_samples.push(ChangedSample {
+                    relative_path: previous.relative_path.clone(),
+                    file_size: facts.size,
+                    modified_ns: facts.modified_ns,
+                    content_hash: content_hash.clone(),
+                });
+            }
+        }
+        if let Some(last) = selected.last() {
+            batch.set_metadata(
+                META_CONTENT_AUDIT_CURSOR,
+                last.relative_path.to_string_lossy().as_ref(),
+            )?;
+        }
+        if let Some(completed_at) = audit_completed_at {
+            batch.set_metadata(
+                crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT,
+                &completed_at.to_string(),
+            )?;
+        }
+        batch.commit()?;
+    }
+    super::manifest::publish_committed_delta(db, &mut stats, manifest_before)?;
+    Ok(stats)
 }
 
 fn is_supported_regular_audio_file(path: &std::path::Path) -> bool {
@@ -36,6 +142,7 @@ pub(super) fn deep_hash_scan(
     max_hashes: Option<usize>,
     exact_path: Option<&std::path::Path>,
 ) -> Result<ScanStats, ScanError> {
+    let manifest_before = super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
@@ -57,7 +164,9 @@ pub(super) fn deep_hash_scan(
                 && root.join(&entry.relative_path).is_file()
         });
     if !has_unhashed_files && rename_candidates.is_empty() {
-        return Ok(ScanStats::default());
+        let mut stats = ScanStats::default();
+        super::manifest::publish_committed_delta(db, &mut stats, manifest_before)?;
+        return Ok(stats);
     }
     let pending_entries = db.list_pending_renames()?;
     let mut stats = ScanStats::default();
@@ -203,6 +312,7 @@ pub(super) fn deep_hash_scan(
     stats.renamed_samples = renamed_samples;
 
     batch.commit()?;
+    super::manifest::publish_committed_delta(db, &mut stats, manifest_before)?;
     Ok(stats)
 }
 

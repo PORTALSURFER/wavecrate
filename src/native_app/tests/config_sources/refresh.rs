@@ -332,16 +332,29 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
             .into_iter()
             .map(|file| file.name.clone())
             .collect::<Vec<_>>(),
-        vec!["keep.wav"],
-        "bounded filesystem patch should remove deleted sample from the visible list immediately"
+        vec!["keep.wav", "stale.wav"],
+        "watcher hints must not patch the visible tree before the source transaction commits"
     );
     let sync_finished =
         run_named_perform(context.into_command(), "gui-source-db-sync").expect("db sync command");
-    state.apply_message(sync_finished, &mut ui::UiUpdateContext::default());
+    let mut post_commit = ui::UiUpdateContext::default();
+    state.apply_message(sync_finished, &mut post_commit);
 
     let rows = db.list_files().expect("synced rows");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, std::path::Path::new("keep.wav"));
+    assert!(state.library.folder_progress().is_none());
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.clone())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"],
+        "the browser projection should refresh only from committed source state"
+    );
 }
 
 fn run_named_perform(

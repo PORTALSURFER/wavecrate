@@ -556,6 +556,45 @@ fn unchanged_large_scan_only_commits_completion_metadata() {
 }
 
 #[test]
+fn bounded_manifest_audit_repairs_same_size_closed_app_edit() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("same.wav");
+    std::fs::write(&path, b"one").unwrap();
+    let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let original_hash = db
+        .entry_for_path(Path::new("same.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    std::fs::write(&path, b"two").unwrap();
+    let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+        .unwrap();
+    let stats = audit_source_and_record(&db, None, 8, 1_234).unwrap();
+    let current_hash = db
+        .entry_for_path(Path::new("same.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    assert_ne!(current_hash, original_hash);
+    assert_eq!(stats.committed_delta.changed.len(), 1);
+    assert_eq!(stats.hashes_computed, 1);
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("1234")
+    );
+    assert_eq!(stats.committed_delta.revision, db.get_revision().unwrap());
+}
+
+#[test]
 fn skipped_existing_file_is_not_used_as_a_rename_source() {
     let dir = tempdir().unwrap();
     let hidden = dir.path().join(".hidden");
