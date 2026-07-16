@@ -83,6 +83,19 @@ impl GuiSourceWatchState {
                 continue;
             }
             if let Some(source) = source_for_path(&self.sources, path) {
+                // FSEvents may coalesce writes to `.wavecrate.db`, its WAL, or related source
+                // metadata into an event for the watched root itself. Re-scanning that live root
+                // would write the database again and create a self-sustaining watcher loop.
+                // Root disappearance/reappearance is observed independently by the periodic root
+                // refresh; child paths still retain normal low-latency watcher behavior.
+                if path == &source.root && source.root.is_dir() {
+                    tracing::debug!(
+                        source_id = source.id.as_str(),
+                        kind = ?event.kind,
+                        "Ignoring coalesced live-root watcher event"
+                    );
+                    continue;
+                }
                 self.pending
                     .entry(source.id.as_str().to_string())
                     .and_modify(|pending| {

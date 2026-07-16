@@ -139,6 +139,30 @@ fn debounce_drain_reports_root_availability_from_the_watcher_thread() {
 }
 
 #[test]
+fn live_root_events_do_not_feed_database_writes_back_into_scans() {
+    let root = tempfile::tempdir().expect("source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::root-event"),
+        root.path().to_path_buf(),
+    );
+    let mut state = GuiSourceWatchState {
+        sources: vec![source],
+        ..Default::default()
+    };
+
+    state.collect_event(
+        &Event {
+            kind: EventKind::Modify(notify::event::ModifyKind::Any),
+            paths: vec![root.path().to_path_buf()],
+            attrs: Default::default(),
+        },
+        Instant::now(),
+    );
+
+    assert!(state.pending.is_empty());
+}
+
+#[test]
 fn path_churn_is_bounded_and_escalates_to_full_refresh() {
     let root = PathBuf::from(r"C:\samples");
     let source =
