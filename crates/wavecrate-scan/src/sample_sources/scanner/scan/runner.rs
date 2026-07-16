@@ -44,23 +44,68 @@ pub fn audit_source(
     max_hashes: usize,
 ) -> Result<ScanStats, ScanError> {
     let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
-    let verified = super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None)?;
-    stats.merge_deferred_hashes(verified);
-    Ok(stats)
+    merge_audit_verification(
+        &mut stats,
+        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None),
+    )
 }
 
-/// Reconcile a source audit and durably record its completion in the same final revision.
+/// Reconcile a source audit and, after successful content verification, durably record completion
+/// in the same final revision.
+///
+/// A manifest repair committed before verification fails is still returned for publication. In
+/// that case the completion timestamp remains unchanged so the unfinished audit stays due.
 pub fn audit_source_and_record(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
     max_hashes: usize,
     completed_at: i64,
 ) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, || {})
+}
+
+fn audit_source_and_record_after_scan(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    after_scan: impl FnOnce(),
+) -> Result<ScanStats, ScanError> {
     let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
-    let verified =
-        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, Some(completed_at))?;
-    stats.merge_deferred_hashes(verified);
-    Ok(stats)
+    after_scan();
+    merge_audit_verification(
+        &mut stats,
+        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, Some(completed_at)),
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn audit_source_and_record_with_post_scan_hook(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    after_scan: impl FnOnce(),
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, after_scan)
+}
+
+fn merge_audit_verification(
+    stats: &mut ScanStats,
+    verification: Result<ScanStats, ScanError>,
+) -> Result<ScanStats, ScanError> {
+    match verification {
+        Ok(verified) => stats.merge_deferred_hashes(verified),
+        Err(error) if !stats.committed_delta.is_empty() => {
+            tracing::warn!(
+                %error,
+                revision = stats.committed_delta.revision,
+                "Publishing committed manifest repair before retrying incomplete content audit"
+            );
+        }
+        Err(error) => return Err(error),
+    }
+    Ok(std::mem::take(stats))
 }
 
 /// Scan with a progress callback, optionally honoring a cancel flag.
@@ -84,8 +129,12 @@ fn scan(
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode)?;
     walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
-    db_sync_phase(db, &mut context, cancel)?;
-    super::super::manifest::publish_committed_delta(db, &mut context.stats, manifest_before)?;
+    let committed_snapshot = db_sync_phase(db, &mut context, cancel)?;
+    super::super::manifest::publish_committed_delta(
+        &mut context.stats,
+        manifest_before,
+        committed_snapshot,
+    );
     Ok(context.stats)
 }
 

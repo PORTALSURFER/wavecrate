@@ -595,6 +595,31 @@ fn bounded_manifest_audit_repairs_same_size_closed_app_edit() {
 }
 
 #[test]
+fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    std::fs::write(dir.path().join("missed.wav"), b"missed watcher event").unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+
+    let stats = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
+        cancel.store(true, std::sync::atomic::Ordering::Release)
+    })
+    .unwrap();
+
+    assert_eq!(stats.committed_delta.created.len(), 1);
+    assert_eq!(
+        stats.committed_delta.created[0].relative_path,
+        Path::new("missed.wav")
+    );
+    assert!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .is_none(),
+        "incomplete verification must remain due for retry"
+    );
+}
+
+#[test]
 fn skipped_existing_file_is_not_used_as_a_rename_source() {
     let dir = tempdir().unwrap();
     let hidden = dir.path().join(".hidden");

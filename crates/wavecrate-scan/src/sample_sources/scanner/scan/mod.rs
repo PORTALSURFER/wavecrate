@@ -5,6 +5,8 @@ mod stats;
 
 pub(crate) use context::ScanContext;
 pub use errors::ScanError;
+#[cfg(test)]
+pub(crate) use runner::audit_source_and_record_with_post_scan_hook;
 pub use runner::{
     ScanMode, audit_source, audit_source_and_record, complete_deferred_hashes,
     complete_deferred_hashes_with_cancel, complete_deferred_rename_candidates,

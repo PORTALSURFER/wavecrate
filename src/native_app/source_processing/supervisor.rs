@@ -1900,6 +1900,15 @@ fn execute_candidate(
                 .source
                 .database_root()
                 .map_err(|error| error.to_string())?;
+            if !candidate.source.root.is_dir() {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id = candidate.source.id.as_str(),
+                    root = %candidate.source.root.display(),
+                    "Skipping manifest audit because the source root became unavailable"
+                );
+                return Ok(ExecutionOutcome::Cancelled);
+            }
             let database = SourceDatabase::open_for_background_job_with_database_root(
                 &candidate.source.root,
                 database_root,
@@ -1913,27 +1922,27 @@ fn execute_candidate(
                 completed_at,
             )
             .map_err(|error| error.to_string())?;
+            tracing::debug!(
+                target: "wavecrate::source_processing",
+                source_id = candidate.source.id.as_str(),
+                revision = outcome.committed_delta.revision,
+                created = outcome.committed_delta.created.len(),
+                changed = outcome.committed_delta.changed.len(),
+                moved = outcome.committed_delta.moved.len(),
+                deleted = outcome.committed_delta.deleted.len(),
+                "Periodic source manifest audit committed"
+            );
+            if !outcome.committed_delta.is_empty()
+                && let Some(worker_sender) = worker_sender
+            {
+                let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
+                    source_id: candidate.source.id.as_str().to_string(),
+                    committed_delta: outcome.committed_delta,
+                });
+            }
             if cancel.load(Ordering::Acquire) {
                 Ok(ExecutionOutcome::Cancelled)
             } else {
-                tracing::debug!(
-                    target: "wavecrate::source_processing",
-                    source_id = candidate.source.id.as_str(),
-                    revision = outcome.committed_delta.revision,
-                    created = outcome.committed_delta.created.len(),
-                    changed = outcome.committed_delta.changed.len(),
-                    moved = outcome.committed_delta.moved.len(),
-                    deleted = outcome.committed_delta.deleted.len(),
-                    "Periodic source manifest audit committed"
-                );
-                if !outcome.committed_delta.is_empty()
-                    && let Some(worker_sender) = worker_sender
-                {
-                    let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
-                        source_id: candidate.source.id.as_str().to_string(),
-                        committed_delta: outcome.committed_delta,
-                    });
-                }
                 Ok(ExecutionOutcome::Completed)
             }
         }
@@ -3381,6 +3390,39 @@ mod tests {
         assert!(
             !root.exists(),
             "discovery must not recreate a missing source"
+        );
+    }
+
+    #[test]
+    fn scheduled_manifest_audit_does_not_recreate_source_removed_after_discovery() {
+        let parent = tempfile::tempdir().expect("missing source parent");
+        let root = parent.path().join("source");
+        std::fs::create_dir(&root).expect("create source root");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("removed-after-discovery"),
+            root.clone(),
+        );
+        source.open_db().expect("create source database");
+        let candidate = RuntimeCandidate {
+            schedule: WorkCandidate::source(
+                source.id.as_str(),
+                ProcessingLane::Scan,
+                0,
+                now_epoch_seconds(),
+            ),
+            source,
+            task: RuntimeTask::ManifestAudit,
+        };
+        std::fs::remove_dir_all(&root).expect("remove source after scheduling");
+
+        assert_eq!(
+            execute_candidate(&candidate, &AtomicBool::new(false), None)
+                .expect("unavailable audit is cancelled"),
+            ExecutionOutcome::Cancelled
+        );
+        assert!(
+            !root.exists(),
+            "executing stale scheduled work must not recreate the source"
         );
     }
 

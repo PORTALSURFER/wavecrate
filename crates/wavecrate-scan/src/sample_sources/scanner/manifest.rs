@@ -13,15 +13,14 @@ pub(super) fn capture_manifest(
 }
 
 pub(super) fn publish_committed_delta(
-    database: &SourceDatabase,
     stats: &mut ScanStats,
     before: Vec<SourceManifestEntry>,
-) -> Result<(), ScanError> {
-    let (revision, after) = database.manifest_snapshot_with_revision()?;
+    committed_snapshot: (u64, Vec<SourceManifestEntry>),
+) {
+    let (revision, after) = committed_snapshot;
     stats.committed_delta = build_committed_delta(&before, &after, revision);
     stats.manifest_before = before;
     stats.manifest_after = after;
-    Ok(())
 }
 
 pub(super) fn build_committed_delta(

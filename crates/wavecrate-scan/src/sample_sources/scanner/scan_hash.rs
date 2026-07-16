@@ -71,7 +71,7 @@ pub(super) fn verify_content_batch(
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
-    if !selected.is_empty() || audit_completed_at.is_some() {
+    let committed_snapshot = if !selected.is_empty() || audit_completed_at.is_some() {
         let mut batch = db.write_batch()?;
         for (previous, facts, content_hash) in &verified {
             if previous.content_hash.as_deref() == Some(content_hash.as_str())
@@ -117,9 +117,11 @@ pub(super) fn verify_content_batch(
                 &completed_at.to_string(),
             )?;
         }
-        batch.commit()?;
-    }
-    super::manifest::publish_committed_delta(db, &mut stats, manifest_before)?;
+        batch.commit_with_manifest_snapshot()?
+    } else {
+        db.manifest_snapshot_with_revision()?
+    };
+    super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     Ok(stats)
 }
 
@@ -165,7 +167,8 @@ pub(super) fn deep_hash_scan(
         });
     if !has_unhashed_files && rename_candidates.is_empty() {
         let mut stats = ScanStats::default();
-        super::manifest::publish_committed_delta(db, &mut stats, manifest_before)?;
+        let committed_snapshot = db.manifest_snapshot_with_revision()?;
+        super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
         return Ok(stats);
     }
     let pending_entries = db.list_pending_renames()?;
@@ -311,8 +314,8 @@ pub(super) fn deep_hash_scan(
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
 
-    batch.commit()?;
-    super::manifest::publish_committed_delta(db, &mut stats, manifest_before)?;
+    let committed_snapshot = batch.commit_with_manifest_snapshot()?;
+    super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     Ok(stats)
 }
 

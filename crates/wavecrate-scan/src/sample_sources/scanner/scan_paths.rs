@@ -73,8 +73,12 @@ pub fn sync_paths_with_progress(
     if !prepared.is_empty() {
         let _ = apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed)?;
     }
-    db_sync_phase(db, &mut context, cancel)?;
-    super::manifest::publish_committed_delta(db, &mut context.stats, manifest_before)?;
+    let committed_snapshot = db_sync_phase(db, &mut context, cancel)?;
+    super::manifest::publish_committed_delta(
+        &mut context.stats,
+        manifest_before,
+        committed_snapshot,
+    );
     Ok(context.stats)
 }
 

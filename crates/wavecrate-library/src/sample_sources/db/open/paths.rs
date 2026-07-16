@@ -29,6 +29,20 @@ pub(super) fn read_only_db_path(database_root: &Path) -> Result<Option<PathBuf>,
 
 pub(super) fn prepare_writable_db_path(database_root: &Path) -> Result<PathBuf, SourceDbError> {
     let policy = SourceDbPathPolicy::for_writable(database_root)?;
+    prepare_writable_db_path_with_policy(database_root, &policy)
+}
+
+pub(super) fn prepare_writable_db_path_in_existing_root(
+    database_root: &Path,
+) -> Result<PathBuf, SourceDbError> {
+    let policy = SourceDbPathPolicy::from_existing_root(database_root)?;
+    prepare_writable_db_path_with_policy(database_root, &policy)
+}
+
+fn prepare_writable_db_path_with_policy(
+    database_root: &Path,
+    policy: &SourceDbPathPolicy,
+) -> Result<PathBuf, SourceDbError> {
     let db_path = database_root.join(DB_FILE_NAME);
     if policy.regular_file_status(&db_path)? == PathStatus::RegularFile {
         policy.validate_sidecars(&db_path)?;

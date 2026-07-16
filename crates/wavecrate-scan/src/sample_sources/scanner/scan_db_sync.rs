@@ -5,6 +5,7 @@ use super::scan::{ScanContext, ScanError, ScanMode};
 use super::scan_diff::mark_missing;
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::META_LAST_SCAN_COMPLETED_AT;
+use crate::sample_sources::db::SourceManifestEntry;
 
 const MISSING_BATCH_SIZE: usize = 64;
 
@@ -12,7 +13,7 @@ pub(super) fn db_sync_phase(
     db: &SourceDatabase,
     context: &mut ScanContext,
     cancel: Option<&AtomicBool>,
-) -> Result<(), ScanError> {
+) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
     let mut existing = std::mem::take(&mut context.existing)
         .into_values()
         .collect::<Vec<_>>()
@@ -55,8 +56,9 @@ pub(super) fn db_sync_phase(
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
-    batch.commit()?;
-    Ok(())
+    batch
+        .commit_with_manifest_snapshot()
+        .map_err(ScanError::from)
 }
 
 fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
