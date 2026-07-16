@@ -107,7 +107,7 @@ impl SourceProcessingBudgetHandle {
         let (admission_id, admission_cancel) = {
             let mut control = self.shared.control();
             while !control.shutdown
-                && control.sources.contains_key(source_id)
+                && control.source_is_active(source_id)
                 && control.processing_paused()
             {
                 control = self
@@ -118,7 +118,7 @@ impl SourceProcessingBudgetHandle {
             }
             if control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
-                || !control.sources.contains_key(source_id)
+                || !control.source_is_active(source_id)
             {
                 return None;
             }
@@ -146,7 +146,7 @@ impl SourceProcessingBudgetHandle {
                 external_scans.admissions.remove(&admission_id);
                 if control.shutdown
                     || self.shared.cancel.load(Ordering::Acquire)
-                    || !control.sources.contains_key(source_id)
+                    || !control.source_is_active(source_id)
                     || control.processing_paused()
                     || admission_cancel.load(Ordering::Acquire)
                 {
@@ -187,7 +187,7 @@ impl SourceProcessingBudgetHandle {
             let control = self.shared.control();
             let unavailable = control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
-                || !control.sources.contains_key(source_id)
+                || !control.source_is_active(source_id)
                 || control.processing_paused()
                 || admission_cancel.load(Ordering::Acquire);
             drop(control);
@@ -214,7 +214,7 @@ impl SourceProcessingBudgetPermit {
             || self
                 .permit
                 .as_ref()
-                .is_some_and(|permit| !control.sources.contains_key(permit.source_id()))
+                .is_some_and(|permit| !control.source_is_active(permit.source_id()))
     }
 }
 
@@ -271,8 +271,16 @@ impl SourceProcessingSupervisor {
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
         let sources = sources_by_id(sources);
-        let control = self.shared.control();
+        let mut control = self.shared.control();
         if source_maps_match(&control.sources, &sources) {
+            if !control.quarantined_sources.is_empty() {
+                control.quarantined_sources.clear();
+                control.reset_source_work_tokens();
+                control.mark_all_sources_dirty("configured_sources_reactivated");
+                drop(control);
+                self.shared.budget_wake.notify_all();
+                self.shared.wake.notify_all();
+            }
             return Ok(());
         }
         let changed_source_ids = control
@@ -314,14 +322,15 @@ impl SourceProcessingSupervisor {
             if let Err(error) = fence_retired_source_readiness(&source) {
                 let mut control = self.shared.control();
                 for source_id in &changed_source_ids {
-                    if control.sources.contains_key(source_id) {
-                        control
-                            .source_work_cancels
-                            .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
-                        control.dirty_sources.insert(source_id.clone());
+                    if let Some(cancel) = control.source_work_cancels.get(source_id) {
+                        cancel.store(true, Ordering::Release);
                     }
+                    if control.sources.contains_key(source_id) {
+                        control.quarantined_sources.insert(source_id.clone());
+                    }
+                    control.dirty_sources.remove(source_id);
                 }
-                control.notify("configured_sources_change_failed");
+                control.notify("configured_sources_retirement_quarantined");
                 drop(control);
                 self.shared.budget_wake.notify_all();
                 self.shared.wake.notify_all();
@@ -346,6 +355,7 @@ impl SourceProcessingSupervisor {
         }
         control.sources = sources;
         control.source_work_cancels = source_work_cancels;
+        control.quarantined_sources.clear();
         let retained_source_ids = control.sources.keys().cloned().collect::<BTreeSet<_>>();
         control
             .dirty_sources
@@ -419,11 +429,21 @@ impl SourceProcessingSupervisor {
             return Err("Source processing supervisor is shutting down".to_string());
         }
         if let Some(current) = control.sources.get(&source_id) {
-            return source_descriptors_match(current, &source)
-                .then_some(())
-                .ok_or_else(|| {
-                    format!("Source {source_id} is already registered with a different descriptor")
-                });
+            if !source_descriptors_match(current, &source) {
+                return Err(format!(
+                    "Source {source_id} is already registered with a different descriptor"
+                ));
+            }
+            if control.quarantined_sources.remove(&source_id) {
+                control
+                    .source_work_cancels
+                    .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
+                control.mark_source_dirty(&source_id, "source_scan_registration_reactivated");
+                drop(control);
+                self.shared.budget_wake.notify_all();
+                self.shared.wake.notify_one();
+            }
+            return Ok(());
         }
 
         control.sources.insert(source_id.clone(), source);
@@ -445,7 +465,7 @@ impl SourceProcessingSupervisor {
 
     pub(in crate::native_app) fn wake_source(&self, source_id: &str, reason: &'static str) {
         let mut control = self.shared.control();
-        if !control.sources.contains_key(source_id) {
+        if !control.source_is_active(source_id) {
             return;
         }
         control.cancel_source_work(source_id);
@@ -634,6 +654,7 @@ impl Shared {
                 sources,
                 source_work_cancels,
                 dirty_sources,
+                quarantined_sources: BTreeSet::new(),
                 wake_generation: 1,
                 wake_reason: "startup",
                 playback_active: false,
@@ -731,6 +752,7 @@ impl Shared {
         let current_cancel = control.source_work_cancels.get(source_id)?;
         if control.shutdown
             || control.processing_paused()
+            || !control.source_is_active(source_id)
             || !Arc::ptr_eq(current_cancel, expected_cancel)
             || expected_cancel.load(Ordering::Acquire)
         {
@@ -770,6 +792,7 @@ struct ControlState {
     sources: BTreeMap<String, SampleSource>,
     source_work_cancels: BTreeMap<String, Arc<AtomicBool>>,
     dirty_sources: BTreeSet<String>,
+    quarantined_sources: BTreeSet<String>,
     wake_generation: u64,
     wake_reason: &'static str,
     playback_active: bool,
@@ -779,20 +802,29 @@ struct ControlState {
 }
 
 impl ControlState {
+    fn source_is_active(&self, source_id: &str) -> bool {
+        self.sources.contains_key(source_id) && !self.quarantined_sources.contains(source_id)
+    }
+
     fn notify(&mut self, reason: &'static str) {
         self.wake_generation = self.wake_generation.wrapping_add(1);
         self.wake_reason = reason;
     }
 
     fn mark_source_dirty(&mut self, source_id: &str, reason: &'static str) {
-        if self.sources.contains_key(source_id) {
+        if self.source_is_active(source_id) {
             self.dirty_sources.insert(source_id.to_string());
             self.notify(reason);
         }
     }
 
     fn mark_all_sources_dirty(&mut self, reason: &'static str) {
-        self.dirty_sources.extend(self.sources.keys().cloned());
+        self.dirty_sources.extend(
+            self.sources
+                .keys()
+                .filter(|source_id| !self.quarantined_sources.contains(*source_id))
+                .cloned(),
+        );
         self.notify(reason);
     }
 
@@ -803,7 +835,9 @@ impl ControlState {
     fn cancel_source_work(&mut self, source_id: &str) {
         if let Some(cancel) = self.source_work_cancels.get_mut(source_id) {
             cancel.store(true, Ordering::Release);
-            *cancel = Arc::new(AtomicBool::new(false));
+            if !self.quarantined_sources.contains(source_id) {
+                *cancel = Arc::new(AtomicBool::new(false));
+            }
         }
     }
 
@@ -817,7 +851,10 @@ impl ControlState {
         self.source_work_cancels = self
             .sources
             .keys()
-            .map(|source_id| (source_id.clone(), Arc::new(AtomicBool::new(false))))
+            .map(|source_id| {
+                let cancelled = self.quarantined_sources.contains(source_id);
+                (source_id.clone(), Arc::new(AtomicBool::new(cancelled)))
+            })
             .collect();
     }
 }
@@ -939,7 +976,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                 std::mem::take(&mut control.dirty_sources)
             };
             (
-                control.sources.values().cloned().collect::<Vec<_>>(),
+                control
+                    .sources
+                    .iter()
+                    .filter(|(source_id, _)| control.source_is_active(source_id))
+                    .map(|(_, source)| source.clone())
+                    .collect::<Vec<_>>(),
                 dirty_sources,
                 control.source_work_cancels.clone(),
                 processing_paused,
@@ -1142,7 +1184,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             let requeue_cancelled = matches!(execution_outcome, Some(ExecutionOutcome::Cancelled))
                 && {
                     let control = shared.control();
-                    control.sources.contains_key(candidate.source.id.as_str())
+                    control.source_is_active(candidate.source.id.as_str())
                         && !control.dirty_sources.contains(candidate.source.id.as_str())
                 };
             if requeue_cancelled {
@@ -2427,6 +2469,49 @@ mod tests {
 
         thread::sleep(Duration::from_millis(150));
         assert!(!source_is_hashed(&source));
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn failed_retirement_fence_quarantines_source_until_retry_succeeds() {
+        let (_directory, source) = unhashed_source("retirement-fence-failure");
+        let database_path = source.db_path().expect("source database path");
+        std::fs::remove_file(&database_path).expect("remove source database");
+        std::fs::create_dir(&database_path).expect("replace database with invalid directory");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+
+        assert!(
+            supervisor.replace_sources(Vec::new()).is_err(),
+            "invalid database path must fail persistent retirement fencing"
+        );
+        supervisor.wake_source(source.id.as_str(), "late_watcher_event");
+        supervisor.set_playback_active(true);
+        supervisor.set_playback_active(false);
+
+        let control = supervisor.shared.control();
+        assert!(control.quarantined_sources.contains(source.id.as_str()));
+        assert!(!control.dirty_sources.contains(source.id.as_str()));
+        assert!(control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire));
+        drop(control);
+        assert!(
+            supervisor
+                .budget_handle()
+                .acquire_scan(source.id.as_str())
+                .is_none(),
+            "quarantined retirement must reject late external scans"
+        );
+
+        std::fs::remove_dir(&database_path).expect("repair invalid database path");
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("retry retirement fence");
+        let control = supervisor.shared.control();
+        assert!(!control.sources.contains_key(source.id.as_str()));
+        assert!(control.quarantined_sources.is_empty());
+        drop(control);
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
