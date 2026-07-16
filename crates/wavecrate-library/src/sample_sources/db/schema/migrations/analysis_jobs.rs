@@ -45,6 +45,7 @@ pub(super) fn ensure_analysis_jobs_optional_columns(
     backfill_analysis_jobs_relative_path(connection)?;
     for (column, definition) in [
         ("readiness_managed", "INTEGER NOT NULL DEFAULT 0"),
+        ("readiness_claim_generation", "INTEGER NOT NULL DEFAULT 0"),
         ("readiness_scope_kind", "TEXT"),
         ("readiness_scope_id", "TEXT"),
         ("readiness_stage", "TEXT"),

@@ -92,6 +92,17 @@ fn native_similarity_prepare_enqueues_analysis_and_embedding_jobs() {
 }
 
 #[test]
+fn native_similarity_prepare_honors_supervisor_cancellation_before_writes() {
+    let (_dir, source) = source_with_file("cancelled.wav");
+    let cancel = AtomicBool::new(true);
+
+    let result = enqueue_similarity_prep_inner_with_cancel(&source, false, Some(&cancel));
+
+    assert_eq!(result, Err(String::from("Similarity preparation canceled")));
+    assert_eq!(count_jobs(&source), 0);
+}
+
+#[test]
 fn native_similarity_prepare_skips_current_analysis_artifacts() {
     let (_dir, source) = source_with_file("current.wav");
     seed_current_analysis_artifacts(&source, "current.wav");
@@ -252,7 +263,7 @@ fn automatic_native_similarity_finish_leaves_pending_jobs_for_background_process
     write_valid_wav_with_frequency(&dir.path().join("covered-b.wav"), 660.0);
     write_valid_wav_with_frequency(&dir.path().join("covered-c.wav"), 880.0);
     write_valid_wav_with_frequency(&dir.path().join("covered-d.wav"), 990.0);
-    ensure_source_database_scanned(&source).expect("scan source");
+    ensure_source_database_scanned(&source, None).expect("scan source");
     seed_similarity_artifacts_without_features(&source, "covered-a.wav");
     seed_similarity_artifacts_without_features(&source, "covered-b.wav");
     seed_similarity_artifacts_without_features(&source, "covered-c.wav");

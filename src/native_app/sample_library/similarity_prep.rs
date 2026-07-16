@@ -10,7 +10,7 @@ use crate::native_app::app::{
 };
 
 mod worker;
-use worker::{enqueue_similarity_prep_inner, resolve_similarity_prep_status};
+use worker::{enqueue_similarity_prep_inner_with_cancel, resolve_similarity_prep_status};
 
 pub(in crate::native_app) use worker::{
     NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
@@ -187,8 +187,22 @@ impl NativeAppState {
         } else if selected_source {
             self.library.similarity_prep.summary = None;
         }
+        let budget = self.background.source_processing.budget_handle();
         context.business().background("gui-similarity-prep").run(
-            move |_| enqueue_similarity_prep(source, trigger),
+            move |_| {
+                let source_id = source.id().as_str().to_string();
+                let Some(permit) = budget.acquire_scan(&source_id) else {
+                    return SimilarityPrepEnqueueResult {
+                        source_id,
+                        trigger,
+                        result: Err(String::from("Similarity preparation canceled")),
+                    };
+                };
+                let cancel = permit.cancel_token();
+                let result = enqueue_similarity_prep(source, trigger, Some(cancel.as_ref()));
+                drop(permit);
+                result
+            },
             GuiMessage::SimilarityPrepEnqueueFinished,
         );
     }
@@ -414,15 +428,17 @@ fn resolve_status_result(source: SimilarityPrepSource) -> SimilarityPrepStatusRe
 fn enqueue_similarity_prep(
     source: SimilarityPrepSource,
     trigger: SimilarityPrepTrigger,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> SimilarityPrepEnqueueResult {
     let source_id = source.id().as_str().to_string();
     let sample_source = source.sample_source();
     SimilarityPrepEnqueueResult {
         source_id,
         trigger,
-        result: enqueue_similarity_prep_inner(
+        result: enqueue_similarity_prep_inner_with_cancel(
             &sample_source,
             trigger == SimilarityPrepTrigger::Automatic,
+            cancel,
         ),
     }
 }

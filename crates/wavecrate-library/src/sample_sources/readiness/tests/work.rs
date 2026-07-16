@@ -25,7 +25,8 @@ fn exact_target_claim_is_deduplicated_and_generation_fenced() {
         .expect("claim target")
         .expect("claim available");
     assert_eq!(claim.target, target);
-    assert_eq!(claim.attempt, 1);
+    assert_eq!(claim.claim_generation, 1);
+    assert_eq!(claim.failure_attempts, 0);
     assert_eq!(claim.lease_expires_at, 40);
     assert_eq!(
         claim_readiness_target(&mut connection, &target, 11, 30).expect("duplicate claim"),
@@ -59,7 +60,8 @@ fn expired_claim_is_recovered_after_restart_with_a_new_attempt() {
     let recovered = claim_readiness_target(&mut reopened, &target, 20, 10)
         .expect("recover claim")
         .expect("expired claim available");
-    assert_eq!(recovered.attempt, first.attempt + 1);
+    assert_eq!(recovered.claim_generation, first.claim_generation + 1);
+    assert_eq!(recovered.failure_attempts, 0);
     assert_eq!(recovered.lease_expires_at, 30);
     assert_eq!(
         complete_readiness_work(&mut reopened, &first, 21).expect("stale completion"),
@@ -174,7 +176,8 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
     let second = claim_readiness_target(&mut connection, &target, 5, 100)
         .expect("claim second")
         .expect("second available");
-    assert_eq!(second.attempt, 2);
+    assert_eq!(second.claim_generation, 2);
+    assert_eq!(second.failure_attempts, 1);
     assert_eq!(
         fail_readiness_work(
             &mut connection,
@@ -190,7 +193,8 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
     let third = claim_readiness_target(&mut connection, &target, 15, 100)
         .expect("claim third")
         .expect("third available");
-    assert_eq!(third.attempt, 3);
+    assert_eq!(third.claim_generation, 3);
+    assert_eq!(third.failure_attempts, 2);
     assert_eq!(
         fail_readiness_work(
             &mut connection,
@@ -276,7 +280,8 @@ fn release_and_cancel_return_claims_to_pending_without_deletion() {
     let second = claim_readiness_target(&mut connection, &target, 1, 100)
         .expect("claim second")
         .expect("second available");
-    assert_eq!(second.attempt, 2);
+    assert_eq!(second.claim_generation, 2);
+    assert_eq!(second.failure_attempts, 0);
     assert_eq!(
         cancel_readiness_work(&mut connection, &second, "shutdown", 2).expect("cancel claim"),
         ReadinessWorkMutationOutcome::Recorded
@@ -289,13 +294,67 @@ fn release_and_cancel_return_claims_to_pending_without_deletion() {
     let third = claim_readiness_target(&mut connection, &target, 2, 100)
         .expect("claim cancelled work")
         .expect("cancelled work available");
-    assert_eq!(third.attempt, 3);
+    assert_eq!(third.claim_generation, 3);
+    assert_eq!(third.failure_attempts, 0);
     assert_eq!(
         readiness_work_stats(&connection, 2)
             .expect("reclaimed stats")
             .cancelled,
         0
     );
+}
+
+#[test]
+fn benign_reclaims_do_not_consume_retry_backoff_attempts() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("cancel-retry", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&target));
+    persist_target(&mut connection, &target, 0);
+
+    for generation in 1..=10 {
+        let claim = claim_readiness_target(&mut connection, &target, generation, 100)
+            .expect("claim interruptible work")
+            .expect("work remains claimable");
+        assert_eq!(claim.claim_generation, generation as u32);
+        assert_eq!(claim.failure_attempts, 0);
+        assert_eq!(
+            cancel_readiness_work(&mut connection, &claim, "playback interruption", generation,)
+                .expect("cancel work"),
+            ReadinessWorkMutationOutcome::Recorded
+        );
+    }
+
+    let policy = ReadinessRetryPolicy::new(5, 20, 3).expect("valid retry policy");
+    for (now, expected_attempts, expected) in [
+        (
+            11,
+            0,
+            ReadinessFailureOutcome::RetryScheduled { retry_at: 16 },
+        ),
+        (
+            16,
+            1,
+            ReadinessFailureOutcome::RetryScheduled { retry_at: 26 },
+        ),
+        (26, 2, ReadinessFailureOutcome::AttemptsExhausted),
+    ] {
+        let claim = claim_readiness_target(&mut connection, &target, now, 100)
+            .expect("claim retryable work")
+            .expect("retry is due");
+        assert_eq!(claim.failure_attempts, expected_attempts);
+        assert_eq!(
+            fail_readiness_work(
+                &mut connection,
+                &claim,
+                ReadinessFailureClassification::Retryable,
+                "database busy",
+                now,
+                policy,
+            )
+            .expect("record retryable failure"),
+            expected
+        );
+    }
 }
 
 #[test]

@@ -43,6 +43,7 @@ impl LibraryDatabase {
                     attempts INTEGER NOT NULL DEFAULT 0,
                     created_at INTEGER NOT NULL,
                     last_error TEXT,
+                    readiness_claim_generation INTEGER NOT NULL DEFAULT 0,
                     UNIQUE(sample_id, job_type)
                  );
                  CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status_created_id

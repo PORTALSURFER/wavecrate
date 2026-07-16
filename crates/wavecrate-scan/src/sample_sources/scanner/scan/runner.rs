@@ -91,7 +91,16 @@ pub fn complete_deferred_hashes(
 /// as possible destinations for a following watcher batch.
 pub fn complete_deferred_rename_candidates(
     db: &SourceDatabase,
+    stats: ScanStats,
+) -> Result<ScanStats, ScanError> {
+    complete_deferred_rename_candidates_with_cancel(db, stats, None)
+}
+
+/// Reconcile only proven rename destinations while honoring the owning runtime's cancellation.
+pub fn complete_deferred_rename_candidates_with_cancel(
+    db: &SourceDatabase,
     mut stats: ScanStats,
+    cancel: Option<&AtomicBool>,
 ) -> Result<ScanStats, ScanError> {
     if db.list_pending_renames()?.is_empty() {
         return Ok(stats);
@@ -107,7 +116,7 @@ pub fn complete_deferred_rename_candidates(
         .collect::<HashSet<_>>();
     let deferred = super::super::scan_hash::deep_hash_scan(
         db,
-        None,
+        cancel,
         &rename_candidates,
         super::super::scan_hash::DeferredHashScope::RenameCandidates,
         None,

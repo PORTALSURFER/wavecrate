@@ -85,6 +85,13 @@ impl NativeAppState {
     ) {
         let source_id = result.source_id;
         let changed_count = result.changed_count;
+        if result.cancelled {
+            self.background
+                .source_processing
+                .wake_source(&source_id, "filesystem_sync_cancelled");
+            self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+            return;
+        }
         match result.result {
             Ok(success) if success.renames_reconciled > 0 => {
                 if changed_count > 0 {
@@ -184,9 +191,28 @@ impl NativeAppState {
         else {
             return;
         };
+        let budget = self.background.source_processing.budget_handle();
         context.business().background("gui-source-db-sync").run(
             move |_| {
-                sync_source_database_paths(source_id, root, database_root, paths, changed_count)
+                let Some(permit) = budget.acquire_scan(&source_id) else {
+                    return SourceFilesystemSyncResult {
+                        source_id,
+                        changed_count,
+                        cancelled: true,
+                        result: Err(String::from("Source filesystem sync canceled")),
+                    };
+                };
+                let cancel = permit.cancel_token();
+                let result = sync_source_database_paths(
+                    source_id,
+                    root,
+                    database_root,
+                    paths,
+                    changed_count,
+                    cancel.as_ref(),
+                );
+                drop(permit);
+                result
             },
             GuiMessage::SourceFilesystemSyncFinished,
         );

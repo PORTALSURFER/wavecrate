@@ -57,6 +57,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         running_at INTEGER,
         last_error TEXT,
         readiness_managed INTEGER NOT NULL DEFAULT 0,
+        readiness_claim_generation INTEGER NOT NULL DEFAULT 0,
         readiness_scope_kind TEXT,
         readiness_scope_id TEXT,
         readiness_stage TEXT,

@@ -165,6 +165,7 @@ fn readiness_schema_repairs_current_stamped_analysis_storage() {
 
     let job_columns = table_columns(&conn, "analysis_jobs").unwrap();
     assert!(job_columns.contains("readiness_managed"));
+    assert!(job_columns.contains("readiness_claim_generation"));
     assert!(job_columns.contains("source_generation"));
     assert!(job_columns.contains("lease_expires_at"));
     let source_columns = table_columns(&conn, "source_readiness_sources").unwrap();

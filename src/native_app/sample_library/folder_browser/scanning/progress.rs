@@ -120,7 +120,9 @@ fn sync_source_database(
         Ok(stats) => stats,
         Err(err) => return Some(format!("sync source index: {err}")),
     };
-    if let Err(err) = scanner::complete_deferred_rename_candidates(&db, stats) {
+    if let Err(err) =
+        scanner::complete_deferred_rename_candidates_with_cancel(&db, stats, Some(cancel))
+    {
         return Some(format!("finish deferred rename hashing: {err}"));
     }
     None

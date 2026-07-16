@@ -121,18 +121,32 @@ impl SimilarityPublicationFence {
     }
 }
 
+#[cfg(test)]
 pub(super) fn enqueue_similarity_prep_inner(
     source: &SampleSource,
     automatic: bool,
 ) -> Result<SimilarityPrepEnqueueSummary, String> {
-    retry_similarity_prep_busy(source, || enqueue_similarity_prep_once(source, automatic))
+    enqueue_similarity_prep_inner_with_cancel(source, automatic, None)
+}
+
+pub(super) fn enqueue_similarity_prep_inner_with_cancel(
+    source: &SampleSource,
+    automatic: bool,
+    cancel: Option<&AtomicBool>,
+) -> Result<SimilarityPrepEnqueueSummary, String> {
+    retry_similarity_prep_busy(source, || {
+        enqueue_similarity_prep_once(source, automatic, cancel)
+    })
 }
 
 fn enqueue_similarity_prep_once(
     source: &SampleSource,
     automatic: bool,
+    cancel: Option<&AtomicBool>,
 ) -> Result<SimilarityPrepEnqueueSummary, String> {
-    ensure_source_database_scanned(source)?;
+    ensure_not_cancelled(cancel)?;
+    ensure_source_database_scanned(source, cancel)?;
+    ensure_not_cancelled(cancel)?;
     let initial_status = resolve_similarity_prep_status(source)?;
     if initial_status == NativeSimilarityPrepStatus::UpToDate
         || (automatic
@@ -149,7 +163,9 @@ fn enqueue_similarity_prep_once(
         });
     }
     let analysis_inserted = enqueue_analysis_backfill(source)?;
+    ensure_not_cancelled(cancel)?;
     let embedding_inserted = enqueue_embedding_backfill(source)?;
+    ensure_not_cancelled(cancel)?;
     let status = resolve_similarity_prep_status(source)?;
     Ok(SimilarityPrepEnqueueSummary {
         analysis_inserted,
@@ -159,6 +175,14 @@ fn enqueue_similarity_prep_once(
         finalized: false,
         status,
     })
+}
+
+fn ensure_not_cancelled(cancel: Option<&AtomicBool>) -> Result<(), String> {
+    if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+        Err(String::from("Similarity preparation canceled"))
+    } else {
+        Ok(())
+    }
 }
 
 fn retry_similarity_prep_busy<T>(
@@ -466,7 +490,10 @@ fn load_analysis_settings() -> AnalysisSettings {
         .unwrap_or_default()
 }
 
-fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
+fn ensure_source_database_scanned(
+    source: &SampleSource,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), String> {
     let db = open_fast_source_db(source).map_err(|err| err.to_string())?;
     let has_scan_timestamp = db
         .get_metadata(META_LAST_SCAN_COMPLETED_AT)
@@ -475,9 +502,9 @@ fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
     if has_scan_timestamp {
         return Ok(());
     }
-    let stats = scanner::scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {})
+    let stats = scanner::scan_with_progress(&db, ScanMode::Quick, cancel, &mut |_, _| {})
         .map_err(|err| format!("Sync source index failed: {err}"))?;
-    scanner::complete_deferred_rename_candidates(&db, stats)
+    scanner::complete_deferred_rename_candidates_with_cancel(&db, stats, cancel)
         .map_err(|err| format!("Finish deferred rename reconciliation failed: {err}"))?;
     Ok(())
 }

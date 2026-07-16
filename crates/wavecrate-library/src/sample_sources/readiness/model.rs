@@ -257,14 +257,17 @@ impl ReadinessArtifact {
 
 /// One durably claimed readiness unit tied to the exact target observed at claim time.
 ///
-/// `attempt` is the claim generation. Every lease mutation and completion is fenced by it, so a
-/// worker whose lease expired cannot publish after another worker has reclaimed the same target.
+/// `claim_generation` fences every lease mutation and completion, so a worker whose lease expired
+/// cannot publish after another worker has reclaimed the same target. `failure_attempts` is kept
+/// separate so benign cancellation and lease recovery never consume the retry allowance.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClaimedReadinessWork {
     /// Exact desired target captured when the work was claimed.
     pub target: ReadinessTarget,
     /// Monotonic claim generation for this target's durable work row.
-    pub attempt: u32,
+    pub claim_generation: u32,
+    /// Retryable failures recorded before this claim began.
+    pub failure_attempts: u32,
     /// Current lease deadline captured by the claim operation.
     pub lease_expires_at: i64,
 }
@@ -276,8 +279,13 @@ impl ClaimedReadinessWork {
     }
 
     /// Monotonic generation used to fence stale workers.
-    pub fn attempt(&self) -> u32 {
-        self.attempt
+    pub fn claim_generation(&self) -> u32 {
+        self.claim_generation
+    }
+
+    /// Retryable failures recorded before this claim began.
+    pub fn failure_attempts(&self) -> u32 {
+        self.failure_attempts
     }
 
     /// Current lease deadline captured by the claim operation.
@@ -335,7 +343,7 @@ impl ReadinessRetryPolicy {
             })
     }
 
-    /// Maximum number of claims allowed before a retryable failure becomes terminal.
+    /// Maximum number of recorded retryable failures before work becomes terminal.
     pub fn max_attempts(self) -> u32 {
         self.max_attempts
     }

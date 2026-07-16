@@ -23,8 +23,8 @@ pub fn claim_readiness_target(
     let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let candidate = tx
         .query_row(
-            "SELECT job.id, job.attempts, target.relative_path, target.source_generation,
-                    target.eligibility
+            "SELECT job.id, job.readiness_claim_generation, job.attempts,
+                    target.relative_path, target.source_generation, target.eligibility
              FROM source_readiness_targets AS target
              JOIN source_readiness_sources AS source
                ON source.source_id = target.source_id
@@ -87,26 +87,36 @@ pub fn claim_readiness_target(
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, i64>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         )
         .optional()?;
-    let Some((job_id, stored_attempt, relative_path, source_generation, eligibility)) = candidate
+    let Some((
+        job_id,
+        stored_claim_generation,
+        stored_failure_attempts,
+        relative_path,
+        source_generation,
+        eligibility,
+    )) = candidate
     else {
         tx.commit()?;
         return Ok(None);
     };
-    let previous_attempt = decode_attempt(stored_attempt)?;
-    let attempt = previous_attempt
+    let previous_claim_generation =
+        decode_counter("readiness_claim_generation", stored_claim_generation)?;
+    let claim_generation = previous_claim_generation
         .checked_add(1)
         .ok_or(ReadinessError::TimestampOverflow)?;
+    let failure_attempts = decode_counter("attempts", stored_failure_attempts)?;
     let changed = tx.execute(
         "UPDATE analysis_jobs
          SET status = 'running',
-             attempts = ?1,
+             readiness_claim_generation = ?1,
              running_at = ?2,
              retry_at = NULL,
              failure_kind = NULL,
@@ -115,15 +125,15 @@ pub fn claim_readiness_target(
              relative_path = ?4,
              source_generation = ?5
          WHERE id = ?6
-           AND attempts = ?7",
+           AND readiness_claim_generation = ?7",
         params![
-            attempt,
+            claim_generation,
             now,
             lease_expires_at,
             relative_path.as_deref().unwrap_or(""),
             source_generation,
             job_id,
-            previous_attempt,
+            previous_claim_generation,
         ],
     )?;
     if changed != 1 {
@@ -144,7 +154,8 @@ pub fn claim_readiness_target(
     tx.commit()?;
     Ok(Some(ClaimedReadinessWork {
         target,
-        attempt,
+        claim_generation,
+        failure_attempts,
         lease_expires_at,
     }))
 }
@@ -163,7 +174,7 @@ pub fn renew_readiness_lease(
          SET lease_expires_at = MAX(lease_expires_at, ?1)
          WHERE status = 'running'
            AND lease_expires_at > ?2
-           AND attempts = ?3
+           AND readiness_claim_generation = ?3
            AND source_id = ?4
            AND readiness_managed = 1
            AND readiness_scope_kind = ?5
@@ -191,7 +202,7 @@ pub fn renew_readiness_lease(
         params![
             requested_deadline,
             now,
-            claim.attempt,
+            claim.claim_generation,
             claim.target.source_id,
             claim.target.scope_kind.as_str(),
             claim.target.scope_id,
@@ -214,7 +225,7 @@ pub fn renew_readiness_lease(
            AND readiness_scope_id = ?3
            AND readiness_stage = ?4
            AND status = 'running'
-           AND attempts = ?5
+           AND readiness_claim_generation = ?5
            AND artifact_version = ?6
            AND content_generation = ?7
            AND (?2 = 'file' OR source_generation = ?8)",
@@ -223,7 +234,7 @@ pub fn renew_readiness_lease(
             claim.target.scope_kind.as_str(),
             claim.target.scope_id,
             claim.target.stage.as_str(),
-            claim.attempt,
+            claim.claim_generation,
             claim.target.required_version,
             claim.target.content_generation,
             claim.target.source_generation,
@@ -247,6 +258,7 @@ pub fn complete_readiness_work(
         completed_at,
         "status = 'done', running_at = NULL, retry_at = NULL, failure_kind = NULL, \
          last_error = NULL, lease_expires_at = NULL",
+        None,
         None,
     )?;
     if changed != 1 {
@@ -288,9 +300,21 @@ pub fn fail_readiness_work(
     failed_at: i64,
     retry_policy: ReadinessRetryPolicy,
 ) -> Result<ReadinessFailureOutcome, ReadinessError> {
+    let failure_attempt = match classification {
+        ReadinessFailureClassification::Retryable => Some(
+            claim
+                .failure_attempts
+                .checked_add(1)
+                .ok_or(ReadinessError::TimestampOverflow)?,
+        ),
+        ReadinessFailureClassification::Permanent | ReadinessFailureClassification::Unsupported => {
+            None
+        }
+    };
     let (stored_classification, retry_at, outcome) = match classification {
         ReadinessFailureClassification::Retryable
-            if claim.attempt >= retry_policy.max_attempts() =>
+            if failure_attempt.expect("retryable failure attempt")
+                >= retry_policy.max_attempts() =>
         {
             (
                 ReadinessFailureClassification::Permanent,
@@ -299,8 +323,9 @@ pub fn fail_readiness_work(
             )
         }
         ReadinessFailureClassification::Retryable => {
+            let failure_attempt = failure_attempt.expect("retryable failure attempt");
             let retry_at = failed_at
-                .checked_add(retry_policy.delay_for_attempt(claim.attempt))
+                .checked_add(retry_policy.delay_for_attempt(failure_attempt))
                 .ok_or(ReadinessError::TimestampOverflow)?;
             (
                 classification,
@@ -327,6 +352,7 @@ pub fn fail_readiness_work(
             retry_at,
             normalized_reason(reason),
         )),
+        failure_attempt,
     )?;
     if changed != 1 {
         tx.rollback()?;
@@ -440,7 +466,7 @@ fn return_claim_to_pending(
             None,
         )
     };
-    let changed = finish_claim_update(&tx, claim, now, set_clause, extras)?;
+    let changed = finish_claim_update(&tx, claim, now, set_clause, extras, None)?;
     if changed != 1 {
         tx.rollback()?;
         return Ok(ReadinessWorkMutationOutcome::RejectedStale);
@@ -455,13 +481,15 @@ fn finish_claim_update(
     now: i64,
     set_clause: &str,
     extras: Option<(&str, Option<i64>, &str)>,
+    failure_attempt: Option<u32>,
 ) -> Result<usize, rusqlite::Error> {
     let sql = format!(
         "UPDATE analysis_jobs
-         SET {set_clause}
+         SET {set_clause},
+             attempts = COALESCE(?13, attempts)
          WHERE status = 'running'
            AND lease_expires_at > ?1
-           AND attempts = ?2
+           AND readiness_claim_generation = ?2
            AND source_id = ?3
            AND readiness_managed = 1
            AND readiness_scope_kind = ?4
@@ -487,40 +515,27 @@ fn finish_claim_update(
                  AND source.availability = 'active'
            )"
     );
-    if let Some((failure_kind, retry_at, reason)) = extras {
-        tx.execute(
-            &sql,
-            params![
-                now,
-                claim.attempt,
-                claim.target.source_id,
-                claim.target.scope_kind.as_str(),
-                claim.target.scope_id,
-                claim.target.stage.as_str(),
-                claim.target.required_version,
-                claim.target.content_generation,
-                claim.target.source_generation,
-                failure_kind,
-                retry_at,
-                reason,
-            ],
-        )
-    } else {
-        tx.execute(
-            &sql,
-            params![
-                now,
-                claim.attempt,
-                claim.target.source_id,
-                claim.target.scope_kind.as_str(),
-                claim.target.scope_id,
-                claim.target.stage.as_str(),
-                claim.target.required_version,
-                claim.target.content_generation,
-                claim.target.source_generation,
-            ],
-        )
-    }
+    let (failure_kind, retry_at, reason) = extras
+        .map(|(kind, retry_at, reason)| (Some(kind), retry_at, Some(reason)))
+        .unwrap_or((None, None, None));
+    tx.execute(
+        &sql,
+        params![
+            now,
+            claim.claim_generation,
+            claim.target.source_id,
+            claim.target.scope_kind.as_str(),
+            claim.target.scope_id,
+            claim.target.stage.as_str(),
+            claim.target.required_version,
+            claim.target.content_generation,
+            claim.target.source_generation,
+            failure_kind,
+            retry_at,
+            reason,
+            failure_attempt,
+        ],
+    )
 }
 
 fn lease_deadline(now: i64, duration_seconds: i64) -> Result<i64, ReadinessError> {
@@ -531,9 +546,9 @@ fn lease_deadline(now: i64, duration_seconds: i64) -> Result<i64, ReadinessError
         .ok_or(ReadinessError::TimestampOverflow)
 }
 
-fn decode_attempt(value: i64) -> Result<u32, ReadinessError> {
+fn decode_counter(field: &'static str, value: i64) -> Result<u32, ReadinessError> {
     u32::try_from(value).map_err(|_| ReadinessError::UnknownStoredValue {
-        field: "attempts",
+        field,
         value: value.to_string(),
     })
 }
