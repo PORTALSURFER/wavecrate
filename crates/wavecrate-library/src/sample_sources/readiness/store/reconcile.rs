@@ -1,4 +1,7 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use rusqlite::{Connection, OptionalExtension};
 
@@ -20,8 +23,27 @@ pub fn reconcile_readiness(
     source_id: &str,
     now: i64,
 ) -> Result<ReadinessSnapshot, ReadinessError> {
+    reconcile_readiness_inner(connection, source_id, now, None)
+}
+
+/// Compare desired readiness with persisted state while honoring cancellation during large scans.
+pub fn reconcile_readiness_with_cancel(
+    connection: &Connection,
+    source_id: &str,
+    now: i64,
+    cancel: &AtomicBool,
+) -> Result<ReadinessSnapshot, ReadinessError> {
+    reconcile_readiness_inner(connection, source_id, now, Some(cancel))
+}
+
+fn reconcile_readiness_inner(
+    connection: &Connection,
+    source_id: &str,
+    now: i64,
+    cancel: Option<&AtomicBool>,
+) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
-    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, || {})?;
+    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, || {}, cancel)?;
     tx.commit()?;
     Ok(snapshot)
 }
@@ -34,7 +56,7 @@ pub(crate) fn reconcile_readiness_with_hook(
     after_source_state: impl FnOnce(),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
-    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, after_source_state)?;
+    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, after_source_state, None)?;
     tx.commit()?;
     Ok(snapshot)
 }
@@ -44,7 +66,9 @@ fn reconcile_readiness_snapshot(
     source_id: &str,
     now: i64,
     after_source_state: impl FnOnce(),
+    cancel: Option<&AtomicBool>,
 ) -> Result<ReadinessSnapshot, ReadinessError> {
+    cancellation_checkpoint(cancel)?;
     if !readiness_schema_available(connection)? {
         return Err(ReadinessError::SchemaUnavailable);
     }
@@ -76,17 +100,18 @@ fn reconcile_readiness_snapshot(
         availability,
     };
     after_source_state();
-    let targets = load_targets(connection, source_id)?;
-    let artifacts = load_artifacts(connection, source_id)?;
-    let work = load_work(connection, source_id)?;
-    Ok(build_snapshot(
+    let targets = load_targets(connection, source_id, cancel)?;
+    let artifacts = load_artifacts(connection, source_id, cancel)?;
+    let work = load_work(connection, source_id, cancel)?;
+    build_snapshot(
         source_id,
         source_state,
         targets,
         artifacts,
         work,
         now,
-    ))
+        cancel,
+    )
 }
 
 fn readiness_schema_available(connection: &Connection) -> Result<bool, rusqlite::Error> {
@@ -134,6 +159,7 @@ struct StoredWork {
 fn load_targets(
     connection: &Connection,
     source_id: &str,
+    cancel: Option<&AtomicBool>,
 ) -> Result<Vec<ReadinessTarget>, ReadinessError> {
     let mut statement = connection.prepare(
         "SELECT scope_kind, scope_id, relative_path, stage, required_version,
@@ -145,6 +171,7 @@ fn load_targets(
     let mut rows = statement.query([source_id])?;
     let mut targets = Vec::new();
     while let Some(row) = rows.next()? {
+        cancellation_checkpoint(cancel)?;
         targets.push(ReadinessTarget {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -163,6 +190,7 @@ fn load_targets(
 fn load_artifacts(
     connection: &Connection,
     source_id: &str,
+    cancel: Option<&AtomicBool>,
 ) -> Result<BTreeMap<ReadinessKey, StoredArtifact>, ReadinessError> {
     let mut statement = connection.prepare(
         "SELECT scope_kind, scope_id, stage, artifact_version,
@@ -173,6 +201,7 @@ fn load_artifacts(
     let mut rows = statement.query([source_id])?;
     let mut artifacts = BTreeMap::new();
     while let Some(row) = rows.next()? {
+        cancellation_checkpoint(cancel)?;
         let key = ReadinessKey {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -194,6 +223,7 @@ fn load_artifacts(
 fn load_work(
     connection: &Connection,
     source_id: &str,
+    cancel: Option<&AtomicBool>,
 ) -> Result<BTreeMap<ReadinessKey, StoredWork>, ReadinessError> {
     let mut statement = connection.prepare(
         "SELECT readiness_scope_kind, readiness_scope_id, readiness_stage, status,
@@ -206,6 +236,7 @@ fn load_work(
     let mut rows = statement.query([source_id])?;
     let mut work = BTreeMap::new();
     while let Some(row) = rows.next()? {
+        cancellation_checkpoint(cancel)?;
         let key = ReadinessKey {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -230,6 +261,14 @@ fn load_work(
     Ok(work)
 }
 
+fn cancellation_checkpoint(cancel: Option<&AtomicBool>) -> Result<(), ReadinessError> {
+    if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+        Err(ReadinessError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
 fn build_snapshot(
     source_id: &str,
     source_state: StoredSourceState,
@@ -237,11 +276,13 @@ fn build_snapshot(
     artifacts: BTreeMap<ReadinessKey, StoredArtifact>,
     work: BTreeMap<ReadinessKey, StoredWork>,
     now: i64,
-) -> ReadinessSnapshot {
+    cancel: Option<&AtomicBool>,
+) -> Result<ReadinessSnapshot, ReadinessError> {
     let mut entries = Vec::with_capacity(targets.len());
     let mut deficits = Vec::new();
     let mut stage_counts = BTreeMap::new();
     for target in targets {
+        cancellation_checkpoint(cancel)?;
         let key = target.key();
         let classification = classify_target(
             &target,
@@ -264,7 +305,7 @@ fn build_snapshot(
         });
     }
     let activity = resolve_activity(&entries, &deficits, now);
-    ReadinessSnapshot {
+    Ok(ReadinessSnapshot {
         source_id: source_id.to_string(),
         source_generation: source_state.generation,
         readiness_revision: source_state.readiness_revision,
@@ -273,7 +314,7 @@ fn build_snapshot(
         deficits,
         stage_counts,
         activity,
-    }
+    })
 }
 
 fn resolve_activity(

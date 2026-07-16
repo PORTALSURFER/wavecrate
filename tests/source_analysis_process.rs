@@ -124,7 +124,10 @@ impl SourceAnalysisFixture {
         write_test_wav(&absolute_path, duration_seconds, sample_rate);
         let metadata = std::fs::metadata(&absolute_path).expect("read wav metadata");
         let file_identity = format!("identity-{source_id}");
-        let content_hash = format!("content-{source_id}");
+        let content_hash =
+            blake3::hash(&std::fs::read(&absolute_path).expect("read wav for content hash"))
+                .to_hex()
+                .to_string();
         let connection = SourceDatabase::open_connection(directory.path()).expect("open source db");
         connection
             .execute(

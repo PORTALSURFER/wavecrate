@@ -5,6 +5,9 @@ use super::super::model::{ReadinessScopeKind, ReadinessStage};
 /// Errors returned by the durable readiness contract.
 #[derive(Debug, Error)]
 pub enum ReadinessError {
+    /// The caller cancelled a potentially long readiness database operation.
+    #[error("Readiness operation cancelled")]
+    Cancelled,
     /// SQLite persistence or query failed.
     #[error("Readiness database operation failed: {0}")]
     Sql(#[from] rusqlite::Error),

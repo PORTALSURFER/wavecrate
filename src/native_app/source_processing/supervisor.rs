@@ -20,8 +20,9 @@ use wavecrate::sample_sources::{
         ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy,
         ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability,
         cancel_readiness_work, claim_readiness_target, complete_readiness_work,
-        fail_readiness_work, persist_readiness_deficits, readiness_work_stats, reconcile_readiness,
-        renew_readiness_lease, replace_readiness_targets,
+        fail_readiness_work, persist_readiness_deficits_with_cancel, readiness_work_stats,
+        reconcile_readiness_with_cancel, renew_readiness_lease,
+        replace_readiness_targets_with_cancel,
     },
     scanner::complete_pending_deep_hash_for_path,
 };
@@ -823,6 +824,11 @@ struct SourceDiscoveryStats {
     earliest_retry_at: Option<i64>,
 }
 
+enum Cancellable<T> {
+    Completed(T),
+    Cancelled,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExecutionOutcome {
     Completed,
@@ -1187,10 +1193,13 @@ fn discover_candidates(
             let mut telemetry = shared.telemetry();
             telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
         }
-        match discover_source_candidates(source, now) {
-            Ok((mut source_candidates, stats)) => {
+        match discover_source_candidates(source, now, source_cancel) {
+            Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 candidates.append(&mut source_candidates);
                 source_stats.insert(source.id.as_str().to_string(), stats);
+            }
+            Ok(Cancellable::Cancelled) => {
+                deferred.insert(source.id.as_str().to_string());
             }
             Err(error) => record_discovery_error(shared, source, &error),
         }
@@ -1204,7 +1213,11 @@ fn discover_candidates(
 fn discover_source_candidates(
     source: &SampleSource,
     now: i64,
-) -> Result<(Vec<RuntimeCandidate>, SourceDiscoveryStats), String> {
+    cancel: &AtomicBool,
+) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
+    if cancelled(cancel) {
+        return Ok(Cancellable::Cancelled);
+    }
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,
@@ -1212,14 +1225,15 @@ fn discover_source_candidates(
         SourceDatabaseConnectionRole::JobWorker,
     )
     .map_err(|error| error.to_string())?;
-    discover_source_candidates_with_connection(source, &mut connection, now)
+    discover_source_candidates_with_connection(source, &mut connection, now, cancel)
 }
 
 fn discover_source_candidates_with_connection(
     source: &SampleSource,
     connection: &mut rusqlite::Connection,
     now: i64,
-) -> Result<(Vec<RuntimeCandidate>, SourceDiscoveryStats), String> {
+    cancel: &AtomicBool,
+) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     let source_id = source.id.as_str();
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
@@ -1232,7 +1246,7 @@ fn discover_source_candidates_with_connection(
             source_id,
             "Source processing is disabled for a read-only source database"
         );
-        return Ok((candidates, stats));
+        return Ok(Cancellable::Completed((candidates, stats)));
     }
     if !source_processing_schema_available(&connection)? {
         tracing::debug!(
@@ -1240,9 +1254,17 @@ fn discover_source_candidates_with_connection(
             source_id,
             "Source processing is unavailable until the read-only source database is migrated"
         );
-        return Ok((candidates, stats));
+        return Ok(Cancellable::Completed((candidates, stats)));
     }
-    publish_current_readiness_targets(connection, source_id, now)?;
+    if matches!(
+        publish_current_readiness_targets_with_cancel(connection, source_id, now, cancel)?,
+        Cancellable::Cancelled
+    ) {
+        return Ok(Cancellable::Cancelled);
+    }
+    if cancelled(cancel) {
+        return Ok(Cancellable::Cancelled);
+    }
     let readiness_source_exists: bool = connection
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM source_readiness_sources WHERE source_id = ?1)",
@@ -1251,10 +1273,20 @@ fn discover_source_candidates_with_connection(
         )
         .map_err(|error| error.to_string())?;
     if readiness_source_exists {
-        let snapshot =
-            reconcile_readiness(&connection, source_id, now).map_err(|error| error.to_string())?;
-        persist_readiness_deficits(connection, &snapshot.deficits, now)
-            .map_err(|error| error.to_string())?;
+        let snapshot = match reconcile_readiness_with_cancel(&connection, source_id, now, cancel) {
+            Ok(snapshot) => snapshot,
+            Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
+                return Ok(Cancellable::Cancelled);
+            }
+            Err(error) => return Err(error.to_string()),
+        };
+        match persist_readiness_deficits_with_cancel(connection, &snapshot.deficits, now, cancel) {
+            Ok(_) => {}
+            Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
+                return Ok(Cancellable::Cancelled);
+            }
+            Err(error) => return Err(error.to_string()),
+        }
         stats.readiness_queue_depth = snapshot.deficits.len();
         candidates.extend(snapshot.deficits.iter().map(|deficit| RuntimeCandidate {
             schedule: WorkCandidate::readiness(&deficit.target, deficit.enqueued_at.unwrap_or(now)),
@@ -1303,6 +1335,9 @@ fn discover_source_candidates_with_connection(
             .map_err(|error| error.to_string())?
     };
     for (job_id, relative_path, job_type, created_at) in legacy_jobs {
+        if cancelled(cancel) {
+            return Ok(Cancellable::Cancelled);
+        }
         let lane = if job_type == "embedding_backfill_v1" {
             ProcessingLane::Embedding
         } else {
@@ -1341,7 +1376,11 @@ fn discover_source_candidates_with_connection(
             },
         });
     }
-    Ok((candidates, stats))
+    if cancelled(cancel) {
+        Ok(Cancellable::Cancelled)
+    } else {
+        Ok(Cancellable::Completed((candidates, stats)))
+    }
 }
 
 fn source_processing_schema_available(connection: &rusqlite::Connection) -> Result<bool, String> {
@@ -1449,11 +1488,45 @@ fn fence_retired_source_readiness(source: &SampleSource) -> Result<(), String> {
     transaction.commit().map_err(|error| error.to_string())
 }
 
+#[cfg(test)]
 fn publish_current_readiness_targets(
     connection: &mut rusqlite::Connection,
     source_id: &str,
     now: i64,
 ) -> Result<bool, String> {
+    let cancel = AtomicBool::new(false);
+    match publish_current_readiness_targets_with_cancel(connection, source_id, now, &cancel)? {
+        Cancellable::Completed(changed) => Ok(changed),
+        Cancellable::Cancelled => unreachable!("an uncancelled publication cannot be cancelled"),
+    }
+}
+
+fn publish_current_readiness_targets_with_cancel(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    now: i64,
+    cancel: &AtomicBool,
+) -> Result<Cancellable<bool>, String> {
+    publish_current_readiness_targets_with_cancel_and_checkpoint(
+        connection,
+        source_id,
+        now,
+        cancel,
+        &mut || {},
+    )
+}
+
+fn publish_current_readiness_targets_with_cancel_and_checkpoint(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    now: i64,
+    cancel: &AtomicBool,
+    checkpoint: &mut impl FnMut(),
+) -> Result<Cancellable<bool>, String> {
+    checkpoint();
+    if cancelled(cancel) {
+        return Ok(Cancellable::Cancelled);
+    }
     let rows = {
         let mut statement = connection
             .prepare(
@@ -1463,28 +1536,37 @@ fn publish_current_readiness_targets(
                  ORDER BY path",
             )
             .map_err(|error| error.to_string())?;
-        statement
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, i64>(4)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?
+        let mut query = statement.query([]).map_err(|error| error.to_string())?;
+        let mut rows = Vec::new();
+        while let Some(row) = query.next().map_err(|error| error.to_string())? {
+            checkpoint();
+            if cancelled(cancel) {
+                return Ok(Cancellable::Cancelled);
+            }
+            rows.push((
+                row.get::<_, String>(0).map_err(|error| error.to_string())?,
+                row.get::<_, Option<String>>(1)
+                    .map_err(|error| error.to_string())?,
+                row.get::<_, Option<String>>(2)
+                    .map_err(|error| error.to_string())?,
+                row.get::<_, i64>(3).map_err(|error| error.to_string())?,
+                row.get::<_, i64>(4).map_err(|error| error.to_string())?,
+            ));
+        }
+        rows
     };
     let mut manifest = Vec::with_capacity(rows.len());
     for (path, identity, content_hash, file_size, modified_ns) in rows {
+        checkpoint();
+        if cancelled(cancel) {
+            return Ok(Cancellable::Cancelled);
+        }
         if !wavecrate_library::sample_sources::is_supported_audio(std::path::Path::new(&path)) {
             continue;
         }
         let Some(identity) = identity.filter(|value| !value.trim().is_empty()) else {
             mark_readiness_temporarily_unavailable(connection, source_id, now)?;
-            return Ok(false);
+            return Ok(Cancellable::Completed(false));
         };
         let content_hash = content_hash
             .filter(|value| !value.trim().is_empty())
@@ -1509,6 +1591,10 @@ fn publish_current_readiness_targets(
     let mut membership = blake3::Hasher::new();
     let mut targets = Vec::with_capacity(manifest.len().saturating_mul(4).saturating_add(1));
     for (path, identity, content_hash) in &manifest {
+        checkpoint();
+        if cancelled(cancel) {
+            return Ok(Cancellable::Cancelled);
+        }
         membership.update(identity.as_bytes());
         membership.update(&[0]);
         membership.update(content_hash.as_bytes());
@@ -1541,7 +1627,10 @@ fn publish_current_readiness_targets(
         source_generation,
         membership_generation,
     ));
-    let target_fingerprint = readiness_target_fingerprint(&targets);
+    let Some(target_fingerprint) = readiness_target_fingerprint_with_cancel(&targets, cancel)
+    else {
+        return Ok(Cancellable::Cancelled);
+    };
     let current_fingerprint = connection
         .query_row(
             "SELECT value FROM metadata WHERE key = ?1",
@@ -1566,12 +1655,12 @@ fn publish_current_readiness_targets(
                 *generation == source_generation && availability == "active"
             })
     {
-        return Ok(false);
+        return Ok(Cancellable::Completed(false));
     }
     let readiness_revision = current_source
         .map(|(_, revision, _)| revision.saturating_add(1))
         .unwrap_or(1);
-    replace_readiness_targets(
+    match replace_readiness_targets_with_cancel(
         connection,
         source_id,
         source_generation,
@@ -1579,8 +1668,17 @@ fn publish_current_readiness_targets(
         SourceAvailability::Active,
         &targets,
         now,
-    )
-    .map_err(|error| error.to_string())?;
+        cancel,
+    ) {
+        Ok(()) => {}
+        Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
+            return Ok(Cancellable::Cancelled);
+        }
+        Err(error) => return Err(error.to_string()),
+    }
+    if cancelled(cancel) {
+        return Ok(Cancellable::Cancelled);
+    }
     connection
         .execute(
             "INSERT INTO metadata (key, value) VALUES (?1, ?2)
@@ -1588,7 +1686,11 @@ fn publish_current_readiness_targets(
             params![META_READINESS_TARGET_FINGERPRINT, target_fingerprint],
         )
         .map_err(|error| error.to_string())?;
-    Ok(true)
+    Ok(Cancellable::Completed(true))
+}
+
+fn cancelled(cancel: &AtomicBool) -> bool {
+    cancel.load(Ordering::Acquire)
 }
 
 fn mark_readiness_temporarily_unavailable(
@@ -1609,9 +1711,15 @@ fn mark_readiness_temporarily_unavailable(
     Ok(())
 }
 
-fn readiness_target_fingerprint(targets: &[ReadinessTarget]) -> String {
+fn readiness_target_fingerprint_with_cancel(
+    targets: &[ReadinessTarget],
+    cancel: &AtomicBool,
+) -> Option<String> {
     let mut hash = blake3::Hasher::new();
     for target in targets {
+        if cancelled(cancel) {
+            return None;
+        }
         hash.update(target.source_id.as_bytes());
         hash.update(&[0]);
         hash.update(target.scope_id.as_bytes());
@@ -1625,7 +1733,7 @@ fn readiness_target_fingerprint(targets: &[ReadinessTarget]) -> String {
         hash.update(target.content_generation.as_bytes());
         hash.update(&[0xff]);
     }
-    hash.finalize().to_hex().to_string()
+    Some(hash.finalize().to_hex().to_string())
 }
 
 fn execute_candidate(
@@ -2244,7 +2352,10 @@ mod tests {
 
     use wavecrate::sample_sources::{
         SourceId,
-        readiness::{ReadinessEligibility, SourceAvailability, replace_readiness_targets},
+        readiness::{
+            ReadinessEligibility, SourceAvailability, persist_readiness_deficits,
+            reconcile_readiness, replace_readiness_targets,
+        },
     };
 
     use super::*;
@@ -2688,8 +2799,12 @@ mod tests {
         drop(connection);
 
         let started_at = Instant::now();
-        let (candidates, stats) =
-            discover_source_candidates(&source, 100).expect("discover large source");
+        let cancel = AtomicBool::new(false);
+        let Cancellable::Completed((candidates, stats)) =
+            discover_source_candidates(&source, 100, &cancel).expect("discover large source")
+        else {
+            panic!("large source discovery unexpectedly cancelled");
+        };
         let elapsed = started_at.elapsed();
 
         assert_eq!(candidates.len(), FILE_COUNT * 4 + 1);
@@ -2698,6 +2813,99 @@ mod tests {
             "large_source_discovery file_count={FILE_COUNT} candidate_count={} elapsed_ms={:.3}",
             candidates.len(),
             elapsed.as_secs_f64() * 1_000.0,
+        );
+    }
+
+    #[test]
+    fn large_source_discovery_cancels_mid_manifest_and_resumes_cleanly() {
+        const FILE_COUNT: usize = 512;
+        let directory = tempfile::tempdir().expect("large cancellation source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("large-discovery-cancel"),
+            directory.path().to_path_buf(),
+        );
+        source
+            .open_db()
+            .expect("create cancellation source database");
+        let database_root = source.database_root().expect("cancellation database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open cancellation database");
+        let transaction = connection.transaction().expect("start cancellation seed");
+        {
+            let mut insert = transaction
+                .prepare(
+                    "INSERT INTO wav_files (
+                        path, file_size, modified_ns, file_identity, content_hash, missing,
+                        extension
+                     ) VALUES (?1, 1024, 1, ?2, ?3, 0, 'wav')",
+                )
+                .expect("prepare cancellation seed");
+            for index in 0..FILE_COUNT {
+                insert
+                    .execute(params![
+                        format!("cancel/sample-{index:05}.wav"),
+                        format!("cancel-identity-{index:05}"),
+                        format!("cancel-content-{index:05}"),
+                    ])
+                    .expect("insert cancellation row");
+            }
+        }
+        transaction.commit().expect("commit cancellation seed");
+
+        let cancel = AtomicBool::new(false);
+        let mut checkpoints = 0_usize;
+        let started_at = Instant::now();
+        let cancelled_outcome = publish_current_readiness_targets_with_cancel_and_checkpoint(
+            &mut connection,
+            source.id.as_str(),
+            100,
+            &cancel,
+            &mut || {
+                checkpoints += 1;
+                if checkpoints == 128 {
+                    cancel.store(true, Ordering::Release);
+                }
+            },
+        )
+        .expect("cancel manifest discovery");
+
+        assert!(matches!(cancelled_outcome, Cancellable::Cancelled));
+        assert!(started_at.elapsed() < Duration::from_secs(1));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM source_readiness_targets WHERE source_id = ?1",
+                    [source.id.as_str()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count cancelled readiness targets"),
+            0,
+            "cancelled discovery must not publish a partial desired state"
+        );
+
+        cancel.store(false, Ordering::Release);
+        assert!(
+            publish_current_readiness_targets_with_cancel(
+                &mut connection,
+                source.id.as_str(),
+                101,
+                &cancel,
+            )
+            .is_ok_and(|outcome| matches!(outcome, Cancellable::Completed(true)))
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM source_readiness_targets WHERE source_id = ?1",
+                    [source.id.as_str()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count resumed readiness targets"),
+            i64::try_from(FILE_COUNT * 4 + 1).expect("target count fits i64")
         );
     }
 
@@ -2782,9 +2990,13 @@ mod tests {
         assert!(connection.is_readonly(rusqlite::MAIN_DB).unwrap());
         let counts_before = discovery_durable_counts(&connection);
 
-        let (candidates, stats) =
-            discover_source_candidates_with_connection(&source, &mut connection, 100)
-                .expect("skip read-only source processing");
+        let cancel = AtomicBool::new(false);
+        let Cancellable::Completed((candidates, stats)) =
+            discover_source_candidates_with_connection(&source, &mut connection, 100, &cancel)
+                .expect("skip read-only source processing")
+        else {
+            panic!("read-only discovery unexpectedly cancelled");
+        };
 
         assert!(candidates.is_empty());
         assert_eq!(stats.readiness_queue_depth, 0);
@@ -2798,12 +3010,13 @@ mod tests {
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
         wait_until(Duration::from_secs(10), || {
             let database_root = source.database_root().expect("database root");
-            let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            let Ok(connection) = SourceDatabase::open_connection_with_role_and_database_root(
                 &source.root,
                 &database_root,
                 SourceDatabaseConnectionRole::JobWorker,
-            )
-            .expect("open readiness database");
+            ) else {
+                return false;
+            };
             connection
                 .query_row(
                     "SELECT COUNT(*) = 4
@@ -2828,7 +3041,7 @@ mod tests {
                     params![source.id.as_str()],
                     |row| row.get::<_, bool>(0),
                 )
-                .expect("read readiness artifact")
+                .unwrap_or(false)
         });
         let report = supervisor.shutdown();
         assert_eq!(report["joined"], true);
@@ -3044,7 +3257,12 @@ mod tests {
             .expect("persist deficits");
         drop(connection);
 
-        let (candidates, _) = discover_source_candidates(&source, 250).expect("rediscover work");
+        let cancel = AtomicBool::new(false);
+        let Cancellable::Completed((candidates, _)) =
+            discover_source_candidates(&source, 250, &cancel).expect("rediscover work")
+        else {
+            panic!("source rediscovery unexpectedly cancelled");
+        };
         let readiness = candidates
             .iter()
             .filter(|candidate| matches!(candidate.task, RuntimeTask::Readiness(_)))
@@ -3215,6 +3433,9 @@ mod tests {
         }
         writer.finalize().expect("finalize readiness wav");
         let size = path.metadata().expect("read readiness metadata").len();
+        let content_hash = blake3::hash(&std::fs::read(&path).expect("read readiness wav"))
+            .to_hex()
+            .to_string();
         let source =
             SampleSource::new_with_id(SourceId::from_string(id), directory.path().to_path_buf());
         let db = source.open_db().expect("open readiness source database");
@@ -3230,9 +3451,9 @@ mod tests {
         connection
             .execute(
                 "UPDATE wav_files
-                 SET file_identity = 'identity-1', content_hash = 'content-1'
+                 SET file_identity = 'identity-1', content_hash = ?1
                  WHERE path = 'ready.wav'",
-                [],
+                [&content_hash],
             )
             .expect("assign readiness identity");
         (directory, source)
