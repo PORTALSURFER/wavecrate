@@ -36,13 +36,17 @@ pub(super) fn deep_hash_scan(
     max_hashes: Option<usize>,
 ) -> Result<ScanStats, ScanError> {
     let root = ensure_root_dir(db)?;
-    let entries = db.list_files()?;
+    let mut rename_candidates = rename_candidates.clone();
+    rename_candidates.extend(db.list_pending_rename_destinations()?);
+    let entries = if scope == DeferredHashScope::AllUnhashed && rename_candidates.is_empty() {
+        db.list_pending_hash_files(max_hashes.unwrap_or(usize::MAX))?
+    } else {
+        db.list_files()?
+    };
     let mut entries_by_path: HashMap<PathBuf, WavEntry> = entries
         .into_iter()
         .map(|entry| (entry.relative_path.clone(), entry))
         .collect();
-    let mut rename_candidates = rename_candidates.clone();
-    rename_candidates.extend(db.list_pending_rename_destinations()?);
     let has_unhashed_files = scope == DeferredHashScope::AllUnhashed
         && entries_by_path.values().any(|entry| {
             !entry.missing
@@ -359,10 +363,10 @@ mod tests {
     }
 
     #[test]
-    fn deep_hash_scan_respects_non_rename_batch_limit() {
+    fn deep_hash_scan_bounds_a_large_library_batch() {
         let dir = tempfile::tempdir().expect("temp source");
         let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
-        for index in 0..5 {
+        for index in 0..512 {
             let relative = PathBuf::from(format!("pending-{index}.wav"));
             std::fs::write(dir.path().join(&relative), [index as u8; 32]).expect("write wav");
             db.upsert_file(&relative, 32, index)
@@ -374,18 +378,18 @@ mod tests {
             None,
             &HashSet::new(),
             DeferredHashScope::AllUnhashed,
-            Some(2),
+            Some(8),
         )
         .expect("bounded hash pass");
 
-        assert_eq!(stats.hashes_computed, 2);
+        assert_eq!(stats.hashes_computed, 8);
         assert_eq!(
             db.list_files()
                 .expect("list files")
                 .iter()
                 .filter(|entry| entry.content_hash.is_some())
                 .count(),
-            2
+            8
         );
     }
 }

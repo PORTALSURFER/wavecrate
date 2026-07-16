@@ -28,6 +28,26 @@ pub(crate) fn run_embedding_backfill_job(
     analysis_version: &str,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), String> {
+    run_embedding_backfill_job_with_worker_limit(
+        conn,
+        job,
+        use_cache,
+        analysis_sample_rate,
+        analysis_version,
+        cancel,
+        None,
+    )
+}
+
+pub(crate) fn run_embedding_backfill_job_with_worker_limit(
+    conn: &mut rusqlite::Connection,
+    job: &db::ClaimedJob,
+    use_cache: bool,
+    analysis_sample_rate: u32,
+    analysis_version: &str,
+    cancel: Option<&AtomicBool>,
+    worker_limit: Option<usize>,
+) -> Result<(), String> {
     checkpoint(cancel)?;
     let sample_ids = planning::parse_backfill_payload(job)?;
     if sample_ids.is_empty() {
@@ -42,6 +62,7 @@ pub(crate) fn run_embedding_backfill_job(
         analysis_sample_rate,
         analysis_version,
         cancel,
+        worker_limit,
     )
 }
 
@@ -52,9 +73,11 @@ fn finalize_backfill_job(
     analysis_sample_rate: u32,
     analysis_version: &str,
     cancel: Option<&AtomicBool>,
+    worker_limit: Option<usize>,
 ) -> Result<(), String> {
     let BackfillPlan { ready, work } = plan;
-    let (computed, errors) = workers::run_embedding_workers(work, analysis_sample_rate, cancel);
+    let (computed, errors) =
+        workers::run_embedding_workers(work, analysis_sample_rate, cancel, worker_limit);
     checkpoint(cancel)?;
     let results = collect_results_for_write(ready, computed);
     if results.is_empty() {

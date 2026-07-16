@@ -16,11 +16,12 @@ pub(super) fn run_embedding_workers(
     work: Vec<EmbeddingWork>,
     analysis_sample_rate: u32,
     cancel: Option<&AtomicBool>,
+    worker_limit: Option<usize>,
 ) -> (Vec<EmbeddingComputation>, Vec<String>) {
     if work.is_empty() {
         return (Vec::new(), Vec::new());
     }
-    let worker_count = worker_count_for(&work);
+    let worker_count = worker_count_for(&work, worker_limit);
     let queue = Arc::new(Mutex::new(VecDeque::from(work)));
     let (tx, rx) = channel();
 
@@ -80,12 +81,20 @@ pub(super) fn collect_results(
     (results, errors.into_vec())
 }
 
-fn worker_count_for(work: &[EmbeddingWork]) -> usize {
-    std::thread::available_parallelism()
+fn worker_count_for(work: &[EmbeddingWork], worker_limit: Option<usize>) -> usize {
+    let available = std::thread::available_parallelism()
         .map(|n| n.get())
-        .unwrap_or(1)
-        .min(work.len())
-        .max(1)
+        .unwrap_or(1);
+    bounded_worker_count(available, work.len(), worker_limit)
+}
+
+fn bounded_worker_count(available: usize, work_items: usize, worker_limit: Option<usize>) -> usize {
+    worker_limit.unwrap_or(available).max(1).min(work_items)
+}
+
+#[cfg(test)]
+pub(super) fn bounded_worker_count_for_test(work_items: usize, worker_limit: usize) -> usize {
+    bounded_worker_count(usize::MAX, work_items, Some(worker_limit))
 }
 
 fn run_worker_loop(

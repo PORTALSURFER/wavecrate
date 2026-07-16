@@ -377,6 +377,8 @@ pub fn readiness_work_stats(
                 AND (retry_at IS NULL OR retry_at <= ?1) THEN 1 ELSE 0 END),
             SUM(CASE WHEN status = 'failed' AND failure_kind = 'retryable'
                 AND retry_at > ?1 THEN 1 ELSE 0 END),
+            MIN(CASE WHEN status = 'failed' AND failure_kind = 'retryable'
+                AND retry_at > ?1 THEN retry_at ELSE NULL END),
             SUM(CASE WHEN status = 'failed' AND failure_kind = 'permanent'
                 THEN 1 ELSE 0 END),
             SUM(CASE WHEN status = 'failed' AND failure_kind = 'unsupported'
@@ -395,10 +397,11 @@ pub fn readiness_work_stats(
                 row.get::<_, Option<i64>>(3)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(4)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(5)?.unwrap_or(0),
-                row.get::<_, Option<i64>>(6)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(6)?,
                 row.get::<_, Option<i64>>(7)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(8)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(9)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(10)?.unwrap_or(0),
             ))
         },
     )?;
@@ -409,10 +412,11 @@ pub fn readiness_work_stats(
         expired_leases: count(values.3),
         retries_due: count(values.4),
         retries_waiting: count(values.5),
-        permanent_failures: count(values.6),
-        unsupported: count(values.7),
-        cancelled: count(values.8),
-        completed: count(values.9),
+        earliest_retry_at: values.6,
+        permanent_failures: count(values.7),
+        unsupported: count(values.8),
+        cancelled: count(values.9),
+        completed: count(values.10),
     })
 }
 

@@ -109,3 +109,25 @@ pub(crate) fn run_claimed_job(
         cancel,
     )
 }
+
+pub(crate) fn run_claimed_job_with_embedding_worker_limit(
+    conn: &mut rusqlite::Connection,
+    job: &db::ClaimedJob,
+    use_cache: bool,
+    max_analysis_duration_seconds: f32,
+    analysis_sample_rate: u32,
+    analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+    embedding_worker_limit: usize,
+) -> Result<(), String> {
+    pool::job_execution::run_job_with_embedding_worker_limit(
+        conn,
+        job,
+        use_cache,
+        max_analysis_duration_seconds,
+        analysis_sample_rate,
+        analysis_version,
+        cancel,
+        Some(embedding_worker_limit),
+    )
+}

@@ -4,6 +4,13 @@ use std::collections::VecDeque;
 use std::sync::mpsc::channel;
 
 #[test]
+fn embedding_worker_limit_caps_real_executor_fanout() {
+    assert_eq!(workers::bounded_worker_count_for_test(64, 1), 1);
+    assert_eq!(workers::bounded_worker_count_for_test(64, 3), 3);
+    assert_eq!(workers::bounded_worker_count_for_test(2, 8), 2);
+}
+
+#[test]
 fn drain_batch_caps_at_limit() {
     let mut queue = VecDeque::new();
     queue.push_back(make_work("a"));

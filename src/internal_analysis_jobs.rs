@@ -62,6 +62,29 @@ pub fn run_claimed_job(
     )
 }
 
+/// Execute one claimed job while bounding embedding worker fan-out to the reserved CPU permits.
+pub fn run_claimed_job_with_embedding_worker_limit(
+    conn: &mut Connection,
+    job: &ClaimedAnalysisJob,
+    use_cache: bool,
+    max_analysis_duration_seconds: f32,
+    analysis_sample_rate: u32,
+    analysis_version: &str,
+    cancel: &AtomicBool,
+    embedding_worker_limit: usize,
+) -> Result<(), String> {
+    analysis_jobs::run_claimed_job_with_embedding_worker_limit(
+        conn,
+        &job.inner,
+        use_cache,
+        max_analysis_duration_seconds,
+        analysis_sample_rate,
+        analysis_version,
+        Some(cancel),
+        embedding_worker_limit,
+    )
+}
+
 /// Mark one claimed analysis job as done.
 pub fn mark_done(conn: &Connection, job: &ClaimedAnalysisJob) -> Result<(), String> {
     analysis_jobs::db::mark_done(conn, job.inner.id)

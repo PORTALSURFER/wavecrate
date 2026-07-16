@@ -15,9 +15,12 @@ use serde_json::Value;
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     readiness::{
-        ClaimedReadinessWork, ReadinessFailureClassification, ReadinessRetryPolicy, ReadinessStage,
-        ReadinessTarget, cancel_readiness_work, claim_readiness_target, complete_readiness_work,
-        fail_readiness_work, persist_readiness_deficits, readiness_work_stats, reconcile_readiness,
+        ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessFailureClassification,
+        ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy,
+        ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, cancel_readiness_work,
+        claim_readiness_target, complete_readiness_work, fail_readiness_work,
+        persist_readiness_deficits, readiness_work_stats, reconcile_readiness,
+        renew_readiness_lease,
     },
     scanner::complete_pending_deep_hashes,
 };
@@ -230,6 +233,8 @@ impl SourceProcessingSupervisor {
             "claimed": telemetry.claimed,
             "completed": telemetry.completed,
             "failed": telemetry.failed,
+            "retried": telemetry.retried,
+            "stale": telemetry.stale,
             "cancelled": telemetry.cancelled,
             "contention": telemetry.contention,
             "max_queue_depth": telemetry.max_queue_depth,
@@ -320,6 +325,8 @@ struct SupervisorTelemetry {
     claimed: u64,
     completed: u64,
     failed: u64,
+    retried: u64,
+    stale: u64,
     cancelled: u64,
     contention: u64,
     max_queue_depth: usize,
@@ -343,21 +350,52 @@ struct RuntimeCandidate {
     task: RuntimeTask,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+struct SourceDiscoveryStats {
+    readiness_queue_depth: usize,
+    retries_due: usize,
+    earliest_retry_at: Option<i64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExecutionOutcome {
+    Completed,
+    Retried { retry_at: i64 },
+    Failed,
+    Stale,
+    Cancelled,
+    NotClaimed,
+}
+
+impl ExecutionOutcome {
+    fn was_claimed(self) -> bool {
+        !matches!(self, Self::NotClaimed)
+    }
+}
+
 fn run_coordinator(shared: Arc<Shared>) {
     let mut observed_generation = 0;
+    let mut next_retry_at = None;
     let mut scheduler = FairScheduler::default();
     let mut reset_sources = BTreeMap::<String, bool>::new();
     loop {
         let (sources, priority, playback_active, generation, reason) = {
             let mut control = shared.control();
             while !control.shutdown && control.wake_generation == observed_generation {
+                let wait_duration = coordinator_wait_duration(next_retry_at, now_epoch_seconds());
                 let (next, _) = shared
                     .wake
-                    .wait_timeout(control, SAFETY_SWEEP_INTERVAL)
+                    .wait_timeout(control, wait_duration)
                     .unwrap_or_else(|poison| poison.into_inner());
                 control = next;
                 if control.wake_generation == observed_generation {
-                    control.wake("periodic_safety_sweep");
+                    let retry_due =
+                        next_retry_at.is_some_and(|deadline| deadline <= now_epoch_seconds());
+                    control.wake(if retry_due {
+                        "retry_deadline"
+                    } else {
+                        "periodic_safety_sweep"
+                    });
                 }
             }
             if control.shutdown {
@@ -417,17 +455,18 @@ fn run_coordinator(shared: Arc<Shared>) {
             .retain(|source_id, _| sources.iter().any(|source| source.id.as_str() == source_id));
 
         let sweep_started = Instant::now();
-        let (mut candidates, retries_due, readiness_queue_depth) =
-            discover_candidates(&shared, &sources);
+        let (mut candidates, mut source_stats) = discover_candidates(&shared, &sources);
+        let discovered_stats = aggregate_source_stats(source_stats.values().copied());
+        next_retry_at = discovered_stats.earliest_retry_at;
         {
             let mut telemetry = shared.telemetry();
             telemetry.sweeps = telemetry.sweeps.saturating_add(1);
-            telemetry.queue_depth = candidates.len() + readiness_queue_depth;
+            telemetry.queue_depth = candidates.len();
             telemetry.max_queue_depth = telemetry.max_queue_depth.max(telemetry.queue_depth);
             telemetry.oldest_job_age_seconds =
                 oldest_job_age_seconds(&candidates, now_epoch_seconds());
-            telemetry.retries_due = retries_due;
-            telemetry.readiness_queue_depth = readiness_queue_depth;
+            telemetry.retries_due = discovered_stats.retries_due;
+            telemetry.readiness_queue_depth = discovered_stats.readiness_queue_depth;
         }
         while !candidates.is_empty() && !shared.cancel.load(Ordering::Acquire) {
             let control = shared.control();
@@ -455,25 +494,43 @@ fn run_coordinator(shared: Arc<Shared>) {
                 telemetry.contention = telemetry.contention.saturating_add(1);
                 break;
             };
-            {
-                let mut telemetry = shared.telemetry();
-                telemetry.claimed = telemetry.claimed.saturating_add(1);
-            }
             let result = execute_candidate(&candidate, &shared.work_cancel);
             shared.budgets().release(permit);
             shared.budget_wake.notify_all();
             let mut telemetry = shared.telemetry();
+            let mut execution_outcome = None;
             match result {
-                _ if shared.work_cancel.load(Ordering::Acquire) => {
-                    telemetry.cancelled = telemetry.cancelled.saturating_add(1);
-                    tracing::debug!(
-                        target: "wavecrate::source_processing",
-                        source_id = candidate.source.id.as_str(),
-                        task = ?candidate.task,
-                        "Source work yielded to playback or source reconfiguration"
-                    );
+                Ok(outcome) => {
+                    execution_outcome = Some(outcome);
+                    if outcome.was_claimed() {
+                        telemetry.claimed = telemetry.claimed.saturating_add(1);
+                    }
+                    match outcome {
+                        ExecutionOutcome::Completed => {
+                            telemetry.completed = telemetry.completed.saturating_add(1)
+                        }
+                        ExecutionOutcome::Retried { retry_at } => {
+                            telemetry.retried = telemetry.retried.saturating_add(1);
+                            if let Some(stats) = source_stats.get_mut(candidate.source.id.as_str())
+                            {
+                                stats.earliest_retry_at =
+                                    earliest_deadline(stats.earliest_retry_at, Some(retry_at));
+                            }
+                            let aggregate = aggregate_source_stats(source_stats.values().copied());
+                            next_retry_at = aggregate.earliest_retry_at;
+                        }
+                        ExecutionOutcome::Failed => {
+                            telemetry.failed = telemetry.failed.saturating_add(1)
+                        }
+                        ExecutionOutcome::Stale => {
+                            telemetry.stale = telemetry.stale.saturating_add(1)
+                        }
+                        ExecutionOutcome::Cancelled => {
+                            telemetry.cancelled = telemetry.cancelled.saturating_add(1)
+                        }
+                        ExecutionOutcome::NotClaimed => {}
+                    }
                 }
-                Ok(()) => telemetry.completed = telemetry.completed.saturating_add(1),
                 Err(error) if shared.cancel.load(Ordering::Acquire) => {
                     telemetry.cancelled = telemetry.cancelled.saturating_add(1);
                     tracing::debug!(
@@ -497,10 +554,40 @@ fn run_coordinator(shared: Arc<Shared>) {
                 }
             }
             drop(telemetry);
-            (candidates, _, _) = discover_candidates(&shared, &sources);
+            let source_id = candidate.source.id.as_str();
+            if candidates
+                .iter()
+                .any(|queued| queued.source.id.as_str() == source_id)
+            {
+                continue;
+            }
+            let should_refresh = match (&candidate.task, execution_outcome) {
+                (RuntimeTask::DeepHash, Some(ExecutionOutcome::Completed))
+                | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
+                | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Failed))
+                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
+                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Retried { .. }))
+                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Failed)) => true,
+                _ => false,
+            };
+            if !should_refresh {
+                continue;
+            }
+            match discover_source_candidates(&candidate.source, now_epoch_seconds()) {
+                Ok((mut refreshed, refreshed_stats)) => {
+                    candidates.append(&mut refreshed);
+                    source_stats.insert(source_id.to_string(), refreshed_stats);
+                    let aggregate = aggregate_source_stats(source_stats.values().copied());
+                    next_retry_at = aggregate.earliest_retry_at;
+                    let mut telemetry = shared.telemetry();
+                    telemetry.retries_due = aggregate.retries_due;
+                    telemetry.readiness_queue_depth = aggregate.readiness_queue_depth;
+                }
+                Err(error) => record_discovery_error(&shared, &candidate.source, &error),
+            }
         }
         let mut telemetry = shared.telemetry();
-        telemetry.queue_depth = candidates.len() + telemetry.readiness_queue_depth;
+        telemetry.queue_depth = candidates.len();
         telemetry.oldest_job_age_seconds = oldest_job_age_seconds(&candidates, now_epoch_seconds());
         tracing::debug!(
             target: "wavecrate::source_processing",
@@ -513,6 +600,8 @@ fn run_coordinator(shared: Arc<Shared>) {
             claimed = telemetry.claimed,
             completed = telemetry.completed,
             failed = telemetry.failed,
+            retried = telemetry.retried,
+            stale = telemetry.stale,
             cancelled = telemetry.cancelled,
             contention = telemetry.contention,
             elapsed_ms = sweep_started.elapsed().as_secs_f64() * 1_000.0,
@@ -525,11 +614,13 @@ fn run_coordinator(shared: Arc<Shared>) {
 fn discover_candidates(
     shared: &Shared,
     sources: &[SampleSource],
-) -> (Vec<RuntimeCandidate>, usize, usize) {
+) -> (
+    Vec<RuntimeCandidate>,
+    BTreeMap<String, SourceDiscoveryStats>,
+) {
     let now = now_epoch_seconds();
     let mut candidates = Vec::new();
-    let mut readiness_queue_depth = 0;
-    let mut retries_due = 0;
+    let mut source_stats = BTreeMap::new();
     for source in sources {
         let Some(permit) = shared
             .budgets()
@@ -538,23 +629,22 @@ fn discover_candidates(
             continue;
         };
         match discover_source_candidates(source, now) {
-            Ok((mut source_candidates, source_readiness_depth, source_retries_due)) => {
+            Ok((mut source_candidates, stats)) => {
                 candidates.append(&mut source_candidates);
-                readiness_queue_depth += source_readiness_depth;
-                retries_due += source_retries_due;
+                source_stats.insert(source.id.as_str().to_string(), stats);
             }
             Err(error) => record_discovery_error(shared, source, &error),
         }
         shared.budgets().release(permit);
         shared.budget_wake.notify_all();
     }
-    (candidates, retries_due, readiness_queue_depth)
+    (candidates, source_stats)
 }
 
 fn discover_source_candidates(
     source: &SampleSource,
     now: i64,
-) -> Result<(Vec<RuntimeCandidate>, usize, usize), String> {
+) -> Result<(Vec<RuntimeCandidate>, SourceDiscoveryStats), String> {
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,
@@ -564,8 +654,7 @@ fn discover_source_candidates(
     .map_err(|error| error.to_string())?;
     let source_id = source.id.as_str();
     let mut candidates = Vec::new();
-    let mut readiness_queue_depth = 0;
-    let mut retries_due = 0;
+    let mut stats = SourceDiscoveryStats::default();
     let readiness_source_exists: bool = connection
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM source_readiness_sources WHERE source_id = ?1)",
@@ -578,22 +667,24 @@ fn discover_source_candidates(
             reconcile_readiness(&connection, source_id, now).map_err(|error| error.to_string())?;
         persist_readiness_deficits(&mut connection, &snapshot.deficits, now)
             .map_err(|error| error.to_string())?;
-        readiness_queue_depth = snapshot.deficits.len();
+        stats.readiness_queue_depth = snapshot.deficits.len();
         candidates.extend(snapshot.deficits.iter().map(|deficit| RuntimeCandidate {
             schedule: WorkCandidate::readiness(&deficit.target, now),
             source: source.clone(),
             task: RuntimeTask::Readiness(deficit.target.clone()),
         }));
-        let stats = readiness_work_stats(&connection, now).map_err(|error| error.to_string())?;
-        retries_due = stats.retries_due;
+        let work_stats =
+            readiness_work_stats(&connection, now).map_err(|error| error.to_string())?;
+        stats.retries_due = work_stats.retries_due;
+        stats.earliest_retry_at = work_stats.earliest_retry_at;
         tracing::debug!(
             target: "wavecrate::source_processing",
             source_id,
-            pending = stats.pending,
-            running = stats.running,
-            retries_due = stats.retries_due,
-            retries_waiting = stats.retries_waiting,
-            expired_leases = stats.expired_leases,
+            pending = work_stats.pending,
+            running = work_stats.running,
+            retries_due = work_stats.retries_due,
+            retries_waiting = work_stats.retries_waiting,
+            expired_leases = work_stats.expired_leases,
             "Readiness work reconciled"
         );
     }
@@ -664,11 +755,14 @@ fn discover_source_candidates(
             task: RuntimeTask::FinalizeSimilarity,
         });
     }
-    Ok((candidates, readiness_queue_depth, retries_due))
+    Ok((candidates, stats))
 }
 
-fn execute_candidate(candidate: &RuntimeCandidate, cancel: &AtomicBool) -> Result<(), String> {
-    match &candidate.task {
+fn execute_candidate(
+    candidate: &RuntimeCandidate,
+    cancel: &AtomicBool,
+) -> Result<ExecutionOutcome, String> {
+    let result = match &candidate.task {
         RuntimeTask::DeepHash => {
             let database_root = candidate
                 .source
@@ -680,18 +774,43 @@ fn execute_candidate(candidate: &RuntimeCandidate, cancel: &AtomicBool) -> Resul
             )
             .map_err(|error| error.to_string())?;
             complete_pending_deep_hashes(&db, Some(cancel), DEEP_HASH_BATCH)
-                .map(drop)
+                .map(|stats| {
+                    if stats.hashes_computed > 0 {
+                        ExecutionOutcome::Completed
+                    } else {
+                        ExecutionOutcome::NotClaimed
+                    }
+                })
                 .map_err(|error| error.to_string())
         }
         RuntimeTask::LegacyAnalysis { job_id } => {
-            run_similarity_prep_job(&candidate.source, *job_id, cancel).map(drop)
+            run_similarity_prep_job(&candidate.source, *job_id, cancel, 1).map(|summary| {
+                if summary.processed == 0 {
+                    ExecutionOutcome::NotClaimed
+                } else if summary.failed > 0 {
+                    ExecutionOutcome::Failed
+                } else {
+                    ExecutionOutcome::Completed
+                }
+            })
         }
         RuntimeTask::FinalizeSimilarity => {
-            finalize_similarity_prep_if_ready(&candidate.source, cancel).map(drop)
+            finalize_similarity_prep_if_ready(&candidate.source, cancel).map(|finalized| {
+                if finalized {
+                    ExecutionOutcome::Completed
+                } else {
+                    ExecutionOutcome::NotClaimed
+                }
+            })
         }
         RuntimeTask::Readiness(target) => {
             execute_readiness_target(&candidate.source, target, cancel)
         }
+    };
+    if cancel.load(Ordering::Acquire) {
+        Ok(ExecutionOutcome::Cancelled)
+    } else {
+        result
     }
 }
 
@@ -705,7 +824,7 @@ fn execute_readiness_target(
     source: &SampleSource,
     target: &ReadinessTarget,
     cancel: &AtomicBool,
-) -> Result<(), String> {
+) -> Result<ExecutionOutcome, String> {
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,
@@ -717,34 +836,53 @@ fn execute_readiness_target(
     let Some(claim) = claim_readiness_target(&mut connection, target, now, READINESS_LEASE_SECONDS)
         .map_err(|error| error.to_string())?
     else {
-        return Ok(());
+        return Ok(ExecutionOutcome::NotClaimed);
     };
     if cancel.load(Ordering::Acquire) {
-        cancel_readiness_work(&mut connection, &claim, "runtime cancellation", now)
-            .map_err(|error| error.to_string())?;
-        return Ok(());
+        return cancel_claim(&mut connection, &claim, "runtime cancellation", now);
     }
-    let outcome = run_readiness_stage(source, &connection, &claim, cancel);
+    let (outcome, lease_stale) = match run_with_readiness_lease_heartbeat(
+        source,
+        &claim,
+        cancel,
+        READINESS_LEASE_SECONDS,
+        |lease_cancel| run_readiness_stage(source, &connection, &claim, lease_cancel),
+    ) {
+        Ok(result) => result,
+        Err(error) => {
+            let _ = cancel_readiness_work(
+                &mut connection,
+                &claim,
+                "readiness lease heartbeat failure",
+                now_epoch_seconds(),
+            );
+            return Err(error);
+        }
+    };
+    if lease_stale {
+        return Ok(ExecutionOutcome::Stale);
+    }
     if cancel.load(Ordering::Acquire) {
-        cancel_readiness_work(
+        return cancel_claim(
             &mut connection,
             &claim,
             "runtime cancellation before readiness publication",
             now_epoch_seconds(),
-        )
-        .map_err(|error| error.to_string())?;
-        return Ok(());
+        );
     }
     match outcome {
         Ok(ReadinessExecutionOutcome::Complete) => {
-            let _outcome = complete_readiness_work(&mut connection, &claim, now_epoch_seconds())
-                .map_err(|error| error.to_string())?;
-            Ok(())
+            match complete_readiness_work(&mut connection, &claim, now_epoch_seconds())
+                .map_err(|error| error.to_string())?
+            {
+                ArtifactPublishOutcome::Recorded => Ok(ExecutionOutcome::Completed),
+                ArtifactPublishOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
+            }
         }
         Ok(ReadinessExecutionOutcome::Retry(reason)) => {
             let policy = ReadinessRetryPolicy::new(5, 5 * 60, u32::MAX)
                 .expect("valid readiness retry policy");
-            fail_readiness_work(
+            let outcome = fail_readiness_work(
                 &mut connection,
                 &claim,
                 ReadinessFailureClassification::Retryable,
@@ -752,13 +890,13 @@ fn execute_readiness_target(
                 now_epoch_seconds(),
                 policy,
             )
-            .map(drop)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+            Ok(execution_outcome_for_failure(outcome))
         }
         Err(reason) => {
             let policy = ReadinessRetryPolicy::new(5, 5 * 60, u32::MAX)
                 .expect("valid readiness retry policy");
-            fail_readiness_work(
+            let outcome = fail_readiness_work(
                 &mut connection,
                 &claim,
                 ReadinessFailureClassification::Retryable,
@@ -766,13 +904,13 @@ fn execute_readiness_target(
                 now_epoch_seconds(),
                 policy,
             )
-            .map(drop)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+            Ok(execution_outcome_for_failure(outcome))
         }
         Ok(ReadinessExecutionOutcome::Permanent(reason)) => {
             let policy =
                 ReadinessRetryPolicy::new(5, 5 * 60, 1).expect("valid readiness terminal policy");
-            fail_readiness_work(
+            let outcome = fail_readiness_work(
                 &mut connection,
                 &claim,
                 ReadinessFailureClassification::Permanent,
@@ -780,10 +918,105 @@ fn execute_readiness_target(
                 now_epoch_seconds(),
                 policy,
             )
-            .map(drop)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+            Ok(execution_outcome_for_failure(outcome))
         }
     }
+}
+
+fn cancel_claim(
+    connection: &mut rusqlite::Connection,
+    claim: &ClaimedReadinessWork,
+    reason: &str,
+    now: i64,
+) -> Result<ExecutionOutcome, String> {
+    match cancel_readiness_work(connection, claim, reason, now)
+        .map_err(|error| error.to_string())?
+    {
+        ReadinessWorkMutationOutcome::Recorded => Ok(ExecutionOutcome::Cancelled),
+        ReadinessWorkMutationOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
+    }
+}
+
+fn execution_outcome_for_failure(outcome: ReadinessFailureOutcome) -> ExecutionOutcome {
+    match outcome {
+        ReadinessFailureOutcome::RetryScheduled { retry_at } => {
+            ExecutionOutcome::Retried { retry_at }
+        }
+        ReadinessFailureOutcome::RejectedStale => ExecutionOutcome::Stale,
+        ReadinessFailureOutcome::Permanent
+        | ReadinessFailureOutcome::Unsupported
+        | ReadinessFailureOutcome::AttemptsExhausted => ExecutionOutcome::Failed,
+    }
+}
+
+fn run_with_readiness_lease_heartbeat<T>(
+    source: &SampleSource,
+    claim: &ClaimedReadinessWork,
+    external_cancel: &AtomicBool,
+    lease_duration_seconds: i64,
+    execute: impl FnOnce(&AtomicBool) -> T,
+) -> Result<(T, bool), String> {
+    let local_cancel = AtomicBool::new(external_cancel.load(Ordering::Acquire));
+    let stop = AtomicBool::new(false);
+    let lease_stale = AtomicBool::new(false);
+    let heartbeat_error = Mutex::new(None::<String>);
+    let database_root = source.database_root().map_err(|error| error.to_string())?;
+    let renew_interval = Duration::from_secs((lease_duration_seconds / 3).max(1) as u64);
+    let mut heartbeat_connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .map_err(|error| error.to_string())?;
+
+    let result = thread::scope(|scope| {
+        scope.spawn(|| {
+            let mut next_renewal = Instant::now() + renew_interval;
+            while !stop.load(Ordering::Acquire) {
+                if external_cancel.load(Ordering::Acquire) {
+                    local_cancel.store(true, Ordering::Release);
+                }
+                if Instant::now() >= next_renewal {
+                    match renew_readiness_lease(
+                        &mut heartbeat_connection,
+                        claim,
+                        now_epoch_seconds(),
+                        lease_duration_seconds,
+                    ) {
+                        Ok(ReadinessLeaseRenewalOutcome::Renewed { .. }) => {
+                            next_renewal = Instant::now() + renew_interval;
+                        }
+                        Ok(ReadinessLeaseRenewalOutcome::RejectedStale) => {
+                            lease_stale.store(true, Ordering::Release);
+                            local_cancel.store(true, Ordering::Release);
+                            return;
+                        }
+                        Err(error) => {
+                            *heartbeat_error
+                                .lock()
+                                .unwrap_or_else(|poison| poison.into_inner()) =
+                                Some(error.to_string());
+                            local_cancel.store(true, Ordering::Release);
+                            return;
+                        }
+                    }
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+        });
+        let result = execute(&local_cancel);
+        stop.store(true, Ordering::Release);
+        result
+    });
+    if let Some(error) = heartbeat_error
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .take()
+    {
+        return Err(format!("Readiness lease heartbeat failed: {error}"));
+    }
+    Ok((result, lease_stale.load(Ordering::Acquire)))
 }
 
 fn run_readiness_stage(
@@ -932,6 +1165,38 @@ fn now_epoch_seconds() -> i64 {
         .min(i64::MAX as u64) as i64
 }
 
+fn earliest_deadline(current: Option<i64>, candidate: Option<i64>) -> Option<i64> {
+    match (current, candidate) {
+        (Some(current), Some(candidate)) => Some(current.min(candidate)),
+        (Some(current), None) => Some(current),
+        (None, Some(candidate)) => Some(candidate),
+        (None, None) => None,
+    }
+}
+
+fn aggregate_source_stats(
+    stats: impl IntoIterator<Item = SourceDiscoveryStats>,
+) -> SourceDiscoveryStats {
+    stats
+        .into_iter()
+        .fold(SourceDiscoveryStats::default(), |mut aggregate, source| {
+            aggregate.readiness_queue_depth = aggregate
+                .readiness_queue_depth
+                .saturating_add(source.readiness_queue_depth);
+            aggregate.retries_due = aggregate.retries_due.saturating_add(source.retries_due);
+            aggregate.earliest_retry_at =
+                earliest_deadline(aggregate.earliest_retry_at, source.earliest_retry_at);
+            aggregate
+        })
+}
+
+fn coordinator_wait_duration(next_retry_at: Option<i64>, now: i64) -> Duration {
+    let retry_wait = next_retry_at.map_or(SAFETY_SWEEP_INTERVAL, |deadline| {
+        Duration::from_secs(deadline.saturating_sub(now).max(0) as u64)
+    });
+    SAFETY_SWEEP_INTERVAL.min(retry_wait)
+}
+
 fn oldest_job_age_seconds(candidates: &[RuntimeCandidate], now: i64) -> u64 {
     candidates
         .iter()
@@ -991,7 +1256,9 @@ mod tests {
         .expect("open readiness database");
         connection
             .execute(
-                "UPDATE wav_files SET file_identity = 'identity-1' WHERE path = 'pending.wav'",
+                "UPDATE wav_files
+                 SET file_identity = 'identity-1', content_hash = 'content-1'
+                 WHERE path = 'pending.wav'",
                 [],
             )
             .expect("assign file identity");
@@ -1059,7 +1326,13 @@ mod tests {
                 )
                 .expect("read readiness artifact")
         });
-        assert_eq!(supervisor.shutdown()["joined"], true);
+        let report = supervisor.shutdown();
+        assert_eq!(report["joined"], true);
+        assert_eq!(report["claimed"], 1);
+        assert_eq!(report["completed"], 1);
+        assert_eq!(report["retried"], 0);
+        assert_eq!(report["stale"], 0);
+        assert_eq!(report["readiness_queue_depth"], 0);
     }
 
     #[test]
@@ -1075,6 +1348,117 @@ mod tests {
         drop(permit);
         wait_until(Duration::from_secs(3), || source_is_hashed(&source));
         assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn readiness_lease_heartbeat_keeps_long_claim_current() {
+        let (_directory, source) = unhashed_source("lease-heartbeat");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'identity-lease', content_hash = 'content-lease'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("assign file identity");
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "identity-lease",
+            "pending.wav",
+            ReadinessStage::IndexedIdentity,
+            "manifest-v1",
+            1,
+            "content-lease",
+        );
+        let mut targets = vec![target.clone()];
+        for stage in [
+            ReadinessStage::PlaybackSummary,
+            ReadinessStage::AnalysisFeatures,
+            ReadinessStage::EmbeddingAspects,
+        ] {
+            let mut terminal = target.clone();
+            terminal.stage = stage;
+            terminal.eligibility = ReadinessEligibility::Unsupported;
+            targets.push(terminal);
+        }
+        targets.push(
+            ReadinessTarget::source(
+                source.id.as_str(),
+                ReadinessStage::SimilarityLayout,
+                "layout-v1",
+                1,
+                "members-1",
+            )
+            .with_eligibility(ReadinessEligibility::Unsupported),
+        );
+        let now = now_epoch_seconds();
+        replace_readiness_targets(
+            &mut connection,
+            source.id.as_str(),
+            1,
+            1,
+            SourceAvailability::Active,
+            &targets,
+            now,
+        )
+        .expect("publish readiness targets");
+        let snapshot =
+            reconcile_readiness(&connection, source.id.as_str(), now).expect("reconcile readiness");
+        persist_readiness_deficits(&mut connection, &snapshot.deficits, now)
+            .expect("persist readiness work");
+        let claim = claim_readiness_target(&mut connection, &target, now, 2)
+            .expect("claim readiness")
+            .expect("claim available");
+        let cancel = AtomicBool::new(false);
+
+        let ((), stale) = run_with_readiness_lease_heartbeat(&source, &claim, &cancel, 2, |_| {
+            thread::sleep(Duration::from_millis(2_500))
+        })
+        .expect("run with heartbeat");
+
+        assert!(!stale);
+        assert_eq!(
+            complete_readiness_work(&mut connection, &claim, now_epoch_seconds())
+                .expect("complete renewed claim"),
+            ArtifactPublishOutcome::Recorded
+        );
+    }
+
+    #[test]
+    fn retry_deadline_shortens_coordinator_wait_deterministically() {
+        assert_eq!(
+            coordinator_wait_duration(Some(105), 100),
+            Duration::from_secs(5)
+        );
+        assert_eq!(coordinator_wait_duration(Some(100), 100), Duration::ZERO);
+        assert_eq!(
+            coordinator_wait_duration(Some(200), 100),
+            SAFETY_SWEEP_INTERVAL
+        );
+        assert_eq!(coordinator_wait_duration(None, 100), SAFETY_SWEEP_INTERVAL);
+    }
+
+    #[test]
+    fn durable_failure_outcomes_do_not_count_as_completion() {
+        assert_eq!(
+            execution_outcome_for_failure(ReadinessFailureOutcome::RetryScheduled { retry_at: 5 }),
+            ExecutionOutcome::Retried { retry_at: 5 }
+        );
+        assert_eq!(
+            execution_outcome_for_failure(ReadinessFailureOutcome::RejectedStale),
+            ExecutionOutcome::Stale
+        );
+        assert_eq!(
+            execution_outcome_for_failure(ReadinessFailureOutcome::Permanent),
+            ExecutionOutcome::Failed
+        );
     }
 
     fn unhashed_source(id: &str) -> (tempfile::TempDir, SampleSource) {

@@ -68,6 +68,27 @@ impl SourceDatabase {
         )
     }
 
+    /// Fetch a bounded path-ordered batch that still needs a deep content hash.
+    pub fn list_pending_hash_files(&self, limit: usize) -> Result<Vec<WavEntry>, SourceDbError> {
+        let filter = wav_file_supported_audio_filter(self)?;
+        let columns = wav_file_select_columns(self)?;
+        let sql = format!(
+            "SELECT {columns}
+             FROM wav_files
+             WHERE {filter}
+               AND missing = 0
+               AND content_hash IS NULL
+             ORDER BY path ASC
+             LIMIT ?1"
+        );
+        collect_wav_entries(
+            self,
+            &sql,
+            [i64::try_from(limit).unwrap_or(i64::MAX)],
+            "Skipping pending hash row with invalid relative path",
+        )
+    }
+
     /// Fetch tracked wav files whose paths are at or below the provided relative path.
     pub fn list_files_under_path(
         &self,

@@ -164,6 +164,12 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
             .retries_waiting,
         1
     );
+    assert_eq!(
+        readiness_work_stats(&connection, 4)
+            .expect("waiting deadline")
+            .earliest_retry_at,
+        Some(5)
+    );
 
     let second = claim_readiness_target(&mut connection, &target, 5, 100)
         .expect("claim second")

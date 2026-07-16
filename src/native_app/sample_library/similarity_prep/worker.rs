@@ -34,8 +34,8 @@ const SIMILARITY_BUSY_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) struct SimilarityPrepJobDrainSummary {
-    pub(super) processed: usize,
-    pub(super) failed: usize,
+    pub(in crate::native_app) processed: usize,
+    pub(in crate::native_app) failed: usize,
 }
 
 pub(super) fn enqueue_similarity_prep_inner(
@@ -237,6 +237,7 @@ pub(in crate::native_app) fn run_similarity_prep_job(
     source: &SampleSource,
     job_id: i64,
     cancel: &AtomicBool,
+    embedding_worker_limit: usize,
 ) -> Result<SimilarityPrepJobDrainSummary, String> {
     let mut conn = open_source_db(source)?;
     let settings = load_analysis_settings();
@@ -250,7 +251,7 @@ pub(in crate::native_app) fn run_similarity_prep_job(
         wavecrate::internal_analysis_jobs::release(&conn, &job)?;
         return Ok(SimilarityPrepJobDrainSummary::default());
     }
-    let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
+    let outcome = wavecrate::internal_analysis_jobs::run_claimed_job_with_embedding_worker_limit(
         &mut conn,
         &job,
         true,
@@ -258,6 +259,7 @@ pub(in crate::native_app) fn run_similarity_prep_job(
         runtime.analysis_sample_rate,
         runtime.analysis_version.as_str(),
         cancel,
+        embedding_worker_limit,
     );
     if cancel.load(Ordering::Acquire) {
         wavecrate::internal_analysis_jobs::release(&conn, &job)?;

@@ -404,6 +404,8 @@ pub struct ReadinessWorkStats {
     pub retries_due: usize,
     /// Retryable failures waiting for their deadline.
     pub retries_waiting: usize,
+    /// Earliest persisted retry deadline that has not arrived yet.
+    pub earliest_retry_at: Option<i64>,
     /// Permanently failed rows.
     pub permanent_failures: usize,
     /// Unsupported rows.
