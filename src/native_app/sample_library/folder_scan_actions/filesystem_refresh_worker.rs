@@ -60,24 +60,33 @@ fn sync_source_database_paths_once(
     SourceDatabase::open_for_background_job_with_database_root(root, database_root)
         .map_err(|err| format!("open source index: {err}"))
         .and_then(|db| {
-            let stats = scanner::sync_paths_with_progress(&db, paths, Some(cancel), &mut |_, _| {})
-                .map_err(|err| format!("sync source index: {err}"))?;
-            let incomplete_error = stats.incomplete_error.clone();
+            let (stats, mut incomplete_error) =
+                match scanner::sync_paths_with_progress(&db, paths, Some(cancel), &mut |_, _| {}) {
+                    Ok(stats) => (stats, None),
+                    Err(scanner::ScanError::Incomplete { committed, error }) => {
+                        (*committed, Some(error))
+                    }
+                    Err(error) => return Err(format!("sync source index: {error}")),
+                };
             let committed = stats.clone();
-            let completed = match scanner::complete_deferred_rename_candidates_with_cancel(
-                &db,
-                stats,
-                Some(cancel),
-            ) {
-                Ok(completed) => completed,
-                Err(scanner::ScanError::Canceled) => committed,
-                Err(error) => {
-                    tracing::warn!(
-                        source_id,
-                        error = %error,
-                        "Deferred rename reconciliation failed after filesystem sync committed"
-                    );
-                    committed
+            let completed = if incomplete_error.is_some() {
+                committed
+            } else {
+                match scanner::complete_deferred_rename_candidates_with_cancel(
+                    &db,
+                    stats,
+                    Some(cancel),
+                ) {
+                    Ok(completed) => completed,
+                    Err(error) => {
+                        incomplete_error = Some(error.to_string());
+                        tracing::warn!(
+                            source_id,
+                            error = %error,
+                            "Deferred rename reconciliation failed after filesystem sync committed"
+                        );
+                        committed
+                    }
                 }
             };
             Ok(SourceFilesystemSyncSuccess {

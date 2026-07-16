@@ -104,7 +104,7 @@ impl NativeAppState {
                     renames_reconciled,
                     "Committed filesystem source delta"
                 );
-                if !delta.is_empty() {
+                if !delta.is_empty() && incomplete_error.is_none() {
                     self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
                     self.queue_source_prep(
                         source_id.clone(),

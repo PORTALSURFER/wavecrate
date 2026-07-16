@@ -480,10 +480,13 @@ fn cancellation_after_first_committed_batch_stops_at_a_resumable_checkpoint() {
         }
     });
 
-    let partial = result.expect("return the committed walk checkpoint before cancellation");
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("cancellation after a commit must return the checkpoint outcome");
+    };
+    let partial = *committed;
     assert_eq!(partial.committed_delta.created.len(), 64);
     assert!(partial.committed_delta.revision > 0);
-    assert_eq!(partial.incomplete_error.as_deref(), Some("Scan canceled"));
+    assert_eq!(error, "Scan canceled");
     assert_eq!(db.count_files().unwrap(), 64);
 
     cancel.store(false, Ordering::Relaxed);
@@ -604,11 +607,15 @@ fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled()
     std::fs::write(dir.path().join("missed.wav"), b"missed watcher event").unwrap();
     let cancel = std::sync::atomic::AtomicBool::new(false);
 
-    let stats = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
+    let result = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
         cancel.store(true, std::sync::atomic::Ordering::Release)
-    })
-    .unwrap();
+    });
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("cancelled verification must return the committed manifest repair");
+    };
+    let stats = *committed;
 
+    assert_eq!(error, "Scan canceled");
     assert_eq!(stats.committed_delta.created.len(), 1);
     assert_eq!(
         stats.committed_delta.created[0].relative_path,

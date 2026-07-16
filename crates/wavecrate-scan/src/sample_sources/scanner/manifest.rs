@@ -40,6 +40,13 @@ pub(super) fn build_committed_delta(
         &mut matched_after,
         &mut matches,
     );
+    match_same_path_and_identity(
+        before,
+        after,
+        &mut matched_before,
+        &mut matched_after,
+        &mut matches,
+    );
     match_unique(
         before,
         after,
@@ -116,6 +123,42 @@ pub(super) fn build_committed_delta(
         .deleted
         .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
     delta
+}
+
+fn match_same_path_and_identity(
+    before: &[SourceManifestEntry],
+    after: &[SourceManifestEntry],
+    matched_before: &mut BTreeSet<usize>,
+    matched_after: &mut BTreeSet<usize>,
+    matches: &mut Vec<(usize, usize)>,
+) {
+    let after_by_path = after
+        .iter()
+        .enumerate()
+        .filter(|(index, entry)| {
+            !matched_after.contains(index) && normalized(entry.file_identity.as_deref()).is_some()
+        })
+        .map(|(index, entry)| (entry.relative_path.clone(), index))
+        .collect::<BTreeMap<_, _>>();
+    for (before_index, previous) in before.iter().enumerate() {
+        if matched_before.contains(&before_index) {
+            continue;
+        }
+        let Some(previous_identity) = normalized(previous.file_identity.as_deref()) else {
+            continue;
+        };
+        let Some(after_index) = after_by_path.get(&previous.relative_path).copied() else {
+            continue;
+        };
+        if normalized(after[after_index].file_identity.as_deref()).as_deref()
+            != Some(previous_identity.as_str())
+        {
+            continue;
+        }
+        matched_before.insert(before_index);
+        matched_after.insert(after_index);
+        matches.push((before_index, after_index));
+    }
 }
 
 fn match_unique(
@@ -259,5 +302,19 @@ mod tests {
         assert_eq!(delta.deleted.len(), 1);
         assert!(delta.changed.is_empty());
         assert!(delta.moved.is_empty());
+    }
+
+    #[test]
+    fn unchanged_duplicate_filesystem_identities_are_matched_by_path() {
+        let before = vec![
+            entry("first.wav", "shared-inode", Some("same"), 4, 1),
+            entry("second.wav", "shared-inode", Some("same"), 4, 1),
+        ];
+        let after = before.clone();
+
+        let delta = build_committed_delta(&before, &after, 19);
+
+        assert!(delta.is_empty());
+        assert_eq!(delta.revision, 19);
     }
 }

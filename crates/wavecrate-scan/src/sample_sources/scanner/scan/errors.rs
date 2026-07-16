@@ -4,6 +4,8 @@ use thiserror::Error;
 
 use crate::sample_sources::SourceDbError;
 
+use super::ScanStats;
+
 /// Errors that can occur while scanning a source folder.
 #[derive(Debug, Error)]
 pub enum ScanError {
@@ -13,6 +15,14 @@ pub enum ScanError {
     /// Scan was canceled by the caller.
     #[error("Scan canceled")]
     Canceled,
+    /// A source revision committed before later work stopped.
+    #[error("Scan incomplete after committed checkpoint: {error}")]
+    Incomplete {
+        /// Authoritative checkpoint that callers must publish before retrying.
+        committed: Box<ScanStats>,
+        /// Error that stopped the remaining work.
+        error: String,
+    },
     /// Failed to read a file or directory.
     #[error("Failed to read {path}: {source}")]
     Io {

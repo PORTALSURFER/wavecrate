@@ -44,9 +44,6 @@ pub fn audit_source(
     max_hashes: usize,
 ) -> Result<ScanStats, ScanError> {
     let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
-    if stats.is_incomplete() {
-        return Ok(stats);
-    }
     merge_audit_verification(
         &mut stats,
         super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None),
@@ -75,9 +72,6 @@ fn audit_source_and_record_after_scan(
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
     let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
-    if stats.is_incomplete() {
-        return Ok(stats);
-    }
     after_scan();
     merge_audit_verification(
         &mut stats,
@@ -108,6 +102,10 @@ fn merge_audit_verification(
                 revision = stats.committed_delta.revision,
                 "Publishing committed manifest repair before retrying incomplete content audit"
             );
+            return Err(ScanError::Incomplete {
+                committed: Box::new(std::mem::take(stats)),
+                error: error.to_string(),
+            });
         }
         Err(error) => return Err(error),
     }
@@ -133,7 +131,7 @@ fn scan(
     debug_assert_ne!(mode, ScanMode::Targeted);
     let manifest_before = super::super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
-    let mut context = ScanContext::new(db, mode)?;
+    let mut context = ScanContext::new(db, mode, manifest_before.clone())?;
     let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context)
         .and_then(|()| db_sync_phase(db, &mut context, cancel));
     finish_scan_result(manifest_before, context, result)
@@ -160,16 +158,19 @@ pub(crate) fn finish_scan_result(
             Ok(context.stats)
         }
         Err(error) => {
-            let Some(committed_snapshot) = context.last_committed_snapshot.take() else {
+            let Some(committed_revision) = context.last_committed_revision else {
                 return Err(error);
             };
+            let committed_snapshot = context.committed_snapshot(committed_revision);
             super::super::manifest::publish_committed_delta(
                 &mut context.stats,
                 manifest_before,
                 committed_snapshot,
             );
-            context.stats.incomplete_error = Some(error.to_string());
-            Ok(context.stats)
+            Err(ScanError::Incomplete {
+                committed: Box::new(context.stats),
+                error: error.to_string(),
+            })
         }
     }
 }
@@ -215,9 +216,6 @@ pub fn complete_deferred_rename_candidates_with_cancel(
     mut stats: ScanStats,
     cancel: Option<&AtomicBool>,
 ) -> Result<ScanStats, ScanError> {
-    if stats.is_incomplete() {
-        return Ok(stats);
-    }
     if db.list_pending_renames()?.is_empty() {
         return Ok(stats);
     }
@@ -248,9 +246,6 @@ pub fn complete_deferred_hashes_with_cancel(
     mut stats: ScanStats,
     cancel: Option<&AtomicBool>,
 ) -> Result<ScanStats, ScanError> {
-    if stats.is_incomplete() {
-        return Ok(stats);
-    }
     let persisted_candidates = db.list_pending_rename_destinations()?;
     if stats.hashes_pending == 0
         && stats.rename_candidate_paths.is_empty()

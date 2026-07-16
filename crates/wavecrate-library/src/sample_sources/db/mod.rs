@@ -1,5 +1,8 @@
-use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use rusqlite::{Connection, Transaction};
 use std::fmt;
@@ -102,6 +105,7 @@ pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
     db_path: PathBuf,
     paths_revision_dirty: bool,
+    manifest_touched_paths: BTreeSet<PathBuf>,
     telemetry_label: &'static str,
 }
 

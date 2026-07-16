@@ -214,10 +214,13 @@ fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
         }
     });
 
-    let partial = result.expect("return the targeted checkpoint before cancellation");
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("targeted cancellation must return the committed checkpoint outcome");
+    };
+    let partial = *committed;
     assert_eq!(partial.committed_delta.created.len(), 64);
     assert!(partial.committed_delta.revision > 0);
-    assert_eq!(partial.incomplete_error.as_deref(), Some("Scan canceled"));
+    assert_eq!(error, "Scan canceled");
     assert_eq!(db.count_files().unwrap(), 64);
 
     cancel.store(false, Ordering::Relaxed);

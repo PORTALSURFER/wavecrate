@@ -11,6 +11,19 @@ mod worker;
 const WATCHER_SYNC_INTERVAL: Duration = Duration::from_secs(2);
 
 impl AppController {
+    pub(crate) fn request_incomplete_scan_retry(&mut self, source_id: &SourceId, mode: ScanMode) {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+            .cloned()
+        else {
+            return;
+        };
+        self.request_scan_for_source(&source, mode, ScanKind::Auto);
+    }
+
     /// Trigger a quick sync (incremental scan) of the selected source.
     pub fn request_quick_sync(&mut self) {
         self.request_scan_with_mode(ScanMode::Quick, ScanKind::Manual);

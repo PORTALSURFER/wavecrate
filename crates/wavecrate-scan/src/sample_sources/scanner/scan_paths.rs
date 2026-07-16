@@ -36,7 +36,11 @@ pub fn sync_paths_with_progress(
     let manifest_before = super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
-    let mut context = ScanContext::from_existing(targets.existing, ScanMode::Targeted);
+    let mut context = ScanContext::from_existing(
+        targets.existing,
+        ScanMode::Targeted,
+        manifest_before.clone(),
+    );
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
     let mut committed = false;
     let result = (|| {

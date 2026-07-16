@@ -25,7 +25,7 @@ use wavecrate::sample_sources::{
         reconcile_readiness_with_cancel, renew_readiness_lease,
         replace_readiness_targets_with_cancel,
     },
-    scanner::{audit_source_and_record, complete_pending_deep_hash_for_path},
+    scanner::{ScanError, audit_source_and_record, complete_pending_deep_hash_for_path},
 };
 
 use super::scheduler::{
@@ -1969,14 +1969,16 @@ fn execute_candidate(
             )
             .map_err(|error| error.to_string())?;
             let completed_at = now_epoch_seconds();
-            let outcome = audit_source_and_record(
+            let (outcome, incomplete_error) = match audit_source_and_record(
                 &database,
                 Some(cancel),
                 MANIFEST_AUDIT_HASH_BATCH,
                 completed_at,
-            )
-            .map_err(|error| error.to_string())?;
-            let incomplete_error = outcome.incomplete_error.clone();
+            ) {
+                Ok(outcome) => (outcome, None),
+                Err(ScanError::Incomplete { committed, error }) => (*committed, Some(error)),
+                Err(error) => return Err(error.to_string()),
+            };
             tracing::debug!(
                 target: "wavecrate::source_processing",
                 source_id = candidate.source.id.as_str(),

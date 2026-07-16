@@ -225,7 +225,7 @@ fn apply_batch(
         let relative_path = file.facts.relative.clone();
         let absolute = root.join(&relative_path);
         match read_facts(root, &absolute) {
-            Ok(current) if facts_match(&file, &current) => {}
+            Ok(current) if prepared_still_current(&file, &current) => {}
             _ => {
                 skip_changed_or_unavailable(context, root, &relative_path);
                 continue;
@@ -253,7 +253,17 @@ fn prepare_for_apply(
     db: &SourceDatabase,
     root: &Path,
     cancel: Option<&AtomicBool>,
+    prepared: PreparedFile,
+) -> Result<PrepareForApply, ScanError> {
+    prepare_for_apply_with_post_hash_hook(db, root, cancel, prepared, |_| {})
+}
+
+fn prepare_for_apply_with_post_hash_hook(
+    db: &SourceDatabase,
+    root: &Path,
+    cancel: Option<&AtomicBool>,
     mut prepared: PreparedFile,
+    mut post_hash: impl FnMut(&Path),
 ) -> Result<PrepareForApply, ScanError> {
     let absolute = root.join(&prepared.facts.relative);
     if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
@@ -277,7 +287,9 @@ fn prepare_for_apply(
                 || entry.content_hash.is_none()
         });
     if prepared.hash_required && (prepared.needs_hash || current_needs_hash) {
+        prepared.facts = before_hash;
         prepared.content_hash = Some(compute_content_hash(&absolute, cancel)?);
+        post_hash(&absolute);
         let Ok(after_hash) = read_facts(root, &absolute) else {
             return Ok(if absolute.exists() {
                 PrepareForApply::Skip
@@ -288,7 +300,7 @@ fn prepare_for_apply(
         if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
             return Ok(PrepareForApply::Gone);
         }
-        if !facts_match(&prepared, &after_hash) {
+        if !prepared.facts.same_content_snapshot(&after_hash) {
             return Ok(PrepareForApply::Skip);
         }
     }
@@ -299,13 +311,24 @@ fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> 
     current.same_file_facts(&prepared.facts)
 }
 
+fn prepared_still_current(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {
+    if prepared.content_hash.is_some() {
+        current.same_content_snapshot(&prepared.facts)
+    } else {
+        facts_match(prepared, current)
+    }
+}
+
 fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
     cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PrepareForApply, prepare_for_apply, refresh_noop_preparation_or_skip};
+    use super::{
+        PrepareForApply, prepare_for_apply, prepare_for_apply_with_post_hash_hook,
+        refresh_noop_preparation_or_skip,
+    };
     use crate::sample_sources::SourceDatabase;
     use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
     use crate::sample_sources::scanner::scan_diff::PreparedFile;
@@ -351,6 +374,7 @@ mod tests {
         let mut context = ScanContext::from_existing(
             HashMap::from([(Path::new("one.wav").to_path_buf(), entry)]),
             ScanMode::Quick,
+            db.list_manifest_entries().unwrap(),
         );
         let prepared = prepare_diff(dir.path(), &file_path, &context).unwrap();
         assert!(!prepared.requires_apply);
@@ -365,5 +389,29 @@ mod tests {
                 .unwrap();
 
         assert!(refreshed.is_none());
+    }
+
+    #[test]
+    fn targeted_hash_preparation_rejects_mutation_during_hashing() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, [1_u8; 32]).unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        db.upsert_file(Path::new("one.wav"), 32, 1).unwrap();
+        let prepared = PreparedFile {
+            facts: read_facts(dir.path(), &file_path).unwrap(),
+            hash_required: true,
+            needs_hash: true,
+            requires_apply: true,
+            content_hash: None,
+        };
+
+        let outcome =
+            prepare_for_apply_with_post_hash_hook(&db, dir.path(), None, prepared, |path| {
+                std::fs::write(path, [2_u8; 32]).unwrap()
+            })
+            .unwrap();
+
+        assert!(matches!(outcome, PrepareForApply::Skip));
     }
 }
