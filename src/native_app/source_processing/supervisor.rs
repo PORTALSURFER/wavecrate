@@ -1,7 +1,7 @@
 #![cfg_attr(test, allow(dead_code))]
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -70,12 +70,18 @@ struct ExternalScanRegistration {
     cancel: Arc<AtomicBool>,
 }
 
+#[derive(Default)]
+struct ExternalScanState {
+    admissions: usize,
+    registrations: BTreeMap<u64, ExternalScanRegistration>,
+}
+
 impl SourceProcessingBudgetHandle {
     pub(in crate::native_app) fn acquire_scan(
         &self,
         source_id: &str,
     ) -> Option<SourceProcessingBudgetPermit> {
-        loop {
+        let admission_cancel = {
             let mut control = self.shared.control();
             while !control.shutdown
                 && control.sources.contains_key(source_id)
@@ -93,7 +99,12 @@ impl SourceProcessingBudgetHandle {
             {
                 return None;
             }
-            drop(control);
+            let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
+            let mut external_scans = self.shared.external_scans();
+            external_scans.admissions = external_scans.admissions.saturating_add(1);
+            admission_cancel
+        };
+        loop {
             let mut budgets = self.shared.budgets();
             if let Some(permit) = budgets.try_acquire(source_id, ProcessingLane::Scan) {
                 drop(budgets);
@@ -102,13 +113,32 @@ impl SourceProcessingBudgetHandle {
                     .next_external_scan_id
                     .fetch_add(1, Ordering::Relaxed);
                 let cancel = Arc::new(AtomicBool::new(false));
-                self.shared.external_scans().insert(
+                let control = self.shared.control();
+                let mut external_scans = self.shared.external_scans();
+                external_scans.admissions = external_scans.admissions.saturating_sub(1);
+                if control.shutdown
+                    || self.shared.cancel.load(Ordering::Acquire)
+                    || !control.sources.contains_key(source_id)
+                    || control.processing_paused()
+                    || admission_cancel.load(Ordering::Acquire)
+                {
+                    drop(external_scans);
+                    drop(control);
+                    self.shared.external_scan_wake.notify_all();
+                    self.shared.budgets().release(permit);
+                    self.shared.budget_wake.notify_all();
+                    return None;
+                }
+                external_scans.registrations.insert(
                     registration_id,
                     ExternalScanRegistration {
                         source_id: source_id.to_string(),
                         cancel: Arc::clone(&cancel),
                     },
                 );
+                drop(external_scans);
+                drop(control);
+                self.shared.external_scan_wake.notify_all();
                 let permit = SourceProcessingBudgetPermit {
                     shared: Arc::clone(&self.shared),
                     permit: Some(permit),
@@ -126,6 +156,17 @@ impl SourceProcessingBudgetHandle {
                     .wait(budgets)
                     .unwrap_or_else(|poison| poison.into_inner()),
             );
+            let control = self.shared.control();
+            let unavailable = control.shutdown
+                || self.shared.cancel.load(Ordering::Acquire)
+                || !control.sources.contains_key(source_id)
+                || control.processing_paused()
+                || admission_cancel.load(Ordering::Acquire);
+            drop(control);
+            if unavailable {
+                self.shared.finish_external_scan_admission();
+                return None;
+            }
         }
     }
 }
@@ -151,12 +192,15 @@ impl SourceProcessingBudgetPermit {
 
 impl Drop for SourceProcessingBudgetPermit {
     fn drop(&mut self) {
-        self.shared.external_scans().remove(&self.registration_id);
+        self.shared
+            .external_scans()
+            .registrations
+            .remove(&self.registration_id);
         self.shared.external_scan_wake.notify_all();
         if let Some(permit) = self.permit.take() {
             self.shared.budgets().release(permit);
             self.shared.budget_wake.notify_all();
-            self.shared.control().wake("external_budget_released");
+            self.shared.control().notify("external_budget_released");
             self.shared.wake.notify_one();
         }
     }
@@ -190,21 +234,97 @@ impl SourceProcessingSupervisor {
     }
 
     pub(in crate::native_app) fn replace_sources(&self, sources: Vec<SampleSource>) {
+        let sources = sources_by_id(sources);
         let mut control = self.shared.control();
-        control.cancel_all_source_work();
-        control.sources = sources_by_id(sources);
-        control.reset_source_work_tokens();
-        let retained_source_ids = control.sources.keys().cloned().collect::<Vec<_>>();
-        control.priority.immediate.clear();
-        control.priority.visible.clear();
-        control.priority.immediate_paths.clear();
-        control.priority.visible_paths.clear();
-        control.wake("configured_sources_changed");
+        if source_maps_match(&control.sources, &sources) {
+            return;
+        }
+        let changed_source_ids = control
+            .sources
+            .iter()
+            .filter_map(|(source_id, current)| {
+                let changed = sources
+                    .get(source_id)
+                    .is_none_or(|replacement| !source_descriptors_match(current, replacement));
+                changed.then(|| source_id.clone())
+            })
+            .chain(sources.iter().filter_map(|(source_id, replacement)| {
+                let changed = control
+                    .sources
+                    .get(source_id)
+                    .is_none_or(|current| !source_descriptors_match(current, replacement));
+                changed.then(|| source_id.clone())
+            }))
+            .collect::<std::collections::BTreeSet<_>>();
+        for source_id in &changed_source_ids {
+            if let Some(cancel) = control.source_work_cancels.get(source_id) {
+                cancel.store(true, Ordering::Release);
+            }
+        }
+        let mut source_work_cancels = BTreeMap::new();
+        for (source_id, source) in &sources {
+            let cancel = control
+                .sources
+                .get(source_id)
+                .filter(|current| source_descriptors_match(current, source))
+                .and_then(|_| control.source_work_cancels.get(source_id))
+                .cloned()
+                .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+            source_work_cancels.insert(source_id.clone(), cancel);
+        }
+        control.sources = sources;
+        control.source_work_cancels = source_work_cancels;
+        let retained_source_ids = control.sources.keys().cloned().collect::<BTreeSet<_>>();
+        control
+            .dirty_sources
+            .retain(|source_id| retained_source_ids.contains(source_id));
+        control.dirty_sources.extend(
+            changed_source_ids
+                .iter()
+                .filter(|source_id| retained_source_ids.contains(*source_id))
+                .cloned(),
+        );
+        control.priority.immediate.retain(|priority| {
+            retained_source_ids.contains(&priority.source_id)
+                && !changed_source_ids.contains(&priority.source_id)
+        });
+        control.priority.visible.retain(|priority| {
+            retained_source_ids.contains(&priority.source_id)
+                && !changed_source_ids.contains(&priority.source_id)
+        });
+        control.priority.immediate_paths.retain(|(source_id, _)| {
+            retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+        });
+        control.priority.visible_paths.retain(|(source_id, _)| {
+            retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+        });
+        if control
+            .priority
+            .selected_source
+            .as_ref()
+            .is_some_and(|source_id| {
+                !retained_source_ids.contains(source_id) || changed_source_ids.contains(source_id)
+            })
+        {
+            control.priority.selected_source = None;
+        }
+        if control
+            .priority
+            .current_folder
+            .as_ref()
+            .is_some_and(|(source_id, _)| {
+                !retained_source_ids.contains(source_id) || changed_source_ids.contains(source_id)
+            })
+        {
+            control.priority.current_folder = None;
+        }
+        control.notify("configured_sources_changed");
         drop(control);
         self.shared.cancel_external_scans(|registration| {
-            !retained_source_ids
-                .iter()
-                .any(|source_id| source_id == &registration.source_id)
+            changed_source_ids.contains(&registration.source_id)
+                || !retained_source_ids
+                    .iter()
+                    .any(|source_id| source_id == &registration.source_id)
         });
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_all();
@@ -222,7 +342,7 @@ impl SourceProcessingSupervisor {
             return;
         }
         control.cancel_source_work(source_id);
-        control.wake(reason);
+        control.mark_source_dirty(source_id, reason);
         drop(control);
         self.shared
             .cancel_external_scans(|registration| registration.source_id == source_id);
@@ -235,7 +355,7 @@ impl SourceProcessingSupervisor {
         let selected = source_id.map(str::to_string);
         if control.priority.selected_source != selected {
             control.priority.selected_source = selected;
-            control.wake("selected_source_changed");
+            control.notify("selected_source_changed");
             self.shared.wake.notify_one();
         }
     }
@@ -255,7 +375,7 @@ impl SourceProcessingSupervisor {
             &mut control.priority.visible_paths
         };
         if priorities.insert(key) {
-            control.wake("interactive_path_priority");
+            control.notify("interactive_path_priority");
             self.shared.wake.notify_one();
         }
     }
@@ -268,7 +388,7 @@ impl SourceProcessingSupervisor {
         let mut control = self.shared.control();
         if control.priority.visible_paths != visible_paths {
             control.priority.visible_paths = visible_paths;
-            control.wake("visible_paths_changed");
+            control.notify("visible_paths_changed");
             self.shared.wake.notify_one();
         }
     }
@@ -278,7 +398,7 @@ impl SourceProcessingSupervisor {
         let current = Some((source_id.to_string(), relative_path.to_string()));
         if control.priority.current_folder != current {
             control.priority.current_folder = current;
-            control.wake("current_folder_changed");
+            control.notify("current_folder_changed");
             self.shared.wake.notify_one();
         }
     }
@@ -292,11 +412,11 @@ impl SourceProcessingSupervisor {
             } else if !control.foreground_active {
                 control.reset_source_work_tokens();
             }
-            control.wake(if active {
-                "playback_pause"
+            if active {
+                control.notify("playback_pause");
             } else {
-                "playback_resume"
-            });
+                control.mark_all_sources_dirty("playback_resume");
+            }
             drop(control);
             if active {
                 self.shared.cancel_external_scans(|_| true);
@@ -317,11 +437,11 @@ impl SourceProcessingSupervisor {
         } else if !control.playback_active {
             control.reset_source_work_tokens();
         }
-        control.wake(if active {
-            "foreground_activity_pause"
+        if active {
+            control.notify("foreground_activity_pause");
         } else {
-            "foreground_activity_resume"
-        });
+            control.mark_all_sources_dirty("foreground_activity_resume");
+        }
         drop(control);
         if active {
             self.shared.cancel_external_scans(|_| true);
@@ -338,7 +458,7 @@ impl SourceProcessingSupervisor {
             let mut control = self.shared.control();
             control.cancel_all_source_work();
             control.shutdown = true;
-            control.wake("shutdown");
+            control.notify("shutdown");
         }
         self.shared.wake.notify_all();
         self.shared.budget_wake.notify_all();
@@ -365,6 +485,7 @@ impl SourceProcessingSupervisor {
             "oldest_job_age_seconds": telemetry.oldest_job_age_seconds,
             "retries_due": telemetry.retries_due,
             "readiness_queue_depth": telemetry.readiness_queue_depth,
+            "source_discoveries": telemetry.source_discoveries,
         })
     }
 }
@@ -384,7 +505,7 @@ struct Shared {
     telemetry: Mutex<SupervisorTelemetry>,
     budgets: Mutex<BudgetTracker>,
     budget_wake: Condvar,
-    external_scans: Mutex<BTreeMap<u64, ExternalScanRegistration>>,
+    external_scans: Mutex<ExternalScanState>,
     external_scan_wake: Condvar,
     next_external_scan_id: AtomicU64,
 }
@@ -396,10 +517,12 @@ impl Shared {
             .keys()
             .map(|source_id| (source_id.clone(), Arc::new(AtomicBool::new(false))))
             .collect();
+        let dirty_sources = sources.keys().cloned().collect();
         Self {
             state: Mutex::new(ControlState {
                 sources,
                 source_work_cancels,
+                dirty_sources,
                 wake_generation: 1,
                 wake_reason: "startup",
                 playback_active: false,
@@ -412,7 +535,7 @@ impl Shared {
             telemetry: Mutex::new(SupervisorTelemetry::default()),
             budgets: Mutex::new(BudgetTracker::new(ProcessingBudgets::default())),
             budget_wake: Condvar::new(),
-            external_scans: Mutex::new(BTreeMap::new()),
+            external_scans: Mutex::new(ExternalScanState::default()),
             external_scan_wake: Condvar::new(),
             next_external_scan_id: AtomicU64::new(1),
         }
@@ -436,14 +559,14 @@ impl Shared {
             .unwrap_or_else(|poison| poison.into_inner())
     }
 
-    fn external_scans(&self) -> MutexGuard<'_, BTreeMap<u64, ExternalScanRegistration>> {
+    fn external_scans(&self) -> MutexGuard<'_, ExternalScanState> {
         self.external_scans
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
     }
 
     fn cancel_external_scans(&self, should_cancel: impl Fn(&ExternalScanRegistration) -> bool) {
-        for registration in self.external_scans().values() {
+        for registration in self.external_scans().registrations.values() {
             if should_cancel(registration) {
                 registration.cancel.store(true, Ordering::Release);
             }
@@ -454,15 +577,25 @@ impl Shared {
         let registrations = self.external_scans();
         drop(
             self.external_scan_wake
-                .wait_while(registrations, |registrations| !registrations.is_empty())
+                .wait_while(registrations, |state| {
+                    state.admissions > 0 || !state.registrations.is_empty()
+                })
                 .unwrap_or_else(|poison| poison.into_inner()),
         );
+    }
+
+    fn finish_external_scan_admission(&self) {
+        let mut external_scans = self.external_scans();
+        external_scans.admissions = external_scans.admissions.saturating_sub(1);
+        drop(external_scans);
+        self.external_scan_wake.notify_all();
     }
 }
 
 struct ControlState {
     sources: BTreeMap<String, SampleSource>,
     source_work_cancels: BTreeMap<String, Arc<AtomicBool>>,
+    dirty_sources: BTreeSet<String>,
     wake_generation: u64,
     wake_reason: &'static str,
     playback_active: bool,
@@ -472,9 +605,21 @@ struct ControlState {
 }
 
 impl ControlState {
-    fn wake(&mut self, reason: &'static str) {
+    fn notify(&mut self, reason: &'static str) {
         self.wake_generation = self.wake_generation.wrapping_add(1);
         self.wake_reason = reason;
+    }
+
+    fn mark_source_dirty(&mut self, source_id: &str, reason: &'static str) {
+        if self.sources.contains_key(source_id) {
+            self.dirty_sources.insert(source_id.to_string());
+            self.notify(reason);
+        }
+    }
+
+    fn mark_all_sources_dirty(&mut self, reason: &'static str) {
+        self.dirty_sources.extend(self.sources.keys().cloned());
+        self.notify(reason);
     }
 
     fn processing_paused(&self) -> bool {
@@ -518,6 +663,7 @@ struct SupervisorTelemetry {
     oldest_job_age_seconds: u64,
     retries_due: usize,
     readiness_queue_depth: usize,
+    source_discoveries: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -563,26 +709,45 @@ impl ExecutionOutcome {
 fn run_coordinator(shared: Arc<Shared>) {
     let mut observed_generation = 0;
     let mut next_retry_at = None;
+    let mut next_safety_sweep_at = Instant::now() + SAFETY_SWEEP_INTERVAL;
     let mut scheduler = FairScheduler::default();
     let mut reset_sources = BTreeMap::<String, bool>::new();
+    let mut candidates = Vec::<RuntimeCandidate>::new();
+    let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
     loop {
-        let (sources, source_work_cancels, priority, processing_paused, generation, reason) = {
+        let (sources, dirty_sources, source_work_cancels, processing_paused, generation, reason) = {
             let mut control = shared.control();
             while !control.shutdown && control.wake_generation == observed_generation {
-                let wait_duration = coordinator_wait_duration(next_retry_at, now_epoch_seconds());
+                let wait_duration = coordinator_wait_duration(
+                    next_retry_at,
+                    now_epoch_seconds(),
+                    next_safety_sweep_at.saturating_duration_since(Instant::now()),
+                );
                 let (next, _) = shared
                     .wake
                     .wait_timeout(control, wait_duration)
                     .unwrap_or_else(|poison| poison.into_inner());
                 control = next;
                 if control.wake_generation == observed_generation {
-                    let retry_due =
-                        next_retry_at.is_some_and(|deadline| deadline <= now_epoch_seconds());
-                    control.wake(if retry_due {
-                        "retry_deadline"
+                    let now = now_epoch_seconds();
+                    if Instant::now() >= next_safety_sweep_at {
+                        control.mark_all_sources_dirty("periodic_safety_sweep");
+                        next_safety_sweep_at = Instant::now() + SAFETY_SWEEP_INTERVAL;
                     } else {
-                        "periodic_safety_sweep"
-                    });
+                        let due_sources = source_stats
+                            .iter()
+                            .filter_map(|(source_id, stats)| {
+                                stats
+                                    .earliest_retry_at
+                                    .is_some_and(|deadline| deadline <= now)
+                                    .then(|| source_id.clone())
+                            })
+                            .collect::<Vec<_>>();
+                        for source_id in due_sources {
+                            control.dirty_sources.insert(source_id);
+                        }
+                        control.notify("retry_deadline");
+                    }
                 }
             }
             if control.shutdown {
@@ -590,8 +755,8 @@ fn run_coordinator(shared: Arc<Shared>) {
             }
             (
                 control.sources.values().cloned().collect::<Vec<_>>(),
+                std::mem::take(&mut control.dirty_sources),
                 control.source_work_cancels.clone(),
-                control.priority.clone(),
                 control.processing_paused(),
                 control.wake_generation,
                 control.wake_reason,
@@ -599,6 +764,15 @@ fn run_coordinator(shared: Arc<Shared>) {
         };
         observed_generation = generation;
         scheduler.set_paused(processing_paused);
+        let configured_source_ids = sources
+            .iter()
+            .map(|source| source.id.as_str().to_string())
+            .collect::<BTreeSet<_>>();
+        candidates.retain(|candidate| {
+            configured_source_ids.contains(candidate.source.id.as_str())
+                && !dirty_sources.contains(candidate.source.id.as_str())
+        });
+        source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
         if processing_paused {
             tracing::debug!(
                 target: "wavecrate::source_processing",
@@ -640,7 +814,21 @@ fn run_coordinator(shared: Arc<Shared>) {
             .retain(|source_id, _| sources.iter().any(|source| source.id.as_str() == source_id));
 
         let sweep_started = Instant::now();
-        let (mut candidates, mut source_stats) = discover_candidates(&shared, &sources);
+        let sources_to_discover = sources
+            .iter()
+            .filter(|source| dirty_sources.contains(source.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        for source in &sources_to_discover {
+            source_stats.remove(source.id.as_str());
+        }
+        let (mut discovered, discovered_source_stats, deferred_discoveries) =
+            discover_candidates(&shared, &sources_to_discover);
+        if !deferred_discoveries.is_empty() {
+            shared.control().dirty_sources.extend(deferred_discoveries);
+        }
+        candidates.append(&mut discovered);
+        source_stats.extend(discovered_source_stats);
         let discovered_stats = aggregate_source_stats(source_stats.values().copied());
         next_retry_at = discovered_stats.earliest_retry_at;
         {
@@ -655,8 +843,8 @@ fn run_coordinator(shared: Arc<Shared>) {
         }
         while !candidates.is_empty() && !shared.cancel.load(Ordering::Acquire) {
             let control = shared.control();
-            let interrupted =
-                control.processing_paused() || control.wake_generation != observed_generation;
+            let interrupted = control.processing_paused() || !control.dirty_sources.is_empty();
+            let priority = control.priority.clone();
             drop(control);
             if interrupted {
                 break;
@@ -763,18 +951,10 @@ fn run_coordinator(shared: Arc<Shared>) {
             if !should_refresh {
                 continue;
             }
-            match discover_source_candidates(&candidate.source, now_epoch_seconds()) {
-                Ok((mut refreshed, refreshed_stats)) => {
-                    candidates.append(&mut refreshed);
-                    source_stats.insert(source_id.to_string(), refreshed_stats);
-                    let aggregate = aggregate_source_stats(source_stats.values().copied());
-                    next_retry_at = aggregate.earliest_retry_at;
-                    let mut telemetry = shared.telemetry();
-                    telemetry.retries_due = aggregate.retries_due;
-                    telemetry.readiness_queue_depth = aggregate.readiness_queue_depth;
-                }
-                Err(error) => record_discovery_error(&shared, &candidate.source, &error),
-            }
+            shared
+                .control()
+                .mark_source_dirty(source_id, "source_stage_progress");
+            break;
         }
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
@@ -807,17 +987,24 @@ fn discover_candidates(
 ) -> (
     Vec<RuntimeCandidate>,
     BTreeMap<String, SourceDiscoveryStats>,
+    BTreeSet<String>,
 ) {
     let now = now_epoch_seconds();
     let mut candidates = Vec::new();
     let mut source_stats = BTreeMap::new();
+    let mut deferred = BTreeSet::new();
     for source in sources {
         let Some(permit) = shared
             .budgets()
             .try_acquire(source.id.as_str(), ProcessingLane::Cleanup)
         else {
+            deferred.insert(source.id.as_str().to_string());
             continue;
         };
+        {
+            let mut telemetry = shared.telemetry();
+            telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
+        }
         match discover_source_candidates(source, now) {
             Ok((mut source_candidates, stats)) => {
                 candidates.append(&mut source_candidates);
@@ -828,7 +1015,7 @@ fn discover_candidates(
         shared.budgets().release(permit);
         shared.budget_wake.notify_all();
     }
-    (candidates, source_stats)
+    (candidates, source_stats, deferred)
 }
 
 fn discover_source_candidates(
@@ -1729,6 +1916,26 @@ fn sources_by_id(sources: Vec<SampleSource>) -> BTreeMap<String, SampleSource> {
         .collect()
 }
 
+fn source_maps_match(
+    current: &BTreeMap<String, SampleSource>,
+    replacement: &BTreeMap<String, SampleSource>,
+) -> bool {
+    current.len() == replacement.len()
+        && current.iter().all(|(source_id, source)| {
+            replacement
+                .get(source_id)
+                .is_some_and(|other| source_descriptors_match(source, other))
+        })
+}
+
+fn source_descriptors_match(left: &SampleSource, right: &SampleSource) -> bool {
+    left.id == right.id
+        && left.root == right.root
+        && left.role == right.role
+        && left.metadata_storage == right.metadata_storage
+        && left.primary_import_folder == right.primary_import_folder
+}
+
 fn now_epoch_seconds() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1762,11 +1969,15 @@ fn aggregate_source_stats(
         })
 }
 
-fn coordinator_wait_duration(next_retry_at: Option<i64>, now: i64) -> Duration {
-    let retry_wait = next_retry_at.map_or(SAFETY_SWEEP_INTERVAL, |deadline| {
+fn coordinator_wait_duration(
+    next_retry_at: Option<i64>,
+    now: i64,
+    safety_wait: Duration,
+) -> Duration {
+    let retry_wait = next_retry_at.map_or(safety_wait, |deadline| {
         Duration::from_secs(deadline.saturating_sub(now).max(0) as u64)
     });
-    SAFETY_SWEEP_INTERVAL.min(retry_wait)
+    safety_wait.min(retry_wait)
 }
 
 fn oldest_job_age_seconds(candidates: &[RuntimeCandidate], now: i64) -> u64 {
@@ -1849,6 +2060,190 @@ mod tests {
         drop(control);
         drop(first_scan);
         assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn identical_source_refresh_is_a_noop_and_descriptor_changes_are_source_local() {
+        let (_first_directory, first) = unhashed_source("refresh-first");
+        let (_second_directory, second) = unhashed_source("refresh-second");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor.replace_sources(vec![first.clone(), second.clone()]);
+        let (first_generation, second_generation, wake_generation) = {
+            let mut control = supervisor.shared.control();
+            control.dirty_sources.clear();
+            control
+                .priority
+                .immediate_paths
+                .insert((first.id.to_string(), "first.wav".to_string()));
+            control
+                .priority
+                .immediate_paths
+                .insert((second.id.to_string(), "second.wav".to_string()));
+            control.priority.selected_source = Some(second.id.to_string());
+            (
+                Arc::clone(&control.source_work_cancels[first.id.as_str()]),
+                Arc::clone(&control.source_work_cancels[second.id.as_str()]),
+                control.wake_generation,
+            )
+        };
+
+        supervisor.replace_sources(vec![first.clone(), second.clone()]);
+
+        {
+            let control = supervisor.shared.control();
+            assert_eq!(control.wake_generation, wake_generation);
+            assert!(control.dirty_sources.is_empty());
+            assert!(Arc::ptr_eq(
+                &first_generation,
+                &control.source_work_cancels[first.id.as_str()]
+            ));
+            assert!(Arc::ptr_eq(
+                &second_generation,
+                &control.source_work_cancels[second.id.as_str()]
+            ));
+        }
+
+        let replacement_directory = tempfile::tempdir().expect("replacement source root");
+        let replacement =
+            SampleSource::new_with_id(first.id.clone(), replacement_directory.path().to_path_buf());
+        supervisor.replace_sources(vec![replacement, second.clone()]);
+
+        assert!(first_generation.load(Ordering::Acquire));
+        assert!(!second_generation.load(Ordering::Acquire));
+        let control = supervisor.shared.control();
+        assert_eq!(
+            control.dirty_sources,
+            BTreeSet::from([first.id.to_string()])
+        );
+        assert!(Arc::ptr_eq(
+            &second_generation,
+            &control.source_work_cancels[second.id.as_str()]
+        ));
+        assert_eq!(
+            control.priority.immediate_paths,
+            BTreeSet::from([(second.id.to_string(), "second.wav".to_string())])
+        );
+        assert_eq!(
+            control.priority.selected_source.as_deref(),
+            Some(second.id.as_str())
+        );
+        drop(control);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn priority_only_wakes_reuse_candidates_without_source_rediscovery() {
+        let directory = tempfile::tempdir().expect("priority source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("priority-cache"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create priority source database");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        wait_until(Duration::from_secs(5), || {
+            let telemetry = supervisor.shared.telemetry();
+            telemetry.source_discoveries >= 1 && telemetry.queue_depth == 0
+        });
+        let discoveries_before = supervisor.shared.telemetry().source_discoveries;
+
+        for index in 0..128 {
+            supervisor.prioritize_path(
+                source.id.as_str(),
+                format!("visible/sample-{index}.wav").as_str(),
+                true,
+            );
+        }
+        thread::sleep(Duration::from_millis(150));
+
+        assert_eq!(
+            supervisor.shared.telemetry().source_discoveries,
+            discoveries_before,
+            "priority-only wakes must reschedule the retained batch without database discovery"
+        );
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    #[ignore = "representative 10k-file source discovery profile"]
+    fn profile_large_source_discovery_baseline() {
+        const FILE_COUNT: usize = 10_000;
+        let directory = tempfile::tempdir().expect("large profile source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("large-discovery-profile"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create profile source database");
+        let database_root = source.database_root().expect("profile database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open profile database");
+        let transaction = connection.transaction().expect("start profile seed");
+        {
+            let mut insert = transaction
+                .prepare(
+                    "INSERT INTO wav_files (
+                        path, file_size, modified_ns, file_identity, content_hash, missing,
+                        extension
+                     ) VALUES (?1, 1024, 1, ?2, ?3, 0, 'wav')",
+                )
+                .expect("prepare profile insert");
+            for index in 0..FILE_COUNT {
+                insert
+                    .execute(params![
+                        format!("profile/sample-{index:05}.wav"),
+                        format!("identity-{index:05}"),
+                        format!("content-{index:05}"),
+                    ])
+                    .expect("insert profile row");
+            }
+        }
+        transaction.commit().expect("commit profile seed");
+        drop(connection);
+
+        let started_at = Instant::now();
+        let (candidates, stats) =
+            discover_source_candidates(&source, 100).expect("discover large source");
+        let elapsed = started_at.elapsed();
+
+        assert_eq!(candidates.len(), FILE_COUNT * 4 + 1);
+        assert_eq!(stats.readiness_queue_depth, FILE_COUNT * 4 + 1);
+        eprintln!(
+            "large_source_discovery file_count={FILE_COUNT} candidate_count={} elapsed_ms={:.3}",
+            candidates.len(),
+            elapsed.as_secs_f64() * 1_000.0,
+        );
+    }
+
+    #[test]
+    fn shutdown_waits_for_external_scan_admissions_and_rejects_late_permits() {
+        let (_directory, source) = unhashed_source("admission-race");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor.replace_sources(vec![source.clone()]);
+        let handle = supervisor.budget_handle();
+        let first = handle
+            .acquire_scan(source.id.as_str())
+            .expect("reserve the only scan lane");
+        let first_cancel = first.cancel_token();
+        let waiting_handle = handle.clone();
+        let source_id = source.id.to_string();
+        let waiting = thread::spawn(move || waiting_handle.acquire_scan(&source_id).is_none());
+        wait_until(Duration::from_secs(2), || {
+            supervisor.shared.external_scans().admissions == 1
+        });
+
+        let shutdown = thread::spawn(move || supervisor.shutdown());
+        wait_until(Duration::from_secs(2), || {
+            first_cancel.load(Ordering::Acquire)
+        });
+        drop(first);
+
+        assert!(waiting.join().expect("join waiting admission"));
+        let report = shutdown.join().expect("join supervisor shutdown");
+        assert_eq!(report["joined"], true);
+        assert_eq!(report["external_scans_joined"], true);
     }
 
     #[test]
@@ -2246,15 +2641,26 @@ mod tests {
     #[test]
     fn retry_deadline_shortens_coordinator_wait_deterministically() {
         assert_eq!(
-            coordinator_wait_duration(Some(105), 100),
+            coordinator_wait_duration(Some(105), 100, SAFETY_SWEEP_INTERVAL),
             Duration::from_secs(5)
         );
-        assert_eq!(coordinator_wait_duration(Some(100), 100), Duration::ZERO);
         assert_eq!(
-            coordinator_wait_duration(Some(200), 100),
+            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL),
+            Duration::ZERO
+        );
+        assert_eq!(
+            coordinator_wait_duration(Some(200), 100, SAFETY_SWEEP_INTERVAL),
             SAFETY_SWEEP_INTERVAL
         );
-        assert_eq!(coordinator_wait_duration(None, 100), SAFETY_SWEEP_INTERVAL);
+        assert_eq!(
+            coordinator_wait_duration(None, 100, SAFETY_SWEEP_INTERVAL),
+            SAFETY_SWEEP_INTERVAL
+        );
+        assert_eq!(
+            coordinator_wait_duration(None, 100, Duration::from_secs(3)),
+            Duration::from_secs(3),
+            "priority wakes must preserve the remaining absolute safety-sweep deadline"
+        );
     }
 
     #[test]

@@ -2,6 +2,44 @@ use super::*;
 use wavecrate::sample_sources::{SourceId, db::META_LAST_SCAN_COMPLETED_AT};
 
 #[test]
+fn cancellable_finalizer_process_releases_promptly() {
+    let child = std::process::Command::new(std::env::current_exe().expect("current test binary"))
+        .args([
+            "--exact",
+            "native_app::sample_library::similarity_prep::worker::tests::cancellable_child_helper_waits",
+            "--ignored",
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn cancellable finalizer helper");
+    let cancel = std::sync::Arc::new(AtomicBool::new(false));
+    let cancel_worker = std::sync::Arc::clone(&cancel);
+    let trigger = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        cancel_worker.store(true, Ordering::Release);
+    });
+    let started_at = Instant::now();
+
+    let child = wait_for_cancellable_child(child, cancel.as_ref())
+        .expect("cancel finalizer child without error");
+
+    trigger.join().expect("join cancellation trigger");
+    assert!(child.is_none());
+    assert!(
+        started_at.elapsed() < Duration::from_secs(1),
+        "cancellation must promptly terminate the CPU-owning finalizer process"
+    );
+}
+
+#[test]
+#[ignore = "helper process for cancellable_finalizer_process_releases_promptly"]
+fn cancellable_child_helper_waits() {
+    std::thread::sleep(Duration::from_secs(30));
+}
+
+#[test]
 fn native_similarity_status_resolves_core_states() {
     assert_eq!(
         resolve_similarity_prep_facts(SimilarityPrepFacts {

@@ -3,8 +3,15 @@
 use std::{
     collections::HashSet,
     path::PathBuf,
+    process::Child,
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
+};
+
+#[cfg(not(test))]
+use std::{
+    io::Read,
+    process::{Command, Stdio},
 };
 
 use wavecrate::sample_sources::config::{self, AnalysisSettings};
@@ -39,7 +46,10 @@ pub(in crate::native_app) struct SimilarityPrepJobDrainSummary {
     pub(in crate::native_app) failed: usize,
 }
 
-#[derive(Clone, Debug)]
+const INTERNAL_SIMILARITY_FINALIZER_ARG: &str = "--wavecrate-internal-similarity-finalizer-v1";
+const FINALIZER_POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub(in crate::native_app) enum SimilarityPublicationFence {
     Readiness {
         source_id: String,
@@ -224,7 +234,124 @@ pub(in crate::native_app) fn finalize_similarity_prep_if_ready(
     publication_fence: &SimilarityPublicationFence,
     cancel: &AtomicBool,
 ) -> Result<bool, String> {
-    finalize_if_ready(source, publication_fence, cancel)
+    #[cfg(test)]
+    {
+        return finalize_if_ready(source, publication_fence, cancel);
+    }
+    #[cfg(not(test))]
+    {
+        finalize_similarity_prep_in_child(source, publication_fence, cancel)
+    }
+}
+
+pub(in crate::native_app) fn run_internal_similarity_finalizer_from_args()
+-> Result<Option<bool>, String> {
+    let mut args = std::env::args();
+    let _executable = args.next();
+    if args.next().as_deref() != Some(INTERNAL_SIMILARITY_FINALIZER_ARG) {
+        return Ok(None);
+    }
+    let source_json = args
+        .next()
+        .ok_or_else(|| "Internal similarity finalizer is missing its source".to_string())?;
+    let fence_json = args.next().ok_or_else(|| {
+        "Internal similarity finalizer is missing its publication fence".to_string()
+    })?;
+    if args.next().is_some() {
+        return Err("Internal similarity finalizer received unexpected arguments".to_string());
+    }
+    let source = serde_json::from_str::<SampleSource>(&source_json)
+        .map_err(|error| format!("Decode internal similarity source failed: {error}"))?;
+    let publication_fence = serde_json::from_str::<SimilarityPublicationFence>(&fence_json)
+        .map_err(|error| format!("Decode internal similarity fence failed: {error}"))?;
+    let cancel = AtomicBool::new(false);
+    finalize_if_ready(&source, &publication_fence, &cancel).map(Some)
+}
+
+#[cfg(not(test))]
+fn finalize_similarity_prep_in_child(
+    source: &SampleSource,
+    publication_fence: &SimilarityPublicationFence,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Resolve similarity finalizer executable failed: {error}"))?;
+    let source_json = serde_json::to_string(source)
+        .map_err(|error| format!("Encode internal similarity source failed: {error}"))?;
+    let fence_json = serde_json::to_string(publication_fence)
+        .map_err(|error| format!("Encode internal similarity fence failed: {error}"))?;
+    let child = Command::new(executable)
+        .arg(INTERNAL_SIMILARITY_FINALIZER_ARG)
+        .arg(source_json)
+        .arg(fence_json)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Start similarity finalizer process failed: {error}"))?;
+    let Some(mut child) = wait_for_cancellable_child(child, cancel)? else {
+        return Ok(false);
+    };
+    let mut stdout = String::new();
+    if let Some(mut pipe) = child.stdout.take() {
+        pipe.read_to_string(&mut stdout)
+            .map_err(|error| format!("Read similarity finalizer result failed: {error}"))?;
+    }
+    let mut stderr = String::new();
+    if let Some(mut pipe) = child.stderr.take() {
+        pipe.read_to_string(&mut stderr)
+            .map_err(|error| format!("Read similarity finalizer error failed: {error}"))?;
+    }
+    let status = child
+        .wait()
+        .map_err(|error| format!("Join similarity finalizer process failed: {error}"))?;
+    if !status.success() {
+        return Err(format!(
+            "Similarity finalizer process failed with {status}: {}",
+            stderr.trim()
+        ));
+    }
+    serde_json::from_str::<bool>(stdout.trim())
+        .map_err(|error| format!("Decode similarity finalizer result failed: {error}"))
+}
+
+fn wait_for_cancellable_child(
+    mut child: Child,
+    cancel: &AtomicBool,
+) -> Result<Option<Child>, String> {
+    loop {
+        if cancel.load(Ordering::Acquire) {
+            if let Err(error) = child.kill()
+                && child
+                    .try_wait()
+                    .map_err(|poll_error| {
+                        format!(
+                            "Cancel similarity finalizer process failed: {error}; poll failed: {poll_error}"
+                        )
+                    })?
+                    .is_none()
+            {
+                return Err(format!(
+                    "Cancel similarity finalizer process failed: {error}"
+                ));
+            }
+            child
+                .wait()
+                .map_err(|error| format!("Join cancelled similarity finalizer failed: {error}"))?;
+            return Ok(None);
+        }
+        if child
+            .try_wait()
+            .map_err(|error| format!("Poll similarity finalizer process failed: {error}"))?
+            .is_some()
+        {
+            return Ok(Some(child));
+        }
+        std::thread::sleep(FINALIZER_POLL_INTERVAL);
+    }
 }
 
 fn finalize_if_ready(

@@ -21,6 +21,12 @@ pub(in crate::native_app) use options::default_window_title;
 
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
+    if let Some(finalized) =
+        crate::native_app::sample_library::similarity_prep::run_internal_similarity_finalizer_from_args()?
+    {
+        println!("{finalized}");
+        return Ok(());
+    }
     logging::install_panic_hook();
     let args = args::LaunchArgs::collect();
     let startup_started_at = Instant::now();
