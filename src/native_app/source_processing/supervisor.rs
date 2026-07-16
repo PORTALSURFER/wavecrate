@@ -226,9 +226,17 @@ impl Drop for SourceProcessingBudgetPermit {
             .remove(&self.registration_id);
         self.shared.external_scan_wake.notify_all();
         if let Some(permit) = self.permit.take() {
+            let source_id = permit.source_id().to_string();
             self.shared.budgets().release(permit);
             self.shared.budget_wake.notify_all();
-            self.shared.control().notify("external_budget_released");
+            let mut control = self.shared.control();
+            if control.source_is_active(&source_id) {
+                control.cancel_source_work(&source_id);
+                control.mark_source_dirty(&source_id, "external_source_work_committed");
+            } else {
+                control.notify("external_budget_released");
+            }
+            drop(control);
             self.shared.wake.notify_one();
         }
     }
@@ -2549,6 +2557,37 @@ mod tests {
         ));
         drop(control);
         drop(first_scan);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn external_scan_release_invalidates_retained_source_generation() {
+        let (_directory, source) = unhashed_source("external-commit-generation");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        let retained_generation = {
+            let mut control = supervisor.shared.control();
+            control.dirty_sources.clear();
+            Arc::clone(&control.source_work_cancels[source.id.as_str()])
+        };
+        let permit = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("admit external source work");
+
+        drop(permit);
+
+        assert!(retained_generation.load(Ordering::Acquire));
+        let control = supervisor.shared.control();
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        assert!(!control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire));
+        assert!(!Arc::ptr_eq(
+            &retained_generation,
+            &control.source_work_cancels[source.id.as_str()]
+        ));
+        drop(control);
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
