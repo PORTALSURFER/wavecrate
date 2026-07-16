@@ -92,6 +92,36 @@ fn stale_generation_rejects_lazy_ann_build_before_it_publishes() {
 }
 
 #[test]
+fn fenced_ann_rebuild_replaces_stale_container_from_authoritative_embeddings() {
+    with_ann_test_db(|conn| {
+        let dim = similarity::SIMILARITY_DIM;
+        insert_embeddings(conn, dim, &basic_samples(dim));
+        ann_index::rebuild_index(conn).expect("initial ANN rebuild");
+
+        let replacement = normalize(unit_vec(dim, 4));
+        let fresh = normalize(unit_vec(dim, 5));
+        conn.execute(
+            "UPDATE embeddings SET vec = ?1 WHERE sample_id = 's1'",
+            [crate::analysis::vector::encode_f32_le_blob(&replacement)],
+        )
+        .expect("replace authoritative embedding");
+        conn.execute("DELETE FROM embeddings WHERE sample_id = 's2'", [])
+            .expect("remove authoritative embedding");
+        insert_embeddings(conn, dim, &[("s4", fresh)]);
+
+        let published = ann_index::rebuild_index_with_publication_fence(conn, &|_| Ok(true))
+            .expect("publish fenced ANN rebuild");
+
+        assert!(published);
+        let state = load_disk_state(conn);
+        assert_eq!(state.id_map, vec!["s1", "s3", "s4"]);
+        let nearest = state.hnsw.search(&replacement, 1, 16);
+        assert_eq!(nearest.len(), 1);
+        assert_eq!(state.id_map[nearest[0].d_id], "s1");
+    });
+}
+
+#[test]
 fn ann_index_batch_validation_failure_leaves_state_unchanged() {
     with_ann_test_db(|conn| {
         let dim = similarity::SIMILARITY_DIM;

@@ -16,7 +16,7 @@ pub use analysis::{
     compute_similarity_embedding_for_path, decode_f32_le_blob, default_layout_report_path,
     flush_ann_index, flush_ann_index_with_publication_fence, infer_embedding,
     light_dsp_from_features_v1, preprocess_mono_for_embedding, rebuild_ann_index,
-    write_layout_report,
+    rebuild_ann_index_with_publication_fence, write_layout_report,
 };
 pub use analysis::{ann_index, aspects, hdbscan, similarity, umap, vector};
 

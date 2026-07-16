@@ -324,6 +324,34 @@ pub fn rebuild_index(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+/// Rebuild and publish the complete ANN index only while an exact fence remains current.
+pub fn rebuild_index_with_publication_fence(
+    conn: &mut Connection,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<bool, String> {
+    let params = state::default_params();
+    let index_path = storage::default_index_path(conn)?;
+    let mut state = build::build_index_from_db(conn, params, index_path)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("Start ANN rebuild publication transaction failed: {err}"))?;
+    if !publication_fence(&tx)? {
+        tx.rollback()
+            .map_err(|err| format!("Roll back stale ANN rebuild failed: {err}"))?;
+        return Ok(false);
+    }
+    update::flush_index(&tx, &mut state)?;
+    tx.commit()
+        .map_err(|err| format!("Commit ANN rebuild publication failed: {err}"))?;
+    let key = storage::index_key(conn)?;
+    let wrapped_state = Arc::new(RwLock::new(state));
+    let mut guard = ANN_INDEX
+        .write()
+        .map_err(|_| "ANN index lock poisoned".to_string())?;
+    guard.insert(key, wrapped_state);
+    Ok(true)
+}
+
 fn load_embedding(conn: &Connection, sample_id: &str) -> Result<Vec<f32>, String> {
     let blob: Vec<u8> = conn
         .query_row(

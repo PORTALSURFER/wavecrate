@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde_json::Value;
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
@@ -72,8 +72,31 @@ struct ExternalScanRegistration {
 
 #[derive(Default)]
 struct ExternalScanState {
-    admissions: usize,
+    admissions: BTreeMap<u64, String>,
     registrations: BTreeMap<u64, ExternalScanRegistration>,
+}
+
+struct InFlightWorkGuard<'a> {
+    shared: &'a Shared,
+    source_id: String,
+}
+
+impl Drop for InFlightWorkGuard<'_> {
+    fn drop(&mut self) {
+        let mut in_flight = self
+            .shared
+            .in_flight_work
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        if let Some(count) = in_flight.get_mut(&self.source_id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                in_flight.remove(&self.source_id);
+            }
+        }
+        drop(in_flight);
+        self.shared.in_flight_wake.notify_all();
+    }
 }
 
 impl SourceProcessingBudgetHandle {
@@ -81,7 +104,7 @@ impl SourceProcessingBudgetHandle {
         &self,
         source_id: &str,
     ) -> Option<SourceProcessingBudgetPermit> {
-        let admission_cancel = {
+        let (admission_id, admission_cancel) = {
             let mut control = self.shared.control();
             while !control.shutdown
                 && control.sources.contains_key(source_id)
@@ -100,22 +123,27 @@ impl SourceProcessingBudgetHandle {
                 return None;
             }
             let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
+            if admission_cancel.load(Ordering::Acquire) {
+                return None;
+            }
+            let admission_id = self
+                .shared
+                .next_external_scan_id
+                .fetch_add(1, Ordering::Relaxed);
             let mut external_scans = self.shared.external_scans();
-            external_scans.admissions = external_scans.admissions.saturating_add(1);
-            admission_cancel
+            external_scans
+                .admissions
+                .insert(admission_id, source_id.to_string());
+            (admission_id, admission_cancel)
         };
         loop {
             let mut budgets = self.shared.budgets();
             if let Some(permit) = budgets.try_acquire(source_id, ProcessingLane::Scan) {
                 drop(budgets);
-                let registration_id = self
-                    .shared
-                    .next_external_scan_id
-                    .fetch_add(1, Ordering::Relaxed);
                 let cancel = Arc::new(AtomicBool::new(false));
                 let control = self.shared.control();
                 let mut external_scans = self.shared.external_scans();
-                external_scans.admissions = external_scans.admissions.saturating_sub(1);
+                external_scans.admissions.remove(&admission_id);
                 if control.shutdown
                     || self.shared.cancel.load(Ordering::Acquire)
                     || !control.sources.contains_key(source_id)
@@ -130,7 +158,7 @@ impl SourceProcessingBudgetHandle {
                     return None;
                 }
                 external_scans.registrations.insert(
-                    registration_id,
+                    admission_id,
                     ExternalScanRegistration {
                         source_id: source_id.to_string(),
                         cancel: Arc::clone(&cancel),
@@ -142,7 +170,7 @@ impl SourceProcessingBudgetHandle {
                 let permit = SourceProcessingBudgetPermit {
                     shared: Arc::clone(&self.shared),
                     permit: Some(permit),
-                    registration_id,
+                    registration_id: admission_id,
                     cancel,
                 };
                 if permit.should_cancel_now() {
@@ -164,7 +192,7 @@ impl SourceProcessingBudgetHandle {
                 || admission_cancel.load(Ordering::Acquire);
             drop(control);
             if unavailable {
-                self.shared.finish_external_scan_admission();
+                self.shared.finish_external_scan_admission(admission_id);
                 return None;
             }
         }
@@ -233,11 +261,19 @@ impl SourceProcessingSupervisor {
         }
     }
 
-    pub(in crate::native_app) fn replace_sources(&self, sources: Vec<SampleSource>) {
+    pub(in crate::native_app) fn replace_sources(
+        &self,
+        sources: Vec<SampleSource>,
+    ) -> Result<(), String> {
+        let _replacement = self
+            .shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         let sources = sources_by_id(sources);
-        let mut control = self.shared.control();
+        let control = self.shared.control();
         if source_maps_match(&control.sources, &sources) {
-            return;
+            return Ok(());
         }
         let changed_source_ids = control
             .sources
@@ -256,11 +292,47 @@ impl SourceProcessingSupervisor {
                 changed.then(|| source_id.clone())
             }))
             .collect::<std::collections::BTreeSet<_>>();
+        let retired_sources = changed_source_ids
+            .iter()
+            .filter_map(|source_id| control.sources.get(source_id).cloned())
+            .collect::<Vec<_>>();
         for source_id in &changed_source_ids {
             if let Some(cancel) = control.source_work_cancels.get(source_id) {
                 cancel.store(true, Ordering::Release);
             }
         }
+        drop(control);
+        self.shared.cancel_external_scans(|registration| {
+            changed_source_ids.contains(&registration.source_id)
+        });
+        self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_all();
+        self.shared
+            .wait_for_external_scans_for_sources(&changed_source_ids);
+        self.shared.wait_for_in_flight_sources(&changed_source_ids);
+        for source in retired_sources {
+            if let Err(error) = fence_retired_source_readiness(&source) {
+                let mut control = self.shared.control();
+                for source_id in &changed_source_ids {
+                    if control.sources.contains_key(source_id) {
+                        control
+                            .source_work_cancels
+                            .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
+                        control.dirty_sources.insert(source_id.clone());
+                    }
+                }
+                control.notify("configured_sources_change_failed");
+                drop(control);
+                self.shared.budget_wake.notify_all();
+                self.shared.wake.notify_all();
+                return Err(format!(
+                    "Persist retired source readiness fence for {} failed: {error}",
+                    source.id
+                ));
+            }
+        }
+
+        let mut control = self.shared.control();
         let mut source_work_cancels = BTreeMap::new();
         for (source_id, source) in &sources {
             let cancel = control
@@ -320,14 +392,9 @@ impl SourceProcessingSupervisor {
         }
         control.notify("configured_sources_changed");
         drop(control);
-        self.shared.cancel_external_scans(|registration| {
-            changed_source_ids.contains(&registration.source_id)
-                || !retained_source_ids
-                    .iter()
-                    .any(|source_id| source_id == &registration.source_id)
-        });
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_all();
+        Ok(())
     }
 
     pub(in crate::native_app) fn budget_handle(&self) -> SourceProcessingBudgetHandle {
@@ -415,7 +482,7 @@ impl SourceProcessingSupervisor {
             if active {
                 control.notify("playback_pause");
             } else {
-                control.mark_all_sources_dirty("playback_resume");
+                control.notify("playback_resume");
             }
             drop(control);
             if active {
@@ -440,7 +507,7 @@ impl SourceProcessingSupervisor {
         if active {
             control.notify("foreground_activity_pause");
         } else {
-            control.mark_all_sources_dirty("foreground_activity_resume");
+            control.notify("foreground_activity_resume");
         }
         drop(control);
         if active {
@@ -499,6 +566,7 @@ impl Drop for SourceProcessingSupervisor {
 }
 
 struct Shared {
+    source_replacement: Mutex<()>,
     state: Mutex<ControlState>,
     wake: Condvar,
     cancel: AtomicBool,
@@ -508,6 +576,8 @@ struct Shared {
     external_scans: Mutex<ExternalScanState>,
     external_scan_wake: Condvar,
     next_external_scan_id: AtomicU64,
+    in_flight_work: Mutex<BTreeMap<String, usize>>,
+    in_flight_wake: Condvar,
 }
 
 impl Shared {
@@ -519,6 +589,7 @@ impl Shared {
             .collect();
         let dirty_sources = sources.keys().cloned().collect();
         Self {
+            source_replacement: Mutex::new(()),
             state: Mutex::new(ControlState {
                 sources,
                 source_work_cancels,
@@ -538,6 +609,8 @@ impl Shared {
             external_scans: Mutex::new(ExternalScanState::default()),
             external_scan_wake: Condvar::new(),
             next_external_scan_id: AtomicU64::new(1),
+            in_flight_work: Mutex::new(BTreeMap::new()),
+            in_flight_wake: Condvar::new(),
         }
     }
 
@@ -578,17 +651,78 @@ impl Shared {
         drop(
             self.external_scan_wake
                 .wait_while(registrations, |state| {
-                    state.admissions > 0 || !state.registrations.is_empty()
+                    !state.admissions.is_empty() || !state.registrations.is_empty()
                 })
                 .unwrap_or_else(|poison| poison.into_inner()),
         );
     }
 
-    fn finish_external_scan_admission(&self) {
+    fn wait_for_external_scans_for_sources(&self, source_ids: &BTreeSet<String>) {
+        let registrations = self.external_scans();
+        drop(
+            self.external_scan_wake
+                .wait_while(registrations, |state| {
+                    state
+                        .admissions
+                        .values()
+                        .any(|source_id| source_ids.contains(source_id))
+                        || state
+                            .registrations
+                            .values()
+                            .any(|registration| source_ids.contains(&registration.source_id))
+                })
+                .unwrap_or_else(|poison| poison.into_inner()),
+        );
+    }
+
+    fn finish_external_scan_admission(&self, admission_id: u64) {
         let mut external_scans = self.external_scans();
-        external_scans.admissions = external_scans.admissions.saturating_sub(1);
+        external_scans.admissions.remove(&admission_id);
         drop(external_scans);
         self.external_scan_wake.notify_all();
+    }
+
+    fn begin_in_flight_work<'a>(
+        &'a self,
+        source_id: &str,
+        expected_cancel: &Arc<AtomicBool>,
+    ) -> Option<InFlightWorkGuard<'a>> {
+        let control = self.control();
+        let current_cancel = control.source_work_cancels.get(source_id)?;
+        if control.shutdown
+            || control.processing_paused()
+            || !Arc::ptr_eq(current_cancel, expected_cancel)
+            || expected_cancel.load(Ordering::Acquire)
+        {
+            return None;
+        }
+        let mut in_flight = self
+            .in_flight_work
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        *in_flight.entry(source_id.to_string()).or_default() += 1;
+        drop(in_flight);
+        drop(control);
+        Some(InFlightWorkGuard {
+            shared: self,
+            source_id: source_id.to_string(),
+        })
+    }
+
+    fn wait_for_in_flight_sources(&self, source_ids: &BTreeSet<String>) {
+        let in_flight = self
+            .in_flight_work
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        drop(
+            self.in_flight_wake
+                .wait_while(in_flight, |work| {
+                    source_ids
+                        .iter()
+                        .any(|source_id| work.get(source_id).is_some_and(|count| *count > 0))
+                })
+                .unwrap_or_else(|poison| poison.into_inner()),
+        );
     }
 }
 
@@ -753,11 +887,17 @@ fn run_coordinator(shared: Arc<Shared>) {
             if control.shutdown {
                 break;
             }
+            let processing_paused = control.processing_paused();
+            let dirty_sources = if processing_paused {
+                BTreeSet::new()
+            } else {
+                std::mem::take(&mut control.dirty_sources)
+            };
             (
                 control.sources.values().cloned().collect::<Vec<_>>(),
-                std::mem::take(&mut control.dirty_sources),
+                dirty_sources,
                 control.source_work_cancels.clone(),
-                control.processing_paused(),
+                processing_paused,
                 control.wake_generation,
                 control.wake_reason,
             )
@@ -792,6 +932,17 @@ fn run_coordinator(shared: Arc<Shared>) {
                 else {
                     continue;
                 };
+                let Some(source_cancel) = source_work_cancels.get(&source_id) else {
+                    shared.budgets().release(permit);
+                    shared.budget_wake.notify_all();
+                    continue;
+                };
+                let Some(in_flight_work) = shared.begin_in_flight_work(&source_id, source_cancel)
+                else {
+                    shared.budgets().release(permit);
+                    shared.budget_wake.notify_all();
+                    continue;
+                };
                 match reset_interrupted_similarity_prep_jobs(source) {
                     Ok(reset) => {
                         reset_sources.insert(source_id, true);
@@ -806,6 +957,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                     }
                     Err(error) => record_discovery_error(&shared, source, &error),
                 }
+                drop(in_flight_work);
                 shared.budgets().release(permit);
                 shared.budget_wake.notify_all();
             }
@@ -823,7 +975,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             source_stats.remove(source.id.as_str());
         }
         let (mut discovered, discovered_source_stats, deferred_discoveries) =
-            discover_candidates(&shared, &sources_to_discover);
+            discover_candidates(&shared, &sources_to_discover, &source_work_cancels);
         if !deferred_discoveries.is_empty() {
             shared.control().dirty_sources.extend(deferred_discoveries);
         }
@@ -873,7 +1025,16 @@ fn run_coordinator(shared: Arc<Shared>) {
                 shared.budget_wake.notify_all();
                 break;
             };
+            let Some(in_flight_work) =
+                shared.begin_in_flight_work(candidate.source.id.as_str(), candidate_cancel)
+            else {
+                shared.budgets().release(permit);
+                shared.budget_wake.notify_all();
+                candidates.push(candidate);
+                break;
+            };
             let result = execute_candidate(&candidate, candidate_cancel.as_ref());
+            drop(in_flight_work);
             shared.budgets().release(permit);
             shared.budget_wake.notify_all();
             let mut telemetry = shared.telemetry();
@@ -933,6 +1094,16 @@ fn run_coordinator(shared: Arc<Shared>) {
                 }
             }
             drop(telemetry);
+            let requeue_cancelled = matches!(execution_outcome, Some(ExecutionOutcome::Cancelled))
+                && {
+                    let control = shared.control();
+                    control.sources.contains_key(candidate.source.id.as_str())
+                        && !control.dirty_sources.contains(candidate.source.id.as_str())
+                };
+            if requeue_cancelled {
+                candidates.push(candidate);
+                continue;
+            }
             let source_id = candidate.source.id.as_str();
             if candidates
                 .iter()
@@ -984,6 +1155,7 @@ fn run_coordinator(shared: Arc<Shared>) {
 fn discover_candidates(
     shared: &Shared,
     sources: &[SampleSource],
+    source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
 ) -> (
     Vec<RuntimeCandidate>,
     BTreeMap<String, SourceDiscoveryStats>,
@@ -1001,6 +1173,17 @@ fn discover_candidates(
             deferred.insert(source.id.as_str().to_string());
             continue;
         };
+        let Some(source_cancel) = source_work_cancels.get(source.id.as_str()) else {
+            shared.budgets().release(permit);
+            shared.budget_wake.notify_all();
+            continue;
+        };
+        let Some(in_flight_work) = shared.begin_in_flight_work(source.id.as_str(), source_cancel)
+        else {
+            shared.budgets().release(permit);
+            shared.budget_wake.notify_all();
+            continue;
+        };
         {
             let mut telemetry = shared.telemetry();
             telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
@@ -1012,6 +1195,7 @@ fn discover_candidates(
             }
             Err(error) => record_discovery_error(shared, source, &error),
         }
+        drop(in_flight_work);
         shared.budgets().release(permit);
         shared.budget_wake.notify_all();
     }
@@ -1217,6 +1401,53 @@ fn source_processing_schema_available(connection: &rusqlite::Connection) -> Resu
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())
+}
+
+fn fence_retired_source_readiness(source: &SampleSource) -> Result<(), String> {
+    let database_path = source.db_path().map_err(|error| error.to_string())?;
+    if !database_path.exists() {
+        return Ok(());
+    }
+    let database_root = source.database_root().map_err(|error| error.to_string())?;
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .map_err(|error| error.to_string())?;
+    if connection
+        .is_readonly(rusqlite::MAIN_DB)
+        .map_err(|error| error.to_string())?
+    {
+        return Ok(());
+    }
+    let readiness_source_table_exists = connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM sqlite_master
+                WHERE type = 'table' AND name = 'source_readiness_sources'
+             )",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if !readiness_source_table_exists {
+        return Ok(());
+    }
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "UPDATE source_readiness_sources
+             SET availability = 'disabled',
+                 readiness_revision = readiness_revision + 1,
+                 updated_at = ?2
+             WHERE source_id = ?1 AND availability != 'disabled'",
+            params![source.id.as_str(), now_epoch_seconds()],
+        )
+        .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())
 }
 
 fn publish_current_readiness_targets(
@@ -1860,19 +2091,39 @@ fn embedding_aspects_are_current(
     connection
         .query_row(
             "SELECT EXISTS(
-                SELECT 1 FROM analysis_cache_embeddings
-                WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?3
-            ) AND EXISTS(
-                SELECT 1 FROM analysis_cache_aspect_descriptors
-                WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?4
-            ) AND EXISTS(
-                SELECT 1 FROM embeddings
-                WHERE sample_id = ?5 AND model_id = ?3 AND dim = ?6
-                  AND dtype = ?7 AND l2_normed = 1
-            ) AND EXISTS(
-                SELECT 1 FROM similarity_aspect_descriptors
-                WHERE sample_id = ?5 AND model_id = ?4 AND dim = ?8
-                  AND dtype = ?9 AND l2_normed = 1
+                SELECT 1
+                FROM samples AS sample
+                JOIN embeddings AS embedding
+                  ON embedding.sample_id = sample.sample_id
+                JOIN analysis_cache_embeddings AS cached_embedding
+                  ON cached_embedding.content_hash = sample.content_hash
+                 AND cached_embedding.analysis_version = ?2
+                 AND cached_embedding.model_id = ?3
+                JOIN similarity_aspect_descriptors AS aspects
+                  ON aspects.sample_id = sample.sample_id
+                JOIN analysis_cache_aspect_descriptors AS cached_aspects
+                  ON cached_aspects.content_hash = sample.content_hash
+                 AND cached_aspects.analysis_version = ?2
+                 AND cached_aspects.model_id = ?4
+                WHERE sample.sample_id = ?5
+                  AND sample.content_hash = ?1
+                  AND embedding.model_id = cached_embedding.model_id
+                  AND embedding.dim = cached_embedding.dim
+                  AND embedding.dtype = cached_embedding.dtype
+                  AND embedding.l2_normed = cached_embedding.l2_normed
+                  AND embedding.vec = cached_embedding.vec
+                  AND embedding.dim = ?6
+                  AND embedding.dtype = ?7
+                  AND embedding.l2_normed = 1
+                  AND aspects.model_id = cached_aspects.model_id
+                  AND aspects.dim = cached_aspects.dim
+                  AND aspects.dtype = cached_aspects.dtype
+                  AND aspects.l2_normed = cached_aspects.l2_normed
+                  AND aspects.valid_mask = cached_aspects.valid_mask
+                  AND aspects.vec = cached_aspects.vec
+                  AND aspects.dim = ?8
+                  AND aspects.dtype = ?9
+                  AND aspects.l2_normed = 1
             )",
             params![
                 target.content_generation,
@@ -2019,7 +2270,9 @@ mod tests {
         let (_directory, source) = unhashed_source("removed");
         let mut supervisor =
             SourceProcessingSupervisor::start_with_playback_state(vec![source.clone()], true);
-        supervisor.replace_sources(Vec::new());
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove configured sources");
         supervisor.set_playback_active(false);
 
         thread::sleep(Duration::from_millis(150));
@@ -2032,7 +2285,9 @@ mod tests {
         let (_first_directory, first) = unhashed_source("first");
         let (_second_directory, second) = unhashed_source("second");
         let mut supervisor = SourceProcessingSupervisor::dormant();
-        supervisor.replace_sources(vec![first.clone(), second.clone()]);
+        supervisor
+            .replace_sources(vec![first.clone(), second.clone()])
+            .expect("configure sources");
         let (first_generation, second_generation) = {
             let control = supervisor.shared.control();
             (
@@ -2067,7 +2322,9 @@ mod tests {
         let (_first_directory, first) = unhashed_source("refresh-first");
         let (_second_directory, second) = unhashed_source("refresh-second");
         let mut supervisor = SourceProcessingSupervisor::dormant();
-        supervisor.replace_sources(vec![first.clone(), second.clone()]);
+        supervisor
+            .replace_sources(vec![first.clone(), second.clone()])
+            .expect("configure sources");
         let (first_generation, second_generation, wake_generation) = {
             let mut control = supervisor.shared.control();
             control.dirty_sources.clear();
@@ -2087,7 +2344,9 @@ mod tests {
             )
         };
 
-        supervisor.replace_sources(vec![first.clone(), second.clone()]);
+        supervisor
+            .replace_sources(vec![first.clone(), second.clone()])
+            .expect("refresh identical sources");
 
         {
             let control = supervisor.shared.control();
@@ -2106,7 +2365,9 @@ mod tests {
         let replacement_directory = tempfile::tempdir().expect("replacement source root");
         let replacement =
             SampleSource::new_with_id(first.id.clone(), replacement_directory.path().to_path_buf());
-        supervisor.replace_sources(vec![replacement, second.clone()]);
+        supervisor
+            .replace_sources(vec![replacement, second.clone()])
+            .expect("replace changed source");
 
         assert!(first_generation.load(Ordering::Acquire));
         assert!(!second_generation.load(Ordering::Acquire));
@@ -2142,7 +2403,7 @@ mod tests {
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
         wait_until(Duration::from_secs(5), || {
             let telemetry = supervisor.shared.telemetry();
-            telemetry.source_discoveries >= 1 && telemetry.queue_depth == 0
+            telemetry.source_discoveries >= 2 && telemetry.queue_depth == 0
         });
         let discoveries_before = supervisor.shared.telemetry().source_discoveries;
 
@@ -2160,6 +2421,230 @@ mod tests {
             discoveries_before,
             "priority-only wakes must reschedule the retained batch without database discovery"
         );
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn playback_and_foreground_resumes_reuse_the_retained_source_snapshot() {
+        let directory = tempfile::tempdir().expect("resume source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("resume-cache"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create resume source database");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source]);
+        wait_until(Duration::from_secs(5), || {
+            let telemetry = supervisor.shared.telemetry();
+            telemetry.source_discoveries >= 2 && telemetry.queue_depth == 0
+        });
+        let discoveries_before = supervisor.shared.telemetry().source_discoveries;
+
+        for _ in 0..64 {
+            supervisor.set_playback_active(true);
+            supervisor.set_playback_active(false);
+            supervisor.set_foreground_activity(true);
+            supervisor.set_foreground_activity(false);
+        }
+        thread::sleep(Duration::from_millis(150));
+
+        assert_eq!(
+            supervisor.shared.telemetry().source_discoveries,
+            discoveries_before,
+            "resume must reuse retained candidates instead of restarting manifest discovery"
+        );
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn embedding_readiness_rejects_rows_from_the_previous_content_generation() {
+        let (_directory, source) = ready_analysis_source("embedding-generation");
+        let database_root = source.database_root().expect("database root");
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open embedding database");
+        let sample_id = format!("{}::ready.wav", source.id);
+        let embedding_dim = wavecrate_analysis::similarity::SIMILARITY_DIM as i64;
+        let aspect_dim = wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64;
+        let embedding_a = vec![1_u8, 2, 3, 4];
+        let embedding_b = vec![5_u8, 6, 7, 8];
+        let aspects_a = vec![9_u8, 10, 11, 12];
+        let aspects_b = vec![13_u8, 14, 15, 16];
+        connection
+            .execute(
+                "INSERT INTO samples (sample_id, content_hash, size, mtime_ns)
+                 VALUES (?1, 'content-a', 1, 1)",
+                [&sample_id],
+            )
+            .expect("insert sample");
+        for (content_hash, embedding, aspects) in [
+            ("content-a", embedding_a.as_slice(), aspects_a.as_slice()),
+            ("content-b", embedding_b.as_slice(), aspects_b.as_slice()),
+        ] {
+            connection
+                .execute(
+                    "INSERT INTO analysis_cache_embeddings (
+                        content_hash, analysis_version, model_id, dim, dtype,
+                        l2_normed, vec, created_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, 1)",
+                    params![
+                        content_hash,
+                        wavecrate_analysis::analysis_version(),
+                        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                        embedding_dim,
+                        wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
+                        embedding,
+                    ],
+                )
+                .expect("insert cached embedding");
+            connection
+                .execute(
+                    "INSERT INTO analysis_cache_aspect_descriptors (
+                        content_hash, analysis_version, model_id, dim, dtype,
+                        l2_normed, valid_mask, vec, created_at
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, 1, 7, ?6, 1)",
+                    params![
+                        content_hash,
+                        wavecrate_analysis::analysis_version(),
+                        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                        aspect_dim,
+                        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+                        aspects,
+                    ],
+                )
+                .expect("insert cached aspects");
+        }
+        connection
+            .execute(
+                "INSERT INTO embeddings (
+                    sample_id, model_id, dim, dtype, l2_normed, vec, created_at
+                 ) VALUES (?1, ?2, ?3, ?4, 1, ?5, 1)",
+                params![
+                    sample_id,
+                    wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                    embedding_dim,
+                    wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
+                    embedding_a,
+                ],
+            )
+            .expect("insert materialized embedding");
+        connection
+            .execute(
+                "INSERT INTO similarity_aspect_descriptors (
+                    sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at
+                 ) VALUES (?1, ?2, ?3, ?4, 1, 7, ?5, 1)",
+                params![
+                    sample_id,
+                    wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                    aspect_dim,
+                    wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+                    aspects_a,
+                ],
+            )
+            .expect("insert materialized aspects");
+        connection
+            .execute(
+                "UPDATE samples SET content_hash = 'content-b' WHERE sample_id = ?1",
+                [&sample_id],
+            )
+            .expect("advance sample content");
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "identity-1",
+            "ready.wav",
+            ReadinessStage::EmbeddingAspects,
+            "embedding-v1",
+            1,
+            "content-b",
+        );
+
+        assert!(!embedding_aspects_are_current(&connection, &target).unwrap());
+
+        connection
+            .execute(
+                "UPDATE embeddings SET vec = ?2 WHERE sample_id = ?1",
+                params![sample_id, embedding_b],
+            )
+            .expect("materialize current embedding");
+        connection
+            .execute(
+                "UPDATE similarity_aspect_descriptors SET vec = ?2 WHERE sample_id = ?1",
+                params![sample_id, aspects_b],
+            )
+            .expect("materialize current aspects");
+        assert!(embedding_aspects_are_current(&connection, &target).unwrap());
+    }
+
+    #[test]
+    fn source_removal_joins_in_flight_publication_before_disabling_readiness() {
+        let (_directory, source) = unhashed_source("retired-fence");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'retired-identity', content_hash = 'retired-content'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("assign readiness identity");
+        publish_current_readiness_targets(&mut connection, source.id.as_str(), 1)
+            .expect("publish readiness targets");
+        drop(connection);
+
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        let generation = {
+            let control = supervisor.shared.control();
+            Arc::clone(&control.source_work_cancels[source.id.as_str()])
+        };
+        let in_flight = supervisor
+            .shared
+            .begin_in_flight_work(source.id.as_str(), &generation)
+            .expect("register in-flight source publication");
+        let (removed, removal_finished) = std::sync::mpsc::channel();
+        thread::scope(|scope| {
+            scope.spawn(|| {
+                supervisor
+                    .replace_sources(Vec::new())
+                    .expect("remove configured source");
+                removed.send(()).expect("report source removal");
+            });
+            assert!(
+                removal_finished
+                    .recv_timeout(Duration::from_millis(50))
+                    .is_err(),
+                "source removal must join active publication before returning"
+            );
+            drop(in_flight);
+            removal_finished
+                .recv_timeout(Duration::from_secs(2))
+                .expect("source removal completes after publication joins");
+        });
+
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen readiness database");
+        let availability: String = connection
+            .query_row(
+                "SELECT availability FROM source_readiness_sources WHERE source_id = ?1",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read retired source readiness");
+        assert_eq!(availability, "disabled");
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -2221,7 +2706,9 @@ mod tests {
     fn shutdown_waits_for_external_scan_admissions_and_rejects_late_permits() {
         let (_directory, source) = unhashed_source("admission-race");
         let mut supervisor = SourceProcessingSupervisor::dormant();
-        supervisor.replace_sources(vec![source.clone()]);
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
         let handle = supervisor.budget_handle();
         let first = handle
             .acquire_scan(source.id.as_str())
@@ -2231,7 +2718,7 @@ mod tests {
         let source_id = source.id.to_string();
         let waiting = thread::spawn(move || waiting_handle.acquire_scan(&source_id).is_none());
         wait_until(Duration::from_secs(2), || {
-            supervisor.shared.external_scans().admissions == 1
+            supervisor.shared.external_scans().admissions.len() == 1
         });
 
         let shutdown = thread::spawn(move || supervisor.shutdown());
@@ -2250,7 +2737,9 @@ mod tests {
     fn foreground_activity_cancels_in_flight_work_without_reviving_old_generations() {
         let (_directory, source) = unhashed_source("foreground");
         let mut supervisor = SourceProcessingSupervisor::dormant();
-        supervisor.replace_sources(vec![source.clone()]);
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
         let source_generation = {
             let control = supervisor.shared.control();
             Arc::clone(&control.source_work_cancels[source.id.as_str()])
@@ -2471,7 +2960,9 @@ mod tests {
     fn external_scan_tokens_cancel_for_playback_removal_and_shutdown() {
         let (_directory, source) = unhashed_source("external-cancel");
         let mut supervisor = SourceProcessingSupervisor::dormant();
-        supervisor.replace_sources(vec![source.clone()]);
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
 
         let playback_permit = supervisor
             .budget_handle()
@@ -2489,11 +2980,22 @@ mod tests {
             .acquire_scan(source.id.as_str())
             .expect("acquire removal permit");
         let removal_cancel = removal_permit.cancel_token();
-        supervisor.replace_sources(Vec::new());
+        let removal_cancel_for_releaser = Arc::clone(&removal_cancel);
+        let releaser = thread::spawn(move || {
+            while !removal_cancel_for_releaser.load(Ordering::Acquire) {
+                thread::yield_now();
+            }
+            drop(removal_permit);
+        });
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove configured source");
+        releaser.join().expect("join removal scan releaser");
         assert!(removal_cancel.load(Ordering::Acquire));
-        drop(removal_permit);
 
-        supervisor.replace_sources(vec![source.clone()]);
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("restore configured source");
         let shutdown_permit = supervisor
             .budget_handle()
             .acquire_scan(source.id.as_str())

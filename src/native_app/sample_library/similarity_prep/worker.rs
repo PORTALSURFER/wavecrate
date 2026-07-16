@@ -433,7 +433,7 @@ fn finalize_if_ready(
     if cancel.load(Ordering::Acquire) {
         return Ok(false);
     }
-    if !analysis::flush_ann_index_with_publication_fence(&mut conn, &fence)? {
+    if !analysis::rebuild_ann_index_with_publication_fence(&mut conn, &fence)? {
         return Ok(false);
     }
     if cancel.load(Ordering::Acquire) {

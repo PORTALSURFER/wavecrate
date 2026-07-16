@@ -82,9 +82,18 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn sync_source_watcher(&mut self) {
         let sources = self.library.folder_browser.configured_sample_sources();
-        self.background
+        if let Err(error) = self
+            .background
             .source_processing
-            .replace_sources(sources.clone());
+            .replace_sources(sources.clone())
+        {
+            tracing::error!(
+                target: "wavecrate::source_processing",
+                error,
+                "Configured sources remain unchanged because retirement fencing failed"
+            );
+            return;
+        }
         if sources.is_empty() {
             self.library.source_watcher = None;
             return;
