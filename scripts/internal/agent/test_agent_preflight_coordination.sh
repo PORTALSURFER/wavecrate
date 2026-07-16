@@ -103,21 +103,20 @@ expect_file_count "$HOOK_COUNT" 5
 
 # Two concurrent explicit full-preflight requests coalesce to one owner.
 STATE_DIR="$FIXTURE_DIR/preflight-state"
-READY_FILE="$FIXTURE_DIR/full-preflight-ready"
 WAVECRATE_AGENT_PREFLIGHT_STATE_DIR="$STATE_DIR" \
   WAVECRATE_AGENT_CI_CHECKS_COMMAND="$FAKE_FULL_CHECK" \
   WAVECRATE_AGENT_TEST_SLEEP_SECONDS=1 \
-  WAVECRATE_AGENT_TEST_READY_FILE="$READY_FILE" \
+  WAVECRATE_AGENT_PREFLIGHT_TEST_PAUSE_AFTER_LOCK_ACQUIRE_SECONDS=1 \
   "$REPO_DIR/scripts/internal/agent/run_agent_preflight.sh" >"$FIXTURE_DIR/owner.log" 2>&1 &
 owner_pid=$!
 for (( attempt = 0; attempt < 50; attempt++ )); do
-  if [[ -f "$READY_FILE" ]]; then
+  if [[ -f "$STATE_DIR/run.lock" ]]; then
     break
   fi
   sleep 0.1
 done
-if [[ ! -f "$READY_FILE" ]]; then
-  fail "single-flight owner did not reach the instrumented full check"
+if [[ ! -f "$STATE_DIR/run.lock" ]]; then
+  fail "single-flight owner did not publish its lock"
 fi
 WAVECRATE_AGENT_PREFLIGHT_STATE_DIR="$STATE_DIR" \
   WAVECRATE_AGENT_CI_CHECKS_COMMAND="$FAKE_FULL_CHECK" \
@@ -131,13 +130,12 @@ if ! rg -q 'coalesced with active full preflight' "$FIXTURE_DIR/joiner.log"; the
 fi
 
 # A dead owner lock cannot suppress the next explicit full preflight.
-mkdir -p "$STATE_DIR/run.lock"
-printf '999999\t%s\n' "$STATE_DIR/stale-result" > "$STATE_DIR/run.lock/owner"
+printf '999999\t%s\n' "$STATE_DIR/stale-result" > "$STATE_DIR/run.lock"
 WAVECRATE_AGENT_PREFLIGHT_STATE_DIR="$STATE_DIR" \
   WAVECRATE_AGENT_CI_CHECKS_COMMAND="$FAKE_FULL_CHECK" \
   "$REPO_DIR/scripts/internal/agent/run_agent_preflight.sh" >/dev/null
 expect_file_count "$FULL_COUNT" 2
-if [[ -d "$STATE_DIR/run.lock" ]]; then
+if [[ -e "$STATE_DIR/run.lock" ]]; then
   fail "stale lock was not cleared"
 fi
 

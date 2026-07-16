@@ -47,52 +47,46 @@ if ([string]::IsNullOrWhiteSpace($stateDir)) {
 }
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 
-$lockDir = Join-Path $stateDir "run.lock"
-$ownsLock = $false
-$resultFile = $null
-
-while (-not $ownsLock) {
+$sha256 = New-Object System.Security.Cryptography.SHA256Managed
+try {
+  $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($stateDir))
+} finally {
+  $sha256.Dispose()
+}
+$mutexName = "Wavecrate.AgentPreflight.$(([System.BitConverter]::ToString($hashBytes)).Replace('-', ''))"
+$mutex = [System.Threading.Mutex]::new($false, $mutexName)
+$resultFile = Join-Path $stateDir "last-result"
+$ownsMutex = $false
+$isOwner = $mutex.WaitOne(0)
+if ($isOwner) {
+  $ownsMutex = $true
+} else {
+  Write-Host "[agent_preflight] another full preflight is active; waiting to coalesce."
+  $abandoned = $false
   try {
-    New-Item -ItemType Directory -Path $lockDir -ErrorAction Stop | Out-Null
-    $ownsLock = $true
-  } catch [System.IO.IOException] {
-    $ownerPid = $null
-    $ownerResult = $null
-    $ownerFile = Join-Path $lockDir "owner"
-    if (Test-Path -LiteralPath $ownerFile) {
-      $ownerFields = (Get-Content -LiteralPath $ownerFile -Raw).Trim() -split "`t", 2
-      if ($ownerFields.Count -eq 2) {
-        $ownerPid = $ownerFields[0]
-        $ownerResult = $ownerFields[1]
+    $mutex.WaitOne() | Out-Null
+  } catch [System.Threading.AbandonedMutexException] {
+    Write-Host "[agent_preflight] recovered an interrupted full-preflight owner."
+    $abandoned = $true
+  }
+  try {
+    if (-not $abandoned -and (Test-Path -LiteralPath $resultFile)) {
+      $ownerStatus = (Get-Content -LiteralPath $resultFile -Raw).Trim()
+      if ($ownerStatus -match '^\d+$') {
+        Write-Host "[agent_preflight] coalesced with active full preflight (exit $ownerStatus)."
+        exit ([int]$ownerStatus)
       }
     }
-
-    $ownerRunning = $false
-    if ($null -ne $ownerPid -and $ownerPid -match '^\d+$') {
-      $ownerRunning = $null -ne (Get-Process -Id ([int]$ownerPid) -ErrorAction SilentlyContinue)
-    }
-    if ($ownerRunning) {
-      Write-Host "[agent_preflight] another full preflight is active (pid $ownerPid); waiting to coalesce."
-      while ((Test-Path -LiteralPath $lockDir) -and (Get-Process -Id ([int]$ownerPid) -ErrorAction SilentlyContinue)) {
-        Start-Sleep -Milliseconds 100
-      }
-      if ($null -ne $ownerResult -and (Test-Path -LiteralPath $ownerResult)) {
-        $ownerStatus = (Get-Content -LiteralPath $ownerResult -Raw).Trim()
-        if ($ownerStatus -match '^\d+$') {
-          Write-Host "[agent_preflight] coalesced with active full preflight (exit $ownerStatus)."
-          exit ([int]$ownerStatus)
-        }
-      }
-      Write-Host "[agent_preflight] active owner ended without a result; retrying ownership."
-    } else {
-      Write-Host "[agent_preflight] clearing stale single-flight state."
-      Remove-Item -LiteralPath $lockDir -Force -Recurse -ErrorAction SilentlyContinue
+    Write-Host "[agent_preflight] active owner ended without a result; becoming the new owner."
+    $isOwner = $true
+    $ownsMutex = $true
+  } finally {
+    if (-not $ownsMutex) {
+      $mutex.ReleaseMutex()
     }
   }
 }
 
-$resultFile = Join-Path $stateDir ("result.{0}.{1}" -f $PID, [guid]::NewGuid().ToString("N"))
-Set-Content -LiteralPath (Join-Path $lockDir "owner") -Value ("{0}`t{1}" -f $PID, $resultFile) -NoNewline
 $exitCode = 1
 
 $args = @(
@@ -111,5 +105,8 @@ try {
   Write-Host "[agent_preflight] OK"
 } finally {
   Set-Content -LiteralPath $resultFile -Value $exitCode -NoNewline
-  Remove-Item -LiteralPath $lockDir -Force -Recurse -ErrorAction SilentlyContinue
+  if ($ownsMutex) {
+    $mutex.ReleaseMutex()
+  }
+  $mutex.Dispose()
 }

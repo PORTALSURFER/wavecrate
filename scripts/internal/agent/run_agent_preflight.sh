@@ -48,7 +48,7 @@ if [[ -z "$STATE_DIR" ]]; then
 fi
 mkdir -p "$STATE_DIR"
 
-LOCK_DIR="$STATE_DIR/run.lock"
+LOCK_FILE="$STATE_DIR/run.lock"
 OWNER=0
 RESULT_FILE=""
 
@@ -56,7 +56,7 @@ release_lock() {
   local status="$1"
   if (( OWNER == 1 )); then
     printf '%s\n' "$status" > "$RESULT_FILE"
-    rm -rf "$LOCK_DIR"
+    rm -f "$LOCK_FILE"
     OWNER=0
   fi
 }
@@ -71,16 +71,29 @@ trap on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+while :; do
+  RESULT_FILE="$STATE_DIR/result.$$.${RANDOM}"
+  CANDIDATE_LOCK="$STATE_DIR/candidate.$$.${RANDOM}"
+  printf '%s\t%s\n' "$$" "$RESULT_FILE" > "$CANDIDATE_LOCK"
+  if ln "$CANDIDATE_LOCK" "$LOCK_FILE" 2>/dev/null; then
+    rm -f "$CANDIDATE_LOCK"
+    OWNER=1
+    if [[ "${WAVECRATE_AGENT_PREFLIGHT_TEST_PAUSE_AFTER_LOCK_ACQUIRE_SECONDS:-0}" != "0" ]]; then
+      sleep "$WAVECRATE_AGENT_PREFLIGHT_TEST_PAUSE_AFTER_LOCK_ACQUIRE_SECONDS"
+    fi
+    break
+  fi
+  rm -f "$CANDIDATE_LOCK"
+
   OWNER_PID=""
   OWNER_RESULT=""
-  if [[ -r "$LOCK_DIR/owner" ]]; then
-    IFS=$'\t' read -r OWNER_PID OWNER_RESULT < "$LOCK_DIR/owner" || true
+  if [[ -r "$LOCK_FILE" ]]; then
+    IFS=$'\t' read -r OWNER_PID OWNER_RESULT < "$LOCK_FILE" || true
   fi
 
   if [[ -n "$OWNER_PID" ]] && kill -0 "$OWNER_PID" 2>/dev/null; then
     echo "[agent_preflight] another full preflight is active (pid $OWNER_PID); waiting to coalesce."
-    while [[ -d "$LOCK_DIR" ]] && kill -0 "$OWNER_PID" 2>/dev/null; do
+    while [[ -e "$LOCK_FILE" ]] && kill -0 "$OWNER_PID" 2>/dev/null; do
       sleep 0.1
     done
     if [[ -n "$OWNER_RESULT" && -f "$OWNER_RESULT" ]]; then
@@ -96,12 +109,8 @@ while ! mkdir "$LOCK_DIR" 2>/dev/null; do
   fi
 
   echo "[agent_preflight] clearing stale single-flight state."
-  rm -rf "$LOCK_DIR"
+  rm -f "$LOCK_FILE"
 done
-
-OWNER=1
-RESULT_FILE="$STATE_DIR/result.$$.${RANDOM}"
-printf '%s\t%s\n' "$$" "$RESULT_FILE" > "$LOCK_DIR/owner"
 
 CHECKS_COMMAND="${WAVECRATE_AGENT_CI_CHECKS_COMMAND:-$ROOT_DIR/scripts/internal/agent/run_agent_ci_checks.sh}"
 if [[ ! -x "$CHECKS_COMMAND" ]]; then
