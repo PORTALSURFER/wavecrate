@@ -3,7 +3,6 @@
 use std::{
     collections::HashSet,
     path::PathBuf,
-    process::Child,
     sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
@@ -47,7 +46,6 @@ pub(in crate::native_app) struct SimilarityPrepJobDrainSummary {
 }
 
 const INTERNAL_SIMILARITY_FINALIZER_ARG: &str = "--wavecrate-internal-similarity-finalizer-v1";
-const FINALIZER_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub(in crate::native_app) enum SimilarityPublicationFence {
@@ -292,7 +290,12 @@ fn finalize_similarity_prep_in_child(
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|error| format!("Start similarity finalizer process failed: {error}"))?;
-    let Some(mut child) = wait_for_cancellable_child(child, cancel)? else {
+    let Some(mut child) = crate::native_app::source_processing::wait_for_cancellable_child(
+        child,
+        cancel,
+        "similarity finalizer",
+    )?
+    else {
         return Ok(false);
     };
     let mut stdout = String::new();
@@ -316,42 +319,6 @@ fn finalize_similarity_prep_in_child(
     }
     serde_json::from_str::<bool>(stdout.trim())
         .map_err(|error| format!("Decode similarity finalizer result failed: {error}"))
-}
-
-fn wait_for_cancellable_child(
-    mut child: Child,
-    cancel: &AtomicBool,
-) -> Result<Option<Child>, String> {
-    loop {
-        if cancel.load(Ordering::Acquire) {
-            if let Err(error) = child.kill()
-                && child
-                    .try_wait()
-                    .map_err(|poll_error| {
-                        format!(
-                            "Cancel similarity finalizer process failed: {error}; poll failed: {poll_error}"
-                        )
-                    })?
-                    .is_none()
-            {
-                return Err(format!(
-                    "Cancel similarity finalizer process failed: {error}"
-                ));
-            }
-            child
-                .wait()
-                .map_err(|error| format!("Join cancelled similarity finalizer failed: {error}"))?;
-            return Ok(None);
-        }
-        if child
-            .try_wait()
-            .map_err(|error| format!("Poll similarity finalizer process failed: {error}"))?
-            .is_some()
-        {
-            return Ok(Some(child));
-        }
-        std::thread::sleep(FINALIZER_POLL_INTERVAL);
-    }
 }
 
 fn finalize_if_ready(

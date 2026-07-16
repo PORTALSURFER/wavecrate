@@ -237,6 +237,21 @@ pub(crate) fn mark_pending(conn: &Connection, job_id: i64) -> Result<(), String>
     Ok(())
 }
 
+pub(crate) fn mark_pending_if_running(conn: &Connection, job_id: i64) -> Result<(), String> {
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let before = progress_snapshot::job_state_by_id(conn, job_id)?;
+    conn.execute(
+        "UPDATE analysis_jobs
+         SET status = 'pending', running_at = NULL
+         WHERE id = ?1 AND status = 'running'",
+        params![job_id],
+    )
+    .map_err(|err| format!("Failed to release running analysis job: {err}"))?;
+    let after = progress_snapshot::job_state_by_id(conn, job_id)?;
+    progress_snapshot::apply_state_transitions(conn, [(before, after)])?;
+    Ok(())
+}
+
 pub(crate) fn touch_running_at(conn: &Connection, job_ids: &[i64]) -> Result<(), String> {
     if job_ids.is_empty() {
         return Ok(());

@@ -2,5 +2,9 @@
 
 mod scheduler;
 mod supervisor;
+mod worker;
 
 pub(in crate::native_app) use supervisor::SourceProcessingSupervisor;
+pub(in crate::native_app) use worker::{
+    run_internal_source_analysis_from_args, wait_for_cancellable_child,
+};

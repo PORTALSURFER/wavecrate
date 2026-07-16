@@ -31,8 +31,7 @@ use super::scheduler::{
 };
 use crate::native_app::sample_library::similarity_prep::{
     NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
-    reset_interrupted_similarity_prep_jobs, run_similarity_prep_job,
-    similarity_prep_needs_finalization,
+    reset_interrupted_similarity_prep_jobs, similarity_prep_needs_finalization,
 };
 use crate::native_app::waveform::{
     cached_waveform_file_audition_ready_exists, ensure_persisted_playback_summary,
@@ -1635,15 +1634,17 @@ fn execute_candidate(
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
         RuntimeTask::LegacyAnalysis { job_id } => {
-            run_similarity_prep_job(&candidate.source, *job_id, cancel, 1).map(|summary| {
-                if summary.processed == 0 {
-                    ExecutionOutcome::NotClaimed
-                } else if summary.failed > 0 {
-                    ExecutionOutcome::Failed
-                } else {
-                    ExecutionOutcome::Completed
-                }
-            })
+            super::worker::run_legacy_job(&candidate.source, *job_id, 1, cancel).map(
+                |(processed, failed)| {
+                    if processed == 0 {
+                        ExecutionOutcome::NotClaimed
+                    } else if failed > 0 {
+                        ExecutionOutcome::Failed
+                    } else {
+                        ExecutionOutcome::Completed
+                    }
+                },
+            )
         }
         RuntimeTask::FinalizeSimilarity { publication_fence } => {
             finalize_similarity_prep_if_ready(&candidate.source, publication_fence, cancel).map(
@@ -1971,10 +1972,9 @@ fn run_readiness_stage(
             Ok(if analysis_features_are_current(connection, target)? {
                 ReadinessExecutionOutcome::Complete
             } else {
-                let produced = wavecrate::internal_analysis_jobs::run_readiness_feature_stage(
+                let produced = super::worker::run_readiness_feature_stage(
                     connection,
-                    &source.root,
-                    target.source_id.as_str(),
+                    source,
                     std::path::Path::new(relative_path),
                     target.content_generation.as_str(),
                     target.required_version.as_str(),
@@ -2008,10 +2008,9 @@ fn run_readiness_stage(
             Ok(if embedding_aspects_are_current(connection, target)? {
                 ReadinessExecutionOutcome::Complete
             } else {
-                let produced = wavecrate::internal_analysis_jobs::run_readiness_embedding_stage(
+                let produced = super::worker::run_readiness_embedding_stage(
                     connection,
-                    &source.root,
-                    target.source_id.as_str(),
+                    source,
                     std::path::Path::new(relative_path),
                     target.content_generation.as_str(),
                     wavecrate_analysis::analysis_version(),

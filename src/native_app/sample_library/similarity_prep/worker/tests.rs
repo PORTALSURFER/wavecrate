@@ -22,8 +22,12 @@ fn cancellable_finalizer_process_releases_promptly() {
     });
     let started_at = Instant::now();
 
-    let child = wait_for_cancellable_child(child, cancel.as_ref())
-        .expect("cancel finalizer child without error");
+    let child = crate::native_app::source_processing::wait_for_cancellable_child(
+        child,
+        cancel.as_ref(),
+        "similarity finalizer",
+    )
+    .expect("cancel finalizer child without error");
 
     trigger.join().expect("join cancellation trigger");
     assert!(child.is_none());

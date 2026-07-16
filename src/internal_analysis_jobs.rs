@@ -137,6 +137,11 @@ pub fn release(conn: &Connection, job: &ClaimedAnalysisJob) -> Result<(), String
     analysis_jobs::db::mark_pending(conn, job.inner.id)
 }
 
+/// Return one exact claimed job to pending after its worker process is cancelled.
+pub fn release_job_by_id(conn: &Connection, job_id: i64) -> Result<(), String> {
+    analysis_jobs::db::mark_pending_if_running(conn, job_id)
+}
+
 /// Mark one claimed analysis job as failed.
 pub fn mark_failed_with_reason(
     conn: &Connection,
