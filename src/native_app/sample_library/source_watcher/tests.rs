@@ -1,5 +1,6 @@
 use super::classification::path_is_source_refresh_candidate;
 use super::handle::doubled_backoff;
+use super::roots::RootWatchUpdate;
 use super::state::GuiSourceWatchState;
 use notify::{Event, EventKind, event::RemoveKind};
 use std::{path::PathBuf, time::Instant};
@@ -160,6 +161,61 @@ fn live_root_events_do_not_feed_database_writes_back_into_scans() {
     );
 
     assert!(state.pending.is_empty());
+}
+
+#[test]
+fn initial_watch_registration_does_not_queue_full_source_refresh() {
+    let root = tempfile::tempdir().expect("source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::initial-watch"),
+        root.path().to_path_buf(),
+    );
+    let mut state = GuiSourceWatchState {
+        sources: vec![source],
+        ..Default::default()
+    };
+    let (_unavailable, failed) = state.apply_root_watch_update(
+        RootWatchUpdate {
+            changed_roots: vec![root.path().to_path_buf()],
+            has_unavailable_roots: false,
+            watch_failed: false,
+        },
+        Instant::now(),
+        false,
+    );
+
+    assert!(!failed);
+    assert!(state.pending.is_empty());
+}
+
+#[test]
+fn later_watch_registration_queues_authoritative_source_refresh() {
+    let root = tempfile::tempdir().expect("source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::reappeared-watch"),
+        root.path().to_path_buf(),
+    );
+    let mut state = GuiSourceWatchState {
+        sources: vec![source],
+        ..Default::default()
+    };
+    let (_unavailable, failed) = state.apply_root_watch_update(
+        RootWatchUpdate {
+            changed_roots: vec![root.path().to_path_buf()],
+            has_unavailable_roots: false,
+            watch_failed: false,
+        },
+        Instant::now(),
+        true,
+    );
+
+    assert!(!failed);
+    assert!(
+        state
+            .pending
+            .get("source_id::reappeared-watch")
+            .is_some_and(|pending| pending.overflowed)
+    );
 }
 
 #[test]

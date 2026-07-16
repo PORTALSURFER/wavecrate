@@ -96,10 +96,10 @@ fn run_source_watcher(
                 Err(TrySendError::Disconnected(_)) => {}
             }) {
                 Ok(mut restarted) => {
-                    state.reset_watches(now);
                     let (unavailable, watch_failed) =
-                        state.refresh_watched_roots(&mut restarted, now);
+                        state.refresh_watched_roots(&mut restarted, now, false);
                     if watch_failed {
+                        state.reset_watches(now);
                         next_restart = now + restart_delay;
                         restart_delay = doubled_backoff(restart_delay);
                     } else {
@@ -129,7 +129,8 @@ fn run_source_watcher(
         if let Some(active_watcher) = watcher.as_mut()
             && now >= next_root_refresh
         {
-            let (unavailable, watch_failed) = state.refresh_watched_roots(active_watcher, now);
+            let (unavailable, watch_failed) =
+                state.refresh_watched_roots(active_watcher, now, true);
             root_refresh_failed = watch_failed;
             if !watch_failed {
                 next_root_refresh = now

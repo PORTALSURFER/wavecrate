@@ -9,7 +9,7 @@ use wavecrate::sample_sources::SampleSource;
 use super::classification::path_is_source_refresh_candidate;
 use super::debounce::{GuiSourceWatchEvent, PendingGuiSourceWatch};
 use super::path_mapping::{source_for_path, source_relative_path};
-use super::roots::update_watched_roots;
+use super::roots::{RootWatchUpdate, update_watched_roots};
 
 #[derive(Default)]
 pub(super) struct GuiSourceWatchState {
@@ -34,17 +34,29 @@ impl GuiSourceWatchState {
         &mut self,
         watcher: &mut RecommendedWatcher,
         now: Instant,
+        reconcile_changed_roots: bool,
     ) -> (bool, bool) {
         let update = update_watched_roots(watcher, &mut self.watched_roots, &self.sources);
-        for root in update.changed_roots {
-            let affected = self
-                .sources
-                .iter()
-                .filter(|source| source.root == root)
-                .map(|source| source.id.as_str().to_string())
-                .collect::<Vec<_>>();
-            for source_id in affected {
-                self.mark_source_overflowed(&source_id, now);
+        self.apply_root_watch_update(update, now, reconcile_changed_roots)
+    }
+
+    pub(super) fn apply_root_watch_update(
+        &mut self,
+        update: RootWatchUpdate,
+        now: Instant,
+        reconcile_changed_roots: bool,
+    ) -> (bool, bool) {
+        if reconcile_changed_roots {
+            for root in update.changed_roots {
+                let affected = self
+                    .sources
+                    .iter()
+                    .filter(|source| source.root == root)
+                    .map(|source| source.id.as_str().to_string())
+                    .collect::<Vec<_>>();
+                for source_id in affected {
+                    self.mark_source_overflowed(&source_id, now);
+                }
             }
         }
         (update.has_unavailable_roots, update.watch_failed)
