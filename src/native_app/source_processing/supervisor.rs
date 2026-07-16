@@ -397,6 +397,46 @@ impl SourceProcessingSupervisor {
         Ok(())
     }
 
+    /// Admit a newly configured source before its first external scan starts.
+    ///
+    /// This deliberately only grows the configured set. Full replacement may
+    /// fence retired sources and wait for their in-flight work, so it must not
+    /// run from the UI scan-launch path.
+    pub(in crate::native_app) fn register_source_for_scan(
+        &self,
+        source: SampleSource,
+    ) -> Result<(), String> {
+        let _replacement = match self.shared.source_replacement.try_lock() {
+            Ok(replacement) => replacement,
+            Err(std::sync::TryLockError::Poisoned(poison)) => poison.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => {
+                return Err("Configured sources are currently being replaced".to_string());
+            }
+        };
+        let source_id = source.id.as_str().to_string();
+        let mut control = self.shared.control();
+        if control.shutdown || self.shared.cancel.load(Ordering::Acquire) {
+            return Err("Source processing supervisor is shutting down".to_string());
+        }
+        if let Some(current) = control.sources.get(&source_id) {
+            return source_descriptors_match(current, &source)
+                .then_some(())
+                .ok_or_else(|| {
+                    format!("Source {source_id} is already registered with a different descriptor")
+                });
+        }
+
+        control.sources.insert(source_id.clone(), source);
+        control
+            .source_work_cancels
+            .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
+        control.mark_source_dirty(&source_id, "source_registered_for_scan");
+        drop(control);
+        self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_one();
+        Ok(())
+    }
+
     pub(in crate::native_app) fn budget_handle(&self) -> SourceProcessingBudgetHandle {
         SourceProcessingBudgetHandle {
             shared: Arc::clone(&self.shared),
@@ -2424,6 +2464,54 @@ mod tests {
         ));
         drop(control);
         drop(first_scan);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn scan_registration_only_adds_absent_matching_sources() {
+        let (_directory, source) = unhashed_source("scan-registration");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+
+        supervisor
+            .register_source_for_scan(source.clone())
+            .expect("register source before first scan");
+        supervisor
+            .register_source_for_scan(source.clone())
+            .expect("matching registration is idempotent");
+        let permit = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("newly registered source admits scan work");
+
+        let replacement_directory = tempfile::tempdir().expect("replacement source root");
+        let replacement = SampleSource::new_with_id(
+            source.id.clone(),
+            replacement_directory.path().to_path_buf(),
+        );
+        assert!(
+            supervisor.register_source_for_scan(replacement).is_err(),
+            "scan registration must not replace an authoritative descriptor"
+        );
+        let control = supervisor.shared.control();
+        assert!(source_descriptors_match(
+            &control.sources[source.id.as_str()],
+            &source
+        ));
+        drop(control);
+        drop(permit);
+
+        let replacement = supervisor
+            .shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        assert_eq!(
+            supervisor
+                .register_source_for_scan(source.clone())
+                .expect_err("scan registration must not wait for source replacement"),
+            "Configured sources are currently being replaced"
+        );
+        drop(replacement);
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 

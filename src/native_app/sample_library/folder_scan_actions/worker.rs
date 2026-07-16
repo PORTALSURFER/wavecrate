@@ -28,6 +28,27 @@ impl NativeAppState {
         let started_at = Instant::now();
         let label = request.label.clone();
         let root = request.root.display().to_string();
+        let source = self
+            .library
+            .folder_browser
+            .configured_sample_sources()
+            .into_iter()
+            .find(|source| source.id.as_str() == request.source_id);
+        let admission = source
+            .ok_or_else(|| "Source is not present in the configured source set".to_string())
+            .and_then(|source| {
+                self.background
+                    .source_processing
+                    .register_source_for_scan(source)
+            });
+        if let Err(error) = admission {
+            tracing::error!(
+                target: "wavecrate::source_processing",
+                source_id = request.source_id.as_str(),
+                error,
+                "Folder scan will be cancelled because source admission could not be synchronized"
+            );
+        }
         self.library.start_folder_scan(&request);
         self.ui.status.sample = format!("Scanning source {}", request.label);
         tracing::info!(

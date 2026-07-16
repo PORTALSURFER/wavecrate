@@ -1,6 +1,39 @@
 use super::*;
 
 #[test]
+fn adding_source_after_startup_registers_it_before_scan_admission_and_finish() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .library
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 101)
+        .expect("new source requests scan");
+    let source_id = request.source_id.clone();
+    let request_for_worker = request.clone();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.launch_folder_scan(request, &mut context);
+
+    let permit = state
+        .background
+        .source_processing
+        .budget_handle()
+        .acquire_scan(&source_id)
+        .expect("newly added source must be admitted before its first scan");
+    let result = crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+        request_for_worker,
+        |_| {},
+        |_| {},
+    );
+    drop(permit);
+    state.finish_folder_scan(result, &mut context);
+
+    assert!(state.library.folder_browser.selected_source_loaded());
+    assert!(state.library.folder_progress().is_none());
+}
+
+#[test]
 fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
     let source_root = tempfile::tempdir().expect("source root");
     let drums = source_root.path().join("drums");
