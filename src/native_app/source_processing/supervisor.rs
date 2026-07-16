@@ -131,7 +131,7 @@ impl SourceProcessingBudgetHandle {
         // coordinator could acquire the scan lane after we inspected it but before it observed the
         // foreground reservation.
         let budgets = self.shared.budgets();
-        let active_scan_sources = budgets.active_sources_for_lane(ProcessingLane::Scan);
+        let active_sources = budgets.active_sources();
         let (admission_id, admission_cancel) = {
             let mut control = self.shared.control();
             if control.shutdown
@@ -141,17 +141,17 @@ impl SourceProcessingBudgetHandle {
             {
                 return None;
             }
-            for active_source_id in active_scan_sources {
+            for active_source_id in active_sources {
                 tracing::info!(
                     target: "wavecrate::source_processing",
                     source_id,
                     preempted_source_id = active_source_id.as_str(),
-                    "Foreground source scan admission is reserving the occupied scan lane"
+                    "Foreground source scan admission is reserving occupied processing capacity"
                 );
                 control.cancel_source_work(&active_source_id);
                 control.mark_source_dirty(
                     &active_source_id,
-                    "foreground_scan_preempted_background_scan",
+                    "foreground_scan_preempted_background_work",
                 );
             }
             let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
@@ -1156,6 +1156,11 @@ fn run_coordinator(shared: Arc<Shared>) {
             }
             let external_scan_admitted = shared.has_external_scan_admission();
             let eligible_indices = scheduler_candidate_indices(&candidates, external_scan_admitted);
+            if eligible_indices.is_empty() {
+                let mut telemetry = shared.telemetry();
+                telemetry.contention = telemetry.contention.saturating_add(1);
+                break;
+            }
             let schedules = eligible_indices
                 .iter()
                 .map(|index| candidates[*index].schedule.clone())
@@ -1274,6 +1279,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             }
             let should_refresh = match (&candidate.task, execution_outcome) {
                 (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Completed))
+                | (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Failed))
                 | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Failed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
@@ -1321,10 +1327,7 @@ fn scheduler_candidate_indices(
     candidates
         .iter()
         .enumerate()
-        .filter_map(|(index, candidate)| {
-            (!(external_scan_admitted && candidate.schedule.lane == ProcessingLane::Scan))
-                .then_some(index)
-        })
+        .filter_map(|(index, _candidate)| (!external_scan_admitted).then_some(index))
         .collect()
 }
 
@@ -1392,8 +1395,7 @@ fn discover_source_candidates(
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     if !source.root.is_dir() {
         if database_root != source.root && database_root.is_dir() {
-            let connection = SourceDatabase::open_connection_with_role_and_database_root(
-                &source.root,
+            let connection = SourceDatabase::open_unavailable_source_metadata_connection(
                 &database_root,
                 SourceDatabaseConnectionRole::JobWorker,
             )
@@ -1974,6 +1976,7 @@ fn execute_candidate(
                 completed_at,
             )
             .map_err(|error| error.to_string())?;
+            let incomplete_error = outcome.incomplete_error.clone();
             tracing::debug!(
                 target: "wavecrate::source_processing",
                 source_id = candidate.source.id.as_str(),
@@ -1994,6 +1997,14 @@ fn execute_candidate(
             }
             if cancel.load(Ordering::Acquire) {
                 Ok(ExecutionOutcome::Cancelled)
+            } else if let Some(error) = incomplete_error {
+                tracing::warn!(
+                    target: "wavecrate::source_processing",
+                    source_id = candidate.source.id.as_str(),
+                    error,
+                    "Manifest audit published a committed checkpoint and remains due"
+                );
+                Ok(ExecutionOutcome::Failed)
             } else {
                 Ok(ExecutionOutcome::Completed)
             }
@@ -3320,7 +3331,7 @@ mod tests {
     }
 
     #[test]
-    fn foreground_scan_admission_preempts_the_background_scan_lane() {
+    fn foreground_scan_admission_preempts_incompatible_background_work() {
         let (_first_directory, first) = unhashed_source("background-holder");
         let (_second_directory, second) = unhashed_source("foreground-waiter");
         let shared = Arc::new(Shared::new(vec![first.clone(), second.clone()], None));
@@ -3330,8 +3341,8 @@ mod tests {
         };
         let background_permit = shared
             .budgets()
-            .try_acquire(first.id.as_str(), ProcessingLane::Scan)
-            .expect("reserve scan lane for background work");
+            .try_acquire(first.id.as_str(), ProcessingLane::Hashing)
+            .expect("reserve database capacity for background hashing");
         let waiting_shared = Arc::clone(&shared);
         let foreground_source_id = second.id.to_string();
         let waiting = thread::spawn(move || {
@@ -3364,7 +3375,7 @@ mod tests {
     }
 
     #[test]
-    fn foreground_scan_admission_reserves_scan_candidates_only() {
+    fn foreground_scan_admission_reserves_all_processing_capacity() {
         let (_directory, source) = unhashed_source("foreground-reservation");
         let candidates = vec![
             RuntimeCandidate {
@@ -3380,7 +3391,7 @@ mod tests {
         ];
 
         assert_eq!(scheduler_candidate_indices(&candidates, false), vec![0, 1]);
-        assert_eq!(scheduler_candidate_indices(&candidates, true), vec![1]);
+        assert!(scheduler_candidate_indices(&candidates, true).is_empty());
     }
 
     #[test]
@@ -3486,13 +3497,29 @@ mod tests {
     }
 
     #[test]
-    fn missing_source_discovery_does_not_recreate_the_source_root() {
+    fn missing_source_discovery_updates_external_metadata_without_recreating_audio_root() {
         let parent = tempfile::tempdir().expect("missing source parent");
         let root = parent.path().join("source");
         std::fs::create_dir(&root).expect("create source root");
         let source =
-            SampleSource::new_with_id(SourceId::from_string("missing-source"), root.clone());
-        source.open_db().expect("create source database");
+            SampleSource::new_with_id(SourceId::from_string("missing-source"), root.clone())
+                .protected();
+        let database_root = source.database_root().expect("external metadata root");
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("create external source database");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_sources (
+                    source_id, source_generation, readiness_revision, availability, updated_at
+                 ) VALUES (?1, 1, 1, 'active', 1)",
+                [source.id.as_str()],
+            )
+            .expect("publish active source readiness");
+        drop(connection);
         std::fs::remove_dir_all(&root).expect("remove source root");
         let cancel = AtomicBool::new(false);
 
@@ -3507,6 +3534,19 @@ mod tests {
             !root.exists(),
             "discovery must not recreate a missing source"
         );
+        let connection = SourceDatabase::open_unavailable_source_metadata_connection(
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen external source metadata");
+        let availability: String = connection
+            .query_row(
+                "SELECT availability FROM source_readiness_sources WHERE source_id = ?1",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read missing source availability");
+        assert_eq!(availability, "offline");
     }
 
     #[test]

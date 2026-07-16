@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
+use wavecrate_library::sample_sources::SourceManifestEntry;
 
 use super::{ScanError, ScanMode, ScanStats};
 
@@ -11,6 +12,7 @@ pub(crate) struct ScanContext {
     pub(crate) stats: ScanStats,
     pub(crate) mode: ScanMode,
     pub(crate) rename_candidate_generation: Option<u64>,
+    pub(crate) last_committed_snapshot: Option<(u64, Vec<SourceManifestEntry>)>,
 }
 
 impl ScanContext {
@@ -28,6 +30,7 @@ impl ScanContext {
             stats: ScanStats::default(),
             mode,
             rename_candidate_generation: None,
+            last_committed_snapshot: None,
         }
     }
 
@@ -45,6 +48,15 @@ impl ScanContext {
         };
         self.rename_candidate_generation = Some(generation);
         Ok(())
+    }
+
+    pub(in crate::sample_sources::scanner) fn commit_batch(
+        &mut self,
+        batch: SourceWriteBatch<'_>,
+    ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
+        let snapshot = batch.commit_with_manifest_snapshot()?;
+        self.last_committed_snapshot = Some(snapshot.clone());
+        Ok(snapshot)
     }
 }
 

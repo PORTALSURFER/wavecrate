@@ -67,8 +67,15 @@ impl NativeAppState {
                 source_id,
                 paths,
                 overflowed,
+                source_root_available,
             } => {
-                self.refresh_source_after_filesystem_change(source_id, paths, overflowed, context);
+                self.refresh_source_after_filesystem_change(
+                    source_id,
+                    paths,
+                    overflowed,
+                    source_root_available,
+                    context,
+                );
             }
             GuiMessage::SourceFilesystemSyncFinished(result) => {
                 self.finish_source_filesystem_sync(result, context);

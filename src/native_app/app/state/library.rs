@@ -113,12 +113,14 @@ impl LibraryAppState {
         source_id: String,
         paths: &[std::path::PathBuf],
         overflowed: bool,
+        source_root_available: bool,
     ) -> SourceFilesystemChangePlan {
         self.source_scan.plan_filesystem_change(
             &mut self.folder_browser,
             source_id,
             paths,
             overflowed,
+            source_root_available,
         )
     }
 

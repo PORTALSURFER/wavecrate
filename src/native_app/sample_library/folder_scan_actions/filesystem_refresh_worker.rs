@@ -62,6 +62,7 @@ fn sync_source_database_paths_once(
         .and_then(|db| {
             let stats = scanner::sync_paths_with_progress(&db, paths, Some(cancel), &mut |_, _| {})
                 .map_err(|err| format!("sync source index: {err}"))?;
+            let incomplete_error = stats.incomplete_error.clone();
             let committed = stats.clone();
             let completed = match scanner::complete_deferred_rename_candidates_with_cancel(
                 &db,
@@ -81,6 +82,7 @@ fn sync_source_database_paths_once(
             };
             Ok(SourceFilesystemSyncSuccess {
                 renames_reconciled: completed.renames_reconciled,
+                incomplete_error,
                 committed_delta: completed.committed_delta,
             })
         })

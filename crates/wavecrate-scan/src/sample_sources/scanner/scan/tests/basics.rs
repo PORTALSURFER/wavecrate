@@ -480,7 +480,10 @@ fn cancellation_after_first_committed_batch_stops_at_a_resumable_checkpoint() {
         }
     });
 
-    assert!(matches!(result, Err(ScanError::Canceled)));
+    let partial = result.expect("return the committed walk checkpoint before cancellation");
+    assert_eq!(partial.committed_delta.created.len(), 64);
+    assert!(partial.committed_delta.revision > 0);
+    assert_eq!(partial.incomplete_error.as_deref(), Some("Scan canceled"));
     assert_eq!(db.count_files().unwrap(), 64);
 
     cancel.store(false, Ordering::Relaxed);

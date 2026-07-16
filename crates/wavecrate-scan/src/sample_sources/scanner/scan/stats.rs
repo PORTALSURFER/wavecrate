@@ -7,6 +7,11 @@ use wavecrate_library::sample_sources::SourceManifestEntry;
 pub struct ScanStats {
     /// Authoritative identity delta observed at the final committed source revision.
     pub committed_delta: CommittedSourceDelta,
+    /// Error that stopped this scan after an earlier source revision committed.
+    ///
+    /// The committed delta remains authoritative and must be published before the caller retries
+    /// the unfinished scan.
+    pub incomplete_error: Option<String>,
     /// Number of newly discovered files.
     pub added: usize,
     /// Number of files updated in-place.
@@ -39,6 +44,11 @@ pub struct ScanStats {
 }
 
 impl ScanStats {
+    /// Whether work stopped after publishing the latest committed checkpoint.
+    pub fn is_incomplete(&self) -> bool {
+        self.incomplete_error.is_some()
+    }
+
     pub(super) fn merge_deferred_hashes(&mut self, mut deferred: Self) {
         self.hashes_computed += deferred.hashes_computed;
         self.hashes_pending = self.hashes_pending.saturating_sub(deferred.hashes_computed);

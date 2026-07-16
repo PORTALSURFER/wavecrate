@@ -78,6 +78,7 @@ pub(in crate::native_app) enum GuiMessage {
         source_id: String,
         paths: Vec<PathBuf>,
         overflowed: bool,
+        source_root_available: bool,
     },
     SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
     SourceManifestAuditCommitted {
@@ -390,6 +391,7 @@ pub(in crate::native_app) struct SourceFilesystemSyncResult {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
     pub(in crate::native_app) renames_reconciled: usize,
+    pub(in crate::native_app) incomplete_error: Option<String>,
     pub(in crate::native_app) committed_delta:
         wavecrate::sample_sources::scanner::CommittedSourceDelta,
 }

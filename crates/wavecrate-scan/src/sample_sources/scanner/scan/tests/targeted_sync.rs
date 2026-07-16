@@ -214,7 +214,10 @@ fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
         }
     });
 
-    assert!(matches!(result, Err(ScanError::Canceled)));
+    let partial = result.expect("return the targeted checkpoint before cancellation");
+    assert_eq!(partial.committed_delta.created.len(), 64);
+    assert!(partial.committed_delta.revision > 0);
+    assert_eq!(partial.incomplete_error.as_deref(), Some("Scan canceled"));
     assert_eq!(db.count_files().unwrap(), 64);
 
     cancel.store(false, Ordering::Relaxed);

@@ -43,4 +43,5 @@ pub(super) struct GuiSourceWatchEvent {
     pub(super) source_id: String,
     pub(super) paths: Vec<PathBuf>,
     pub(super) overflowed: bool,
+    pub(super) source_root_available: bool,
 }

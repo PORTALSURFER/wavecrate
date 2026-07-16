@@ -59,10 +59,7 @@ pub(super) fn verify_content_batch(
         let before_hash = read_facts(&root, &absolute)?;
         let content_hash = compute_content_hash(&absolute, cancel)?;
         let after_hash = read_facts(&root, &absolute)?;
-        if before_hash.size != after_hash.size
-            || before_hash.modified_ns != after_hash.modified_ns
-            || before_hash.file_identity != after_hash.file_identity
-        {
+        if !before_hash.same_content_snapshot(&after_hash) {
             continue;
         }
         verified.push((entry.clone(), after_hash, content_hash));
@@ -143,6 +140,26 @@ pub(super) fn deep_hash_scan(
     scope: DeferredHashScope,
     max_hashes: Option<usize>,
     exact_path: Option<&std::path::Path>,
+) -> Result<ScanStats, ScanError> {
+    deep_hash_scan_with_post_hash_hook(
+        db,
+        cancel,
+        rename_candidates,
+        scope,
+        max_hashes,
+        exact_path,
+        |_| {},
+    )
+}
+
+fn deep_hash_scan_with_post_hash_hook(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    rename_candidates: &HashSet<PathBuf>,
+    scope: DeferredHashScope,
+    max_hashes: Option<usize>,
+    exact_path: Option<&std::path::Path>,
+    mut post_hash: impl FnMut(&std::path::Path),
 ) -> Result<ScanStats, ScanError> {
     let manifest_before = super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
@@ -239,15 +256,20 @@ pub(super) fn deep_hash_scan(
         }
         let facts = read_facts(&root, &absolute)?;
         let hash = compute_content_hash(&absolute, cancel)?;
+        post_hash(&absolute);
+        let after_hash = read_facts(&root, &absolute)?;
+        if !facts.same_content_snapshot(&after_hash) {
+            continue;
+        }
         hash_backfills.push(HashBackfill {
             relative_path: entry.relative_path.clone(),
-            file_size: facts.size,
-            modified_ns: facts.modified_ns,
+            file_size: after_hash.size,
+            modified_ns: after_hash.modified_ns,
             content_hash: hash.clone(),
-            file_identity: facts.file_identity,
+            file_identity: after_hash.file_identity,
         });
-        entry.file_size = facts.size;
-        entry.modified_ns = facts.modified_ns;
+        entry.file_size = after_hash.size;
+        entry.modified_ns = after_hash.modified_ns;
         entry.content_hash = Some(hash.clone());
         present_by_hash
             .entry(hash)
@@ -544,6 +566,37 @@ mod tests {
                 .unwrap()
                 .content_hash
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn deep_hash_scan_does_not_commit_a_file_mutated_during_hashing() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let relative = Path::new("changing.wav");
+        let absolute = dir.path().join(relative);
+        std::fs::write(&absolute, [1_u8; 32]).expect("write initial wav");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        db.upsert_file(relative, 32, 1).expect("insert pending row");
+
+        let stats = deep_hash_scan_with_post_hash_hook(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(relative),
+            |path| std::fs::write(path, [2_u8; 32]).expect("mutate during hashing"),
+        )
+        .expect("defer unstable hash");
+
+        assert_eq!(stats.hashes_computed, 0);
+        assert!(
+            db.entry_for_path(relative)
+                .expect("read pending row")
+                .expect("pending row")
+                .content_hash
+                .is_none(),
+            "an unstable read must remain pending for a later hash pass"
         );
     }
 }

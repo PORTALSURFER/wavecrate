@@ -419,6 +419,20 @@ impl SourceDatabase {
         Ok(db.into_connection())
     }
 
+    /// Open an external metadata database while its audio source root is unavailable.
+    ///
+    /// This is intentionally limited to callers that already resolved a separate, existing
+    /// metadata root. Treating that directory as the operational root avoids recreating or
+    /// validating the absent audio directory while still applying the requested connection role.
+    pub fn open_unavailable_source_metadata_connection(
+        database_root: impl AsRef<Path>,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<Connection, SourceDbError> {
+        let database_root = database_root.as_ref();
+        let db = Self::open_with_role_and_database_root(database_root, database_root, role)?;
+        Ok(db.into_connection())
+    }
+
     /// Return the path to the root folder backing this database.
     pub fn root(&self) -> &Path {
         &self.root

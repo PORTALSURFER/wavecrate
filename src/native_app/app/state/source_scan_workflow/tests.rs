@@ -78,7 +78,7 @@ fn pending_refresh_waits_for_active_scan() {
     let source_id = request.source_id.clone();
     workflow.start_scan(&request);
 
-    let plan = workflow.plan_filesystem_change(&mut browser, source_id.clone(), &[], true);
+    let plan = workflow.plan_filesystem_change(&mut browser, source_id.clone(), &[], true, true);
 
     assert!(matches!(
         plan,
@@ -561,7 +561,7 @@ fn active_source_click_preserves_required_filesystem_refresh() {
     let source_id = active.source_id.clone();
     workflow.start_scan(&active);
     assert!(matches!(
-        workflow.plan_filesystem_change(&mut browser, source_id.clone(), &[], true),
+        workflow.plan_filesystem_change(&mut browser, source_id.clone(), &[], true, true),
         SourceFilesystemChangePlan::DeferredAlreadyRunning { .. }
     ));
 
@@ -570,6 +570,29 @@ fn active_source_click_preserves_required_filesystem_refresh() {
         SourceSelectionRequest::Settled
     ));
     assert!(workflow.pending_refresh_contains_for_tests(&source_id));
+}
+
+#[test]
+fn filesystem_change_uses_watcher_root_observation_without_probing_disk() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 124)
+        .expect("source scan");
+    let source_id = request.source_id.clone();
+
+    let plan = workflow.plan_filesystem_change(&mut browser, source_id.clone(), &[], true, false);
+
+    assert!(matches!(
+        plan,
+        SourceFilesystemChangePlan::IgnoredSourceMissing { .. }
+    ));
+    assert!(browser.source_is_missing(&source_id));
+    assert!(
+        root.path().is_dir(),
+        "the test root remains present on disk"
+    );
 }
 
 #[test]
@@ -592,6 +615,7 @@ fn targeted_watcher_hint_does_not_patch_browser_before_commit() {
             source_id,
             &[PathBuf::from("sample.wav")],
             false,
+            true,
         ),
         SourceFilesystemChangePlan::SyncPaths {
             changed_count: 1,

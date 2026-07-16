@@ -210,8 +210,11 @@ impl SourceScanWorkflow {
         source_id: String,
         paths: &[PathBuf],
         overflowed: bool,
+        source_root_available: bool,
     ) -> SourceFilesystemChangePlan {
-        let Some(source_missing) = browser.refresh_source_availability_from_disk(&source_id) else {
+        let Some(source_missing) =
+            browser.apply_observed_source_availability(&source_id, source_root_available)
+        else {
             self.remove_pending_refresh(&source_id);
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         };

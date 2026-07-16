@@ -110,6 +110,35 @@ fn debounce_drain_waits_until_source_is_ready() {
 }
 
 #[test]
+fn debounce_drain_reports_root_availability_from_the_watcher_thread() {
+    let root = tempfile::tempdir().expect("source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::availability"),
+        root.path().to_path_buf(),
+    );
+    let mut state = GuiSourceWatchState {
+        sources: vec![source],
+        ..Default::default()
+    };
+    let started = Instant::now();
+
+    state.mark_all_overflowed(started);
+    let ready = state.drain_ready_sources(
+        started + super::SOURCE_CHANGE_DEBOUNCE,
+        super::SOURCE_CHANGE_DEBOUNCE,
+    );
+    assert!(ready[0].source_root_available);
+
+    std::fs::remove_dir_all(root.path()).expect("remove source root");
+    state.mark_all_overflowed(started + super::SOURCE_CHANGE_DEBOUNCE);
+    let ready = state.drain_ready_sources(
+        started + super::SOURCE_CHANGE_DEBOUNCE * 2,
+        super::SOURCE_CHANGE_DEBOUNCE,
+    );
+    assert!(!ready[0].source_root_available);
+}
+
+#[test]
 fn path_churn_is_bounded_and_escalates_to_full_refresh() {
     let root = PathBuf::from(r"C:\samples");
     let source =

@@ -19,6 +19,19 @@ pub(super) struct FileFacts {
     pub(super) size: u64,
     pub(super) modified_ns: i64,
     pub(super) file_identity: Option<String>,
+    change_marker: Option<(i64, i64)>,
+}
+
+impl FileFacts {
+    pub(super) fn same_file_facts(&self, other: &Self) -> bool {
+        self.size == other.size
+            && self.modified_ns == other.modified_ns
+            && self.file_identity == other.file_identity
+    }
+
+    pub(super) fn same_content_snapshot(&self, other: &Self) -> bool {
+        self.same_file_facts(other) && self.change_marker == other.change_marker
+    }
 }
 
 pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError> {
@@ -120,7 +133,20 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
         size: meta.len(),
         modified_ns,
         file_identity: stable_filesystem_identity(path, &meta),
+        change_marker: metadata_change_marker(&meta),
     })
+}
+
+#[cfg(unix)]
+fn metadata_change_marker(metadata: &fs::Metadata) -> Option<(i64, i64)> {
+    use std::os::unix::fs::MetadataExt;
+
+    Some((metadata.ctime(), metadata.ctime_nsec()))
+}
+
+#[cfg(not(unix))]
+fn metadata_change_marker(_metadata: &fs::Metadata) -> Option<(i64, i64)> {
+    None
 }
 
 pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {

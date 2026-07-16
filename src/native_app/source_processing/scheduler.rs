@@ -157,7 +157,6 @@ pub(crate) struct BudgetTracker {
     global: ResourceUse,
     by_source: BTreeMap<String, ResourceUse>,
     by_lane: BTreeMap<ProcessingLane, usize>,
-    by_source_lane: BTreeMap<(String, ProcessingLane), usize>,
 }
 
 impl BudgetTracker {
@@ -167,7 +166,6 @@ impl BudgetTracker {
             global: ResourceUse::default(),
             by_source: BTreeMap::new(),
             by_lane: BTreeMap::new(),
-            by_source_lane: BTreeMap::new(),
         }
     }
 
@@ -199,10 +197,6 @@ impl BudgetTracker {
         let source = self.by_source.entry(source_id.to_string()).or_default();
         *source = source.add(demand);
         *self.by_lane.entry(lane).or_default() += 1;
-        *self
-            .by_source_lane
-            .entry((source_id.to_string(), lane))
-            .or_default() += 1;
         Some(BudgetPermit {
             source_id: source_id.to_string(),
             lane,
@@ -224,22 +218,10 @@ impl BudgetTracker {
                 self.by_lane.remove(&permit.lane);
             }
         }
-        let source_lane = (permit.source_id.clone(), permit.lane);
-        if let Some(count) = self.by_source_lane.get_mut(&source_lane) {
-            *count = count.saturating_sub(1);
-            if *count == 0 {
-                self.by_source_lane.remove(&source_lane);
-            }
-        }
     }
 
-    pub(crate) fn active_sources_for_lane(&self, lane: ProcessingLane) -> BTreeSet<String> {
-        self.by_source_lane
-            .keys()
-            .filter_map(|(source_id, active_lane)| {
-                (*active_lane == lane).then(|| source_id.clone())
-            })
-            .collect()
+    pub(crate) fn active_sources(&self) -> BTreeSet<String> {
+        self.by_source.keys().cloned().collect()
     }
 
     #[cfg(test)]

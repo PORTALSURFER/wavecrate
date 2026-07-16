@@ -233,7 +233,7 @@ fn apply_batch(
         }
         apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
     }
-    batch.commit()?;
+    context.commit_batch(batch)?;
     Ok(true)
 }
 
@@ -296,9 +296,7 @@ fn prepare_for_apply(
 }
 
 fn facts_match(prepared: &PreparedFile, current: &super::scan_fs::FileFacts) -> bool {
-    current.size == prepared.facts.size
-        && current.modified_ns == prepared.facts.modified_ns
-        && current.file_identity == prepared.facts.file_identity
+    current.same_file_facts(&prepared.facts)
 }
 
 fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {

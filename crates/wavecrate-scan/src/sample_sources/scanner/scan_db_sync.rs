@@ -35,7 +35,7 @@ pub(super) fn db_sync_phase(
         if cancel_requested(cancel) {
             return Err(ScanError::Canceled);
         }
-        batch.commit()?;
+        context.commit_batch(batch)?;
     }
 
     if cancel_requested(cancel) {
@@ -56,9 +56,7 @@ pub(super) fn db_sync_phase(
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
-    batch
-        .commit_with_manifest_snapshot()
-        .map_err(ScanError::from)
+    context.commit_batch(batch)
 }
 
 fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {

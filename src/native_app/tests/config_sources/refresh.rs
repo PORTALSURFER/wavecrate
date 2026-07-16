@@ -270,6 +270,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
             source_id: source_id.clone(),
             paths: Vec::new(),
             overflowed: true,
+            source_root_available: true,
         },
         &mut context,
     );
@@ -320,6 +321,7 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
             source_id: source_id.clone(),
             paths: vec![PathBuf::from("stale.wav")],
             overflowed: false,
+            source_root_available: true,
         },
         &mut context,
     );

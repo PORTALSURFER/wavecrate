@@ -178,6 +178,7 @@ fn run_source_watcher(
                 source_id: event.source_id,
                 paths: event.paths,
                 overflowed: event.overflowed,
+                source_root_available: event.source_root_available,
             });
         }
     }

@@ -97,6 +97,19 @@ impl FolderBrowserState {
         Some(source.refresh_availability_from_disk().is_missing())
     }
 
+    pub(in crate::native_app) fn apply_observed_source_availability(
+        &mut self,
+        source_id: &str,
+        available: bool,
+    ) -> Option<bool> {
+        let source = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == source_id)?;
+        Some(source.apply_observed_availability(available).is_missing())
+    }
+
     pub(in crate::native_app) fn source_roots(
         &self,
         source_id: &str,

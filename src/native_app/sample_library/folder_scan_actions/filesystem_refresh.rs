@@ -15,13 +15,16 @@ impl NativeAppState {
         source_id: String,
         paths: Vec<PathBuf>,
         overflowed: bool,
+        source_root_available: bool,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        match self
-            .library
-            .plan_filesystem_change(source_id, &paths, overflowed)
-        {
+        match self.library.plan_filesystem_change(
+            source_id,
+            &paths,
+            overflowed,
+            source_root_available,
+        ) {
             SourceFilesystemChangePlan::IgnoredSourceMissing { source_id } => {
                 self.background
                     .source_processing
@@ -86,16 +89,10 @@ impl NativeAppState {
             );
             return;
         }
-        if result.cancelled {
-            self.background
-                .source_processing
-                .wake_source(&source_id, "filesystem_sync_cancelled");
-            self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
-            return;
-        }
         match result.result {
             Ok(success) => {
                 let renames_reconciled = success.renames_reconciled;
+                let incomplete_error = success.incomplete_error;
                 let delta = success.committed_delta;
                 tracing::info!(
                     source_id = %source_id,
@@ -114,6 +111,11 @@ impl NativeAppState {
                         SourcePrepTrigger::FilesystemChanged,
                         context,
                     );
+                }
+                if result.cancelled || incomplete_error.is_some() {
+                    self.background
+                        .source_processing
+                        .wake_source(&source_id, "filesystem_sync_incomplete_after_commit");
                 }
                 self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }

@@ -107,10 +107,17 @@ impl GuiSourceWatchState {
             .filter(|&(_source_id, pending)| {
                 now.saturating_duration_since(pending.last_event) >= debounce
             })
-            .map(|(source_id, pending)| GuiSourceWatchEvent {
-                source_id: source_id.clone(),
-                paths: pending.paths.iter().cloned().collect(),
-                overflowed: pending.overflowed,
+            .filter_map(|(source_id, pending)| {
+                let source = self
+                    .sources
+                    .iter()
+                    .find(|source| source.id.as_str() == source_id)?;
+                Some(GuiSourceWatchEvent {
+                    source_id: source_id.clone(),
+                    paths: pending.paths.iter().cloned().collect(),
+                    overflowed: pending.overflowed,
+                    source_root_available: source.root.is_dir(),
+                })
             })
             .collect::<Vec<_>>();
         for event in &ready {
