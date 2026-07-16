@@ -19,6 +19,7 @@ pub(super) struct EmbeddingComputation {
 }
 
 /// Persistable embedding row for a specific sample id.
+#[derive(Clone)]
 pub(super) struct EmbeddingResult {
     pub(super) sample_id: String,
     pub(super) content_hash: String,

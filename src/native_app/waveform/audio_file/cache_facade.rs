@@ -1,3 +1,4 @@
+#[cfg(test)]
 pub(in crate::native_app) use super::waveform_cache::cached_waveform_file_playback_ready_exists;
 pub(in crate::native_app) use super::waveform_cache::{
     cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,

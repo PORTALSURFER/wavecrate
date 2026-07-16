@@ -85,6 +85,48 @@ pub fn run_claimed_job_with_embedding_worker_limit(
     )
 }
 
+/// Produce current feature artifacts for one readiness-owned file target.
+pub fn run_readiness_feature_stage(
+    conn: &mut Connection,
+    source_root: &Path,
+    source_id: &str,
+    relative_path: &Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    analysis_jobs::run_readiness_feature_stage(
+        conn,
+        source_root,
+        source_id,
+        relative_path,
+        content_hash,
+        analysis_version,
+        cancel,
+    )
+}
+
+/// Produce current embedding, aspect, and ANN artifacts for one readiness-owned file target.
+pub fn run_readiness_embedding_stage(
+    conn: &mut Connection,
+    source_root: &Path,
+    source_id: &str,
+    relative_path: &Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    analysis_jobs::run_readiness_embedding_stage(
+        conn,
+        source_root,
+        source_id,
+        relative_path,
+        content_hash,
+        analysis_version,
+        cancel,
+    )
+}
+
 /// Mark one claimed analysis job as done.
 pub fn mark_done(conn: &Connection, job: &ClaimedAnalysisJob) -> Result<(), String> {
     analysis_jobs::db::mark_done(conn, job.inner.id)

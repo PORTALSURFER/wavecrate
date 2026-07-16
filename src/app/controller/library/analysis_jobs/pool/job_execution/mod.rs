@@ -8,12 +8,14 @@ mod analysis_db;
 mod analysis_decode;
 mod backfill;
 mod errors;
+mod readiness;
 mod rebuild;
 mod status;
 mod support;
 
 #[cfg(not(test))]
 pub(crate) use analysis::{AnalysisContext, run_analysis_jobs_with_decoded_batch};
+pub(crate) use readiness::{run_embedding_stage, run_feature_stage};
 pub(crate) use status::update_job_status_with_retry;
 
 pub(crate) fn run_job(

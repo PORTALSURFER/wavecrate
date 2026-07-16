@@ -25,10 +25,14 @@ pub(super) fn write_backfill_results(
         if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
             return Err("Embedding backfill cancelled before publication".to_string());
         }
+        let mut persisted = Vec::new();
         retry_backfill_write_with(
             &job.source_root,
             "embedding_backfill_write",
-            || write_backfill_chunk(conn, chunk, analysis_version),
+            || {
+                persisted = write_backfill_chunk(conn, chunk, analysis_version)?;
+                Ok(())
+            },
             3,
             Duration::from_millis(50),
         )?;
@@ -36,7 +40,10 @@ pub(super) fn write_backfill_results(
             &job.source_root,
             crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
         );
-        if let Err(err) = update_ann_index_with_retry(conn, &job.source_root, chunk) {
+        if persisted.is_empty() {
+            continue;
+        }
+        if let Err(err) = update_ann_index_with_retry(conn, &job.source_root, &persisted) {
             let rebuild_result = handle_ann_update_failure(conn, job, &err);
             return Err(format_ann_update_error(err, rebuild_result));
         }
@@ -103,10 +110,16 @@ fn write_backfill_chunk(
     conn: &mut rusqlite::Connection,
     chunk: &[EmbeddingResult],
     analysis_version: &str,
-) -> Result<(), String> {
+) -> Result<Vec<EmbeddingResult>, String> {
     let tx = telemetry::begin_immediate_transaction(conn, "embedding_backfill_chunk")
         .map_err(|err| format!("Begin embedding backfill tx failed: {err}"))?;
+    let mut persisted = Vec::with_capacity(chunk.len());
     for result in chunk {
+        if db::sample_content_hash(&tx, &result.sample_id)?.as_deref()
+            != Some(result.content_hash.as_str())
+        {
+            continue;
+        }
         let embedding_blob = wavecrate_analysis::vector::encode_f32_le_blob(&result.embedding);
         db::upsert_embedding(
             &tx,
@@ -160,10 +173,11 @@ fn write_backfill_chunk(
                 created_at: result.created_at,
             },
         )?;
+        persisted.push(result.clone());
     }
     telemetry::commit_transaction(tx, "embedding_backfill_chunk")
         .map_err(|err| format!("Commit embedding backfill tx failed: {err}"))?;
-    Ok(())
+    Ok(persisted)
 }
 
 fn update_ann_index_with_retry(

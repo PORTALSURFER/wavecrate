@@ -44,6 +44,28 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
     assert_eq!(count_rows(&conn, "analysis_cache_aspect_descriptors"), 0);
 }
 
+#[test]
+fn write_backfill_results_skips_stale_content_before_sql_and_ann_publication() {
+    let mut conn = conn_with_schema();
+    insert_sample(&conn, "s::stale.wav", "current-hash");
+    let temp = tempfile::TempDir::new().unwrap();
+    let job = make_job(&["s::stale.wav"], temp.path());
+    let results = vec![model::EmbeddingResult {
+        sample_id: "s::stale.wav".to_string(),
+        content_hash: "stale-hash".to_string(),
+        embedding: vec![0.0; wavecrate_analysis::similarity::SIMILARITY_DIM],
+        aspect_descriptors: dummy_aspects(),
+        created_at: 1,
+    }];
+
+    persistence::write_backfill_results(&mut conn, &job, &results, "v1", None).unwrap();
+
+    assert_eq!(count_rows(&conn, "embeddings"), 0);
+    assert_eq!(count_rows(&conn, "similarity_aspect_descriptors"), 0);
+    assert_eq!(count_rows(&conn, "analysis_cache_embeddings"), 0);
+    assert_eq!(count_rows(&conn, "analysis_cache_aspect_descriptors"), 0);
+}
+
 fn dummy_aspects() -> model::AspectDescriptorData {
     model::AspectDescriptorData {
         vec_blob: vec![0; wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM * 4],

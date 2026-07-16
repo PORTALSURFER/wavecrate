@@ -131,3 +131,43 @@ pub(crate) fn run_claimed_job_with_embedding_worker_limit(
         Some(embedding_worker_limit),
     )
 }
+
+pub(crate) fn run_readiness_feature_stage(
+    conn: &mut rusqlite::Connection,
+    source_root: &std::path::Path,
+    source_id: &str,
+    relative_path: &std::path::Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<bool, String> {
+    pool::job_execution::run_feature_stage(
+        conn,
+        source_root,
+        source_id,
+        relative_path,
+        content_hash,
+        analysis_version,
+        cancel,
+    )
+}
+
+pub(crate) fn run_readiness_embedding_stage(
+    conn: &mut rusqlite::Connection,
+    source_root: &std::path::Path,
+    source_id: &str,
+    relative_path: &std::path::Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<bool, String> {
+    pool::job_execution::run_embedding_stage(
+        conn,
+        source_root,
+        source_id,
+        relative_path,
+        content_hash,
+        analysis_version,
+        cancel,
+    )
+}

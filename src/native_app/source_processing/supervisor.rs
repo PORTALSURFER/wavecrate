@@ -34,12 +34,15 @@ use crate::native_app::sample_library::similarity_prep::{
     reset_interrupted_similarity_prep_jobs, run_similarity_prep_job,
     similarity_prep_needs_finalization,
 };
-use crate::native_app::waveform::cached_waveform_file_playback_ready_exists;
+use crate::native_app::waveform::{
+    cached_waveform_file_audition_ready_exists, ensure_persisted_playback_summary,
+};
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
 const DEEP_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
+const READINESS_MAX_ATTEMPTS: u32 = 8;
 const MAX_DISCOVERED_ANALYSIS_JOBS: i64 = 256;
 const EXTERNAL_SCAN_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
@@ -1169,7 +1172,7 @@ fn execute_readiness_target(
         &claim,
         cancel,
         READINESS_LEASE_SECONDS,
-        |lease_cancel| run_readiness_stage(source, &connection, &claim, lease_cancel),
+        |lease_cancel| run_readiness_stage(source, &mut connection, &claim, lease_cancel),
     ) {
         Ok(result) => result,
         Err(error) => {
@@ -1203,7 +1206,7 @@ fn execute_readiness_target(
             }
         }
         Ok(ReadinessExecutionOutcome::Retry(reason)) => {
-            let policy = ReadinessRetryPolicy::new(5, 5 * 60, u32::MAX)
+            let policy = ReadinessRetryPolicy::new(5, 5 * 60, READINESS_MAX_ATTEMPTS)
                 .expect("valid readiness retry policy");
             let outcome = fail_readiness_work(
                 &mut connection,
@@ -1217,7 +1220,7 @@ fn execute_readiness_target(
             Ok(execution_outcome_for_failure(outcome))
         }
         Err(reason) => {
-            let policy = ReadinessRetryPolicy::new(5, 5 * 60, u32::MAX)
+            let policy = ReadinessRetryPolicy::new(5, 5 * 60, READINESS_MAX_ATTEMPTS)
                 .expect("valid readiness retry policy");
             let outcome = fail_readiness_work(
                 &mut connection,
@@ -1344,7 +1347,7 @@ fn run_with_readiness_lease_heartbeat<T>(
 
 fn run_readiness_stage(
     source: &SampleSource,
-    connection: &rusqlite::Connection,
+    connection: &mut rusqlite::Connection,
     claim: &ClaimedReadinessWork,
     cancel: &AtomicBool,
 ) -> Result<ReadinessExecutionOutcome, String> {
@@ -1378,31 +1381,42 @@ fn run_readiness_stage(
                     "playback summary target has no relative path",
                 ));
             };
-            Ok(
-                if cached_waveform_file_playback_ready_exists(&source.root.join(relative_path)) {
+            let absolute_path = source.root.join(relative_path);
+            if !cached_waveform_file_audition_ready_exists(&absolute_path) {
+                ensure_persisted_playback_summary(absolute_path, cancel)?;
+            }
+            Ok(ReadinessExecutionOutcome::Complete)
+        }
+        ReadinessStage::AnalysisFeatures => {
+            let Some(relative_path) = target.relative_path.as_deref() else {
+                return Ok(ReadinessExecutionOutcome::Permanent(
+                    "analysis feature target has no relative path",
+                ));
+            };
+            if target.required_version != wavecrate_analysis::analysis_version() {
+                return Ok(ReadinessExecutionOutcome::Retry(
+                    "feature executor version does not match target",
+                ));
+            }
+            Ok(if analysis_features_are_current(connection, target)? {
+                ReadinessExecutionOutcome::Complete
+            } else {
+                let produced = wavecrate::internal_analysis_jobs::run_readiness_feature_stage(
+                    connection,
+                    &source.root,
+                    target.source_id.as_str(),
+                    std::path::Path::new(relative_path),
+                    target.content_generation.as_str(),
+                    target.required_version.as_str(),
+                    cancel,
+                )?;
+                if produced && analysis_features_are_current(connection, target)? {
                     ReadinessExecutionOutcome::Complete
                 } else {
                     ReadinessExecutionOutcome::Retry(
-                        "playback summary prerequisite is not durable yet",
+                        "analysis feature source generation is not current yet",
                     )
-                },
-            )
-        }
-        ReadinessStage::AnalysisFeatures => {
-            let current: bool = connection
-                .query_row(
-                    "SELECT EXISTS(
-                        SELECT 1 FROM analysis_cache_features
-                        WHERE content_hash = ?1 AND analysis_version = ?2
-                    )",
-                    params![target.content_generation, target.required_version],
-                    |row| row.get(0),
-                )
-                .map_err(|error| error.to_string())?;
-            Ok(if current {
-                ReadinessExecutionOutcome::Complete
-            } else {
-                ReadinessExecutionOutcome::Retry("analysis feature prerequisite is not durable yet")
+                }
             })
         }
         ReadinessStage::EmbeddingAspects => {
@@ -1416,27 +1430,30 @@ fn run_readiness_stage(
                     "embedding executor version does not match target",
                 ));
             }
-            let current: bool = connection
-                .query_row(
-                    "SELECT EXISTS(
-                        SELECT 1 FROM analysis_cache_embeddings
-                        WHERE content_hash = ?1 AND model_id = ?2
-                    ) AND EXISTS(
-                        SELECT 1 FROM analysis_cache_aspect_descriptors
-                        WHERE content_hash = ?1 AND model_id = ?3
-                    )",
-                    params![
-                        target.content_generation,
-                        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
-                        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
-                    ],
-                    |row| row.get(0),
-                )
-                .map_err(|error| error.to_string())?;
-            Ok(if current {
+            let Some(relative_path) = target.relative_path.as_deref() else {
+                return Ok(ReadinessExecutionOutcome::Permanent(
+                    "embedding target has no relative path",
+                ));
+            };
+            Ok(if embedding_aspects_are_current(connection, target)? {
                 ReadinessExecutionOutcome::Complete
             } else {
-                ReadinessExecutionOutcome::Retry("embedding prerequisite is not durable yet")
+                let produced = wavecrate::internal_analysis_jobs::run_readiness_embedding_stage(
+                    connection,
+                    &source.root,
+                    target.source_id.as_str(),
+                    std::path::Path::new(relative_path),
+                    target.content_generation.as_str(),
+                    wavecrate_analysis::analysis_version(),
+                    cancel,
+                )?;
+                if produced && embedding_aspects_are_current(connection, target)? {
+                    ReadinessExecutionOutcome::Complete
+                } else {
+                    ReadinessExecutionOutcome::Retry(
+                        "embedding feature prerequisite is not durable yet",
+                    )
+                }
             })
         }
         ReadinessStage::SimilarityLayout => {
@@ -1460,6 +1477,85 @@ fn run_readiness_stage(
             })
         }
     }
+}
+
+fn analysis_features_are_current(
+    connection: &rusqlite::Connection,
+    target: &ReadinessTarget,
+) -> Result<bool, String> {
+    let Some(sample_id) = readiness_sample_id(target) else {
+        return Ok(false);
+    };
+    connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM analysis_cache_features
+                WHERE content_hash = ?1 AND analysis_version = ?2
+            ) AND EXISTS(
+                SELECT 1
+                FROM samples AS sample
+                JOIN features AS feature ON feature.sample_id = sample.sample_id
+                WHERE sample.sample_id = ?3
+                  AND sample.content_hash = ?1
+                  AND sample.analysis_version = ?2
+                  AND feature.feat_version = ?4
+            )",
+            params![
+                target.content_generation,
+                target.required_version,
+                sample_id,
+                wavecrate_analysis::vector::FEATURE_VERSION_V1,
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())
+}
+
+fn embedding_aspects_are_current(
+    connection: &rusqlite::Connection,
+    target: &ReadinessTarget,
+) -> Result<bool, String> {
+    let Some(sample_id) = readiness_sample_id(target) else {
+        return Ok(false);
+    };
+    connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM analysis_cache_embeddings
+                WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?3
+            ) AND EXISTS(
+                SELECT 1 FROM analysis_cache_aspect_descriptors
+                WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?4
+            ) AND EXISTS(
+                SELECT 1 FROM embeddings
+                WHERE sample_id = ?5 AND model_id = ?3 AND dim = ?6
+                  AND dtype = ?7 AND l2_normed = 1
+            ) AND EXISTS(
+                SELECT 1 FROM similarity_aspect_descriptors
+                WHERE sample_id = ?5 AND model_id = ?4 AND dim = ?8
+                  AND dtype = ?9 AND l2_normed = 1
+            )",
+            params![
+                target.content_generation,
+                wavecrate_analysis::analysis_version(),
+                wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+                sample_id,
+                wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+                wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+                wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DTYPE_F32,
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())
+}
+
+fn readiness_sample_id(target: &ReadinessTarget) -> Option<String> {
+    target
+        .relative_path
+        .as_deref()
+        .map(|relative_path| format!("{}::{}", target.source_id, relative_path.replace('\\', "/")))
 }
 
 fn record_discovery_error(shared: &Shared, source: &SampleSource, error: &str) {
@@ -1570,26 +1666,10 @@ mod tests {
 
     #[test]
     fn production_supervisor_publishes_claims_and_completes_readiness_without_manual_seed() {
-        let (_directory, source) = unhashed_source("readiness");
-        let database_root = source.database_root().expect("database root");
-        let connection = SourceDatabase::open_connection_with_role_and_database_root(
-            &source.root,
-            &database_root,
-            SourceDatabaseConnectionRole::JobWorker,
-        )
-        .expect("open readiness database");
-        connection
-            .execute(
-                "UPDATE wav_files
-                 SET file_identity = 'identity-1', content_hash = 'content-1'
-                 WHERE path = 'pending.wav'",
-                [],
-            )
-            .expect("assign file identity");
-        drop(connection);
+        let (_directory, source) = ready_analysis_source("readiness");
 
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
-        wait_until(Duration::from_secs(3), || {
+        wait_until(Duration::from_secs(10), || {
             let database_root = source.database_root().expect("database root");
             let connection = SourceDatabase::open_connection_with_role_and_database_root(
                 &source.root,
@@ -1599,8 +1679,7 @@ mod tests {
             .expect("open readiness database");
             connection
                 .query_row(
-                    "SELECT EXISTS(
-                        SELECT 1
+                    "SELECT COUNT(*) = 4
                         FROM source_readiness_sources AS source
                         JOIN source_readiness_targets AS target
                           ON target.source_id = source.source_id
@@ -1612,12 +1691,14 @@ mod tests {
                         WHERE source.source_id = ?1
                           AND source.availability = 'active'
                           AND target.scope_id = 'identity-1'
-                          AND target.stage = 'indexed_identity'
-                          AND target.required_version = ?2
+                          AND target.stage IN (
+                              'indexed_identity', 'playback_summary',
+                              'analysis_features', 'embedding_aspects'
+                          )
                           AND artifact.artifact_version = target.required_version
                           AND artifact.content_generation = target.content_generation
-                    )",
-                    params![source.id.as_str(), READINESS_MANIFEST_VERSION],
+                          AND artifact.source_generation = target.source_generation",
+                    params![source.id.as_str()],
                     |row| row.get::<_, bool>(0),
                 )
                 .expect("read readiness artifact")
@@ -1625,7 +1706,10 @@ mod tests {
         let report = supervisor.shutdown();
         assert_eq!(report["joined"], true);
         assert!(report["claimed"].as_u64().unwrap_or_default() >= 1);
-        assert!(report["completed"].as_u64().unwrap_or_default() >= 1);
+        assert!(report["completed"].as_u64().unwrap_or_default() >= 4);
+        assert!(cached_waveform_file_audition_ready_exists(
+            &source.root.join("ready.wav")
+        ));
     }
 
     #[test]
@@ -1864,6 +1948,47 @@ mod tests {
         let db = source.open_db().expect("open source database");
         db.upsert_file(Path::new("pending.wav"), 64, 1)
             .expect("insert pending hash row");
+        (directory, source)
+    }
+
+    fn ready_analysis_source(id: &str) -> (tempfile::TempDir, SampleSource) {
+        let directory = tempfile::tempdir().expect("temporary readiness source");
+        let path = directory.path().join("ready.wav");
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).expect("create readiness wav");
+        for index in 0..4_096 {
+            let phase = index as f32 / 32.0;
+            writer
+                .write_sample((phase.sin() * i16::MAX as f32 * 0.25) as i16)
+                .expect("write readiness sample");
+        }
+        writer.finalize().expect("finalize readiness wav");
+        let size = path.metadata().expect("read readiness metadata").len();
+        let source =
+            SampleSource::new_with_id(SourceId::from_string(id), directory.path().to_path_buf());
+        let db = source.open_db().expect("open readiness source database");
+        db.upsert_file(Path::new("ready.wav"), size, 1)
+            .expect("insert readiness wav row");
+        let database_root = source.database_root().expect("database root");
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'identity-1', content_hash = 'content-1'
+                 WHERE path = 'ready.wav'",
+                [],
+            )
+            .expect("assign readiness identity");
         (directory, source)
     }
 

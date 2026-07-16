@@ -54,6 +54,39 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_and_canc
     load_waveform_file_with_progress_cancel_and_playback_ready(path, progress, cancelled, |_| {})
 }
 
+pub(in crate::native_app) fn ensure_persisted_playback_summary(
+    path: PathBuf,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+
+    if waveform_cache::cached_waveform_file_audition_ready_exists(&path) {
+        return Ok(());
+    }
+    let file = load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
+        path.clone(),
+        |_| {},
+        || cancel.load(Ordering::Acquire),
+        |_| {},
+        true,
+        false,
+        PlaybackReadyCachePolicy::Allow,
+        FileBackedWavPolicy::AllowSummary,
+    )?;
+    if cancel.load(Ordering::Acquire) {
+        return Err(String::from("waveform summary cancelled"));
+    }
+    waveform_cache::persist_cached_waveform_file(&file)?;
+    if waveform_cache::cached_waveform_file_audition_ready_exists(&path) {
+        Ok(())
+    } else {
+        Err(format!(
+            "waveform cache did not publish an audition-ready summary: {}",
+            path.display()
+        ))
+    }
+}
+
 pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_cancel_and_playback_ready(
     path: PathBuf,
     progress: impl Fn(f32),
