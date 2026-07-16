@@ -22,7 +22,9 @@ pub mod vector;
 pub(crate) mod version;
 
 pub use umap::{
-    MapLayoutReport, build_map_layout, default_layout_report_path, write_layout_report,
+    MapLayoutReport, build_map_layout, build_map_layout_with_cancel,
+    build_map_layout_with_cancel_and_publication_fence, default_layout_report_path,
+    write_layout_report,
 };
 pub use vector::decode_f32_le_blob;
 pub use vector::{FEATURE_VECTOR_LEN_V1, FEATURE_VERSION_V1};
@@ -114,9 +116,25 @@ pub fn rebuild_ann_index(conn: &Connection) -> Result<(), String> {
     ann_index::rebuild_index(conn)
 }
 
+/// Rebuild the ANN index from authoritative embeddings while a publication fence is current.
+pub fn rebuild_ann_index_with_publication_fence(
+    conn: &mut Connection,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<bool, String> {
+    ann_index::rebuild_index_with_publication_fence(conn, publication_fence)
+}
+
 /// Flush any pending ANN insertions without forcing a rebuild.
 pub fn flush_ann_index(conn: &Connection) -> Result<(), String> {
     ann_index::flush_pending_inserts(conn)
+}
+
+/// Flush pending ANN insertions while an exact transactional generation fence remains current.
+pub fn flush_ann_index_with_publication_fence(
+    conn: &mut Connection,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<bool, String> {
+    ann_index::flush_pending_inserts_with_publication_fence(conn, publication_fence)
 }
 
 #[cfg(test)]

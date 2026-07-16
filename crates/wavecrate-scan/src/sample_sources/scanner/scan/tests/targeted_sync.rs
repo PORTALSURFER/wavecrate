@@ -1,6 +1,7 @@
 use super::*;
-use crate::sample_sources::scanner::sync_paths;
+use crate::sample_sources::scanner::{sync_paths, sync_paths_with_progress};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[test]
 fn targeted_sync_updates_only_requested_file() {
@@ -123,4 +124,32 @@ fn targeted_sync_ignores_appledouble_sidecars() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("drums/kick.wav"));
+}
+
+#[test]
+fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
+    let dir = tempdir().unwrap();
+    let drums = dir.path().join("drums");
+    std::fs::create_dir_all(&drums).unwrap();
+    for index in 0..70 {
+        std::fs::write(drums.join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let cancel = AtomicBool::new(false);
+    let targets = [PathBuf::from("drums")];
+
+    let result = sync_paths_with_progress(&db, &targets, Some(&cancel), &mut |count, _| {
+        if count == 65 {
+            cancel.store(true, Ordering::Relaxed);
+        }
+    });
+
+    assert!(matches!(result, Err(ScanError::Canceled)));
+    assert_eq!(db.count_files().unwrap(), 64);
+
+    cancel.store(false, Ordering::Relaxed);
+    let resumed = sync_paths_with_progress(&db, &targets, Some(&cancel), &mut |_, _| {})
+        .expect("targeted sync must resume from the committed checkpoint");
+    assert_eq!(resumed.total_files, 70);
+    assert_eq!(db.count_files().unwrap(), 70);
 }

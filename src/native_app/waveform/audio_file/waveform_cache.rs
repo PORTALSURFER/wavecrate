@@ -21,6 +21,7 @@ pub(in crate::native_app) use read::{
 };
 pub(in crate::native_app) use remap::remap_persisted_waveform_cache_after_move;
 pub(in crate::native_app) use store_queue::flush_background_waveform_cache_stores_for_shutdown;
+pub(super) use store_queue::persist_cached_waveform_file;
 #[cfg(test)]
 pub(super) use store_queue::store_cached_waveform_file;
 pub(super) use store_queue::store_cached_waveform_file_in_background;

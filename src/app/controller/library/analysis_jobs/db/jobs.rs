@@ -2,7 +2,7 @@ use super::progress_snapshot::{self, SnapshotJobState};
 use super::telemetry;
 use super::types::ClaimedJob;
 use crate::logging::{ActionDebugEvent, emit_action_debug_event};
-use rusqlite::{Connection, params, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -140,6 +140,54 @@ pub(crate) fn claim_next_jobs(
     Ok(jobs)
 }
 
+pub(crate) fn claim_job_by_id(
+    conn: &mut Connection,
+    source_root: &Path,
+    job_id: i64,
+) -> Result<Option<ClaimedJob>, String> {
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_claim_job_by_id")
+        .map_err(|err| format!("Failed to start analysis claim transaction: {err}"))?;
+    progress_snapshot::ensure_all_progress_snapshot_rows(&tx)?;
+    let before = progress_snapshot::job_state_by_id(&tx, job_id)?;
+    let running_at = now_epoch_seconds();
+    let claimed = tx
+        .query_row(
+            "UPDATE analysis_jobs
+             SET status = 'running', attempts = attempts + 1, running_at = ?2
+             WHERE id = ?1
+               AND status = 'pending'
+               AND readiness_managed = 0
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM analysis_jobs AS running
+                   WHERE running.sample_id = analysis_jobs.sample_id
+                     AND running.job_type = analysis_jobs.job_type
+                     AND running.status = 'running'
+                     AND running.id != analysis_jobs.id
+               )
+             RETURNING id, sample_id, content_hash, job_type",
+            params![job_id, running_at],
+            |row| {
+                Ok(ClaimedJob {
+                    id: row.get(0)?,
+                    sample_id: row.get(1)?,
+                    content_hash: row.get(2)?,
+                    job_type: row.get(3)?,
+                    source_root: source_root.to_path_buf(),
+                })
+            },
+        )
+        .optional()
+        .map_err(|err| format!("Failed to claim analysis job {job_id}: {err}"))?;
+    if claimed.is_some() {
+        let after = progress_snapshot::job_state_by_id(&tx, job_id)?;
+        progress_snapshot::apply_state_transitions(&tx, [(before, after)])?;
+    }
+    telemetry::commit_transaction(tx, "analysis_claim_job_by_id")
+        .map_err(|err| format!("Failed to commit analysis job claim: {err}"))?;
+    Ok(claimed)
+}
+
 pub(crate) fn mark_done(conn: &Connection, job_id: i64) -> Result<(), String> {
     progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
     let before = progress_snapshot::job_state_by_id(conn, job_id)?;
@@ -184,6 +232,21 @@ pub(crate) fn mark_pending(conn: &Connection, job_id: i64) -> Result<(), String>
         params![job_id],
     )
     .map_err(|err| format!("Failed to mark analysis job pending: {err}"))?;
+    let after = progress_snapshot::job_state_by_id(conn, job_id)?;
+    progress_snapshot::apply_state_transitions(conn, [(before, after)])?;
+    Ok(())
+}
+
+pub(crate) fn mark_pending_if_running(conn: &Connection, job_id: i64) -> Result<(), String> {
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let before = progress_snapshot::job_state_by_id(conn, job_id)?;
+    conn.execute(
+        "UPDATE analysis_jobs
+         SET status = 'pending', running_at = NULL
+         WHERE id = ?1 AND status = 'running'",
+        params![job_id],
+    )
+    .map_err(|err| format!("Failed to release running analysis job: {err}"))?;
     let after = progress_snapshot::job_state_by_id(conn, job_id)?;
     progress_snapshot::apply_state_transitions(conn, [(before, after)])?;
     Ok(())

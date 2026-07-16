@@ -70,24 +70,6 @@ pub(crate) fn update_metadata_for_skip(
     )
 }
 
-pub(crate) fn finalize_analysis_job(
-    conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    decoded: wavecrate_analysis::AnalysisAudio,
-    analysis_version: &str,
-    needs_embedding_upsert: bool,
-    do_ann_upsert: bool,
-) -> Result<(), String> {
-    let write = super::build_decoded_analysis_write(
-        job,
-        decoded,
-        analysis_version,
-        needs_embedding_upsert,
-    )?;
-    let persisted = persist_decoded_analysis_write(conn, Some(job.source_root.as_path()), &write)?;
-    finish_decoded_analysis_write(conn, job, &write, persisted, do_ann_upsert)
-}
-
 /// Persist one decoded analysis result inside a single immediate transaction.
 pub(crate) fn persist_decoded_analysis_write(
     conn: &mut rusqlite::Connection,

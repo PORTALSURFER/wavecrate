@@ -208,6 +208,11 @@ impl FolderBrowserState {
         else {
             return false;
         };
+        let selected_tree_owns_root = self.source.selected_source == source_id
+            && self.source.sources[source_index].root_folder.is_none();
+        if selected_tree_owns_root {
+            self.source.sources[source_index].root_folder = self.tree.folders.first().cloned();
+        }
         let root = self.source.sources[source_index].root.clone();
         let database_root = self.source.sources[source_index].database_root.clone();
         let mut changed = false;
@@ -221,6 +226,9 @@ impl FolderBrowserState {
         }
         if changed {
             self.after_source_tree_changed(source_id);
+        }
+        if selected_tree_owns_root {
+            self.source.sources[source_index].root_folder = None;
         }
         changed
     }

@@ -28,6 +28,27 @@ impl NativeAppState {
         let started_at = Instant::now();
         let label = request.label.clone();
         let root = request.root.display().to_string();
+        let source = self
+            .library
+            .folder_browser
+            .configured_sample_sources()
+            .into_iter()
+            .find(|source| source.id.as_str() == request.source_id);
+        let admission = source
+            .ok_or_else(|| "Source is not present in the configured source set".to_string())
+            .and_then(|source| {
+                self.background
+                    .source_processing
+                    .register_source_for_scan(source)
+            });
+        if let Err(error) = admission {
+            tracing::error!(
+                target: "wavecrate::source_processing",
+                source_id = request.source_id.as_str(),
+                error,
+                "Folder scan will be cancelled because source admission could not be synchronized"
+            );
+        }
         self.library.start_folder_scan(&request);
         self.ui.status.sample = format!("Scanning source {}", request.label);
         tracing::info!(
@@ -44,10 +65,21 @@ impl NativeAppState {
             started_at,
             None,
         );
+        let budget = self.background.source_processing.budget_handle();
+        let source_id = request.source_id.clone();
         // Keep this stream fully ordered: discovery batches must not be
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
-            move |_context, events| run_folder_scan_worker(request, events),
+            move |_context, events| {
+                let Some(permit) = budget.acquire_scan(&source_id) else {
+                    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                    return run_folder_scan_worker(request, events, cancel);
+                };
+                let cancel = permit.cancel_token();
+                let result = run_folder_scan_worker(request, events, cancel);
+                drop(permit);
+                result
+            },
             folder_scan_worker_event_message,
             GuiMessage::FolderScanFinished,
         );
@@ -99,6 +131,20 @@ impl NativeAppState {
                     started_at,
                     None,
                 );
+            }
+            SourceScanFinish::Cancelled { source_id, label } => {
+                self.ui.status.sample = format!("Paused source scan for {label}");
+                emit_gui_action(
+                    "folder_browser.scan.finish",
+                    Some("folder_browser"),
+                    Some(&label),
+                    "cancelled",
+                    started_at,
+                    Some("source_processing_cancelled"),
+                );
+                self.background
+                    .source_processing
+                    .wake_source(&source_id, "external_scan_cancelled");
             }
         }
     }

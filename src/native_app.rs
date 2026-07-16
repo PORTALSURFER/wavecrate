@@ -9,6 +9,7 @@ mod release_update;
 mod sample_identity_diagnostics;
 mod sample_library;
 mod shell;
+mod source_processing;
 mod starmap_audition_telemetry;
 #[cfg(test)]
 mod test_support;

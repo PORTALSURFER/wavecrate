@@ -38,7 +38,8 @@ impl NativeAppState {
                 worker_sender.clone(),
             )
         });
-        let background = BackgroundTaskState::new(worker_sender, Some(worker_receiver));
+        let background =
+            BackgroundTaskState::new(worker_sender, Some(worker_receiver), config.sources.clone());
         let audio = AudioAppState::from_settings(&config.core);
         let startup = StartupState::new(
             startup_source_scan_pending,
@@ -81,6 +82,18 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn sync_source_watcher(&mut self) {
         let sources = self.library.folder_browser.configured_sample_sources();
+        if let Err(error) = self
+            .background
+            .source_processing
+            .replace_sources(sources.clone())
+        {
+            tracing::error!(
+                target: "wavecrate::source_processing",
+                error,
+                "Configured sources remain unchanged because retirement fencing failed"
+            );
+            return;
+        }
         if sources.is_empty() {
             self.library.source_watcher = None;
             return;
@@ -126,6 +139,12 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.background
+            .source_processing
+            .set_foreground_activity(self.waveform_sample_load_active());
+        self.background
+            .source_processing
+            .set_playback_active(self.playback_visual_activity_active());
         if !ui_frame_diagnostics_enabled() {
             self.waveform
                 .current
@@ -326,10 +345,12 @@ impl NativeAppState {
 
     pub(in crate::native_app) fn shutdown(&mut self) -> Option<serde_json::Value> {
         let started_at = Instant::now();
+        let source_processing = self.background.source_processing.shutdown();
         crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
         let elapsed = started_at.elapsed();
         Some(serde_json::json!({
             "waveform_cache_shutdown_flush_ms": duration_ms(elapsed),
+            "source_processing": source_processing,
         }))
     }
 }

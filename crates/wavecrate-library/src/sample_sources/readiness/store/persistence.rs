@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
@@ -20,7 +23,55 @@ pub fn replace_readiness_targets(
     targets: &[ReadinessTarget],
     updated_at: i64,
 ) -> Result<(), ReadinessError> {
-    validate_targets(source_id, source_generation, targets)?;
+    replace_readiness_targets_inner(
+        connection,
+        source_id,
+        source_generation,
+        readiness_revision,
+        availability,
+        targets,
+        updated_at,
+        None,
+    )
+}
+
+/// Atomically replace desired readiness while honoring cancellation during large publications.
+#[allow(clippy::too_many_arguments)]
+pub fn replace_readiness_targets_with_cancel(
+    connection: &mut Connection,
+    source_id: &str,
+    source_generation: i64,
+    readiness_revision: i64,
+    availability: SourceAvailability,
+    targets: &[ReadinessTarget],
+    updated_at: i64,
+    cancel: &AtomicBool,
+) -> Result<(), ReadinessError> {
+    replace_readiness_targets_inner(
+        connection,
+        source_id,
+        source_generation,
+        readiness_revision,
+        availability,
+        targets,
+        updated_at,
+        Some(cancel),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replace_readiness_targets_inner(
+    connection: &mut Connection,
+    source_id: &str,
+    source_generation: i64,
+    readiness_revision: i64,
+    availability: SourceAvailability,
+    targets: &[ReadinessTarget],
+    updated_at: i64,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ReadinessError> {
+    validate_targets(source_id, source_generation, targets, cancel)?;
+    cancellation_checkpoint(cancel)?;
     let tx = connection.transaction()?;
     let current_state = tx
         .query_row(
@@ -47,7 +98,8 @@ pub fn replace_readiness_targets(
             });
         }
     }
-    validate_manifest_membership(&tx, targets)?;
+    validate_manifest_membership(&tx, targets, cancel)?;
+    cancellation_checkpoint(cancel)?;
     tx.execute(
         "INSERT INTO source_readiness_sources (
             source_id, source_generation, readiness_revision, availability, updated_at
@@ -65,11 +117,13 @@ pub fn replace_readiness_targets(
             updated_at
         ],
     )?;
+    cancellation_checkpoint(cancel)?;
     tx.execute(
         "DELETE FROM source_readiness_targets WHERE source_id = ?1",
         [source_id],
     )?;
     for target in targets {
+        cancellation_checkpoint(cancel)?;
         insert_target(&tx, target, updated_at)?;
         if target.scope_kind == ReadinessScopeKind::File {
             refresh_work_metadata(&tx, target)?;
@@ -171,10 +225,31 @@ pub fn persist_readiness_deficits(
     deficits: &[ReadinessDeficit],
     created_at: i64,
 ) -> Result<usize, ReadinessError> {
+    persist_readiness_deficits_inner(connection, deficits, created_at, None)
+}
+
+/// Persist deficits while honoring cancellation; cancellation rolls back the current batch.
+pub fn persist_readiness_deficits_with_cancel(
+    connection: &mut Connection,
+    deficits: &[ReadinessDeficit],
+    created_at: i64,
+    cancel: &AtomicBool,
+) -> Result<usize, ReadinessError> {
+    persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel))
+}
+
+fn persist_readiness_deficits_inner(
+    connection: &mut Connection,
+    deficits: &[ReadinessDeficit],
+    created_at: i64,
+    cancel: Option<&AtomicBool>,
+) -> Result<usize, ReadinessError> {
+    cancellation_checkpoint(cancel)?;
     let mut unique = BTreeSet::new();
     let tx = connection.transaction()?;
     let mut changed = 0;
     for deficit in deficits {
+        cancellation_checkpoint(cancel)?;
         let target = &deficit.target;
         if !unique.insert((
             target.key(),
@@ -475,11 +550,13 @@ fn validate_targets(
     source_id: &str,
     source_generation: i64,
     targets: &[ReadinessTarget],
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), ReadinessError> {
     let mut keys = BTreeSet::new();
     let mut file_stages = BTreeMap::<String, BTreeSet<ReadinessStage>>::new();
     let mut has_similarity_layout = false;
     for target in targets {
+        cancellation_checkpoint(cancel)?;
         if target.source_id != source_id || target.source_generation != source_generation {
             return Err(ReadinessError::TargetGenerationMismatch {
                 source_id: source_id.to_string(),
@@ -558,6 +635,7 @@ fn validate_targets(
         }
     }
     for (scope_id, stages) in file_stages {
+        cancellation_checkpoint(cancel)?;
         for stage in [
             ReadinessStage::IndexedIdentity,
             ReadinessStage::PlaybackSummary,
@@ -581,12 +659,14 @@ fn validate_targets(
 fn validate_manifest_membership(
     tx: &Transaction<'_>,
     targets: &[ReadinessTarget],
+    cancel: Option<&AtomicBool>,
 ) -> Result<(), ReadinessError> {
     let mut desired = BTreeMap::<String, String>::new();
     for target in targets.iter().filter(|target| {
         target.scope_kind == ReadinessScopeKind::File
             && target.eligibility != super::super::model::ReadinessEligibility::Deleted
     }) {
+        cancellation_checkpoint(cancel)?;
         let path = target
             .relative_path
             .as_deref()
@@ -617,6 +697,7 @@ fn validate_manifest_membership(
     })?;
     let mut manifest = BTreeMap::<String, String>::new();
     for row in rows {
+        cancellation_checkpoint(cancel)?;
         let (path, identity) = row?;
         let Some(identity) = identity.filter(|identity| !identity.trim().is_empty()) else {
             return Err(ReadinessError::ManifestIdentityUnavailable { path });
@@ -644,6 +725,7 @@ fn validate_manifest_membership(
         });
     }
     for (identity, expected) in manifest {
+        cancellation_checkpoint(cancel)?;
         let supplied = desired
             .get(&identity)
             .expect("identity sets were compared before paths");
@@ -656,6 +738,14 @@ fn validate_manifest_membership(
         }
     }
     Ok(())
+}
+
+fn cancellation_checkpoint(cancel: Option<&AtomicBool>) -> Result<(), ReadinessError> {
+    if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+        Err(ReadinessError::Cancelled)
+    } else {
+        Ok(())
+    }
 }
 
 fn insert_target(

@@ -8,12 +8,14 @@ mod analysis_db;
 mod analysis_decode;
 mod backfill;
 mod errors;
+mod readiness;
 mod rebuild;
 mod status;
 mod support;
 
 #[cfg(not(test))]
 pub(crate) use analysis::{AnalysisContext, run_analysis_jobs_with_decoded_batch};
+pub(crate) use readiness::{run_embedding_stage, run_feature_stage};
 pub(crate) use status::update_job_status_with_retry;
 
 pub(crate) fn run_job(
@@ -23,6 +25,29 @@ pub(crate) fn run_job(
     max_analysis_duration_seconds: f32,
     analysis_sample_rate: u32,
     analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<(), String> {
+    run_job_with_embedding_worker_limit(
+        conn,
+        job,
+        use_cache,
+        max_analysis_duration_seconds,
+        analysis_sample_rate,
+        analysis_version,
+        cancel,
+        None,
+    )
+}
+
+pub(crate) fn run_job_with_embedding_worker_limit(
+    conn: &mut rusqlite::Connection,
+    job: &db::ClaimedJob,
+    use_cache: bool,
+    max_analysis_duration_seconds: f32,
+    analysis_sample_rate: u32,
+    analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+    embedding_worker_limit: Option<usize>,
 ) -> Result<(), String> {
     let started_at = Instant::now();
     let source = job.source_root.display().to_string();
@@ -33,15 +58,18 @@ pub(crate) fn run_job(
                 max_analysis_duration_seconds,
                 analysis_sample_rate,
                 analysis_version,
+                cancel,
             };
             analysis::run_analysis_job(conn, job, &context)
         }
-        db::EMBEDDING_BACKFILL_JOB_TYPE => backfill::run_embedding_backfill_job(
+        db::EMBEDDING_BACKFILL_JOB_TYPE => backfill::run_embedding_backfill_job_with_worker_limit(
             conn,
             job,
             use_cache,
             analysis_sample_rate,
             analysis_version,
+            cancel,
+            embedding_worker_limit,
         ),
         db::REBUILD_INDEX_JOB_TYPE => rebuild::run_rebuild_index_job(conn, job),
         _ => Err(format!("Unknown job type: {}", job.job_type)),

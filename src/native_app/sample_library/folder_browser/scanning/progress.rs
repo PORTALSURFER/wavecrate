@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use super::{
     super::{
@@ -18,18 +21,28 @@ use wavecrate::sample_sources::{SourceDatabase, scanner};
 /// Publish at most one source-index progress update per bounded file batch.
 pub(in crate::native_app) const INDEX_PROGRESS_REPORT_INTERVAL: usize = 128;
 
+#[cfg(test)]
 pub(in crate::native_app) fn scan_source_with_progress(
+    request: FolderScanRequest,
+    progress: impl FnMut(FolderScanProgress),
+    discovered: impl FnMut(FolderScanDiscovery),
+) -> FolderScanResult {
+    scan_source_with_progress_cancellable(request, progress, discovered, &AtomicBool::new(false))
+}
+
+pub(in crate::native_app) fn scan_source_with_progress_cancellable(
     request: FolderScanRequest,
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
+    cancel: &AtomicBool,
 ) -> FolderScanResult {
     let source_root_available = request.root.is_dir();
     let source_db_error = if source_root_available {
-        sync_source_database(&request, &mut progress)
+        sync_source_database(&request, &mut progress, cancel)
     } else {
         None
     };
-    let ratings = if source_root_available {
+    let ratings = if source_root_available && !cancel.load(Ordering::Acquire) {
         source_rating_map_with_rating_decay(
             &request.root,
             &request.database_root,
@@ -48,6 +61,7 @@ pub(in crate::native_app) fn scan_source_with_progress(
         },
         progress: &mut progress,
         discovered: &mut discovered,
+        cancel,
     };
     scan.report_initial();
     let folder = load_folder_with_progress(&request.root, &mut scan)
@@ -67,12 +81,14 @@ pub(in crate::native_app) fn scan_source_with_progress(
         folder_count,
         source_db_error,
         source_root_available,
+        cancelled: cancel.load(Ordering::Acquire),
     }
 }
 
 fn sync_source_database(
     request: &FolderScanRequest,
     progress: &mut impl FnMut(FolderScanProgress),
+    cancel: &AtomicBool,
 ) -> Option<String> {
     let db = match SourceDatabase::open_for_background_job_with_database_root(
         &request.root,
@@ -98,21 +114,16 @@ fn sync_source_database(
     let stats = match scanner::scan_with_progress(
         &db,
         scanner::ScanMode::Quick,
-        None,
+        Some(cancel),
         &mut sync_progress,
     ) {
         Ok(stats) => stats,
         Err(err) => return Some(format!("sync source index: {err}")),
     };
-    let completed = match scanner::complete_deferred_rename_candidates(&db, stats) {
-        Ok(completed) => completed,
-        Err(err) => return Some(format!("finish deferred rename hashing: {err}")),
-    };
-    if completed.hashes_pending > 0 {
-        scanner::schedule_deep_hash_scan_with_database_root(
-            request.root.clone(),
-            request.database_root.clone(),
-        );
+    if let Err(err) =
+        scanner::complete_deferred_rename_candidates_with_cancel(&db, stats, Some(cancel))
+    {
+        return Some(format!("finish deferred rename hashing: {err}"));
     }
     None
 }
@@ -133,6 +144,7 @@ where
     counter: ScanProgressCounter,
     progress: &'a mut P,
     discovered: &'a mut D,
+    cancel: &'a AtomicBool,
 }
 
 impl<P, D> ScanProgressContext<'_, P, D>
@@ -208,6 +220,9 @@ where
     P: FnMut(FolderScanProgress),
     D: FnMut(FolderScanDiscovery),
 {
+    if scan.cancel.load(Ordering::Acquire) {
+        return None;
+    }
     let entries = read_sorted_entries(path)?;
     let parent_id = path_id(path);
     scan.record_folder_snapshot_start(&parent_id);
@@ -215,6 +230,9 @@ where
         .iter()
         .filter(|entry| entry.is_dir())
         .filter_map(|entry| {
+            if scan.cancel.load(Ordering::Acquire) {
+                return None;
+            }
             scan.record_folder(entry, &parent_id);
             load_folder_with_progress(entry, scan)
         })
@@ -223,10 +241,15 @@ where
         .iter()
         .filter(|entry| entry.is_file())
         .map(|entry| {
+            if scan.cancel.load(Ordering::Acquire) {
+                return None;
+            }
             let file = rated_file_entry(entry, &scan.request.root, &scan.ratings);
             scan.record_file(entry, &parent_id, file.clone());
-            file
+            Some(file)
         })
+        .take_while(Option::is_some)
+        .flatten()
         .collect::<Vec<_>>();
     Some(FolderEntry {
         id: path_id(path),

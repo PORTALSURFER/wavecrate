@@ -9,12 +9,15 @@ mod report;
 mod storage;
 
 use rusqlite::Connection;
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use projection::compute_tsne;
 use report::validate_layout;
 pub use report::{MapLayoutReport, UmapReport, default_layout_report_path, write_layout_report};
-use storage::{load_embeddings, write_layout};
+use storage::{load_embeddings, write_layout_with_publication_fence};
 
 type LayoutPoint = [f32; 2];
 
@@ -30,10 +33,64 @@ pub fn build_map_layout(
     seed: u64,
     min_coverage: f32,
 ) -> Result<MapLayoutReport, String> {
+    let cancel = AtomicBool::new(false);
+    build_map_layout_with_cancel(conn, model_id, layout_version, seed, min_coverage, &cancel)
+}
+
+/// Build a starmap layout while fencing durable publication when cancellation is requested.
+pub fn build_map_layout_with_cancel(
+    conn: &mut Connection,
+    model_id: &str,
+    layout_version: &str,
+    seed: u64,
+    min_coverage: f32,
+    cancel: &AtomicBool,
+) -> Result<MapLayoutReport, String> {
+    build_map_layout_with_cancel_and_publication_fence(
+        conn,
+        model_id,
+        layout_version,
+        seed,
+        min_coverage,
+        cancel,
+        &|_| Ok(true),
+    )?
+    .ok_or_else(|| "Starmap layout publication fence unexpectedly rejected".to_string())
+}
+
+/// Build a starmap layout and publish it only while a transactional generation fence is current.
+///
+/// The fence runs after an immediate SQLite write transaction begins, so a concurrent source
+/// mutation cannot commit between the generation check and the layout rows.
+pub fn build_map_layout_with_cancel_and_publication_fence(
+    conn: &mut Connection,
+    model_id: &str,
+    layout_version: &str,
+    seed: u64,
+    min_coverage: f32,
+    cancel: &AtomicBool,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<Option<MapLayoutReport>, String> {
     let (sample_ids, vectors, dim) = load_embeddings(conn, model_id)?;
+    if cancel.load(Ordering::Acquire) {
+        return Err("Starmap layout cancelled before projection".to_string());
+    }
     let layout = build_layout(vectors, dim, seed)?;
-    persist_and_validate_layout(conn, &sample_ids, &layout, model_id, layout_version)?;
-    validate_layout(&layout, min_coverage)
+    if cancel.load(Ordering::Acquire) {
+        return Err("Starmap layout cancelled before publication".to_string());
+    }
+    let published = persist_and_validate_layout_with_fence(
+        conn,
+        &sample_ids,
+        &layout,
+        model_id,
+        layout_version,
+        publication_fence,
+    )?;
+    if !published {
+        return Ok(None);
+    }
+    validate_layout(&layout, min_coverage).map(Some)
 }
 
 /// Build and persist a 2D layout through the legacy UMAP-named entrypoint.
@@ -64,16 +121,27 @@ fn build_layout(vectors: Vec<f64>, dim: usize, seed: u64) -> Result<Vec<LayoutPo
     compute_tsne(vectors, dim, seed)
 }
 
-fn persist_and_validate_layout(
+fn persist_and_validate_layout_with_fence(
     conn: &mut Connection,
     sample_ids: &[String],
     layout: &[LayoutPoint],
     model_id: &str,
     layout_version: &str,
-) -> Result<(), String> {
-    let inserted = write_layout(conn, sample_ids, layout, model_id, layout_version)?;
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<bool, String> {
+    let Some(inserted) = write_layout_with_publication_fence(
+        conn,
+        sample_ids,
+        layout,
+        model_id,
+        layout_version,
+        publication_fence,
+    )?
+    else {
+        return Ok(false);
+    };
     validate_insert_count(inserted, sample_ids.len())?;
-    Ok(())
+    Ok(true)
 }
 
 fn validate_insert_count(inserted: usize, expected: usize) -> Result<(), String> {

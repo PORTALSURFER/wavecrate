@@ -34,6 +34,31 @@ fn list_files_page_orders_supported_audio_and_applies_offsets() {
 }
 
 #[test]
+fn pending_hash_query_is_bounded_and_excludes_missing_or_hashed_rows() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    for name in ["delta.wav", "alpha.wav", "charlie.wav", "bravo.wav"] {
+        db.upsert_file(Path::new(name), 10, 5).unwrap();
+    }
+    db.connection
+        .execute(
+            "UPDATE wav_files SET content_hash = 'hash' WHERE path = 'alpha.wav'",
+            [],
+        )
+        .unwrap();
+    db.set_missing(Path::new("bravo.wav"), true).unwrap();
+
+    let paths = db
+        .list_pending_hash_files(1)
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.relative_path)
+        .collect::<Vec<_>>();
+
+    assert_eq!(paths, vec![PathBuf::from("charlie.wav")]);
+}
+
+#[test]
 fn audio_queries_ignore_appledouble_sidecars() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();

@@ -43,7 +43,7 @@ impl NativeAppState {
                 self.queue_source_filesystem_sync(source_id.clone(), paths, changed_count, context);
                 if changed {
                     self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
-                    self.queue_source_prep(
+                    self.queue_source_prep_pending_commit(
                         source_id.clone(),
                         SourcePrepTrigger::FilesystemChanged,
                         context,
@@ -83,19 +83,39 @@ impl NativeAppState {
         result: SourceFilesystemSyncResult,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let source_id = result.source_id;
+        let changed_count = result.changed_count;
+        if result.cancelled {
+            self.background
+                .source_processing
+                .wake_source(&source_id, "filesystem_sync_cancelled");
+            self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+            return;
+        }
         match result.result {
             Ok(success) if success.renames_reconciled > 0 => {
-                self.queue_filesystem_source_refresh(result.source_id, Instant::now(), context);
+                if changed_count > 0 {
+                    self.background
+                        .source_processing
+                        .wake_source(&source_id, "filesystem_sync_commit");
+                }
+                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }
-            Ok(_) => {}
+            Ok(_) => {
+                if changed_count > 0 {
+                    self.background
+                        .source_processing
+                        .wake_source(&source_id, "filesystem_sync_commit");
+                }
+            }
             Err(error) => {
                 tracing::warn!(
-                    source_id = %result.source_id,
-                    changed_count = result.changed_count,
+                    source_id = %source_id,
+                    changed_count,
                     error = %error,
                     "Failed to sync source database after filesystem change"
                 );
-                if result.source_id == self.library.folder_browser.selected_source_id() {
+                if source_id == self.library.folder_browser.selected_source_id() {
                     self.ui.status.sample = format!("Source sync failed: {error}");
                 }
             }
@@ -171,9 +191,28 @@ impl NativeAppState {
         else {
             return;
         };
+        let budget = self.background.source_processing.budget_handle();
         context.business().background("gui-source-db-sync").run(
             move |_| {
-                sync_source_database_paths(source_id, root, database_root, paths, changed_count)
+                let Some(permit) = budget.acquire_scan(&source_id) else {
+                    return SourceFilesystemSyncResult {
+                        source_id,
+                        changed_count,
+                        cancelled: true,
+                        result: Err(String::from("Source filesystem sync canceled")),
+                    };
+                };
+                let cancel = permit.cancel_token();
+                let result = sync_source_database_paths(
+                    source_id,
+                    root,
+                    database_root,
+                    paths,
+                    changed_count,
+                    cancel.as_ref(),
+                );
+                drop(permit);
+                result
             },
             GuiMessage::SourceFilesystemSyncFinished,
         );

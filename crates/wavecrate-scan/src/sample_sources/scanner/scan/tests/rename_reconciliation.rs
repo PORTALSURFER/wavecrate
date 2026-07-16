@@ -200,6 +200,44 @@ fn canceled_deferred_hashing_reports_cancellation_after_quick_scan_commit() {
 }
 
 #[test]
+fn canceled_rename_reconciliation_can_be_safely_requeued() {
+    let dir = tempdir().unwrap();
+    let old_path = dir.path().join("old.wav");
+    let new_path = dir.path().join("new.wav");
+    std::fs::write(&old_path, vec![3_u8; 9 * 1024 * 1024]).unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    std::fs::rename(&old_path, &new_path).unwrap();
+    let stats = scan_once(&db).unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(true);
+
+    let cancelled =
+        complete_deferred_rename_candidates_with_cancel(&db, stats.clone(), Some(&cancel));
+
+    assert!(matches!(cancelled, Err(ScanError::Canceled)));
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
+
+    cancel.store(false, std::sync::atomic::Ordering::Release);
+    let completed =
+        complete_deferred_rename_candidates_with_cancel(&db, stats, Some(&cancel)).unwrap();
+    assert_eq!(completed.renames_reconciled, 1);
+    assert_eq!(
+        db.entry_for_path(Path::new("new.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::KEEP_1
+    );
+}
+
+#[test]
 fn candidate_completion_keeps_cold_large_import_hashing_deferred() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("large.wav"), vec![0_u8; 9 * 1024 * 1024]).unwrap();
@@ -285,6 +323,8 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
         None,
         &rename_candidates(&["two.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
+        None,
     )
     .unwrap();
     assert_eq!(deep_stats.hashes_computed, 1);
@@ -401,6 +441,8 @@ fn detached_deep_hash_uses_persisted_quick_scan_destinations() {
         None,
         &HashSet::new(),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
+        None,
     )
     .unwrap();
 
@@ -439,6 +481,8 @@ fn large_rename_reconciles_when_unchanged_duplicate_remains() {
         None,
         &rename_candidates(&["c.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
+        None,
     )
     .unwrap();
     assert_eq!(deep.renames_reconciled, 1);
@@ -494,6 +538,8 @@ fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
         None,
         &rename_candidates(&["new.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
+        None,
     )
     .unwrap();
 
@@ -567,6 +613,8 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
         None,
         &rename_candidates(&["two.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
+        None,
     )
     .unwrap();
     assert_eq!(deep_stats.renames_reconciled, 1);
@@ -611,6 +659,8 @@ fn deep_hash_scan_uses_matching_facts_to_disambiguate_backfilled_duplicates() {
         None,
         &rename_candidates(&["b.wav", "c.wav"]),
         crate::sample_sources::scanner::scan_hash::DeferredHashScope::AllUnhashed,
+        None,
+        None,
     )
     .unwrap();
     assert_eq!(deep.hashes_computed, 2);

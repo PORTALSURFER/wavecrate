@@ -2,6 +2,48 @@ use super::*;
 use wavecrate::sample_sources::{SourceId, db::META_LAST_SCAN_COMPLETED_AT};
 
 #[test]
+fn cancellable_finalizer_process_releases_promptly() {
+    let child = std::process::Command::new(std::env::current_exe().expect("current test binary"))
+        .args([
+            "--exact",
+            "native_app::sample_library::similarity_prep::worker::tests::cancellable_child_helper_waits",
+            "--ignored",
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn cancellable finalizer helper");
+    let cancel = std::sync::Arc::new(AtomicBool::new(false));
+    let cancel_worker = std::sync::Arc::clone(&cancel);
+    let trigger = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(50));
+        cancel_worker.store(true, Ordering::Release);
+    });
+    let started_at = Instant::now();
+
+    let child = crate::native_app::source_processing::wait_for_cancellable_child(
+        child,
+        cancel.as_ref(),
+        "similarity finalizer",
+    )
+    .expect("cancel finalizer child without error");
+
+    trigger.join().expect("join cancellation trigger");
+    assert!(child.is_none());
+    assert!(
+        started_at.elapsed() < Duration::from_secs(1),
+        "cancellation must promptly terminate the CPU-owning finalizer process"
+    );
+}
+
+#[test]
+#[ignore = "helper process for cancellable_finalizer_process_releases_promptly"]
+fn cancellable_child_helper_waits() {
+    std::thread::sleep(Duration::from_secs(30));
+}
+
+#[test]
 fn native_similarity_status_resolves_core_states() {
     assert_eq!(
         resolve_similarity_prep_facts(SimilarityPrepFacts {
@@ -92,6 +134,17 @@ fn native_similarity_prepare_enqueues_analysis_and_embedding_jobs() {
 }
 
 #[test]
+fn native_similarity_prepare_honors_supervisor_cancellation_before_writes() {
+    let (_dir, source) = source_with_file("cancelled.wav");
+    let cancel = AtomicBool::new(true);
+
+    let result = enqueue_similarity_prep_inner_with_cancel(&source, false, Some(&cancel));
+
+    assert_eq!(result, Err(String::from("Similarity preparation canceled")));
+    assert_eq!(count_jobs(&source), 0);
+}
+
+#[test]
 fn native_similarity_prepare_skips_current_analysis_artifacts() {
     let (_dir, source) = source_with_file("current.wav");
     seed_current_analysis_artifacts(&source, "current.wav");
@@ -139,7 +192,23 @@ fn native_similarity_prepare_skips_unchanged_unsupported_files() {
 
     assert_eq!(summary.analysis_inserted, 0);
     assert_eq!(summary.embedding_inserted, 0);
-    assert_eq!(summary.status, NativeSimilarityPrepStatus::UpToDate);
+    assert_eq!(summary.status, NativeSimilarityPrepStatus::Outdated);
+    assert!(similarity_prep_needs_finalization(&source).expect("finalization needed"));
+    let cancel = AtomicBool::new(false);
+    let publication_fence = SimilarityPublicationFence::legacy_paths_revision(
+        open_fast_source_db(&source)
+            .expect("open source")
+            .get_wav_paths_revision()
+            .expect("paths revision") as i64,
+    );
+    assert!(
+        finalize_similarity_prep_if_ready(&source, &publication_fence, &cancel)
+            .expect("finalize unsupported source")
+    );
+    assert_eq!(
+        resolve_similarity_prep_status(&source).expect("resolved status"),
+        NativeSimilarityPrepStatus::UpToDate
+    );
     assert_eq!(count_jobs_by_status(&source, "failed"), 1);
 }
 
@@ -166,6 +235,69 @@ fn native_similarity_prepare_retries_unsupported_files_after_content_changes() {
 }
 
 #[test]
+fn stale_legacy_generation_rejects_similarity_completion_timestamp() {
+    let (_dir, source) = source_with_file("changed.wav");
+    let db = open_fast_source_db(&source).expect("open source");
+    let publication_fence = SimilarityPublicationFence::legacy_paths_revision(
+        db.get_wav_paths_revision().expect("paths revision") as i64,
+    );
+    db.upsert_file(std::path::Path::new("changed.wav"), 17, 23)
+        .expect("advance source generation");
+
+    assert!(
+        !set_source_prep_timestamp_if_current(&source, 123, &publication_fence)
+            .expect("reject stale completion")
+    );
+    assert_eq!(
+        read_source_prep_timestamp(&source).expect("prep timestamp"),
+        None
+    );
+}
+
+#[test]
+fn readiness_publication_fence_requires_exact_membership_generation() {
+    let (_dir, source) = source_with_file("readiness.wav");
+    let connection = open_source_db(&source).expect("open source");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_sources (
+                source_id, source_generation, readiness_revision, availability, updated_at
+             ) VALUES (?1, 7, 1, 'active', 1)",
+            [source.id.as_str()],
+        )
+        .expect("insert readiness source");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_targets (
+                source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                source_generation, content_generation, eligibility, updated_at
+             ) VALUES (?1, 'source', ?1, NULL, 'similarity_layout', ?2,
+                       7, 'members-v7', 'eligible', 1)",
+            rusqlite::params![source.id.as_str(), NATIVE_SIMILARITY_UMAP_VERSION],
+        )
+        .expect("insert readiness target");
+    let target = ReadinessTarget::source(
+        source.id.as_str(),
+        ReadinessStage::SimilarityLayout,
+        NATIVE_SIMILARITY_UMAP_VERSION,
+        7,
+        "members-v7",
+    );
+    let fence = SimilarityPublicationFence::for_readiness_target(&target).expect("build fence");
+
+    assert!(fence.is_current(&connection).expect("current fence"));
+    connection
+        .execute(
+            "UPDATE source_readiness_sources
+             SET source_generation = 8, readiness_revision = 2
+             WHERE source_id = ?1",
+            [source.id.as_str()],
+        )
+        .expect("advance readiness generation");
+    assert!(!fence.is_current(&connection).expect("stale fence"));
+}
+
+#[test]
 fn automatic_native_similarity_finish_leaves_pending_jobs_for_background_processing() {
     let config_base = tempfile::tempdir().expect("config base");
     let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
@@ -173,19 +305,13 @@ fn automatic_native_similarity_finish_leaves_pending_jobs_for_background_process
     write_valid_wav_with_frequency(&dir.path().join("covered-b.wav"), 660.0);
     write_valid_wav_with_frequency(&dir.path().join("covered-c.wav"), 880.0);
     write_valid_wav_with_frequency(&dir.path().join("covered-d.wav"), 990.0);
-    ensure_source_database_scanned(&source).expect("scan source");
+    ensure_source_database_scanned(&source, None).expect("scan source");
     seed_similarity_artifacts_without_features(&source, "covered-a.wav");
     seed_similarity_artifacts_without_features(&source, "covered-b.wav");
     seed_similarity_artifacts_without_features(&source, "covered-c.wav");
     seed_similarity_artifacts_without_features(&source, "covered-d.wav");
 
-    let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
-    let finished = super::super::finish_similarity_prep(
-        summary,
-        &source,
-        super::super::SimilarityPrepTrigger::Automatic,
-    )
-    .expect("finish automatic prep");
+    let finished = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
 
     assert_eq!(finished.jobs_processed, 0);
     assert!(
@@ -210,16 +336,10 @@ fn automatic_native_similarity_finish_does_not_drain_pending_jobs_when_other_job
     enqueue_similarity_prep_inner(&source, false).expect("initial enqueue");
     seed_failed_analysis_job(&source, "failed.wav");
 
-    let summary = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
+    let finished = enqueue_similarity_prep_inner(&source, true).expect("automatic enqueue");
     let pending_before_finish = count_jobs_by_status(&source, "pending");
     let pending_analysis_before_finish =
         count_jobs_by_type_and_status(&source, ANALYZE_SAMPLE_JOB_TYPE, "pending");
-    let finished = super::super::finish_similarity_prep(
-        summary,
-        &source,
-        super::super::SimilarityPrepTrigger::Automatic,
-    )
-    .expect("finish automatic prep");
 
     assert_eq!(finished.jobs_processed, 0);
     assert_eq!(
@@ -255,13 +375,19 @@ fn native_similarity_prep_recognizes_transient_database_busy_errors() {
 }
 
 #[test]
-fn native_similarity_user_drain_processes_valid_wav_jobs() {
+fn native_similarity_supervisor_batches_process_valid_wav_jobs() {
     let config_base = tempfile::tempdir().expect("config base");
     let _config_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let (_dir, source) = source_with_valid_wav("valid.wav");
 
     let summary = enqueue_similarity_prep_inner(&source, false).expect("enqueue");
-    let drain = drain_similarity_prep_jobs(&source).expect("drain jobs");
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let mut drain = SimilarityPrepJobDrainSummary::default();
+    while similarity_prep_has_pending_jobs(&source).expect("pending jobs") {
+        let batch = run_similarity_prep_job_batch(&source, 1, &cancel).expect("run batch");
+        drain.processed += batch.processed;
+        drain.failed += batch.failed;
+    }
 
     assert_eq!(summary.analysis_inserted, 1);
     assert_eq!(summary.embedding_inserted, 1);

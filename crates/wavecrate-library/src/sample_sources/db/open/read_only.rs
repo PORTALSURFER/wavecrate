@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 
 use super::paths;
 use crate::sample_sources::db::{
@@ -21,7 +21,7 @@ pub(super) fn open_read_only_source_database(
         .ok_or_else(|| SourceDbError::ReadOnlyDatabaseMissing(database_root.join(DB_FILE_NAME)))?;
 
     let connect_started = std::time::Instant::now();
-    let connection = match Connection::open_with_flags(&db_path, role.open_flags()) {
+    let connection = match Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY) {
         Ok(connection) => {
             telemetry::record_open_phase(
                 root,
@@ -102,4 +102,45 @@ pub(super) fn open_read_only_source_database(
         Ok(()),
     );
     Ok(db)
+}
+
+#[cfg(test)]
+mod tests {
+    use rusqlite::MAIN_DB;
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn read_only_open_stays_read_only_for_writable_roles() {
+        let directory = tempdir().expect("temporary source");
+        let writable = SourceDatabase::open_for_source_write(directory.path())
+            .expect("create source database");
+        writable
+            .set_metadata("read_only_probe", "before")
+            .expect("seed metadata");
+        drop(writable);
+
+        let read_only = open_read_only_source_database(
+            directory.path(),
+            directory.path(),
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open job-worker role read-only");
+
+        assert!(
+            read_only.connection.is_readonly(MAIN_DB).unwrap(),
+            "the read-only entrypoint must override writable role flags"
+        );
+        assert!(
+            read_only
+                .connection
+                .execute(
+                    "INSERT OR REPLACE INTO metadata (key, value) VALUES ('read_only_probe', 'after')",
+                    [],
+                )
+                .is_err(),
+            "read-only source connections must reject writes"
+        );
+    }
 }

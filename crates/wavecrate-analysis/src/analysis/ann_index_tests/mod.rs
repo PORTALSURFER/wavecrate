@@ -89,13 +89,13 @@ pub(super) fn write_legacy_ann_files(
     ann_storage::save_legacy_id_map(&id_map_path, &state.id_map).unwrap();
 }
 
-pub(super) fn with_ann_test_db<T>(f: impl FnOnce(&Connection) -> T) -> T {
+pub(super) fn with_ann_test_db<T>(f: impl FnOnce(&mut Connection) -> T) -> T {
     let _lock = ANN_TEST_LOCK.lock().expect("ann test lock poisoned");
     let temp = tempdir().unwrap();
     let _guard = ConfigBaseGuard::set(temp.path().to_path_buf());
-    let conn = Connection::open_in_memory().unwrap();
+    let mut conn = Connection::open_in_memory().unwrap();
     create_ann_tables(&conn);
-    f(&conn)
+    f(&mut conn)
 }
 
 pub(super) fn load_disk_state(

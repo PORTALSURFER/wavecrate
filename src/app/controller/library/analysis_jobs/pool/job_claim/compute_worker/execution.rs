@@ -166,6 +166,7 @@ fn run_work_item(
                 settings.max_analysis_duration_seconds,
                 settings.analysis_sample_rate,
                 &settings.analysis_version,
+                None,
             );
             *immediate_job = Some((work.job, result));
             Ok(())
@@ -254,6 +255,7 @@ fn run_decoded_batch(
         max_analysis_duration_seconds: settings.max_analysis_duration_seconds,
         analysis_sample_rate: settings.analysis_sample_rate,
         analysis_version: settings.analysis_version.as_str(),
+        cancel: None,
     };
     let batch_outcomes = catch_unwind(AssertUnwindSafe(|| {
         super::super::super::job_execution::run_analysis_jobs_with_decoded_batch(

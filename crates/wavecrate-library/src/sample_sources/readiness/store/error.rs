@@ -5,6 +5,9 @@ use super::super::model::{ReadinessScopeKind, ReadinessStage};
 /// Errors returned by the durable readiness contract.
 #[derive(Debug, Error)]
 pub enum ReadinessError {
+    /// The caller cancelled a potentially long readiness database operation.
+    #[error("Readiness operation cancelled")]
+    Cancelled,
     /// SQLite persistence or query failed.
     #[error("Readiness database operation failed: {0}")]
     Sql(#[from] rusqlite::Error),
@@ -131,7 +134,9 @@ pub enum ReadinessError {
         path: String,
     },
     /// Two current manifest paths claimed the same stable file identity.
-    #[error("Current source manifest has duplicate identity {identity}: {first_path}, {second_path}")]
+    #[error(
+        "Current source manifest has duplicate identity {identity}: {first_path}, {second_path}"
+    )]
     DuplicateManifestIdentity {
         /// Duplicated stable identity.
         identity: String,
@@ -162,4 +167,10 @@ pub enum ReadinessError {
     /// The read-only database predates the additive readiness schema.
     #[error("Source database does not contain the readiness schema")]
     SchemaUnavailable,
+    /// A lease must advance time by a positive bounded duration.
+    #[error("Readiness lease duration must be positive: {0}")]
+    InvalidLeaseDuration(i64),
+    /// A supplied timestamp and duration could not be represented durably.
+    #[error("Readiness timestamp overflow")]
+    TimestampOverflow,
 }

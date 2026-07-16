@@ -262,6 +262,50 @@ fn mark_done_clears_error_and_updates_status() {
 }
 
 #[test]
+fn release_by_id_only_returns_running_jobs_to_pending() {
+    let db = TestDb::new();
+    db.insert_job(JobRow::new("s::running.wav", "x", "running").with_attempts(1));
+    db.insert_job(JobRow::new("s::done.wav", "x", "done").with_attempts(1));
+    let running_id: i64 = db
+        .conn
+        .query_row(
+            "SELECT id FROM analysis_jobs WHERE sample_id = 's::running.wav'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let done_id: i64 = db
+        .conn
+        .query_row(
+            "SELECT id FROM analysis_jobs WHERE sample_id = 's::done.wav'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    mark_pending_if_running(&db.conn, running_id).unwrap();
+    mark_pending_if_running(&db.conn, done_id).unwrap();
+
+    let statuses = db
+        .conn
+        .prepare("SELECT sample_id, status FROM analysis_jobs ORDER BY sample_id")
+        .unwrap()
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        statuses,
+        vec![
+            ("s::done.wav".to_string(), "done".to_string()),
+            ("s::running.wav".to_string(), "pending".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn mark_failed_updates_status_and_error() {
     let db = TestDb::new();
     db.insert_job(JobRow::new("s::a.wav", "x", "running").with_attempts(1));

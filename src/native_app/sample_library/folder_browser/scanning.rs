@@ -11,7 +11,9 @@ pub(in crate::native_app::sample_library::folder_browser) use metadata::refreshe
 pub(super) use metadata::{SourceMetadataMap, file_entry_for_source_path};
 #[cfg(test)]
 pub(in crate::native_app) use progress::INDEX_PROGRESS_REPORT_INTERVAL;
+#[cfg(test)]
 pub(in crate::native_app) use progress::scan_source_with_progress;
+pub(in crate::native_app) use progress::scan_source_with_progress_cancellable;
 pub(in crate::native_app) use traversal::refresh_folder_tree_only;
 pub(super) use traversal::{load_folder_at_path, load_source_snapshot, placeholder_folder};
 pub(in crate::native_app) use verification::verify_direct_folder;

@@ -71,6 +71,11 @@ pub struct ReadinessDeficit {
     pub target: ReadinessTarget,
     /// Classification that made the target actionable.
     pub reason: ReadinessClassification,
+    /// Original durable work-row creation time, when this exact target has already been queued.
+    ///
+    /// A missing value means reconciliation discovered a new deficit that has not yet been
+    /// persisted. Coordinators should use their persistence timestamp for that first observation.
+    pub enqueued_at: Option<i64>,
 }
 
 /// Aggregate counts for one readiness stage.

@@ -24,6 +24,36 @@ fn reset_running_to_pending_updates_rows() {
 }
 
 #[test]
+fn reset_running_to_pending_skips_read_only_legacy_databases() {
+    let directory = tempfile::tempdir().unwrap();
+    let database_path = directory.path().join("legacy.sqlite3");
+    rusqlite::Connection::open(&database_path).unwrap();
+    let connection = rusqlite::Connection::open_with_flags(
+        database_path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .unwrap();
+
+    assert_eq!(reset_running_to_pending(&connection).unwrap(), 0);
+}
+
+#[test]
+fn reset_running_to_pending_skips_unmigrated_analysis_job_schema() {
+    let connection = rusqlite::Connection::open_in_memory().unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE analysis_jobs (
+                id INTEGER PRIMARY KEY,
+                job_type TEXT NOT NULL,
+                status TEXT NOT NULL
+             );",
+        )
+        .unwrap();
+
+    assert_eq!(reset_running_to_pending(&connection).unwrap(), 0);
+}
+
+#[test]
 fn fail_stale_running_jobs_ignores_recent_claims() {
     let db = TestDb::new();
     db.insert_job(

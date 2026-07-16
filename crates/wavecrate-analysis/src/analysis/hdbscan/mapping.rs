@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Transaction, params};
+use rusqlite::{Connection, Transaction, TransactionBehavior, params};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -131,16 +131,22 @@ fn min_max_cluster_size(cluster_counts: &HashMap<i32, usize>) -> (usize, usize) 
     (min_size, max_size)
 }
 
-pub fn write_clusters(
+pub fn write_clusters_with_publication_fence(
     conn: &mut Connection,
     sample_ids: &[String],
     labels: &[i32],
     model_id: &str,
     method: &str,
     umap_version: &str,
-) -> Result<(), String> {
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+) -> Result<bool, String> {
     let now = now_epoch_seconds()?;
     let tx = start_cluster_tx(conn)?;
+    if !publication_fence(&tx)? {
+        tx.rollback()
+            .map_err(|err| format!("Roll back stale cluster publication failed: {err}"))?;
+        return Ok(false);
+    }
     {
         let mut stmt = prepare_cluster_insert(&tx)?;
         insert_cluster_rows(
@@ -155,11 +161,11 @@ pub fn write_clusters(
     }
     tx.commit()
         .map_err(|err| format!("Commit clusters failed: {err}"))?;
-    Ok(())
+    Ok(true)
 }
 
 fn start_cluster_tx(conn: &mut Connection) -> Result<Transaction<'_>, String> {
-    conn.transaction()
+    conn.transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|err| format!("Start transaction failed: {err}"))
 }
 
@@ -242,5 +248,44 @@ mod tests {
         let mut labels = vec![5, 5, 2];
         remap_labels_deterministic(&sample_ids, &mut labels).unwrap();
         assert_eq!(labels, vec![0, 0, 1]);
+    }
+
+    #[test]
+    fn stale_generation_rejects_cluster_rows_inside_publication_transaction() {
+        let mut connection = Connection::open_in_memory().expect("open database");
+        connection
+            .execute_batch(
+                "CREATE TABLE hdbscan_clusters (
+                    sample_id TEXT NOT NULL,
+                    model_id TEXT NOT NULL,
+                    method TEXT NOT NULL,
+                    umap_version TEXT NOT NULL,
+                    cluster_id INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    PRIMARY KEY (sample_id, model_id, method, umap_version)
+                ) WITHOUT ROWID;",
+            )
+            .expect("create cluster table");
+
+        let published = write_clusters_with_publication_fence(
+            &mut connection,
+            &["source::sample".to_string()],
+            &[0],
+            "model-v1",
+            "umap",
+            "layout-v1",
+            &|_| Ok(false),
+        )
+        .expect("reject stale clusters");
+
+        assert!(!published);
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM hdbscan_clusters", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("count cluster rows"),
+            0
+        );
     }
 }

@@ -10,9 +10,12 @@ use crate::native_app::app::{
 };
 
 mod worker;
-use worker::{
-    drain_similarity_prep_jobs, enqueue_similarity_prep_inner, finalize_similarity_prep_if_ready,
-    resolve_similarity_prep_status,
+use worker::{enqueue_similarity_prep_inner_with_cancel, resolve_similarity_prep_status};
+
+pub(in crate::native_app) use worker::{
+    NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
+    reset_interrupted_similarity_prep_jobs, run_internal_similarity_finalizer_from_args,
+    run_similarity_prep_job, similarity_prep_needs_finalization,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -184,8 +187,22 @@ impl NativeAppState {
         } else if selected_source {
             self.library.similarity_prep.summary = None;
         }
+        let budget = self.background.source_processing.budget_handle();
         context.business().background("gui-similarity-prep").run(
-            move |_| enqueue_similarity_prep(source, trigger),
+            move |_| {
+                let source_id = source.id().as_str().to_string();
+                let Some(permit) = budget.acquire_scan(&source_id) else {
+                    return SimilarityPrepEnqueueResult {
+                        source_id,
+                        trigger,
+                        result: Err(String::from("Similarity preparation canceled")),
+                    };
+                };
+                let cancel = permit.cancel_token();
+                let result = enqueue_similarity_prep(source, trigger, Some(cancel.as_ref()));
+                drop(permit);
+                result
+            },
             GuiMessage::SimilarityPrepEnqueueFinished,
         );
     }
@@ -256,6 +273,9 @@ impl NativeAppState {
                 }
             }
         }
+        self.background
+            .source_processing
+            .wake_source(&result.source_id, "similarity_prep_commit");
         self.start_next_pending_similarity_prep(context);
     }
 
@@ -408,44 +428,18 @@ fn resolve_status_result(source: SimilarityPrepSource) -> SimilarityPrepStatusRe
 fn enqueue_similarity_prep(
     source: SimilarityPrepSource,
     trigger: SimilarityPrepTrigger,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> SimilarityPrepEnqueueResult {
     let source_id = source.id().as_str().to_string();
     let sample_source = source.sample_source();
     SimilarityPrepEnqueueResult {
         source_id,
         trigger,
-        result: enqueue_similarity_prep_inner(
+        result: enqueue_similarity_prep_inner_with_cancel(
             &sample_source,
             trigger == SimilarityPrepTrigger::Automatic,
-        )
-        .and_then(|summary| finish_similarity_prep(summary, &sample_source, trigger)),
-    }
-}
-
-fn finish_similarity_prep(
-    mut summary: SimilarityPrepEnqueueSummary,
-    source: &SampleSource,
-    trigger: SimilarityPrepTrigger,
-) -> Result<SimilarityPrepEnqueueSummary, String> {
-    if !should_drain_similarity_prep_jobs(&summary, source, trigger)? {
-        return Ok(summary);
-    }
-    let drain = drain_similarity_prep_jobs(source)?;
-    summary.jobs_processed = drain.processed;
-    summary.jobs_failed = drain.failed;
-    summary.finalized |= finalize_similarity_prep_if_ready(source)?;
-    summary.status = resolve_similarity_prep_status(source)?;
-    Ok(summary)
-}
-
-fn should_drain_similarity_prep_jobs(
-    _summary: &SimilarityPrepEnqueueSummary,
-    _source: &SampleSource,
-    trigger: SimilarityPrepTrigger,
-) -> Result<bool, String> {
-    match trigger {
-        SimilarityPrepTrigger::UserRequested => Ok(true),
-        SimilarityPrepTrigger::Automatic => Ok(false),
+            cancel,
+        ),
     }
 }
 

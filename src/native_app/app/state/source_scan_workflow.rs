@@ -62,6 +62,10 @@ pub(in crate::native_app) enum SourceScanFinish {
     Stale {
         label: String,
     },
+    Cancelled {
+        source_id: String,
+        label: String,
+    },
 }
 
 impl SourceScanWorkflow {
@@ -322,6 +326,14 @@ impl SourceScanWorkflow {
         let folder_count = result.folder_count;
         let source_db_error = result.source_db_error.clone();
         let source_root_available = result.source_root_available;
+        if result.cancelled {
+            if browser.cancel_scan(&source_id, result.task_id) {
+                self.progress = None;
+                self.queue_required_refresh(source_id.clone());
+                return SourceScanFinish::Cancelled { source_id, label };
+            }
+            return SourceScanFinish::Stale { label };
+        }
         if browser.apply_scan_finished(result) {
             self.progress = None;
             SourceScanFinish::Applied {

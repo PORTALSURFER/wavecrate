@@ -97,6 +97,7 @@ pub(crate) fn run_claimed_job(
     max_analysis_duration_seconds: f32,
     analysis_sample_rate: u32,
     analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<(), String> {
     pool::job_execution::run_job(
         conn,
@@ -105,5 +106,68 @@ pub(crate) fn run_claimed_job(
         max_analysis_duration_seconds,
         analysis_sample_rate,
         analysis_version,
+        cancel,
+    )
+}
+
+pub(crate) fn run_claimed_job_with_embedding_worker_limit(
+    conn: &mut rusqlite::Connection,
+    job: &db::ClaimedJob,
+    use_cache: bool,
+    max_analysis_duration_seconds: f32,
+    analysis_sample_rate: u32,
+    analysis_version: &str,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+    embedding_worker_limit: usize,
+) -> Result<(), String> {
+    pool::job_execution::run_job_with_embedding_worker_limit(
+        conn,
+        job,
+        use_cache,
+        max_analysis_duration_seconds,
+        analysis_sample_rate,
+        analysis_version,
+        cancel,
+        Some(embedding_worker_limit),
+    )
+}
+
+pub(crate) fn run_readiness_feature_stage(
+    conn: &mut rusqlite::Connection,
+    source_root: &std::path::Path,
+    source_id: &str,
+    relative_path: &std::path::Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<bool, String> {
+    pool::job_execution::run_feature_stage(
+        conn,
+        source_root,
+        source_id,
+        relative_path,
+        content_hash,
+        analysis_version,
+        cancel,
+    )
+}
+
+pub(crate) fn run_readiness_embedding_stage(
+    conn: &mut rusqlite::Connection,
+    source_root: &std::path::Path,
+    source_id: &str,
+    relative_path: &std::path::Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<bool, String> {
+    pool::job_execution::run_embedding_stage(
+        conn,
+        source_root,
+        source_id,
+        relative_path,
+        content_hash,
+        analysis_version,
+        cancel,
     )
 }

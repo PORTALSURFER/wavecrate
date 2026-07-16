@@ -464,7 +464,7 @@ fn scan_hashes_current_bytes_when_facts_are_preserved_after_discovery() {
 }
 
 #[test]
-fn cancellation_after_first_committed_batch_finishes_consistently() {
+fn cancellation_after_first_committed_batch_stops_at_a_resumable_checkpoint() {
     use std::sync::atomic::{AtomicBool, Ordering};
 
     let dir = tempdir().unwrap();
@@ -474,15 +474,57 @@ fn cancellation_after_first_committed_batch_finishes_consistently() {
     let db = SourceDatabase::open(dir.path()).unwrap();
     let cancel = AtomicBool::new(false);
 
-    let stats = scan_with_progress(&db, ScanMode::Quick, Some(&cancel), &mut |count, _| {
+    let result = scan_with_progress(&db, ScanMode::Quick, Some(&cancel), &mut |count, _| {
         if count == 65 {
             cancel.store(true, Ordering::Relaxed);
         }
-    })
-    .expect("once a bounded batch commits, the scan must finish consistently");
+    });
 
-    assert_eq!(stats.total_files, 70);
+    assert!(matches!(result, Err(ScanError::Canceled)));
+    assert_eq!(db.count_files().unwrap(), 64);
+
+    cancel.store(false, Ordering::Relaxed);
+    let resumed = scan_with_progress(&db, ScanMode::Quick, Some(&cancel), &mut |_, _| {})
+        .expect("a later scan must resume from the partial checkpoint");
+    assert_eq!(resumed.total_files, 70);
     assert_eq!(db.count_files().unwrap(), 70);
+}
+
+#[test]
+fn cancellation_after_walk_skips_missing_reconciliation_and_completion_publish() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = tempdir().unwrap();
+    for index in 0..70 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    std::fs::remove_file(dir.path().join("sample-000.wav")).unwrap();
+    let cancel = AtomicBool::new(false);
+
+    let result = scan_with_progress(&db, ScanMode::Quick, Some(&cancel), &mut |count, _| {
+        if count == 69 {
+            cancel.store(true, Ordering::Relaxed);
+        }
+    });
+
+    assert!(matches!(result, Err(ScanError::Canceled)));
+    assert!(
+        db.entry_for_path(Path::new("sample-000.wav"))
+            .unwrap()
+            .is_some(),
+        "cancellation before database reconciliation must leave missing rows for the next sweep"
+    );
+
+    cancel.store(false, Ordering::Relaxed);
+    scan_with_progress(&db, ScanMode::Quick, Some(&cancel), &mut |_, _| {})
+        .expect("a later scan must finish missing-row reconciliation");
+    assert!(
+        db.entry_for_path(Path::new("sample-000.wav"))
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]

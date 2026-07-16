@@ -7,10 +7,10 @@ use std::{
 };
 
 use super::{
-    identity::{cache_path_for_identity, CacheIdentity},
-    invalidation::current_path_generation,
-    write::store_cached_waveform_file_now,
     BACKGROUND_STORE_SHUTDOWN_WAIT,
+    identity::{CacheIdentity, cache_path_for_identity},
+    invalidation::current_path_generation,
+    write::{StoreWriteOutcome, store_cached_waveform_file_now as write_cached_waveform_file_now},
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
 use diagnostics::{log_slow_cache_shutdown_flush, log_store_completion};
@@ -24,10 +24,28 @@ static BACKGROUND_STORE_QUEUE: LazyLock<Arc<BackgroundStoreQueue>> =
 
 #[cfg(test)]
 pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file(file: &WaveformFile) {
-    let Some(job) = CachedWaveformStoreJob::new(file) else {
-        return;
-    };
-    let _ = store_cached_waveform_file_now(job);
+    let _ = persist_cached_waveform_file(file);
+}
+
+pub(in crate::native_app::waveform::audio_file) fn persist_cached_waveform_file(
+    file: &WaveformFile,
+) -> Result<(), String> {
+    let job = CachedWaveformStoreJob::new(file).ok_or_else(|| {
+        format!(
+            "waveform cache input identity is unavailable: {}",
+            file.path.display()
+        )
+    })?;
+    let outcome = write_cached_waveform_file_now(job);
+    let kind = outcome.kind();
+    if matches!(outcome, StoreWriteOutcome::Completed(_)) && !outcome.report().has_failures() {
+        Ok(())
+    } else {
+        Err(format!(
+            "waveform cache persistence failed for {}: {kind}",
+            file.path.display()
+        ))
+    }
 }
 
 pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in_background(
@@ -166,7 +184,7 @@ impl BackgroundStoreQueue {
         loop {
             let job = self.next_job();
             let cache_path = job.cache_path.clone();
-            let outcome = store_cached_waveform_file_now(job);
+            let outcome = write_cached_waveform_file_now(job);
             log_store_completion(&cache_path, outcome);
             self.finish_job(&cache_path);
         }

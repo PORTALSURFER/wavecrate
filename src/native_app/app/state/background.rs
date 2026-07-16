@@ -14,6 +14,7 @@ use crate::native_app::app::{
     ExtractedFilePlaybackType, FileMoveProgress, GuiMessage, NormalizationProgress,
     NormalizationQueueItem, PendingWaveformDestructiveEdit,
 };
+use crate::native_app::source_processing::SourceProcessingSupervisor;
 use crate::native_app::waveform::WaveformPreservedMarks;
 
 pub(in crate::native_app) struct BackgroundTaskState {
@@ -43,13 +44,22 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) file_move_progress: Option<FileMoveProgress>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: frame_ui::FrameCadenceMonitor,
+    pub(in crate::native_app) source_processing: SourceProcessingSupervisor,
 }
 
 impl BackgroundTaskState {
     pub(in crate::native_app) fn new(
         worker_sender: Sender<GuiMessage>,
         worker_receiver: Option<Receiver<GuiMessage>>,
+        sources: Vec<wavecrate::sample_sources::SampleSource>,
     ) -> Self {
+        #[cfg(not(test))]
+        let source_processing = SourceProcessingSupervisor::start(sources);
+        #[cfg(test)]
+        let source_processing = {
+            drop(sources);
+            SourceProcessingSupervisor::dormant()
+        };
         Self {
             worker_sender,
             worker_receiver,
@@ -76,6 +86,7 @@ impl BackgroundTaskState {
             file_move_progress: None,
             progress_tick: 0.0,
             frame_cadence: frame_ui::FrameCadenceMonitor::new(),
+            source_processing,
         }
     }
 
@@ -87,7 +98,7 @@ impl BackgroundTaskState {
 
     #[cfg(test)]
     pub(in crate::native_app) fn for_tests() -> Self {
-        Self::new(std::sync::mpsc::channel().0, None)
+        Self::new(std::sync::mpsc::channel().0, None, Vec::new())
     }
 }
 

@@ -1,13 +1,23 @@
+#![cfg_attr(test, allow(dead_code))]
+
 use std::{
     collections::HashSet,
     path::PathBuf,
+    sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
+};
+
+#[cfg(not(test))]
+use std::{
+    io::Read,
+    process::{Command, Stdio},
 };
 
 use wavecrate::sample_sources::config::{self, AnalysisSettings};
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
-    db::{META_LAST_SCAN_COMPLETED_AT, META_LAST_SIMILARITY_PREP_SCAN_AT},
+    db::{META_LAST_SCAN_COMPLETED_AT, META_LAST_SIMILARITY_PREP_SCAN_AT, META_WAV_PATHS_REVISION},
+    readiness::{ReadinessScopeKind, ReadinessStage, ReadinessTarget},
     scanner::{self, ScanMode},
 };
 use wavecrate_analysis::{
@@ -26,28 +36,125 @@ pub(in crate::native_app) use wavecrate::sample_sources::STARMAP_LAYOUT_UMAP_VER
 const NATIVE_SIMILARITY_CLUSTER_MIN_SIZE: usize = 10;
 const ANALYZE_SAMPLE_JOB_TYPE: &str = "wav_metadata_v1";
 const EMBEDDING_BACKFILL_JOB_TYPE: &str = "embedding_backfill_v1";
-const SIMILARITY_DRAIN_CLAIM_LIMIT: usize = 8;
 const SIMILARITY_BUSY_RETRY_ATTEMPTS: usize = 3;
 const SIMILARITY_BUSY_RETRY_DELAY: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct SimilarityPrepJobDrainSummary {
-    pub(super) processed: usize,
-    pub(super) failed: usize,
+pub(in crate::native_app) struct SimilarityPrepJobDrainSummary {
+    pub(in crate::native_app) processed: usize,
+    pub(in crate::native_app) failed: usize,
 }
 
+const INTERNAL_SIMILARITY_FINALIZER_ARG: &str = "--wavecrate-internal-similarity-finalizer-v1";
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub(in crate::native_app) enum SimilarityPublicationFence {
+    Readiness {
+        source_id: String,
+        source_generation: i64,
+        membership_generation: String,
+        artifact_version: String,
+    },
+    LegacyPathsRevision(i64),
+}
+
+impl SimilarityPublicationFence {
+    pub(in crate::native_app) fn for_readiness_target(
+        target: &ReadinessTarget,
+    ) -> Result<Self, String> {
+        if target.scope_kind != ReadinessScopeKind::Source
+            || target.stage != ReadinessStage::SimilarityLayout
+        {
+            return Err("similarity publication requires a source-level layout target".to_string());
+        }
+        Ok(Self::Readiness {
+            source_id: target.source_id.clone(),
+            source_generation: target.source_generation,
+            membership_generation: target.content_generation.clone(),
+            artifact_version: target.required_version.clone(),
+        })
+    }
+
+    pub(in crate::native_app) fn legacy_paths_revision(revision: i64) -> Self {
+        Self::LegacyPathsRevision(revision)
+    }
+
+    fn is_current(&self, connection: &rusqlite::Connection) -> Result<bool, String> {
+        match self {
+            Self::Readiness {
+                source_id,
+                source_generation,
+                membership_generation,
+                artifact_version,
+            } => connection
+                .query_row(
+                    "SELECT EXISTS(
+                        SELECT 1
+                        FROM source_readiness_sources AS source
+                        JOIN source_readiness_targets AS target
+                          ON target.source_id = source.source_id
+                        WHERE source.source_id = ?1
+                          AND source.source_generation = ?2
+                          AND source.availability = 'active'
+                          AND target.scope_kind = 'source'
+                          AND target.scope_id = ?1
+                          AND target.stage = 'similarity_layout'
+                          AND target.required_version = ?3
+                          AND target.source_generation = ?2
+                          AND target.content_generation = ?4
+                          AND target.eligibility = 'eligible'
+                    )",
+                    rusqlite::params![
+                        source_id,
+                        source_generation,
+                        artifact_version,
+                        membership_generation,
+                    ],
+                    |row| row.get(0),
+                )
+                .map_err(|error| {
+                    format!("Validate similarity readiness generation failed: {error}")
+                }),
+            Self::LegacyPathsRevision(revision) => connection
+                .query_row(
+                    "SELECT COALESCE(
+                        (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
+                        0
+                    ) = ?2",
+                    rusqlite::params![META_WAV_PATHS_REVISION, revision],
+                    |row| row.get(0),
+                )
+                .map_err(|error| format!("Validate source paths revision failed: {error}")),
+        }
+    }
+}
+
+#[cfg(test)]
 pub(super) fn enqueue_similarity_prep_inner(
     source: &SampleSource,
     automatic: bool,
 ) -> Result<SimilarityPrepEnqueueSummary, String> {
-    retry_similarity_prep_busy(source, || enqueue_similarity_prep_once(source, automatic))
+    enqueue_similarity_prep_inner_with_cancel(source, automatic, None)
+}
+
+pub(super) fn enqueue_similarity_prep_inner_with_cancel(
+    source: &SampleSource,
+    automatic: bool,
+    cancel: Option<&AtomicBool>,
+) -> Result<SimilarityPrepEnqueueSummary, String> {
+    retry_similarity_prep_busy(source, || {
+        enqueue_similarity_prep_once(source, automatic, cancel)
+    })
 }
 
 fn enqueue_similarity_prep_once(
     source: &SampleSource,
     automatic: bool,
+    cancel: Option<&AtomicBool>,
 ) -> Result<SimilarityPrepEnqueueSummary, String> {
-    ensure_source_database_scanned(source)?;
+    ensure_not_cancelled(cancel)?;
+    ensure_source_database_scanned(source, cancel)?;
+    ensure_not_cancelled(cancel)?;
     let initial_status = resolve_similarity_prep_status(source)?;
     if initial_status == NativeSimilarityPrepStatus::UpToDate
         || (automatic
@@ -64,17 +171,26 @@ fn enqueue_similarity_prep_once(
         });
     }
     let analysis_inserted = enqueue_analysis_backfill(source)?;
+    ensure_not_cancelled(cancel)?;
     let embedding_inserted = enqueue_embedding_backfill(source)?;
-    let finalized = finalize_if_ready(source)?;
+    ensure_not_cancelled(cancel)?;
     let status = resolve_similarity_prep_status(source)?;
     Ok(SimilarityPrepEnqueueSummary {
         analysis_inserted,
         embedding_inserted,
         jobs_processed: 0,
         jobs_failed: 0,
-        finalized,
+        finalized: false,
         status,
     })
+}
+
+fn ensure_not_cancelled(cancel: Option<&AtomicBool>) -> Result<(), String> {
+    if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
+        Err(String::from("Similarity preparation canceled"))
+    } else {
+        Ok(())
+    }
 }
 
 fn retry_similarity_prep_busy<T>(
@@ -111,18 +227,118 @@ fn is_transient_database_busy(error: &str) -> bool {
         || lowered.contains("sqlite_busy")
 }
 
-pub(super) fn finalize_similarity_prep_if_ready(source: &SampleSource) -> Result<bool, String> {
-    finalize_if_ready(source)
+pub(in crate::native_app) fn finalize_similarity_prep_if_ready(
+    source: &SampleSource,
+    publication_fence: &SimilarityPublicationFence,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    #[cfg(test)]
+    {
+        return finalize_if_ready(source, publication_fence, cancel);
+    }
+    #[cfg(not(test))]
+    {
+        finalize_similarity_prep_in_child(source, publication_fence, cancel)
+    }
 }
 
-fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
+pub(in crate::native_app) fn run_internal_similarity_finalizer_from_args()
+-> Result<Option<bool>, String> {
+    let mut args = std::env::args();
+    let _executable = args.next();
+    if args.next().as_deref() != Some(INTERNAL_SIMILARITY_FINALIZER_ARG) {
+        return Ok(None);
+    }
+    let source_json = args
+        .next()
+        .ok_or_else(|| "Internal similarity finalizer is missing its source".to_string())?;
+    let fence_json = args.next().ok_or_else(|| {
+        "Internal similarity finalizer is missing its publication fence".to_string()
+    })?;
+    if args.next().is_some() {
+        return Err("Internal similarity finalizer received unexpected arguments".to_string());
+    }
+    let source = serde_json::from_str::<SampleSource>(&source_json)
+        .map_err(|error| format!("Decode internal similarity source failed: {error}"))?;
+    let publication_fence = serde_json::from_str::<SimilarityPublicationFence>(&fence_json)
+        .map_err(|error| format!("Decode internal similarity fence failed: {error}"))?;
+    let cancel = AtomicBool::new(false);
+    finalize_if_ready(&source, &publication_fence, &cancel).map(Some)
+}
+
+#[cfg(not(test))]
+fn finalize_similarity_prep_in_child(
+    source: &SampleSource,
+    publication_fence: &SimilarityPublicationFence,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Resolve similarity finalizer executable failed: {error}"))?;
+    let source_json = serde_json::to_string(source)
+        .map_err(|error| format!("Encode internal similarity source failed: {error}"))?;
+    let fence_json = serde_json::to_string(publication_fence)
+        .map_err(|error| format!("Encode internal similarity fence failed: {error}"))?;
+    let child = Command::new(executable)
+        .arg(INTERNAL_SIMILARITY_FINALIZER_ARG)
+        .arg(source_json)
+        .arg(fence_json)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Start similarity finalizer process failed: {error}"))?;
+    let Some(mut child) = crate::native_app::source_processing::wait_for_cancellable_child(
+        child,
+        cancel,
+        "similarity finalizer",
+    )?
+    else {
+        return Ok(false);
+    };
+    let mut stdout = String::new();
+    if let Some(mut pipe) = child.stdout.take() {
+        pipe.read_to_string(&mut stdout)
+            .map_err(|error| format!("Read similarity finalizer result failed: {error}"))?;
+    }
+    let mut stderr = String::new();
+    if let Some(mut pipe) = child.stderr.take() {
+        pipe.read_to_string(&mut stderr)
+            .map_err(|error| format!("Read similarity finalizer error failed: {error}"))?;
+    }
+    let status = child
+        .wait()
+        .map_err(|error| format!("Join similarity finalizer process failed: {error}"))?;
+    if !status.success() {
+        return Err(format!(
+            "Similarity finalizer process failed with {status}: {}",
+            stderr.trim()
+        ));
+    }
+    serde_json::from_str::<bool>(stdout.trim())
+        .map_err(|error| format!("Decode similarity finalizer result failed: {error}"))
+}
+
+fn finalize_if_ready(
+    source: &SampleSource,
+    publication_fence: &SimilarityPublicationFence,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     if source_has_active_similarity_prep_jobs(source)? {
         return Ok(false);
     }
     if current_similarity_sample_ids(source)?.is_empty() {
         if let Some(scan_completed_at) = read_source_scan_timestamp(source)? {
-            set_source_prep_timestamp(source, scan_completed_at)?;
-            return Ok(true);
+            return set_source_prep_timestamp_if_current(
+                source,
+                scan_completed_at,
+                publication_fence,
+            );
         }
         return Ok(false);
     }
@@ -130,13 +346,23 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
         return Ok(false);
     }
     let mut conn = open_source_db(source)?;
-    analysis::build_map_layout(
+    let fence = |connection: &rusqlite::Connection| publication_fence.is_current(connection);
+    if analysis::build_map_layout_with_cancel_and_publication_fence(
         &mut conn,
         SIMILARITY_MODEL_ID,
         NATIVE_SIMILARITY_UMAP_VERSION,
         0,
         0.95,
-    )?;
+        cancel,
+        &fence,
+    )?
+    .is_none()
+    {
+        return Ok(false);
+    }
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     let sample_id_prefix = format!("{}::%", source.id.as_str());
     let layout_rows: i64 = conn
         .query_row(
@@ -153,7 +379,7 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
     if layout_rows == 0 {
         return Ok(false);
     }
-    analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix(
+    if analysis::hdbscan::build_hdbscan_clusters_for_sample_id_prefix_with_cancel_and_publication_fence(
         &mut conn,
         SIMILARITY_MODEL_ID,
         analysis::hdbscan::HdbscanMethod::Umap,
@@ -164,50 +390,137 @@ fn finalize_if_ready(source: &SampleSource) -> Result<bool, String> {
             min_samples: None,
             allow_single_cluster: false,
         },
-    )?;
-    analysis::flush_ann_index(&conn)?;
+        cancel,
+        &fence,
+    )?
+    .is_none()
+    {
+        return Ok(false);
+    }
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
+    if !analysis::rebuild_ann_index_with_publication_fence(&mut conn, &fence)? {
+        return Ok(false);
+    }
+    if cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
     if let Some(scan_completed_at) = read_source_scan_timestamp(source)? {
-        set_source_prep_timestamp(source, scan_completed_at)?;
+        return set_source_prep_timestamp_if_current(source, scan_completed_at, publication_fence);
     }
     Ok(true)
 }
 
-pub(super) fn drain_similarity_prep_jobs(
+pub(in crate::native_app) fn reset_interrupted_similarity_prep_jobs(
     source: &SampleSource,
+) -> Result<usize, String> {
+    let conn = open_source_db(source)?;
+    wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)
+}
+
+#[cfg(test)]
+pub(in crate::native_app) fn run_similarity_prep_job_batch(
+    source: &SampleSource,
+    limit: usize,
+    cancel: &AtomicBool,
 ) -> Result<SimilarityPrepJobDrainSummary, String> {
     let mut conn = open_source_db(source)?;
-    wavecrate::internal_analysis_jobs::reset_running_to_pending(&conn)?;
     let settings = load_analysis_settings();
     let runtime = SimilarityPrepJobRuntime::from_settings(&settings);
     let mut summary = SimilarityPrepJobDrainSummary::default();
-    loop {
-        let jobs = wavecrate::internal_analysis_jobs::claim_next_jobs(
+    let jobs = wavecrate::internal_analysis_jobs::claim_next_jobs(&mut conn, &source.root, limit)?;
+    for job in jobs {
+        if cancel.load(Ordering::Acquire) {
+            wavecrate::internal_analysis_jobs::release(&conn, &job)?;
+            continue;
+        }
+        let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
             &mut conn,
-            &source.root,
-            SIMILARITY_DRAIN_CLAIM_LIMIT,
-        )?;
-        if jobs.is_empty() {
-            break;
+            &job,
+            true,
+            runtime.max_analysis_duration_seconds,
+            runtime.analysis_sample_rate,
+            runtime.analysis_version.as_str(),
+            cancel,
+        );
+        if let Err(error) = outcome.as_ref() {
+            summary.failed += 1;
+            wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, error)?;
+        } else {
+            wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
         }
-        for job in jobs {
-            let outcome = wavecrate::internal_analysis_jobs::run_claimed_job(
-                &mut conn,
-                &job,
-                true,
-                runtime.max_analysis_duration_seconds,
-                runtime.analysis_sample_rate,
-                runtime.analysis_version.as_str(),
-            );
-            if let Err(error) = outcome.as_ref() {
-                summary.failed += 1;
-                wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, error)?;
-            } else {
-                wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
-            }
-            summary.processed += 1;
-        }
+        summary.processed += 1;
     }
     Ok(summary)
+}
+
+pub(in crate::native_app) fn run_similarity_prep_job(
+    source: &SampleSource,
+    job_id: i64,
+    cancel: &AtomicBool,
+    embedding_worker_limit: usize,
+) -> Result<SimilarityPrepJobDrainSummary, String> {
+    let mut conn = open_source_db(source)?;
+    let settings = load_analysis_settings();
+    let runtime = SimilarityPrepJobRuntime::from_settings(&settings);
+    let Some(job) =
+        wavecrate::internal_analysis_jobs::claim_job_by_id(&mut conn, &source.root, job_id)?
+    else {
+        return Ok(SimilarityPrepJobDrainSummary::default());
+    };
+    if cancel.load(Ordering::Acquire) {
+        wavecrate::internal_analysis_jobs::release(&conn, &job)?;
+        return Ok(SimilarityPrepJobDrainSummary::default());
+    }
+    let outcome = wavecrate::internal_analysis_jobs::run_claimed_job_with_embedding_worker_limit(
+        &mut conn,
+        &job,
+        true,
+        runtime.max_analysis_duration_seconds,
+        runtime.analysis_sample_rate,
+        runtime.analysis_version.as_str(),
+        cancel,
+        embedding_worker_limit,
+    );
+    if cancel.load(Ordering::Acquire) {
+        wavecrate::internal_analysis_jobs::release(&conn, &job)?;
+        return Ok(SimilarityPrepJobDrainSummary::default());
+    }
+    let mut summary = SimilarityPrepJobDrainSummary {
+        processed: 1,
+        failed: usize::from(outcome.is_err()),
+    };
+    if let Err(error) = outcome {
+        wavecrate::internal_analysis_jobs::mark_failed_with_reason(&conn, &job, &error)?;
+    } else {
+        wavecrate::internal_analysis_jobs::mark_done(&conn, &job)?;
+    }
+    if cancel.load(Ordering::Acquire) {
+        summary.processed = 0;
+    }
+    Ok(summary)
+}
+
+#[cfg(test)]
+pub(in crate::native_app) fn similarity_prep_has_pending_jobs(
+    source: &SampleSource,
+) -> Result<bool, String> {
+    source_has_active_similarity_prep_jobs(source)
+}
+
+pub(in crate::native_app) fn similarity_prep_needs_finalization(
+    source: &SampleSource,
+) -> Result<bool, String> {
+    if source_has_active_similarity_prep_jobs(source)? {
+        return Ok(false);
+    }
+    if resolve_similarity_prep_status(source)? == NativeSimilarityPrepStatus::UpToDate {
+        return Ok(false);
+    }
+    Ok((read_source_scan_timestamp(source)?.is_some()
+        && current_similarity_sample_ids(source)?.is_empty())
+        || (source_has_embeddings(source)? && source_has_aspect_descriptors(source)?))
 }
 
 pub(super) fn source_has_active_similarity_prep_jobs(
@@ -271,7 +584,10 @@ fn load_analysis_settings() -> AnalysisSettings {
         .unwrap_or_default()
 }
 
-fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
+fn ensure_source_database_scanned(
+    source: &SampleSource,
+    cancel: Option<&AtomicBool>,
+) -> Result<(), String> {
     let db = open_fast_source_db(source).map_err(|err| err.to_string())?;
     let has_scan_timestamp = db
         .get_metadata(META_LAST_SCAN_COMPLETED_AT)
@@ -280,14 +596,14 @@ fn ensure_source_database_scanned(source: &SampleSource) -> Result<(), String> {
     if has_scan_timestamp {
         return Ok(());
     }
-    let stats = scanner::scan_with_progress(&db, ScanMode::Quick, None, &mut |_, _| {})
+    let stats = scanner::scan_with_progress(&db, ScanMode::Quick, cancel, &mut |_, _| {})
         .map_err(|err| format!("Sync source index failed: {err}"))?;
-    scanner::complete_deferred_hashes(&db, stats)
-        .map_err(|err| format!("Finish deferred source hashing failed: {err}"))?;
+    scanner::complete_deferred_rename_candidates_with_cancel(&db, stats, cancel)
+        .map_err(|err| format!("Finish deferred rename reconciliation failed: {err}"))?;
     Ok(())
 }
 
-pub(super) fn resolve_similarity_prep_status(
+pub(in crate::native_app) fn resolve_similarity_prep_status(
     source: &SampleSource,
 ) -> Result<NativeSimilarityPrepStatus, String> {
     let facts = SimilarityPrepFacts {
@@ -383,10 +699,37 @@ fn read_source_timestamp(source: &SampleSource, key: &str) -> Result<Option<i64>
         .transpose()
 }
 
-fn set_source_prep_timestamp(source: &SampleSource, value: i64) -> Result<(), String> {
-    let db = open_user_metadata_source_db(source).map_err(|err| err.to_string())?;
-    db.set_metadata(META_LAST_SIMILARITY_PREP_SCAN_AT, &value.to_string())
-        .map_err(|err| err.to_string())
+fn set_source_prep_timestamp_if_current(
+    source: &SampleSource,
+    value: i64,
+    publication_fence: &SimilarityPublicationFence,
+) -> Result<bool, String> {
+    let mut connection = open_source_db(source)?;
+    let tx = connection
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(|error| format!("Start similarity completion transaction failed: {error}"))?;
+    if !publication_fence.is_current(&tx)? {
+        tx.rollback()
+            .map_err(|error| format!("Roll back stale similarity completion failed: {error}"))?;
+        return Ok(false);
+    }
+    tx.execute(
+        "INSERT INTO metadata (key, value)
+         VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![META_LAST_SIMILARITY_PREP_SCAN_AT, value.to_string()],
+    )
+    .map_err(|error| format!("Write similarity completion timestamp failed: {error}"))?;
+    tx.execute(
+        "INSERT INTO metadata (key, value)
+         VALUES ('revision', '1')
+         ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
+        [],
+    )
+    .map_err(|error| format!("Advance source metadata revision failed: {error}"))?;
+    tx.commit()
+        .map_err(|error| format!("Commit similarity completion failed: {error}"))?;
+    Ok(true)
 }
 
 fn source_has_embeddings(source: &SampleSource) -> Result<bool, String> {
@@ -750,14 +1093,6 @@ pub(super) fn open_fast_source_db(source: &SampleSource) -> Result<SourceDatabas
         .database_root()
         .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
     SourceDatabase::open_for_background_job_with_database_root(&source.root, database_root)
-        .map_err(|err| format!("Open source DB failed: {err}"))
-}
-
-fn open_user_metadata_source_db(source: &SampleSource) -> Result<SourceDatabase, String> {
-    let database_root = source
-        .database_root()
-        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
-    SourceDatabase::open_for_user_metadata_write_with_database_root(&source.root, database_root)
         .map_err(|err| format!("Open source DB failed: {err}"))
 }
 

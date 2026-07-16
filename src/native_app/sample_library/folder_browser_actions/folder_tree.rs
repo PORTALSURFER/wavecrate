@@ -18,6 +18,15 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let source = folder_id.clone();
+        if let Some((sample_source, relative_path)) = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(std::path::Path::new(&folder_id))
+        {
+            self.background
+                .source_processing
+                .set_current_folder(sample_source.id.as_str(), &relative_path.to_string_lossy());
+        }
         self.library
             .folder_browser
             .apply_message(FolderBrowserMessage::ActivateFolder(folder_id, modifiers));

@@ -2,17 +2,30 @@ use crate::app::controller::library::analysis_jobs::db;
 
 use super::analysis_cache::{load_existing_embedding, lookup_cache_by_hash};
 use super::analysis_db::{
-    apply_cached_embedding, apply_cached_features_and_embedding, finalize_analysis_job,
-    update_metadata_for_skip,
+    apply_cached_embedding, apply_cached_features_and_embedding, finish_decoded_analysis_write,
+    persist_decoded_analysis_write, update_metadata_for_skip,
 };
 use super::analysis_decode::{DecodeOutcome, decode_for_analysis};
 use super::support::JobHeartbeat;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) struct AnalysisContext<'a> {
     pub(crate) use_cache: bool,
     pub(crate) max_analysis_duration_seconds: f32,
     pub(crate) analysis_sample_rate: u32,
     pub(crate) analysis_version: &'a str,
+    pub(crate) cancel: Option<&'a AtomicBool>,
+}
+
+fn checkpoint(context: &AnalysisContext<'_>) -> Result<(), String> {
+    if context
+        .cancel
+        .is_some_and(|cancel| cancel.load(Ordering::Acquire))
+    {
+        Err("Analysis job cancelled".to_string())
+    } else {
+        Ok(())
+    }
 }
 
 pub(crate) fn run_analysis_job(
@@ -20,6 +33,7 @@ pub(crate) fn run_analysis_job(
     job: &db::ClaimedJob,
     context: &AnalysisContext<'_>,
 ) -> Result<(), String> {
+    checkpoint(context)?;
     let mut heartbeat = JobHeartbeat::new(std::time::Duration::from_secs(4));
     let job_ids = [job.id];
     heartbeat.touch_jobs(conn, &job_ids)?;
@@ -36,6 +50,7 @@ pub(crate) fn run_analysis_job(
         if let (Some(features), Some(embedding), Some(embedding_vec)) =
             (&cache.features, &cache.embedding, &cache.embedding_vec)
         {
+            checkpoint(context)?;
             apply_cached_features_and_embedding(
                 conn,
                 job,
@@ -49,6 +64,7 @@ pub(crate) fn run_analysis_job(
             return Ok(());
         }
         if let Some(embedding) = cache.embedding.as_ref() {
+            checkpoint(context)?;
             apply_cached_embedding(conn, job, embedding)?;
         }
     }
@@ -56,6 +72,7 @@ pub(crate) fn run_analysis_job(
     heartbeat.touch_jobs(conn, &job_ids)?;
     match decode_for_analysis(job, context)? {
         DecodeOutcome::Decoded(decoded) => {
+            checkpoint(context)?;
             heartbeat.touch_jobs(conn, &job_ids)?;
             run_analysis_job_with_decoded(conn, job, decoded, context)
         }
@@ -63,6 +80,7 @@ pub(crate) fn run_analysis_job(
             duration_seconds,
             sample_rate,
         } => {
+            checkpoint(context)?;
             heartbeat.touch_jobs(conn, &job_ids)?;
             update_metadata_for_skip(
                 conn,
@@ -81,19 +99,22 @@ pub(crate) fn run_analysis_job_with_decoded(
     decoded: wavecrate_analysis::AnalysisAudio,
     context: &AnalysisContext<'_>,
 ) -> Result<(), String> {
+    checkpoint(context)?;
     let needs_embedding_upsert = if context.use_cache {
         load_existing_embedding(conn, &job.sample_id)?.is_none()
     } else {
         true
     };
-    finalize_analysis_job(
-        conn,
+    let write = super::analysis_db::build_decoded_analysis_write(
         job,
         decoded,
         context.analysis_version,
         needs_embedding_upsert,
-        true,
-    )
+    )?;
+    checkpoint(context)?;
+    let persisted = persist_decoded_analysis_write(conn, Some(job.source_root.as_path()), &write)?;
+    checkpoint(context)?;
+    finish_decoded_analysis_write(conn, job, &write, persisted, true)
 }
 
 pub(crate) fn run_analysis_jobs_with_decoded_batch(
