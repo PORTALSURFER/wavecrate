@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 # Install local git hooks that keep wavecrate and the radiant submodule aligned
-# with their main-integration workflow and rerun lightweight preflight checks after
+# with their main-integration workflow and run bounded repository-state checks after
 # branch/source updates.
 #
 # Hooks installed for wavecrate:
-# - post-merge / post-checkout: rerun agent preflight
+# - post-merge / post-checkout: run bounded repository-state checks
 # - pre-commit / pre-push: verify local `main` tracks `origin/main`; feature branches are allowed for PR work
 #
 # Hooks installed for vendor/radiant:
@@ -26,8 +26,8 @@ usage() {
 Usage: scripts/internal/agent/install_agent_preflight_hooks.sh [--force]
 
 Install local git hooks that keep wavecrate and vendor/radiant aligned with their
-main-integration workflow and rerun agent preflight checks after repo-level source
-updates.
+main-integration workflow and run bounded repository-state checks after repo-level
+source updates. Full agent preflight remains an explicit operator/agent command.
 
 Options:
   --force  Overwrite existing hooks (a backup is still created if possible).
@@ -91,16 +91,11 @@ write_hook() {
 ROOT_HOOK_DIR="$(git rev-parse --git-common-dir)/hooks"
 ensure_hook_dir "$ROOT_HOOK_DIR"
 
-write_hook "$ROOT_HOOK_DIR" "post-merge" "run_agent_preflight.sh" <<'EOF'
+write_hook "$ROOT_HOOK_DIR" "post-merge" "run_agent_hook_checks.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
 if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
-  exit 0
-fi
-
-HOOK_NAME="$(basename "$0")"
-if [[ "$HOOK_NAME" == "post-checkout" && "${3:-0}" != "1" ]]; then
   exit 0
 fi
 
@@ -109,16 +104,16 @@ if [[ -z "$repo_root" ]]; then
   exit 0
 fi
 
-preflight_script="$repo_root/scripts/internal/agent/run_agent_preflight.sh"
-if [[ -x "$preflight_script" ]]; then
-  "$preflight_script"
+hook_checks="$repo_root/scripts/internal/agent/run_agent_hook_checks.sh"
+if [[ -x "$hook_checks" ]]; then
+  "$hook_checks" --event post-merge
 else
-  echo "[agent_preflight_hook] ERROR: missing $preflight_script" >&2
+  echo "[agent_preflight_hook] ERROR: missing $hook_checks" >&2
   exit 1
 fi
 EOF
 
-write_hook "$ROOT_HOOK_DIR" "post-checkout" "run_agent_preflight.sh" <<'EOF'
+write_hook "$ROOT_HOOK_DIR" "post-checkout" "run_agent_hook_checks.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -135,11 +130,11 @@ if [[ -z "$repo_root" ]]; then
   exit 0
 fi
 
-preflight_script="$repo_root/scripts/internal/agent/run_agent_preflight.sh"
-if [[ -x "$preflight_script" ]]; then
-  "$preflight_script"
+hook_checks="$repo_root/scripts/internal/agent/run_agent_hook_checks.sh"
+if [[ -x "$hook_checks" ]]; then
+  "$hook_checks" --event post-checkout
 else
-  echo "[agent_preflight_hook] ERROR: missing $preflight_script" >&2
+  echo "[agent_preflight_hook] ERROR: missing $hook_checks" >&2
   exit 1
 fi
 EOF
