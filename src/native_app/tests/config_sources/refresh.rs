@@ -60,7 +60,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         visible_before,
         "refresh should keep the current cached tree visible while the scan runs"
     );
-    assert!(state.ui.status.sample.contains("Scanning source"));
+    assert!(state.ui.status.sample.contains("Queued source scan"));
 }
 
 #[test]
