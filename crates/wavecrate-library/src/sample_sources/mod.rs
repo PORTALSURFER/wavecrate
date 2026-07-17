@@ -17,8 +17,8 @@ pub use audio_support::{
 pub use db::normalize_relative_path;
 pub use db::{
     DB_FILE_NAME, Rating, SampleCollection, SourceCollectionWrite, SourceContentHashWrite,
-    SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, SourceFileWrite, SourceTag,
-    SourceTagUsage, SourceTagWrite, SourceWriteCommand, WavEntry,
+    SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, SourceFileWrite,
+    SourceManifestEntry, SourceTag, SourceTagUsage, SourceTagWrite, SourceWriteCommand, WavEntry,
 };
 pub use library::{
     HarvestDerivationOperation, HarvestDerivationRecord, HarvestFileIdentity, HarvestFileKey,

@@ -162,6 +162,7 @@ impl NativeAppState {
             if self.library.folder_scan_active()
                 || self.background.file_move_progress.is_some()
                 || self.waveform.cache.active_folder_warm_folder_id.is_some()
+                || self.background.source_processing_progress.is_some()
             {
                 self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
             }
@@ -202,6 +203,7 @@ impl NativeAppState {
         if self.library.folder_scan_active()
             || self.background.file_move_progress.is_some()
             || self.waveform.cache.active_folder_warm_folder_id.is_some()
+            || self.background.source_processing_progress.is_some()
         {
             self.background.progress_tick = (self.background.progress_tick + 0.035) % 1.0;
         }

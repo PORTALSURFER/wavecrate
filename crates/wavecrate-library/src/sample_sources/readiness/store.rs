@@ -5,8 +5,9 @@ mod work;
 
 pub use error::ReadinessError;
 pub use persistence::{
-    persist_readiness_deficits, persist_readiness_deficits_with_cancel, publish_readiness_artifact,
-    replace_readiness_targets, replace_readiness_targets_with_cancel,
+    invalidate_readiness_artifact, persist_readiness_deficits,
+    persist_readiness_deficits_with_cancel, publish_readiness_artifact, replace_readiness_targets,
+    replace_readiness_targets_with_cancel,
 };
 #[cfg(test)]
 pub(crate) use reconcile::reconcile_readiness_with_hook;

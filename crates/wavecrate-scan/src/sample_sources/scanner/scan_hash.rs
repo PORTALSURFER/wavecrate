@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
 use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
-use super::scan::{RenamedSample, ScanError, ScanStats};
+use super::scan::{ChangedSample, RenamedSample, ScanError, ScanStats, UpdatedSample};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -15,6 +15,116 @@ struct HashBackfill {
     modified_ns: i64,
     content_hash: String,
     file_identity: Option<String>,
+}
+
+const META_CONTENT_AUDIT_CURSOR: &str = "source_content_audit_cursor_v1";
+
+fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
+    cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed))
+}
+
+pub(super) fn verify_content_batch(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    audit_completed_at: Option<i64>,
+) -> Result<ScanStats, ScanError> {
+    let manifest_before = super::manifest::capture_manifest(db)?;
+    let root = ensure_root_dir(db)?;
+    let entries = db.list_manifest_entries()?;
+    let cursor = db
+        .get_metadata(META_CONTENT_AUDIT_CURSOR)?
+        .unwrap_or_default();
+    let start = entries
+        .iter()
+        .position(|entry| entry.relative_path.to_string_lossy().as_ref() > cursor.as_str())
+        .unwrap_or(0);
+    let selected = entries
+        .iter()
+        .cycle()
+        .skip(start)
+        .take(max_hashes.min(entries.len()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut stats = ScanStats::default();
+    let mut verified = Vec::new();
+    for entry in &selected {
+        if cancel_requested(cancel) {
+            return Err(ScanError::Canceled);
+        }
+        let absolute = root.join(&entry.relative_path);
+        if !is_supported_regular_audio_file(&absolute) {
+            continue;
+        }
+        let before_hash = read_facts(&root, &absolute)?;
+        let content_hash = compute_content_hash(&absolute, cancel)?;
+        let after_hash = read_facts(&root, &absolute)?;
+        if !before_hash.same_content_snapshot(&after_hash) {
+            continue;
+        }
+        verified.push((entry.clone(), after_hash, content_hash));
+        stats.hashes_computed += 1;
+    }
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
+    let committed_snapshot = if !selected.is_empty() || audit_completed_at.is_some() {
+        let mut batch = db.write_batch()?;
+        for (previous, facts, content_hash) in &verified {
+            if previous.content_hash.as_deref() == Some(content_hash.as_str())
+                && previous.file_size == facts.size
+                && previous.modified_ns == facts.modified_ns
+                && previous.file_identity == facts.file_identity
+            {
+                continue;
+            }
+            if previous.file_identity != facts.file_identity {
+                tracing::debug!(
+                    path = %previous.relative_path.display(),
+                    previous_identity = ?previous.file_identity,
+                    current_identity = ?facts.file_identity,
+                    "Source content audit refreshed filesystem identity"
+                );
+            }
+            batch.upsert_file_with_hash(
+                &previous.relative_path,
+                facts.size,
+                facts.modified_ns,
+                content_hash,
+            )?;
+            batch.set_file_identity(&previous.relative_path, facts.file_identity.as_deref())?;
+            stats.updated += 1;
+            stats.updated_samples.push(UpdatedSample {
+                relative_path: previous.relative_path.clone(),
+                file_size: facts.size,
+                modified_ns: facts.modified_ns,
+                content_hash: Some(content_hash.clone()),
+            });
+            if previous.content_hash.as_deref() != Some(content_hash.as_str()) {
+                stats.content_changed += 1;
+                stats.changed_samples.push(ChangedSample {
+                    relative_path: previous.relative_path.clone(),
+                    file_size: facts.size,
+                    modified_ns: facts.modified_ns,
+                    content_hash: content_hash.clone(),
+                });
+            }
+        }
+        if let Some(last) = selected.last() {
+            batch.set_metadata(
+                META_CONTENT_AUDIT_CURSOR,
+                last.relative_path.to_string_lossy().as_ref(),
+            )?;
+        }
+        if let Some(completed_at) = audit_completed_at {
+            batch.complete_manifest_audit(completed_at)?;
+        }
+        batch.commit_with_manifest_snapshot()?
+    } else {
+        db.manifest_snapshot_with_revision()?
+    };
+    super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
+    Ok(stats)
 }
 
 fn is_supported_regular_audio_file(path: &std::path::Path) -> bool {
@@ -36,6 +146,27 @@ pub(super) fn deep_hash_scan(
     max_hashes: Option<usize>,
     exact_path: Option<&std::path::Path>,
 ) -> Result<ScanStats, ScanError> {
+    deep_hash_scan_with_post_hash_hook(
+        db,
+        cancel,
+        rename_candidates,
+        scope,
+        max_hashes,
+        exact_path,
+        |_| {},
+    )
+}
+
+fn deep_hash_scan_with_post_hash_hook(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    rename_candidates: &HashSet<PathBuf>,
+    scope: DeferredHashScope,
+    max_hashes: Option<usize>,
+    exact_path: Option<&std::path::Path>,
+    mut post_hash: impl FnMut(&std::path::Path),
+) -> Result<ScanStats, ScanError> {
+    let manifest_before = super::manifest::capture_manifest(db)?;
     let root = ensure_root_dir(db)?;
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
@@ -57,7 +188,10 @@ pub(super) fn deep_hash_scan(
                 && root.join(&entry.relative_path).is_file()
         });
     if !has_unhashed_files && rename_candidates.is_empty() {
-        return Ok(ScanStats::default());
+        let mut stats = ScanStats::default();
+        let committed_snapshot = db.manifest_snapshot_with_revision()?;
+        super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
+        return Ok(stats);
     }
     let pending_entries = db.list_pending_renames()?;
     let mut stats = ScanStats::default();
@@ -127,15 +261,20 @@ pub(super) fn deep_hash_scan(
         }
         let facts = read_facts(&root, &absolute)?;
         let hash = compute_content_hash(&absolute, cancel)?;
+        post_hash(&absolute);
+        let after_hash = read_facts(&root, &absolute)?;
+        if !facts.same_content_snapshot(&after_hash) {
+            continue;
+        }
         hash_backfills.push(HashBackfill {
             relative_path: entry.relative_path.clone(),
-            file_size: facts.size,
-            modified_ns: facts.modified_ns,
+            file_size: after_hash.size,
+            modified_ns: after_hash.modified_ns,
             content_hash: hash.clone(),
-            file_identity: facts.file_identity,
+            file_identity: after_hash.file_identity,
         });
-        entry.file_size = facts.size;
-        entry.modified_ns = facts.modified_ns;
+        entry.file_size = after_hash.size;
+        entry.modified_ns = after_hash.modified_ns;
         entry.content_hash = Some(hash.clone());
         present_by_hash
             .entry(hash)
@@ -202,7 +341,8 @@ pub(super) fn deep_hash_scan(
     stats.renames_reconciled = renamed_samples.len();
     stats.renamed_samples = renamed_samples;
 
-    batch.commit()?;
+    let committed_snapshot = batch.commit_with_manifest_snapshot()?;
+    super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     Ok(stats)
 }
 
@@ -431,6 +571,49 @@ mod tests {
                 .unwrap()
                 .content_hash
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn deep_hash_scan_does_not_commit_a_file_mutated_during_hashing() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let relative = Path::new("changing.wav");
+        let absolute = dir.path().join(relative);
+        std::fs::write(&absolute, [1_u8; 32]).expect("write initial wav");
+        let original_modified = std::fs::metadata(&absolute)
+            .expect("read initial metadata")
+            .modified()
+            .expect("read initial modified time");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        db.upsert_file(relative, 32, 1).expect("insert pending row");
+
+        let stats = deep_hash_scan_with_post_hash_hook(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(relative),
+            |path| {
+                std::fs::write(path, [2_u8; 32]).expect("mutate during hashing");
+                let file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(path)
+                    .expect("reopen mutated wav");
+                file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+                    .expect("restore modified time");
+            },
+        )
+        .expect("defer unstable hash");
+
+        assert_eq!(stats.hashes_computed, 0);
+        assert!(
+            db.entry_for_path(relative)
+                .expect("read pending row")
+                .expect("pending row")
+                .content_hash
+                .is_none(),
+            "an unstable read must remain pending for a later hash pass"
         );
     }
 }

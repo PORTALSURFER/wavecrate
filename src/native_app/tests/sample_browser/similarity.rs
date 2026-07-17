@@ -437,10 +437,11 @@ fn sample_browser_similarity_anchor_resolves_production_scores() {
             .similarity_display_strength_for_file(missing_id.as_str())
             .is_none()
     );
+    assert_eq!(state.ui.status.sample, "Resolved 2 similar samples");
 }
 
 #[test]
-fn sample_browser_similarity_anchor_queues_missing_artifacts_before_scoring() {
+fn sample_browser_similarity_anchor_delegates_missing_artifacts_to_readiness_worker() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
     let drums = source_root.path().join("drums");
@@ -478,21 +479,19 @@ fn sample_browser_similarity_anchor_queues_missing_artifacts_before_scoring() {
         &mut context,
     );
 
-    assert_eq!(
-        state.library.similarity_prep.running_source_id.as_deref(),
-        Some(SIMILARITY_TEST_SOURCE_ID)
-    );
+    assert!(state.library.similarity_prep.running_source_id.is_none());
     super::super::run_command_for_tests(&mut state, context.into_command());
 
     assert!(!state.library.similarity_prep.running);
     assert_eq!(
         source_jobs_by_status(source_root.path(), "wav_metadata_v1", "pending"),
-        2,
-        "automatic anchor prep should queue waveform metadata work without draining it inline"
+        0,
+        "anchor activation must not launch the competing legacy whole-source prep queue"
     );
-    assert!(
-        source_jobs_by_status(source_root.path(), "embedding_backfill_v1", "pending") >= 1,
-        "automatic anchor prep should queue embedding work without blocking the UI path"
+    assert_eq!(
+        source_jobs_by_status(source_root.path(), "embedding_backfill_v1", "pending"),
+        0,
+        "the revisioned readiness worker owns embedding generation"
     );
     assert_eq!(source_artifact_rows(source_root.path(), "embeddings"), 0);
     assert_eq!(
@@ -512,8 +511,9 @@ fn sample_browser_similarity_anchor_queues_missing_artifacts_before_scoring() {
             .folder_browser
             .similarity_display_strength_for_file(near_id.as_str()),
         None,
-        "anchor activation must wait for background prep before resolving missing similarity artifacts"
+        "anchor activation must wait for readiness before resolving missing similarity artifacts"
     );
+    assert_eq!(state.ui.status.sample, "Similarity data not ready yet");
 }
 
 #[test]

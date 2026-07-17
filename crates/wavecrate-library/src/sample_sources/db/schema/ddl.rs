@@ -9,6 +9,14 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS source_manifest_audit_state (
+        singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+        started_at INTEGER NOT NULL,
+        checked_files INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS source_manifest_audit_seen (
+        path TEXT PRIMARY KEY
+    ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS wav_files (
         path TEXT PRIMARY KEY,
         file_size INTEGER NOT NULL,

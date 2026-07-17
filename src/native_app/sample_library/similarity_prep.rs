@@ -25,6 +25,8 @@ pub(in crate::native_app) struct NativeSimilarityPrepState {
     pub(in crate::native_app) running_source_id: Option<String>,
     pub(in crate::native_app) pending_source_ids: VecDeque<String>,
     pub(in crate::native_app) summary: Option<String>,
+    pub(in crate::native_app) readiness_score_refresh_running: bool,
+    pub(in crate::native_app) readiness_score_refresh_pending: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,19 +151,19 @@ impl NativeAppState {
     pub(in crate::native_app) fn prepare_similarity_for_anchor_path(
         &mut self,
         file_id: &str,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
+        _context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let Some((source, _)) = self
+        let Some((source, relative_path)) = self
             .library
             .folder_browser
             .sample_source_for_file_path(Path::new(file_id))
         else {
             return;
         };
-        self.queue_similarity_prep_for_source(
-            SimilarityPrepSource { source },
-            SimilarityPrepTrigger::Automatic,
-            context,
+        self.background.source_processing.prioritize_path(
+            source.id.as_str(),
+            &relative_path.to_string_lossy(),
+            true,
         );
     }
 

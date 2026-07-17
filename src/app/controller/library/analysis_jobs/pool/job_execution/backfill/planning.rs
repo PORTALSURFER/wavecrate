@@ -29,6 +29,27 @@ pub(super) fn build_backfill_plan(
     use_cache: bool,
     analysis_version: &str,
 ) -> Result<BackfillPlan, String> {
+    build_backfill_plan_inner(conn, job, sample_ids, use_cache, analysis_version, false)
+}
+
+pub(super) fn build_readiness_backfill_plan(
+    conn: &rusqlite::Connection,
+    job: &db::ClaimedJob,
+    sample_ids: &[String],
+    use_cache: bool,
+    analysis_version: &str,
+) -> Result<BackfillPlan, String> {
+    build_backfill_plan_inner(conn, job, sample_ids, use_cache, analysis_version, true)
+}
+
+fn build_backfill_plan_inner(
+    conn: &rusqlite::Connection,
+    job: &db::ClaimedJob,
+    sample_ids: &[String],
+    use_cache: bool,
+    analysis_version: &str,
+    require_cache_materialization: bool,
+) -> Result<BackfillPlan, String> {
     let mut state = BackfillPlanState {
         use_cache,
         analysis_version,
@@ -46,7 +67,15 @@ pub(super) fn build_backfill_plan(
         )?
         .is_some();
         let has_aspects = sample_has_current_aspect_descriptors(conn, sample_id)?;
-        if has_embedding && has_aspects {
+        let cache_is_current = if require_cache_materialization {
+            let Some(content_hash) = db::sample_content_hash(conn, sample_id)? else {
+                continue;
+            };
+            cached_embedding_data(conn, &content_hash, analysis_version)?.is_some()
+        } else {
+            true
+        };
+        if has_embedding && has_aspects && cache_is_current {
             continue;
         }
         plan_sample(conn, job, sample_id, &mut state)?;

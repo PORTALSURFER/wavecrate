@@ -80,6 +80,165 @@ fn wav_file_migration_adds_stable_file_identity_column() {
 }
 
 #[test]
+fn canonical_identity_migration_rebuilds_derived_readiness_state() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE wav_files (
+            path TEXT PRIMARY KEY,
+            file_size INTEGER NOT NULL,
+            modified_ns INTEGER NOT NULL,
+            file_identity TEXT
+        );
+        CREATE TABLE pending_wav_renames (
+            path TEXT PRIMARY KEY,
+            file_size INTEGER NOT NULL,
+            modified_ns INTEGER NOT NULL,
+            content_hash TEXT,
+            tag INTEGER NOT NULL,
+            looped INTEGER NOT NULL,
+            locked INTEGER NOT NULL,
+            last_played_at INTEGER,
+            file_identity TEXT
+        );
+        CREATE TABLE source_readiness_targets (
+            source_id TEXT NOT NULL,
+            scope_kind TEXT NOT NULL,
+            scope_id TEXT NOT NULL
+        );
+        CREATE TABLE source_readiness_artifacts (
+            source_id TEXT NOT NULL,
+            scope_kind TEXT NOT NULL,
+            scope_id TEXT NOT NULL
+        );
+        CREATE TABLE source_readiness_sources (
+            source_id TEXT PRIMARY KEY
+        );
+        CREATE TABLE metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE analysis_jobs (
+            id INTEGER PRIMARY KEY,
+            sample_id TEXT NOT NULL,
+            readiness_managed INTEGER NOT NULL,
+            readiness_scope_kind TEXT,
+            readiness_scope_id TEXT
+        );
+        INSERT INTO wav_files (path, file_size, modified_ns, file_identity) VALUES
+            ('unix-v2.wav', 1, 1, 'unix-v2:10:20:30'),
+            ('windows-v2.wav', 1, 1, 'windows-v2:40:50:60'),
+            ('canonical.wav', 1, 1, 'unix:70:80:90'),
+            ('obsolete.wav', 1, 1, 'unix:100:110');
+        INSERT INTO pending_wav_renames (
+            path, file_size, modified_ns, content_hash, tag, looped, locked,
+            last_played_at, file_identity
+        ) VALUES (
+            'pending.wav', 1, 1, NULL, 0, 0, 0, NULL, 'windows:120:130'
+        );
+        INSERT INTO source_readiness_targets VALUES
+            ('source', 'file', 'unix-v2:10:20:30'),
+            ('source', 'file', 'unix:100:110');
+        INSERT INTO source_readiness_artifacts VALUES
+            ('source', 'file', 'windows-v2:40:50:60'),
+            ('source', 'file', 'windows:120:130');
+        INSERT INTO analysis_jobs VALUES
+            (1, 'unix-v2:10:20:30', 1, 'file', 'unix-v2:10:20:30'),
+            (2, 'manual-job', 0, NULL, NULL);
+        INSERT INTO source_readiness_sources VALUES ('source');
+        INSERT INTO metadata VALUES ('readiness_target_fingerprint_v1', 'stale');
+        INSERT INTO metadata VALUES ('unrelated', 'preserved');",
+    )
+    .unwrap();
+
+    migrate_canonical_file_identities(&conn).unwrap();
+
+    let identities = conn
+        .prepare("SELECT path, file_identity FROM wav_files ORDER BY path")
+        .unwrap()
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        identities,
+        vec![
+            (
+                String::from("canonical.wav"),
+                Some(String::from("unix:70:80:90")),
+            ),
+            (String::from("obsolete.wav"), None),
+            (
+                String::from("unix-v2.wav"),
+                Some(String::from("unix:10:20:30")),
+            ),
+            (
+                String::from("windows-v2.wav"),
+                Some(String::from("windows:40:50:60")),
+            ),
+        ]
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT file_identity FROM pending_wav_renames WHERE path = 'pending.wav'",
+            [],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .unwrap(),
+        None
+    );
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM source_readiness_targets", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        0
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*) FROM source_readiness_artifacts",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        0
+    );
+    assert_eq!(
+        conn.query_row("SELECT sample_id FROM analysis_jobs", [], |row| row
+            .get::<_, String>(0),)
+            .unwrap(),
+        "manual-job"
+    );
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM source_readiness_sources", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        0
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT value FROM metadata WHERE key = 'unrelated'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap(),
+        "preserved"
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*) FROM metadata
+             WHERE key = 'readiness_target_fingerprint_v1'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        0
+    );
+}
+
+#[test]
 fn collection_membership_schema_backfills_legacy_collection_column() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(

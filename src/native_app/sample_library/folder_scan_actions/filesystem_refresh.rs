@@ -15,17 +15,27 @@ impl NativeAppState {
         source_id: String,
         paths: Vec<PathBuf>,
         overflowed: bool,
+        source_root_available: bool,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        match self
-            .library
-            .plan_filesystem_change(source_id, &paths, overflowed)
-        {
+        match self.library.plan_filesystem_change(
+            source_id,
+            &paths,
+            overflowed,
+            source_root_available,
+        ) {
             SourceFilesystemChangePlan::IgnoredSourceMissing { source_id } => {
+                self.background
+                    .source_processing
+                    .wake_source(&source_id, "source_root_availability_changed");
                 if source_id == self.library.folder_browser.selected_source_id() {
                     self.ui.status.sample = String::from("Source missing");
                 }
+                self.persist_user_configuration(
+                    "folder_browser.source.availability_changed",
+                    started_at,
+                );
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
@@ -35,29 +45,16 @@ impl NativeAppState {
                     Some("source_not_found"),
                 );
             }
-            SourceFilesystemChangePlan::Patched {
+            SourceFilesystemChangePlan::SyncPaths {
                 source_id,
                 changed_count,
-                changed,
             } => {
                 self.queue_source_filesystem_sync(source_id.clone(), paths, changed_count, context);
-                if changed {
-                    self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
-                    self.queue_source_prep_pending_commit(
-                        source_id.clone(),
-                        SourcePrepTrigger::FilesystemChanged,
-                        context,
-                    );
-                    self.persist_user_configuration(
-                        "folder_browser.source.filesystem_patch",
-                        started_at,
-                    );
-                }
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
                     Some(&source_id),
-                    "patched",
+                    "sync_queued",
                     started_at,
                     None,
                 );
@@ -85,28 +82,42 @@ impl NativeAppState {
     ) {
         let source_id = result.source_id;
         let changed_count = result.changed_count;
-        if result.cancelled {
-            self.background
-                .source_processing
-                .wake_source(&source_id, "filesystem_sync_cancelled");
-            self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+        if !self.library.folder_browser.source_exists(&source_id) {
+            tracing::debug!(
+                source_id = %source_id,
+                "Ignoring stale filesystem sync completion for removed source"
+            );
             return;
         }
         match result.result {
-            Ok(success) if success.renames_reconciled > 0 => {
-                if changed_count > 0 {
+            Ok(success) => {
+                let renames_reconciled = success.renames_reconciled;
+                let incomplete_error = success.incomplete_error;
+                let delta = success.committed_delta;
+                tracing::info!(
+                    source_id = %source_id,
+                    revision = delta.revision,
+                    created = delta.created.len(),
+                    changed = delta.changed.len(),
+                    moved = delta.moved.len(),
+                    deleted = delta.deleted.len(),
+                    renames_reconciled,
+                    "Committed filesystem source delta"
+                );
+                if !delta.is_empty() && incomplete_error.is_none() {
+                    self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
+                    self.queue_source_prep(
+                        source_id.clone(),
+                        SourcePrepTrigger::FilesystemChanged,
+                        context,
+                    );
+                }
+                if result.cancelled || incomplete_error.is_some() {
                     self.background
                         .source_processing
-                        .wake_source(&source_id, "filesystem_sync_commit");
+                        .wake_source(&source_id, "filesystem_sync_incomplete_after_commit");
                 }
                 self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
-            }
-            Ok(_) => {
-                if changed_count > 0 {
-                    self.background
-                        .source_processing
-                        .wake_source(&source_id, "filesystem_sync_commit");
-                }
             }
             Err(error) => {
                 tracing::warn!(
@@ -118,8 +129,41 @@ impl NativeAppState {
                 if source_id == self.library.folder_browser.selected_source_id() {
                     self.ui.status.sample = format!("Source sync failed: {error}");
                 }
+                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }
         }
+    }
+
+    pub(in crate::native_app) fn finish_source_manifest_audit(
+        &mut self,
+        source_id: String,
+        committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        if committed_delta.is_empty() || !self.library.folder_browser.source_exists(&source_id) {
+            return;
+        }
+        self.background
+            .source_processing
+            .wake_source(&source_id, "manifest_audit_committed");
+        if !manifest_delta_requires_browser_refresh(&committed_delta) {
+            tracing::debug!(
+                source_id = %source_id,
+                revision = committed_delta.revision,
+                "Skipping filesystem rescan for content-generation-only audit delta"
+            );
+            return;
+        }
+        tracing::info!(
+            source_id = %source_id,
+            revision = committed_delta.revision,
+            created = committed_delta.created.len(),
+            changed = committed_delta.changed.len(),
+            moved = committed_delta.moved.len(),
+            deleted = committed_delta.deleted.len(),
+            "Refreshing browser projection after periodic source audit"
+        );
+        self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
     }
 
     pub(in crate::native_app) fn maybe_run_pending_source_refresh(
@@ -216,5 +260,57 @@ impl NativeAppState {
             },
             GuiMessage::SourceFilesystemSyncFinished,
         );
+    }
+}
+
+fn manifest_delta_requires_browser_refresh(
+    delta: &wavecrate::sample_sources::scanner::CommittedSourceDelta,
+) -> bool {
+    !delta.created.is_empty()
+        || !delta.moved.is_empty()
+        || !delta.deleted.is_empty()
+        || delta
+            .changed
+            .iter()
+            .any(|change| change.source_metadata_changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::manifest_delta_requires_browser_refresh;
+    use wavecrate::sample_sources::scanner::{CommittedSourceDelta, ManifestIdentityDelta};
+
+    #[test]
+    fn content_generation_only_audit_does_not_queue_filesystem_rescan() {
+        let delta = CommittedSourceDelta {
+            revision: 7,
+            changed: vec![ManifestIdentityDelta {
+                identity: String::from("file-id"),
+                relative_path: PathBuf::from("sample.wav"),
+                content_generation: String::from("hash"),
+                source_metadata_changed: false,
+            }],
+            ..CommittedSourceDelta::default()
+        };
+
+        assert!(!manifest_delta_requires_browser_refresh(&delta));
+    }
+
+    #[test]
+    fn source_metadata_change_requires_browser_refresh() {
+        let delta = CommittedSourceDelta {
+            revision: 8,
+            changed: vec![ManifestIdentityDelta {
+                identity: String::from("file-id"),
+                relative_path: PathBuf::from("sample.wav"),
+                content_generation: String::from("new-hash"),
+                source_metadata_changed: true,
+            }],
+            ..CommittedSourceDelta::default()
+        };
+
+        assert!(manifest_delta_requires_browser_refresh(&delta));
     }
 }

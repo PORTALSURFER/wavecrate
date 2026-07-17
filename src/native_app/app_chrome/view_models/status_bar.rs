@@ -1,7 +1,6 @@
 use crate::native_app::app::{
     FileMoveProgress, FolderScanProgress, NativeAppState, NormalizationProgress,
 };
-use radiant::prelude as ui;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct StatusBarViewModel {
@@ -9,6 +8,7 @@ pub(in crate::native_app) struct StatusBarViewModel {
     pub(in crate::native_app) status_text: String,
     pub(in crate::native_app) status_severity: StatusSeverity,
     pub(in crate::native_app) worker_progress: Option<WorkerProgressViewModel>,
+    pub(in crate::native_app) job_details: Option<JobDetailsViewModel>,
     pub(in crate::native_app) progress_tick: f32,
 }
 
@@ -20,11 +20,13 @@ pub(in crate::native_app) enum StatusSeverity {
 
 impl StatusBarViewModel {
     pub(in crate::native_app) fn from_app_state(state: &NativeAppState) -> Self {
+        let worker = active_worker(state);
         Self {
             selected_sample_count: state.library.folder_browser.selected_audio_file_count(),
             status_text: bottom_status_text(state),
-            status_severity: bottom_status_severity(state),
-            worker_progress: active_worker_progress(state),
+            status_severity: bottom_status_severity(state, worker.is_some()),
+            worker_progress: worker.as_ref().map(|worker| worker.progress),
+            job_details: worker.map(|worker| worker.details),
             progress_tick: state.background.progress_tick,
         }
     }
@@ -36,71 +38,20 @@ pub(in crate::native_app) struct WorkerProgressViewModel {
     pub(in crate::native_app) total: usize,
     pub(in crate::native_app) current_fraction: Option<f32>,
     pub(in crate::native_app) active_animation: bool,
+    pub(in crate::native_app) compact_activity: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct JobDetailsViewModel {
+    pub(in crate::native_app) rows: [String; 4],
+}
+
+struct ActiveWorkerViewModel {
+    progress: WorkerProgressViewModel,
+    details: JobDetailsViewModel,
 }
 
 fn bottom_status_text(state: &NativeAppState) -> String {
-    if let Some(progress) = state.library.folder_progress() {
-        let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
-        return if counters.is_indeterminate() {
-            format!(
-                "{} {} | {}",
-                progress.phase,
-                progress.label,
-                counters.count_label("items found")
-            )
-        } else {
-            format!(
-                "{} {} | {} | {}",
-                progress.phase,
-                progress.label,
-                counters.count_label("items found"),
-                progress.detail
-            )
-        };
-    }
-    if let Some(progress) = state.background.normalization_progress.as_ref() {
-        let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
-        let queue = normalization_queue_status(progress.queued);
-        return if counters.is_indeterminate() {
-            format!(
-                "Normalizing {} | {}{}",
-                progress.label, progress.detail, queue
-            )
-        } else {
-            format!(
-                "Normalizing {} | {} | {}{}",
-                progress.label,
-                counters.count_label("items found"),
-                progress.detail,
-                queue
-            )
-        };
-    }
-    if let Some(progress) = state.background.file_move_progress.as_ref() {
-        let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
-        return if counters.is_indeterminate() {
-            format!("{} | {}", progress.label, progress.detail)
-        } else {
-            format!(
-                "{} | {} | {}",
-                progress.label,
-                counters.count_label("items"),
-                progress.detail
-            )
-        };
-    }
-    if let Some(progress) = WorkerProgressViewModel::from_source_cache_warm(state) {
-        if state
-            .waveform
-            .cache
-            .active_folder_warm_plan_task
-            .active()
-            .is_some()
-        {
-            return source_cache_plan_status_text(state, progress);
-        }
-        return source_cache_warm_status_text(state, progress);
-    }
     let status = state.ui.status.sample.clone();
     match state.library.folder_browser.selected_source_status_label() {
         Some(source_status) if source_status.starts_with(&status) => source_status,
@@ -111,8 +62,8 @@ fn bottom_status_text(state: &NativeAppState) -> String {
     }
 }
 
-fn bottom_status_severity(state: &NativeAppState) -> StatusSeverity {
-    if active_worker_progress(state).is_none()
+fn bottom_status_severity(state: &NativeAppState, worker_active: bool) -> StatusSeverity {
+    if !worker_active
         && state
             .library
             .folder_browser
@@ -124,43 +75,49 @@ fn bottom_status_severity(state: &NativeAppState) -> StatusSeverity {
     }
 }
 
-fn normalization_queue_status(queued: usize) -> String {
-    if queued == 0 {
-        String::new()
-    } else {
-        format!(" | {queued} queued")
+fn active_worker(state: &NativeAppState) -> Option<ActiveWorkerViewModel> {
+    if let Some(progress) = state.library.folder_progress() {
+        return Some(ActiveWorkerViewModel {
+            progress: WorkerProgressViewModel::from_folder_progress(progress),
+            details: JobDetailsViewModel::from_folder_progress(progress),
+        });
     }
-}
-
-fn active_worker_progress(state: &NativeAppState) -> Option<WorkerProgressViewModel> {
+    if let Some(progress) = state.background.normalization_progress.as_ref() {
+        return Some(ActiveWorkerViewModel {
+            progress: WorkerProgressViewModel::from_normalization_progress(progress),
+            details: JobDetailsViewModel::from_normalization_progress(progress),
+        });
+    }
+    if let Some(progress) = state.background.file_move_progress.as_ref() {
+        return Some(ActiveWorkerViewModel {
+            progress: WorkerProgressViewModel::from_file_move_progress(progress),
+            details: JobDetailsViewModel::from_file_move_progress(progress),
+        });
+    }
+    if let Some(progress) = WorkerProgressViewModel::from_source_cache_warm(state) {
+        return Some(ActiveWorkerViewModel {
+            progress,
+            details: JobDetailsViewModel::from_source_cache_warm(state),
+        });
+    }
     state
-        .library
-        .folder_progress()
-        .map(WorkerProgressViewModel::from_folder_progress)
-        .or_else(|| {
-            state
-                .background
-                .normalization_progress
-                .as_ref()
-                .map(WorkerProgressViewModel::from_normalization_progress)
+        .background
+        .source_processing_progress
+        .as_ref()
+        .map(|source_progress| ActiveWorkerViewModel {
+            progress: WorkerProgressViewModel::from_source_processing(source_progress),
+            details: JobDetailsViewModel::from_source_processing(state, source_progress),
         })
-        .or_else(|| {
-            state
-                .background
-                .file_move_progress
-                .as_ref()
-                .map(WorkerProgressViewModel::from_file_move_progress)
-        })
-        .or_else(|| WorkerProgressViewModel::from_source_cache_warm(state))
 }
 
 impl WorkerProgressViewModel {
-    fn from_folder_progress(progress: &FolderScanProgress) -> Self {
+    pub(in crate::native_app) fn from_folder_progress(progress: &FolderScanProgress) -> Self {
         Self {
             completed: progress.completed,
             total: progress.total,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     }
 
@@ -170,6 +127,7 @@ impl WorkerProgressViewModel {
             total: progress.work_total,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     }
 
@@ -179,6 +137,7 @@ impl WorkerProgressViewModel {
             total: progress.total,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     }
 
@@ -193,88 +152,181 @@ impl WorkerProgressViewModel {
                     .as_ref()
                     .map(|_| cache.active_folder_warm_current_progress.clamp(0.0, 1.0)),
                 active_animation: true,
+                compact_activity: false,
             })
+    }
+
+    fn from_source_processing(progress: &crate::native_app::app::SourceProcessingProgress) -> Self {
+        Self {
+            completed: progress.completed,
+            total: progress.total,
+            current_fraction: None,
+            // Source processing has no independently measurable current-item fraction. Use one
+            // determinate track when totals are known and a compact activity indicator when they
+            // are not, so discovery cannot look like a frozen determinate bar.
+            active_animation: false,
+            compact_activity: true,
+        }
     }
 }
 
-fn source_cache_warm_status_text(
-    state: &NativeAppState,
-    progress: WorkerProgressViewModel,
-) -> String {
-    let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
-    let detail = state
-        .waveform
-        .cache
-        .active_folder_warm_current
-        .as_ref()
-        .and_then(|path| path.file_name())
-        .map(|name| name.to_string_lossy().to_string());
-    let stage = state
-        .waveform
-        .cache
-        .active_folder_warm_current_stage
-        .map(|stage| {
-            let percent = (state
-                .waveform
-                .cache
-                .active_folder_warm_current_progress
-                .clamp(0.0, 1.0)
-                * 100.0)
+impl JobDetailsViewModel {
+    pub(in crate::native_app) fn from_folder_progress(progress: &FolderScanProgress) -> Self {
+        Self {
+            rows: job_rows(
+                progress.phase.as_str(),
+                progress.label.as_str(),
+                progress.completed,
+                progress.total,
+                progress.detail.as_str(),
+                "found",
+            ),
+        }
+    }
+
+    fn from_normalization_progress(progress: &NormalizationProgress) -> Self {
+        let detail = if progress.queued == 0 {
+            progress.detail.clone()
+        } else {
+            format!("{} | {} queued", progress.detail, progress.queued)
+        };
+        Self {
+            rows: job_rows(
+                "Normalization",
+                progress.label.as_str(),
+                progress.work_completed,
+                progress.work_total,
+                detail.as_str(),
+                "processed",
+            ),
+        }
+    }
+
+    fn from_file_move_progress(progress: &FileMoveProgress) -> Self {
+        Self {
+            rows: job_rows(
+                "File operation",
+                progress.label.as_str(),
+                progress.completed,
+                progress.total,
+                progress.detail.as_str(),
+                "processed",
+            ),
+        }
+    }
+
+    fn from_source_cache_warm(state: &NativeAppState) -> Self {
+        let cache = &state.waveform.cache;
+        let checking = cache.active_folder_warm_plan_task.active().is_some();
+        let path = cache
+            .active_folder_warm_current
+            .as_ref()
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let stage = cache.active_folder_warm_current_stage.map(|stage| {
+            let percent = (cache.active_folder_warm_current_progress.clamp(0.0, 1.0) * 100.0)
                 .round() as usize;
             format!("{} {percent}%", stage.label())
         });
-    match (stage, detail) {
-        (Some(stage), Some(detail)) => format!(
-            "Caching source samples | {} | {} | {}",
-            counters.count_label("cached"),
-            stage,
-            detail
-        ),
-        (None, Some(detail)) => format!(
-            "Caching source samples | {} | {}",
-            counters.count_label("cached"),
-            detail
-        ),
-        (Some(stage), None) => format!(
-            "Caching source samples | {} | {}",
-            counters.count_label("cached"),
-            stage
-        ),
-        (None, None) => format!(
-            "Caching source samples | {}",
-            counters.count_label("cached")
-        ),
+        let detail = match (stage, path.is_empty()) {
+            (Some(stage), false) => format!("{stage} | {path}"),
+            (Some(stage), true) => stage,
+            (None, false) => path,
+            (None, true) => String::new(),
+        };
+        Self {
+            rows: job_rows(
+                if checking {
+                    "Cache check"
+                } else {
+                    "Waveform cache"
+                },
+                selected_source_label(state).as_str(),
+                cache.active_folder_warm_completed,
+                cache.active_folder_warm_total,
+                detail.as_str(),
+                if checking { "checked" } else { "cached" },
+            ),
+        }
+    }
+
+    fn from_source_processing(
+        state: &NativeAppState,
+        progress: &crate::native_app::app::SourceProcessingProgress,
+    ) -> Self {
+        let current = if progress.detail.is_empty() {
+            progress.stage.clone()
+        } else {
+            format!("{} | {}", progress.stage, progress.detail)
+        };
+        let source = if progress.source_id.is_empty() {
+            "Multiple sources"
+        } else {
+            state
+                .library
+                .folder_browser
+                .source_label(progress.source_id.as_str())
+                .unwrap_or(progress.source_id.as_str())
+        };
+        Self {
+            rows: if progress.total == 0 {
+                let progress_label = if progress.stage == "Checking pending work" {
+                    "Progress: Counting pending jobs"
+                } else {
+                    "Progress: Active (total not available)"
+                };
+                [
+                    String::from("Type: Source processing"),
+                    format!("Source: {source}"),
+                    String::from(progress_label),
+                    format!("Current: {current}"),
+                ]
+            } else {
+                job_rows(
+                    "Source processing",
+                    source,
+                    progress.completed,
+                    progress.total,
+                    current.as_str(),
+                    "processed",
+                )
+            },
+        }
     }
 }
 
-fn source_cache_plan_status_text(
-    state: &NativeAppState,
-    progress: WorkerProgressViewModel,
-) -> String {
-    let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
-    let detail = state
-        .waveform
-        .cache
-        .active_folder_warm_current
-        .as_ref()
-        .and_then(|path| path.file_name())
-        .map(|name| name.to_string_lossy().to_string());
-    let percent = (state
-        .waveform
-        .cache
-        .active_folder_warm_current_progress
-        .clamp(0.0, 1.0)
-        * 100.0)
-        .round() as usize;
-    match detail {
-        Some(detail) => format!(
-            "Checking source samples | {} | {percent}% | {}",
-            counters.count_label("checked"),
-            detail
-        ),
-        None => format!(
-            "Checking source samples | {}",
-            counters.count_label("checked")
-        ),
-    }
+fn selected_source_label(state: &NativeAppState) -> String {
+    let source_id = state.library.folder_browser.selected_source_id();
+    state
+        .library
+        .folder_browser
+        .source_label(source_id)
+        .unwrap_or(source_id)
+        .to_string()
+}
+
+fn job_rows(
+    kind: &str,
+    source: &str,
+    completed: usize,
+    total: usize,
+    detail: &str,
+    indeterminate_suffix: &str,
+) -> [String; 4] {
+    let progress = if total == 0 {
+        format!("{completed} {indeterminate_suffix}")
+    } else {
+        format!("{}/{}", completed.min(total), total)
+    };
+    let detail = if detail.is_empty() {
+        "Waiting for next item"
+    } else {
+        detail
+    };
+    [
+        format!("Type: {kind}"),
+        format!("Source: {source}"),
+        format!("Progress: {progress}"),
+        format!("Current: {detail}"),
+    ]
 }

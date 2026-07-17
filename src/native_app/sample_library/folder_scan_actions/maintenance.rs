@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::{Path, PathBuf},
+};
 
 use wavecrate::sample_sources::{
     HarvestFileIdentity, HarvestFileKey, SampleSource,
@@ -47,11 +50,7 @@ pub(super) fn persist_folder_scan_maintenance(
     let scan_cache_error =
         apply_folder_scan_cache_update(request.scan_cache_update, request.scan_cache_revision)
             .err();
-    let harvest_errors = request
-        .audio_file_paths
-        .iter()
-        .filter_map(|path| persist_harvest_discovery(&request.sources, path).err())
-        .collect();
+    let harvest_errors = persist_harvest_discoveries(&request.sources, &request.audio_file_paths);
     FolderScanMaintenanceResult {
         config_error,
         scan_cache_error,
@@ -73,32 +72,55 @@ fn persist_config_revision(
     }
 }
 
-fn persist_harvest_discovery(sources: &[SampleSource], path: &Path) -> Result<(), String> {
-    let Some((source, relative_path)) = sources
-        .iter()
-        .filter_map(|source| {
-            path.strip_prefix(&source.root)
-                .ok()
-                .map(|relative| (source, relative.to_path_buf()))
-        })
-        .max_by_key(|(source, _)| source.root.components().count())
-    else {
-        return Ok(());
-    };
-    let (file_size, modified_ns) = harvest_file_ops::file_identity_metadata(path);
-    let entry = source
-        .open_db()
-        .ok()
-        .and_then(|db| db.entry_for_path(&relative_path).ok().flatten());
-    let identity = HarvestFileIdentity {
-        key: HarvestFileKey::new(source.id.clone(), relative_path),
-        file_size: file_size.or_else(|| entry.as_ref().map(|entry| entry.file_size)),
-        modified_ns: modified_ns.or_else(|| entry.as_ref().map(|entry| entry.modified_ns)),
-        content_hash: entry.and_then(|entry| entry.content_hash),
-    };
-    library::upsert_harvest_file(&identity)
-        .map(|_| ())
-        .map_err(|error| format!("record harvest discovery {}: {error}", path.display()))
+fn persist_harvest_discoveries(sources: &[SampleSource], paths: &[PathBuf]) -> Vec<String> {
+    let mut paths_by_source = BTreeMap::<usize, Vec<(&Path, PathBuf)>>::new();
+    for path in paths {
+        let Some((source_index, relative_path)) = sources
+            .iter()
+            .enumerate()
+            .filter_map(|(index, source)| {
+                path.strip_prefix(&source.root)
+                    .ok()
+                    .map(|relative| (index, relative.to_path_buf()))
+            })
+            .max_by_key(|(index, _)| sources[*index].root.components().count())
+        else {
+            continue;
+        };
+        paths_by_source
+            .entry(source_index)
+            .or_default()
+            .push((path.as_path(), relative_path));
+    }
+
+    let mut identities = Vec::with_capacity(paths.len());
+    for (source_index, source_paths) in paths_by_source {
+        let source = &sources[source_index];
+        let manifest = source
+            .open_db()
+            .ok()
+            .and_then(|db| db.list_manifest_entries().ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|entry| (entry.relative_path.clone(), entry))
+            .collect::<HashMap<_, _>>();
+        identities.extend(source_paths.into_iter().map(|(path, relative_path)| {
+            let (file_size, modified_ns) = harvest_file_ops::file_identity_metadata(path);
+            let entry = manifest.get(&relative_path);
+            HarvestFileIdentity {
+                key: HarvestFileKey::new(source.id.clone(), relative_path),
+                file_size: file_size.or_else(|| entry.map(|entry| entry.file_size)),
+                modified_ns: modified_ns.or_else(|| entry.map(|entry| entry.modified_ns)),
+                content_hash: entry.and_then(|entry| entry.content_hash.clone()),
+            }
+        }));
+    }
+
+    library::upsert_harvest_files(&identities)
+        .err()
+        .map(|error| format!("record {} harvest discoveries: {error}", identities.len()))
+        .into_iter()
+        .collect()
 }
 
 #[cfg(test)]
@@ -107,8 +129,29 @@ mod tests {
 
     #[test]
     fn discovery_outside_configured_sources_is_a_noop() {
-        let result = persist_harvest_discovery(&[], Path::new("/tmp/outside.wav"));
-        assert_eq!(result, Ok(()));
+        let errors = persist_harvest_discoveries(&[], &[PathBuf::from("/tmp/outside.wav")]);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn discovery_batch_opens_each_source_database_once() {
+        let config = tempfile::tempdir().unwrap();
+        let _guard = wavecrate::app_dirs::ConfigBaseGuard::set(config.path().to_path_buf());
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("first.wav");
+        let second = root.path().join("second.wav");
+        std::fs::write(&first, b"first").unwrap();
+        std::fs::write(&second, b"second").unwrap();
+        let source = SampleSource::new(root.path().to_path_buf());
+        wavecrate::sample_sources::db::test_reset_source_db_open_total_count(root.path());
+
+        let errors = persist_harvest_discoveries(&[source], &[first, second]);
+
+        assert!(errors.is_empty());
+        assert_eq!(
+            wavecrate::sample_sources::db::test_source_db_open_total_count(root.path()),
+            1
+        );
     }
 
     #[test]

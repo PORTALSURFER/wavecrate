@@ -265,6 +265,21 @@ pub struct WavEntry {
     pub tag_named: bool,
 }
 
+/// Authoritative identity facts for one live source-manifest row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceManifestEntry {
+    /// File path relative to the source root.
+    pub relative_path: PathBuf,
+    /// Stable filesystem-object identity when the platform provides one.
+    pub file_identity: Option<String>,
+    /// Full content hash when deep hashing has completed.
+    pub content_hash: Option<String>,
+    /// File size in bytes.
+    pub file_size: u64,
+    /// Last modified timestamp in epoch nanoseconds.
+    pub modified_ns: i64,
+}
+
 /// One normal library tag stored in a source database.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceTag {

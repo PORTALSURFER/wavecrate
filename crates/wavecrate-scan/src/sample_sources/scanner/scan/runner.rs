@@ -28,13 +28,107 @@ pub enum ScanMode {
 /// Recursively scan the source root, syncing supported audio files into the database.
 /// Returns counts of added/updated/removed rows.
 pub fn scan_once(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
-    scan(db, ScanMode::Quick, None, None)
+    scan(db, ScanMode::Quick, None, None, None)
 }
 
 /// Rescan the entire source, pruning rows for files that no longer exist and
 /// clearing any unmatched pending rename rows left over from prior quick scans.
 pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
-    scan(db, ScanMode::Hard, None, None)
+    scan(db, ScanMode::Hard, None, None, None)
+}
+
+/// Reconcile the full source manifest and verify a bounded rotating content batch.
+pub fn audit_source(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+) -> Result<ScanStats, ScanError> {
+    let mut stats = scan(db, ScanMode::Quick, cancel, None, None)?;
+    merge_audit_verification(
+        &mut stats,
+        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None),
+    )
+}
+
+/// Reconcile a source audit and, after successful content verification, durably record completion
+/// in the same final revision.
+///
+/// A manifest repair committed before verification fails is still returned for publication. In
+/// that case the completion timestamp remains unchanged so the unfinished audit stays due.
+pub fn audit_source_and_record(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_with_progress(db, cancel, max_hashes, completed_at, &mut |_, _| {})
+}
+
+/// Reconcile and durably record a resumable source audit while publishing checked-file progress.
+pub fn audit_source_and_record_with_progress(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    on_progress: &mut impl FnMut(usize, &Path),
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(
+        db,
+        cancel,
+        max_hashes,
+        completed_at,
+        Some(on_progress),
+        || {},
+    )
+}
+
+fn audit_source_and_record_after_scan(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    on_progress: Option<&mut dyn FnMut(usize, &Path)>,
+    after_scan: impl FnOnce(),
+) -> Result<ScanStats, ScanError> {
+    let mut stats = scan(db, ScanMode::Quick, cancel, on_progress, Some(completed_at))?;
+    after_scan();
+    merge_audit_verification(
+        &mut stats,
+        super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, Some(completed_at)),
+    )
+}
+
+#[cfg(test)]
+pub(crate) fn audit_source_and_record_with_post_scan_hook(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    after_scan: impl FnOnce(),
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, None, after_scan)
+}
+
+fn merge_audit_verification(
+    stats: &mut ScanStats,
+    verification: Result<ScanStats, ScanError>,
+) -> Result<ScanStats, ScanError> {
+    match verification {
+        Ok(verified) => stats.merge_deferred_hashes(verified),
+        Err(error) if stats.committed_delta.revision > 0 => {
+            tracing::warn!(
+                %error,
+                revision = stats.committed_delta.revision,
+                "Publishing committed manifest repair before retrying incomplete content audit"
+            );
+            return Err(ScanError::Incomplete {
+                committed: Box::new(std::mem::take(stats)),
+                error: error.to_string(),
+            });
+        }
+        Err(error) => return Err(error),
+    }
+    Ok(std::mem::take(stats))
 }
 
 /// Scan with a progress callback, optionally honoring a cancel flag.
@@ -44,7 +138,7 @@ pub fn scan_with_progress(
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
 ) -> Result<ScanStats, ScanError> {
-    scan(db, mode, cancel, Some(on_progress))
+    scan(db, mode, cancel, Some(on_progress), None)
 }
 
 fn scan(
@@ -52,13 +146,63 @@ fn scan(
     mode: ScanMode,
     cancel: Option<&AtomicBool>,
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
+    manifest_audit_started_at: Option<i64>,
 ) -> Result<ScanStats, ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
+    let (manifest_revision, manifest_before) =
+        super::super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
-    let mut context = ScanContext::new(db, mode)?;
-    walk_phase(db, &root, cancel, &mut on_progress, &mut context)?;
-    db_sync_phase(db, &mut context, cancel)?;
-    Ok(context.stats)
+    let mut context = ScanContext::new(db, mode, manifest_revision, manifest_before.clone())?;
+    if let Some(started_at) = manifest_audit_started_at {
+        context.resume_manifest_audit(db, started_at)?;
+        if let Some((checked, _expected)) = context.manifest_audit_progress()
+            && checked > 0
+            && let Some(on_progress) = on_progress.as_mut()
+        {
+            on_progress(checked, &root);
+        }
+    }
+    let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context)
+        .and_then(|()| db_sync_phase(db, &mut context, cancel));
+    finish_scan_result(manifest_before, context, result)
+}
+
+pub(crate) fn finish_scan_result(
+    manifest_before: Vec<wavecrate_library::sample_sources::SourceManifestEntry>,
+    mut context: ScanContext,
+    result: Result<
+        (
+            u64,
+            Vec<wavecrate_library::sample_sources::SourceManifestEntry>,
+        ),
+        ScanError,
+    >,
+) -> Result<ScanStats, ScanError> {
+    match result {
+        Ok(committed_snapshot) => {
+            super::super::manifest::publish_committed_delta(
+                &mut context.stats,
+                manifest_before,
+                committed_snapshot,
+            );
+            Ok(context.stats)
+        }
+        Err(error) => {
+            let Some(committed_revision) = context.last_committed_revision else {
+                return Err(error);
+            };
+            let committed_snapshot = context.committed_snapshot(committed_revision);
+            super::super::manifest::publish_committed_delta(
+                &mut context.stats,
+                manifest_before,
+                committed_snapshot,
+            );
+            Err(ScanError::Incomplete {
+                committed: Box::new(context.stats),
+                error: error.to_string(),
+            })
+        }
+    }
 }
 
 /// Spawn a background thread that opens the source database and performs one scan.
@@ -193,33 +337,4 @@ pub fn complete_pending_deep_hash_for_path(
         Some(1),
         Some(relative_path),
     )
-}
-
-/// Spawn a detached deep-hash pass to backfill content hashes after quick scans.
-///
-/// This keeps incremental scans responsive by moving full hashing and rename
-/// reconciliation for large files to a best-effort background worker.
-pub fn schedule_deep_hash_scan(root: PathBuf) {
-    schedule_deep_hash_scan_with_database_root(root.clone(), root);
-}
-
-/// Spawn a detached deep-hash pass using a separate database root.
-pub fn schedule_deep_hash_scan_with_database_root(root: PathBuf, database_root: PathBuf) {
-    thread::spawn(move || {
-        let result = (|| -> Result<(), ScanError> {
-            let db = SourceDatabase::open_for_scan_with_database_root(root, database_root)?;
-            let _ = super::super::scan_hash::deep_hash_scan(
-                &db,
-                None,
-                &HashSet::new(),
-                super::super::scan_hash::DeferredHashScope::AllUnhashed,
-                None,
-                None,
-            )?;
-            Ok(())
-        })();
-        if let Err(err) = result {
-            tracing::warn!("Deferred deep-hash scan failed: {err}");
-        }
-    });
 }

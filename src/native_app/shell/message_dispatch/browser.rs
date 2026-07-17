@@ -45,7 +45,19 @@ impl NativeAppState {
                 self.finish_similarity_prep_enqueue(result, context);
             }
             GuiMessage::SimilarityScoresResolved(result) => {
-                self.finish_similarity_scores(result);
+                self.finish_similarity_scores(result, context);
+            }
+            GuiMessage::SimilarityReadinessAdvanced { source_id } => {
+                self.finish_similarity_readiness_advanced(source_id, context);
+            }
+            GuiMessage::SourceProcessingProgress(progress) => {
+                if !progress.active {
+                    self.background.source_processing_progress = None;
+                    self.ui.chrome.job_details_open = false;
+                } else {
+                    self.background.source_processing_progress = Some(progress);
+                }
+                context.repaint(ui::RepaintScope::Projection);
             }
             GuiMessage::FolderScanProgress(progress) => {
                 self.apply_folder_scan_progress(progress);
@@ -67,11 +79,24 @@ impl NativeAppState {
                 source_id,
                 paths,
                 overflowed,
+                source_root_available,
             } => {
-                self.refresh_source_after_filesystem_change(source_id, paths, overflowed, context);
+                self.refresh_source_after_filesystem_change(
+                    source_id,
+                    paths,
+                    overflowed,
+                    source_root_available,
+                    context,
+                );
             }
             GuiMessage::SourceFilesystemSyncFinished(result) => {
                 self.finish_source_filesystem_sync(result, context);
+            }
+            GuiMessage::SourceManifestAuditCommitted {
+                source_id,
+                committed_delta,
+            } => {
+                self.finish_source_manifest_audit(source_id, committed_delta, context);
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);

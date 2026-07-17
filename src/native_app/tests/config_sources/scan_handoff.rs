@@ -53,13 +53,20 @@ fn source_filesystem_change_during_scan_is_refreshed_after_scan_finishes() {
     );
     state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
     let mut context = ui::UiUpdateContext::default();
-    state.refresh_source_after_filesystem_change(source_id.clone(), Vec::new(), true, &mut context);
+    state.refresh_source_after_filesystem_change(
+        source_id.clone(),
+        Vec::new(),
+        true,
+        true,
+        &mut context,
+    );
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::SourceFilesystemChanged {
             source_id: source_id.clone(),
             paths: Vec::new(),
             overflowed: true,
+            source_root_available: true,
         },
         &mut context,
     );

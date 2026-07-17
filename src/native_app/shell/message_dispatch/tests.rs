@@ -30,6 +30,66 @@ fn frame_messages_use_frame_budget_slow_threshold() {
 }
 
 #[test]
+fn source_processing_progress_opens_the_shared_job_details_popover() {
+    let mut state = NativeAppStateFixture::default().build();
+    state.background.source_processing_progress =
+        Some(crate::native_app::app::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: true,
+            completed: 3,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("kick.wav"),
+        });
+
+    state.apply_message(
+        GuiMessage::ToggleJobDetails,
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(state.ui.chrome.job_details_open);
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: false,
+            completed: 10,
+            total: 10,
+            stage: String::from("Building similarity layout"),
+            detail: String::from("Finalizing source"),
+        }),
+        &mut ui::UiUpdateContext::default(),
+    );
+
+    assert!(state.background.source_processing_progress.is_none());
+    assert!(!state.ui.chrome.job_details_open);
+}
+
+#[test]
+fn source_processing_progress_refreshes_the_retained_details_projection() {
+    let mut state = NativeAppStateFixture::default().build();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: true,
+            completed: 4,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("snare.wav"),
+        }),
+        &mut context,
+    );
+
+    assert_eq!(
+        context.into_command().repaint_scope(),
+        Some(ui::RepaintScope::Projection),
+        "background progress must refresh retained text and counters without user input"
+    );
+}
+
+#[test]
 fn idle_map_frame_reuses_prepared_sample_browser_projection() {
     let (_root, mut state, _sample_id) = prepared_map_state("idle-map-frame.wav");
     let prepared = state

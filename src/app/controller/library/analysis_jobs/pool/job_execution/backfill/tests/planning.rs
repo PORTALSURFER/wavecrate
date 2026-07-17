@@ -57,6 +57,25 @@ fn plan_derives_missing_aspects_from_current_features_without_work() {
 }
 
 #[test]
+fn readiness_plan_materializes_missing_cache_for_current_sample_outputs() {
+    let conn = conn_with_schema();
+    insert_sample(&conn, "s::a.wav", "hash-a");
+    insert_current_embedding(&conn, "s::a.wav");
+    insert_current_aspects(&conn, "s::a.wav");
+    insert_current_features(&conn, "s::a.wav");
+
+    let temp = tempfile::TempDir::new().unwrap();
+    let job = make_job(&["s::a.wav"], temp.path());
+    let plan =
+        planning::build_readiness_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
+            .expect("readiness plan");
+
+    assert!(plan.work.is_empty());
+    assert_eq!(plan.ready.len(), 1);
+    assert_eq!(plan.ready[0].sample_id, "s::a.wav");
+}
+
+#[test]
 fn plan_builds_work_when_cache_misses() {
     let conn = conn_with_schema();
     insert_sample(&conn, "s::a.wav", "hash-a");
@@ -123,6 +142,29 @@ fn insert_current_features(conn: &rusqlite::Connection, sample_id: &str) {
             (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
          VALUES (?1, ?2, ?3, NULL, 0.5, 9)",
         params![sample_id, wavecrate_analysis::FEATURE_VERSION_V1, blob],
+    )
+    .unwrap();
+}
+
+fn insert_current_aspects(conn: &rusqlite::Connection, sample_id: &str) {
+    let mut features = vec![0.0_f32; wavecrate_analysis::FEATURE_VECTOR_LEN_V1];
+    for (index, value) in features.iter_mut().enumerate() {
+        *value = index as f32 + 1.0;
+    }
+    let aspects = wavecrate_analysis::aspects::aspect_descriptors_from_features_v1(&features)
+        .expect("aspects");
+    let blob = wavecrate_analysis::vector::encode_f32_le_blob(aspects.packed());
+    conn.execute(
+        "INSERT INTO similarity_aspect_descriptors
+            (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+         VALUES (?1, ?2, ?3, 'f32', 1, ?4, ?5, 7)",
+        params![
+            sample_id,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+            wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_DIM as i64,
+            aspects.valid_mask() as i64,
+            blob,
+        ],
     )
     .unwrap();
 }

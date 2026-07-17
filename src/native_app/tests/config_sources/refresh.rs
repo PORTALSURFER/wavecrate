@@ -60,7 +60,7 @@ fn context_source_refresh_queues_scan_without_clearing_loaded_tree() {
         visible_before,
         "refresh should keep the current cached tree visible while the scan runs"
     );
-    assert!(state.ui.status.sample.contains("Scanning source"));
+    assert!(state.ui.status.sample.contains("Queued source scan"));
 }
 
 #[test]
@@ -270,6 +270,7 @@ fn source_filesystem_change_queues_refresh_without_clearing_loaded_tree() {
             source_id: source_id.clone(),
             paths: Vec::new(),
             overflowed: true,
+            source_root_available: true,
         },
         &mut context,
     );
@@ -320,6 +321,7 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
             source_id: source_id.clone(),
             paths: vec![PathBuf::from("stale.wav")],
             overflowed: false,
+            source_root_available: true,
         },
         &mut context,
     );
@@ -332,16 +334,58 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
             .into_iter()
             .map(|file| file.name.clone())
             .collect::<Vec<_>>(),
-        vec!["keep.wav"],
-        "bounded filesystem patch should remove deleted sample from the visible list immediately"
+        vec!["keep.wav", "stale.wav"],
+        "watcher hints must not patch the visible tree before the source transaction commits"
     );
     let sync_finished =
         run_named_perform(context.into_command(), "gui-source-db-sync").expect("db sync command");
-    state.apply_message(sync_finished, &mut ui::UiUpdateContext::default());
+    let mut post_commit = ui::UiUpdateContext::default();
+    state.apply_message(sync_finished, &mut post_commit);
 
     let rows = db.list_files().expect("synced rows");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, std::path::Path::new("keep.wav"));
+    let refresh_task = state
+        .library
+        .folder_progress()
+        .expect("post-commit projection refresh should run in the background")
+        .task_id;
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.clone())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav", "stale.wav"],
+        "the UI thread must retain owned projection data while background refresh runs"
+    );
+    let refreshed =
+        crate::native_app::sample_library::folder_browser::scan::scan_source_with_progress(
+            crate::native_app::sample_library::folder_browser::scan::FolderScanRequest {
+                task_id: refresh_task,
+                source_id,
+                label: String::from("source"),
+                root: source_root.path().to_path_buf(),
+                database_root: source_root.path().to_path_buf(),
+                rating_decay_weeks: crate::native_app::sample_library::folder_browser::scan::FolderScanRequest::default_rating_decay_weeks(),
+            },
+            |_| {},
+            |_| {},
+        );
+    state.finish_folder_scan(refreshed, &mut ui::UiUpdateContext::default());
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.name.clone())
+            .collect::<Vec<_>>(),
+        vec!["keep.wav"],
+        "the browser projection should refresh only from committed background state"
+    );
 }
 
 fn run_named_perform(

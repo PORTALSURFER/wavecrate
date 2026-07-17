@@ -35,6 +35,17 @@ pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanR
             is_auto,
             stats,
         ),
+        Err(crate::sample_sources::scanner::ScanError::Incomplete { committed, error }) => {
+            handle_incomplete_scan(
+                controller,
+                &result.source_id,
+                label,
+                is_selected_source,
+                result.mode,
+                *committed,
+                &error,
+            );
+        }
         Err(crate::sample_sources::scanner::ScanError::Canceled) => {
             clear_scan_progress_if_active(controller);
             handle_scan_failure(
@@ -75,6 +86,10 @@ fn handle_successful_scan(
         .as_ref()
         .is_some_and(|state| state.source_id == *source_id);
 
+    if !apply_selected_source_scan_deltas(controller, source_id, is_selected_source, &stats) {
+        invalidate_scan_caches(controller, source_id, is_selected_source);
+    }
+
     report_successful_scan_status(
         controller,
         label,
@@ -83,9 +98,6 @@ fn handle_successful_scan(
         scan_changed,
         &stats,
     );
-    if !apply_selected_source_scan_deltas(controller, source_id, is_selected_source, &stats) {
-        invalidate_scan_caches(controller, source_id, is_selected_source);
-    }
     if is_selected_source {
         controller.refresh_selected_source_similarity_prep_status();
     }
@@ -104,6 +116,28 @@ fn handle_successful_scan(
         controller.handle_similarity_scan_finished(source_id);
     }
     clear_scan_progress_if_active(controller);
+}
+
+fn handle_incomplete_scan(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    label: &str,
+    is_selected_source: bool,
+    mode: ScanMode,
+    stats: ScanStats,
+    error: &str,
+) {
+    if !apply_selected_source_scan_deltas(controller, source_id, is_selected_source, &stats) {
+        invalidate_scan_caches(controller, source_id, is_selected_source);
+    }
+    if is_selected_source {
+        controller.set_background_status(
+            format!("{label} committed a checkpoint; retrying incomplete work: {error}"),
+            StatusTone::Info,
+        );
+    }
+    clear_scan_progress_if_active(controller);
+    controller.request_incomplete_scan_retry(source_id, mode);
 }
 
 fn report_successful_scan_status(

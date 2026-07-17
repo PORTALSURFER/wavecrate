@@ -1,5 +1,8 @@
-use std::path::{Path, PathBuf};
 use std::time::Duration;
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use rusqlite::{Connection, Transaction};
 use std::fmt;
@@ -41,7 +44,10 @@ pub use open_profiles::SourceDatabaseConnectionRole;
 /// Metadata retained for a pruned row so later scans can recover rename state.
 pub use pending_renames::PendingRenameEntry;
 pub use rename_metadata::RenameMetadataSnapshot;
-pub use types::{Rating, SampleCollection, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
+pub use types::{
+    Rating, SampleCollection, SampleSoundType, SourceManifestEntry, SourceTag, SourceTagUsage,
+    WavEntry,
+};
 pub use util::normalize_relative_path;
 pub use write::{
     SourceCollectionWrite, SourceContentHashWrite, SourceFileWrite, SourceTagWrite,
@@ -54,6 +60,8 @@ pub const DB_FILE_NAME: &str = ".wavecrate.db";
 pub const LEGACY_DB_FILE_NAME: &str = ".wavecrate_samples.db";
 /// Metadata key for the last completed scan timestamp.
 pub const META_LAST_SCAN_COMPLETED_AT: &str = "last_scan_completed_at";
+/// Metadata key storing the last completed periodic source-manifest audit timestamp.
+pub const META_LAST_MANIFEST_AUDIT_AT: &str = "last_manifest_audit_at_v1";
 /// Metadata key for the last similarity-prep scan timestamp.
 pub const META_LAST_SIMILARITY_PREP_SCAN_AT: &str = "last_similarity_prep_scan_at";
 /// Metadata key storing the last data revision cleaned by deferred maintenance.
@@ -97,6 +105,7 @@ pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
     db_path: PathBuf,
     paths_revision_dirty: bool,
+    manifest_touched_paths: BTreeSet<PathBuf>,
     telemetry_label: &'static str,
 }
 
@@ -411,6 +420,20 @@ impl SourceDatabase {
         role: SourceDatabaseConnectionRole,
     ) -> Result<Connection, SourceDbError> {
         let db = Self::open_with_role_and_database_root(root, database_root, role)?;
+        Ok(db.into_connection())
+    }
+
+    /// Open an external metadata database while its audio source root is unavailable.
+    ///
+    /// This is intentionally limited to callers that already resolved a separate, existing
+    /// metadata root. Treating that directory as the operational root avoids recreating or
+    /// validating the absent audio directory while still applying the requested connection role.
+    pub fn open_unavailable_source_metadata_connection(
+        database_root: impl AsRef<Path>,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<Connection, SourceDbError> {
+        let database_root = database_root.as_ref();
+        let db = Self::open_with_role_and_database_root(database_root, database_root, role)?;
         Ok(db.into_connection())
     }
 

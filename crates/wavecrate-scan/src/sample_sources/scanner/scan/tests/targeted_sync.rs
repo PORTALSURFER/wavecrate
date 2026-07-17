@@ -18,6 +18,74 @@ fn targeted_sync_updates_only_requested_file() {
     assert_eq!(stats.updated, 1);
     assert_eq!(stats.content_changed, 1);
     assert_eq!(db.list_files().unwrap().len(), 2);
+    assert_eq!(stats.committed_delta.changed.len(), 1);
+    assert!(stats.committed_delta.revision > 0);
+}
+
+#[test]
+fn targeted_sync_detects_same_size_edit_with_restored_mtime() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("same.wav");
+    std::fs::write(&path, b"one").unwrap();
+    let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let original_hash = db
+        .entry_for_path(Path::new("same.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    std::fs::write(&path, b"two").unwrap();
+    let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+        .unwrap();
+    let stats = sync_paths(&db, &[PathBuf::from("same.wav")]).unwrap();
+    let current_hash = db
+        .entry_for_path(Path::new("same.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    assert_ne!(current_hash, original_hash);
+    assert_eq!(stats.content_changed, 1);
+    assert_eq!(stats.committed_delta.changed.len(), 1);
+    assert!(stats.committed_delta.created.is_empty());
+}
+
+#[test]
+fn targeted_sync_exactly_hashes_an_existing_large_file_edit() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("large.wav");
+    std::fs::write(&path, vec![1_u8; 9 * 1024 * 1024]).unwrap();
+    let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    complete_pending_deep_hash_for_path(&db, Path::new("large.wav"), None).unwrap();
+    let original_hash = db
+        .entry_for_path(Path::new("large.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    std::fs::write(&path, vec![2_u8; 9 * 1024 * 1024]).unwrap();
+    let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+        .unwrap();
+    let stats = sync_paths(&db, &[PathBuf::from("large.wav")]).unwrap();
+    let current_hash = db
+        .entry_for_path(Path::new("large.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    assert_ne!(current_hash, original_hash);
+    assert_eq!(stats.committed_delta.changed.len(), 1);
+    assert_eq!(stats.hashes_pending, 0);
 }
 
 #[test]
@@ -36,6 +104,7 @@ fn targeted_sync_hides_confirmed_missing_file() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("two.wav"));
+    assert_eq!(stats.committed_delta.deleted.len(), 1);
 }
 
 #[test]
@@ -75,6 +144,7 @@ fn targeted_sync_adds_new_file_inside_requested_folder() {
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, Path::new("drums/kick.wav"));
+    assert_eq!(stats.committed_delta.created.len(), 1);
 }
 
 #[test]
@@ -144,7 +214,13 @@ fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
         }
     });
 
-    assert!(matches!(result, Err(ScanError::Canceled)));
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("targeted cancellation must return the committed checkpoint outcome");
+    };
+    let partial = *committed;
+    assert_eq!(partial.committed_delta.created.len(), 64);
+    assert!(partial.committed_delta.revision > 0);
+    assert_eq!(error, "Scan canceled");
     assert_eq!(db.count_files().unwrap(), 64);
 
     cancel.store(false, Ordering::Relaxed);

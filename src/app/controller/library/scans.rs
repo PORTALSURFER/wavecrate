@@ -11,6 +11,19 @@ mod worker;
 const WATCHER_SYNC_INTERVAL: Duration = Duration::from_secs(2);
 
 impl AppController {
+    pub(crate) fn request_incomplete_scan_retry(&mut self, source_id: &SourceId, mode: ScanMode) {
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+            .cloned()
+        else {
+            return;
+        };
+        self.request_scan_for_source(&source, incomplete_retry_mode(mode), ScanKind::Auto);
+    }
+
     /// Trigger a quick sync (incremental scan) of the selected source.
     pub fn request_quick_sync(&mut self) {
         self.request_scan_with_mode(ScanMode::Quick, ScanKind::Manual);
@@ -84,12 +97,26 @@ impl AppController {
     }
 }
 
+fn incomplete_retry_mode(mode: ScanMode) -> ScanMode {
+    match mode {
+        ScanMode::Targeted => ScanMode::Quick,
+        mode => mode,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::controller::jobs::JobMessage;
     use crate::app::controller::test_support::dummy_controller;
     use std::path::PathBuf;
+
+    #[test]
+    fn incomplete_targeted_retry_promotes_to_authoritative_quick_scan() {
+        assert_eq!(incomplete_retry_mode(ScanMode::Targeted), ScanMode::Quick);
+        assert_eq!(incomplete_retry_mode(ScanMode::Quick), ScanMode::Quick);
+        assert_eq!(incomplete_retry_mode(ScanMode::Hard), ScanMode::Hard);
+    }
 
     #[test]
     fn auto_sync_due_respects_interval() {

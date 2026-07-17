@@ -88,8 +88,15 @@ fn open_source_database_with_flags(
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
     }
 
-    let db_path = paths::prepare_writable_db_path(database_root)?;
-    util::create_parent_if_needed(&db_path)?;
+    let database_is_embedded = database_root == root;
+    let db_path = if database_is_embedded {
+        paths::prepare_writable_db_path_in_existing_root(database_root)?
+    } else {
+        paths::prepare_writable_db_path(database_root)?
+    };
+    if !database_is_embedded {
+        util::create_parent_if_needed(&db_path)?;
+    }
     let connect_started = std::time::Instant::now();
     let connection = match Connection::open_with_flags(&db_path, open_flags) {
         Ok(connection) => {

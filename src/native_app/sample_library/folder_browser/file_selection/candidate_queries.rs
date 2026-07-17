@@ -182,11 +182,28 @@ impl FolderBrowserState {
         if selected.is_empty() {
             return Vec::new();
         }
-        self.loaded_source_audio_files()
-            .into_iter()
-            .filter(|file| selected.contains(&file.id))
+        let wanted = selected.iter().map(String::as_str).collect();
+        let mut files_by_id = HashMap::with_capacity(selected.len());
+        for folder in self.loaded_source_root_folders() {
+            super::super::sample_queries::traversal::collect_audio_files_matching_ids(
+                folder,
+                &wanted,
+                &mut files_by_id,
+            );
+            if files_by_id.len() == wanted.len() {
+                break;
+            }
+        }
+        let mut files = files_by_id
+            .into_values()
             .filter(|file| !file.is_missing())
-            .collect()
+            .collect::<Vec<_>>();
+        // Preserve the established visible-order contract without sorting every loaded source
+        // file just to materialize the usually one-item active selection. This path is rebuilt
+        // every UI frame by the metadata sidebar, so an active similarity anchor otherwise turns
+        // a constant-time selection query into a full-library similarity sort.
+        self.sort_files(&mut files);
+        files
     }
 }
 

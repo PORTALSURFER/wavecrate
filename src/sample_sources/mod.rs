@@ -21,12 +21,13 @@ pub mod scan_state {
 /// Source scanning logic.
 pub mod scanner {
     pub use wavecrate_scan::sample_sources::scanner::{
-        ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample,
-        complete_deferred_hashes, complete_deferred_hashes_with_cancel,
-        complete_deferred_rename_candidates, complete_deferred_rename_candidates_with_cancel,
-        complete_pending_deep_hash_for_path, complete_pending_deep_hashes, hard_rescan,
-        scan_in_background, scan_once, scan_with_progress, schedule_deep_hash_scan,
-        schedule_deep_hash_scan_with_database_root, sync_paths, sync_paths_with_progress,
+        ChangedSample, CommittedSourceDelta, ManifestIdentityDelta, MovedManifestIdentity,
+        RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample, audit_source,
+        audit_source_and_record, audit_source_and_record_with_progress, complete_deferred_hashes,
+        complete_deferred_hashes_with_cancel, complete_deferred_rename_candidates,
+        complete_deferred_rename_candidates_with_cancel, complete_pending_deep_hash_for_path,
+        complete_pending_deep_hashes, hard_rescan, scan_in_background, scan_once,
+        scan_with_progress, sync_paths, sync_paths_with_progress,
     };
 }
 
@@ -34,7 +35,7 @@ pub mod scanner {
 pub mod db {
     pub use wavecrate_library::sample_sources::db::{
         DB_FILE_NAME, LEGACY_DB_FILE_NAME, META_DEFERRED_MAINTENANCE_REVISION,
-        META_DEFERRED_MAINTENANCE_SCHEMA, META_LAST_SCAN_COMPLETED_AT,
+        META_DEFERRED_MAINTENANCE_SCHEMA, META_LAST_MANIFEST_AUDIT_AT, META_LAST_SCAN_COMPLETED_AT,
         META_LAST_SIMILARITY_PREP_SCAN_AT, META_WAV_PATHS_REVISION, PendingRenameEntry, Rating,
         SOURCE_DB_READ_ONLY_ENV, SampleCollection, SampleSoundType, SourceCollectionWrite,
         SourceContentHashWrite, SourceDatabase, SourceDatabaseConnectionRole,
@@ -59,6 +60,7 @@ pub mod library {
         harvest_parents_for_child, load, lookup_source_id_for_root, mark_harvest_seen,
         mark_harvest_touched, open_connection, record_harvest_derivation, remap_harvest_file_key,
         remap_harvest_file_prefix, save, set_harvest_state, upsert_harvest_file,
+        upsert_harvest_files,
     };
 }
 
@@ -92,5 +94,6 @@ pub use wavecrate_library::sample_sources::{
 };
 pub use wavecrate_scan::sample_sources::ScanTracker;
 pub use wavecrate_scan::sample_sources::{
-    ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample,
+    ChangedSample, CommittedSourceDelta, ManifestIdentityDelta, MovedManifestIdentity,
+    RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample,
 };

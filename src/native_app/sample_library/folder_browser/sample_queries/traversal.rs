@@ -29,7 +29,9 @@ pub(super) fn collect_collection_audio_files<'a>(
     }
 }
 
-pub(super) fn collect_audio_files_matching_ids<'a>(
+pub(in crate::native_app::sample_library::folder_browser) fn collect_audio_files_matching_ids<
+    'a,
+>(
     folder: &'a FolderEntry,
     wanted: &HashSet<&str>,
     files_by_id: &mut HashMap<&'a str, &'a FileEntry>,

@@ -33,47 +33,56 @@ pub fn sync_paths_with_progress(
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
 ) -> Result<ScanStats, ScanError> {
+    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
-    let mut context = ScanContext::from_existing(targets.existing, ScanMode::Targeted);
+    let mut context = ScanContext::from_existing(
+        targets.existing,
+        ScanMode::Targeted,
+        manifest_revision,
+        manifest_before.clone(),
+    );
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
     let mut committed = false;
-    for relative_path in targets.current_files {
-        if let Some(cancel) = cancel
-            && cancel.load(Ordering::Relaxed)
-        {
-            return Err(ScanError::Canceled);
-        }
-        let absolute = root.join(&relative_path);
-        let prepared_file = match prepare_diff(&root, &absolute, &context) {
-            Ok(prepared) => prepared,
-            Err(error) if committed => {
-                if absolute.exists() {
-                    context.existing.remove(&relative_path);
-                }
-                tracing::warn!(
-                    path = %absolute.display(),
-                    error = %error,
-                    "Skipping targeted file after an earlier chunk committed"
-                );
-                continue;
+    let result = (|| {
+        for relative_path in targets.current_files {
+            if let Some(cancel) = cancel
+                && cancel.load(Ordering::Relaxed)
+            {
+                return Err(ScanError::Canceled);
             }
-            Err(error) => return Err(error),
-        };
-        prepared.push(prepared_file);
-        context.stats.total_files += 1;
-        on_progress(context.stats.total_files, &absolute);
-        if prepared.len() == TARGET_PREPARE_BATCH_SIZE {
-            let chunk =
-                std::mem::replace(&mut prepared, Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE));
-            committed |= apply_prepared_chunk(db, &root, cancel, &mut context, chunk, committed)?;
+            let absolute = root.join(&relative_path);
+            let prepared_file = match prepare_diff(&root, &absolute, &context) {
+                Ok(prepared) => prepared,
+                Err(error) if committed => {
+                    if absolute.exists() {
+                        context.existing.remove(&relative_path);
+                    }
+                    tracing::warn!(
+                        path = %absolute.display(),
+                        error = %error,
+                        "Skipping targeted file after an earlier chunk committed"
+                    );
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            prepared.push(prepared_file);
+            context.stats.total_files += 1;
+            on_progress(context.stats.total_files, &absolute);
+            if prepared.len() == TARGET_PREPARE_BATCH_SIZE {
+                let chunk =
+                    std::mem::replace(&mut prepared, Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE));
+                committed |=
+                    apply_prepared_chunk(db, &root, cancel, &mut context, chunk, committed)?;
+            }
         }
-    }
-    if !prepared.is_empty() {
-        let _ = apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed)?;
-    }
-    db_sync_phase(db, &mut context, cancel)?;
-    Ok(context.stats)
+        if !prepared.is_empty() {
+            let _ = apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed)?;
+        }
+        db_sync_phase(db, &mut context, cancel)
+    })();
+    super::scan::finish_scan_result(manifest_before, context, result)
 }
 
 struct TargetedScanTargets {

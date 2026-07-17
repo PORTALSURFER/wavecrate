@@ -118,6 +118,15 @@ impl SourceEntry {
         self.availability
     }
 
+    pub(super) fn apply_observed_availability(&mut self, available: bool) -> SourceAvailability {
+        self.availability = if available {
+            SourceAvailability::Available
+        } else {
+            SourceAvailability::Missing
+        };
+        self.availability
+    }
+
     pub(super) fn mark_available(&mut self) {
         self.availability = SourceAvailability::Available;
     }

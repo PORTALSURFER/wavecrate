@@ -12,6 +12,16 @@ pub fn stable_filesystem_identity(path: &Path, metadata: &fs::Metadata) -> Optio
     stable_filesystem_identity_impl(path, metadata)
 }
 
+/// Return a platform marker that changes when the filesystem object is mutated.
+///
+/// This is intentionally separate from modified time because callers use it to fence
+/// content reads even when another process restores the user-visible modified time.
+/// Unsupported filesystems and lookup failures return `None`; callers must not treat a
+/// missing marker as proof that a content snapshot remained stable.
+pub fn filesystem_change_marker(path: &Path, metadata: &fs::Metadata) -> Option<String> {
+    filesystem_change_marker_impl(path, metadata)
+}
+
 #[cfg(unix)]
 fn stable_filesystem_identity_impl(_path: &Path, metadata: &fs::Metadata) -> Option<String> {
     use std::os::unix::fs::MetadataExt;
@@ -22,10 +32,21 @@ fn stable_filesystem_identity_impl(_path: &Path, metadata: &fs::Metadata) -> Opt
     // distinguishes a replacement that inherits the same device/inode pair.
     let created = metadata.created().ok()?.duration_since(UNIX_EPOCH).ok()?;
     Some(format!(
-        "unix-v2:{}:{}:{}",
+        "unix:{}:{}:{}",
         metadata.dev(),
         metadata.ino(),
         created.as_nanos()
+    ))
+}
+
+#[cfg(unix)]
+fn filesystem_change_marker_impl(_path: &Path, metadata: &fs::Metadata) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+
+    Some(format!(
+        "unix:{}:{}",
+        metadata.ctime(),
+        metadata.ctime_nsec()
     ))
 }
 
@@ -56,13 +77,51 @@ fn stable_filesystem_identity_impl(path: &Path, metadata: &fs::Metadata) -> Opti
     let creation_time = (u64::from(information.ftCreationTime.dwHighDateTime) << 32)
         | u64::from(information.ftCreationTime.dwLowDateTime);
     Some(format!(
-        "windows-v2:{}:{}:{}",
+        "windows:{}:{}:{}",
         information.dwVolumeSerialNumber, file_index, creation_time
     ))
 }
 
+#[cfg(windows)]
+fn filesystem_change_marker_impl(path: &Path, metadata: &fs::Metadata) -> Option<String> {
+    use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+    use windows::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{
+            FILE_BASIC_INFO, FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
+            FILE_SHARE_READ, FILE_SHARE_WRITE, FileBasicInfo, GetFileInformationByHandleEx,
+        },
+    };
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .access_mode(FILE_READ_ATTRIBUTES.0)
+        .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE).0);
+    if metadata.file_type().is_symlink() {
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0);
+    }
+
+    let file = options.open(path).ok()?;
+    let mut information = FILE_BASIC_INFO::default();
+    unsafe {
+        GetFileInformationByHandleEx(
+            HANDLE(file.as_raw_handle()),
+            FileBasicInfo,
+            (&mut information as *mut FILE_BASIC_INFO).cast(),
+            std::mem::size_of::<FILE_BASIC_INFO>() as u32,
+        )
+    }
+    .ok()?;
+    (information.ChangeTime != 0).then(|| format!("windows:{}", information.ChangeTime))
+}
+
 #[cfg(not(any(unix, windows)))]
 fn stable_filesystem_identity_impl(_path: &Path, _metadata: &fs::Metadata) -> Option<String> {
+    None
+}
+
+#[cfg(not(any(unix, windows)))]
+fn filesystem_change_marker_impl(_path: &Path, _metadata: &fs::Metadata) -> Option<String> {
     None
 }
 

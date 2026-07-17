@@ -25,10 +25,9 @@ pub(in crate::native_app) enum SourceFilesystemChangePlan {
     IgnoredSourceMissing {
         source_id: String,
     },
-    Patched {
+    SyncPaths {
         source_id: String,
         changed_count: usize,
-        changed: bool,
     },
     DeferredAlreadyRunning {
         source_id: String,
@@ -143,12 +142,22 @@ impl SourceScanWorkflow {
                 self.remove_pending_refresh(&id);
                 return SourceSelectionRequest::Settled;
             }
-            self.queue_pending_selection(id);
-            return if browser.selected_source_loaded() {
-                SourceSelectionRequest::Settled
-            } else {
-                SourceSelectionRequest::Deferred
-            };
+            if browser.selected_source_loaded() {
+                // The cached tree is already authoritative enough to satisfy
+                // this selection. Do not turn a click made during another
+                // source's scan into a later full refresh.
+                self.clear_pending_selection(&id);
+                return SourceSelectionRequest::Settled;
+            }
+            self.queue_selected_required_refresh(id);
+            return SourceSelectionRequest::Deferred;
+        }
+        if !browser.select_source_without_scan(id.clone()) {
+            return SourceSelectionRequest::Settled;
+        }
+        if browser.source_is_missing(&id) || browser.selected_source_loaded() {
+            self.clear_pending_selection(&id);
+            return SourceSelectionRequest::Settled;
         }
         browser
             .begin_select_source(id, task_id)
@@ -211,8 +220,11 @@ impl SourceScanWorkflow {
         source_id: String,
         paths: &[PathBuf],
         overflowed: bool,
+        source_root_available: bool,
     ) -> SourceFilesystemChangePlan {
-        let Some(source_missing) = browser.refresh_source_availability_from_disk(&source_id) else {
+        let Some(source_missing) =
+            browser.apply_observed_source_availability(&source_id, source_root_available)
+        else {
             self.remove_pending_refresh(&source_id);
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         };
@@ -221,11 +233,9 @@ impl SourceScanWorkflow {
             return SourceFilesystemChangePlan::IgnoredSourceMissing { source_id };
         }
         if !overflowed && !paths.is_empty() {
-            let changed = browser.refresh_filesystem_paths(&source_id, paths);
-            return SourceFilesystemChangePlan::Patched {
+            return SourceFilesystemChangePlan::SyncPaths {
                 source_id,
                 changed_count: paths.len(),
-                changed,
             };
         }
         if self.active() {
@@ -264,10 +274,6 @@ impl SourceScanWorkflow {
         }
         self.queue_required_refresh(source_id.clone());
         SourceRefreshRequest::Deferred { source_id }
-    }
-
-    fn queue_pending_selection(&mut self, source_id: String) {
-        self.queue_pending_refresh(source_id, true, false);
     }
 
     fn queue_required_refresh(&mut self, source_id: String) {

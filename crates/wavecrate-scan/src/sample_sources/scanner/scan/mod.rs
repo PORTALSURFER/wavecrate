@@ -5,14 +5,20 @@ mod stats;
 
 pub(crate) use context::ScanContext;
 pub use errors::ScanError;
+#[cfg(test)]
+pub(crate) use runner::audit_source_and_record_with_post_scan_hook;
+pub(crate) use runner::finish_scan_result;
 pub use runner::{
-    ScanMode, complete_deferred_hashes, complete_deferred_hashes_with_cancel,
+    ScanMode, audit_source, audit_source_and_record, audit_source_and_record_with_progress,
+    complete_deferred_hashes, complete_deferred_hashes_with_cancel,
     complete_deferred_rename_candidates, complete_deferred_rename_candidates_with_cancel,
     complete_pending_deep_hash_for_path, complete_pending_deep_hashes, hard_rescan,
-    scan_in_background, scan_once, scan_with_progress, schedule_deep_hash_scan,
-    schedule_deep_hash_scan_with_database_root,
+    scan_in_background, scan_once, scan_with_progress,
 };
-pub use stats::{ChangedSample, RenamedSample, ScanStats, UpdatedSample};
+pub use stats::{
+    ChangedSample, CommittedSourceDelta, ManifestIdentityDelta, MovedManifestIdentity,
+    RenamedSample, ScanStats, UpdatedSample,
+};
 
 #[cfg(test)]
 mod tests;

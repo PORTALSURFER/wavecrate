@@ -16,8 +16,8 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
     PreviewAuditionResult, PreviewAuditionWarmResult, SampleLoadPathValidation, SampleLoadResult,
-    SamplePlaybackReady, StarmapViewportChange, WaveformCacheIndicatorRefreshResult,
-    WaveformCacheWarmResult,
+    SamplePlaybackReady, SourceProcessingProgress, StarmapViewportChange,
+    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -78,8 +78,13 @@ pub(in crate::native_app) enum GuiMessage {
         source_id: String,
         paths: Vec<PathBuf>,
         overflowed: bool,
+        source_root_available: bool,
     },
     SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
+    SourceManifestAuditCommitted {
+        source_id: String,
+        committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
+    },
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),
     SelectSampleWithModifiers {
@@ -173,6 +178,10 @@ pub(in crate::native_app) enum GuiMessage {
     SimilarityPrepStatusResolved(SimilarityPrepStatusResult),
     SimilarityPrepEnqueueFinished(SimilarityPrepEnqueueResult),
     SimilarityScoresResolved(SimilarityScoresResult),
+    SimilarityReadinessAdvanced {
+        source_id: String,
+    },
+    SourceProcessingProgress(SourceProcessingProgress),
     Settings(SettingsMessage),
     Metadata(MetadataMessage),
     FocusLoadedFile,
@@ -386,6 +395,9 @@ pub(in crate::native_app) struct SourceFilesystemSyncResult {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
     pub(in crate::native_app) renames_reconciled: usize,
+    pub(in crate::native_app) incomplete_error: Option<String>,
+    pub(in crate::native_app) committed_delta:
+        wavecrate::sample_sources::scanner::CommittedSourceDelta,
 }
 
 #[derive(Clone, Debug)]

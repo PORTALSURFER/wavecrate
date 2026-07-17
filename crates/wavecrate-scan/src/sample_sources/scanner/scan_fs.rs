@@ -7,7 +7,9 @@ use std::{
 };
 
 use tracing::warn;
-use wavecrate_library::filesystem_identity::stable_filesystem_identity;
+use wavecrate_library::filesystem_identity::{
+    filesystem_change_marker, stable_filesystem_identity,
+};
 
 use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
@@ -19,6 +21,24 @@ pub(super) struct FileFacts {
     pub(super) size: u64,
     pub(super) modified_ns: i64,
     pub(super) file_identity: Option<String>,
+    change_marker: Option<String>,
+}
+
+impl FileFacts {
+    pub(super) fn same_file_facts(&self, other: &Self) -> bool {
+        self.size == other.size
+            && self.modified_ns == other.modified_ns
+            && self.file_identity == other.file_identity
+    }
+
+    pub(super) fn same_content_snapshot(&self, other: &Self) -> bool {
+        self.same_file_facts(other)
+            && self
+                .change_marker
+                .as_ref()
+                .zip(other.change_marker.as_ref())
+                .is_some_and(|(before, after)| before == after)
+    }
 }
 
 pub(super) fn ensure_root_dir(db: &SourceDatabase) -> Result<PathBuf, ScanError> {
@@ -120,6 +140,7 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
         size: meta.len(),
         modified_ns,
         file_identity: stable_filesystem_identity(path, &meta),
+        change_marker: filesystem_change_marker(path, &meta),
     })
 }
 
@@ -248,5 +269,18 @@ mod tests {
             Some(cancel.as_ref()),
         );
         assert!(matches!(result, Err(ScanError::Canceled)));
+    }
+
+    #[test]
+    fn missing_change_markers_never_prove_a_stable_snapshot() {
+        let facts = FileFacts {
+            relative: PathBuf::from("sample.wav"),
+            size: 32,
+            modified_ns: 1,
+            file_identity: Some(String::from("identity")),
+            change_marker: None,
+        };
+
+        assert!(!facts.same_content_snapshot(&facts));
     }
 }

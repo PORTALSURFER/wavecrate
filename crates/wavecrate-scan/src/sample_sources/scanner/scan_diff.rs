@@ -18,6 +18,7 @@ pub(super) struct PreparedFile {
     pub(super) hash_required: bool,
     pub(super) needs_hash: bool,
     pub(super) requires_apply: bool,
+    pub(super) identity_replaced: bool,
     pub(super) content_hash: Option<String>,
 }
 
@@ -50,17 +51,23 @@ pub(super) fn apply_diff(
 ) -> Result<(), ScanError> {
     let PreparedFile {
         facts,
-        hash_required: _,
+        hash_required,
         needs_hash: _,
         requires_apply: _,
+        identity_replaced,
         content_hash,
     } = prepared;
     let path = facts.relative.clone();
-    let should_hash = should_compute_full_hash(context.mode, facts.size);
+    let should_hash = hash_required;
     let _ = context.existing.remove(&path);
     let existing = db.entry_for_path(&path)?;
     match existing {
-        Some(entry) if entry.file_size == facts.size && entry.modified_ns == facts.modified_ns => {
+        Some(entry)
+            if context.mode != ScanMode::Targeted
+                && entry.file_size == facts.size
+                && entry.modified_ns == facts.modified_ns
+                && !identity_replaced =>
+        {
             if entry.missing {
                 batch.set_missing(&path, false)?;
             }

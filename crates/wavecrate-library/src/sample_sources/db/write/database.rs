@@ -175,6 +175,7 @@ impl SourceDatabase {
             tx,
             db_path: self.db_path.clone(),
             paths_revision_dirty: false,
+            manifest_touched_paths: std::collections::BTreeSet::new(),
             telemetry_label: self.telemetry_label,
         })
     }

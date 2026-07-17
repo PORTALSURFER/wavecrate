@@ -278,6 +278,18 @@ impl LibraryDatabase {
             .ok_or_else(|| rusqlite::Error::QueryReturnedNoRows.into())
     }
 
+    pub(super) fn upsert_harvest_files(
+        &mut self,
+        identities: &[HarvestFileIdentity],
+    ) -> Result<(), LibraryError> {
+        let now = now_unix_seconds();
+        let tx = self.connection.transaction().map_err(map_sql_error)?;
+        for identity in identities {
+            upsert_harvest_file_on_transaction(&tx, identity, now)?;
+        }
+        tx.commit().map_err(map_sql_error)
+    }
+
     pub(super) fn advance_harvest_state(
         &self,
         identity: &HarvestFileIdentity,

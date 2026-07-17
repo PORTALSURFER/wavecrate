@@ -10,6 +10,11 @@ mod state;
 const WATCHER_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const SOURCE_CHANGE_DEBOUNCE: Duration = Duration::from_millis(400);
 const MAX_PENDING_PATHS_PER_SOURCE: usize = 512;
+const WATCHER_EVENT_QUEUE_CAPACITY: usize = 256;
+const WATCHER_RESTART_MIN: Duration = Duration::from_secs(1);
+const WATCHER_RESTART_MAX: Duration = Duration::from_secs(60);
+const ROOT_REFRESH_AVAILABLE: Duration = Duration::from_secs(10);
+const ROOT_REFRESH_UNAVAILABLE: Duration = Duration::from_secs(30);
 
 pub(in crate::native_app) use handle::GuiSourceWatcherHandle;
 

@@ -11,12 +11,10 @@ impl NativeAppState {
         progress: FolderScanProgress,
     ) {
         let started_at = Instant::now();
+        let label = progress.label.clone();
+        let phase = progress.phase.clone();
         if self.library.apply_folder_scan_progress(progress) {
-            let phase = self
-                .library
-                .folder_progress()
-                .map(|progress| progress.phase.clone())
-                .unwrap_or_default();
+            self.ui.status.sample = format!("{phase} source {label}");
             emit_gui_action(
                 "folder_browser.scan.progress",
                 Some("folder_browser"),

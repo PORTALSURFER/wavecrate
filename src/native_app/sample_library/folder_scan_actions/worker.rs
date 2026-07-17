@@ -50,7 +50,7 @@ impl NativeAppState {
             );
         }
         self.library.start_folder_scan(&request);
-        self.ui.status.sample = format!("Scanning source {}", request.label);
+        self.ui.status.sample = format!("Queued source scan for {}", request.label);
         tracing::info!(
             source = label,
             root = root,
@@ -237,6 +237,9 @@ impl NativeAppState {
             return;
         }
         if let Some(error) = scan.source_db_error {
+            self.background
+                .source_processing
+                .wake_source(&scan.source_id, "folder_scan_index_incomplete");
             self.ui.status.sample = format!(
                 "Loaded source {}: {} files in {} folders, but indexing failed: {error}",
                 scan.label, scan.file_count, scan.folder_count

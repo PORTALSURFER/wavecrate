@@ -21,6 +21,9 @@ impl PendingGuiSourceWatch {
     }
 
     pub(super) fn add_path(&mut self, path: Option<PathBuf>) {
+        if self.overflowed {
+            return;
+        }
         let Some(path) = path else {
             self.overflowed = true;
             self.paths.clear();
@@ -40,4 +43,5 @@ pub(super) struct GuiSourceWatchEvent {
     pub(super) source_id: String,
     pub(super) paths: Vec<PathBuf>,
     pub(super) overflowed: bool,
+    pub(super) source_root_available: bool,
 }

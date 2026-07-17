@@ -90,8 +90,10 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_similarity_scores(
         &mut self,
         result: SimilarityScoresResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if self.library.folder_browser.similarity_anchor_id() != Some(result.anchor_id.as_str()) {
+            self.finish_readiness_score_refresh(context);
             return;
         }
         match result.result {
@@ -106,32 +108,38 @@ impl NativeAppState {
                         scores.scores_by_file,
                         scores.aspect_scores_by_file,
                     );
-                self.ui.status.sample = format!(
-                    "Resolved {count} similar sample{}",
-                    if count == 1 { "" } else { "s" }
-                );
+                let total = self
+                    .library
+                    .folder_browser
+                    .selected_audio_files_matching_tags(&self.metadata.tags_by_file)
+                    .len();
+                let remaining = total.saturating_sub(count.saturating_add(1));
+                self.ui.status.sample = if remaining == 0 {
+                    format!(
+                        "Resolved {count} similar sample{}",
+                        if count == 1 { "" } else { "s" }
+                    )
+                } else {
+                    format!("Resolved {count} similar samples")
+                };
             }
             Err(error) => {
-                if similarity_artifacts_missing_error(&error)
-                    && self.similarity_prep_active_for_anchor(result.anchor_id.as_str())
-                {
-                    self.ui.status.sample = format!(
-                        "Preparing similarity for {}",
-                        sample_path_label(result.anchor_id.as_str())
+                if similarity_artifacts_missing_error(&error) {
+                    self.ui.status.sample = String::from("Similarity data not ready yet");
+                } else {
+                    self.ui.status.sample = format!("Similarity scores unavailable: {error}");
+                    emit_gui_action(
+                        "browser.similarity_scores.resolve",
+                        Some("browser"),
+                        Some(result.anchor_id.as_str()),
+                        "error",
+                        std::time::Instant::now(),
+                        Some(&error),
                     );
-                    return;
                 }
-                self.ui.status.sample = format!("Similarity scores unavailable: {error}");
-                emit_gui_action(
-                    "browser.similarity_scores.resolve",
-                    Some("browser"),
-                    Some(result.anchor_id.as_str()),
-                    "error",
-                    std::time::Instant::now(),
-                    Some(&error),
-                );
             }
         }
+        self.finish_readiness_score_refresh(context);
     }
 
     fn prepare_similarity_scores_request(
@@ -213,25 +221,49 @@ impl NativeAppState {
         scores
     }
 
-    fn similarity_prep_active_for_anchor(&self, anchor_id: &str) -> bool {
+    pub(in crate::native_app) fn finish_similarity_readiness_advanced(
+        &mut self,
+        source_id: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(anchor_id) = self
+            .library
+            .folder_browser
+            .similarity_anchor_id()
+            .map(str::to_owned)
+        else {
+            return;
+        };
         let Some((source, _)) = self
             .library
             .folder_browser
-            .sample_source_for_file_path(Path::new(anchor_id))
+            .sample_source_for_file_path(Path::new(&anchor_id))
         else {
-            return false;
+            return;
         };
-        self.library
-            .similarity_prep
-            .running_source_id
-            .as_deref()
-            .is_some_and(|running| running == source.id.as_str())
-            || self
-                .library
-                .similarity_prep
-                .pending_source_ids
-                .iter()
-                .any(|pending| pending == source.id.as_str())
+        if source.id.as_str() != source_id {
+            return;
+        }
+        if self.library.similarity_prep.readiness_score_refresh_running {
+            self.library.similarity_prep.readiness_score_refresh_pending = true;
+            return;
+        }
+        self.library.similarity_prep.readiness_score_refresh_running = true;
+        self.queue_similarity_score_resolution(anchor_id, context);
+    }
+
+    fn finish_readiness_score_refresh(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
+        if !self.library.similarity_prep.readiness_score_refresh_running {
+            return;
+        }
+        self.library.similarity_prep.readiness_score_refresh_running = false;
+        if !std::mem::take(&mut self.library.similarity_prep.readiness_score_refresh_pending) {
+            return;
+        }
+        self.library.similarity_prep.readiness_score_refresh_running = true;
+        if !self.queue_active_similarity_score_resolution(context) {
+            self.library.similarity_prep.readiness_score_refresh_running = false;
+        }
     }
 }
 
@@ -243,8 +275,32 @@ fn resolve_similarity_scores(request: SimilarityScoresRequest) -> SimilarityScor
     let anchor_id = request.anchor_id.clone();
     SimilarityScoresResult {
         anchor_id,
-        result: resolve_similarity_scores_inner(&request),
+        result: resolve_similarity_scores_with_busy_retry(&request),
     }
+}
+
+fn resolve_similarity_scores_with_busy_retry(
+    request: &SimilarityScoresRequest,
+) -> Result<SimilarityScoresPayload, String> {
+    const MAX_ATTEMPTS: usize = 3;
+    for attempt in 0..MAX_ATTEMPTS {
+        match resolve_similarity_scores_inner(request) {
+            Err(error) if attempt + 1 < MAX_ATTEMPTS && similarity_database_is_busy(&error) => {
+                std::thread::sleep(std::time::Duration::from_millis(
+                    50_u64.saturating_mul(1_u64 << attempt),
+                ));
+            }
+            result => return result,
+        }
+    }
+    unreachable!("bounded similarity score retry returns from every attempt")
+}
+
+fn similarity_database_is_busy(error: &str) -> bool {
+    let error = error.to_ascii_lowercase();
+    error.contains("database is busy")
+        || error.contains("database is locked")
+        || error.contains("please retry")
 }
 
 fn resolve_similarity_scores_inner(

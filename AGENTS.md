@@ -98,6 +98,8 @@ likely to miss important reasoning.
    - macOS/Linux/WSL: `bash scripts/doctor.sh`
 
 ## Golden Commands
+- Build a testable macOS app bundle:
+  - macOS: `bash scripts/build.sh --release`
 - Bootstrap:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
   - macOS/Linux/WSL: `bash scripts/bootstrap.sh`

@@ -60,6 +60,29 @@ fn scan_skips_analysis_when_hash_unchanged() {
 }
 
 #[test]
+fn scan_backfills_missing_identity_for_unchanged_row() {
+    let dir = tempdir().unwrap();
+    let relative = Path::new("missing-identity.wav");
+    std::fs::write(dir.path().join(relative), b"sample").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let original = db.list_manifest_entries().unwrap().remove(0);
+    assert!(original.file_identity.is_some());
+
+    let mut batch = db.write_batch().unwrap();
+    batch.set_file_identity(relative, None).unwrap();
+    batch.commit().unwrap();
+
+    let stats = scan_once(&db).unwrap();
+    let repaired = db.list_manifest_entries().unwrap().remove(0);
+
+    assert_eq!(repaired.content_hash, original.content_hash);
+    assert!(repaired.file_identity.is_some());
+    assert!(stats.committed_delta.created.is_empty());
+    assert!(stats.committed_delta.deleted.is_empty());
+}
+
+#[test]
 fn scan_adds_duplicate_content_when_original_path_still_exists() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");
@@ -480,7 +503,13 @@ fn cancellation_after_first_committed_batch_stops_at_a_resumable_checkpoint() {
         }
     });
 
-    assert!(matches!(result, Err(ScanError::Canceled)));
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("cancellation after a commit must return the checkpoint outcome");
+    };
+    let partial = *committed;
+    assert_eq!(partial.committed_delta.created.len(), 64);
+    assert!(partial.committed_delta.revision > 0);
+    assert_eq!(error, "Scan canceled");
     assert_eq!(db.count_files().unwrap(), 64);
 
     cancel.store(false, Ordering::Relaxed);
@@ -488,6 +517,58 @@ fn cancellation_after_first_committed_batch_stops_at_a_resumable_checkpoint() {
         .expect("a later scan must resume from the partial checkpoint");
     assert_eq!(resumed.total_files, 70);
     assert_eq!(db.count_files().unwrap(), 70);
+}
+
+#[test]
+fn interrupted_manifest_audit_resumes_checked_paths_and_finishes_deletion_reconciliation() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = tempdir().unwrap();
+    for index in 0..70 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let cancel = AtomicBool::new(false);
+
+    let first =
+        audit_source_and_record_with_progress(&db, Some(&cancel), 0, 100, &mut |checked, _| {
+            if checked >= 64 {
+                cancel.store(true, Ordering::Release);
+            }
+        });
+    assert!(matches!(first, Err(ScanError::Incomplete { .. })));
+    let checked = db
+        .begin_or_resume_manifest_audit(101)
+        .expect("load durable audit checkpoint");
+    assert_eq!(checked.len(), 64);
+
+    std::fs::remove_file(dir.path().join(&checked[0])).unwrap();
+    cancel.store(false, Ordering::Release);
+    let mut resumed_progress = Vec::new();
+    let resumed =
+        audit_source_and_record_with_progress(&db, Some(&cancel), 0, 200, &mut |checked, _| {
+            resumed_progress.push(checked)
+        })
+        .expect("resume interrupted manifest audit");
+
+    assert_eq!(resumed_progress.first().copied(), Some(64));
+    assert_eq!(resumed.total_files, 70);
+    assert!(
+        db.entry_for_path(&checked[0]).unwrap().is_none(),
+        "a path deleted after its checkpoint must still be reconciled at cycle completion"
+    );
+    assert!(
+        db.begin_or_resume_manifest_audit(201)
+            .expect("new audit cycle")
+            .is_empty(),
+        "completed audit must clear its durable checkpoint"
+    );
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("200")
+    );
 }
 
 #[test]
@@ -553,6 +634,98 @@ fn unchanged_large_scan_only_commits_completion_metadata() {
     assert_eq!(stats.updated, 0);
     assert_eq!(stats.added, 0);
     assert_eq!(revision_after, revision_before + 1);
+}
+
+#[test]
+fn bounded_manifest_audit_repairs_same_size_closed_app_edit() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("same.wav");
+    std::fs::write(&path, b"one").unwrap();
+    let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let original_hash = db
+        .entry_for_path(Path::new("same.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    std::fs::write(&path, b"two").unwrap();
+    let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+        .unwrap();
+    let stats = audit_source_and_record(&db, None, 8, 1_234).unwrap();
+    let current_hash = db
+        .entry_for_path(Path::new("same.wav"))
+        .unwrap()
+        .unwrap()
+        .content_hash
+        .unwrap();
+
+    assert_ne!(current_hash, original_hash);
+    assert_eq!(stats.committed_delta.changed.len(), 1);
+    assert_eq!(stats.hashes_computed, 1);
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("1234")
+    );
+    assert_eq!(stats.committed_delta.revision, db.get_revision().unwrap());
+}
+
+#[test]
+fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    std::fs::write(dir.path().join("missed.wav"), b"missed watcher event").unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+
+    let result = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
+        cancel.store(true, std::sync::atomic::Ordering::Release)
+    });
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("cancelled verification must return the committed manifest repair");
+    };
+    let stats = *committed;
+
+    assert_eq!(error, "Scan canceled");
+    assert_eq!(stats.committed_delta.created.len(), 1);
+    assert_eq!(
+        stats.committed_delta.created[0].relative_path,
+        Path::new("missed.wav")
+    );
+    assert!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .is_none(),
+        "incomplete verification must remain due for retry"
+    );
+}
+
+#[test]
+fn manifest_audit_publishes_unchanged_committed_revision_when_verification_is_cancelled() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("known.wav"), b"known").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+
+    let result = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
+        cancel.store(true, std::sync::atomic::Ordering::Release)
+    });
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("cancelled verification must return the committed unchanged checkpoint");
+    };
+
+    assert_eq!(error, "Scan canceled");
+    assert!(committed.committed_delta.is_empty());
+    assert_eq!(
+        committed.committed_delta.revision,
+        db.get_revision().unwrap()
+    );
+    assert!(committed.committed_delta.revision > 0);
 }
 
 #[test]

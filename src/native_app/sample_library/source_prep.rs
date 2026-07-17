@@ -55,32 +55,11 @@ impl NativeAppState {
         trigger: SourcePrepTrigger,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.queue_source_prep_inner(source_id, trigger, true, context);
-    }
-
-    pub(in crate::native_app) fn queue_source_prep_pending_commit(
-        &mut self,
-        source_id: String,
-        trigger: SourcePrepTrigger,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
-        self.queue_source_prep_inner(source_id, trigger, false, context);
-    }
-
-    fn queue_source_prep_inner(
-        &mut self,
-        source_id: String,
-        trigger: SourcePrepTrigger,
-        wake_supervisor: bool,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
         let started_at = Instant::now();
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
-        if wake_supervisor {
-            self.background
-                .source_processing
-                .wake_source(&source_id, trigger.action_label());
-        }
+        self.background
+            .source_processing
+            .wake_source(&source_id, trigger.action_label());
         if selected_source {
             self.background
                 .source_processing

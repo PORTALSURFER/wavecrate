@@ -3,6 +3,7 @@ mod collections;
 mod command;
 mod database;
 mod event;
+mod manifest_audit;
 mod mutation;
 mod paths;
 mod scan_queries;

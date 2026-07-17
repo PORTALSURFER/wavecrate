@@ -21,6 +21,11 @@
       "windows_supported": false
     },
     {
+      "path": "scripts/build.sh",
+      "role": "Build Wavecrate and create a uniquely targetable macOS development app bundle.",
+      "windows_supported": false
+    },
+    {
       "path": "scripts/check.ps1",
       "role": "Focused guardrails and reporting helpers.",
       "windows_supported": true

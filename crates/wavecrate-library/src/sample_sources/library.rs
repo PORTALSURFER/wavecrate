@@ -118,6 +118,23 @@ pub fn upsert_harvest_file(
     result
 }
 
+/// Insert or refresh multiple harvest rows in one transaction without changing workflow state.
+pub fn upsert_harvest_files(identities: &[HarvestFileIdentity]) -> Result<(), LibraryError> {
+    if identities.is_empty() {
+        return Ok(());
+    }
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let mut db = LibraryDatabase::open()?;
+    let result = db.upsert_harvest_files(identities);
+    record_library_db_event(
+        "library.harvest.upsert_files",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
 /// Mark a harvest file as seen unless it is already in a later/manual state.
 pub fn mark_harvest_seen(
     identity: &HarvestFileIdentity,

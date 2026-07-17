@@ -378,6 +378,13 @@ shapes by projecting safe defaults or avoiding missing optional tables.
 
 ### Debug log workflow
 
+On macOS, build manual-test binaries with `bash scripts/build.sh --release`.
+The helper emits a branch-specific, ad-hoc-signed app under
+`target/app-bundles/` and prints both its Launch Services identity and launch
+command. Use that app name for UI automation; launching `target/release/wavecrate`
+directly does not register a distinct macOS application and can cause automation
+to fall back to an installed Wavecrate bundle.
+
 Use this when reproducing a release/manual bug that needs the richer
 per-launch diagnostics trail.
 

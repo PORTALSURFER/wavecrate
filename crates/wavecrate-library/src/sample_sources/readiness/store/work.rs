@@ -412,8 +412,24 @@ pub fn readiness_work_stats(
             SUM(CASE WHEN status = 'pending' AND failure_kind = 'cancelled'
                 THEN 1 ELSE 0 END),
             SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END)
-         FROM analysis_jobs
-         WHERE readiness_managed = 1",
+         FROM analysis_jobs AS job
+         JOIN source_readiness_targets AS target
+           ON target.source_id = job.source_id
+          AND target.scope_kind = job.readiness_scope_kind
+          AND target.scope_id = job.readiness_scope_id
+          AND target.stage = job.readiness_stage
+          AND target.required_version = job.artifact_version
+          AND target.content_generation = job.content_generation
+         JOIN source_readiness_sources AS source
+           ON source.source_id = target.source_id
+          AND source.source_generation = target.source_generation
+         WHERE job.readiness_managed = 1
+           AND target.eligibility = 'eligible'
+           AND source.availability = 'active'
+           AND (
+               target.scope_kind = 'file'
+               OR job.source_generation = target.source_generation
+           )",
         [now],
         |row| {
             Ok((

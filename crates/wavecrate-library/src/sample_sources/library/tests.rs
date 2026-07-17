@@ -298,6 +298,26 @@ fn harvest_state_auto_transitions_only_move_forward() {
 }
 
 #[test]
+fn harvest_file_batch_upsert_persists_every_identity() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let first = harvest_identity("source-a", "drums/kick.wav");
+        let second = harvest_identity("source-a", "drums/snare.wav");
+
+        upsert_harvest_files(&[first.clone(), second.clone()]).unwrap();
+
+        assert_eq!(
+            harvest_file(&first.key).unwrap().unwrap().file_size,
+            first.file_size
+        );
+        assert_eq!(
+            harvest_file(&second.key).unwrap().unwrap().content_hash,
+            second.content_hash
+        );
+    });
+}
+
+#[test]
 fn manual_harvest_reset_returns_file_to_new_queue() {
     let temp = tempdir().unwrap();
     with_config_home(temp.path(), || {

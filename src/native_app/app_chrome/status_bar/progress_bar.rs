@@ -1,6 +1,7 @@
 use crate::native_app::app::GuiMessage;
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel;
+use crate::native_app::ui::ids::WORKER_PROGRESS_ROOT_ID;
 use radiant::prelude as ui;
 
 use super::identity;
@@ -22,16 +23,26 @@ pub(super) fn worker_progress_bar_from_projection(
         WorkerProgressBarContentProjection::Hidden => {
             ui::empty().width(0.0).height(WORKER_PROGRESS_HEIGHT)
         }
-        WorkerProgressBarContentProjection::Overall { progress } => {
+        WorkerProgressBarContentProjection::Activity => source_processing_activity_track()
+            .id(WORKER_PROGRESS_ROOT_ID)
+            .width(WORKER_PROGRESS_TRACK_WIDTH)
+            .height(WORKER_PROGRESS_HEIGHT),
+        WorkerProgressBarContentProjection::OverallWithActivity { progress } => {
             overall_progress_bar(progress, projection.progress_tick)
-                .key(identity::WORKER_PROGRESS_ROOT_KEY)
+                .id(WORKER_PROGRESS_ROOT_ID)
                 .width(WORKER_PROGRESS_TRACK_WIDTH)
                 .height(WORKER_PROGRESS_HEIGHT)
         }
-        WorkerProgressBarContentProjection::SourceCache {
+        WorkerProgressBarContentProjection::Overall { progress } => {
+            overall_progress_bar(progress, projection.progress_tick)
+                .id(WORKER_PROGRESS_ROOT_ID)
+                .width(WORKER_PROGRESS_TRACK_WIDTH)
+                .height(WORKER_PROGRESS_HEIGHT)
+        }
+        WorkerProgressBarContentProjection::Layered {
             overall,
             current_fraction,
-        } => source_cache_worker_progress(overall, current_fraction, projection.progress_tick),
+        } => layered_worker_progress(overall, current_fraction, projection.progress_tick),
     }
 }
 
@@ -46,7 +57,7 @@ pub(super) fn worker_progress_bar(
     ))
 }
 
-fn source_cache_worker_progress(
+fn layered_worker_progress(
     overall: ui::ProgressSnapshot,
     current_fraction: Option<f32>,
     progress_tick: f32,
@@ -56,13 +67,13 @@ fn source_cache_worker_progress(
             .key(identity::WORKER_PROGRESS_OVERALL_KEY)
             .width(WORKER_PROGRESS_TRACK_WIDTH)
             .height(OVERALL_PROGRESS_HEIGHT),
-        active_cache_progress_bar(current_fraction, progress_tick)
+        active_worker_activity_bar(current_fraction, progress_tick)
             .key(identity::WORKER_PROGRESS_ACTIVE_KEY)
             .width(WORKER_PROGRESS_TRACK_WIDTH)
             .height(ACTIVE_PROGRESS_HEIGHT),
     ])
     .spacing(1.0)
-    .key(identity::WORKER_PROGRESS_ROOT_KEY)
+    .id(WORKER_PROGRESS_ROOT_ID)
     .width(WORKER_PROGRESS_TRACK_WIDTH)
     .height(SOURCE_CACHE_PROGRESS_HEIGHT)
 }
@@ -81,7 +92,18 @@ fn overall_progress_bar(
         .message(GuiMessage::ToggleJobDetails)
 }
 
-fn active_cache_progress_bar(
+fn source_processing_activity_track() -> ui::View<GuiMessage> {
+    ui::determinate_progress_bar(0.0)
+        .colors(
+            ui::Rgba8::new(48, 50, 51, 210),
+            ui::Rgba8::new(255, 112, 86, 210),
+        )
+        .max_track_height(OVERALL_TRACK_HEIGHT)
+        .activatable()
+        .message(GuiMessage::ToggleJobDetails)
+}
+
+fn active_worker_activity_bar(
     current_fraction: Option<f32>,
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {

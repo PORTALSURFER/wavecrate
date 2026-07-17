@@ -24,7 +24,7 @@ pub(in crate::native_app) use message::{
 };
 pub(in crate::native_app) use progress::{
     FileMoveProgress, NormalizationFailure, NormalizationHarvestDerivation, NormalizationProgress,
-    NormalizationQueueItem, NormalizationResult,
+    NormalizationQueueItem, NormalizationResult, SourceProcessingProgress,
 };
 pub(in crate::native_app) use settings::{
     AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,

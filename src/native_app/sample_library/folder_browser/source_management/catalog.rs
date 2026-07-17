@@ -36,6 +36,14 @@ impl FolderBrowserState {
         self.source.selected_source.as_str()
     }
 
+    pub(in crate::native_app) fn source_label(&self, source_id: &str) -> Option<&str> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .map(|source| source.label.as_str())
+    }
+
     pub(in crate::native_app) fn configured_sample_sources(&self) -> Vec<SampleSource> {
         self.source
             .sources
@@ -95,6 +103,19 @@ impl FolderBrowserState {
             .iter_mut()
             .find(|source| source.id == source_id)?;
         Some(source.refresh_availability_from_disk().is_missing())
+    }
+
+    pub(in crate::native_app) fn apply_observed_source_availability(
+        &mut self,
+        source_id: &str,
+        available: bool,
+    ) -> Option<bool> {
+        let source = self
+            .source
+            .sources
+            .iter_mut()
+            .find(|source| source.id == source_id)?;
+        Some(source.apply_observed_availability(available).is_missing())
     }
 
     pub(in crate::native_app) fn source_roots(
