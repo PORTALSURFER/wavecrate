@@ -140,6 +140,7 @@ fn active_folder_cache_plan_is_visible_before_decode_batches_start() {
             total: 2,
             current_fraction: None,
             active_animation: true,
+            compact_activity: false,
         }
     );
 
@@ -172,6 +173,7 @@ fn active_folder_cache_plan_is_visible_before_decode_batches_start() {
             total: 2,
             current_fraction: Some(0.5),
             active_animation: true,
+            compact_activity: false,
         }
     );
 }

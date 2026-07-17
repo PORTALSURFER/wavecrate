@@ -19,7 +19,7 @@ mod collection;
 mod filters;
 mod ordering;
 mod subtree;
-mod traversal;
+pub(super) mod traversal;
 
 impl FolderBrowserState {
     pub(super) fn active_name_filter(&self) -> &str {
@@ -631,7 +631,7 @@ impl FolderBrowserState {
         files
     }
 
-    fn loaded_source_root_folders(&self) -> Vec<&FolderEntry> {
+    pub(super) fn loaded_source_root_folders(&self) -> Vec<&FolderEntry> {
         let mut folders = self
             .source
             .sources

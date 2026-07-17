@@ -22,6 +22,16 @@ pub(super) fn worker_progress_bar_from_projection(
         WorkerProgressBarContentProjection::Hidden => {
             ui::empty().width(0.0).height(WORKER_PROGRESS_HEIGHT)
         }
+        WorkerProgressBarContentProjection::Activity => {
+            overall_progress_bar(ui::ProgressSnapshot::new(0, 0), projection.progress_tick)
+                .key(identity::WORKER_PROGRESS_ROOT_KEY)
+                .width(WORKER_PROGRESS_TRACK_WIDTH)
+                .height(WORKER_PROGRESS_HEIGHT)
+        }
+        WorkerProgressBarContentProjection::OverallWithActivity { progress } => {
+            overall_progress_with_activity(progress, projection.progress_tick)
+                .key(identity::WORKER_PROGRESS_ROOT_KEY)
+        }
         WorkerProgressBarContentProjection::Overall { progress } => {
             overall_progress_bar(progress, projection.progress_tick)
                 .key(identity::WORKER_PROGRESS_ROOT_KEY)
@@ -33,6 +43,29 @@ pub(super) fn worker_progress_bar_from_projection(
             current_fraction,
         } => layered_worker_progress(overall, current_fraction, projection.progress_tick),
     }
+}
+
+fn overall_progress_with_activity(
+    progress: ui::ProgressSnapshot,
+    progress_tick: f32,
+) -> ui::View<GuiMessage> {
+    ui::stack([
+        overall_progress_bar(progress, progress_tick)
+            .width(WORKER_PROGRESS_TRACK_WIDTH)
+            .height(WORKER_PROGRESS_HEIGHT),
+        ui::indeterminate_progress_bar(progress_tick)
+            .colors(
+                ui::Rgba8::new(0, 0, 0, 0),
+                ui::Rgba8::new(255, 198, 116, 220),
+            )
+            .max_track_height(2.0)
+            .activatable()
+            .message(GuiMessage::ToggleJobDetails)
+            .width(WORKER_PROGRESS_TRACK_WIDTH)
+            .height(WORKER_PROGRESS_HEIGHT),
+    ])
+    .width(WORKER_PROGRESS_TRACK_WIDTH)
+    .height(WORKER_PROGRESS_HEIGHT)
 }
 
 #[cfg(test)]

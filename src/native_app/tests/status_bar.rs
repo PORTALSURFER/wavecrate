@@ -207,7 +207,7 @@ fn source_processing_advances_activity_tick_on_frame() {
 }
 
 #[test]
-fn source_processing_uses_one_unambiguous_progress_track() {
+fn source_processing_keeps_measured_progress_and_activity_on_one_track() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.source_processing_progress = Some(
         crate::native_app::test_support::state::SourceProcessingProgress {
@@ -223,8 +223,49 @@ fn source_processing_uses_one_unambiguous_progress_track() {
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
-    assert_eq!(frame.paint_plan.fill_rects().count(), 2);
+    assert_eq!(
+        frame.paint_plan.fill_rects().count(),
+        4,
+        "the determinate track and moving activity highlight share one stacked surface"
+    );
     assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
+}
+
+#[test]
+fn source_processing_discovery_uses_compact_activity_feedback() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id: String::new(),
+            active: true,
+            completed: 0,
+            total: 0,
+            stage: String::from("Processing source libraries"),
+            detail: String::from("Advancing 2 sources"),
+        },
+    );
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert_eq!(
+        model.worker_progress.expect("worker activity"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 0,
+            total: 0,
+            current_fraction: None,
+            active_animation: false,
+            compact_activity: true,
+        }
+    );
+    assert_eq!(
+        model.job_details.expect("activity details"),
+        [
+            String::from("Type: Source processing"),
+            String::from("Source: Multiple sources"),
+            String::from("Status: Active"),
+            String::from("Current: Processing source libraries | Advancing 2 sources"),
+        ]
+    );
 }
 
 #[test]
@@ -307,6 +348,7 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
             total: 5,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     );
 }
@@ -350,6 +392,7 @@ fn status_bar_routes_source_processing_through_worker_progress_and_job_details()
             total: 9_985,
             current_fraction: None,
             active_animation: false,
+            compact_activity: true,
         }
     );
     assert_eq!(
@@ -390,6 +433,7 @@ fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
             total: 1_000,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     );
 }
@@ -417,6 +461,7 @@ fn status_bar_view_model_reports_file_move_progress() {
             total: 4,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     );
 }
@@ -440,6 +485,7 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
             total: 10,
             current_fraction: Some(0.0),
             active_animation: true,
+            compact_activity: false,
         }
     );
 }
@@ -467,6 +513,7 @@ fn status_bar_view_model_reports_source_cache_plan_progress() {
             total: 100,
             current_fraction: Some(0.42),
             active_animation: true,
+            compact_activity: false,
         }
     );
 }
@@ -497,6 +544,7 @@ fn status_bar_view_model_preserves_playback_status_while_source_cache_progress_r
             total: 10,
             current_fraction: Some(0.51),
             active_animation: true,
+            compact_activity: false,
         }
     );
 }
@@ -531,6 +579,7 @@ fn status_bar_view_model_keeps_normalization_priority_over_source_cache_warm() {
             total: 1_000,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     );
 }

@@ -42,6 +42,7 @@ use crate::native_app::waveform::{
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
 const PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
+const SIMILARITY_SCORE_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 const MANIFEST_AUDIT_INTERVAL_SECONDS: i64 = 5 * 60;
 const MANIFEST_AUDIT_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
@@ -1009,8 +1010,11 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut reset_sources = BTreeMap::<String, bool>::new();
     let mut candidates = Vec::<RuntimeCandidate>::new();
     let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
+    let mut displayed_source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
     let mut active_progress_source = None::<String>;
     let mut last_progress_publish_at = None::<Instant>;
+    let mut pending_similarity_refresh_sources = BTreeSet::<String>::new();
+    let mut last_similarity_refresh_publish_at = None::<Instant>;
     let mut progress_visible = false;
     loop {
         let (
@@ -1030,6 +1034,16 @@ fn run_coordinator(shared: Arc<Shared>) {
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
                     control.processing_paused(),
                 );
+                if progress_visible && !wait_duration.is_zero() {
+                    // Keep feedback stable across immediate coordinator handoffs. Only clear it
+                    // when the coordinator is genuinely about to sleep with no newly published
+                    // work waiting to be handled.
+                    publish_source_processing_finished(&shared);
+                    progress_visible = false;
+                    active_progress_source = None;
+                    last_progress_publish_at = None;
+                    displayed_source_stats.clear();
+                }
                 let (next, _) = shared
                     .wake
                     .wait_timeout(control, wait_duration)
@@ -1093,6 +1107,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 && !dirty_sources.contains(candidate.source.id.as_str())
         });
         source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
+        displayed_source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
         if pause_feedback_pending {
             // The pause may already have resumed by the time a long-running database
             // checkpoint returns. Acknowledge the latched transition here so rapid foreground
@@ -1101,6 +1116,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             progress_visible = false;
             active_progress_source = None;
             last_progress_publish_at = None;
+            displayed_source_stats.clear();
         }
         if processing_paused {
             tracing::debug!(
@@ -1174,12 +1190,6 @@ fn run_coordinator(shared: Arc<Shared>) {
         candidates.append(&mut discovered);
         source_stats.extend(discovered_source_stats);
         let discovered_stats = aggregate_source_stats(source_stats.values().copied());
-        if candidates.is_empty() && progress_visible {
-            publish_source_processing_finished(&shared);
-            progress_visible = false;
-            active_progress_source = None;
-            last_progress_publish_at = None;
-        }
         next_retry_at = discovered_stats.earliest_retry_at;
         {
             let mut telemetry = shared.telemetry();
@@ -1217,23 +1227,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                 break;
             };
             let index = eligible_indices[schedule_index];
+            let active_source_count = candidates
+                .iter()
+                .map(|candidate| candidate.source.id.as_str())
+                .collect::<BTreeSet<_>>()
+                .len();
             let candidate = candidates.swap_remove(index);
-            let progress_refresh_due = last_progress_publish_at
-                .is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL);
-            if (active_progress_source.as_deref() != Some(candidate.source.id.as_str())
-                || !matches!(&candidate.task, RuntimeTask::Readiness(_))
-                || progress_refresh_due)
-                && source_stats.contains_key(candidate.source.id.as_str())
-            {
-                publish_source_processing_progress(
-                    &shared,
-                    &candidate,
-                    aggregate_source_stats(source_stats.values().copied()),
-                );
-                active_progress_source = Some(candidate.source.id.as_str().to_string());
-                last_progress_publish_at = Some(Instant::now());
-                progress_visible = true;
-            }
             let Some(permit) = shared
                 .budgets()
                 .try_acquire(&candidate.schedule.source_id, candidate.schedule.lane)
@@ -1256,6 +1255,30 @@ fn run_coordinator(shared: Arc<Shared>) {
                 candidates.push(candidate);
                 break;
             };
+            let progress_publish_due = last_progress_publish_at
+                .is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL);
+            if active_source_count > 1 {
+                if active_progress_source.as_deref() != Some("") || progress_publish_due {
+                    publish_multi_source_processing_activity(&shared, active_source_count);
+                    active_progress_source = Some(String::new());
+                    last_progress_publish_at = Some(Instant::now());
+                    progress_visible = true;
+                }
+            } else if (active_progress_source.as_deref() != Some(candidate.source.id.as_str())
+                || !matches!(&candidate.task, RuntimeTask::Readiness(_))
+                || progress_publish_due)
+                && let Some(progress) = source_stats.get(candidate.source.id.as_str()).copied()
+            {
+                let progress = stable_source_progress(
+                    &mut displayed_source_stats,
+                    candidate.source.id.as_str(),
+                    progress,
+                );
+                publish_source_processing_progress(&shared, &candidate, progress);
+                active_progress_source = Some(candidate.source.id.as_str().to_string());
+                last_progress_publish_at = Some(Instant::now());
+                progress_visible = true;
+            }
             let result = execute_candidate(
                 &candidate,
                 candidate_cancel.as_ref(),
@@ -1272,11 +1295,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                     if outcome == ExecutionOutcome::Completed
                         && let RuntimeTask::Readiness(target) = &candidate.task
                         && target.stage == ReadinessStage::EmbeddingAspects
-                        && let Some(worker_sender) = shared.worker_sender.as_ref()
                     {
-                        let _ = worker_sender.send(GuiMessage::SimilarityReadinessAdvanced {
-                            source_id: target.source_id.clone(),
-                        });
+                        pending_similarity_refresh_sources.insert(target.source_id.clone());
                     }
                     if outcome.was_claimed() {
                         telemetry.claimed = telemetry.claimed.saturating_add(1);
@@ -1289,7 +1309,14 @@ fn run_coordinator(shared: Arc<Shared>) {
                                     &mut source_stats,
                                     candidate.source.id.as_str(),
                                 )
+                                && active_source_count == 1
+                                && progress_refresh_due(last_progress_publish_at)
                             {
+                                let progress = stable_source_progress(
+                                    &mut displayed_source_stats,
+                                    candidate.source.id.as_str(),
+                                    progress,
+                                );
                                 publish_source_processing_progress(&shared, &candidate, progress);
                                 last_progress_publish_at = Some(Instant::now());
                                 progress_visible = true;
@@ -1312,7 +1339,14 @@ fn run_coordinator(shared: Arc<Shared>) {
                                     &mut source_stats,
                                     candidate.source.id.as_str(),
                                 )
+                                && active_source_count == 1
+                                && progress_refresh_due(last_progress_publish_at)
                             {
+                                let progress = stable_source_progress(
+                                    &mut displayed_source_stats,
+                                    candidate.source.id.as_str(),
+                                    progress,
+                                );
                                 publish_source_processing_progress(&shared, &candidate, progress);
                                 last_progress_publish_at = Some(Instant::now());
                                 progress_visible = true;
@@ -1350,6 +1384,14 @@ fn run_coordinator(shared: Arc<Shared>) {
                 }
             }
             drop(telemetry);
+            if last_similarity_refresh_publish_at.is_none_or(|published_at| {
+                published_at.elapsed() >= SIMILARITY_SCORE_REFRESH_INTERVAL
+            }) && publish_similarity_readiness_refreshes(
+                &shared,
+                &mut pending_similarity_refresh_sources,
+            ) {
+                last_similarity_refresh_publish_at = Some(Instant::now());
+            }
             let requeue_cancelled = matches!(execution_outcome, Some(ExecutionOutcome::Cancelled))
                 && {
                     let control = shared.control();
@@ -1385,11 +1427,9 @@ fn run_coordinator(shared: Arc<Shared>) {
                 .mark_source_dirty(source_id, "source_stage_progress");
             break;
         }
-        if candidates.is_empty() && progress_visible {
-            publish_source_processing_finished(&shared);
-            progress_visible = false;
-            active_progress_source = None;
-            last_progress_publish_at = None;
+        if publish_similarity_readiness_refreshes(&shared, &mut pending_similarity_refresh_sources)
+        {
+            last_similarity_refresh_publish_at = Some(Instant::now());
         }
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
@@ -1414,6 +1454,26 @@ fn run_coordinator(shared: Arc<Shared>) {
         );
         drop(telemetry);
     }
+}
+
+fn progress_refresh_due(last_publish_at: Option<Instant>) -> bool {
+    last_publish_at.is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL)
+}
+
+fn publish_similarity_readiness_refreshes(
+    shared: &Shared,
+    pending_source_ids: &mut BTreeSet<String>,
+) -> bool {
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return false;
+    };
+    if pending_source_ids.is_empty() {
+        return false;
+    }
+    for source_id in std::mem::take(pending_source_ids) {
+        let _ = worker_sender.send(GuiMessage::SimilarityReadinessAdvanced { source_id });
+    }
+    true
 }
 
 fn publish_source_processing_progress(
@@ -1457,10 +1517,18 @@ fn publish_source_processing_progress(
             0,
         ),
     };
+    let (completed, total) = if total > 0 && completed < total {
+        (completed, total)
+    } else {
+        // A claimed candidate is active even when discovery counters have reached their current
+        // boundary. Keep showing activity until the coordinator actually becomes idle instead of
+        // publishing a false completion while the candidate is still executing.
+        (0, 0)
+    };
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: candidate.source.id.as_str().to_string(),
-            active: total == 0 || completed < total,
+            active: true,
             completed,
             total,
             stage: stage.to_string(),
@@ -1485,6 +1553,29 @@ fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
             total: 0,
             stage: String::from("Inspecting source jobs"),
             detail: String::from("Discovering background work"),
+        },
+    ));
+}
+
+fn publish_multi_source_processing_activity(shared: &Shared, source_count: usize) {
+    let control = shared.control();
+    if control.processing_paused() {
+        return;
+    }
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return;
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: String::new(),
+            active: true,
+            completed: 0,
+            total: 0,
+            stage: String::from("Processing source libraries"),
+            detail: format!(
+                "Advancing {source_count} source{}",
+                if source_count == 1 { "" } else { "s" }
+            ),
         },
     ));
 }
@@ -1530,7 +1621,21 @@ fn advance_source_progress(
         .progress_completed
         .saturating_add(1)
         .min(stats.progress_total);
-    Some(aggregate_source_stats(source_stats.values().copied()))
+    Some(*stats)
+}
+
+fn stable_source_progress(
+    displayed: &mut BTreeMap<String, SourceDiscoveryStats>,
+    source_id: &str,
+    observed: SourceDiscoveryStats,
+) -> SourceDiscoveryStats {
+    let stable = displayed.entry(source_id.to_string()).or_insert(observed);
+    stable.progress_total = stable.progress_total.max(observed.progress_total);
+    stable.progress_completed = stable
+        .progress_completed
+        .max(observed.progress_completed)
+        .min(stable.progress_total);
+    *stable
 }
 
 fn readiness_progress_detail(target: &ReadinessTarget) -> (&'static str, String) {
@@ -1570,6 +1675,7 @@ fn discover_candidates(
     BTreeSet<String>,
 ) {
     let now = now_epoch_seconds();
+    let source_count = sources.len();
     let mut candidates = Vec::new();
     let mut source_stats = BTreeMap::new();
     let mut deferred = BTreeSet::new();
@@ -1596,7 +1702,11 @@ fn discover_candidates(
             let mut telemetry = shared.telemetry();
             telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
         }
-        publish_source_processing_discovery(shared, source);
+        if source_count > 1 {
+            publish_multi_source_processing_activity(shared, source_count);
+        } else {
+            publish_source_processing_discovery(shared, source);
+        }
         match discover_source_candidates(source, now, source_cancel) {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 candidates.append(&mut source_candidates);
@@ -4023,6 +4133,109 @@ mod tests {
     }
 
     #[test]
+    fn executing_candidate_remains_active_at_discovery_counter_boundary() {
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("boundary-source"),
+            directory.path().to_path_buf(),
+        );
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "identity-1",
+            "drums/kick.wav",
+            ReadinessStage::AnalysisFeatures,
+            "analysis-v1",
+            1,
+            "content-1",
+        );
+        let candidate = RuntimeCandidate {
+            schedule: WorkCandidate::readiness(&target, 1),
+            source: source.clone(),
+            task: RuntimeTask::Readiness(target),
+        };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Shared::new(vec![source], Some(sender));
+
+        publish_source_processing_progress(
+            &shared,
+            &candidate,
+            SourceDiscoveryStats {
+                progress_completed: 25_000,
+                progress_total: 25_000,
+                ..SourceDiscoveryStats::default()
+            },
+        );
+
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("progress message")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert!(progress.active);
+        assert_eq!(progress.completed, 0);
+        assert_eq!(progress.total, 0);
+        assert_eq!(progress.stage, "Analyzing audio");
+    }
+
+    #[test]
+    fn readiness_progress_counts_remain_scoped_to_the_reported_source() {
+        let mut source_stats = BTreeMap::from([
+            (
+                String::from("first"),
+                SourceDiscoveryStats {
+                    progress_completed: 25_000,
+                    progress_total: 26_000,
+                    ..SourceDiscoveryStats::default()
+                },
+            ),
+            (
+                String::from("second"),
+                SourceDiscoveryStats {
+                    progress_completed: 24_000,
+                    progress_total: 25_000,
+                    ..SourceDiscoveryStats::default()
+                },
+            ),
+        ]);
+
+        let progress = advance_source_progress(&mut source_stats, "first")
+            .expect("first source progress advances");
+
+        assert_eq!(progress.progress_completed, 25_001);
+        assert_eq!(progress.progress_total, 26_000);
+        assert_eq!(source_stats["second"].progress_completed, 24_000);
+        assert_eq!(source_stats["second"].progress_total, 25_000);
+    }
+
+    #[test]
+    fn visible_source_progress_does_not_regress_across_rediscovery() {
+        let mut displayed = BTreeMap::new();
+        let first = stable_source_progress(
+            &mut displayed,
+            "projects",
+            SourceDiscoveryStats {
+                progress_completed: 15_888,
+                progress_total: 19_969,
+                ..SourceDiscoveryStats::default()
+            },
+        );
+        let rediscovered = stable_source_progress(
+            &mut displayed,
+            "projects",
+            SourceDiscoveryStats {
+                progress_completed: 15_747,
+                progress_total: 19_969,
+                ..SourceDiscoveryStats::default()
+            },
+        );
+
+        assert_eq!(first.progress_completed, 15_888);
+        assert_eq!(rediscovered.progress_completed, 15_888);
+        assert_eq!(rediscovered.progress_total, 19_969);
+    }
+
+    #[test]
     fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
         let directory = tempfile::tempdir().expect("manifest audit source");
         let source = SampleSource::new_with_id(
@@ -4233,7 +4446,8 @@ mod tests {
     #[test]
     fn real_hash_execution_waits_for_shared_scan_database_budget() {
         let (_directory, source) = unhashed_source("shared-budget");
-        let shared = Arc::new(Shared::new(vec![source.clone()], None));
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
         let permit = SourceProcessingBudgetHandle {
             shared: Arc::clone(&shared),
         }
@@ -4250,6 +4464,16 @@ mod tests {
         };
         thread::sleep(Duration::from_millis(150));
         assert!(!source_is_hashed(&source));
+        assert!(
+            receiver.try_iter().all(|message| matches!(
+                message,
+                GuiMessage::SourceProcessingProgress(SourceProcessingProgress {
+                    active: false,
+                    ..
+                })
+            )),
+            "queued work must not publish active progress while foreground admission owns the lane"
+        );
 
         drop(permit);
         wait_until(Duration::from_secs(3), || source_is_hashed(&source));

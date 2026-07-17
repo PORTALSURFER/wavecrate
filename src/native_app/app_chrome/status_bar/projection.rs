@@ -22,6 +22,10 @@ pub(super) struct WorkerProgressBarProjection {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum WorkerProgressBarContentProjection {
     Hidden,
+    Activity,
+    OverallWithActivity {
+        progress: ui::ProgressSnapshot,
+    },
     Overall {
         progress: ui::ProgressSnapshot,
     },
@@ -65,7 +69,13 @@ impl WorkerProgressBarProjection {
 
 impl WorkerProgressBarContentProjection {
     fn from_worker_progress(progress: WorkerProgressViewModel) -> Self {
+        if progress.compact_activity && progress.total == 0 {
+            return Self::Activity;
+        }
         let snapshot = ui::ProgressSnapshot::new(progress.completed, progress.total);
+        if progress.compact_activity {
+            return Self::OverallWithActivity { progress: snapshot };
+        }
         if progress.active_animation {
             return Self::Layered {
                 overall: snapshot,
@@ -132,6 +142,7 @@ mod tests {
                 total: 10,
                 current_fraction: Some(0.5),
                 active_animation: false,
+                compact_activity: false,
             }),
             0.25,
         );
@@ -153,6 +164,7 @@ mod tests {
                 total: 10,
                 current_fraction: Some(0.5),
                 active_animation: true,
+                compact_activity: false,
             }),
             0.25,
         );
@@ -162,6 +174,46 @@ mod tests {
             WorkerProgressBarContentProjection::Layered {
                 overall: ui::ProgressSnapshot::new(3, 10),
                 current_fraction: Some(0.5),
+            }
+        );
+    }
+
+    #[test]
+    fn worker_progress_projection_uses_compact_activity_for_unmeasured_work() {
+        let projection = WorkerProgressBarProjection::from_progress(
+            Some(WorkerProgressViewModel {
+                completed: 0,
+                total: 0,
+                current_fraction: None,
+                active_animation: false,
+                compact_activity: true,
+            }),
+            0.25,
+        );
+
+        assert_eq!(
+            projection.content,
+            WorkerProgressBarContentProjection::Activity
+        );
+    }
+
+    #[test]
+    fn worker_progress_projection_keeps_activity_visible_with_measured_work() {
+        let projection = WorkerProgressBarProjection::from_progress(
+            Some(WorkerProgressViewModel {
+                completed: 3,
+                total: 10,
+                current_fraction: None,
+                active_animation: false,
+                compact_activity: true,
+            }),
+            0.25,
+        );
+
+        assert_eq!(
+            projection.content,
+            WorkerProgressBarContentProjection::OverallWithActivity {
+                progress: ui::ProgressSnapshot::new(3, 10),
             }
         );
     }

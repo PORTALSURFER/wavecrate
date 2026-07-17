@@ -38,6 +38,7 @@ pub(in crate::native_app) struct WorkerProgressViewModel {
     pub(in crate::native_app) total: usize,
     pub(in crate::native_app) current_fraction: Option<f32>,
     pub(in crate::native_app) active_animation: bool,
+    pub(in crate::native_app) compact_activity: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,6 +117,7 @@ impl WorkerProgressViewModel {
             total: progress.total,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     }
 
@@ -125,6 +127,7 @@ impl WorkerProgressViewModel {
             total: progress.work_total,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     }
 
@@ -134,6 +137,7 @@ impl WorkerProgressViewModel {
             total: progress.total,
             current_fraction: None,
             active_animation: false,
+            compact_activity: false,
         }
     }
 
@@ -148,6 +152,7 @@ impl WorkerProgressViewModel {
                     .as_ref()
                     .map(|_| cache.active_folder_warm_current_progress.clamp(0.0, 1.0)),
                 active_animation: true,
+                compact_activity: false,
             })
     }
 
@@ -157,10 +162,10 @@ impl WorkerProgressViewModel {
             total: progress.total,
             current_fraction: None,
             // Source processing has no independently measurable current-item fraction. Use one
-            // determinate track when totals are known and let the shared progress primitive
-            // animate that same track when totals are unknown. A second indeterminate strip can
-            // clip down to an ambiguous edge sliver at the end of its animation cycle.
+            // determinate track when totals are known and a compact activity indicator when they
+            // are not, so discovery cannot look like a frozen determinate bar.
             active_animation: false,
+            compact_activity: true,
         }
     }
 }
@@ -254,17 +259,21 @@ impl JobDetailsViewModel {
         } else {
             format!("{} | {}", progress.stage, progress.detail)
         };
-        let source = state
-            .library
-            .folder_browser
-            .source_label(progress.source_id.as_str())
-            .unwrap_or(progress.source_id.as_str());
+        let source = if progress.source_id.is_empty() {
+            "Multiple sources"
+        } else {
+            state
+                .library
+                .folder_browser
+                .source_label(progress.source_id.as_str())
+                .unwrap_or(progress.source_id.as_str())
+        };
         Self {
             rows: if progress.total == 0 {
                 [
                     String::from("Type: Source processing"),
                     format!("Source: {source}"),
-                    String::from("Progress: Discovering work"),
+                    String::from("Status: Active"),
                     format!("Current: {current}"),
                 ]
             } else {
