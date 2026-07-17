@@ -4,7 +4,7 @@ use std::{
     sync::atomic::AtomicBool,
 };
 
-use wavecrate::sample_sources::{SourceDatabase, readiness::ReadinessStage};
+use wavecrate::sample_sources::{SampleSource, SourceDatabase, readiness::ReadinessStage};
 
 use super::watcher_echo::capture_watcher_echoes;
 use super::{
@@ -13,16 +13,30 @@ use super::{
 };
 use crate::native_app::sample_library::folder_scan_actions::sync_source_database_paths;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub(super) struct SourceMutationRequest {
-    pub(super) source_id: String,
-    pub(super) root: PathBuf,
-    pub(super) database_root: PathBuf,
+    pub(super) source: SampleSource,
     pub(super) operation_id: u64,
     pub(super) operation: FileMutationOperation,
     pub(super) changes: Vec<FileMutationChange>,
     pub(super) affected_relative_paths: Vec<PathBuf>,
 }
+
+impl PartialEq for SourceMutationRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.source.id == other.source.id
+            && self.source.root == other.source.root
+            && self.source.is_protected() == other.source.is_protected()
+            && self.source.is_primary() == other.source.is_primary()
+            && self.source.primary_import_path() == other.source.primary_import_path()
+            && self.operation_id == other.operation_id
+            && self.operation == other.operation
+            && self.changes == other.changes
+            && self.affected_relative_paths == other.affected_relative_paths
+    }
+}
+
+impl Eq for SourceMutationRequest {}
 
 pub(super) fn mutation_completion_is_stale_or_duplicate(
     accepted: (u64, u64),
@@ -89,7 +103,7 @@ pub(super) fn build_source_requests(
     operation_id: u64,
     operation: FileMutationOperation,
     changes: Vec<FileMutationChange>,
-    sources: &[wavecrate::sample_sources::SampleSource],
+    sources: &[SampleSource],
 ) -> Vec<SourceMutationRequest> {
     let mut grouped = BTreeMap::<String, SourceMutationRequest>::new();
     for change in changes {
@@ -105,16 +119,11 @@ pub(super) fn build_source_requests(
             else {
                 continue;
             };
-            let Ok(database_root) = source.database_root() else {
-                continue;
-            };
             let request =
                 grouped
                     .entry(source_id.clone())
                     .or_insert_with(|| SourceMutationRequest {
-                        source_id: source_id.clone(),
-                        root: source.root.clone(),
-                        database_root,
+                        source: source.clone(),
                         operation_id,
                         operation,
                         changes: Vec::new(),
@@ -139,10 +148,7 @@ pub(super) fn build_source_requests(
     grouped.into_values().collect()
 }
 
-fn source_for_path(
-    sources: &[wavecrate::sample_sources::SampleSource],
-    path: &Path,
-) -> Option<String> {
+fn source_for_path(sources: &[SampleSource], path: &Path) -> Option<String> {
     sources
         .iter()
         .filter_map(|source| {
@@ -157,14 +163,30 @@ fn source_for_path(
 pub(super) fn reconcile_file_mutation_requests(
     requests: Vec<SourceMutationRequest>,
 ) -> FileMutationOutcome {
+    reconcile_file_mutation_requests_with_database_roots(requests, |source| {
+        source
+            .database_root()
+            .map_err(|error| format!("resolve source metadata location: {error}"))
+    })
+}
+
+pub(super) fn reconcile_file_mutation_requests_with_database_roots(
+    requests: Vec<SourceMutationRequest>,
+    database_root_for: impl Fn(&SampleSource) -> Result<PathBuf, String>,
+) -> FileMutationOutcome {
     let cancel = AtomicBool::new(false);
     let mut committed = Vec::new();
     let mut failures = Vec::new();
-    for request in requests {
-        match reconcile_source_mutation(request.clone(), &cancel) {
+    for mut request in requests {
+        capture_expected_after_identities(&mut request.changes);
+        let source_id = request.source.id.as_str().to_string();
+        let result = database_root_for(&request.source).and_then(|database_root| {
+            reconcile_source_mutation(request.clone(), database_root, &cancel)
+        });
+        match result {
             Ok(event) => committed.push(event),
             Err(error) => failures.push(FileMutationFailure {
-                source_id: Some(request.source_id),
+                source_id: Some(source_id),
                 operation_id: request.operation_id,
                 operation: request.operation,
                 error,
@@ -183,14 +205,14 @@ pub(super) fn reconcile_file_mutation_requests(
 
 pub(super) fn reconcile_source_mutation(
     request: SourceMutationRequest,
+    database_root: PathBuf,
     cancel: &AtomicBool,
 ) -> Result<CommittedFileMutation, String> {
-    let watcher_echoes = capture_watcher_echoes(&request.root, &request.affected_relative_paths);
-    let before_database = SourceDatabase::open_for_background_job_with_database_root(
-        &request.root,
-        &request.database_root,
-    )
-    .map_err(|error| format!("open source before mutation reconciliation: {error}"))?;
+    let root = &request.source.root;
+    let watcher_echoes = capture_watcher_echoes(root, &request.affected_relative_paths);
+    let before_database =
+        SourceDatabase::open_for_background_job_with_database_root(root, &database_root)
+            .map_err(|error| format!("open source before mutation reconciliation: {error}"))?;
     let before = manifest_by_path(
         before_database
             .list_manifest_entries()
@@ -199,9 +221,9 @@ pub(super) fn reconcile_source_mutation(
     drop(before_database);
 
     let sync = sync_source_database_paths(
-        request.source_id.clone(),
-        request.root.clone(),
-        request.database_root.clone(),
+        request.source.id.as_str().to_string(),
+        root.clone(),
+        database_root.clone(),
         request.affected_relative_paths.clone(),
         request.affected_relative_paths.len(),
         cancel,
@@ -213,11 +235,9 @@ pub(super) fn reconcile_source_mutation(
         ));
     }
 
-    let after_database = SourceDatabase::open_for_background_job_with_database_root(
-        &request.root,
-        &request.database_root,
-    )
-    .map_err(|error| format!("open source after mutation reconciliation: {error}"))?;
+    let after_database =
+        SourceDatabase::open_for_background_job_with_database_root(root, &database_root)
+            .map_err(|error| format!("open source after mutation reconciliation: {error}"))?;
     let after = manifest_by_path(
         after_database
             .list_manifest_entries()
@@ -236,12 +256,12 @@ pub(super) fn reconcile_source_mutation(
             let before_entry = change
                 .before_path
                 .as_deref()
-                .and_then(|path| path.strip_prefix(&request.root).ok())
+                .and_then(|path| path.strip_prefix(root).ok())
                 .and_then(|path| before.get(path));
             let after_entry = change
                 .after_path
                 .as_deref()
-                .and_then(|path| path.strip_prefix(&request.root).ok())
+                .and_then(|path| path.strip_prefix(root).ok())
                 .and_then(|path| after.get(path));
             if change.before_content_identity.is_none() {
                 change.before_content_identity = before_entry.map(content_identity);
@@ -266,7 +286,7 @@ pub(super) fn reconcile_source_mutation(
         .collect::<Vec<_>>();
 
     Ok(CommittedFileMutation {
-        source_id: request.source_id,
+        source_id: request.source.id.as_str().to_string(),
         operation_id: request.operation_id,
         operation: request.operation,
         committed_source_revision,

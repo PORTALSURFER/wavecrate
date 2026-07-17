@@ -97,6 +97,10 @@ fn watcher_acknowledgement_does_not_hide_external_change_before_internal_echo() 
     );
     let path = root.path().join("kick.wav");
     std::fs::write(&path, b"committed").expect("write committed file");
+    let committed_modified = std::fs::metadata(&path)
+        .expect("committed metadata")
+        .modified()
+        .expect("committed modified time");
     let expected_state = observed_watcher_path_state(&path).expect("committed path identity");
     let mut state = GuiSourceWatchState {
         sources: vec![source],
@@ -113,7 +117,22 @@ fn watcher_acknowledgement_does_not_hide_external_change_before_internal_echo() 
         started,
     );
 
-    std::fs::write(&path, b"external change").expect("write external change");
+    std::fs::write(&path, b"external!").expect("write equal-size external change");
+    std::fs::File::open(&path)
+        .expect("open external file")
+        .set_times(std::fs::FileTimes::new().set_modified(committed_modified))
+        .expect("restore committed modified time");
+    assert_eq!(
+        std::fs::metadata(&path).expect("external metadata").len(),
+        b"committed".len() as u64
+    );
+    assert_eq!(
+        std::fs::metadata(&path)
+            .expect("external metadata")
+            .modified()
+            .expect("external modified time"),
+        committed_modified
+    );
     state.collect_event(
         &Event {
             kind: EventKind::Modify(notify::event::ModifyKind::Any),

@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 
+const MAX_WATCHER_ECHO_HASH_BYTES: u64 = 8 * 1024 * 1024;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum CommittedWatcherPathState {
     Missing,
-    Metadata { len: u64, modified_ns: u128 },
+    ContentHash([u8; 32]),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,18 +35,13 @@ pub(in crate::native_app) fn observed_watcher_path_state(
     path: &Path,
 ) -> Option<CommittedWatcherPathState> {
     match std::fs::metadata(path) {
-        Ok(metadata) => {
-            let modified_ns = metadata
-                .modified()
-                .ok()?
-                .duration_since(std::time::UNIX_EPOCH)
-                .ok()?
-                .as_nanos();
-            Some(CommittedWatcherPathState::Metadata {
-                len: metadata.len(),
-                modified_ns,
-            })
+        Ok(metadata) if metadata.is_file() && metadata.len() <= MAX_WATCHER_ECHO_HASH_BYTES => {
+            let bytes = std::fs::read(path).ok()?;
+            Some(CommittedWatcherPathState::ContentHash(
+                *blake3::hash(&bytes).as_bytes(),
+            ))
         }
+        Ok(_) => None,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Some(CommittedWatcherPathState::Missing)
         }

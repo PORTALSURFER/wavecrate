@@ -1,12 +1,12 @@
 use std::{fs, path::Path, sync::atomic::AtomicBool};
 
 use wavecrate::sample_sources::scanner::ManifestIdentityDelta;
-use wavecrate::sample_sources::{SampleSource, SourceDatabase, scanner};
+use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceId, scanner};
 
 use super::worker::{
     SourceMutationRequest, build_source_requests, capture_expected_after_identities,
     merge_file_mutation_failures, mutation_completion_is_stale_or_duplicate,
-    reconcile_source_mutation,
+    reconcile_file_mutation_requests_with_database_roots, reconcile_source_mutation,
 };
 use super::*;
 
@@ -16,9 +16,7 @@ fn request(
     changes: Vec<FileMutationChange>,
 ) -> SourceMutationRequest {
     SourceMutationRequest {
-        source_id: String::from("source-a"),
-        root: root.to_path_buf(),
-        database_root: root.to_path_buf(),
+        source: SampleSource::new_with_id(SourceId::from_string("source-a"), root.to_path_buf()),
         operation_id: 42,
         operation,
         affected_relative_paths: changes
@@ -34,13 +32,21 @@ fn request(
     }
 }
 
+fn reconcile_test_request(
+    request: SourceMutationRequest,
+    cancel: &AtomicBool,
+) -> Result<CommittedFileMutation, String> {
+    let database_root = request.source.root.clone();
+    reconcile_source_mutation(request, database_root, cancel)
+}
+
 #[test]
 fn create_commits_revision_and_invalidates_file_readiness() {
     let root = tempfile::tempdir().expect("source root");
     let path = root.path().join("created.wav");
     fs::write(&path, b"created").expect("create file");
 
-    let event = reconcile_source_mutation(
+    let event = reconcile_test_request(
         request(
             root.path(),
             FileMutationOperation::Duplicate,
@@ -61,7 +67,7 @@ fn create_commits_revision_and_invalidates_file_readiness() {
     assert!(event.changes[0].after_content_identity.is_some());
     assert!(matches!(
         event.watcher_echoes[0].expected_state,
-        CommittedWatcherPathState::Metadata { .. }
+        CommittedWatcherPathState::ContentHash(_)
     ));
 }
 
@@ -75,7 +81,7 @@ fn path_only_move_retains_content_identity_and_readiness_artifacts() {
     scanner::hard_rescan(&database).expect("initial scan");
     fs::rename(&old_path, &new_path).expect("move path");
 
-    let event = reconcile_source_mutation(
+    let event = reconcile_test_request(
         request(
             root.path(),
             FileMutationOperation::Move,
@@ -102,7 +108,7 @@ fn destructive_edit_carries_previous_and_current_content_identity() {
     scanner::hard_rescan(&database).expect("initial scan");
     fs::write(&path, b"after and different").expect("edit file");
 
-    let event = reconcile_source_mutation(
+    let event = reconcile_test_request(
         request(
             root.path(),
             FileMutationOperation::Edit,
@@ -133,7 +139,7 @@ fn delete_retires_manifest_identity_and_only_invalidates_membership() {
     scanner::hard_rescan(&database).expect("initial scan");
     fs::remove_file(&path).expect("delete file");
 
-    let event = reconcile_source_mutation(
+    let event = reconcile_test_request(
         request(
             root.path(),
             FileMutationOperation::Trash,
@@ -162,7 +168,7 @@ fn large_create_commits_without_synchronous_deep_hashing() {
     let path = root.path().join("large.wav");
     fs::write(&path, vec![7_u8; 9 * 1024 * 1024]).expect("create large file");
 
-    let event = reconcile_source_mutation(
+    let event = reconcile_test_request(
         request(
             root.path(),
             FileMutationOperation::ImportDrop,
@@ -177,6 +183,10 @@ fn large_create_commits_without_synchronous_deep_hashing() {
         event.committed_delta.created[0]
             .content_generation
             .starts_with("pending:")
+    );
+    assert!(
+        event.watcher_echoes.is_empty(),
+        "large files use conservative watcher reconciliation instead of synchronous hashing"
     );
 }
 
@@ -200,7 +210,58 @@ fn cross_source_requests_keep_one_operation_id_and_distinct_sources() {
 
     assert_eq!(requests.len(), 2);
     assert!(requests.iter().all(|request| request.operation_id == 88));
-    assert_ne!(requests[0].source_id, requests[1].source_id);
+    assert_ne!(requests[0].source.id, requests[1].source.id);
+}
+
+#[test]
+fn cross_source_database_root_failure_keeps_valid_commit_and_explicit_failure() {
+    let first = tempfile::tempdir().expect("first source");
+    let second = tempfile::tempdir().expect("second source");
+    let before = first.path().join("sample.wav");
+    let after = second.path().join("sample.wav");
+    fs::write(&before, b"same content").expect("create source file");
+    let first_database = SourceDatabase::open(first.path()).expect("first source db");
+    scanner::hard_rescan(&first_database).expect("initial first source scan");
+    fs::rename(&before, &after).expect("move across sources");
+
+    let first_source = SampleSource::new_with_id(
+        SourceId::from_string("source-a"),
+        first.path().to_path_buf(),
+    );
+    let second_source = SampleSource::new_with_id(
+        SourceId::from_string("source-b"),
+        second.path().to_path_buf(),
+    );
+    let requests = build_source_requests(
+        88,
+        FileMutationOperation::Move,
+        vec![FileMutationChange::path_only_move(before, after)],
+        &[first_source.clone(), second_source.clone()],
+    );
+
+    let outcome = reconcile_file_mutation_requests_with_database_roots(requests, |source| {
+        if source.id == second_source.id {
+            Err(String::from("metadata root unavailable"))
+        } else {
+            Ok(source.root.clone())
+        }
+    });
+
+    let FileMutationOutcome::Failed {
+        committed,
+        failures,
+    } = outcome
+    else {
+        panic!("cross-source partial failure must be explicit");
+    };
+    assert_eq!(committed.len(), 1);
+    assert_eq!(committed[0].source_id, first_source.id.as_str());
+    assert_eq!(failures.len(), 1);
+    assert_eq!(
+        failures[0].source_id.as_deref(),
+        Some(second_source.id.as_str())
+    );
+    assert!(failures[0].error.contains("metadata root unavailable"));
 }
 
 #[test]
@@ -278,7 +339,7 @@ fn rapid_repeated_edit_fences_the_superseded_completion() {
     let request = request(root.path(), FileMutationOperation::Edit, changes);
 
     fs::write(&path, b"second committed edit with different size").expect("second edit");
-    let error = reconcile_source_mutation(request, &AtomicBool::new(false))
+    let error = reconcile_test_request(request, &AtomicBool::new(false))
         .expect_err("superseded edit must not publish");
 
     assert!(error.contains("superseded"));

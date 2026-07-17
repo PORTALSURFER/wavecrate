@@ -22,8 +22,8 @@ pub(in crate::native_app) use watcher_echo::{
     CommittedWatcherEcho, CommittedWatcherPathState, observed_watcher_path_state,
 };
 use worker::{
-    build_source_requests, capture_expected_after_identities, merge_file_mutation_failures,
-    mutation_completion_is_stale_or_duplicate, reconcile_file_mutation_requests,
+    build_source_requests, merge_file_mutation_failures, mutation_completion_is_stale_or_duplicate,
+    reconcile_file_mutation_requests,
 };
 
 /// User-visible mutation family that owns one operation ID across all affected sources.
@@ -246,12 +246,8 @@ impl NativeAppState {
             .background("gui-committed-file-mutation")
             .run(
                 move |_| {
-                    let mut requests = work.requests;
-                    for request in &mut requests {
-                        capture_expected_after_identities(&mut request.changes);
-                    }
                     merge_file_mutation_failures(
-                        reconcile_file_mutation_requests(requests),
+                        reconcile_file_mutation_requests(work.requests),
                         work.failures,
                     )
                 },
