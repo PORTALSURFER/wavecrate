@@ -51,18 +51,6 @@ impl NativeAppState {
                 .mark_extracted_play_selection(&mark.source_path, mark.selection);
             self.waveform.current.flash_play_selection();
         }
-        if let Err(error) = self.apply_destructive_edit_visual_state(
-            &applied,
-            active.before_selected_path.as_deref(),
-            &active.request,
-            active.preserved_marks,
-        ) {
-            self.ui.status.sample = format!(
-                "{} failed: {error}",
-                active.request.prompt.edit.action_label()
-            );
-            return;
-        }
         if let Some((source_path, operation)) = active.harvest_whole_file_derivation.as_ref() {
             self.record_harvest_whole_file_derivation(
                 source_path,
@@ -93,23 +81,6 @@ impl NativeAppState {
                 active.source_duration_seconds.unwrap_or_default(),
             );
         }
-        if let Some(output_path) = active.output_focus_path.as_ref() {
-            self.library
-                .folder_browser
-                .refresh_file_path_across_sources(output_path);
-            self.library
-                .folder_browser
-                .focus_file_across_sources_matching_tags_for_reason(
-                    output_path,
-                    &self.metadata.tags_by_file,
-                    BrowserListingRevealReason::DestructiveEditReload,
-                );
-            self.load_navigation_sample_validated(
-                output_path.to_string_lossy().to_string(),
-                context,
-                Instant::now(),
-            );
-        }
         let primary_change = if active.harvest_whole_file_derivation.is_some() {
             FileMutationChange::created(applied.absolute_path.clone())
         } else {
@@ -130,10 +101,40 @@ impl NativeAppState {
                 .collect(),
             context,
         );
+        let visual_error = self
+            .apply_destructive_edit_visual_state(
+                &applied,
+                active.before_selected_path.as_deref(),
+                &active.request,
+                active.preserved_marks,
+            )
+            .err();
+        if let Some(output_path) = active.output_focus_path.as_ref() {
+            self.library
+                .folder_browser
+                .refresh_file_path_across_sources(output_path);
+            self.library
+                .folder_browser
+                .focus_file_across_sources_matching_tags_for_reason(
+                    output_path,
+                    &self.metadata.tags_by_file,
+                    BrowserListingRevealReason::DestructiveEditReload,
+                );
+            self.load_navigation_sample_validated(
+                output_path.to_string_lossy().to_string(),
+                context,
+                Instant::now(),
+            );
+        }
         self.register_destructive_edit_transaction(active.request.prompt.edit, applied);
 
         let label = sample_path_label(&active.request.absolute_path);
-        self.ui.status.sample = if let Some(error) = extracted_metadata_error.as_ref() {
+        self.ui.status.sample = if let Some(error) = visual_error.as_ref() {
+            format!(
+                "{} {label}; edit committed but waveform reload failed: {error}",
+                active.request.prompt.edit.past_tense_label()
+            )
+        } else if let Some(error) = extracted_metadata_error.as_ref() {
             format!(
                 "{} {label}; extracted metadata incomplete: {error}",
                 active.request.prompt.edit.past_tense_label()

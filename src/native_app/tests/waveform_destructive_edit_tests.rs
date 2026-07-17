@@ -1533,6 +1533,101 @@ fn apply_edit_selection_effects_rewrites_gain_clears_preview_and_flashes() {
 }
 
 #[test]
+fn destructive_edit_reload_failure_still_emits_committed_mutation() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("reload-failure.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = true;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+
+    let mut request_context = ui::UiUpdateContext::default();
+    state.apply_message(
+        GuiMessage::RequestCropWaveformSelection,
+        &mut request_context,
+    );
+    let mut completion_followups = Vec::new();
+    request_context
+        .into_command()
+        .run_inline_for_tests(|message| {
+            if matches!(message, GuiMessage::WaveformDestructiveEditFinished(_)) {
+                fs::write(&path, b"not a waveform").expect("corrupt committed waveform");
+            }
+            let mut completion_context = ui::UiUpdateContext::default();
+            state.apply_message(message, &mut completion_context);
+            let command = completion_context.into_command();
+            if !command.is_empty() {
+                completion_followups.push(command);
+            }
+        });
+
+    assert!(
+        commands_emit_committed_file_mutation(completion_followups),
+        "the committed edit must be published before the visual reload"
+    );
+    assert!(
+        state
+            .ui
+            .status
+            .sample
+            .contains("edit committed but waveform reload failed")
+    );
+}
+
+#[test]
+fn waveform_undo_reload_failure_still_emits_committed_mutation() {
+    let (mut state, _source_root, selected_file) =
+        native_app_state_with_temp_sample("undo-reload-failure.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
+    state.waveform.current =
+        crate::native_app::test_support::state::WaveformState::load_path(path.clone())
+            .expect("load waveform");
+    state.ui.settings.persisted.controls.destructive_yolo_mode = false;
+    select_waveform_range(&mut state, WaveformSelectionKind::Play, 0.25, 0.5);
+    state.apply_message(
+        GuiMessage::RequestCropWaveformSelection,
+        &mut ui::UiUpdateContext::default(),
+    );
+    let request = state
+        .ui
+        .browser_interaction
+        .pending_waveform_destructive_edit
+        .take()
+        .expect("crop request");
+    let applied = crate::native_app::waveform_edits::execute_destructive_edit_for_tests(request);
+    let backup_path =
+        crate::native_app::waveform_edits::destructive_edit_before_backup_path_for_tests(&applied);
+    fs::write(&backup_path, b"not a waveform").expect("corrupt undo snapshot");
+
+    let undo_applied = applied.clone();
+    let undo_backup_path = backup_path.clone();
+    state.begin_transaction("test waveform edit");
+    state.register_transaction_action(
+        "undo test waveform edit",
+        move |transaction| transaction.restore_edited_waveform(&undo_backup_path, &undo_applied),
+        |_| Ok(()),
+    );
+    assert!(state.commit_transaction());
+
+    let mut undo_context = ui::UiUpdateContext::default();
+    state.undo_transaction(&mut undo_context);
+
+    assert!(
+        commands_emit_committed_file_mutation(vec![undo_context.into_command()]),
+        "the restored file must be published even when waveform reload fails"
+    );
+    assert!(state.ui.status.sample.contains("Undo failed:"));
+    assert!(
+        state.ui.status.sample.contains("Failed to open WAV")
+            || state.ui.status.sample.contains("Invalid")
+    );
+}
+
+#[test]
 fn crop_request_rewrites_file_and_undo_restores_original_audio() {
     let (mut state, _source_root, selected_file) = native_app_state_with_temp_sample("crop.wav");
     let path = PathBuf::from(&selected_file);
@@ -2190,6 +2285,16 @@ fn apply_message_and_run_command(
     let mut context = ui::UiUpdateContext::default();
     state.apply_message(message, &mut context);
     run_command_for_tests(state, context.into_command());
+}
+
+fn commands_emit_committed_file_mutation(commands: Vec<Command<GuiMessage>>) -> bool {
+    let mut emitted = false;
+    for command in commands {
+        command.run_inline_for_tests(|message| {
+            emitted |= matches!(message, GuiMessage::CommittedFileMutationRequested(_));
+        });
+    }
+    emitted
 }
 
 fn assert_extracted_file_keep_1_rating(
