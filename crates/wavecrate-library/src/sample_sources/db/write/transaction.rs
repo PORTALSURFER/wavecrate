@@ -37,32 +37,48 @@ impl SourceWriteBatch<'_> {
         Ok(snapshot)
     }
 
-    /// Commit the batch and return its exact revision plus only manifest paths touched by it.
+    /// Commit the batch and return its exact revision plus manifest state owned by that revision.
     ///
-    /// This keeps chunked scans linear while allowing callers to maintain the authoritative
-    /// manifest incrementally. Each optional row is read from the committing transaction after
-    /// the revision bump; `None` means the touched path is absent from the live manifest.
+    /// When the caller's cached revision is current, the second tuple element contains only
+    /// touched paths and the optional full snapshot is `None`, keeping chunked scans linear. When
+    /// another writer has advanced the manifest, the touched-path list is empty and the optional
+    /// full snapshot is captured inside this committing transaction before the write lock is
+    /// released.
     pub fn commit_with_manifest_changes(
         self,
-    ) -> Result<(u64, Vec<(PathBuf, Option<SourceManifestEntry>)>), SourceDbError> {
+        expected_previous_revision: u64,
+    ) -> Result<
+        (
+            u64,
+            Vec<(PathBuf, Option<SourceManifestEntry>)>,
+            Option<Vec<SourceManifestEntry>>,
+        ),
+        SourceDbError,
+    > {
         self.prepare_commit()?;
         let revision = manifest_revision(&self.tx)?;
-        let changes = self
-            .manifest_touched_paths
-            .iter()
-            .map(|path| {
-                let normalized = PathBuf::from(normalize_relative_path(path)?);
-                let entry = manifest_entry_for_path(&self.tx, &normalized)?;
-                Ok((normalized, entry))
-            })
-            .collect::<Result<Vec<_>, SourceDbError>>()?;
+        let (changes, snapshot) = if revision == expected_previous_revision.saturating_add(1) {
+            let changes = self
+                .manifest_touched_paths
+                .iter()
+                .map(|path| {
+                    let normalized = PathBuf::from(normalize_relative_path(path)?);
+                    let entry = manifest_entry_for_path(&self.tx, &normalized)?;
+                    Ok((normalized, entry))
+                })
+                .collect::<Result<Vec<_>, SourceDbError>>()?;
+            (changes, None)
+        } else {
+            let (_, snapshot) = manifest_snapshot(&self.tx)?;
+            (Vec::new(), Some(snapshot))
+        };
         self.tx.commit().map_err(map_sql_error)?;
         crate::sqlite_wal::maybe_checkpoint_database_file(
             &self.db_path,
             "source_db",
             self.telemetry_label,
         );
-        Ok((revision, changes))
+        Ok((revision, changes, snapshot))
     }
 
     fn prepare_commit(&self) -> Result<(), SourceDbError> {
@@ -219,6 +235,7 @@ mod tests {
             .upsert_file(Path::new("untouched.wav"), 6, 20)
             .expect("insert untouched file");
 
+        let expected_previous_revision = database.get_revision().expect("previous revision");
         let mut batch = database.write_batch().expect("manifest batch");
         batch
             .set_missing(Path::new("removed.wav"), true)
@@ -226,11 +243,12 @@ mod tests {
         batch
             .upsert_file_with_hash(Path::new("created.wav"), 7, 30, "created-hash")
             .expect("insert created file");
-        let (revision, changes) = batch
-            .commit_with_manifest_changes()
+        let (revision, changes, snapshot) = batch
+            .commit_with_manifest_changes(expected_previous_revision)
             .expect("commit manifest changes");
 
         assert_eq!(revision, database.get_revision().expect("current revision"));
+        assert!(snapshot.is_none());
         assert_eq!(changes.len(), 2);
         assert_eq!(
             changes[0],
@@ -252,15 +270,17 @@ mod tests {
     fn commit_manifest_changes_normalizes_windows_separator_paths() {
         let directory = tempfile::tempdir().expect("source root");
         let database = SourceDatabase::open(directory.path()).expect("source database");
+        let expected_previous_revision = database.get_revision().expect("previous revision");
         let mut batch = database.write_batch().expect("manifest batch");
         batch
             .upsert_file_with_hash(Path::new(r"nested\kick.wav"), 7, 30, "kick-hash")
             .expect("insert nested file");
 
-        let (_revision, changes) = batch
-            .commit_with_manifest_changes()
+        let (_revision, changes, snapshot) = batch
+            .commit_with_manifest_changes(expected_previous_revision)
             .expect("commit manifest changes");
 
+        assert!(snapshot.is_none());
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].0, Path::new("nested/kick.wav"));
         assert_eq!(

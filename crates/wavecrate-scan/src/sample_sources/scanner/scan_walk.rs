@@ -276,7 +276,7 @@ fn apply_batch(
         apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
         audited_paths.push(relative_path);
     }
-    context.commit_batch(db, batch)?;
+    context.commit_batch(batch)?;
     Ok(ApplyBatchOutcome {
         committed: true,
         audited_paths,

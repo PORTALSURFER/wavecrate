@@ -168,11 +168,25 @@ impl ScanContext {
 
     pub(in crate::sample_sources::scanner) fn commit_batch(
         &mut self,
-        db: &SourceDatabase,
         batch: SourceWriteBatch<'_>,
     ) -> Result<u64, ScanError> {
-        let (revision, changes) = batch.commit_with_manifest_changes()?;
-        let revision = if revision == self.committed_manifest_revision.saturating_add(1) {
+        self.commit_batch_with_post_commit_hook(batch, || {})
+    }
+
+    fn commit_batch_with_post_commit_hook(
+        &mut self,
+        batch: SourceWriteBatch<'_>,
+        post_commit_hook: impl FnOnce(),
+    ) -> Result<u64, ScanError> {
+        let (revision, changes, snapshot) =
+            batch.commit_with_manifest_changes(self.committed_manifest_revision)?;
+        post_commit_hook();
+        if let Some(snapshot) = snapshot {
+            self.committed_manifest = snapshot
+                .into_iter()
+                .map(|entry| (entry.relative_path.clone(), entry))
+                .collect();
+        } else {
             for (path, entry) in changes {
                 if let Some(entry) = entry {
                     self.committed_manifest.insert(path, entry);
@@ -180,15 +194,7 @@ impl ScanContext {
                     self.committed_manifest.remove(&path);
                 }
             }
-            revision
-        } else {
-            let (snapshot_revision, snapshot) = db.manifest_snapshot_with_revision()?;
-            self.committed_manifest = snapshot
-                .into_iter()
-                .map(|entry| (entry.relative_path.clone(), entry))
-                .collect();
-            snapshot_revision
-        };
+        }
         self.committed_manifest_revision = revision;
         self.last_committed_revision = Some(revision);
         Ok(revision)
@@ -245,7 +251,13 @@ mod tests {
             .upsert_file_with_hash(Path::new("scan.wav"), 3, 3, "scan")
             .expect("scan row");
         let revision = context
-            .commit_batch(&database, scan_batch)
+            .commit_batch_with_post_commit_hook(scan_batch, || {
+                let mut later_batch = database.write_batch().expect("later batch");
+                later_batch
+                    .upsert_file_with_hash(Path::new("later.wav"), 4, 4, "later")
+                    .expect("later row");
+                later_batch.commit().expect("commit later writer");
+            })
             .expect("commit scan batch");
         let (_revision, snapshot) = context.committed_snapshot(revision);
         let paths = snapshot
@@ -253,7 +265,7 @@ mod tests {
             .map(|entry| entry.relative_path)
             .collect::<Vec<_>>();
 
-        assert_eq!(revision, database.get_revision().expect("current revision"));
+        assert!(revision < database.get_revision().expect("current revision"));
         assert_eq!(
             paths,
             vec![

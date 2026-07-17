@@ -997,13 +997,22 @@ enum ExecutionOutcome {
     PrerequisiteInvalidated,
     Stale,
     Cancelled,
+    Parked,
     NotClaimed,
 }
 
 impl ExecutionOutcome {
     fn was_claimed(self) -> bool {
-        !matches!(self, Self::NotClaimed)
+        !matches!(self, Self::Parked | Self::NotClaimed)
     }
+}
+
+fn should_requeue_cancelled(
+    outcome: Option<ExecutionOutcome>,
+    source_active: bool,
+    source_dirty: bool,
+) -> bool {
+    matches!(outcome, Some(ExecutionOutcome::Cancelled)) && source_active && !source_dirty
 }
 
 fn run_coordinator(shared: Arc<Shared>) {
@@ -1359,6 +1368,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                         ExecutionOutcome::Cancelled => {
                             telemetry.cancelled = telemetry.cancelled.saturating_add(1)
                         }
+                        ExecutionOutcome::Parked => {}
                         ExecutionOutcome::NotClaimed => {}
                     }
                 }
@@ -1393,12 +1403,14 @@ fn run_coordinator(shared: Arc<Shared>) {
             ) {
                 last_similarity_refresh_publish_at = Some(Instant::now());
             }
-            let requeue_cancelled = matches!(execution_outcome, Some(ExecutionOutcome::Cancelled))
-                && {
-                    let control = shared.control();
-                    control.source_is_active(candidate.source.id.as_str())
-                        && !control.dirty_sources.contains(candidate.source.id.as_str())
-                };
+            let requeue_cancelled = {
+                let control = shared.control();
+                should_requeue_cancelled(
+                    execution_outcome,
+                    control.source_is_active(candidate.source.id.as_str()),
+                    control.dirty_sources.contains(candidate.source.id.as_str()),
+                )
+            };
             if requeue_cancelled {
                 candidates.push(candidate);
                 continue;
@@ -2355,7 +2367,7 @@ fn execute_candidate(
                     root = %candidate.source.root.display(),
                     "Skipping manifest audit because the source root became unavailable"
                 );
-                return Ok(ExecutionOutcome::Cancelled);
+                return Ok(ExecutionOutcome::Parked);
             }
             let database = SourceDatabase::open_for_background_job_with_database_root(
                 &candidate.source.root,
@@ -4439,8 +4451,12 @@ mod tests {
 
         assert_eq!(
             execute_candidate(&candidate, &AtomicBool::new(false), None)
-                .expect("unavailable audit is cancelled"),
-            ExecutionOutcome::Cancelled
+                .expect("unavailable audit is parked"),
+            ExecutionOutcome::Parked
+        );
+        assert!(
+            !should_requeue_cancelled(Some(ExecutionOutcome::Parked), true, false),
+            "unavailable roots must wait for a later availability or safety wake"
         );
         assert!(
             !root.exists(),
