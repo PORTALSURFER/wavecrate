@@ -10,7 +10,7 @@ use std::{
 };
 use wavecrate::sample_sources::SampleSource;
 
-use super::classification::event_triggers_source_refresh;
+use super::classification::retain_source_refresh_candidates;
 use super::state::GuiSourceWatchState;
 use super::{
     ROOT_REFRESH_AVAILABLE, ROOT_REFRESH_UNAVAILABLE, SOURCE_CHANGE_DEBOUNCE,
@@ -88,12 +88,23 @@ fn run_source_watcher(
         if watcher.is_none() && now >= next_restart {
             let callback_tx = event_tx.clone();
             let callback_overflowed = Arc::clone(&ingress_overflowed);
-            match notify::recommended_watcher(move |event| match callback_tx.try_send(event) {
-                Ok(()) => {}
-                Err(TrySendError::Full(_)) => {
-                    callback_overflowed.store(true, Ordering::Release);
+            match notify::recommended_watcher(move |event| {
+                let event = match event {
+                    Ok(mut event) => {
+                        if !retain_source_refresh_candidates(&mut event) {
+                            return;
+                        }
+                        Ok(event)
+                    }
+                    Err(error) => Err(error),
+                };
+                match callback_tx.try_send(event) {
+                    Ok(()) => {}
+                    Err(TrySendError::Full(_)) => {
+                        callback_overflowed.store(true, Ordering::Release);
+                    }
+                    Err(TrySendError::Disconnected(_)) => {}
                 }
-                Err(TrySendError::Disconnected(_)) => {}
             }) {
                 Ok(mut restarted) => {
                     let (unavailable, watch_failed) =
@@ -149,6 +160,7 @@ fn run_source_watcher(
         }
 
         if ingress_overflowed.swap(false, Ordering::AcqRel) {
+            tracing::warn!("GUI source watcher event queue overflowed; reconciling every source");
             state.mark_all_overflowed(now);
         }
 
@@ -156,10 +168,7 @@ fn run_source_watcher(
         while let Ok(event) = event_rx.try_recv() {
             let event: notify::Result<Event> = event;
             match event {
-                Ok(event) if event_triggers_source_refresh(&event) => {
-                    state.collect_event(&event, Instant::now());
-                }
-                Ok(_) => {}
+                Ok(event) => state.collect_event(&event, Instant::now()),
                 Err(error) => {
                     tracing::warn!("GUI source watcher error: {error}");
                     watcher_failed = true;
@@ -175,6 +184,13 @@ fn run_source_watcher(
         }
 
         for event in state.drain_ready_sources(now, SOURCE_CHANGE_DEBOUNCE) {
+            tracing::debug!(
+                source_id = %event.source_id,
+                overflowed = event.overflowed,
+                source_root_available = event.source_root_available,
+                paths = ?event.paths,
+                "Publishing debounced GUI source watcher event"
+            );
             let _ = message_tx.send(GuiMessage::SourceFilesystemChanged {
                 source_id: event.source_id,
                 paths: event.paths,

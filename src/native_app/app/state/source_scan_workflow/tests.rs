@@ -115,7 +115,7 @@ fn cancelled_scan_releases_ownership_and_requeues_the_source() {
 }
 
 #[test]
-fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
+fn cached_source_selection_does_not_queue_refresh_while_another_scan_is_active() {
     let first_root = temp_dir_with_wav();
     let second_root = temp_dir_with_wav();
     let mut browser = FolderBrowserState::load_default();
@@ -158,7 +158,7 @@ fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
     ));
     assert_eq!(browser.selected_source_id(), second_id);
     assert!(browser.selected_source_loaded());
-    assert!(workflow.pending_refresh_contains_for_tests(&second_id));
+    assert!(!workflow.pending_refresh_contains_for_tests(&second_id));
     let second_visible = browser
         .selected_audio_files()
         .into_iter()
@@ -191,7 +191,30 @@ fn cached_source_selection_defers_reconcile_while_another_scan_is_active() {
         workflow.finish_scan(&mut browser, active_result),
         SourceScanFinish::Applied { .. }
     ));
-    assert_eq!(workflow.next_pending_refresh_if_idle(), Some(second_id));
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
+}
+
+#[test]
+fn cached_source_selection_does_not_rescan_when_idle() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 37)
+        .expect("initial source scan");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    workflow.finish_scan(&mut browser, result);
+
+    assert!(matches!(
+        workflow.begin_select_source(&mut browser, source_id.clone(), 38),
+        SourceSelectionRequest::Settled
+    ));
+    assert_eq!(browser.selected_source_id(), source_id);
+    assert!(browser.selected_source_loaded());
+    assert!(!workflow.active());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
 }
 
 #[test]
@@ -423,7 +446,7 @@ fn deferred_selection_is_refreshed_before_newer_watcher_work() {
     let selected_source = String::from("selected-source");
     let watcher_source = String::from("watcher-source");
 
-    workflow.queue_pending_selection(selected_source.clone());
+    workflow.queue_selected_required_refresh(selected_source.clone());
     workflow.queue_required_refresh(watcher_source.clone());
 
     assert_eq!(
@@ -650,10 +673,9 @@ fn switching_away_parks_live_discoveries_from_an_active_scan() {
     let second_result = scan_source_with_progress(second_request, |_| {}, |_| {});
     workflow.finish_scan(&mut browser, second_result);
 
-    let active = workflow.begin_select_source(&mut browser, first_id.clone(), 132);
-    let SourceSelectionRequest::Queued(active) = active else {
-        panic!("first source rescan should queue");
-    };
+    let active = workflow
+        .begin_source_scan(&mut browser, first_id.clone(), 132)
+        .expect("first source rescan");
     workflow.start_scan(&active);
     let mut batches = Vec::new();
     let _result = scan_source_with_progress(active, |_| {}, |batch| batches.push(batch));

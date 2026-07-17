@@ -28,10 +28,10 @@ pub(super) fn worker_progress_bar_from_projection(
                 .width(WORKER_PROGRESS_TRACK_WIDTH)
                 .height(WORKER_PROGRESS_HEIGHT)
         }
-        WorkerProgressBarContentProjection::SourceCache {
+        WorkerProgressBarContentProjection::Layered {
             overall,
             current_fraction,
-        } => source_cache_worker_progress(overall, current_fraction, projection.progress_tick),
+        } => layered_worker_progress(overall, current_fraction, projection.progress_tick),
     }
 }
 
@@ -46,7 +46,7 @@ pub(super) fn worker_progress_bar(
     ))
 }
 
-fn source_cache_worker_progress(
+fn layered_worker_progress(
     overall: ui::ProgressSnapshot,
     current_fraction: Option<f32>,
     progress_tick: f32,
@@ -56,7 +56,7 @@ fn source_cache_worker_progress(
             .key(identity::WORKER_PROGRESS_OVERALL_KEY)
             .width(WORKER_PROGRESS_TRACK_WIDTH)
             .height(OVERALL_PROGRESS_HEIGHT),
-        active_cache_progress_bar(current_fraction, progress_tick)
+        active_worker_activity_bar(current_fraction, progress_tick)
             .key(identity::WORKER_PROGRESS_ACTIVE_KEY)
             .width(WORKER_PROGRESS_TRACK_WIDTH)
             .height(ACTIVE_PROGRESS_HEIGHT),
@@ -81,7 +81,7 @@ fn overall_progress_bar(
         .message(GuiMessage::ToggleJobDetails)
 }
 
-fn active_cache_progress_bar(
+fn active_worker_activity_bar(
     current_fraction: Option<f32>,
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {

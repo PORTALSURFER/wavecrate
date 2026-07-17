@@ -33,12 +33,13 @@ pub fn sync_paths_with_progress(
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
 ) -> Result<ScanStats, ScanError> {
-    let manifest_before = super::manifest::capture_manifest(db)?;
+    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
     let targets = collect_targets(db, &root, paths, cancel)?;
     let mut context = ScanContext::from_existing(
         targets.existing,
         ScanMode::Targeted,
+        manifest_revision,
         manifest_before.clone(),
     );
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);

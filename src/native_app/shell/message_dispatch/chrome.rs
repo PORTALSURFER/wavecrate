@@ -1,6 +1,7 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app_chrome::view_models::status_bar::StatusBarViewModel;
 use crate::native_app::waveform::{SimilarSectionsResult, execute_similar_sections_scan};
 
 impl NativeAppState {
@@ -11,8 +12,10 @@ impl NativeAppState {
     ) {
         match message {
             GuiMessage::ToggleJobDetails => {
-                self.ui.chrome.job_details_open =
-                    self.library.folder_scan_active() && !self.ui.chrome.job_details_open;
+                let job_active = StatusBarViewModel::from_app_state(self)
+                    .job_details
+                    .is_some();
+                self.ui.chrome.job_details_open = job_active && !self.ui.chrome.job_details_open;
             }
             GuiMessage::CloseJobDetails => {
                 self.ui.chrome.job_details_open = false;

@@ -50,7 +50,11 @@ impl SourceWriteBatch<'_> {
         let changes = self
             .manifest_touched_paths
             .iter()
-            .map(|path| Ok((path.clone(), manifest_entry_for_path(&self.tx, path)?)))
+            .map(|path| {
+                let normalized = PathBuf::from(normalize_relative_path(path)?);
+                let entry = manifest_entry_for_path(&self.tx, &normalized)?;
+                Ok((normalized, entry))
+            })
             .collect::<Result<Vec<_>, SourceDbError>>()?;
         self.tx.commit().map_err(map_sql_error)?;
         crate::sqlite_wal::maybe_checkpoint_database_file(
@@ -242,5 +246,29 @@ mod tests {
             )
         );
         assert_eq!(changes[1], (PathBuf::from("removed.wav"), None));
+    }
+
+    #[test]
+    fn commit_manifest_changes_normalizes_windows_separator_paths() {
+        let directory = tempfile::tempdir().expect("source root");
+        let database = SourceDatabase::open(directory.path()).expect("source database");
+        let mut batch = database.write_batch().expect("manifest batch");
+        batch
+            .upsert_file_with_hash(Path::new(r"nested\kick.wav"), 7, 30, "kick-hash")
+            .expect("insert nested file");
+
+        let (_revision, changes) = batch
+            .commit_with_manifest_changes()
+            .expect("commit manifest changes");
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].0, Path::new("nested/kick.wav"));
+        assert_eq!(
+            changes[0]
+                .1
+                .as_ref()
+                .map(|entry| entry.relative_path.as_path()),
+            Some(Path::new("nested/kick.wav"))
+        );
     }
 }

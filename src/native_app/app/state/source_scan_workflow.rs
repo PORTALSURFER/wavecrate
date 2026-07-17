@@ -142,12 +142,22 @@ impl SourceScanWorkflow {
                 self.remove_pending_refresh(&id);
                 return SourceSelectionRequest::Settled;
             }
-            self.queue_pending_selection(id);
-            return if browser.selected_source_loaded() {
-                SourceSelectionRequest::Settled
-            } else {
-                SourceSelectionRequest::Deferred
-            };
+            if browser.selected_source_loaded() {
+                // The cached tree is already authoritative enough to satisfy
+                // this selection. Do not turn a click made during another
+                // source's scan into a later full refresh.
+                self.clear_pending_selection(&id);
+                return SourceSelectionRequest::Settled;
+            }
+            self.queue_selected_required_refresh(id);
+            return SourceSelectionRequest::Deferred;
+        }
+        if !browser.select_source_without_scan(id.clone()) {
+            return SourceSelectionRequest::Settled;
+        }
+        if browser.source_is_missing(&id) || browser.selected_source_loaded() {
+            self.clear_pending_selection(&id);
+            return SourceSelectionRequest::Settled;
         }
         browser
             .begin_select_source(id, task_id)
@@ -264,10 +274,6 @@ impl SourceScanWorkflow {
         }
         self.queue_required_refresh(source_id.clone());
         SourceRefreshRequest::Deferred { source_id }
-    }
-
-    fn queue_pending_selection(&mut self, source_id: String) {
-        self.queue_pending_refresh(source_id, true, false);
     }
 
     fn queue_required_refresh(&mut self, source_id: String) {

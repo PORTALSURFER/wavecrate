@@ -76,6 +76,8 @@ impl NativeAppState {
             | GuiMessage::SimilarityPrepStatusResolved(_)
             | GuiMessage::SimilarityPrepEnqueueFinished(_)
             | GuiMessage::SimilarityScoresResolved(_)
+            | GuiMessage::SimilarityReadinessAdvanced { .. }
+            | GuiMessage::SourceProcessingProgress(_)
             | GuiMessage::FolderScanProgress(_)
             | GuiMessage::FolderScanDiscoveryBatch(_)
             | GuiMessage::FolderScanFinished(_)
@@ -324,6 +326,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::SourceFilesystemChanged { .. } => "SourceFilesystemChanged",
         GuiMessage::SourceFilesystemSyncFinished(_) => "SourceFilesystemSyncFinished",
         GuiMessage::SourceManifestAuditCommitted { .. } => "SourceManifestAuditCommitted",
+        GuiMessage::SourceProcessingProgress(_) => "SourceProcessingProgress",
         GuiMessage::NormalizationProgress(_) => "NormalizationProgress",
         GuiMessage::NormalizationFinished(_) => "NormalizationFinished",
         GuiMessage::Waveform(_) => "Waveform",

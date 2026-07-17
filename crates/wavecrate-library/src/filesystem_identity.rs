@@ -12,6 +12,47 @@ pub fn stable_filesystem_identity(path: &Path, metadata: &fs::Metadata) -> Optio
     stable_filesystem_identity_impl(path, metadata)
 }
 
+/// Return whether two persisted identities describe the same filesystem object.
+///
+/// Version 2 added creation time so reused inode/file-index values no longer alias a
+/// replacement. During migration, a legacy identity can still be matched to its v2 form
+/// by the platform object fields that were available in v1.
+pub fn same_filesystem_object_identity(previous: &str, current: &str) -> bool {
+    if previous == current {
+        return true;
+    }
+    legacy_identity_parts(previous)
+        .zip(version_2_identity_parts(current))
+        .is_some_and(|(previous, current)| previous == current)
+        || version_2_identity_parts(previous)
+            .zip(legacy_identity_parts(current))
+            .is_some_and(|(previous, current)| previous == current)
+}
+
+fn legacy_identity_parts(identity: &str) -> Option<(&str, &str, &str)> {
+    let mut parts = identity.split(':');
+    let platform = parts.next()?;
+    if !matches!(platform, "unix" | "windows") {
+        return None;
+    }
+    let first = parts.next()?;
+    let second = parts.next()?;
+    parts.next().is_none().then_some((platform, first, second))
+}
+
+fn version_2_identity_parts(identity: &str) -> Option<(&str, &str, &str)> {
+    let mut parts = identity.split(':');
+    let platform = match parts.next()? {
+        "unix-v2" => "unix",
+        "windows-v2" => "windows",
+        _ => return None,
+    };
+    let first = parts.next()?;
+    let second = parts.next()?;
+    let _creation_time = parts.next()?;
+    parts.next().is_none().then_some((platform, first, second))
+}
+
 #[cfg(unix)]
 fn stable_filesystem_identity_impl(_path: &Path, metadata: &fs::Metadata) -> Option<String> {
     use std::os::unix::fs::MetadataExt;
@@ -105,5 +146,25 @@ mod tests {
             stable_filesystem_identity(&renamed, &renamed_metadata).expect("read renamed identity");
 
         assert_eq!(original_identity, renamed_identity);
+    }
+
+    #[test]
+    fn legacy_identity_matches_its_version_2_upgrade_only() {
+        assert!(same_filesystem_object_identity(
+            "unix:10:20",
+            "unix-v2:10:20:30"
+        ));
+        assert!(same_filesystem_object_identity(
+            "windows-v2:10:20:30",
+            "windows:10:20"
+        ));
+        assert!(!same_filesystem_object_identity(
+            "unix-v2:10:20:30",
+            "unix-v2:10:20:31"
+        ));
+        assert!(!same_filesystem_object_identity(
+            "unix:10:20",
+            "windows-v2:10:20:30"
+        ));
     }
 }

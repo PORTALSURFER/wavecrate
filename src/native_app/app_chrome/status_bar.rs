@@ -2,10 +2,15 @@ mod identity;
 mod progress_bar;
 mod projection;
 
+#[cfg(test)]
+use self::projection::job_details_popover_projection;
 use self::projection::{
-    JobDetailsPopoverProjection, bottom_status_bar_projection, job_details_popover_projection,
+    JobDetailsPopoverProjection, bottom_status_bar_projection,
+    job_details_popover_projection_from_model,
 };
-use crate::native_app::app::{FolderScanProgress, GuiMessage, NativeAppState};
+#[cfg(test)]
+use crate::native_app::app::FolderScanProgress;
+use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::modals;
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel;
@@ -69,10 +74,13 @@ fn status_bar_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {
 }
 
 fn job_details_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessage>> {
-    if state.ui.chrome.job_details_open
-        && let Some(progress) = state.library.folder_progress()
-    {
-        return Some(job_details_popover(progress));
+    if state.ui.chrome.job_details_open {
+        let model = StatusBarViewModel::from_app_state(state);
+        if let Some(details) = model.job_details {
+            return Some(job_details_popover_from_projection(
+                job_details_popover_projection_from_model(details),
+            ));
+        }
     }
 
     None
@@ -86,6 +94,7 @@ fn transaction_list_overlay(state: &NativeAppState) -> Option<ui::View<GuiMessag
         .then(|| modals::transaction_list(state))
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn job_details_popover(
     progress: &FolderScanProgress,
 ) -> ui::View<GuiMessage> {
@@ -132,6 +141,7 @@ mod tests {
             status_text: String::from("Source missing | Ready"),
             status_severity: StatusSeverity::Warning,
             worker_progress: None,
+            job_details: None,
             progress_tick: 0.0,
         })
         .view_frame_at_size_with_default_theme(ui::Vector2::new(520.0, STATUS_BAR_HEIGHT));

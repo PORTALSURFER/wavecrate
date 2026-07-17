@@ -1,4 +1,4 @@
-use super::classification::path_is_source_refresh_candidate;
+use super::classification::{path_is_source_refresh_candidate, retain_source_refresh_candidates};
 use super::handle::doubled_backoff;
 use super::roots::RootWatchUpdate;
 use super::state::GuiSourceWatchState;
@@ -40,6 +40,32 @@ fn wavecrate_metadata_files_do_not_trigger_source_refresh() {
 }
 
 #[test]
+fn metadata_event_storm_is_filtered_before_the_bounded_watcher_queue() {
+    let root = PathBuf::from(r"C:\samples");
+    let mut event = Event {
+        kind: EventKind::Modify(notify::event::ModifyKind::Data(
+            notify::event::DataChange::Any,
+        )),
+        paths: vec![
+            root.join(wavecrate::sample_sources::db::DB_FILE_NAME),
+            root.join(format!(
+                "{}-wal",
+                wavecrate::sample_sources::db::DB_FILE_NAME
+            )),
+            root.join("kick.wav"),
+        ],
+        attrs: Default::default(),
+    };
+
+    assert!(retain_source_refresh_candidates(&mut event));
+    assert_eq!(event.paths, vec![root.join("kick.wav")]);
+
+    event.paths = vec![root.join(wavecrate::sample_sources::db::DB_FILE_NAME)];
+    assert!(!retain_source_refresh_candidates(&mut event));
+    assert!(event.paths.is_empty());
+}
+
+#[test]
 fn apple_double_sidecars_do_not_trigger_source_refresh() {
     let root = PathBuf::from(r"C:\samples");
     assert!(!path_is_source_refresh_candidate(
@@ -51,6 +77,30 @@ fn apple_double_sidecars_do_not_trigger_source_refresh() {
     assert!(!path_is_source_refresh_candidate(
         &root.join("drums").join("._snare.wav"),
         EventKind::Create(notify::event::CreateKind::File),
+    ));
+}
+
+#[test]
+fn transient_ann_persistence_artifacts_do_not_trigger_source_refresh() {
+    let root = PathBuf::from(r"C:\samples");
+    for path in [
+        root.join("ann_containerMqsFy3"),
+        root.join("ann_dumpJgi2JJ"),
+        root.join("ann_dumpJgi2JJ").join("ann_dump.hnsw.data"),
+        root.join("ann_dumpJgi2JJ").join("ann_dump.hnsw.graph"),
+    ] {
+        assert!(!path_is_source_refresh_candidate(
+            &path,
+            EventKind::Create(notify::event::CreateKind::Any),
+        ));
+    }
+    assert!(path_is_source_refresh_candidate(
+        &root.join("ann_dump.wav"),
+        EventKind::Create(notify::event::CreateKind::File),
+    ));
+    assert!(path_is_source_refresh_candidate(
+        &root.join("ann_dump_samples"),
+        EventKind::Create(notify::event::CreateKind::Folder),
     ));
 }
 

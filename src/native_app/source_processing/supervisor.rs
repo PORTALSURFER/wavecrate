@@ -31,7 +31,7 @@ use wavecrate::sample_sources::{
 use super::scheduler::{
     BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
 };
-use crate::native_app::app::GuiMessage;
+use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
 use crate::native_app::sample_library::similarity_prep::{
     NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
     reset_interrupted_similarity_prep_jobs, similarity_prep_needs_finalization,
@@ -965,6 +965,8 @@ struct SourceDiscoveryStats {
     readiness_queue_depth: usize,
     retries_due: usize,
     earliest_retry_at: Option<i64>,
+    progress_completed: usize,
+    progress_total: usize,
 }
 
 enum Cancellable<T> {
@@ -996,6 +998,7 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut reset_sources = BTreeMap::<String, bool>::new();
     let mut candidates = Vec::<RuntimeCandidate>::new();
     let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
+    let mut active_progress_source = None::<String>;
     loop {
         let (sources, dirty_sources, source_work_cancels, processing_paused, generation, reason) = {
             let mut control = shared.control();
@@ -1135,6 +1138,12 @@ fn run_coordinator(shared: Arc<Shared>) {
         candidates.append(&mut discovered);
         source_stats.extend(discovered_source_stats);
         let discovered_stats = aggregate_source_stats(source_stats.values().copied());
+        if candidates.is_empty()
+            && discovered_stats.progress_completed >= discovered_stats.progress_total
+        {
+            publish_source_processing_finished(&shared);
+            active_progress_source = None;
+        }
         next_retry_at = discovered_stats.earliest_retry_at;
         {
             let mut telemetry = shared.telemetry();
@@ -1173,6 +1182,17 @@ fn run_coordinator(shared: Arc<Shared>) {
             };
             let index = eligible_indices[schedule_index];
             let candidate = candidates.swap_remove(index);
+            if (active_progress_source.as_deref() != Some(candidate.source.id.as_str())
+                || !matches!(&candidate.task, RuntimeTask::Readiness(_)))
+                && source_stats.contains_key(candidate.source.id.as_str())
+            {
+                publish_source_processing_progress(
+                    &shared,
+                    &candidate,
+                    aggregate_source_stats(source_stats.values().copied()),
+                );
+                active_progress_source = Some(candidate.source.id.as_str().to_string());
+            }
             let Some(permit) = shared
                 .budgets()
                 .try_acquire(&candidate.schedule.source_id, candidate.schedule.lane)
@@ -1208,12 +1228,29 @@ fn run_coordinator(shared: Arc<Shared>) {
             match result {
                 Ok(outcome) => {
                     execution_outcome = Some(outcome);
+                    if outcome == ExecutionOutcome::Completed
+                        && let RuntimeTask::Readiness(target) = &candidate.task
+                        && target.stage == ReadinessStage::EmbeddingAspects
+                        && let Some(worker_sender) = shared.worker_sender.as_ref()
+                    {
+                        let _ = worker_sender.send(GuiMessage::SimilarityReadinessAdvanced {
+                            source_id: target.source_id.clone(),
+                        });
+                    }
                     if outcome.was_claimed() {
                         telemetry.claimed = telemetry.claimed.saturating_add(1);
                     }
                     match outcome {
                         ExecutionOutcome::Completed => {
-                            telemetry.completed = telemetry.completed.saturating_add(1)
+                            telemetry.completed = telemetry.completed.saturating_add(1);
+                            if matches!(&candidate.task, RuntimeTask::Readiness(_))
+                                && let Some(progress) = advance_source_progress(
+                                    &mut source_stats,
+                                    candidate.source.id.as_str(),
+                                )
+                            {
+                                publish_source_processing_progress(&shared, &candidate, progress);
+                            }
                         }
                         ExecutionOutcome::Retried { retry_at } => {
                             telemetry.retried = telemetry.retried.saturating_add(1);
@@ -1226,7 +1263,15 @@ fn run_coordinator(shared: Arc<Shared>) {
                             next_retry_at = aggregate.earliest_retry_at;
                         }
                         ExecutionOutcome::Failed => {
-                            telemetry.failed = telemetry.failed.saturating_add(1)
+                            telemetry.failed = telemetry.failed.saturating_add(1);
+                            if matches!(&candidate.task, RuntimeTask::Readiness(_))
+                                && let Some(progress) = advance_source_progress(
+                                    &mut source_stats,
+                                    candidate.source.id.as_str(),
+                                )
+                            {
+                                publish_source_processing_progress(&shared, &candidate, progress);
+                            }
                         }
                         ExecutionOutcome::Stale => {
                             telemetry.stale = telemetry.stale.saturating_add(1)
@@ -1320,6 +1365,115 @@ fn run_coordinator(shared: Arc<Shared>) {
     }
 }
 
+fn publish_source_processing_progress(
+    shared: &Shared,
+    candidate: &RuntimeCandidate,
+    stats: SourceDiscoveryStats,
+) {
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return;
+    };
+    let (stage, detail, completed, total) = match &candidate.task {
+        RuntimeTask::Readiness(target) => {
+            let (stage, detail) = readiness_progress_detail(target);
+            (
+                stage,
+                detail,
+                stats.progress_completed,
+                stats.progress_total,
+            )
+        }
+        RuntimeTask::ManifestAudit => (
+            "Scanning source changes",
+            String::from("Checking the source manifest"),
+            0,
+            0,
+        ),
+        RuntimeTask::LegacyAnalysis { .. } => (
+            "Migrating analysis",
+            String::from("Preparing legacy source data"),
+            0,
+            0,
+        ),
+        RuntimeTask::FinalizeSimilarity { .. } => (
+            "Finalizing similarity",
+            String::from("Publishing the source layout"),
+            0,
+            0,
+        ),
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: candidate.source.id.as_str().to_string(),
+            active: total == 0 || completed < total,
+            completed,
+            total,
+            stage: stage.to_string(),
+            detail,
+        },
+    ));
+}
+
+fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return;
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: source.id.as_str().to_string(),
+            active: true,
+            completed: 0,
+            total: 0,
+            stage: String::from("Inspecting source jobs"),
+            detail: String::from("Discovering background work"),
+        },
+    ));
+}
+
+fn publish_source_processing_finished(shared: &Shared) {
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return;
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: String::new(),
+            active: false,
+            completed: 0,
+            total: 0,
+            stage: String::new(),
+            detail: String::new(),
+        },
+    ));
+}
+
+fn advance_source_progress(
+    source_stats: &mut BTreeMap<String, SourceDiscoveryStats>,
+    source_id: &str,
+) -> Option<SourceDiscoveryStats> {
+    let stats = source_stats.get_mut(source_id)?;
+    stats.progress_completed = stats
+        .progress_completed
+        .saturating_add(1)
+        .min(stats.progress_total);
+    Some(aggregate_source_stats(source_stats.values().copied()))
+}
+
+fn readiness_progress_detail(target: &ReadinessTarget) -> (&'static str, String) {
+    let stage = match target.stage {
+        ReadinessStage::IndexedIdentity => "Indexing files",
+        ReadinessStage::PlaybackSummary => "Preparing playback",
+        ReadinessStage::AnalysisFeatures => "Analyzing audio",
+        ReadinessStage::EmbeddingAspects => "Preparing similarity",
+        ReadinessStage::SimilarityLayout => "Building similarity layout",
+    };
+    let detail = target
+        .relative_path
+        .as_deref()
+        .unwrap_or("Finalizing source")
+        .to_string();
+    (stage, detail)
+}
+
 fn scheduler_candidate_indices(
     candidates: &[RuntimeCandidate],
     external_scan_admitted: bool,
@@ -1367,6 +1521,7 @@ fn discover_candidates(
             let mut telemetry = shared.telemetry();
             telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
         }
+        publish_source_processing_discovery(shared, source);
         match discover_source_candidates(source, now, source_cancel) {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 candidates.append(&mut source_candidates);
@@ -1456,7 +1611,20 @@ fn discover_source_candidates_with_connection(
         .map_err(|error| error.to_string())?
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or_default();
-    if now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS {
+    let manifest_identity_repair_due: bool = connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM wav_files
+                WHERE missing = 0
+                  AND (file_identity IS NULL OR TRIM(file_identity) = '')
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if manifest_identity_repair_due
+        || now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS
+    {
         candidates.push(RuntimeCandidate {
             schedule: WorkCandidate::source(source_id, ProcessingLane::Scan, 0, now),
             source: source.clone(),
@@ -1502,6 +1670,12 @@ fn discover_source_candidates_with_connection(
         }));
         let work_stats =
             readiness_work_stats(&connection, now).map_err(|error| error.to_string())?;
+        stats.progress_total = work_stats.total;
+        stats.progress_completed = work_stats
+            .completed
+            .saturating_add(work_stats.permanent_failures)
+            .saturating_add(work_stats.unsupported)
+            .min(stats.progress_total);
         stats.retries_due = work_stats.retries_due;
         stats.earliest_retry_at = work_stats.earliest_retry_at;
         tracing::debug!(
@@ -1984,9 +2158,21 @@ fn execute_candidate(
                 source_id = candidate.source.id.as_str(),
                 revision = outcome.committed_delta.revision,
                 created = outcome.committed_delta.created.len(),
+                created_paths = ?outcome
+                    .committed_delta
+                    .created
+                    .iter()
+                    .map(|identity| identity.relative_path.as_path())
+                    .collect::<Vec<_>>(),
                 changed = outcome.committed_delta.changed.len(),
                 moved = outcome.committed_delta.moved.len(),
                 deleted = outcome.committed_delta.deleted.len(),
+                deleted_paths = ?outcome
+                    .committed_delta
+                    .deleted
+                    .iter()
+                    .map(|identity| identity.relative_path.as_path())
+                    .collect::<Vec<_>>(),
                 "Periodic source manifest audit committed"
             );
             if !outcome.committed_delta.is_empty()
@@ -2593,6 +2779,12 @@ fn aggregate_source_stats(
             aggregate.retries_due = aggregate.retries_due.saturating_add(source.retries_due);
             aggregate.earliest_retry_at =
                 earliest_deadline(aggregate.earliest_retry_at, source.earliest_retry_at);
+            aggregate.progress_completed = aggregate
+                .progress_completed
+                .saturating_add(source.progress_completed);
+            aggregate.progress_total = aggregate
+                .progress_total
+                .saturating_add(source.progress_total);
             aggregate
         })
 }
@@ -3499,6 +3691,35 @@ mod tests {
     }
 
     #[test]
+    fn missing_manifest_identity_schedules_self_healing_audit_even_when_recent() {
+        let (_directory, source) = unhashed_source("manifest-identity-repair");
+        let db = source
+            .open_db()
+            .expect("open manifest identity repair source");
+        let mut batch = db.write_batch().expect("open missing identity batch");
+        batch
+            .set_file_identity(Path::new("pending.wav"), None)
+            .expect("clear manifest identity");
+        batch.commit().expect("commit missing manifest identity");
+        db.set_metadata(META_LAST_MANIFEST_AUDIT_AT, "100")
+            .expect("record recent audit");
+        let cancel = AtomicBool::new(false);
+
+        let Cancellable::Completed((candidates, _)) =
+            discover_source_candidates(&source, 100, &cancel)
+                .expect("discover manifest identity repair")
+        else {
+            panic!("manifest identity repair discovery unexpectedly cancelled");
+        };
+
+        assert!(
+            candidates
+                .iter()
+                .any(|candidate| matches!(candidate.task, RuntimeTask::ManifestAudit))
+        );
+    }
+
+    #[test]
     fn missing_source_discovery_updates_external_metadata_without_recreating_audio_root() {
         let parent = tempfile::tempdir().expect("missing source parent");
         let root = parent.path().join("source");
@@ -3582,6 +3803,54 @@ mod tests {
             !root.exists(),
             "executing stale scheduled work must not recreate the source"
         );
+    }
+
+    #[test]
+    fn readiness_progress_publishes_determinate_source_job_feedback() {
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("progress-source"),
+            directory.path().to_path_buf(),
+        );
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "identity-1",
+            "drums/kick.wav",
+            ReadinessStage::EmbeddingAspects,
+            "embedding-v1",
+            1,
+            "content-1",
+        );
+        let candidate = RuntimeCandidate {
+            schedule: WorkCandidate::readiness(&target, 1),
+            source: source.clone(),
+            task: RuntimeTask::Readiness(target),
+        };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Shared::new(vec![source], Some(sender));
+
+        publish_source_processing_progress(
+            &shared,
+            &candidate,
+            SourceDiscoveryStats {
+                progress_completed: 313,
+                progress_total: 9_985,
+                ..SourceDiscoveryStats::default()
+            },
+        );
+
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("progress message");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert_eq!(progress.source_id, "progress-source");
+        assert!(progress.active);
+        assert_eq!(progress.completed, 313);
+        assert_eq!(progress.total, 9_985);
+        assert_eq!(progress.stage, "Preparing similarity");
+        assert_eq!(progress.detail, "drums/kick.wav");
     }
 
     #[test]

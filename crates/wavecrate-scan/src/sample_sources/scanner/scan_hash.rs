@@ -78,6 +78,14 @@ pub(super) fn verify_content_batch(
             {
                 continue;
             }
+            if previous.file_identity != facts.file_identity {
+                tracing::debug!(
+                    path = %previous.relative_path.display(),
+                    previous_identity = ?previous.file_identity,
+                    current_identity = ?facts.file_identity,
+                    "Source content audit refreshed filesystem identity"
+                );
+            }
             batch.upsert_file_with_hash(
                 &previous.relative_path,
                 facts.size,

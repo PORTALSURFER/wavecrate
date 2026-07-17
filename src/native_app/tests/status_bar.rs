@@ -74,6 +74,7 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
 #[test]
 fn bottom_status_bar_reports_normalization_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.background.normalization_progress = Some(
         crate::native_app::test_support::state::NormalizationProgress {
             task_id: 9,
@@ -89,16 +90,14 @@ fn bottom_status_bar_reports_normalization_progress() {
     let frame = crate::native_app::test_support::status_bar::bottom_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
-    assert!(
-        frame
-            .paint_plan
-            .contains_text("Normalizing 2 samples | 1/2 | snare.wav")
-    );
+    assert!(frame.paint_plan.contains_text("Ready"));
+    assert!(!frame.paint_plan.contains_text("Normalizing 2 samples"));
 }
 
 #[test]
 fn bottom_status_bar_reports_queued_normalization_tasks() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.background.normalization_progress = Some(
         crate::native_app::test_support::state::NormalizationProgress {
             task_id: 9,
@@ -114,10 +113,11 @@ fn bottom_status_bar_reports_queued_normalization_tasks() {
     let frame = crate::native_app::test_support::status_bar::bottom_status_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
-    assert!(
-        frame
-            .paint_plan
-            .contains_text("Normalizing 1 sample | 0/1 | kick.wav | 2 queued")
+    assert!(frame.paint_plan.contains_text("Ready"));
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+    assert_eq!(
+        model.job_details.expect("normalization details")[3],
+        "Current: kick.wav | 2 queued"
     );
 }
 
@@ -181,6 +181,25 @@ fn source_cache_warm_advances_activity_tick_on_frame() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
     state.waveform.cache.active_folder_warm_total = 10;
+
+    state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(state.background.progress_tick, 0.035);
+}
+
+#[test]
+fn source_processing_advances_activity_tick_on_frame() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: true,
+            completed: 3,
+            total: 10,
+            stage: String::from("Analyzing audio"),
+            detail: String::from("kick.wav"),
+        },
+    );
 
     state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
 
@@ -259,7 +278,7 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
     assert_eq!(model.selected_sample_count, 0);
-    assert_eq!(model.status_text, "Scanning Assets | 2/5 | kick.wav");
+    assert_eq!(model.status_text, "Ready");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
@@ -272,8 +291,61 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
 }
 
 #[test]
+fn status_bar_routes_source_processing_through_worker_progress_and_job_details() {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    let source_label = state
+        .library
+        .folder_browser
+        .source_label(source_id.as_str())
+        .expect("selected source label")
+        .to_string();
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id,
+            active: true,
+            completed: 313,
+            total: 9_985,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("017/bounce/kick.wav"),
+        },
+    );
+
+    let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
+
+    assert_eq!(
+        model.worker_progress.expect("worker progress"),
+        crate::native_app::test_support::status_bar::WorkerProgressProjection {
+            completed: 313,
+            total: 9_985,
+            current_fraction: None,
+            active_animation: true,
+        }
+    );
+    assert_eq!(
+        model.job_details.expect("job details"),
+        [
+            String::from("Type: Source processing"),
+            format!("Source: {source_label}"),
+            String::from("Progress: 313/9985"),
+            String::from("Current: Preparing similarity | 017/bounce/kick.wav"),
+        ]
+    );
+}
+
+#[test]
 fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.background.normalization_progress = Some(
         crate::native_app::test_support::state::NormalizationProgress {
             task_id: 9,
@@ -289,10 +361,7 @@ fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
 
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
-    assert_eq!(
-        model.status_text,
-        "Normalizing 1 sample | 0/1 | kick.wav | Writing"
-    );
+    assert_eq!(model.status_text, "Ready");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
@@ -307,6 +376,7 @@ fn status_bar_view_model_uses_normalization_work_progress_for_worker_bar() {
 #[test]
 fn status_bar_view_model_reports_file_move_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.background.file_move_progress =
         Some(crate::native_app::test_support::state::FileMoveProgress {
             task_id: 11,
@@ -318,10 +388,7 @@ fn status_bar_view_model_reports_file_move_progress() {
 
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
-    assert_eq!(
-        model.status_text,
-        "Moving 3 files | 2/4 | Updating metadata"
-    );
+    assert_eq!(model.status_text, "Ready");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
@@ -336,6 +403,7 @@ fn status_bar_view_model_reports_file_move_progress() {
 #[test]
 fn status_bar_view_model_reports_source_cache_warm_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
     state.waveform.cache.active_folder_warm_completed = 3;
     state.waveform.cache.active_folder_warm_total = 10;
@@ -343,10 +411,7 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
 
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
-    assert_eq!(
-        model.status_text,
-        "Caching source samples | 3/10 | kick-01.wav"
-    );
+    assert_eq!(model.status_text, "Ready");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
@@ -361,6 +426,7 @@ fn status_bar_view_model_reports_source_cache_warm_progress() {
 #[test]
 fn status_bar_view_model_reports_source_cache_plan_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.waveform.cache.active_folder_warm_plan_task.begin();
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
     state.waveform.cache.active_folder_warm_completed = 42;
@@ -372,10 +438,7 @@ fn status_bar_view_model_reports_source_cache_plan_progress() {
 
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
-    assert_eq!(
-        model.status_text,
-        "Checking source samples | 42/100 | 42% | plan-target.wav"
-    );
+    assert_eq!(model.status_text, "Ready");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
@@ -388,7 +451,7 @@ fn status_bar_view_model_reports_source_cache_plan_progress() {
 }
 
 #[test]
-fn status_bar_view_model_restores_source_cache_progress_after_playback_status() {
+fn status_bar_view_model_preserves_playback_status_while_source_cache_progress_runs() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.status.sample = String::from("Playing kick.wav");
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
@@ -401,15 +464,10 @@ fn status_bar_view_model_restores_source_cache_progress_after_playback_status() 
 
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
+    assert_eq!(model.status_text, "Playing kick.wav");
     assert!(
-        model.status_text.contains("Caching source samples | 3/10"),
-        "worker status should reclaim the status bar after transient playback text: {}",
-        model.status_text
-    );
-    assert!(
-        model.status_text.contains("decoding 51%"),
-        "worker status should keep per-file progress visible: {}",
-        model.status_text
+        model.job_details.expect("cache details")[3].contains("decoding 51%"),
+        "job details should retain per-file cache progress"
     );
     assert_eq!(
         model.worker_progress.expect("worker progress"),
@@ -425,6 +483,7 @@ fn status_bar_view_model_restores_source_cache_progress_after_playback_status() 
 #[test]
 fn status_bar_view_model_keeps_normalization_priority_over_source_cache_warm() {
     let mut state = NativeAppState::load_default().expect("default state loads");
+    state.ui.status.sample = String::from("Ready");
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
     state.waveform.cache.active_folder_warm_completed = 3;
     state.waveform.cache.active_folder_warm_total = 10;
@@ -443,10 +502,7 @@ fn status_bar_view_model_keeps_normalization_priority_over_source_cache_warm() {
 
     let model = crate::native_app::test_support::status_bar::status_bar_projection(&state);
 
-    assert_eq!(
-        model.status_text,
-        "Normalizing 1 sample | 0/1 | kick.wav | Writing"
-    );
+    assert_eq!(model.status_text, "Ready");
     assert_eq!(
         model.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {

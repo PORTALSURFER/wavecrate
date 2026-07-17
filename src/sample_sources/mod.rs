@@ -59,6 +59,7 @@ pub mod library {
         harvest_parents_for_child, load, lookup_source_id_for_root, mark_harvest_seen,
         mark_harvest_touched, open_connection, record_harvest_derivation, remap_harvest_file_key,
         remap_harvest_file_prefix, save, set_harvest_state, upsert_harvest_file,
+        upsert_harvest_files,
     };
 }
 

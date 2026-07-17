@@ -21,7 +21,7 @@ impl AppController {
         else {
             return;
         };
-        self.request_scan_for_source(&source, mode, ScanKind::Auto);
+        self.request_scan_for_source(&source, incomplete_retry_mode(mode), ScanKind::Auto);
     }
 
     /// Trigger a quick sync (incremental scan) of the selected source.
@@ -97,12 +97,26 @@ impl AppController {
     }
 }
 
+fn incomplete_retry_mode(mode: ScanMode) -> ScanMode {
+    match mode {
+        ScanMode::Targeted => ScanMode::Quick,
+        mode => mode,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::controller::jobs::JobMessage;
     use crate::app::controller::test_support::dummy_controller;
     use std::path::PathBuf;
+
+    #[test]
+    fn incomplete_targeted_retry_promotes_to_authoritative_quick_scan() {
+        assert_eq!(incomplete_retry_mode(ScanMode::Targeted), ScanMode::Quick);
+        assert_eq!(incomplete_retry_mode(ScanMode::Quick), ScanMode::Quick);
+        assert_eq!(incomplete_retry_mode(ScanMode::Hard), ScanMode::Hard);
+    }
 
     #[test]
     fn auto_sync_due_respects_interval() {

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use wavecrate_library::filesystem_identity::same_filesystem_object_identity;
 use wavecrate_library::sample_sources::{SourceDatabase, SourceManifestEntry};
 
 use super::scan::{
@@ -10,6 +11,14 @@ pub(super) fn capture_manifest(
     database: &SourceDatabase,
 ) -> Result<Vec<SourceManifestEntry>, ScanError> {
     database.list_manifest_entries().map_err(ScanError::from)
+}
+
+pub(super) fn capture_manifest_with_revision(
+    database: &SourceDatabase,
+) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
+    database
+        .manifest_snapshot_with_revision()
+        .map_err(ScanError::from)
 }
 
 pub(super) fn publish_committed_delta(
@@ -41,6 +50,13 @@ pub(super) fn build_committed_delta(
         &mut matches,
     );
     match_same_path_and_identity(
+        before,
+        after,
+        &mut matched_before,
+        &mut matched_after,
+        &mut matches,
+    );
+    match_same_path_with_missing_identity(
         before,
         after,
         &mut matched_before,
@@ -95,6 +111,8 @@ pub(super) fn build_committed_delta(
                 identity,
                 relative_path: current.relative_path.clone(),
                 content_generation: generation,
+                source_metadata_changed: previous.file_size != current.file_size
+                    || previous.modified_ns != current.modified_ns,
             });
         }
     }
@@ -125,6 +143,38 @@ pub(super) fn build_committed_delta(
     delta
 }
 
+fn match_same_path_with_missing_identity(
+    before: &[SourceManifestEntry],
+    after: &[SourceManifestEntry],
+    matched_before: &mut BTreeSet<usize>,
+    matched_after: &mut BTreeSet<usize>,
+    matches: &mut Vec<(usize, usize)>,
+) {
+    let after_by_path = after
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !matched_after.contains(index))
+        .map(|(index, entry)| (entry.relative_path.clone(), index))
+        .collect::<BTreeMap<_, _>>();
+    for (before_index, previous) in before.iter().enumerate() {
+        if matched_before.contains(&before_index) {
+            continue;
+        }
+        let Some(after_index) = after_by_path.get(&previous.relative_path).copied() else {
+            continue;
+        };
+        let current = &after[after_index];
+        if normalized(previous.file_identity.as_deref()).is_some()
+            && normalized(current.file_identity.as_deref()).is_some()
+        {
+            continue;
+        }
+        matched_before.insert(before_index);
+        matched_after.insert(after_index);
+        matches.push((before_index, after_index));
+    }
+}
+
 fn match_same_path_and_identity(
     before: &[SourceManifestEntry],
     after: &[SourceManifestEntry],
@@ -150,9 +200,10 @@ fn match_same_path_and_identity(
         let Some(after_index) = after_by_path.get(&previous.relative_path).copied() else {
             continue;
         };
-        if normalized(after[after_index].file_identity.as_deref()).as_deref()
-            != Some(previous_identity.as_str())
-        {
+        let Some(current_identity) = normalized(after[after_index].file_identity.as_deref()) else {
+            continue;
+        };
+        if !same_filesystem_object_identity(&previous_identity, &current_identity) {
             continue;
         }
         matched_before.insert(before_index);
@@ -218,6 +269,7 @@ fn identity_delta(
         identity: stable_identity(entry, previous),
         relative_path: entry.relative_path.clone(),
         content_generation: content_generation(entry),
+        source_metadata_changed: true,
     }
 }
 
@@ -316,5 +368,35 @@ mod tests {
 
         assert!(delta.is_empty());
         assert_eq!(delta.revision, 19);
+    }
+
+    #[test]
+    fn same_path_identity_version_upgrade_is_not_create_delete_churn() {
+        let before = vec![entry("same.wav", "unix:10:20", Some("same"), 4, 1)];
+        let after = vec![entry("same.wav", "unix-v2:10:20:30", Some("same"), 4, 1)];
+
+        let delta = build_committed_delta(&before, &after, 20);
+
+        assert!(delta.is_empty());
+        assert_eq!(delta.revision, 20);
+    }
+
+    #[test]
+    fn materializing_identity_and_hash_at_same_path_is_a_change() {
+        let before = vec![SourceManifestEntry {
+            relative_path: PathBuf::from("same.wav"),
+            file_identity: None,
+            content_hash: None,
+            file_size: 4,
+            modified_ns: 1,
+        }];
+        let after = vec![entry("same.wav", "materialized", Some("hash"), 4, 1)];
+
+        let delta = build_committed_delta(&before, &after, 20);
+
+        assert!(delta.created.is_empty());
+        assert_eq!(delta.changed.len(), 1);
+        assert!(delta.moved.is_empty());
+        assert!(delta.deleted.is_empty());
     }
 }

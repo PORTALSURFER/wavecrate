@@ -130,8 +130,8 @@ fn active_folder_cache_plan_is_visible_before_decode_batches_start() {
 
     let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
     assert_eq!(
-        status.status_text, "Checking source samples | 0/2",
-        "starting source prep should show cache-plan progress immediately"
+        status.job_details.expect("cache plan details")[2],
+        "Progress: 0/2"
     );
     assert_eq!(
         status.worker_progress.expect("worker progress"),
@@ -161,10 +161,10 @@ fn active_folder_cache_plan_is_visible_before_decode_batches_start() {
     );
 
     let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
-    assert_eq!(
-        status.status_text,
-        "Checking source samples | 1/2 | 50% | first.wav"
-    );
+    let details = status.job_details.expect("cache plan details");
+    assert_eq!(details[2], "Progress: 1/2");
+    assert!(details[3].contains("checking 50%"));
+    assert!(details[3].contains("first.wav"));
     assert_eq!(
         status.worker_progress.expect("worker progress"),
         crate::native_app::test_support::status_bar::WorkerProgressProjection {
@@ -688,10 +688,8 @@ fn sample_selection_pauses_running_active_folder_cache_warm_without_hiding_progr
     );
     let status = crate::native_app::test_support::status_bar::status_bar_projection(&state);
     assert!(
-        status
-            .status_text
-            .starts_with("Caching source samples | 0/2"),
-        "cache progress should remain visible instead of being replaced by the sample load status: {}",
+        !status.status_text.starts_with("Caching source samples"),
+        "background work belongs in the progress control, not status text: {}",
         status.status_text
     );
     assert!(

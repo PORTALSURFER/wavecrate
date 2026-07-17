@@ -12,7 +12,7 @@ use wavecrate::audio::AudioPlayer;
 
 use crate::native_app::app::{
     ExtractedFilePlaybackType, FileMoveProgress, GuiMessage, NormalizationProgress,
-    NormalizationQueueItem, PendingWaveformDestructiveEdit,
+    NormalizationQueueItem, PendingWaveformDestructiveEdit, SourceProcessingProgress,
 };
 use crate::native_app::source_processing::SourceProcessingSupervisor;
 use crate::native_app::waveform::WaveformPreservedMarks;
@@ -42,6 +42,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) normalization_active_paths: HashSet<PathBuf>,
     pub(in crate::native_app) normalization_queue: VecDeque<NormalizationQueueItem>,
     pub(in crate::native_app) file_move_progress: Option<FileMoveProgress>,
+    pub(in crate::native_app) source_processing_progress: Option<SourceProcessingProgress>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: frame_ui::FrameCadenceMonitor,
     pub(in crate::native_app) source_processing: SourceProcessingSupervisor,
@@ -85,6 +86,7 @@ impl BackgroundTaskState {
             normalization_active_paths: HashSet::new(),
             normalization_queue: VecDeque::new(),
             file_move_progress: None,
+            source_processing_progress: None,
             progress_tick: 0.0,
             frame_cadence: frame_ui::FrameCadenceMonitor::new(),
             source_processing,

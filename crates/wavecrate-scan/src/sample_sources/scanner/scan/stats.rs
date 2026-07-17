@@ -70,6 +70,8 @@ pub struct ManifestIdentityDelta {
     pub relative_path: PathBuf,
     /// Full hash or explicit pending generation for this identity.
     pub content_generation: String,
+    /// Whether source-visible size or modification metadata changed.
+    pub source_metadata_changed: bool,
 }
 
 /// One identity whose committed source-relative path changed.

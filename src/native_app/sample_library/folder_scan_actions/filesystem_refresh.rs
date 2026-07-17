@@ -143,6 +143,17 @@ impl NativeAppState {
         if committed_delta.is_empty() || !self.library.folder_browser.source_exists(&source_id) {
             return;
         }
+        self.background
+            .source_processing
+            .wake_source(&source_id, "manifest_audit_committed");
+        if !manifest_delta_requires_browser_refresh(&committed_delta) {
+            tracing::debug!(
+                source_id = %source_id,
+                revision = committed_delta.revision,
+                "Skipping filesystem rescan for content-generation-only audit delta"
+            );
+            return;
+        }
         tracing::info!(
             source_id = %source_id,
             revision = committed_delta.revision,
@@ -249,5 +260,57 @@ impl NativeAppState {
             },
             GuiMessage::SourceFilesystemSyncFinished,
         );
+    }
+}
+
+fn manifest_delta_requires_browser_refresh(
+    delta: &wavecrate::sample_sources::scanner::CommittedSourceDelta,
+) -> bool {
+    !delta.created.is_empty()
+        || !delta.moved.is_empty()
+        || !delta.deleted.is_empty()
+        || delta
+            .changed
+            .iter()
+            .any(|change| change.source_metadata_changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::manifest_delta_requires_browser_refresh;
+    use wavecrate::sample_sources::scanner::{CommittedSourceDelta, ManifestIdentityDelta};
+
+    #[test]
+    fn content_generation_only_audit_does_not_queue_filesystem_rescan() {
+        let delta = CommittedSourceDelta {
+            revision: 7,
+            changed: vec![ManifestIdentityDelta {
+                identity: String::from("file-id"),
+                relative_path: PathBuf::from("sample.wav"),
+                content_generation: String::from("hash"),
+                source_metadata_changed: false,
+            }],
+            ..CommittedSourceDelta::default()
+        };
+
+        assert!(!manifest_delta_requires_browser_refresh(&delta));
+    }
+
+    #[test]
+    fn source_metadata_change_requires_browser_refresh() {
+        let delta = CommittedSourceDelta {
+            revision: 8,
+            changed: vec![ManifestIdentityDelta {
+                identity: String::from("file-id"),
+                relative_path: PathBuf::from("sample.wav"),
+                content_generation: String::from("new-hash"),
+                source_metadata_changed: true,
+            }],
+            ..CommittedSourceDelta::default()
+        };
+
+        assert!(manifest_delta_requires_browser_refresh(&delta));
     }
 }

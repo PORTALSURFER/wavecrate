@@ -45,7 +45,18 @@ impl NativeAppState {
                 self.finish_similarity_prep_enqueue(result, context);
             }
             GuiMessage::SimilarityScoresResolved(result) => {
-                self.finish_similarity_scores(result);
+                self.finish_similarity_scores(result, context);
+            }
+            GuiMessage::SimilarityReadinessAdvanced { source_id } => {
+                self.finish_similarity_readiness_advanced(source_id, context);
+            }
+            GuiMessage::SourceProcessingProgress(progress) => {
+                if !progress.active {
+                    self.background.source_processing_progress = None;
+                    self.ui.chrome.job_details_open = false;
+                } else {
+                    self.background.source_processing_progress = Some(progress);
+                }
             }
             GuiMessage::FolderScanProgress(progress) => {
                 self.apply_folder_scan_progress(progress);

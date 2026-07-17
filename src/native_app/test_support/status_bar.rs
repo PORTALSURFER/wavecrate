@@ -16,6 +16,7 @@ pub(in crate::native_app) struct StatusBarProjection {
     pub(in crate::native_app) selected_sample_count: usize,
     pub(in crate::native_app) status_text: String,
     pub(in crate::native_app) worker_progress: Option<WorkerProgressProjection>,
+    pub(in crate::native_app) job_details: Option<[String; 4]>,
 }
 
 pub(in crate::native_app) fn bottom_status_bar(state: &NativeAppState) -> ui::View<GuiMessage> {
@@ -46,5 +47,6 @@ pub(in crate::native_app) fn status_bar_projection(state: &NativeAppState) -> St
                 current_fraction: progress.current_fraction,
                 active_animation: progress.active_animation,
             }),
+        job_details: model.job_details.map(|details| details.rows),
     }
 }

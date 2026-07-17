@@ -60,6 +60,29 @@ fn scan_skips_analysis_when_hash_unchanged() {
 }
 
 #[test]
+fn scan_backfills_missing_identity_for_unchanged_legacy_row() {
+    let dir = tempdir().unwrap();
+    let relative = Path::new("legacy.wav");
+    std::fs::write(dir.path().join(relative), b"legacy").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let original = db.list_manifest_entries().unwrap().remove(0);
+    assert!(original.file_identity.is_some());
+
+    let mut batch = db.write_batch().unwrap();
+    batch.set_file_identity(relative, None).unwrap();
+    batch.commit().unwrap();
+
+    let stats = scan_once(&db).unwrap();
+    let repaired = db.list_manifest_entries().unwrap().remove(0);
+
+    assert_eq!(repaired.content_hash, original.content_hash);
+    assert!(repaired.file_identity.is_some());
+    assert!(stats.committed_delta.created.is_empty());
+    assert!(stats.committed_delta.deleted.is_empty());
+}
+
+#[test]
 fn scan_adds_duplicate_content_when_original_path_still_exists() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");
@@ -627,6 +650,30 @@ fn manifest_audit_publishes_scan_repair_when_content_verification_is_cancelled()
             .is_none(),
         "incomplete verification must remain due for retry"
     );
+}
+
+#[test]
+fn manifest_audit_publishes_unchanged_committed_revision_when_verification_is_cancelled() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("known.wav"), b"known").unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+
+    let result = audit_source_and_record_with_post_scan_hook(&db, Some(&cancel), 8, 1_234, || {
+        cancel.store(true, std::sync::atomic::Ordering::Release)
+    });
+    let ScanError::Incomplete { committed, error } = result.unwrap_err() else {
+        panic!("cancelled verification must return the committed unchanged checkpoint");
+    };
+
+    assert_eq!(error, "Scan canceled");
+    assert!(committed.committed_delta.is_empty());
+    assert_eq!(
+        committed.committed_delta.revision,
+        db.get_revision().unwrap()
+    );
+    assert!(committed.committed_delta.revision > 0);
 }
 
 #[test]

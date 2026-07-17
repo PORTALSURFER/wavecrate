@@ -233,7 +233,7 @@ fn apply_batch(
         }
         apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
     }
-    context.commit_batch(batch)?;
+    context.commit_batch(db, batch)?;
     Ok(true)
 }
 
@@ -351,6 +351,7 @@ mod tests {
             hash_required: true,
             needs_hash: false,
             requires_apply: true,
+            identity_replaced: false,
             content_hash: None,
         };
 
@@ -374,6 +375,7 @@ mod tests {
         let mut context = ScanContext::from_existing(
             HashMap::from([(Path::new("one.wav").to_path_buf(), entry)]),
             ScanMode::Quick,
+            db.get_revision().unwrap(),
             db.list_manifest_entries().unwrap(),
         );
         let prepared = prepare_diff(dir.path(), &file_path, &context).unwrap();
@@ -403,6 +405,7 @@ mod tests {
             hash_required: true,
             needs_hash: true,
             requires_apply: true,
+            identity_replaced: false,
             content_hash: None,
         };
 

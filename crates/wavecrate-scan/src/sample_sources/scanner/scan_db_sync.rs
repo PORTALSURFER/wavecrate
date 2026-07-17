@@ -35,7 +35,7 @@ pub(super) fn db_sync_phase(
         if cancel_requested(cancel) {
             return Err(ScanError::Canceled);
         }
-        context.commit_batch(batch)?;
+        context.commit_batch(db, batch)?;
     }
 
     if cancel_requested(cancel) {
@@ -56,7 +56,7 @@ pub(super) fn db_sync_phase(
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
     }
-    let revision = context.commit_batch(batch)?;
+    let revision = context.commit_batch(db, batch)?;
     Ok(context.committed_snapshot(revision))
 }
 

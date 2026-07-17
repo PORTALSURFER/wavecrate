@@ -96,7 +96,7 @@ fn merge_audit_verification(
 ) -> Result<ScanStats, ScanError> {
     match verification {
         Ok(verified) => stats.merge_deferred_hashes(verified),
-        Err(error) if !stats.committed_delta.is_empty() => {
+        Err(error) if stats.committed_delta.revision > 0 => {
             tracing::warn!(
                 %error,
                 revision = stats.committed_delta.revision,
@@ -129,9 +129,10 @@ fn scan(
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
 ) -> Result<ScanStats, ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
-    let manifest_before = super::super::manifest::capture_manifest(db)?;
+    let (manifest_revision, manifest_before) =
+        super::super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
-    let mut context = ScanContext::new(db, mode, manifest_before.clone())?;
+    let mut context = ScanContext::new(db, mode, manifest_revision, manifest_before.clone())?;
     let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context)
         .and_then(|()| db_sync_phase(db, &mut context, cancel));
     finish_scan_result(manifest_before, context, result)

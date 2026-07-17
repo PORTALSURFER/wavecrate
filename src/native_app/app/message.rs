@@ -16,8 +16,8 @@ use crate::native_app::app::{
     ActiveFolderCacheWarmProgress, ActiveFolderCacheWarmResult, AppSettingsTab,
     AudioOpenTaskCompletion, FileMoveProgress, NormalizationProgress, NormalizationResult,
     PreviewAuditionResult, PreviewAuditionWarmResult, SampleLoadPathValidation, SampleLoadResult,
-    SamplePlaybackReady, StarmapViewportChange, WaveformCacheIndicatorRefreshResult,
-    WaveformCacheWarmResult,
+    SamplePlaybackReady, SourceProcessingProgress, StarmapViewportChange,
+    WaveformCacheIndicatorRefreshResult, WaveformCacheWarmResult,
 };
 use crate::native_app::audio::playback_history::{
     LastPlayedPersistRequest, LastPlayedPersistResult,
@@ -178,6 +178,10 @@ pub(in crate::native_app) enum GuiMessage {
     SimilarityPrepStatusResolved(SimilarityPrepStatusResult),
     SimilarityPrepEnqueueFinished(SimilarityPrepEnqueueResult),
     SimilarityScoresResolved(SimilarityScoresResult),
+    SimilarityReadinessAdvanced {
+        source_id: String,
+    },
+    SourceProcessingProgress(SourceProcessingProgress),
     Settings(SettingsMessage),
     Metadata(MetadataMessage),
     FocusLoadedFile,

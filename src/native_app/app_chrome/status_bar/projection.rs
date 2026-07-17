@@ -1,6 +1,7 @@
+#[cfg(test)]
 use crate::native_app::app::FolderScanProgress;
 use crate::native_app::app_chrome::view_models::status_bar::{
-    StatusBarViewModel, StatusSeverity, WorkerProgressViewModel,
+    JobDetailsViewModel, StatusBarViewModel, StatusSeverity, WorkerProgressViewModel,
 };
 use radiant::prelude as ui;
 
@@ -24,7 +25,7 @@ pub(super) enum WorkerProgressBarContentProjection {
     Overall {
         progress: ui::ProgressSnapshot,
     },
-    SourceCache {
+    Layered {
         overall: ui::ProgressSnapshot,
         current_fraction: Option<f32>,
     },
@@ -66,7 +67,7 @@ impl WorkerProgressBarContentProjection {
     fn from_worker_progress(progress: WorkerProgressViewModel) -> Self {
         let snapshot = ui::ProgressSnapshot::new(progress.completed, progress.total);
         if progress.active_animation {
-            return Self::SourceCache {
+            return Self::Layered {
                 overall: snapshot,
                 current_fraction: progress.current_fraction,
             };
@@ -75,36 +76,24 @@ impl WorkerProgressBarContentProjection {
     }
 }
 
+#[cfg(test)]
 pub(super) fn job_details_popover_projection(
     progress: &FolderScanProgress,
 ) -> JobDetailsPopoverProjection {
-    let total_label = progress_count_label(progress.completed, progress.total, "found");
-    let detail = if progress.detail.is_empty() {
-        "Waiting for next item".to_string()
-    } else {
-        progress.detail.clone()
-    };
+    job_details_popover_projection_from_model(JobDetailsViewModel::from_folder_progress(progress))
+}
+
+pub(super) fn job_details_popover_projection_from_model(
+    model: JobDetailsViewModel,
+) -> JobDetailsPopoverProjection {
     JobDetailsPopoverProjection {
         title: "Job Details",
-        rows: [
-            format!("Type: {}", progress.phase),
-            format!("Source: {}", progress.label),
-            format!("Progress: {total_label}"),
-            format!("Current: {detail}"),
-        ],
+        rows: model.rows,
     }
 }
 
 fn selected_sample_count_label(count: usize) -> String {
     format!("{count} sample{}", if count == 1 { "" } else { "s" })
-}
-
-fn progress_count_label(completed: usize, total: usize, indeterminate_suffix: &str) -> String {
-    if total == 0 {
-        format!("{completed} {indeterminate_suffix}")
-    } else {
-        format!("{}/{}", completed.min(total), total)
-    }
 }
 
 #[cfg(test)]
@@ -157,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn worker_progress_projection_uses_source_cache_mode_for_active_animation() {
+    fn worker_progress_projection_uses_layered_mode_for_active_animation() {
         let projection = WorkerProgressBarProjection::from_progress(
             Some(WorkerProgressViewModel {
                 completed: 3,
@@ -170,7 +159,7 @@ mod tests {
 
         assert_eq!(
             projection.content,
-            WorkerProgressBarContentProjection::SourceCache {
+            WorkerProgressBarContentProjection::Layered {
                 overall: ui::ProgressSnapshot::new(3, 10),
                 current_fraction: Some(0.5),
             }
@@ -230,6 +219,7 @@ mod tests {
             status_text: "Ready".to_string(),
             status_severity: StatusSeverity::Normal,
             worker_progress: None,
+            job_details: None,
             progress_tick: 0.0,
         })
     }
