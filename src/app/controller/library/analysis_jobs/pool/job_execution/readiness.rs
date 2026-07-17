@@ -327,7 +327,7 @@ pub(crate) fn run_embedding_stage(
         job_type: db::EMBEDDING_BACKFILL_JOB_TYPE.to_string(),
         source_root: source_root.to_path_buf(),
     };
-    backfill::run_embedding_backfill_job_with_worker_limit(
+    backfill::run_readiness_embedding_backfill_job_with_worker_limit(
         conn,
         &job,
         true,

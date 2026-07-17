@@ -30,6 +30,34 @@ fn stale_completion_cannot_overwrite_a_new_generation() {
 }
 
 #[test]
+fn invalidation_is_fenced_to_the_exact_current_artifact() {
+    let (_root, mut connection) = open_fixture();
+    let current = file_target("repair", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&current));
+    publish_readiness_artifact(
+        &mut connection,
+        &ReadinessArtifact::for_target(&current, 10),
+    )
+    .expect("publish current artifact");
+
+    let mut stale = current.clone();
+    stale.content_generation = String::from("stale-content");
+    assert!(
+        !invalidate_readiness_artifact(&mut connection, &stale).expect("reject stale invalidation")
+    );
+    assert!(
+        invalidate_readiness_artifact(&mut connection, &current)
+            .expect("invalidate current artifact")
+    );
+
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 11).expect("reconcile invalidation");
+    assert_eq!(
+        entry_for(&snapshot, "repair", ReadinessStage::AnalysisFeatures).classification,
+        ReadinessClassification::Pending
+    );
+}
+
+#[test]
 fn target_replacement_is_failure_atomic() {
     let (_root, mut connection) = open_fixture();
     let original = file_target("original", ReadinessStage::IndexedIdentity, 1);

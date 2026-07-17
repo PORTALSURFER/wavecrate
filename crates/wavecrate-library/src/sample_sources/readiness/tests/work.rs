@@ -40,6 +40,22 @@ fn exact_target_claim_is_deduplicated_and_generation_fenced() {
 }
 
 #[test]
+fn work_stats_exclude_jobs_for_identities_no_longer_in_the_current_manifest() {
+    let (_root, mut connection) = open_fixture();
+    let stale = file_target("stale", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&stale));
+    persist_target(&mut connection, &stale, 10);
+
+    let current = file_target("current", ReadinessStage::AnalysisFeatures, 2);
+    replace(&mut connection, 2, std::slice::from_ref(&current));
+    persist_target(&mut connection, &current, 20);
+
+    let stats = readiness_work_stats(&connection, 20).expect("current work stats");
+    assert_eq!(stats.total, 1);
+    assert_eq!(stats.pending, 1);
+}
+
+#[test]
 fn expired_claim_is_recovered_after_restart_with_a_new_attempt() {
     let (root, mut connection) = open_fixture();
     let target = file_target("restart", ReadinessStage::PlaybackSummary, 1);

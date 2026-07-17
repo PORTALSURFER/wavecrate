@@ -117,10 +117,7 @@ pub(super) fn verify_content_batch(
             )?;
         }
         if let Some(completed_at) = audit_completed_at {
-            batch.set_metadata(
-                crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT,
-                &completed_at.to_string(),
-            )?;
+            batch.complete_manifest_audit(completed_at)?;
         }
         batch.commit_with_manifest_snapshot()?
     } else {

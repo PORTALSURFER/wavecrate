@@ -225,8 +225,8 @@ fn source_processing_keeps_measured_progress_and_activity_on_one_track() {
 
     assert_eq!(
         frame.paint_plan.fill_rects().count(),
-        4,
-        "the determinate track and moving activity highlight share one stacked surface"
+        2,
+        "source processing keeps only the determinate track in retained paint"
     );
     assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
@@ -262,7 +262,7 @@ fn source_processing_discovery_uses_compact_activity_feedback() {
         [
             String::from("Type: Source processing"),
             String::from("Source: Multiple sources"),
-            String::from("Status: Active"),
+            String::from("Progress: Active (total not available)"),
             String::from("Current: Processing source libraries | Advancing 2 sources"),
         ]
     );

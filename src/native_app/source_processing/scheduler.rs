@@ -318,10 +318,12 @@ impl WorkCandidate {
     }
 }
 
-/// Weighted-fair scheduler that preserves interaction priority without starving other sources.
+/// Source-queued scheduler that chooses a source fairly, then drains its runnable work before
+/// moving to another source.
 #[derive(Debug, Default)]
 pub(crate) struct FairScheduler {
     virtual_finish: BTreeMap<String, u64>,
+    active_source: Option<String>,
     paused: bool,
 }
 
@@ -353,6 +355,12 @@ impl FairScheduler {
                 })
                 .or_insert(index);
         }
+        if let Some(active_source) = self.active_source.as_deref()
+            && let Some(index) = best_by_source.remove(active_source)
+        {
+            return Some(index);
+        }
+        self.active_source = None;
         let selected = best_by_source
             .into_iter()
             .map(|(source_id, index)| {
@@ -367,6 +375,7 @@ impl FairScheduler {
                 (finish, std::cmp::Reverse(weight), source_id, index)
             })
             .min()?;
+        self.active_source = Some(selected.2.to_string());
         self.virtual_finish
             .insert(selected.2.to_string(), selected.0);
         self.normalize_virtual_time();
@@ -477,33 +486,37 @@ mod tests {
     }
 
     #[test]
-    fn immediate_and_visible_work_lead_without_starving_backlog_sources() {
+    fn selected_source_is_drained_before_the_queue_advances() {
         let mut scheduler = FairScheduler::default();
         let budgets = BudgetTracker::new(ProcessingBudgets::for_tests(
             ResourceUse::new(10, 10, 10),
             ResourceUse::new(10, 10, 10),
             10,
         ));
-        let candidates = [
+        let mut candidates = vec![
             candidate("active", "now", ReadinessStage::PlaybackSummary),
+            candidate("active", "next", ReadinessStage::AnalysisFeatures),
             candidate("backlog", "old", ReadinessStage::AnalysisFeatures),
         ];
         let priority = PriorityContext {
             immediate: [PriorityKey::new("active", "now")].into_iter().collect(),
             ..PriorityContext::default()
         };
-        let mut chosen_sources = Vec::new();
-        for _ in 0..60 {
+        let mut chosen = Vec::new();
+        while !candidates.is_empty() {
             let index = scheduler.choose(&candidates, &priority, &budgets).unwrap();
-            chosen_sources.push(candidates[index].source_id.as_str());
+            let candidate = candidates.remove(index);
+            chosen.push((candidate.source_id, candidate.scope_id));
         }
-        assert_eq!(chosen_sources[0], "active");
-        assert!(
-            chosen_sources[..10]
-                .iter()
-                .all(|source| *source == "active")
+
+        assert_eq!(
+            chosen,
+            vec![
+                (String::from("active"), String::from("now")),
+                (String::from("active"), String::from("next")),
+                (String::from("backlog"), String::from("old")),
+            ]
         );
-        assert!(chosen_sources.contains(&"backlog"));
     }
 
     #[test]

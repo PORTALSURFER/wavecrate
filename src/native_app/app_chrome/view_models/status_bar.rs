@@ -270,10 +270,15 @@ impl JobDetailsViewModel {
         };
         Self {
             rows: if progress.total == 0 {
+                let progress_label = if progress.stage == "Checking pending work" {
+                    "Progress: Counting pending jobs"
+                } else {
+                    "Progress: Active (total not available)"
+                };
                 [
                     String::from("Type: Source processing"),
                     format!("Source: {source}"),
-                    String::from("Status: Active"),
+                    String::from(progress_label),
                     format!("Current: {current}"),
                 ]
             } else {

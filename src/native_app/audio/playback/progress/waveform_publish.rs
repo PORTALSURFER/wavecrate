@@ -83,6 +83,7 @@ impl NativeAppState {
         !self.chrome_overlay_suppresses_waveform_transient_overlay()
             && (self.playback_visual_activity_active()
                 || self.waveform.load.label.is_some()
+                || self.source_processing_activity_overlay_visible()
                 || self.active_starmap_audition_file_id().is_some())
     }
 

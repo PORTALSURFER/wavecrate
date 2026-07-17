@@ -34,6 +34,13 @@ pub(super) fn walk_phase(
         if cancel_requested(cancel) {
             return Err(ScanError::Canceled);
         }
+        let relative_path = path
+            .strip_prefix(root)
+            .map(Path::to_path_buf)
+            .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))?;
+        if context.skip_previously_audited_path(&relative_path) {
+            return Ok(());
+        }
         let mut prepared = match prepare_diff(root, path, context) {
             Ok(prepared) => prepared,
             Err(error) if committed.get() => {
@@ -51,9 +58,11 @@ pub(super) fn walk_phase(
             }
             Err(error) => return Err(error),
         };
-        context.stats.total_files += 1;
-        if let Some(on_progress) = on_progress.as_mut() {
-            on_progress(context.stats.total_files, path);
+        if !context.resumable_manifest_audit_active() {
+            context.stats.total_files += 1;
+            if let Some(on_progress) = on_progress.as_mut() {
+                on_progress(context.stats.total_files, path);
+            }
         }
         if !prepared.requires_apply {
             let Some(refreshed) =
@@ -65,21 +74,52 @@ pub(super) fn walk_phase(
         }
         if !prepared.requires_apply {
             skip_noop(context, &prepared);
+            context.record_manifest_audit_paths(db, [relative_path])?;
+            publish_manifest_audit_progress(context, root, path, on_progress);
             return Ok(());
         }
         pending.push(prepared);
         if pending.len() == APPLY_BATCH_SIZE {
             let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-            if apply_batch(db, root, cancel, context, files, committed.get())? {
+            let outcome = apply_batch(db, root, cancel, context, files, committed.get())?;
+            if outcome.committed {
                 committed.set(true);
+            }
+            let last_path = outcome.audited_paths.last().cloned();
+            context.record_manifest_audit_paths(db, outcome.audited_paths)?;
+            if let Some(last_path) = last_path {
+                publish_manifest_audit_progress(context, root, &root.join(last_path), on_progress);
             }
         }
         Ok(())
     })?;
-    if !pending.is_empty() && apply_batch(db, root, cancel, context, pending, committed.get())? {
-        committed.set(true);
+    if !pending.is_empty() {
+        let outcome = apply_batch(db, root, cancel, context, pending, committed.get())?;
+        if outcome.committed {
+            committed.set(true);
+        }
+        let last_path = outcome.audited_paths.last().cloned();
+        context.record_manifest_audit_paths(db, outcome.audited_paths)?;
+        if let Some(last_path) = last_path {
+            publish_manifest_audit_progress(context, root, &root.join(last_path), on_progress);
+        }
     }
+    context.flush_manifest_audit_checkpoint(db)?;
     Ok(())
+}
+
+fn publish_manifest_audit_progress(
+    context: &ScanContext,
+    root: &Path,
+    path: &Path,
+    on_progress: &mut Option<&mut dyn FnMut(usize, &Path)>,
+) {
+    let Some((checked, _expected)) = context.manifest_audit_progress() else {
+        return;
+    };
+    if let Some(on_progress) = on_progress.as_mut() {
+        on_progress(checked, path.strip_prefix(root).unwrap_or(path));
+    }
 }
 
 pub(super) fn apply_prepared_chunk(
@@ -110,6 +150,7 @@ pub(super) fn apply_prepared_chunk(
         return Ok(false);
     }
     apply_batch(db, root, cancel, context, pending, tolerate_file_errors)
+        .map(|outcome| outcome.committed)
 }
 
 fn refresh_noop_preparation_or_skip(
@@ -186,7 +227,7 @@ fn apply_batch(
     context: &mut ScanContext,
     prepared: Vec<PreparedFile>,
     tolerate_file_errors: bool,
-) -> Result<bool, ScanError> {
+) -> Result<ApplyBatchOutcome, ScanError> {
     let mut ready = Vec::with_capacity(prepared.len());
     for file in prepared {
         let relative_path = file.facts.relative.clone();
@@ -213,7 +254,7 @@ fn apply_batch(
         }
     }
     if ready.is_empty() {
-        return Ok(false);
+        return Ok(ApplyBatchOutcome::default());
     }
     if cancel_requested(cancel) {
         return Err(ScanError::Canceled);
@@ -221,6 +262,7 @@ fn apply_batch(
     let mut batch = db.write_batch()?;
     context.ensure_rename_candidate_generation(&mut batch)?;
     let mut rename_candidates = RenameCandidateCache::default();
+    let mut audited_paths = Vec::with_capacity(ready.len());
     for file in ready {
         let relative_path = file.facts.relative.clone();
         let absolute = root.join(&relative_path);
@@ -232,9 +274,19 @@ fn apply_batch(
             }
         }
         apply_diff(db, &mut batch, &mut rename_candidates, file, context, root)?;
+        audited_paths.push(relative_path);
     }
     context.commit_batch(db, batch)?;
-    Ok(true)
+    Ok(ApplyBatchOutcome {
+        committed: true,
+        audited_paths,
+    })
+}
+
+#[derive(Default)]
+struct ApplyBatchOutcome {
+    committed: bool,
+    audited_paths: Vec<std::path::PathBuf>,
 }
 
 fn skip_changed_or_unavailable(context: &mut ScanContext, root: &Path, relative_path: &Path) {

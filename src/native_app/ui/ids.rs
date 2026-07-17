@@ -33,6 +33,7 @@ const TOOLBAR: WidgetIdNamespace = WidgetIdNamespace::new(32_100);
 const FOLDER_FILTERS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4600);
 const SAMPLE_BROWSER_HEADER: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4800);
 const COLLECTIONS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_4c00);
+const STATUS_BAR: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5000);
 const SOURCES: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5300);
 const METADATA_TAGS: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5440);
 const HARVEST_FAMILY: WidgetIdNamespace = WidgetIdNamespace::new(0x5743_0000_0000_5800);
@@ -78,6 +79,9 @@ pub(in crate::native_app) const GENERAL_SETTINGS_BUTTON_ID: u64 = AUDIO_SETTINGS
 pub(in crate::native_app) const RELEASE_UPDATE_BUTTON_ID: u64 = AUDIO_SETTINGS.id(120);
 
 pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = TRANSACTION_HISTORY.id(0);
+pub(in crate::native_app) const WORKER_PROGRESS_ROOT_ID: u64 = STATUS_BAR.id(0);
+pub(in crate::native_app) const WORKER_PROGRESS_ACTIVITY_OVERLAY_ID: u64 = STATUS_BAR.id(1);
+pub(in crate::native_app) const JOB_DETAILS_CURRENT_ROW_ID_BASE: u64 = STATUS_BAR.id(10);
 
 pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = TOOLBAR.id(0);
 pub(in crate::native_app) const TOOLBAR_LOOP_ID: u64 = TOOLBAR.id(1);

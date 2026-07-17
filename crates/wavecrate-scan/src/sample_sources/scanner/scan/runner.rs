@@ -28,13 +28,13 @@ pub enum ScanMode {
 /// Recursively scan the source root, syncing supported audio files into the database.
 /// Returns counts of added/updated/removed rows.
 pub fn scan_once(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
-    scan(db, ScanMode::Quick, None, None)
+    scan(db, ScanMode::Quick, None, None, None)
 }
 
 /// Rescan the entire source, pruning rows for files that no longer exist and
 /// clearing any unmatched pending rename rows left over from prior quick scans.
 pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
-    scan(db, ScanMode::Hard, None, None)
+    scan(db, ScanMode::Hard, None, None, None)
 }
 
 /// Reconcile the full source manifest and verify a bounded rotating content batch.
@@ -43,7 +43,7 @@ pub fn audit_source(
     cancel: Option<&AtomicBool>,
     max_hashes: usize,
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
+    let mut stats = scan(db, ScanMode::Quick, cancel, None, None)?;
     merge_audit_verification(
         &mut stats,
         super::super::scan_hash::verify_content_batch(db, cancel, max_hashes, None),
@@ -61,7 +61,25 @@ pub fn audit_source_and_record(
     max_hashes: usize,
     completed_at: i64,
 ) -> Result<ScanStats, ScanError> {
-    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, || {})
+    audit_source_and_record_with_progress(db, cancel, max_hashes, completed_at, &mut |_, _| {})
+}
+
+/// Reconcile and durably record a resumable source audit while publishing checked-file progress.
+pub fn audit_source_and_record_with_progress(
+    db: &SourceDatabase,
+    cancel: Option<&AtomicBool>,
+    max_hashes: usize,
+    completed_at: i64,
+    on_progress: &mut impl FnMut(usize, &Path),
+) -> Result<ScanStats, ScanError> {
+    audit_source_and_record_after_scan(
+        db,
+        cancel,
+        max_hashes,
+        completed_at,
+        Some(on_progress),
+        || {},
+    )
 }
 
 fn audit_source_and_record_after_scan(
@@ -69,9 +87,10 @@ fn audit_source_and_record_after_scan(
     cancel: Option<&AtomicBool>,
     max_hashes: usize,
     completed_at: i64,
+    on_progress: Option<&mut dyn FnMut(usize, &Path)>,
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, None)?;
+    let mut stats = scan(db, ScanMode::Quick, cancel, on_progress, Some(completed_at))?;
     after_scan();
     merge_audit_verification(
         &mut stats,
@@ -87,7 +106,7 @@ pub(crate) fn audit_source_and_record_with_post_scan_hook(
     completed_at: i64,
     after_scan: impl FnOnce(),
 ) -> Result<ScanStats, ScanError> {
-    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, after_scan)
+    audit_source_and_record_after_scan(db, cancel, max_hashes, completed_at, None, after_scan)
 }
 
 fn merge_audit_verification(
@@ -119,7 +138,7 @@ pub fn scan_with_progress(
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
 ) -> Result<ScanStats, ScanError> {
-    scan(db, mode, cancel, Some(on_progress))
+    scan(db, mode, cancel, Some(on_progress), None)
 }
 
 fn scan(
@@ -127,12 +146,22 @@ fn scan(
     mode: ScanMode,
     cancel: Option<&AtomicBool>,
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
+    manifest_audit_started_at: Option<i64>,
 ) -> Result<ScanStats, ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
     let (manifest_revision, manifest_before) =
         super::super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
     let mut context = ScanContext::new(db, mode, manifest_revision, manifest_before.clone())?;
+    if let Some(started_at) = manifest_audit_started_at {
+        context.resume_manifest_audit(db, started_at)?;
+        if let Some((checked, _expected)) = context.manifest_audit_progress()
+            && checked > 0
+            && let Some(on_progress) = on_progress.as_mut()
+        {
+            on_progress(checked, &root);
+        }
+    }
     let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context)
         .and_then(|()| db_sync_phase(db, &mut context, cancel));
     finish_scan_result(manifest_before, context, result)

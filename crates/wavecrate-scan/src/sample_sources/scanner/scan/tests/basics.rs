@@ -520,6 +520,58 @@ fn cancellation_after_first_committed_batch_stops_at_a_resumable_checkpoint() {
 }
 
 #[test]
+fn interrupted_manifest_audit_resumes_checked_paths_and_finishes_deletion_reconciliation() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = tempdir().unwrap();
+    for index in 0..70 {
+        std::fs::write(dir.path().join(format!("sample-{index:03}.wav")), b"x").unwrap();
+    }
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let cancel = AtomicBool::new(false);
+
+    let first =
+        audit_source_and_record_with_progress(&db, Some(&cancel), 0, 100, &mut |checked, _| {
+            if checked >= 64 {
+                cancel.store(true, Ordering::Release);
+            }
+        });
+    assert!(matches!(first, Err(ScanError::Incomplete { .. })));
+    let checked = db
+        .begin_or_resume_manifest_audit(101)
+        .expect("load durable audit checkpoint");
+    assert_eq!(checked.len(), 64);
+
+    std::fs::remove_file(dir.path().join(&checked[0])).unwrap();
+    cancel.store(false, Ordering::Release);
+    let mut resumed_progress = Vec::new();
+    let resumed =
+        audit_source_and_record_with_progress(&db, Some(&cancel), 0, 200, &mut |checked, _| {
+            resumed_progress.push(checked)
+        })
+        .expect("resume interrupted manifest audit");
+
+    assert_eq!(resumed_progress.first().copied(), Some(64));
+    assert_eq!(resumed.total_files, 70);
+    assert!(
+        db.entry_for_path(&checked[0]).unwrap().is_none(),
+        "a path deleted after its checkpoint must still be reconciled at cycle completion"
+    );
+    assert!(
+        db.begin_or_resume_manifest_audit(201)
+            .expect("new audit cycle")
+            .is_empty(),
+        "completed audit must clear its durable checkpoint"
+    );
+    assert_eq!(
+        db.get_metadata(crate::sample_sources::db::META_LAST_MANIFEST_AUDIT_AT)
+            .unwrap()
+            .as_deref(),
+        Some("200")
+    );
+}
+
+#[test]
 fn cancellation_after_walk_skips_missing_reconciliation_and_completion_publish() {
     use std::sync::atomic::{AtomicBool, Ordering};
 

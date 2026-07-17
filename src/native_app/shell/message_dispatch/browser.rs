@@ -57,6 +57,7 @@ impl NativeAppState {
                 } else {
                     self.background.source_processing_progress = Some(progress);
                 }
+                context.repaint(ui::RepaintScope::Projection);
             }
             GuiMessage::FolderScanProgress(progress) => {
                 self.apply_folder_scan_progress(progress);

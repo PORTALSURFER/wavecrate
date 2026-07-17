@@ -22,10 +22,10 @@ pub use snapshot::{
 pub(crate) use store::reconcile_readiness_with_hook;
 pub use store::{
     ReadinessError, cancel_readiness_work, claim_readiness_target, complete_readiness_work,
-    fail_readiness_work, persist_readiness_deficits, persist_readiness_deficits_with_cancel,
-    publish_readiness_artifact, readiness_work_stats, reconcile_readiness,
-    reconcile_readiness_with_cancel, release_readiness_work, renew_readiness_lease,
-    replace_readiness_targets, replace_readiness_targets_with_cancel,
+    fail_readiness_work, invalidate_readiness_artifact, persist_readiness_deficits,
+    persist_readiness_deficits_with_cancel, publish_readiness_artifact, readiness_work_stats,
+    reconcile_readiness, reconcile_readiness_with_cancel, release_readiness_work,
+    renew_readiness_lease, replace_readiness_targets, replace_readiness_targets_with_cancel,
 };
 
 #[cfg(test)]

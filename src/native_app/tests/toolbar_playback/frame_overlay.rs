@@ -427,6 +427,93 @@ fn scene_source_cache_frame_uses_projection_repaint_scope() {
 }
 
 #[test]
+fn scene_source_processing_frame_uses_paint_only_repaint_scope() {
+    let mut state = gui_state_for_span_tests();
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: true,
+            completed: 3,
+            total: 10,
+            stage: String::from("Analyzing audio"),
+            detail: String::from("kick.wav"),
+        },
+    );
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(|state, message, _context| {
+            if message == GuiMessage::Frame {
+                state.advance_frame(&mut radiant::prelude::UiUpdateContext::default());
+            }
+        })
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+
+    assert!(runtime.host_animation_activity().needs_frame_message());
+    assert!(runtime.host_queue_animation_frame());
+    let command = runtime
+        .bridge_mut()
+        .update(crate::native_app::test_support::state::GuiMessage::Frame);
+
+    assert_eq!(
+        command.repaint_scope(),
+        Some(RepaintScope::PaintOnly),
+        "source-processing animation must not rebuild the full library projection"
+    );
+}
+
+#[test]
+fn source_processing_activity_moves_in_transient_overlay_without_input() {
+    let mut state = gui_state_for_span_tests();
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: true,
+            completed: 3,
+            total: 10,
+            stage: String::from("Analyzing audio"),
+            detail: String::from("kick.wav"),
+        },
+    );
+    assert!(state.should_paint_app_transient_overlay());
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    let activity_x = |runtime: &mut NativeRuntimeForTests, animation_time| {
+        let mut primitives = Vec::new();
+        runtime
+            .bridge_mut()
+            .state_mut()
+            .paint_source_processing_activity_overlay(
+                TransientOverlayContext::new(
+                    &frame.paint_plan,
+                    Vector2::new(900.0, 620.0),
+                    animation_time,
+                ),
+                &mut primitives,
+            );
+        primitives
+            .iter()
+            .filter_map(|primitive| primitive.fill_rect())
+            .next()
+            .expect("source processing activity fill")
+            .rect
+            .center()
+            .x
+    };
+
+    let first_x = activity_x(&mut runtime, Duration::ZERO);
+    let later_x = activity_x(&mut runtime, Duration::from_millis(250));
+
+    assert!(
+        later_x > first_x,
+        "paint-only source activity must advance from animation time"
+    );
+}
+
+#[test]
 fn scene_installs_playback_cursor_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.current.start_playback(0.25);

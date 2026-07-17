@@ -216,6 +216,52 @@ pub fn publish_readiness_artifact(
     Ok(ArtifactPublishOutcome::Recorded)
 }
 
+/// Remove an exact artifact whose backing payload has been proven missing or corrupt.
+///
+/// The desired target must still match the supplied generation and version. This fence prevents
+/// a stale worker from invalidating a replacement artifact published for newer content.
+pub fn invalidate_readiness_artifact(
+    connection: &mut Connection,
+    target: &ReadinessTarget,
+) -> Result<bool, ReadinessError> {
+    let changed = connection.execute(
+        "DELETE FROM source_readiness_artifacts AS artifact
+         WHERE artifact.source_id = ?1
+           AND artifact.scope_kind = ?2
+           AND artifact.scope_id = ?3
+           AND artifact.stage = ?4
+           AND artifact.artifact_version = ?5
+           AND artifact.content_generation = ?6
+           AND (?2 = 'file' OR artifact.source_generation = ?7)
+           AND EXISTS (
+               SELECT 1
+               FROM source_readiness_sources AS source
+               JOIN source_readiness_targets AS target
+                 ON target.source_id = source.source_id
+                AND target.source_generation = source.source_generation
+               WHERE target.source_id = artifact.source_id
+                 AND target.scope_kind = artifact.scope_kind
+                 AND target.scope_id = artifact.scope_id
+                 AND target.stage = artifact.stage
+                 AND target.required_version = artifact.artifact_version
+                 AND target.content_generation = artifact.content_generation
+                 AND (?2 = 'file' OR target.source_generation = ?7)
+                 AND target.eligibility = 'eligible'
+                 AND source.availability = 'active'
+           )",
+        params![
+            target.source_id,
+            target.scope_kind.as_str(),
+            target.scope_id,
+            target.stage.as_str(),
+            target.required_version,
+            target.content_generation,
+            target.source_generation,
+        ],
+    )?;
+    Ok(changed == 1)
+}
+
 /// Persist actionable deficits into the existing source-local analysis job table.
 ///
 /// These rows are readiness-managed so the legacy analysis claimant ignores them. OPT-1178's

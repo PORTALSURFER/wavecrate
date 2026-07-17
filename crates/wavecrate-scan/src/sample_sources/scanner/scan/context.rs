@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::sample_sources::SourceDatabase;
@@ -15,6 +15,13 @@ pub(crate) struct ScanContext {
     committed_manifest: BTreeMap<PathBuf, SourceManifestEntry>,
     committed_manifest_revision: u64,
     pub(crate) last_committed_revision: Option<u64>,
+    manifest_audit: Option<ManifestAuditCheckpoint>,
+}
+
+struct ManifestAuditCheckpoint {
+    previously_checked: HashSet<PathBuf>,
+    pending: Vec<PathBuf>,
+    expected_total: usize,
 }
 
 impl ScanContext {
@@ -50,7 +57,88 @@ impl ScanContext {
                 .collect(),
             committed_manifest_revision: manifest_revision,
             last_committed_revision: None,
+            manifest_audit: None,
         }
+    }
+
+    pub(in crate::sample_sources::scanner) fn resume_manifest_audit(
+        &mut self,
+        db: &SourceDatabase,
+        started_at: i64,
+    ) -> Result<(), ScanError> {
+        let previously_checked = db
+            .begin_or_resume_manifest_audit(started_at)?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        self.stats.total_files = previously_checked.len();
+        self.manifest_audit = Some(ManifestAuditCheckpoint {
+            expected_total: self.committed_manifest.len().max(previously_checked.len()),
+            previously_checked,
+            pending: Vec::new(),
+        });
+        Ok(())
+    }
+
+    pub(in crate::sample_sources::scanner) fn manifest_audit_progress(
+        &self,
+    ) -> Option<(usize, usize)> {
+        self.manifest_audit.as_ref().map(|audit| {
+            (
+                self.stats.total_files,
+                audit.expected_total.max(self.stats.total_files),
+            )
+        })
+    }
+
+    pub(in crate::sample_sources::scanner) fn skip_previously_audited_path(
+        &mut self,
+        relative_path: &std::path::Path,
+    ) -> bool {
+        let already_checked = self
+            .manifest_audit
+            .as_ref()
+            .is_some_and(|audit| audit.previously_checked.contains(relative_path));
+        if already_checked {
+            self.existing.remove(relative_path);
+        }
+        already_checked
+    }
+
+    pub(in crate::sample_sources::scanner) fn record_manifest_audit_paths(
+        &mut self,
+        db: &SourceDatabase,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) -> Result<(), ScanError> {
+        let Some(audit) = self.manifest_audit.as_mut() else {
+            return Ok(());
+        };
+        for path in paths {
+            if audit.previously_checked.insert(path.clone()) {
+                audit.pending.push(path);
+                self.stats.total_files = self.stats.total_files.saturating_add(1);
+            }
+        }
+        if audit.pending.len() >= 64 {
+            db.checkpoint_manifest_audit_paths(&audit.pending)?;
+            audit.pending.clear();
+        }
+        Ok(())
+    }
+
+    pub(in crate::sample_sources::scanner) fn flush_manifest_audit_checkpoint(
+        &mut self,
+        db: &SourceDatabase,
+    ) -> Result<(), ScanError> {
+        let Some(audit) = self.manifest_audit.as_mut() else {
+            return Ok(());
+        };
+        db.checkpoint_manifest_audit_paths(&audit.pending)?;
+        audit.pending.clear();
+        Ok(())
+    }
+
+    pub(in crate::sample_sources::scanner) fn resumable_manifest_audit_active(&self) -> bool {
+        self.manifest_audit.is_some()
     }
 
     pub(in crate::sample_sources::scanner) fn ensure_rename_candidate_generation(
