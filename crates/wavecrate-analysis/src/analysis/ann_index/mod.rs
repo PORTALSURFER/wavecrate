@@ -403,20 +403,11 @@ pub(crate) fn publish_exact_index_with_transaction(
             &mut publish_sql_artifacts,
         );
     }
-    let placeholder = Arc::new(RwLock::new(build::build_index_from_db(
-        conn,
-        state::default_params(),
-        default_path,
-    )?));
-    let mut placeholder_state = placeholder
-        .write()
-        .map_err(|_| "ANN index state lock poisoned")?;
     let mut registry = ANN_INDEX
         .write()
         .map_err(|_| "ANN index lock poisoned".to_string())?;
     if let Some(existing) = registry.get(&key).cloned() {
         drop(registry);
-        drop(placeholder_state);
         return publish_exact_into_existing_state(
             conn,
             &mut state,
@@ -425,8 +416,9 @@ pub(crate) fn publish_exact_index_with_transaction(
             &mut publish_sql_artifacts,
         );
     }
-    registry.insert(key, Arc::clone(&placeholder));
-    drop(registry);
+    // Keep first-load publication private while the registry write lock prevents a
+    // concurrent cache miss from installing database-derived state. A rejected or
+    // errored fence therefore leaves no unpublished ANN state globally visible.
     if !publish_exact_transaction(
         conn,
         state.as_mut().expect("exact ANN state must be available"),
@@ -435,12 +427,11 @@ pub(crate) fn publish_exact_index_with_transaction(
     )? {
         return Ok(false);
     }
-    let previous_index_path = placeholder_state.index_path.clone();
     let state = state.take().expect("published ANN state must be available");
     let published_index_path = state.index_path.clone();
-    *placeholder_state = state;
-    drop(placeholder_state);
-    storage::remove_superseded_generation(&previous_index_path, &published_index_path);
+    registry.insert(key, Arc::new(RwLock::new(state)));
+    drop(registry);
+    storage::remove_superseded_generation(&default_path, &published_index_path);
     Ok(true)
 }
 
@@ -510,6 +501,15 @@ pub(crate) fn evict_index_for_test(conn: &Connection) -> Result<(), String> {
         .map_err(|_| "ANN index lock poisoned".to_string())?
         .remove(&key);
     Ok(())
+}
+
+#[cfg(test)]
+pub(crate) fn index_is_cached_for_test(conn: &Connection) -> Result<bool, String> {
+    let key = storage::index_key(conn)?;
+    Ok(ANN_INDEX
+        .read()
+        .map_err(|_| "ANN index lock poisoned".to_string())?
+        .contains_key(&key))
 }
 
 fn load_embedding(conn: &Connection, sample_id: &str) -> Result<Vec<f32>, String> {

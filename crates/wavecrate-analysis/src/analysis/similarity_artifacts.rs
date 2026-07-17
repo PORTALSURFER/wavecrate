@@ -468,6 +468,8 @@ mod tests {
                 [similarity::SIMILARITY_MODEL_ID],
             )
             .expect("seed old layout");
+        ann_index::evict_index_for_test(&connection).expect("evict exact ANN cache");
+        assert!(!ann_index::index_is_cached_for_test(&connection).expect("inspect ANN cache"));
 
         let result = rebuild_exact_similarity_artifacts(
             &mut connection,
@@ -479,6 +481,10 @@ mod tests {
         .expect("reject stale generation");
 
         assert_eq!(result, None);
+        assert!(
+            !ann_index::index_is_cached_for_test(&connection).expect("inspect rejected ANN cache"),
+            "a rejected first-load publication must not expose a database-derived placeholder"
+        );
         assert_eq!(
             connection
                 .query_row(
