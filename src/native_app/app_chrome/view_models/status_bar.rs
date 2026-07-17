@@ -156,7 +156,11 @@ impl WorkerProgressViewModel {
             completed: progress.completed,
             total: progress.total,
             current_fraction: None,
-            active_animation: true,
+            // Source processing has no independently measurable current-item fraction. Use one
+            // determinate track when totals are known and let the shared progress primitive
+            // animate that same track when totals are unknown. A second indeterminate strip can
+            // clip down to an ambiguous edge sliver at the end of its animation cycle.
+            active_animation: false,
         }
     }
 }

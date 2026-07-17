@@ -41,6 +41,7 @@ use crate::native_app::waveform::{
 };
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
+const PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 const MANIFEST_AUDIT_INTERVAL_SECONDS: i64 = 5 * 60;
 const MANIFEST_AUDIT_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
@@ -595,6 +596,7 @@ impl SourceProcessingSupervisor {
             control.playback_active = active;
             if active {
                 control.cancel_all_source_work();
+                control.pause_feedback_pending = true;
             } else if !control.foreground_active {
                 control.reset_source_work_tokens();
             }
@@ -602,6 +604,9 @@ impl SourceProcessingSupervisor {
                 control.notify("playback_pause");
             } else {
                 control.notify("playback_resume");
+            }
+            if active {
+                publish_source_processing_pausing(&self.shared, "Waiting for playback");
             }
             drop(control);
             if active {
@@ -620,6 +625,7 @@ impl SourceProcessingSupervisor {
         control.foreground_active = active;
         if active {
             control.cancel_all_source_work();
+            control.pause_feedback_pending = true;
         } else if !control.playback_active {
             control.reset_source_work_tokens();
         }
@@ -627,6 +633,9 @@ impl SourceProcessingSupervisor {
             control.notify("foreground_activity_pause");
         } else {
             control.notify("foreground_activity_resume");
+        }
+        if active {
+            publish_source_processing_pausing(&self.shared, "Waiting for source loading");
         }
         drop(control);
         if active {
@@ -719,6 +728,7 @@ impl Shared {
                 wake_reason: "startup",
                 playback_active: false,
                 foreground_active: false,
+                pause_feedback_pending: false,
                 shutdown: false,
                 priority: PriorityContext::default(),
             }),
@@ -862,6 +872,7 @@ struct ControlState {
     wake_reason: &'static str,
     playback_active: bool,
     foreground_active: bool,
+    pause_feedback_pending: bool,
     shutdown: bool,
     priority: PriorityContext,
 }
@@ -999,14 +1010,25 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut candidates = Vec::<RuntimeCandidate>::new();
     let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
     let mut active_progress_source = None::<String>;
+    let mut last_progress_publish_at = None::<Instant>;
+    let mut progress_visible = false;
     loop {
-        let (sources, dirty_sources, source_work_cancels, processing_paused, generation, reason) = {
+        let (
+            sources,
+            dirty_sources,
+            source_work_cancels,
+            processing_paused,
+            pause_feedback_pending,
+            generation,
+            reason,
+        ) = {
             let mut control = shared.control();
             while !control.shutdown && control.wake_generation == observed_generation {
                 let wait_duration = coordinator_wait_duration(
                     next_retry_at,
                     now_epoch_seconds(),
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
+                    control.processing_paused(),
                 );
                 let (next, _) = shared
                     .wake
@@ -1039,6 +1061,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 break;
             }
             let processing_paused = control.processing_paused();
+            let pause_feedback_pending = std::mem::take(&mut control.pause_feedback_pending);
             let dirty_sources = if processing_paused {
                 BTreeSet::new()
             } else {
@@ -1054,6 +1077,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 dirty_sources,
                 control.source_work_cancels.clone(),
                 processing_paused,
+                pause_feedback_pending,
                 control.wake_generation,
                 control.wake_reason,
             )
@@ -1069,6 +1093,15 @@ fn run_coordinator(shared: Arc<Shared>) {
                 && !dirty_sources.contains(candidate.source.id.as_str())
         });
         source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
+        if pause_feedback_pending {
+            // The pause may already have resumed by the time a long-running database
+            // checkpoint returns. Acknowledge the latched transition here so rapid foreground
+            // activity cannot leave stale pausing feedback behind.
+            publish_source_processing_finished(&shared);
+            progress_visible = false;
+            active_progress_source = None;
+            last_progress_publish_at = None;
+        }
         if processing_paused {
             tracing::debug!(
                 target: "wavecrate::source_processing",
@@ -1127,6 +1160,9 @@ fn run_coordinator(shared: Arc<Shared>) {
             .filter(|source| dirty_sources.contains(source.id.as_str()))
             .cloned()
             .collect::<Vec<_>>();
+        if !sources_to_discover.is_empty() {
+            progress_visible = true;
+        }
         for source in &sources_to_discover {
             source_stats.remove(source.id.as_str());
         }
@@ -1138,11 +1174,11 @@ fn run_coordinator(shared: Arc<Shared>) {
         candidates.append(&mut discovered);
         source_stats.extend(discovered_source_stats);
         let discovered_stats = aggregate_source_stats(source_stats.values().copied());
-        if candidates.is_empty()
-            && discovered_stats.progress_completed >= discovered_stats.progress_total
-        {
+        if candidates.is_empty() && progress_visible {
             publish_source_processing_finished(&shared);
+            progress_visible = false;
             active_progress_source = None;
+            last_progress_publish_at = None;
         }
         next_retry_at = discovered_stats.earliest_retry_at;
         {
@@ -1182,8 +1218,11 @@ fn run_coordinator(shared: Arc<Shared>) {
             };
             let index = eligible_indices[schedule_index];
             let candidate = candidates.swap_remove(index);
+            let progress_refresh_due = last_progress_publish_at
+                .is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL);
             if (active_progress_source.as_deref() != Some(candidate.source.id.as_str())
-                || !matches!(&candidate.task, RuntimeTask::Readiness(_)))
+                || !matches!(&candidate.task, RuntimeTask::Readiness(_))
+                || progress_refresh_due)
                 && source_stats.contains_key(candidate.source.id.as_str())
             {
                 publish_source_processing_progress(
@@ -1192,6 +1231,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                     aggregate_source_stats(source_stats.values().copied()),
                 );
                 active_progress_source = Some(candidate.source.id.as_str().to_string());
+                last_progress_publish_at = Some(Instant::now());
+                progress_visible = true;
             }
             let Some(permit) = shared
                 .budgets()
@@ -1250,6 +1291,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                                 )
                             {
                                 publish_source_processing_progress(&shared, &candidate, progress);
+                                last_progress_publish_at = Some(Instant::now());
+                                progress_visible = true;
                             }
                         }
                         ExecutionOutcome::Retried { retry_at } => {
@@ -1271,6 +1314,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                                 )
                             {
                                 publish_source_processing_progress(&shared, &candidate, progress);
+                                last_progress_publish_at = Some(Instant::now());
+                                progress_visible = true;
                             }
                         }
                         ExecutionOutcome::Stale => {
@@ -1340,6 +1385,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                 .mark_source_dirty(source_id, "source_stage_progress");
             break;
         }
+        if candidates.is_empty() && progress_visible {
+            publish_source_processing_finished(&shared);
+            progress_visible = false;
+            active_progress_source = None;
+            last_progress_publish_at = None;
+        }
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
         telemetry.oldest_job_age_seconds = oldest_job_age_seconds(&candidates, now_epoch_seconds());
@@ -1370,6 +1421,10 @@ fn publish_source_processing_progress(
     candidate: &RuntimeCandidate,
     stats: SourceDiscoveryStats,
 ) {
+    let control = shared.control();
+    if control.processing_paused() {
+        return;
+    }
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
         return;
     };
@@ -1415,6 +1470,10 @@ fn publish_source_processing_progress(
 }
 
 fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
+    let control = shared.control();
+    if control.processing_paused() {
+        return;
+    }
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
         return;
     };
@@ -1442,6 +1501,22 @@ fn publish_source_processing_finished(shared: &Shared) {
             total: 0,
             stage: String::new(),
             detail: String::new(),
+        },
+    ));
+}
+
+fn publish_source_processing_pausing(shared: &Shared, detail: &str) {
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return;
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: String::new(),
+            active: true,
+            completed: 0,
+            total: 0,
+            stage: String::from("Pausing source processing"),
+            detail: detail.to_string(),
         },
     ));
 }
@@ -2793,7 +2868,11 @@ fn coordinator_wait_duration(
     next_retry_at: Option<i64>,
     now: i64,
     safety_wait: Duration,
+    processing_paused: bool,
 ) -> Duration {
+    if processing_paused {
+        return safety_wait;
+    }
     let retry_wait = next_retry_at.map_or(safety_wait, |deadline| {
         Duration::from_secs(deadline.saturating_sub(now).max(0) as u64)
     });
@@ -2835,6 +2914,96 @@ mod tests {
         wait_until(Duration::from_secs(10), || source_is_hashed(&source));
         let report = supervisor.shutdown();
         assert_eq!(report["joined"], true);
+    }
+
+    #[test]
+    fn playback_pause_reports_transition_and_fences_source_processing_feedback() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_sender(
+            Vec::new(),
+            false,
+            Some(sender),
+        );
+
+        supervisor.set_playback_active(true);
+
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("playback pause cleanup");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert!(progress.active);
+        assert_eq!(progress.stage, "Pausing source processing");
+        assert_eq!(progress.detail, "Waiting for playback");
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("playback pause acknowledgement");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert!(!progress.active);
+
+        supervisor.set_playback_active(false);
+        supervisor.set_foreground_activity(true);
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("foreground activity cleanup");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert!(progress.active);
+        assert_eq!(progress.stage, "Pausing source processing");
+        assert_eq!(progress.detail, "Waiting for source loading");
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("foreground activity pause acknowledgement");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert!(!progress.active);
+
+        supervisor.set_foreground_activity(false);
+        supervisor.set_foreground_activity(true);
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("rapid foreground pause transition");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert!(progress.active);
+        supervisor.set_foreground_activity(false);
+        let message = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("rapid foreground pause acknowledgement");
+        let GuiMessage::SourceProcessingProgress(progress) = message else {
+            panic!("unexpected supervisor GUI message: {message:?}");
+        };
+        assert!(!progress.active);
+
+        supervisor.set_playback_active(true);
+        for expectation in ["final pause transition", "final pause acknowledgement"] {
+            let message = receiver
+                .recv_timeout(Duration::from_secs(1))
+                .expect(expectation);
+            let GuiMessage::SourceProcessingProgress(progress) = message else {
+                panic!("unexpected supervisor GUI message: {message:?}");
+            };
+            if expectation == "final pause transition" {
+                assert!(progress.active);
+            } else {
+                assert!(!progress.active);
+            }
+        }
+
+        let directory = tempfile::tempdir().expect("paused discovery source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("paused-discovery"),
+            directory.path().to_path_buf(),
+        );
+        publish_source_processing_discovery(&supervisor.shared, &source);
+        assert!(receiver.try_recv().is_err());
+        assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
     #[test]
@@ -4279,25 +4448,30 @@ mod tests {
     #[test]
     fn retry_deadline_shortens_coordinator_wait_deterministically() {
         assert_eq!(
-            coordinator_wait_duration(Some(105), 100, SAFETY_SWEEP_INTERVAL),
+            coordinator_wait_duration(Some(105), 100, SAFETY_SWEEP_INTERVAL, false),
             Duration::from_secs(5)
         );
         assert_eq!(
-            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL),
+            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL, false),
             Duration::ZERO
         );
         assert_eq!(
-            coordinator_wait_duration(Some(200), 100, SAFETY_SWEEP_INTERVAL),
+            coordinator_wait_duration(Some(200), 100, SAFETY_SWEEP_INTERVAL, false),
             SAFETY_SWEEP_INTERVAL
         );
         assert_eq!(
-            coordinator_wait_duration(None, 100, SAFETY_SWEEP_INTERVAL),
+            coordinator_wait_duration(None, 100, SAFETY_SWEEP_INTERVAL, false),
             SAFETY_SWEEP_INTERVAL
         );
         assert_eq!(
-            coordinator_wait_duration(None, 100, Duration::from_secs(3)),
+            coordinator_wait_duration(None, 100, Duration::from_secs(3), false),
             Duration::from_secs(3),
             "priority wakes must preserve the remaining absolute safety-sweep deadline"
+        );
+        assert_eq!(
+            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL, true),
+            SAFETY_SWEEP_INTERVAL,
+            "paused processing must not spin on an already-due retry deadline"
         );
     }
 

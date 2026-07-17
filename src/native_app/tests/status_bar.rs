@@ -207,6 +207,27 @@ fn source_processing_advances_activity_tick_on_frame() {
 }
 
 #[test]
+fn source_processing_uses_one_unambiguous_progress_track() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id: String::from("source"),
+            active: true,
+            completed: 20_625,
+            total: 40_658,
+            stage: String::from("Analyzing audio"),
+            detail: String::from("kick.wav"),
+        },
+    );
+
+    let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
+
+    assert_eq!(frame.paint_plan.fill_rects().count(), 2);
+    assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
+}
+
+#[test]
 fn normalization_progress_does_not_advance_activity_tick_on_frame() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.normalization_progress = Some(
@@ -328,7 +349,7 @@ fn status_bar_routes_source_processing_through_worker_progress_and_job_details()
             completed: 313,
             total: 9_985,
             current_fraction: None,
-            active_animation: true,
+            active_animation: false,
         }
     );
     assert_eq!(
