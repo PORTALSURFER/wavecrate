@@ -60,10 +60,10 @@ fn scan_skips_analysis_when_hash_unchanged() {
 }
 
 #[test]
-fn scan_backfills_missing_identity_for_unchanged_legacy_row() {
+fn scan_backfills_missing_identity_for_unchanged_row() {
     let dir = tempdir().unwrap();
-    let relative = Path::new("legacy.wav");
-    std::fs::write(dir.path().join(relative), b"legacy").unwrap();
+    let relative = Path::new("missing-identity.wav");
+    std::fs::write(dir.path().join(relative), b"sample").unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();
     scan_once(&db).unwrap();
     let original = db.list_manifest_entries().unwrap().remove(0);

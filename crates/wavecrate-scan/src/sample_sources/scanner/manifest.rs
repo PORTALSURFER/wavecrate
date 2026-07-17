@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use wavecrate_library::filesystem_identity::same_filesystem_object_identity;
 use wavecrate_library::sample_sources::{SourceDatabase, SourceManifestEntry};
 
 use super::scan::{
@@ -203,7 +202,7 @@ fn match_same_path_and_identity(
         let Some(current_identity) = normalized(after[after_index].file_identity.as_deref()) else {
             continue;
         };
-        if !same_filesystem_object_identity(&previous_identity, &current_identity) {
+        if previous_identity != current_identity {
             continue;
         }
         matched_before.insert(before_index);
@@ -368,17 +367,6 @@ mod tests {
 
         assert!(delta.is_empty());
         assert_eq!(delta.revision, 19);
-    }
-
-    #[test]
-    fn same_path_identity_version_upgrade_is_not_create_delete_churn() {
-        let before = vec![entry("same.wav", "unix:10:20", Some("same"), 4, 1)];
-        let after = vec![entry("same.wav", "unix-v2:10:20:30", Some("same"), 4, 1)];
-
-        let delta = build_committed_delta(&before, &after, 20);
-
-        assert!(delta.is_empty());
-        assert_eq!(delta.revision, 20);
     }
 
     #[test]

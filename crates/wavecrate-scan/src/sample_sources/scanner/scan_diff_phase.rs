@@ -2,7 +2,6 @@ use super::scan::{ScanContext, ScanError, ScanMode};
 use super::scan_diff::{PreparedFile, should_compute_full_hash};
 use super::scan_fs::read_facts;
 use std::path::Path;
-use wavecrate_library::filesystem_identity::same_filesystem_object_identity;
 
 pub(super) fn prepare_diff(
     root: &Path,
@@ -24,7 +23,7 @@ pub(super) fn prepare_diff(
         observed_identity.is_some_and(|identity| persisted_identity != Some(identity));
     let identity_replaced = persisted_identity
         .zip(observed_identity)
-        .is_some_and(|(previous, current)| !same_filesystem_object_identity(previous, current));
+        .is_some_and(|(previous, current)| previous != current);
     let force_targeted_verification = context.mode == ScanMode::Targeted;
     let hash_required = should_compute_full_hash(context.mode, facts.size)
         || (force_targeted_verification && existing.is_some());

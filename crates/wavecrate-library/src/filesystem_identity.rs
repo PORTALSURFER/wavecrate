@@ -12,45 +12,14 @@ pub fn stable_filesystem_identity(path: &Path, metadata: &fs::Metadata) -> Optio
     stable_filesystem_identity_impl(path, metadata)
 }
 
-/// Return whether two persisted identities describe the same filesystem object.
+/// Return a platform marker that changes when the filesystem object is mutated.
 ///
-/// Version 2 added creation time so reused inode/file-index values no longer alias a
-/// replacement. During migration, a legacy identity can still be matched to its v2 form
-/// by the platform object fields that were available in v1.
-pub fn same_filesystem_object_identity(previous: &str, current: &str) -> bool {
-    if previous == current {
-        return true;
-    }
-    legacy_identity_parts(previous)
-        .zip(version_2_identity_parts(current))
-        .is_some_and(|(previous, current)| previous == current)
-        || version_2_identity_parts(previous)
-            .zip(legacy_identity_parts(current))
-            .is_some_and(|(previous, current)| previous == current)
-}
-
-fn legacy_identity_parts(identity: &str) -> Option<(&str, &str, &str)> {
-    let mut parts = identity.split(':');
-    let platform = parts.next()?;
-    if !matches!(platform, "unix" | "windows") {
-        return None;
-    }
-    let first = parts.next()?;
-    let second = parts.next()?;
-    parts.next().is_none().then_some((platform, first, second))
-}
-
-fn version_2_identity_parts(identity: &str) -> Option<(&str, &str, &str)> {
-    let mut parts = identity.split(':');
-    let platform = match parts.next()? {
-        "unix-v2" => "unix",
-        "windows-v2" => "windows",
-        _ => return None,
-    };
-    let first = parts.next()?;
-    let second = parts.next()?;
-    let _creation_time = parts.next()?;
-    parts.next().is_none().then_some((platform, first, second))
+/// This is intentionally separate from modified time because callers use it to fence
+/// content reads even when another process restores the user-visible modified time.
+/// Unsupported filesystems and lookup failures return `None`; callers must not treat a
+/// missing marker as proof that a content snapshot remained stable.
+pub fn filesystem_change_marker(path: &Path, metadata: &fs::Metadata) -> Option<String> {
+    filesystem_change_marker_impl(path, metadata)
 }
 
 #[cfg(unix)]
@@ -63,10 +32,21 @@ fn stable_filesystem_identity_impl(_path: &Path, metadata: &fs::Metadata) -> Opt
     // distinguishes a replacement that inherits the same device/inode pair.
     let created = metadata.created().ok()?.duration_since(UNIX_EPOCH).ok()?;
     Some(format!(
-        "unix-v2:{}:{}:{}",
+        "unix:{}:{}:{}",
         metadata.dev(),
         metadata.ino(),
         created.as_nanos()
+    ))
+}
+
+#[cfg(unix)]
+fn filesystem_change_marker_impl(_path: &Path, metadata: &fs::Metadata) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+
+    Some(format!(
+        "unix:{}:{}",
+        metadata.ctime(),
+        metadata.ctime_nsec()
     ))
 }
 
@@ -97,13 +77,51 @@ fn stable_filesystem_identity_impl(path: &Path, metadata: &fs::Metadata) -> Opti
     let creation_time = (u64::from(information.ftCreationTime.dwHighDateTime) << 32)
         | u64::from(information.ftCreationTime.dwLowDateTime);
     Some(format!(
-        "windows-v2:{}:{}:{}",
+        "windows:{}:{}:{}",
         information.dwVolumeSerialNumber, file_index, creation_time
     ))
 }
 
+#[cfg(windows)]
+fn filesystem_change_marker_impl(path: &Path, metadata: &fs::Metadata) -> Option<String> {
+    use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+    use windows::Win32::{
+        Foundation::HANDLE,
+        Storage::FileSystem::{
+            FILE_BASIC_INFO, FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
+            FILE_SHARE_READ, FILE_SHARE_WRITE, FileBasicInfo, GetFileInformationByHandleEx,
+        },
+    };
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .access_mode(FILE_READ_ATTRIBUTES.0)
+        .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE).0);
+    if metadata.file_type().is_symlink() {
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT.0);
+    }
+
+    let file = options.open(path).ok()?;
+    let mut information = FILE_BASIC_INFO::default();
+    unsafe {
+        GetFileInformationByHandleEx(
+            HANDLE(file.as_raw_handle()),
+            FileBasicInfo,
+            (&mut information as *mut FILE_BASIC_INFO).cast(),
+            std::mem::size_of::<FILE_BASIC_INFO>() as u32,
+        )
+    }
+    .ok()?;
+    (information.ChangeTime != 0).then(|| format!("windows:{}", information.ChangeTime))
+}
+
 #[cfg(not(any(unix, windows)))]
 fn stable_filesystem_identity_impl(_path: &Path, _metadata: &fs::Metadata) -> Option<String> {
+    None
+}
+
+#[cfg(not(any(unix, windows)))]
+fn filesystem_change_marker_impl(_path: &Path, _metadata: &fs::Metadata) -> Option<String> {
     None
 }
 
@@ -146,25 +164,5 @@ mod tests {
             stable_filesystem_identity(&renamed, &renamed_metadata).expect("read renamed identity");
 
         assert_eq!(original_identity, renamed_identity);
-    }
-
-    #[test]
-    fn legacy_identity_matches_its_version_2_upgrade_only() {
-        assert!(same_filesystem_object_identity(
-            "unix:10:20",
-            "unix-v2:10:20:30"
-        ));
-        assert!(same_filesystem_object_identity(
-            "windows-v2:10:20:30",
-            "windows:10:20"
-        ));
-        assert!(!same_filesystem_object_identity(
-            "unix-v2:10:20:30",
-            "unix-v2:10:20:31"
-        ));
-        assert!(!same_filesystem_object_identity(
-            "unix:10:20",
-            "windows-v2:10:20:30"
-        ));
     }
 }

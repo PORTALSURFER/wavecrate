@@ -7,7 +7,9 @@ use std::{
 };
 
 use tracing::warn;
-use wavecrate_library::filesystem_identity::stable_filesystem_identity;
+use wavecrate_library::filesystem_identity::{
+    filesystem_change_marker, stable_filesystem_identity,
+};
 
 use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
@@ -19,7 +21,7 @@ pub(super) struct FileFacts {
     pub(super) size: u64,
     pub(super) modified_ns: i64,
     pub(super) file_identity: Option<String>,
-    change_marker: Option<(i64, i64)>,
+    change_marker: Option<String>,
 }
 
 impl FileFacts {
@@ -30,7 +32,12 @@ impl FileFacts {
     }
 
     pub(super) fn same_content_snapshot(&self, other: &Self) -> bool {
-        self.same_file_facts(other) && self.change_marker == other.change_marker
+        self.same_file_facts(other)
+            && self
+                .change_marker
+                .as_ref()
+                .zip(other.change_marker.as_ref())
+                .is_some_and(|(before, after)| before == after)
     }
 }
 
@@ -133,20 +140,8 @@ pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanErro
         size: meta.len(),
         modified_ns,
         file_identity: stable_filesystem_identity(path, &meta),
-        change_marker: metadata_change_marker(&meta),
+        change_marker: filesystem_change_marker(path, &meta),
     })
-}
-
-#[cfg(unix)]
-fn metadata_change_marker(metadata: &fs::Metadata) -> Option<(i64, i64)> {
-    use std::os::unix::fs::MetadataExt;
-
-    Some((metadata.ctime(), metadata.ctime_nsec()))
-}
-
-#[cfg(not(unix))]
-fn metadata_change_marker(_metadata: &fs::Metadata) -> Option<(i64, i64)> {
-    None
 }
 
 pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {
@@ -274,5 +269,18 @@ mod tests {
             Some(cancel.as_ref()),
         );
         assert!(matches!(result, Err(ScanError::Canceled)));
+    }
+
+    #[test]
+    fn missing_change_markers_never_prove_a_stable_snapshot() {
+        let facts = FileFacts {
+            relative: PathBuf::from("sample.wav"),
+            size: 32,
+            modified_ns: 1,
+            file_identity: Some(String::from("identity")),
+            change_marker: None,
+        };
+
+        assert!(!facts.same_content_snapshot(&facts));
     }
 }

@@ -29,6 +29,7 @@ use self::tag_catalog::{backfill_tag_catalog, ensure_tag_catalog_schema};
 /// Apply additive column migrations needed by older source databases.
 pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), SourceDbError> {
     apply_structural_migrations(connection)?;
+    migrate_canonical_file_identities(connection)?;
     backfill_tag_catalog(connection)?;
     Ok(())
 }
@@ -82,6 +83,50 @@ fn ensure_collection_membership_schema(connection: &Connection) -> Result<(), So
             SELECT path, collection
             FROM wav_files
             WHERE collection IS NOT NULL;",
+        )
+        .map_err(map_sql_error)?;
+    Ok(())
+}
+
+fn migrate_canonical_file_identities(connection: &Connection) -> Result<(), SourceDbError> {
+    for table in ["wav_files", "pending_wav_renames"] {
+        if !table_columns(connection, table)?.contains("file_identity") {
+            continue;
+        }
+        let sql = format!(
+            "UPDATE {table}
+             SET file_identity = CASE
+                 WHEN file_identity LIKE 'unix-v2:%'
+                     THEN 'unix:' || substr(file_identity, length('unix-v2:') + 1)
+                 WHEN file_identity LIKE 'windows-v2:%'
+                     THEN 'windows:' || substr(file_identity, length('windows-v2:') + 1)
+                 WHEN (
+                     file_identity LIKE 'unix:%'
+                     OR file_identity LIKE 'windows:%'
+                 ) AND (
+                     length(file_identity) - length(replace(file_identity, ':', ''))
+                 ) = 3
+                     THEN file_identity
+                 ELSE NULL
+             END
+             WHERE file_identity IS NOT NULL"
+        );
+        connection.execute(&sql, []).map_err(map_sql_error)?;
+    }
+    // Readiness rows are derived from the manifest. Rebuilding them is both
+    // simpler and safer than rewriting identity-bearing keys in place: mixed
+    // experimental/canonical databases may already contain both spellings,
+    // making an UPDATE collide with their uniqueness constraints. Existing
+    // durable analysis artifacts are deliberately preserved and will be
+    // rediscovered under the canonical identities.
+    connection
+        .execute_batch(
+            "DELETE FROM analysis_jobs WHERE readiness_managed = 1;
+             DELETE FROM source_readiness_targets;
+             DELETE FROM source_readiness_artifacts;
+             DELETE FROM source_readiness_sources;
+             DELETE FROM metadata
+             WHERE key = 'readiness_target_fingerprint_v1';",
         )
         .map_err(map_sql_error)?;
     Ok(())

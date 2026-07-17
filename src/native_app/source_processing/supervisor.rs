@@ -25,7 +25,10 @@ use wavecrate::sample_sources::{
         reconcile_readiness_with_cancel, renew_readiness_lease,
         replace_readiness_targets_with_cancel,
     },
-    scanner::{ScanError, audit_source_and_record, complete_pending_deep_hash_for_path},
+    scanner::{
+        ScanError, audit_source_and_record, complete_pending_deep_hash_for_path,
+        sync_paths_with_progress,
+    },
 };
 
 use super::scheduler::{
@@ -2718,25 +2721,33 @@ fn run_readiness_stage(
                     "feature executor version does not match target",
                 ));
             }
-            Ok(if analysis_features_are_current(connection, target)? {
-                ReadinessExecutionOutcome::Complete
-            } else {
-                let produced = super::worker::run_readiness_feature_stage(
-                    connection,
+            if analysis_features_are_current(connection, target)? {
+                return Ok(ReadinessExecutionOutcome::Complete);
+            }
+            let produced = super::worker::run_readiness_feature_stage(
+                connection,
+                source,
+                std::path::Path::new(relative_path),
+                target.content_generation.as_str(),
+                target.required_version.as_str(),
+                cancel,
+            )?;
+            if produced && analysis_features_are_current(connection, target)? {
+                return Ok(ReadinessExecutionOutcome::Complete);
+            }
+            if !produced {
+                reconcile_stale_analysis_input(
                     source,
                     std::path::Path::new(relative_path),
-                    target.content_generation.as_str(),
-                    target.required_version.as_str(),
                     cancel,
                 )?;
-                if produced && analysis_features_are_current(connection, target)? {
-                    ReadinessExecutionOutcome::Complete
-                } else {
-                    ReadinessExecutionOutcome::Retry(
-                        "analysis feature source generation is not current yet",
-                    )
-                }
-            })
+                return Ok(ReadinessExecutionOutcome::Retry(
+                    "analysis input changed; targeted source reconciliation committed",
+                ));
+            }
+            Ok(ReadinessExecutionOutcome::Retry(
+                "analysis feature publication is not durable yet",
+            ))
         }
         ReadinessStage::EmbeddingAspects => {
             let expected_version = format!(
@@ -2795,6 +2806,33 @@ fn run_readiness_stage(
             })
         }
     }
+}
+
+fn reconcile_stale_analysis_input(
+    source: &SampleSource,
+    relative_path: &std::path::Path,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    let database_root = source.database_root().map_err(|error| error.to_string())?;
+    let db =
+        SourceDatabase::open_for_background_job_with_database_root(&source.root, database_root)
+            .map_err(|error| error.to_string())?;
+    let stats = sync_paths_with_progress(
+        &db,
+        &[relative_path.to_path_buf()],
+        Some(cancel),
+        &mut |_, _| {},
+    )
+    .map_err(|error| error.to_string())?;
+    tracing::info!(
+        target: "wavecrate::source_processing",
+        source_id = source.id.as_str(),
+        path = %relative_path.display(),
+        revision = stats.committed_delta.revision,
+        changed = stats.committed_delta.changed.len(),
+        "Reconciled stale analysis input against the source manifest"
+    );
+    Ok(())
 }
 
 fn analysis_features_are_current(
@@ -4327,6 +4365,77 @@ mod tests {
         assert!(cached_waveform_file_audition_ready_exists(
             &source.root.join("ready.wav")
         ));
+    }
+
+    #[test]
+    fn stale_analysis_hash_triggers_targeted_reconciliation_and_converges() {
+        let (_directory, source) = ready_analysis_source("stale-analysis-input");
+        let relative = Path::new("ready.wav");
+        let db = source.open_db().expect("open stale analysis source");
+        wavecrate::sample_sources::scanner::sync_paths(&db, &[relative.to_path_buf()])
+            .expect("normalize source manifest");
+        db.set_metadata(
+            META_LAST_MANIFEST_AUDIT_AT,
+            &now_epoch_seconds().to_string(),
+        )
+        .expect("defer periodic audit");
+
+        let path = source.root.join(relative);
+        let original_modified = std::fs::metadata(&path)
+            .expect("read original metadata")
+            .modified()
+            .expect("read original modified time");
+        let mut bytes = std::fs::read(&path).expect("read readiness wav");
+        let last = bytes.last_mut().expect("readiness wav has audio data");
+        *last ^= 0x01;
+        std::fs::write(&path, &bytes).expect("mutate readiness wav");
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&path)
+            .expect("reopen mutated readiness wav");
+        file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+            .expect("restore readiness modified time");
+        let current_hash = blake3::hash(&bytes).to_hex().to_string();
+
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        wait_until(Duration::from_secs(15), || {
+            let manifest_is_current = source
+                .open_db()
+                .ok()
+                .and_then(|db| db.entry_for_path(relative).ok().flatten())
+                .and_then(|entry| entry.content_hash)
+                .as_deref()
+                == Some(current_hash.as_str());
+            if !manifest_is_current {
+                return false;
+            }
+            let database_root = source.database_root().expect("database root");
+            let Ok(connection) = SourceDatabase::open_connection_with_role_and_database_root(
+                &source.root,
+                &database_root,
+                SourceDatabaseConnectionRole::JobWorker,
+            ) else {
+                return false;
+            };
+            let sample_id = format!("{}::ready.wav", source.id);
+            connection
+                .query_row(
+                    "SELECT EXISTS(
+                        SELECT 1
+                        FROM samples AS sample
+                        JOIN features AS feature ON feature.sample_id = sample.sample_id
+                        JOIN embeddings AS embedding ON embedding.sample_id = sample.sample_id
+                        JOIN similarity_aspect_descriptors AS aspects
+                          ON aspects.sample_id = sample.sample_id
+                        WHERE sample.sample_id = ?1
+                          AND sample.content_hash = ?2
+                    )",
+                    params![sample_id, current_hash],
+                    |row| row.get::<_, bool>(0),
+                )
+                .unwrap_or(false)
+        });
+        assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
     #[test]

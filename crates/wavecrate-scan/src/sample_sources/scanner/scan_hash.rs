@@ -583,6 +583,10 @@ mod tests {
         let relative = Path::new("changing.wav");
         let absolute = dir.path().join(relative);
         std::fs::write(&absolute, [1_u8; 32]).expect("write initial wav");
+        let original_modified = std::fs::metadata(&absolute)
+            .expect("read initial metadata")
+            .modified()
+            .expect("read initial modified time");
         let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
         db.upsert_file(relative, 32, 1).expect("insert pending row");
 
@@ -593,7 +597,15 @@ mod tests {
             DeferredHashScope::AllUnhashed,
             Some(1),
             Some(relative),
-            |path| std::fs::write(path, [2_u8; 32]).expect("mutate during hashing"),
+            |path| {
+                std::fs::write(path, [2_u8; 32]).expect("mutate during hashing");
+                let file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .open(path)
+                    .expect("reopen mutated wav");
+                file.set_times(std::fs::FileTimes::new().set_modified(original_modified))
+                    .expect("restore modified time");
+            },
         )
         .expect("defer unstable hash");
 
