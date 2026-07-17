@@ -121,6 +121,40 @@ fn build_layout(vectors: Vec<f64>, dim: usize, seed: u64) -> Result<Vec<LayoutPo
     compute_tsne(vectors, dim, seed)
 }
 
+pub(crate) fn compute_layout_for_embeddings(
+    embeddings: &[(String, Vec<f32>)],
+    seed: u64,
+    min_coverage: f32,
+) -> Result<Vec<LayoutPoint>, String> {
+    let Some((_, first)) = embeddings.first() else {
+        return Ok(Vec::new());
+    };
+    if first.is_empty() {
+        return Err("Similarity embedding dimension must be greater than zero".to_string());
+    }
+    let dim = first.len();
+    if embeddings.len() <= 2 {
+        return Ok(match embeddings.len() {
+            1 => vec![[0.0, 0.0]],
+            2 => vec![[-1.0, 0.0], [1.0, 0.0]],
+            _ => Vec::new(),
+        });
+    }
+    let mut vectors = Vec::with_capacity(embeddings.len().saturating_mul(dim));
+    for (sample_id, embedding) in embeddings {
+        if embedding.len() != dim {
+            return Err(format!(
+                "Embedding dim mismatch: expected {dim}, got {} for {sample_id}",
+                embedding.len()
+            ));
+        }
+        vectors.extend(embedding.iter().copied().map(f64::from));
+    }
+    let layout = build_layout(vectors, dim, seed)?;
+    validate_layout(&layout, min_coverage)?;
+    Ok(layout)
+}
+
 fn persist_and_validate_layout_with_fence(
     conn: &mut Connection,
     sample_ids: &[String],

@@ -97,6 +97,19 @@ pub(crate) fn default_index_path(conn: &Connection) -> Result<PathBuf, String> {
     Ok(root.join(ANN_CONTAINER_NAME))
 }
 
+/// Best-effort removal for an obsolete generation container in the same source database.
+pub(crate) fn remove_superseded_generation(previous: &Path, current: &Path) {
+    if previous == current || previous.parent() != current.parent() {
+        return;
+    }
+    let Some(name) = previous.file_name().and_then(|name| name.to_str()) else {
+        return;
+    };
+    if name.starts_with("similarity_hnsw.") && name.ends_with(".ann") {
+        let _ = std::fs::remove_file(previous);
+    }
+}
+
 /// Resolve the legacy ANN index base path for migration checks.
 pub(crate) fn legacy_index_path(conn: &Connection) -> Result<PathBuf, String> {
     let root = match database_root_dir(conn) {

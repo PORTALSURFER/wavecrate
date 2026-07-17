@@ -17,7 +17,7 @@ use stream_io::{
 };
 
 const ANN_CONTAINER_MAGIC: &[u8; 8] = b"SANNIDX1";
-const ANN_CONTAINER_VERSION: u32 = 1;
+pub(super) const ANN_CONTAINER_VERSION: u32 = 1;
 const ANN_CONTAINER_CHECKSUM_LEN: usize = 32;
 const ANN_CONTAINER_HEADER_LEN: usize = 8 + 4 + 4 + 4 + 4 + (8 * 6) + ANN_CONTAINER_CHECKSUM_LEN;
 const MAX_MODEL_ID_LEN: u32 = 16 * 1024;

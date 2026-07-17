@@ -11,6 +11,7 @@ pub(crate) mod fft;
 pub(crate) mod frequency_domain;
 pub mod hdbscan;
 pub mod similarity;
+mod similarity_artifacts;
 pub(crate) mod time_domain;
 /// Legacy UMAP-named starmap layout utilities for visualization.
 ///
@@ -21,6 +22,10 @@ pub mod umap;
 pub mod vector;
 pub(crate) mod version;
 
+pub use similarity_artifacts::{
+    ExactSimilarityArtifactRequest, ExactSimilarityManifestEntry, ExactSimilarityPublication,
+    rebuild_exact_similarity_artifacts,
+};
 pub use umap::{
     MapLayoutReport, build_map_layout, build_map_layout_with_cancel,
     build_map_layout_with_cancel_and_publication_fence, default_layout_report_path,

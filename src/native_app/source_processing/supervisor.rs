@@ -36,8 +36,9 @@ use super::scheduler::{
 };
 use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
 use crate::native_app::sample_library::similarity_prep::{
-    NATIVE_SIMILARITY_UMAP_VERSION, SimilarityPublicationFence, finalize_similarity_prep_if_ready,
-    reset_interrupted_similarity_prep_jobs, similarity_prep_needs_finalization,
+    SimilarityPublicationFence, finalize_similarity_prep_if_ready,
+    native_similarity_artifact_version, reset_interrupted_similarity_prep_jobs,
+    similarity_prep_needs_finalization,
 };
 use crate::native_app::waveform::{
     cached_waveform_file_audition_ready_exists, ensure_persisted_playback_summary,
@@ -776,6 +777,11 @@ impl Shared {
 
     fn has_external_scan_admission(&self) -> bool {
         !self.external_scans().admissions.is_empty()
+    }
+
+    fn has_external_scan_activity(&self) -> bool {
+        let scans = self.external_scans();
+        !scans.admissions.is_empty() || !scans.registrations.is_empty()
     }
 
     fn cancel_external_scans(&self, should_cancel: impl Fn(&ExternalScanRegistration) -> bool) {
@@ -1553,7 +1559,7 @@ fn publish_source_processing_discovery_if_needed(
     sources: &[SampleSource],
     progress_visible: bool,
 ) -> bool {
-    if progress_visible || sources.is_empty() {
+    if progress_visible || sources.is_empty() || shared.has_external_scan_activity() {
         return false;
     }
     if sources.len() == 1 {
@@ -2154,6 +2160,7 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         }
         rows
     };
+    let unsupported_generations = readiness_unsupported_content_generations(connection, source_id)?;
     let mut manifest = Vec::with_capacity(rows.len());
     for (path, identity, content_hash, file_size, modified_ns) in rows {
         checkpoint();
@@ -2167,10 +2174,11 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
             mark_readiness_temporarily_unavailable(connection, source_id, now)?;
             return Ok(Cancellable::Completed(false));
         };
-        let content_hash = content_hash
-            .filter(|value| !value.trim().is_empty())
+        let content_hash = content_hash.filter(|value| !value.trim().is_empty());
+        let content_generation = content_hash
+            .clone()
             .unwrap_or_else(|| format!("pending-{identity}-{file_size}-{modified_ns}"));
-        manifest.push((path, identity, content_hash, file_size));
+        manifest.push((path, identity, content_hash, content_generation, file_size));
     }
     let source_generation = connection
         .query_row(
@@ -2187,22 +2195,34 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
     );
+    let similarity_artifact_version = native_similarity_artifact_version();
     let mut membership = blake3::Hasher::new();
     let mut targets = Vec::with_capacity(manifest.len().saturating_mul(4).saturating_add(1));
-    for (path, identity, content_hash, file_size) in &manifest {
+    for (path, identity, content_hash, content_generation, file_size) in &manifest {
         checkpoint();
         if cancelled(cancel) {
             return Ok(Cancellable::Cancelled);
         }
         let analyzable = *file_size > 0;
-        if analyzable {
+        let unsupported = content_hash.as_ref().is_some_and(|content_hash| {
+            unsupported_generations.contains(&(identity.clone(), content_hash.clone()))
+        });
+        if analyzable && !unsupported {
             membership.update(identity.as_bytes());
             membership.update(&[0]);
-            membership.update(content_hash.as_bytes());
+            membership.update(content_generation.as_bytes());
             membership.update(&[0xff]);
         }
+        targets.push(ReadinessTarget::file(
+            source_id,
+            identity,
+            path,
+            ReadinessStage::IndexedIdentity,
+            READINESS_MANIFEST_VERSION,
+            source_generation,
+            content_generation,
+        ));
         for (stage, version) in [
-            (ReadinessStage::IndexedIdentity, READINESS_MANIFEST_VERSION),
             (ReadinessStage::PlaybackSummary, READINESS_PLAYBACK_VERSION),
             (
                 ReadinessStage::AnalysisFeatures,
@@ -2217,9 +2237,9 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
                 stage,
                 version,
                 source_generation,
-                content_hash,
+                content_generation,
             );
-            if !analyzable && stage != ReadinessStage::IndexedIdentity {
+            if !analyzable || unsupported {
                 target = target.with_eligibility(ReadinessEligibility::Unsupported);
             }
             targets.push(target);
@@ -2229,9 +2249,9 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     targets.push(ReadinessTarget::source(
         source_id,
         ReadinessStage::SimilarityLayout,
-        NATIVE_SIMILARITY_UMAP_VERSION,
+        &similarity_artifact_version,
         source_generation,
-        membership_generation,
+        membership_generation.as_str(),
     ));
     let Some(target_fingerprint) = readiness_target_fingerprint_with_cancel(&targets, cancel)
     else {
@@ -2285,6 +2305,27 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
     }
+    let similarity_state = serde_json::json!({
+        "state": "dirty",
+        "source_generation": source_generation,
+        "membership_generation": membership_generation,
+        "artifact_version": similarity_artifact_version,
+    })
+    .to_string();
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES ('similarity_artifact_state_v1', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [&similarity_state],
+        )
+        .map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES ('ann_index_dirty_v1', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [&similarity_state],
+        )
+        .map_err(|error| error.to_string())?;
     connection
         .execute(
             "INSERT INTO metadata (key, value) VALUES (?1, ?2)
@@ -2293,6 +2334,30 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         )
         .map_err(|error| error.to_string())?;
     Ok(Cancellable::Completed(true))
+}
+
+fn readiness_unsupported_content_generations(
+    connection: &rusqlite::Connection,
+    source_id: &str,
+) -> Result<BTreeSet<(String, String)>, String> {
+    let mut statement = connection
+        .prepare(
+            "SELECT DISTINCT readiness_scope_id, content_generation
+             FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_managed = 1
+               AND readiness_scope_kind = 'file'
+               AND status = 'failed'
+               AND failure_kind = 'unsupported'
+               AND readiness_scope_id IS NOT NULL
+               AND content_generation IS NOT NULL",
+        )
+        .map_err(|error| error.to_string())?;
+    statement
+        .query_map([source_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|error| error.to_string())?
+        .collect::<Result<BTreeSet<_>, _>>()
+        .map_err(|error| error.to_string())
 }
 
 fn cancelled(cancel: &AtomicBool) -> bool {
@@ -2896,19 +2961,21 @@ fn run_readiness_stage(
                     )
                     .map_err(|error| error.to_string())?;
                 }
-                let hash_is_current: bool = connection
+                let committed_content_hash = connection
                     .query_row(
-                        "SELECT EXISTS(
-                            SELECT 1 FROM wav_files
-                            WHERE file_identity = ?1 AND path = ?2 AND missing = 0
-                              AND content_hash IS NOT NULL AND content_hash != ''
-                        )",
+                        "SELECT content_hash FROM wav_files
+                         WHERE file_identity = ?1 AND path = ?2 AND missing = 0",
                         params![target.scope_id, relative_path],
-                        |row| row.get(0),
+                        |row| row.get::<_, Option<String>>(0),
                     )
-                    .map_err(|error| error.to_string())?;
-                if hash_is_current {
+                    .optional()
+                    .map_err(|error| error.to_string())?
+                    .flatten()
+                    .filter(|content_hash| !content_hash.is_empty());
+                if committed_content_hash.as_deref() == Some(target.content_generation.as_str()) {
                     ReadinessExecutionOutcome::Complete
+                } else if committed_content_hash.is_some() {
+                    ReadinessExecutionOutcome::PrerequisiteInvalidated
                 } else {
                     ReadinessExecutionOutcome::Retry(
                         "indexed identity content hash is not durable yet",
@@ -2919,6 +2986,9 @@ fn run_readiness_stage(
             })
         }
         ReadinessStage::PlaybackSummary => {
+            if target.content_generation.starts_with("pending-") {
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+            }
             let Some(relative_path) = target.relative_path.as_deref() else {
                 return Ok(ReadinessExecutionOutcome::Permanent(
                     "playback summary target has no relative path",
@@ -2931,6 +3001,9 @@ fn run_readiness_stage(
             Ok(ReadinessExecutionOutcome::Complete)
         }
         ReadinessStage::AnalysisFeatures => {
+            if target.content_generation.starts_with("pending-") {
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+            }
             let Some(relative_path) = target.relative_path.as_deref() else {
                 return Ok(ReadinessExecutionOutcome::Permanent(
                     "analysis feature target has no relative path",
@@ -2975,6 +3048,9 @@ fn run_readiness_stage(
             ))
         }
         ReadinessStage::EmbeddingAspects => {
+            if target.content_generation.starts_with("pending-") {
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+            }
             let expected_version = format!(
                 "{}+{}",
                 wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
@@ -3032,7 +3108,7 @@ fn run_readiness_stage(
             })
         }
         ReadinessStage::SimilarityLayout => {
-            if target.required_version != NATIVE_SIMILARITY_UMAP_VERSION {
+            if target.required_version != native_similarity_artifact_version() {
                 return Ok(ReadinessExecutionOutcome::Retry(
                     "similarity finalizer version does not match target",
                 ));
@@ -3047,7 +3123,7 @@ fn run_readiness_stage(
                 if finalized {
                     ReadinessExecutionOutcome::Complete
                 } else {
-                    ReadinessExecutionOutcome::Retry("similarity prerequisites are not durable yet")
+                    ReadinessExecutionOutcome::PrerequisiteInvalidated
                 }
             })
         }
@@ -4708,7 +4784,7 @@ mod tests {
         let (_directory, source) = ready_analysis_source("readiness");
 
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
-        wait_until(Duration::from_secs(10), || {
+        wait_until(Duration::from_secs(20), || {
             let database_root = source.database_root().expect("database root");
             let Ok(connection) = SourceDatabase::open_connection_with_role_and_database_root(
                 &source.root,
@@ -4719,7 +4795,7 @@ mod tests {
             };
             connection
                 .query_row(
-                    "SELECT COUNT(*) = 4
+                    "SELECT COUNT(*) = 5
                         FROM source_readiness_sources AS source
                         JOIN source_readiness_targets AS target
                           ON target.source_id = source.source_id
@@ -4730,14 +4806,30 @@ mod tests {
                          AND artifact.stage = target.stage
                         WHERE source.source_id = ?1
                           AND source.availability = 'active'
-                          AND target.stage IN (
-                              'indexed_identity', 'playback_summary',
-                              'analysis_features', 'embedding_aspects'
-                          )
                           AND artifact.artifact_version = target.required_version
                           AND artifact.content_generation = target.content_generation
-                          AND artifact.source_generation = target.source_generation",
-                    params![source.id.as_str()],
+                          AND (
+                              target.scope_kind = 'file'
+                              OR artifact.source_generation = target.source_generation
+                          )
+                          AND EXISTS (
+                              SELECT 1 FROM layout_umap
+                              WHERE sample_id = ?1 || '::ready.wav'
+                          )
+                          AND EXISTS (
+                              SELECT 1 FROM hdbscan_clusters
+                              WHERE sample_id = ?1 || '::ready.wav'
+                          )
+                          AND EXISTS (
+                              SELECT 1 FROM ann_index_meta WHERE count = 1
+                          )
+                          AND EXISTS (
+                              SELECT 1 FROM metadata
+                              WHERE key = 'similarity_artifact_state_v1'
+                                AND json_extract(value, '$.state') = 'current'
+                                AND json_extract(value, '$.artifact_contract_version') = ?2
+                          )",
+                    params![source.id.as_str(), native_similarity_artifact_version()],
                     |row| row.get::<_, bool>(0),
                 )
                 .unwrap_or(false)
@@ -5168,6 +5260,162 @@ mod tests {
     }
 
     #[test]
+    fn deferred_full_hash_blocks_all_content_derived_targets_until_identity_is_exact() {
+        let (_directory, source) = unhashed_source("deferred-full-hash");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+
+        assert!(
+            publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+                .expect("publish pending identity")
+        );
+        let pending_stages = readiness_stages_for_identity(
+            &connection,
+            source.id.as_str(),
+            "identity-deferred-full-hash",
+        );
+        assert_eq!(
+            pending_stages,
+            vec![
+                String::from("analysis_features"),
+                String::from("embedding_aspects"),
+                String::from("indexed_identity"),
+                String::from("playback_summary"),
+            ]
+        );
+        let pending_content_generations = {
+            let mut statement = connection
+                .prepare(
+                    "SELECT DISTINCT content_generation
+                     FROM source_readiness_targets
+                     WHERE source_id = ?1 AND scope_id = 'identity-deferred-full-hash'",
+                )
+                .expect("prepare pending content generations");
+            statement
+                .query_map([source.id.as_str()], |row| row.get::<_, String>(0))
+                .expect("query pending content generations")
+                .collect::<Result<Vec<_>, _>>()
+                .expect("collect pending content generations")
+        };
+        assert_eq!(pending_content_generations.len(), 1);
+        assert!(pending_content_generations[0].starts_with("pending-"));
+        let pending_membership: String = connection
+            .query_row(
+                "SELECT content_generation FROM source_readiness_targets
+                 WHERE source_id = ?1 AND scope_kind = 'source'",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read pending membership");
+
+        connection
+            .execute(
+                "UPDATE wav_files SET content_hash = 'full-content-hash'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("commit full content identity");
+        assert!(
+            publish_current_readiness_targets(&mut connection, source.id.as_str(), 101)
+                .expect("publish full identity")
+        );
+        let exact_stages = readiness_stages_for_identity(
+            &connection,
+            source.id.as_str(),
+            "identity-deferred-full-hash",
+        );
+        assert_eq!(
+            exact_stages,
+            vec![
+                String::from("analysis_features"),
+                String::from("embedding_aspects"),
+                String::from("indexed_identity"),
+                String::from("playback_summary"),
+            ]
+        );
+        let exact_membership: String = connection
+            .query_row(
+                "SELECT content_generation FROM source_readiness_targets
+                 WHERE source_id = ?1 AND scope_kind = 'source'",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read exact membership");
+        assert_ne!(pending_membership, exact_membership);
+    }
+
+    #[test]
+    fn unsupported_exact_content_is_terminal_and_excluded_from_similarity_membership() {
+        let (_directory, source) = unhashed_source("unsupported-membership");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        connection
+            .execute(
+                "UPDATE wav_files SET content_hash = 'unsupported-content'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("commit unsupported content identity");
+        assert!(
+            publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+                .expect("publish exact targets")
+        );
+        let snapshot = reconcile_readiness(&connection, source.id.as_str(), 100)
+            .expect("reconcile exact targets");
+        persist_readiness_deficits(&mut connection, &snapshot.deficits, 100)
+            .expect("persist exact work");
+        connection
+            .execute(
+                "UPDATE analysis_jobs
+                 SET status = 'failed', failure_kind = 'unsupported',
+                     last_error = 'unsupported codec'
+                 WHERE readiness_managed = 1
+                   AND readiness_scope_id = 'identity-unsupported-membership'
+                   AND readiness_stage = 'analysis_features'",
+                [],
+            )
+            .expect("record terminal unsupported content");
+
+        assert!(
+            publish_current_readiness_targets(&mut connection, source.id.as_str(), 101)
+                .expect("republish unsupported eligibility")
+        );
+        let embedding_eligibility: String = connection
+            .query_row(
+                "SELECT eligibility FROM source_readiness_targets
+                 WHERE source_id = ?1
+                   AND scope_id = 'identity-unsupported-membership'
+                   AND stage = 'embedding_aspects'",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read terminal embedding eligibility");
+        assert_eq!(embedding_eligibility, "unsupported");
+        let source_membership: String = connection
+            .query_row(
+                "SELECT content_generation FROM source_readiness_targets
+                 WHERE source_id = ?1 AND scope_kind = 'source'",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read supported source membership");
+        assert_eq!(
+            source_membership,
+            blake3::Hasher::new().finalize().to_hex().to_string()
+        );
+    }
+
+    #[test]
     fn missing_analysis_payload_requeues_its_prerequisite_without_consuming_a_retry() {
         let (_directory, source) = unhashed_source("missing-analysis-payload");
         let database_root = source.database_root().expect("database root");
@@ -5590,6 +5838,25 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .expect("read durable discovery counts")
+    }
+
+    fn readiness_stages_for_identity(
+        connection: &rusqlite::Connection,
+        source_id: &str,
+        identity: &str,
+    ) -> Vec<String> {
+        let mut statement = connection
+            .prepare(
+                "SELECT stage FROM source_readiness_targets
+                 WHERE source_id = ?1 AND scope_id = ?2
+                 ORDER BY stage",
+            )
+            .expect("prepare identity readiness stages");
+        statement
+            .query_map(params![source_id, identity], |row| row.get(0))
+            .expect("query identity readiness stages")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect identity readiness stages")
     }
 
     fn wait_until(timeout: Duration, mut condition: impl FnMut() -> bool) {

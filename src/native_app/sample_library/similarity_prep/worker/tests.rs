@@ -122,6 +122,126 @@ fn native_similarity_status_read_does_not_enqueue_jobs() {
 }
 
 #[test]
+fn readiness_status_requires_the_exact_similarity_membership_generation() {
+    let (_dir, source) = source_with_file("exact-status.wav");
+    let connection = open_source_db(&source).expect("open source database");
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, '20')
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [META_LAST_SIMILARITY_PREP_SCAN_AT],
+        )
+        .expect("seed matching legacy completion timestamp");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_sources
+             (source_id, source_generation, readiness_revision, availability, updated_at)
+             VALUES (?1, 7, 1, 'active', 1)",
+            [source.id.as_str()],
+        )
+        .expect("seed readiness source");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_targets
+             (source_id, scope_kind, scope_id, relative_path, stage, required_version,
+              source_generation, content_generation, eligibility, updated_at)
+             VALUES (?1, 'source', ?1, NULL, 'similarity_layout', ?2,
+                     7, 'members-current', 'eligible', 1)",
+            rusqlite::params![source.id.as_str(), native_similarity_artifact_version()],
+        )
+        .expect("seed exact target");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_artifacts
+             (source_id, scope_kind, scope_id, stage, artifact_version,
+              source_generation, content_generation, completed_at)
+             VALUES (?1, 'source', ?1, 'similarity_layout', ?2,
+                     7, 'members-stale', 1)",
+            rusqlite::params![source.id.as_str(), native_similarity_artifact_version()],
+        )
+        .expect("seed stale artifact");
+
+    assert_eq!(
+        resolve_similarity_prep_status(&source).expect("resolve stale exact status"),
+        NativeSimilarityPrepStatus::Outdated,
+        "matching legacy timestamps must not hide a stale membership generation"
+    );
+
+    connection
+        .execute(
+            "UPDATE source_readiness_artifacts
+             SET content_generation = 'members-current'
+             WHERE source_id = ?1 AND scope_kind = 'source'",
+            [source.id.as_str()],
+        )
+        .expect("publish current exact artifact");
+    assert_eq!(
+        resolve_similarity_prep_status(&source).expect("resolve current exact status"),
+        NativeSimilarityPrepStatus::UpToDate
+    );
+}
+
+#[test]
+fn exact_manifest_invalidates_an_artifact_whose_payload_is_missing() {
+    let (_dir, source) = source_with_file("missing-payload.wav");
+    let mut connection = open_source_db(&source).expect("open source database");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_sources
+             (source_id, source_generation, readiness_revision, availability, updated_at)
+             VALUES (?1, 7, 1, 'active', 1)",
+            [source.id.as_str()],
+        )
+        .expect("seed readiness source");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_targets
+             (source_id, scope_kind, scope_id, relative_path, stage, required_version,
+              source_generation, content_generation, eligibility, updated_at)
+             VALUES (?1, 'file', 'missing-payload-identity', 'missing-payload.wav',
+                     'embedding_aspects', ?2, 7, 'exact-content', 'eligible', 1)",
+            rusqlite::params![
+                source.id.as_str(),
+                format!("{SIMILARITY_MODEL_ID}+{ASPECT_DESCRIPTOR_MODEL_ID}"),
+            ],
+        )
+        .expect("seed embedding target");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_artifacts
+             (source_id, scope_kind, scope_id, stage, artifact_version,
+              source_generation, content_generation, completed_at)
+             SELECT source_id, scope_kind, scope_id, stage, required_version,
+                    source_generation, content_generation, 1
+             FROM source_readiness_targets
+             WHERE source_id = ?1 AND stage = 'embedding_aspects'",
+            [source.id.as_str()],
+        )
+        .expect("seed stale embedding artifact");
+
+    let manifest = exact_similarity_manifest(
+        &mut connection,
+        source.id.as_str(),
+        7,
+        "irrelevant-membership",
+    )
+    .expect("reconcile missing payload");
+
+    assert_eq!(manifest, None);
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM source_readiness_artifacts
+                 WHERE source_id = ?1 AND stage = 'embedding_aspects'",
+                [source.id.as_str()],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count invalidated artifacts"),
+        0
+    );
+}
+
+#[test]
 fn native_similarity_prepare_enqueues_analysis_and_embedding_jobs() {
     let (_dir, source) = source_with_file("queued.wav");
 
@@ -268,24 +388,48 @@ fn readiness_publication_fence_requires_exact_membership_generation() {
         .expect("insert readiness source");
     connection
         .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, '7')
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [META_WAV_PATHS_REVISION],
+        )
+        .expect("seed exact manifest generation");
+    connection
+        .execute(
             "INSERT INTO source_readiness_targets (
                 source_id, scope_kind, scope_id, relative_path, stage, required_version,
                 source_generation, content_generation, eligibility, updated_at
              ) VALUES (?1, 'source', ?1, NULL, 'similarity_layout', ?2,
                        7, 'members-v7', 'eligible', 1)",
-            rusqlite::params![source.id.as_str(), NATIVE_SIMILARITY_UMAP_VERSION],
+            rusqlite::params![source.id.as_str(), native_similarity_artifact_version()],
         )
         .expect("insert readiness target");
     let target = ReadinessTarget::source(
         source.id.as_str(),
         ReadinessStage::SimilarityLayout,
-        NATIVE_SIMILARITY_UMAP_VERSION,
+        native_similarity_artifact_version(),
         7,
         "members-v7",
     );
     let fence = SimilarityPublicationFence::for_readiness_target(&target).expect("build fence");
 
     assert!(fence.is_current(&connection).expect("current fence"));
+    connection
+        .execute(
+            "UPDATE metadata SET value = '8' WHERE key = ?1",
+            [META_WAV_PATHS_REVISION],
+        )
+        .expect("advance committed manifest generation");
+    assert!(
+        !fence
+            .is_current(&connection)
+            .expect("reject advanced manifest fence")
+    );
+    connection
+        .execute(
+            "UPDATE metadata SET value = '7' WHERE key = ?1",
+            [META_WAV_PATHS_REVISION],
+        )
+        .expect("restore committed manifest generation");
     connection
         .execute(
             "UPDATE source_readiness_sources

@@ -5,6 +5,7 @@ use super::state::{
 };
 use super::storage::{
     default_index_path, hnsw_dump_paths, legacy_id_map_path_for, load_legacy_id_map, read_meta,
+    remove_superseded_generation,
 };
 use crate::analysis::decode_f32_le_blob;
 use hnsw_rs::prelude::*;
@@ -26,6 +27,7 @@ pub(crate) fn load_or_build_index(conn: &Connection) -> Result<AnnIndexState, St
         let mut state = outcome.state;
         if outcome.needs_migration {
             super::update::flush_index(conn, &mut state)?;
+            remove_superseded_generation(&meta_row.index_path, &state.index_path);
         } else if outcome.needs_meta_update {
             super::storage::upsert_meta(conn, &state)?;
         }
@@ -47,6 +49,33 @@ pub(crate) fn build_index_from_db(
     let mut hnsw = build_hnsw(&params, count);
     let mut id_map = Vec::with_capacity(count.max(0) as usize);
     insert_embeddings(conn, &params, &mut hnsw, &mut id_map)?;
+    Ok(build_state(
+        params,
+        AnnHnsw::Built(hnsw),
+        id_map,
+        index_path,
+    ))
+}
+
+pub(crate) fn build_index_from_embeddings(
+    items: &[(String, Vec<f32>)],
+    params: AnnIndexParams,
+    index_path: PathBuf,
+) -> Result<AnnIndexState, String> {
+    let hnsw = build_hnsw(&params, items.len() as i64);
+    let mut id_map = Vec::with_capacity(items.len());
+    for (sample_id, embedding) in items {
+        if embedding.len() != params.dim {
+            return Err(format!(
+                "Embedding dim mismatch: expected {}, got {} for {sample_id}",
+                params.dim,
+                embedding.len()
+            ));
+        }
+        let id = id_map.len();
+        id_map.push(sample_id.clone());
+        hnsw.insert((embedding.as_slice(), id));
+    }
     Ok(build_state(
         params,
         AnnHnsw::Built(hnsw),

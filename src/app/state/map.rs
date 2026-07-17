@@ -5,9 +5,9 @@ use std::sync::Arc;
 /// Operator-facing similarity-prep availability for the selected source.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MapSimilarityPrepStatus {
-    /// Similarity prep timestamps and artifacts match the current source scan.
+    /// Every eligible versioned artifact matches the exact current source generation.
     UpToDate,
-    /// The source changed after the last successful prep run.
+    /// Content, membership, or an artifact contract changed after the last exact publication.
     Outdated,
     /// Similarity prep cannot advance until failed analysis rows are addressed.
     Blocked {

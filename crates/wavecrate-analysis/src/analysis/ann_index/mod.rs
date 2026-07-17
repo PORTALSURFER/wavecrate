@@ -33,6 +33,17 @@ pub struct SimilarNeighbor {
 static ANN_INDEX: LazyLock<RwLock<HashMap<String, Arc<RwLock<state::AnnIndexState>>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
+/// Exact version fingerprint for the ANN algorithm, parameters, and container schema.
+pub fn contract_version() -> String {
+    let params = state::default_params();
+    let payload = format!(
+        "ann_container_v{}:{}",
+        container::ANN_CONTAINER_VERSION,
+        serde_json::to_string(&params).expect("ANN parameters must serialize")
+    );
+    format!("ann_v1_{}", blake3::hash(payload.as_bytes()).to_hex())
+}
+
 /// Get the index state wrapper, loading it if necessary.
 /// This minimizes the time the global lock is held.
 fn get_index_entry(conn: &Connection) -> Result<Arc<RwLock<state::AnnIndexState>>, String> {
@@ -350,6 +361,155 @@ pub fn rebuild_index_with_publication_fence(
         .map_err(|_| "ANN index lock poisoned".to_string())?;
     guard.insert(key, wrapped_state);
     Ok(true)
+}
+
+pub(crate) fn publish_exact_index_with_transaction(
+    conn: &mut Connection,
+    embeddings: &[(String, Vec<f32>)],
+    artifact_generation: &str,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+    publish_sql_artifacts: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<(), String>,
+) -> Result<bool, String> {
+    let params = state::default_params();
+    let default_path = storage::default_index_path(conn)?;
+    let parent = default_path
+        .parent()
+        .ok_or_else(|| "ANN index path missing parent".to_string())?;
+    let generation = artifact_generation
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .take(32)
+        .collect::<String>();
+    if generation.is_empty() {
+        return Err("ANN artifact generation must not be empty".to_string());
+    }
+    let index_path = parent.join(format!("similarity_hnsw.{generation}.ann"));
+    let mut state = Some(build::build_index_from_embeddings(
+        embeddings, params, index_path,
+    )?);
+    let key = storage::index_key(conn)?;
+    let mut publish_sql_artifacts = Some(publish_sql_artifacts);
+    let existing = ANN_INDEX
+        .read()
+        .map_err(|_| "ANN index lock poisoned")?
+        .get(&key)
+        .cloned();
+    if let Some(existing) = existing {
+        return publish_exact_into_existing_state(
+            conn,
+            &mut state,
+            existing,
+            publication_fence,
+            &mut publish_sql_artifacts,
+        );
+    }
+    let placeholder = Arc::new(RwLock::new(build::build_index_from_db(
+        conn,
+        state::default_params(),
+        default_path,
+    )?));
+    let mut placeholder_state = placeholder
+        .write()
+        .map_err(|_| "ANN index state lock poisoned")?;
+    let mut registry = ANN_INDEX
+        .write()
+        .map_err(|_| "ANN index lock poisoned".to_string())?;
+    if let Some(existing) = registry.get(&key).cloned() {
+        drop(registry);
+        drop(placeholder_state);
+        return publish_exact_into_existing_state(
+            conn,
+            &mut state,
+            existing,
+            publication_fence,
+            &mut publish_sql_artifacts,
+        );
+    }
+    registry.insert(key, Arc::clone(&placeholder));
+    drop(registry);
+    if !publish_exact_transaction(
+        conn,
+        state.as_mut().expect("exact ANN state must be available"),
+        publication_fence,
+        &mut publish_sql_artifacts,
+    )? {
+        return Ok(false);
+    }
+    let previous_index_path = placeholder_state.index_path.clone();
+    let state = state.take().expect("published ANN state must be available");
+    let published_index_path = state.index_path.clone();
+    *placeholder_state = state;
+    drop(placeholder_state);
+    storage::remove_superseded_generation(&previous_index_path, &published_index_path);
+    Ok(true)
+}
+
+fn publish_exact_into_existing_state<F>(
+    conn: &mut Connection,
+    state: &mut Option<state::AnnIndexState>,
+    existing: Arc<RwLock<state::AnnIndexState>>,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+    publish_sql_artifacts: &mut Option<F>,
+) -> Result<bool, String>
+where
+    F: FnOnce(&rusqlite::Transaction<'_>) -> Result<(), String>,
+{
+    let mut published_state = existing
+        .write()
+        .map_err(|_| "ANN index state lock poisoned")?;
+    let previous_index_path = published_state.index_path.clone();
+    if !publish_exact_transaction(
+        conn,
+        state.as_mut().expect("exact ANN state must be available"),
+        publication_fence,
+        publish_sql_artifacts,
+    )? {
+        return Ok(false);
+    }
+    let state = state.take().expect("published ANN state must be available");
+    let published_index_path = state.index_path.clone();
+    *published_state = state;
+    drop(published_state);
+    storage::remove_superseded_generation(&previous_index_path, &published_index_path);
+    Ok(true)
+}
+
+fn publish_exact_transaction<F>(
+    conn: &mut Connection,
+    state: &mut state::AnnIndexState,
+    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
+    publish_sql_artifacts: &mut Option<F>,
+) -> Result<bool, String>
+where
+    F: FnOnce(&rusqlite::Transaction<'_>) -> Result<(), String>,
+{
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("Start exact ANN publication transaction failed: {err}"))?;
+    if !publication_fence(&tx)? {
+        tx.rollback()
+            .map_err(|err| format!("Roll back stale exact ANN publication failed: {err}"))?;
+        return Ok(false);
+    }
+    publish_sql_artifacts
+        .take()
+        .ok_or_else(|| "Exact similarity SQL publication was already consumed".to_string())?(
+        &tx
+    )?;
+    update::flush_index(&tx, state)?;
+    tx.commit()
+        .map_err(|err| format!("Commit exact similarity publication failed: {err}"))?;
+    Ok(true)
+}
+
+#[cfg(test)]
+pub(crate) fn evict_index_for_test(conn: &Connection) -> Result<(), String> {
+    let key = storage::index_key(conn)?;
+    ANN_INDEX
+        .write()
+        .map_err(|_| "ANN index lock poisoned".to_string())?
+        .remove(&key);
+    Ok(())
 }
 
 fn load_embedding(conn: &Connection, sample_id: &str) -> Result<Vec<f32>, String> {

@@ -151,3 +151,24 @@ pub fn build_hdbscan_clusters_for_sample_id_prefix_with_cancel_and_publication_f
     )?;
     Ok(published.then_some(stats))
 }
+
+pub(crate) fn compute_layout_clusters(
+    sample_ids: &[String],
+    layout: &[[f32; 2]],
+    config: HdbscanConfig,
+) -> Result<Vec<i32>, String> {
+    if sample_ids.len() != layout.len() {
+        return Err("Cluster layout length mismatch".to_string());
+    }
+    if layout.is_empty() {
+        return Ok(Vec::new());
+    }
+    let data = layout
+        .iter()
+        .map(|point| vec![point[0], point[1]])
+        .collect::<Vec<_>>();
+    let mut labels = engine::run_hdbscan(&data, config)?;
+    assign_all_points_to_clusters(&data, &mut labels);
+    remap_labels_deterministic(sample_ids, &mut labels)?;
+    Ok(labels)
+}

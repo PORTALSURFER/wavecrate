@@ -17,7 +17,10 @@ use wavecrate::sample_sources::config::{self, AnalysisSettings};
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::{META_LAST_SCAN_COMPLETED_AT, META_LAST_SIMILARITY_PREP_SCAN_AT, META_WAV_PATHS_REVISION},
-    readiness::{ReadinessScopeKind, ReadinessStage, ReadinessTarget},
+    readiness::{
+        ReadinessClassification, ReadinessScopeKind, ReadinessStage, ReadinessTarget,
+        invalidate_readiness_artifact, reconcile_readiness,
+    },
     scanner::{self, ScanMode},
 };
 use wavecrate_analysis::{
@@ -34,6 +37,7 @@ use analysis_enqueue::enqueue_analysis_backfill;
 
 pub(in crate::native_app) use wavecrate::sample_sources::STARMAP_LAYOUT_UMAP_VERSION as NATIVE_SIMILARITY_UMAP_VERSION;
 const NATIVE_SIMILARITY_CLUSTER_MIN_SIZE: usize = 10;
+const NATIVE_SIMILARITY_CLUSTER_VERSION: &str = "hdbscan-layout-v1-min10";
 const ANALYZE_SAMPLE_JOB_TYPE: &str = "wav_metadata_v1";
 const EMBEDDING_BACKFILL_JOB_TYPE: &str = "embedding_backfill_v1";
 const SIMILARITY_BUSY_RETRY_ATTEMPTS: usize = 3;
@@ -46,6 +50,18 @@ pub(in crate::native_app) struct SimilarityPrepJobDrainSummary {
 }
 
 const INTERNAL_SIMILARITY_FINALIZER_ARG: &str = "--wavecrate-internal-similarity-finalizer-v1";
+
+pub(in crate::native_app) fn native_similarity_artifact_version() -> String {
+    format!(
+        "similarity-bundle-v1|layout={}|cluster={}|ann={}|analysis={}|embedding={}|aspects={}",
+        NATIVE_SIMILARITY_UMAP_VERSION,
+        NATIVE_SIMILARITY_CLUSTER_VERSION,
+        analysis::ann_index::contract_version(),
+        wavecrate_analysis::analysis_version(),
+        SIMILARITY_MODEL_ID,
+        ASPECT_DESCRIPTOR_MODEL_ID,
+    )
+}
 
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub(in crate::native_app) enum SimilarityPublicationFence {
@@ -103,12 +119,17 @@ impl SimilarityPublicationFence {
                           AND target.source_generation = ?2
                           AND target.content_generation = ?4
                           AND target.eligibility = 'eligible'
+                          AND COALESCE(
+                              (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?5),
+                              0
+                          ) = ?2
                     )",
                     rusqlite::params![
                         source_id,
                         source_generation,
                         artifact_version,
                         membership_generation,
+                        META_WAV_PATHS_REVISION,
                     ],
                     |row| row.get(0),
                 )
@@ -332,6 +353,12 @@ fn finalize_if_ready(
     if source_has_active_similarity_prep_jobs(source)? {
         return Ok(false);
     }
+    if matches!(
+        publication_fence,
+        SimilarityPublicationFence::Readiness { .. }
+    ) {
+        return finalize_exact_readiness_similarity(source, publication_fence, cancel);
+    }
     if current_similarity_sample_ids(source)?.is_empty() {
         if let Some(scan_completed_at) = read_source_scan_timestamp(source)? {
             return set_source_prep_timestamp_if_current(
@@ -410,6 +437,294 @@ fn finalize_if_ready(
         return set_source_prep_timestamp_if_current(source, scan_completed_at, publication_fence);
     }
     Ok(true)
+}
+
+fn finalize_exact_readiness_similarity(
+    source: &SampleSource,
+    publication_fence: &SimilarityPublicationFence,
+    cancel: &AtomicBool,
+) -> Result<bool, String> {
+    let SimilarityPublicationFence::Readiness {
+        source_id,
+        source_generation,
+        membership_generation,
+        artifact_version,
+    } = publication_fence
+    else {
+        return Err("Exact readiness finalization requires a readiness fence".to_string());
+    };
+    if source_id != source.id.as_str() || artifact_version != &native_similarity_artifact_version()
+    {
+        return Err(
+            "Similarity finalizer fence does not match the active source contract".to_string(),
+        );
+    }
+    let mut connection = open_source_db(source)?;
+    if !publication_fence.is_current(&connection)? {
+        return Ok(false);
+    }
+    let pending_content_identities: bool = connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM source_readiness_targets
+                WHERE source_id = ?1
+                  AND scope_kind = 'file'
+                  AND stage = 'indexed_identity'
+                  AND content_generation LIKE 'pending-%'
+             )",
+            [source_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Check deferred similarity identities failed: {error}"))?;
+    if pending_content_identities {
+        return Ok(false);
+    }
+    let Some(manifest) = exact_similarity_manifest(
+        &mut connection,
+        source_id,
+        *source_generation,
+        membership_generation,
+    )?
+    else {
+        return Ok(false);
+    };
+    let source_sample_id_prefix = format!("{source_id}::");
+    let artifact_generation = blake3::hash(
+        format!("{membership_generation}|{source_generation}|{artifact_version}").as_bytes(),
+    )
+    .to_hex()
+    .to_string();
+    let publication = analysis::rebuild_exact_similarity_artifacts(
+        &mut connection,
+        analysis::ExactSimilarityArtifactRequest {
+            source_id,
+            source_sample_id_prefix: &source_sample_id_prefix,
+            model_id: SIMILARITY_MODEL_ID,
+            layout_version: NATIVE_SIMILARITY_UMAP_VERSION,
+            artifact_contract_version: artifact_version,
+            artifact_generation: &artifact_generation,
+            cluster_config: analysis::hdbscan::HdbscanConfig {
+                min_cluster_size: NATIVE_SIMILARITY_CLUSTER_MIN_SIZE,
+                min_samples: None,
+                allow_single_cluster: false,
+            },
+        },
+        &manifest,
+        cancel,
+        &|connection| publication_fence.is_current(connection),
+    )?;
+    if publication.is_none() || cancel.load(Ordering::Acquire) {
+        return Ok(false);
+    }
+    let scan_completed_at = read_source_scan_timestamp(source)?.unwrap_or_else(now_epoch_seconds);
+    set_source_prep_timestamp_if_current(source, scan_completed_at, publication_fence)
+}
+
+fn exact_similarity_manifest(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    source_generation: i64,
+    expected_membership_generation: &str,
+) -> Result<Option<Vec<analysis::ExactSimilarityManifestEntry>>, String> {
+    let target_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_kind = 'file'
+               AND stage = 'embedding_aspects'
+               AND eligibility = 'eligible'",
+            [source_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Count exact similarity targets failed: {error}"))?;
+    let mut statement = connection
+        .prepare(
+            "SELECT target.scope_id, target.relative_path, target.content_generation,
+                    embedding.dim, embedding.vec
+             FROM source_readiness_targets AS target
+             JOIN source_readiness_artifacts AS artifact
+               ON artifact.source_id = target.source_id
+              AND artifact.scope_kind = target.scope_kind
+              AND artifact.scope_id = target.scope_id
+              AND artifact.stage = target.stage
+              AND artifact.artifact_version = target.required_version
+              AND artifact.content_generation = target.content_generation
+             JOIN samples AS sample
+               ON sample.sample_id = target.source_id || '::' || target.relative_path
+              AND sample.content_hash = target.content_generation
+              AND sample.analysis_version = ?4
+             JOIN features AS feature
+               ON feature.sample_id = sample.sample_id
+             JOIN analysis_cache_features AS cached_feature
+               ON cached_feature.content_hash = target.content_generation
+              AND cached_feature.analysis_version = ?4
+              AND cached_feature.feat_version = feature.feat_version
+              AND cached_feature.vec_blob = feature.vec_blob
+              AND cached_feature.light_dsp_blob IS feature.light_dsp_blob
+              AND cached_feature.rms IS feature.rms
+             JOIN embeddings AS embedding
+               ON embedding.sample_id = sample.sample_id
+              AND embedding.model_id = ?3
+             JOIN analysis_cache_embeddings AS cached_embedding
+               ON cached_embedding.content_hash = target.content_generation
+              AND cached_embedding.analysis_version = ?4
+              AND cached_embedding.model_id = embedding.model_id
+              AND cached_embedding.dim = embedding.dim
+              AND cached_embedding.dtype = embedding.dtype
+              AND cached_embedding.l2_normed = embedding.l2_normed
+              AND cached_embedding.vec = embedding.vec
+             JOIN similarity_aspect_descriptors AS aspects
+               ON aspects.sample_id = sample.sample_id
+              AND aspects.model_id = ?5
+             JOIN analysis_cache_aspect_descriptors AS cached_aspects
+               ON cached_aspects.content_hash = target.content_generation
+              AND cached_aspects.analysis_version = ?4
+              AND cached_aspects.model_id = aspects.model_id
+              AND cached_aspects.dim = aspects.dim
+              AND cached_aspects.dtype = aspects.dtype
+              AND cached_aspects.l2_normed = aspects.l2_normed
+              AND cached_aspects.valid_mask = aspects.valid_mask
+              AND cached_aspects.vec = aspects.vec
+             WHERE target.source_id = ?1
+               AND target.scope_kind = 'file'
+               AND target.stage = 'embedding_aspects'
+              AND target.source_generation = ?2
+              AND target.eligibility = 'eligible'
+              AND feature.feat_version = ?6
+              AND embedding.dim = ?7
+              AND embedding.dtype = ?8
+              AND embedding.l2_normed = 1
+              AND aspects.dim = ?9
+              AND aspects.dtype = ?10
+              AND aspects.l2_normed = 1
+             ORDER BY target.relative_path",
+        )
+        .map_err(|error| format!("Prepare exact similarity manifest failed: {error}"))?;
+    let rows = statement
+        .query_map(
+            rusqlite::params![
+                source_id,
+                source_generation,
+                SIMILARITY_MODEL_ID,
+                wavecrate_analysis::analysis_version(),
+                ASPECT_DESCRIPTOR_MODEL_ID,
+                wavecrate_analysis::vector::FEATURE_VERSION_V1,
+                wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+                wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
+                ASPECT_DESCRIPTOR_DIM as i64,
+                ASPECT_DESCRIPTOR_DTYPE_F32,
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, Vec<u8>>(4)?,
+                ))
+            },
+        )
+        .map_err(|error| format!("Query exact similarity manifest failed: {error}"))?;
+    let mut membership = blake3::Hasher::new();
+    let mut manifest = Vec::new();
+    let mut valid_identities = HashSet::new();
+    for row in rows {
+        let (identity, relative_path, content_generation, dim, vector) =
+            row.map_err(|error| format!("Decode exact similarity manifest failed: {error}"))?;
+        membership.update(identity.as_bytes());
+        membership.update(&[0]);
+        membership.update(content_generation.as_bytes());
+        membership.update(&[0xff]);
+        valid_identities.insert(identity);
+        let embedding = analysis::decode_f32_le_blob(&vector)?;
+        if embedding.len() != usize::try_from(dim).unwrap_or_default()
+            || embedding.len() != wavecrate_analysis::similarity::SIMILARITY_DIM
+        {
+            return Err(format!(
+                "Invalid exact similarity embedding for {relative_path}"
+            ));
+        }
+        manifest.push(analysis::ExactSimilarityManifestEntry {
+            sample_id: format!("{source_id}::{}", relative_path.replace('\\', "/")),
+            embedding,
+        });
+    }
+    drop(statement);
+    if i64::try_from(manifest.len()).unwrap_or(i64::MAX) != target_count {
+        invalidate_incomplete_embedding_artifacts(
+            connection,
+            source_id,
+            source_generation,
+            &valid_identities,
+        )?;
+        return Ok(None);
+    }
+    let actual_membership_generation = membership.finalize().to_hex().to_string();
+    if actual_membership_generation != expected_membership_generation {
+        return Err("Similarity manifest generation changed before finalization".to_string());
+    }
+    Ok(Some(manifest))
+}
+
+fn invalidate_incomplete_embedding_artifacts(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    source_generation: i64,
+    valid_identities: &HashSet<String>,
+) -> Result<(), String> {
+    let artifact_targets = {
+        let mut statement = connection
+            .prepare(
+                "SELECT target.scope_id, target.relative_path, target.required_version,
+                        target.source_generation, target.content_generation
+                 FROM source_readiness_targets AS target
+                 JOIN source_readiness_artifacts AS artifact
+                   ON artifact.source_id = target.source_id
+                  AND artifact.scope_kind = target.scope_kind
+                  AND artifact.scope_id = target.scope_id
+                  AND artifact.stage = target.stage
+                  AND artifact.artifact_version = target.required_version
+                  AND artifact.content_generation = target.content_generation
+                 WHERE target.source_id = ?1
+                   AND target.scope_kind = 'file'
+                   AND target.stage = 'embedding_aspects'
+                   AND target.source_generation = ?2
+                   AND target.eligibility = 'eligible'",
+            )
+            .map_err(|error| format!("Prepare incomplete similarity artifacts failed: {error}"))?;
+        statement
+            .query_map(rusqlite::params![source_id, source_generation], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })
+            .map_err(|error| format!("Query incomplete similarity artifacts failed: {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("Decode incomplete similarity artifacts failed: {error}"))?
+    };
+    for (identity, relative_path, version, generation, content_generation) in artifact_targets {
+        if valid_identities.contains(&identity) {
+            continue;
+        }
+        let target = ReadinessTarget::file(
+            source_id,
+            identity,
+            relative_path,
+            ReadinessStage::EmbeddingAspects,
+            version,
+            generation,
+            content_generation,
+        );
+        invalidate_readiness_artifact(connection, &target).map_err(|error| {
+            format!("Invalidate incomplete similarity artifact failed: {error}")
+        })?;
+    }
+    Ok(())
 }
 
 pub(in crate::native_app) fn reset_interrupted_similarity_prep_jobs(
@@ -606,6 +921,9 @@ fn ensure_source_database_scanned(
 pub(in crate::native_app) fn resolve_similarity_prep_status(
     source: &SampleSource,
 ) -> Result<NativeSimilarityPrepStatus, String> {
+    if let Some(status) = resolve_readiness_similarity_status(source)? {
+        return Ok(status);
+    }
     let facts = SimilarityPrepFacts {
         scan_completed_at: read_source_scan_timestamp(source)?,
         prep_completed_at: read_source_prep_timestamp(source)?,
@@ -616,6 +934,49 @@ pub(in crate::native_app) fn resolve_similarity_prep_status(
         failures: similarity_failure_counts(source)?,
     };
     Ok(resolve_similarity_prep_facts(facts))
+}
+
+fn resolve_readiness_similarity_status(
+    source: &SampleSource,
+) -> Result<Option<NativeSimilarityPrepStatus>, String> {
+    let connection = open_source_db(source)?;
+    let has_readiness_source = connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM source_readiness_sources WHERE source_id = ?1
+             )",
+            [source.id.as_str()],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| format!("Read similarity readiness state failed: {error}"))?;
+    if !has_readiness_source {
+        return Ok(None);
+    }
+    let snapshot = reconcile_readiness(&connection, source.id.as_str(), now_epoch_seconds())
+        .map_err(|error| format!("Reconcile similarity readiness failed: {error}"))?;
+    if snapshot.is_fully_ready() {
+        return Ok(Some(NativeSimilarityPrepStatus::UpToDate));
+    }
+    let mut failed_count = 0usize;
+    let mut unsupported_count = 0usize;
+    for entry in &snapshot.entries {
+        match entry.classification {
+            ReadinessClassification::PermanentFailure { .. } => {
+                failed_count = failed_count.saturating_add(1);
+            }
+            ReadinessClassification::Unsupported => {
+                unsupported_count = unsupported_count.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+    if failed_count > 0 {
+        return Ok(Some(NativeSimilarityPrepStatus::Blocked {
+            failed_count,
+            unsupported_count,
+        }));
+    }
+    Ok(Some(NativeSimilarityPrepStatus::Outdated))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
