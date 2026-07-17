@@ -35,14 +35,6 @@ impl TransactionContext<'_> {
             self.state.transactions.pending_file_mutations.push(change);
         }
         self.state.evict_waveform_cache_path(&applied.absolute_path);
-        let mut relative_paths = vec![applied.relative_path.clone()];
-        if let Some(extracted) = applied.extracted.as_ref() {
-            relative_paths.push(extracted.relative_path.clone());
-        }
-        self.state
-            .library
-            .folder_browser
-            .refresh_filesystem_paths(&applied.source_id, &relative_paths);
         self.state
             .reload_waveform_path_now_if_loaded(&applied.absolute_path)?;
         Ok(())

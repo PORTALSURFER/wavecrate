@@ -1581,6 +1581,13 @@ fn destructive_edit_reload_failure_still_emits_committed_mutation() {
 fn waveform_undo_reload_failure_still_emits_committed_mutation() {
     let (mut state, _source_root, selected_file) =
         native_app_state_with_temp_sample("undo-reload-failure.wav");
+    let browser_size_before_undo = state
+        .library
+        .folder_browser
+        .selected_files()
+        .first()
+        .expect("browser fixture file")
+        .size_bytes;
     let path = PathBuf::from(&selected_file);
     write_test_wav_i16(&path, &[0, 1_000, 2_000, 3_000, 4_000, 5_000, 6_000, 7_000]);
     state.waveform.current =
@@ -1619,6 +1626,17 @@ fn waveform_undo_reload_failure_still_emits_committed_mutation() {
     assert!(
         commands_emit_committed_file_mutation(vec![undo_context.into_command()]),
         "the restored file must be published even when waveform reload fails"
+    );
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .selected_files()
+            .first()
+            .expect("browser fixture file")
+            .size_bytes,
+        browser_size_before_undo,
+        "undo must not refresh browser metadata before the committed outcome is accepted"
     );
     assert!(state.ui.status.sample.contains("Undo failed:"));
     assert!(
