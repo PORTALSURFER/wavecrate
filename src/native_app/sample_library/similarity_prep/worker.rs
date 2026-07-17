@@ -177,7 +177,7 @@ fn enqueue_similarity_prep_once(
     ensure_source_database_scanned(source, cancel)?;
     ensure_not_cancelled(cancel)?;
     let initial_status = resolve_similarity_prep_status(source)?;
-    if initial_status == NativeSimilarityPrepStatus::UpToDate
+    if initial_status.is_ready()
         || (automatic
             && matches!(initial_status, NativeSimilarityPrepStatus::Blocked { .. })
             && !source_has_active_similarity_prep_jobs(source)?)
@@ -830,7 +830,7 @@ pub(in crate::native_app) fn similarity_prep_needs_finalization(
     if source_has_active_similarity_prep_jobs(source)? {
         return Ok(false);
     }
-    if resolve_similarity_prep_status(source)? == NativeSimilarityPrepStatus::UpToDate {
+    if resolve_similarity_prep_status(source)?.is_ready() {
         return Ok(false);
     }
     Ok((read_source_scan_timestamp(source)?.is_some()
@@ -954,9 +954,6 @@ fn resolve_readiness_similarity_status(
     }
     let snapshot = reconcile_readiness(&connection, source.id.as_str(), now_epoch_seconds())
         .map_err(|error| format!("Reconcile similarity readiness failed: {error}"))?;
-    if snapshot.is_fully_ready() {
-        return Ok(Some(NativeSimilarityPrepStatus::UpToDate));
-    }
     let mut failed_count = 0usize;
     let mut unsupported_count = 0usize;
     for entry in &snapshot.entries {
@@ -970,13 +967,24 @@ fn resolve_readiness_similarity_status(
             _ => {}
         }
     }
+    if snapshot.is_fully_ready() {
+        return Ok(Some(if unsupported_count == 0 {
+            NativeSimilarityPrepStatus::UpToDate
+        } else {
+            NativeSimilarityPrepStatus::ReadyWithUnsupported { unsupported_count }
+        }));
+    }
     if failed_count > 0 {
         return Ok(Some(NativeSimilarityPrepStatus::Blocked {
             failed_count,
             unsupported_count,
         }));
     }
-    Ok(Some(NativeSimilarityPrepStatus::Outdated))
+    Ok(Some(if unsupported_count == 0 {
+        NativeSimilarityPrepStatus::Outdated
+    } else {
+        NativeSimilarityPrepStatus::OutdatedWithUnsupported { unsupported_count }
+    }))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

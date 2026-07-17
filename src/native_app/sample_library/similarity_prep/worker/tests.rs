@@ -182,6 +182,38 @@ fn readiness_status_requires_the_exact_similarity_membership_generation() {
 }
 
 #[test]
+fn readiness_status_reports_an_unsupported_only_source_as_ready_with_exclusions() {
+    let (_dir, source) = source_with_file("unsupported-only.wav");
+    let connection = open_source_db(&source).expect("open source database");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_sources
+             (source_id, source_generation, readiness_revision, availability, updated_at)
+             VALUES (?1, 7, 1, 'active', 1)",
+            [source.id.as_str()],
+        )
+        .expect("seed readiness source");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_targets
+             (source_id, scope_kind, scope_id, relative_path, stage, required_version,
+              source_generation, content_generation, eligibility, updated_at)
+             VALUES (?1, 'file', 'unsupported-identity', 'unsupported-only.wav',
+                     'embedding_aspects', 'test-model', 7, 'exact-content',
+                     'unsupported', 1)",
+            [source.id.as_str()],
+        )
+        .expect("seed terminal unsupported target");
+
+    assert_eq!(
+        resolve_similarity_prep_status(&source).expect("resolve unsupported-only status"),
+        NativeSimilarityPrepStatus::ReadyWithUnsupported {
+            unsupported_count: 1,
+        }
+    );
+}
+
+#[test]
 fn exact_manifest_invalidates_an_artifact_whose_payload_is_missing() {
     let (_dir, source) = source_with_file("missing-payload.wav");
     let mut connection = open_source_db(&source).expect("open source database");

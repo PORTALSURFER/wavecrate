@@ -39,7 +39,13 @@ pub(in crate::native_app) enum SimilarityPrepTrigger {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum NativeSimilarityPrepStatus {
     UpToDate,
+    ReadyWithUnsupported {
+        unsupported_count: usize,
+    },
     Outdated,
+    OutdatedWithUnsupported {
+        unsupported_count: usize,
+    },
     Blocked {
         failed_count: usize,
         unsupported_count: usize,
@@ -351,16 +357,28 @@ impl NativeAppState {
 }
 
 fn starmap_layout_may_have_changed(summary: &SimilarityPrepEnqueueSummary) -> bool {
-    summary.has_work() || summary.status == NativeSimilarityPrepStatus::UpToDate
+    summary.has_work() || summary.status.is_ready()
 }
 
 impl NativeSimilarityPrepStatus {
-    pub(in crate::native_app) fn summary(&self) -> &'static str {
+    fn is_ready(&self) -> bool {
+        matches!(self, Self::UpToDate | Self::ReadyWithUnsupported { .. })
+    }
+
+    pub(in crate::native_app) fn summary(&self) -> String {
         match self {
-            Self::UpToDate => "Similarity ready",
-            Self::Outdated => "Similarity prep is out of date",
-            Self::Blocked { .. } => "Similarity prep blocked",
-            Self::MissingArtifacts { .. } => "Similarity prep needed",
+            Self::UpToDate => String::from("Similarity ready"),
+            Self::ReadyWithUnsupported { unsupported_count } => format!(
+                "Similarity ready; {unsupported_count} unsupported file{} excluded",
+                if *unsupported_count == 1 { "" } else { "s" }
+            ),
+            Self::Outdated => String::from("Similarity prep is out of date"),
+            Self::OutdatedWithUnsupported { unsupported_count } => format!(
+                "Similarity prep is out of date; {unsupported_count} unsupported file{} excluded",
+                if *unsupported_count == 1 { "" } else { "s" }
+            ),
+            Self::Blocked { .. } => String::from("Similarity prep blocked"),
+            Self::MissingArtifacts { .. } => String::from("Similarity prep needed"),
         }
     }
 }
@@ -374,6 +392,13 @@ impl SimilarityPrepEnqueueSummary {
     }
 
     fn message(&self) -> String {
+        if let NativeSimilarityPrepStatus::ReadyWithUnsupported { unsupported_count } = self.status
+        {
+            return format!(
+                "Similarity ready; {unsupported_count} unsupported file{} excluded",
+                if unsupported_count == 1 { "" } else { "s" }
+            );
+        }
         if let NativeSimilarityPrepStatus::Blocked { failed_count, .. } = self.status {
             return format!(
                 "Similarity prep blocked: {failed_count} job{} failed",
@@ -416,7 +441,7 @@ impl SimilarityPrepEnqueueSummary {
     }
 
     fn should_refresh_anchor_scores(&self) -> bool {
-        self.has_work() || self.status == NativeSimilarityPrepStatus::UpToDate
+        self.has_work() || self.status.is_ready()
     }
 }
 
