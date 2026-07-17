@@ -205,6 +205,27 @@ Use for most app/domain behavior under `src/`.
     `prepare_auto_rename_requests_logs_looped_provenance` and
     `rating_previous_random_history_entry_restores_waveform_for_replacement`.
 
+### Committed file-mutation and watcher reconciliation
+
+Use these focused lanes when changing Wavecrate-owned create, copy/extract,
+import/drop, edit, normalize, undo/redo, rename, move, trash/delete, source
+manifest reconciliation, or watcher echo handling:
+
+- mutation contract, source revision, identity, invalidation, partial failure,
+  stale completion, and large-file background behavior:
+  `cargo test -p wavecrate --bin wavecrate committed_file_mutations`
+- watcher acknowledgement, deduplication, and external-change fallback:
+  `cargo test -p wavecrate --bin wavecrate source_watcher`
+- strict compile coverage for message routing and every native call site:
+  `cargo check -p wavecrate --all-targets`
+
+The mutation tests should prove that path-only moves retain content identity,
+content changes invalidate file-derived readiness, deletes invalidate source
+membership, and one operation ID covers committed and failed parts. The watcher
+tests should prove that an acknowledged internal echo is removed without
+starting duplicate work and that later external changes still reach the
+authoritative reconciliation path.
+
 ### Script and golden checks
 
 Use for tooling, fixtures, and numerical-reference flows.

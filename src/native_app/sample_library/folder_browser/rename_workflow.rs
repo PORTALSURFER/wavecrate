@@ -278,13 +278,19 @@ impl FolderBrowserState {
                 },
             ) => {
                 self.rewrite_renamed_file_path(&old_path, &new_path);
-                let status = match metadata_remap_result {
-                    Ok(()) => format!("Renamed file to {new_name}"),
-                    Err(error) => {
-                        format!("Renamed file to {new_name}; metadata update failed: {error}")
-                    }
-                };
-                RenameCommitResult::remapped(status, old_path, new_path)
+                match metadata_remap_result {
+                    Ok(()) => RenameCommitResult::remapped(
+                        format!("Renamed file to {new_name}"),
+                        old_path,
+                        new_path,
+                    ),
+                    Err(error) => RenameCommitResult::remapped_with_metadata_error(
+                        format!("Renamed file to {new_name}; metadata update failed: {error}"),
+                        old_path,
+                        new_path,
+                        error,
+                    ),
+                }
             }
             (_, _) => RenameCommitResult::status("Rename failed: invalid completion"),
         }

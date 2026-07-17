@@ -9,13 +9,15 @@ use crate::native_app::app::{
     FileMoveConflictResolution, FileMoveConflictResolutionRequest, FileMoveProgress, GuiMessage,
     NativeAppState, emit_gui_action,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FolderDropResult, FolderMoveCompletion, FolderMoveDropInput,
     FolderMoveRequest, execute_file_move_conflict_request_with_progress,
     execute_folder_move_request_with_progress, file_move_conflict_progress_label,
     file_move_conflict_progress_total, folder_move_progress_label, folder_move_progress_total,
 };
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 use crate::native_app::shell::message_dispatch::waveform::PLAY_SELECTION_TRANSACTION_LABEL;
 use crate::native_app::transaction_history::TransactionContext;
 
@@ -30,7 +32,14 @@ impl NativeAppState {
         self.clear_pending_internal_file_drag_paths();
         match self.library.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(FolderMoveDropInput::Status(result)) => {
-                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                self.finish_folder_move_result(
+                    started_at,
+                    None,
+                    Vec::new(),
+                    None,
+                    Ok(result),
+                    context,
+                );
             }
             Ok(FolderMoveDropInput::Request(request)) => {
                 self.queue_folder_move_request(request, started_at, context);
@@ -62,7 +71,14 @@ impl NativeAppState {
         self.clear_pending_internal_file_drag_paths();
         match self.library.folder_browser.drop_drag_on_source(&source_id) {
             Ok(FolderMoveDropInput::Status(result)) => {
-                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                self.finish_folder_move_result(
+                    started_at,
+                    None,
+                    Vec::new(),
+                    None,
+                    Ok(result),
+                    context,
+                );
             }
             Ok(FolderMoveDropInput::Request(request)) => {
                 self.queue_folder_move_request(request, started_at, context);
@@ -95,7 +111,14 @@ impl NativeAppState {
     ) -> Option<u64> {
         match input {
             FolderMoveDropInput::Status(result) => {
-                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                self.finish_folder_move_result(
+                    started_at,
+                    None,
+                    Vec::new(),
+                    None,
+                    Ok(result),
+                    context,
+                );
                 None
             }
             FolderMoveDropInput::Request(request) => {
@@ -179,7 +202,8 @@ impl NativeAppState {
             self.finish_file_move_conflict_result(
                 started_at,
                 None,
-                false,
+                Vec::new(),
+                None,
                 Ok(Default::default()),
                 context,
             );
@@ -189,7 +213,8 @@ impl NativeAppState {
             self.finish_file_move_conflict_result(
                 started_at,
                 None,
-                false,
+                Vec::new(),
+                None,
                 Ok(FolderDropResult {
                     moved_paths: Vec::new(),
                     status: Some(String::from("No file move conflicts pending")),
@@ -296,6 +321,17 @@ impl NativeAppState {
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
+        let committed_moves = completion
+            .result
+            .as_ref()
+            .map(|success| success.moved_paths.clone())
+            .unwrap_or_default();
+        let metadata_error = completion
+            .result
+            .as_ref()
+            .ok()
+            .and_then(|success| success.metadata_error.clone());
+        let committed_changes = folder_move_mutation_changes(&request, &committed_moves);
         let result = completion.result.and_then(|success| {
             let moved_paths = success.moved_paths.clone();
             self.remap_metadata_tags_for_moved_files(&moved_paths);
@@ -328,7 +364,14 @@ impl NativeAppState {
             .cut_file_paste_task_id
             .is_some_and(|paste_task_id| paste_task_id == task_id)
             && result.is_ok();
-        self.finish_folder_move_result(started_at, previous_selected, result, context);
+        self.finish_folder_move_result(
+            started_at,
+            previous_selected,
+            committed_changes,
+            metadata_error,
+            result,
+            context,
+        );
         if self.ui.browser_interaction.cut_file_paste_task_id == Some(task_id) {
             self.ui.browser_interaction.cut_file_paste_task_id = None;
             if cut_paste_succeeded {
@@ -341,12 +384,14 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         previous_selected: Option<String>,
+        committed_changes: Vec<FileMutationChange>,
+        metadata_error: Option<String>,
         result: Result<FolderDropResult, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(result) => {
-                let moved = !result.moved_paths.is_empty();
+                let moved = !committed_changes.is_empty() || !result.moved_paths.is_empty();
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.ui.status.sample = status;
@@ -356,9 +401,19 @@ impl NativeAppState {
                         "browser.drag_drop.move.cache_persist",
                         started_at,
                     );
-                    self.queue_selected_source_prep(SourcePrepTrigger::FilesystemChanged, context);
                 }
                 self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
+                if moved {
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Move,
+                        committed_changes,
+                        metadata_error
+                            .into_iter()
+                            .map(|error| (None, error))
+                            .collect(),
+                        context,
+                    );
+                }
                 emit_gui_action(
                     "browser.drag_drop.move",
                     Some("browser"),
@@ -373,6 +428,23 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
+                if committed_changes.is_empty() {
+                    self.record_rolled_back_file_mutation(
+                        FileMutationOperation::Move,
+                        None,
+                        error.clone(),
+                        context,
+                    );
+                } else {
+                    let mut failures = vec![(None, error.clone())];
+                    failures.extend(metadata_error.map(|error| (None, error)));
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Move,
+                        committed_changes,
+                        failures,
+                        context,
+                    );
+                }
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.drag_drop.move",
@@ -393,10 +465,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.finish_file_move_progress(completion.task_id);
-        let moved = match &completion.result {
-            Ok(success) => !success.moved_paths.is_empty(),
-            Err(failure) => !failure.moved_paths.is_empty(),
-        };
         let previous_selected = self
             .library
             .folder_browser
@@ -406,6 +474,10 @@ impl NativeAppState {
             Ok(success) => success.moved_paths.clone(),
             Err(failure) => failure.moved_paths.clone(),
         };
+        let metadata_error = match &completion.result {
+            Ok(success) => success.metadata_error.clone(),
+            Err(failure) => failure.metadata_error.clone(),
+        };
         self.remap_metadata_tags_for_moved_files(&moved_paths);
         let result = self
             .library
@@ -414,7 +486,8 @@ impl NativeAppState {
         self.finish_file_move_conflict_result(
             started_at,
             previous_selected,
-            moved,
+            moved_paths,
+            metadata_error,
             result,
             context,
         );
@@ -424,13 +497,20 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         previous_selected: Option<String>,
-        moved: bool,
+        committed_moves: Vec<(PathBuf, PathBuf)>,
+        metadata_error: Option<String>,
         result: Result<FolderDropResult, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(result) => {
-                let moved = moved || !result.moved_paths.is_empty();
+                let moved = !committed_moves.is_empty() || !result.moved_paths.is_empty();
+                let mut authoritative_moves = committed_moves;
+                for moved_path in &result.moved_paths {
+                    if !authoritative_moves.contains(moved_path) {
+                        authoritative_moves.push(moved_path.clone());
+                    }
+                }
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.ui.status.sample = status;
@@ -440,9 +520,24 @@ impl NativeAppState {
                         "browser.drag_drop.file_conflict.cache_persist",
                         started_at,
                     );
-                    self.queue_selected_source_prep(SourcePrepTrigger::FilesystemChanged, context);
                 }
                 self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
+                if moved {
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Move,
+                        authoritative_moves
+                            .into_iter()
+                            .map(|(before, after)| {
+                                FileMutationChange::path_only_move(before, after)
+                            })
+                            .collect(),
+                        metadata_error
+                            .into_iter()
+                            .map(|error| (None, error))
+                            .collect(),
+                        context,
+                    );
+                }
                 emit_gui_action(
                     "browser.drag_drop.file_conflict.resolve",
                     Some("browser"),
@@ -457,6 +552,17 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
+                let mut failures = vec![(None, error.clone())];
+                failures.extend(metadata_error.map(|error| (None, error)));
+                self.queue_partially_committed_file_mutation(
+                    FileMutationOperation::Move,
+                    committed_moves
+                        .into_iter()
+                        .map(|(before, after)| FileMutationChange::path_only_move(before, after))
+                        .collect(),
+                    failures,
+                    context,
+                );
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.drag_drop.file_conflict.resolve",
@@ -575,6 +681,7 @@ impl NativeAppState {
         source_database_root: &Path,
         moves: &[(PathBuf, PathBuf)],
     ) -> Result<(), String> {
+        self.transactions.pending_file_mutation_attempted = true;
         let metadata_error = self.library.folder_browser.apply_folder_move_transaction(
             source_root,
             source_database_root,
@@ -594,12 +701,41 @@ impl NativeAppState {
         self.reconcile_harvest_graph_after_folder_move(&request, moves);
         if let Some(error) = metadata_error {
             tracing::warn!("folder move transaction metadata update failed: {error}");
+            self.transactions.pending_file_mutation_failures.push(error);
         }
         if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
             tracing::warn!("folder move transaction source cache save failed: {error}");
         }
+        self.transactions
+            .pending_file_mutations
+            .extend(moves.iter().map(|(before, after)| {
+                FileMutationChange::path_only_move(before.clone(), after.clone())
+            }));
         Ok(())
     }
+}
+
+fn folder_move_mutation_changes(
+    request: &FolderMoveRequest,
+    moved_paths: &[(PathBuf, PathBuf)],
+) -> Vec<FileMutationChange> {
+    moved_paths
+        .iter()
+        .map(|(before, after)| {
+            let copy_only = match request {
+                FolderMoveRequest::SourcedFiles { file_moves, .. } => file_moves
+                    .iter()
+                    .find(|item| Path::new(&item.file_id) == before)
+                    .is_some_and(|item| item.copy_only),
+                _ => false,
+            };
+            if copy_only {
+                FileMutationChange::created(after.clone())
+            } else {
+                FileMutationChange::path_only_move(before.clone(), after.clone())
+            }
+        })
+        .collect()
 }
 
 impl TransactionContext<'_> {

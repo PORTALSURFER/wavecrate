@@ -12,6 +12,9 @@ use crate::native_app::app::{
     NormalizationProgress, NormalizationQueueItem, NormalizationResult, NormalizedWaveformReload,
     WaveformPlaybackResume, emit_gui_action, sample_path_label,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::sample_library::file_actions::{
     WavNormalizationOutcome, normalize_wav_file_in_place_with_progress,
 };
@@ -479,11 +482,38 @@ impl NativeAppState {
             );
         }
 
+        let normalized_paths = result.normalized.clone();
+        let copied_paths = result
+            .harvest_derivations
+            .iter()
+            .map(|derivation| derivation.child_path.clone())
+            .collect::<HashSet<_>>();
+        let changes = normalized_paths
+            .iter()
+            .map(|path| {
+                if copied_paths.contains(path) {
+                    FileMutationChange::created(path.clone())
+                } else {
+                    FileMutationChange::content_changed(path.clone())
+                }
+            })
+            .collect::<Vec<_>>();
         self.finish_normalization_status(
             result.normalized,
             result.skipped,
-            result.failed,
+            result.failed.clone(),
             started_at,
+        );
+        let failures = result
+            .failed
+            .into_iter()
+            .map(|failure| (Some(result.source_id.clone()), failure.error))
+            .collect();
+        self.queue_partially_committed_file_mutation(
+            FileMutationOperation::Normalize,
+            changes,
+            failures,
+            context,
         );
         self.start_next_queued_normalization(context);
     }

@@ -25,6 +25,9 @@ use crate::native_app::audio::playback_history::{
 use crate::native_app::metadata::{
     MetadataRatingPersistResult, MetadataTagLoadResult, MetadataTagPersistResult,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationOutcome, FileMutationWork,
+};
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::commands::RenameCommitCompletion;
@@ -81,6 +84,8 @@ pub(in crate::native_app) enum GuiMessage {
         source_root_available: bool,
     },
     SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
+    CommittedFileMutationRequested(FileMutationWork),
+    CommittedFileMutationFinished(FileMutationOutcome),
     SourceManifestAuditCommitted {
         source_id: String,
         committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,

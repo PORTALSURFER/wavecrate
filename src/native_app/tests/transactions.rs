@@ -39,10 +39,10 @@ fn transaction_group_undoes_and_redoes_as_one_entry() {
     assert!(state.commit_transaction());
 
     state.audio.volume = 0.8;
-    state.undo_transaction();
+    state.undo_transaction(&mut radiant::prelude::UiUpdateContext::default());
     assert_eq!(state.ui.status.sample, "Undid Grouped edit");
     assert_eq!(state.audio.volume, 0.1);
-    state.redo_transaction();
+    state.redo_transaction(&mut radiant::prelude::UiUpdateContext::default());
     assert_eq!(state.ui.status.sample, "Redid Grouped edit");
     assert_eq!(state.audio.volume, 0.8);
 }

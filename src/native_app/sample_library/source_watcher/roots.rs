@@ -2,6 +2,12 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::{collections::HashSet, path::PathBuf};
 use wavecrate::sample_sources::SampleSource;
 
+pub(super) use crate::native_app::sample_library::committed_file_mutations::observed_watcher_path_state;
+
+pub(super) fn source_root_is_available(source: &SampleSource) -> bool {
+    source.root.is_dir()
+}
+
 pub(super) struct RootWatchUpdate {
     pub(super) changed_roots: Vec<PathBuf>,
     pub(super) has_unavailable_roots: bool,

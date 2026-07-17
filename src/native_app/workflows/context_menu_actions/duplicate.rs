@@ -8,6 +8,9 @@ use wavecrate::sample_sources::{
 };
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::sample_library::context_menu_target as context_menu;
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
@@ -188,7 +191,7 @@ impl NativeAppState {
         source_path: PathBuf,
         started_at: Instant,
         result: Result<wavecrate::sample_sources::ContextSampleSameResult, String>,
-        _context: &mut ui::UiUpdateContext<GuiMessage>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(completion) => {
@@ -203,6 +206,11 @@ impl NativeAppState {
                     .follow_selected_file_view_matching_tags(12, 6, 2, &self.metadata.tags_by_file);
                 self.ui.status.sample =
                     format!("Duplicated {}", sample_path_label(&completion.destination));
+                self.queue_committed_file_mutation(
+                    FileMutationOperation::Duplicate,
+                    vec![FileMutationChange::created(completion.destination.clone())],
+                    context,
+                );
                 emit_gui_action(
                     "browser.context_menu.sample.duplicate_same",
                     Some("browser"),
@@ -213,6 +221,12 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
+                self.record_failed_file_mutation(
+                    FileMutationOperation::Duplicate,
+                    None,
+                    error.clone(),
+                    context,
+                );
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.context_menu.sample.duplicate_same",
@@ -256,6 +270,11 @@ impl NativeAppState {
                 );
                 self.ui.status.sample =
                     format!("Duplicated {}", sample_path_label(&completion.destination));
+                self.queue_committed_file_mutation(
+                    FileMutationOperation::Duplicate,
+                    vec![FileMutationChange::created(completion.destination.clone())],
+                    context,
+                );
                 emit_gui_action(
                     "browser.context_menu.sample.duplicate_double",
                     Some("browser"),
@@ -266,6 +285,12 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
+                self.record_failed_file_mutation(
+                    FileMutationOperation::Duplicate,
+                    None,
+                    error.clone(),
+                    context,
+                );
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.context_menu.sample.duplicate_double",

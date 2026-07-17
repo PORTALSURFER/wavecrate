@@ -6,6 +6,9 @@ use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingWaveformDestructiveEdit, WaveformDestructiveEditKind,
     sample_path_label,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
 use crate::native_app::waveform::{WaveformPreservedMarks, WaveformState};
 
@@ -29,6 +32,12 @@ impl NativeAppState {
         let applied = match output.result {
             Ok(applied) => applied,
             Err(error) => {
+                self.record_failed_file_mutation(
+                    FileMutationOperation::Edit,
+                    Some(active.request.source.id.as_str().to_string()),
+                    error.clone(),
+                    context,
+                );
                 self.ui.status.sample = format!(
                     "{} failed: {error}",
                     active.request.prompt.edit.action_label()
@@ -101,13 +110,30 @@ impl NativeAppState {
                 Instant::now(),
             );
         }
-        self.background
-            .source_processing
-            .wake_source(&applied.source_id, "waveform_edit_commit");
+        let primary_change = if active.harvest_whole_file_derivation.is_some() {
+            FileMutationChange::created(applied.absolute_path.clone())
+        } else {
+            FileMutationChange::content_changed(applied.absolute_path.clone())
+                .with_before_content_identity(applied.before_content_identity.clone())
+        };
+        let mut mutation_changes = vec![primary_change];
+        if let Some(extracted) = applied.extracted.as_ref() {
+            mutation_changes.push(FileMutationChange::created(extracted.path.clone()));
+        }
+        self.queue_partially_committed_file_mutation(
+            FileMutationOperation::Edit,
+            mutation_changes,
+            extracted_metadata_error
+                .iter()
+                .cloned()
+                .map(|error| (None, error))
+                .collect(),
+            context,
+        );
         self.register_destructive_edit_transaction(active.request.prompt.edit, applied);
 
         let label = sample_path_label(&active.request.absolute_path);
-        self.ui.status.sample = if let Some(error) = extracted_metadata_error {
+        self.ui.status.sample = if let Some(error) = extracted_metadata_error.as_ref() {
             format!(
                 "{} {label}; extracted metadata incomplete: {error}",
                 active.request.prompt.edit.past_tense_label()

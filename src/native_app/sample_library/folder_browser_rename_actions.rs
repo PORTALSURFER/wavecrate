@@ -3,6 +3,9 @@ use radiant::widgets::PointerModifiers;
 use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::folder_browser::commands::{
     FolderBrowserMessage, RenameCommitCompletion, RenameCommitResult, RenameInputResult,
@@ -187,11 +190,15 @@ impl NativeAppState {
         completion: RenameCommitCompletion,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let execution_error = completion.result.as_ref().err().cloned();
         let result = self
             .library
             .folder_browser
             .apply_rename_commit_completion(completion);
         self.apply_folder_browser_rename_status(result, context);
+        if let Some(error) = execution_error {
+            self.record_failed_file_mutation(FileMutationOperation::Rename, None, error, context);
+        }
     }
 
     fn apply_folder_browser_rename_result(
@@ -223,8 +230,17 @@ impl NativeAppState {
     ) {
         if let Some(remap) = result.path_remap {
             self.apply_browser_rename_path_remap(&remap);
-            self.queue_selected_source_prep(
-                crate::native_app::sample_library::source_prep::SourcePrepTrigger::FilesystemChanged,
+            self.queue_partially_committed_file_mutation(
+                FileMutationOperation::Rename,
+                vec![FileMutationChange::path_only_move(
+                    remap.old_path.clone(),
+                    remap.new_path.clone(),
+                )],
+                result
+                    .metadata_error
+                    .into_iter()
+                    .map(|error| (None, error))
+                    .collect(),
                 context,
             );
             self.queue_active_similarity_score_resolution(context);

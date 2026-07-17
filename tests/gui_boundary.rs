@@ -821,6 +821,14 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "context-menu target validation worker",
         ),
         (
+            "src/native_app/sample_library/committed_file_mutations/worker.rs",
+            "committed file-mutation reconciliation worker",
+        ),
+        (
+            "src/native_app/sample_library/committed_file_mutations/watcher_echo.rs",
+            "committed mutation watcher identity worker helper",
+        ),
+        (
             "src/native_app/sample_library/folder_browser/source_scan_cache.rs",
             "source scan cache worker",
         ),

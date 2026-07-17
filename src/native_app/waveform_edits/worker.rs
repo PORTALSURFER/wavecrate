@@ -59,6 +59,7 @@ pub(super) struct AppliedWaveformEdit {
     pub(super) source_database_root: PathBuf,
     pub(super) relative_path: PathBuf,
     pub(super) absolute_path: PathBuf,
+    pub(super) before_content_identity: Option<String>,
     pub(super) backup: OverwriteBackup,
     pub(super) extracted: Option<AppliedExtractedFile>,
 }
@@ -212,6 +213,7 @@ fn execute_destructive_edit_write(
     extracted_path: Option<PathBuf>,
 ) -> Result<AppliedWaveformEdit, String> {
     validate_destructive_edit_target(&request.absolute_path)?;
+    let before_content_identity = cache_content_identity(&request.absolute_path);
     let source_database_root = request
         .source
         .database_root()
@@ -250,6 +252,7 @@ fn execute_destructive_edit_write(
         source_database_root,
         relative_path: request.relative_path.clone(),
         absolute_path: request.absolute_path.clone(),
+        before_content_identity,
         backup,
         extracted,
     })
@@ -258,7 +261,8 @@ fn execute_destructive_edit_write(
 pub(super) fn restore_edited_waveform(
     backup_path: &Path,
     applied: &AppliedWaveformEdit,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
+    let before_content_identity = cache_content_identity(&applied.absolute_path);
     fs::copy(backup_path, &applied.absolute_path)
         .map_err(|err| format!("Failed to restore waveform file: {err}"))?;
     sync_source_entry_at(
@@ -274,7 +278,18 @@ pub(super) fn restore_edited_waveform(
             restore_extracted_file_for_redo(applied, extracted)?;
         }
     }
-    Ok(())
+    Ok(before_content_identity)
+}
+
+fn cache_content_identity(path: &Path) -> Option<String> {
+    let metadata = fs::metadata(path).ok()?;
+    let modified_ns = metadata
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    Some(format!("cache:{}:{modified_ns}", metadata.len()))
 }
 
 fn apply_destructive_edit_to_wav(

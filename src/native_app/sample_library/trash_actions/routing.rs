@@ -8,6 +8,9 @@ use crate::native_app::app::{
     GuiMessage, NativeAppState, PendingFolderDelete, TrashMoveTarget, emit_gui_action,
     sample_path_label,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
@@ -210,6 +213,23 @@ impl NativeAppState {
         outcomes: Vec<TrashMoveOutcome>,
         context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
+        let committed_paths = outcomes
+            .iter()
+            .filter(|outcome| {
+                matches!(
+                    outcome.result,
+                    TrashMoveResult::Moved { .. } | TrashMoveResult::Missing
+                )
+            })
+            .map(|outcome| outcome.source.clone())
+            .collect::<Vec<_>>();
+        let failed_mutations = outcomes
+            .iter()
+            .filter_map(|outcome| match &outcome.result {
+                TrashMoveResult::Failed { error } => Some(error.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
         match target {
             TrashMoveTarget::Folder(path) => {
                 match outcomes.first().map(|outcome| &outcome.result) {
@@ -234,6 +254,18 @@ impl NativeAppState {
                 self.finish_file_trash_move(outcomes, action, started_at, context);
             }
         }
+        self.queue_partially_committed_file_mutation(
+            FileMutationOperation::Trash,
+            committed_paths
+                .into_iter()
+                .map(FileMutationChange::deleted)
+                .collect(),
+            failed_mutations
+                .into_iter()
+                .map(|error| (None, error))
+                .collect(),
+            context,
+        );
     }
 
     fn finish_folder_trash_move(

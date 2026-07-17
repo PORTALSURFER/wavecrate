@@ -12,6 +12,9 @@ use crate::native_app::app::{
     ClipboardHandoffTarget, ExtractedFilePlaybackType, GuiMessage, NativeAppState, emit_gui_action,
     sample_path_label,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 use crate::native_app::waveform::{
     WaveformExtractionCompletion, WaveformSelectionKind, execute_waveform_extraction,
 };
@@ -289,7 +292,7 @@ impl NativeAppState {
                 self.waveform
                     .current
                     .flash_play_selection_if_current(&source_path, selection);
-                self.ui.status.sample = match metadata_error {
+                self.ui.status.sample = match metadata_error.as_ref() {
                     Some(error) => {
                         format!("Copied {label}; extracted metadata incomplete: {error}")
                     }
@@ -303,8 +306,42 @@ impl NativeAppState {
                     started_at,
                     None,
                 );
+                self.queue_partially_committed_file_mutation(
+                    FileMutationOperation::Extract,
+                    vec![FileMutationChange::created(copied_path)],
+                    metadata_error
+                        .into_iter()
+                        .map(|error| (None, error))
+                        .collect(),
+                    context,
+                );
             }
             Err(error) => {
+                if copied_path.as_os_str().is_empty() {
+                    self.record_failed_file_mutation(
+                        FileMutationOperation::Extract,
+                        None,
+                        error.clone(),
+                        context,
+                    );
+                } else {
+                    let metadata_error = self.finish_waveform_selection_copy_bookkeeping(
+                        &source_path,
+                        selection,
+                        &copied_path,
+                        playback_type,
+                        source_duration_seconds,
+                        context,
+                    );
+                    let mut failures = vec![(None, error.clone())];
+                    failures.extend(metadata_error.map(|error| (None, error)));
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Extract,
+                        vec![FileMutationChange::created(copied_path.clone())],
+                        failures,
+                        context,
+                    );
+                }
                 self.ui.status.sample = format!("Copy failed: {error}");
                 emit_gui_action(
                     "waveform.copy_playmarked_range",

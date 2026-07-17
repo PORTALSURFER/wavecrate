@@ -17,6 +17,7 @@ use super::{
     WATCHER_EVENT_QUEUE_CAPACITY, WATCHER_POLL_INTERVAL, WATCHER_RESTART_MAX, WATCHER_RESTART_MIN,
 };
 use crate::native_app::app::GuiMessage;
+use crate::native_app::sample_library::committed_file_mutations::CommittedWatcherEcho;
 
 #[derive(Debug)]
 pub(in crate::native_app) struct GuiSourceWatcherHandle {
@@ -42,6 +43,21 @@ impl GuiSourceWatcherHandle {
             .command_tx
             .send(GuiSourceWatchCommand::ReplaceSources(sources));
     }
+
+    pub(in crate::native_app) fn acknowledge_committed_paths(
+        &self,
+        source_id: String,
+        echoes: Vec<CommittedWatcherEcho>,
+        operation_id: u64,
+    ) {
+        let _ = self
+            .command_tx
+            .send(GuiSourceWatchCommand::AcknowledgeCommittedPaths {
+                source_id,
+                echoes,
+                operation_id,
+            });
+    }
 }
 
 impl Drop for GuiSourceWatcherHandle {
@@ -56,6 +72,11 @@ impl Drop for GuiSourceWatcherHandle {
 #[derive(Debug)]
 enum GuiSourceWatchCommand {
     ReplaceSources(Vec<SampleSource>),
+    AcknowledgeCommittedPaths {
+        source_id: String,
+        echoes: Vec<CommittedWatcherEcho>,
+        operation_id: u64,
+    },
     Shutdown,
 }
 
@@ -78,6 +99,18 @@ fn run_source_watcher(
             Ok(GuiSourceWatchCommand::ReplaceSources(sources)) => {
                 state.set_sources(sources);
                 next_root_refresh = Instant::now();
+            }
+            Ok(GuiSourceWatchCommand::AcknowledgeCommittedPaths {
+                source_id,
+                echoes,
+                operation_id,
+            }) => {
+                state.acknowledge_committed_paths(
+                    &source_id,
+                    &echoes,
+                    operation_id,
+                    Instant::now(),
+                );
             }
             Ok(GuiSourceWatchCommand::Shutdown) => break,
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}

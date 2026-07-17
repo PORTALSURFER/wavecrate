@@ -8,6 +8,9 @@ use radiant::prelude as ui;
 use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, NativeFileDropHover, emit_gui_action};
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation,
+};
 
 impl NativeAppState {
     pub(in crate::native_app) fn apply_native_file_drop(
@@ -169,6 +172,12 @@ impl NativeAppState {
         match result {
             Ok(copied) => self.load_copied_external_file(copied, context, started_at),
             Err(error) => {
+                self.record_failed_file_mutation(
+                    FileMutationOperation::ImportDrop,
+                    None,
+                    error.clone(),
+                    context,
+                );
                 self.ui.status.sample = format!("External drop failed: {error}");
                 emit_gui_action(
                     "waveform.external_file_drop",
@@ -192,6 +201,11 @@ impl NativeAppState {
         self.library.folder_browser.refresh_file_path(&copied);
         self.library.folder_browser.select_file(copied_id.clone());
         self.load_sample(copied_id, context);
+        self.queue_committed_file_mutation(
+            FileMutationOperation::ImportDrop,
+            vec![FileMutationChange::created(copied)],
+            context,
+        );
         emit_gui_action(
             "waveform.external_file_drop",
             Some("waveform"),

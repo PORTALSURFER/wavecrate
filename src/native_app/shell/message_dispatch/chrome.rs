@@ -83,13 +83,13 @@ impl NativeAppState {
             GuiMessage::SimilarSectionsResolved(result) => {
                 self.finish_similar_sections(result);
             }
-            GuiMessage::UndoTransaction => self.undo_transaction(),
-            GuiMessage::RedoTransaction => self.redo_transaction(),
+            GuiMessage::UndoTransaction => self.undo_transaction(context),
+            GuiMessage::RedoTransaction => self.redo_transaction(context),
             GuiMessage::UndoTransactionsThrough(target_id) => {
-                self.undo_transactions_through(target_id);
+                self.undo_transactions_through(target_id, context);
             }
             GuiMessage::RedoTransactionsThrough(target_id) => {
-                self.redo_transactions_through(target_id);
+                self.redo_transactions_through(target_id, context);
             }
             GuiMessage::ToggleTransactionList => self.toggle_transaction_list(),
             GuiMessage::CloseTransactionList => {
@@ -174,7 +174,7 @@ impl NativeAppState {
                 context,
             ),
             GuiMessage::SelectedWholeFilesHarvestExtractionFinished { started_at, result } => {
-                self.finish_selected_whole_files_harvest_extraction(started_at, result);
+                self.finish_selected_whole_files_harvest_extraction(started_at, result, context);
             }
             _ => unreachable!("chrome dispatcher received a non-chrome message"),
         }

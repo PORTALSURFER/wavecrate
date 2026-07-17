@@ -13,7 +13,7 @@ const MAX_SYNC_ATTEMPTS: usize = 3;
 const SYNC_RETRY_DELAYS: [Duration; MAX_SYNC_ATTEMPTS - 1] =
     [Duration::from_millis(50), Duration::from_millis(200)];
 
-pub(super) fn sync_source_database_paths(
+pub(in crate::native_app) fn sync_source_database_paths(
     source_id: String,
     root: PathBuf,
     database_root: PathBuf,
