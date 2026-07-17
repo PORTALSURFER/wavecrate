@@ -4,12 +4,12 @@ use std::time::{Duration, Instant};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action, logging};
 use crate::native_app::sample_library::committed_file_mutations::{
-    FileMutationChange, FileMutationOperation,
+    FileMutationChange, FileMutationOperation, FileMutationProjection,
 };
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::folder_browser::commands::{
-    FolderBrowserMessage, RenameCommitCompletion, RenameCommitResult, RenameInputResult,
-    RenamePathRemap, execute_rename_commit_request,
+    FolderBrowserMessage, RenameCommitCompletion, RenameCommitRequest, RenameCommitResult,
+    RenameCommitSuccess, RenameInputResult, RenamePathRemap, execute_rename_commit_request,
 };
 
 impl NativeAppState {
@@ -190,15 +190,58 @@ impl NativeAppState {
         completion: RenameCommitCompletion,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let execution_error = completion.result.as_ref().err().cloned();
+        if let Err(error) = completion.result.as_ref() {
+            let error = error.clone();
+            let result = self
+                .library
+                .folder_browser
+                .apply_rename_commit_completion(completion);
+            self.apply_folder_browser_rename_status(result, context);
+            self.record_failed_file_mutation(FileMutationOperation::Rename, None, error, context);
+            return;
+        }
+        let Some((old_path, new_path)) = rename_completion_paths(&completion) else {
+            let result = self
+                .library
+                .folder_browser
+                .apply_rename_commit_completion(completion);
+            self.apply_folder_browser_rename_status(result, context);
+            return;
+        };
+        let metadata_error = rename_completion_metadata_error(&completion);
+        self.ui.status.sample = String::from("Finishing rename");
+        self.queue_partially_committed_file_mutation(
+            FileMutationOperation::Rename,
+            vec![
+                FileMutationChange::path_only_move(old_path, new_path.clone()).with_projection(
+                    FileMutationProjection::RenameCompletion {
+                        target_path: new_path,
+                        completion,
+                    },
+                ),
+            ],
+            metadata_error
+                .into_iter()
+                .map(|error| (None, error))
+                .collect(),
+            context,
+        );
+    }
+
+    pub(in crate::native_app) fn apply_committed_folder_browser_rename(
+        &mut self,
+        completion: RenameCommitCompletion,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let result = self
             .library
             .folder_browser
             .apply_rename_commit_completion(completion);
-        self.apply_folder_browser_rename_status(result, context);
-        if let Some(error) = execution_error {
-            self.record_failed_file_mutation(FileMutationOperation::Rename, None, error, context);
+        if let Some(remap) = result.path_remap.as_ref() {
+            self.apply_browser_rename_path_remap(remap);
+            self.queue_active_similarity_score_resolution(context);
         }
+        self.ui.status.sample = result.status;
     }
 
     fn apply_folder_browser_rename_result(
@@ -253,6 +296,35 @@ impl NativeAppState {
             .current
             .rewrite_path_prefix(&remap.old_path, &remap.new_path);
         self.remap_renamed_waveform_cache_path(&remap.old_path, &remap.new_path);
+    }
+}
+
+fn rename_completion_paths(
+    completion: &RenameCommitCompletion,
+) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    match (&completion.request, &completion.result) {
+        (
+            RenameCommitRequest::FolderRename {
+                old_path, new_path, ..
+            },
+            Ok(RenameCommitSuccess::FolderRenamed),
+        )
+        | (
+            RenameCommitRequest::FileRename {
+                old_path, new_path, ..
+            },
+            Ok(RenameCommitSuccess::FileRenamed { .. }),
+        ) => Some((old_path.clone(), new_path.clone())),
+        _ => None,
+    }
+}
+
+fn rename_completion_metadata_error(completion: &RenameCommitCompletion) -> Option<String> {
+    match &completion.result {
+        Ok(RenameCommitSuccess::FileRenamed {
+            metadata_remap_result: Err(error),
+        }) => Some(error.clone()),
+        _ => None,
     }
 }
 

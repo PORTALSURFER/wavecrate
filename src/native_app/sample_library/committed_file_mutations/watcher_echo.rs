@@ -1,6 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 const MAX_WATCHER_ECHO_HASH_BYTES: u64 = 8 * 1024 * 1024;
+
+use super::{ExpectedMutationPathState, FileMutationChange};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum CommittedWatcherPathState {
@@ -14,19 +19,70 @@ pub(in crate::native_app) struct CommittedWatcherEcho {
     pub(in crate::native_app) expected_state: CommittedWatcherPathState,
 }
 
-pub(super) fn capture_watcher_echoes(
-    root: &Path,
-    relative_paths: &[PathBuf],
-) -> Vec<CommittedWatcherEcho> {
-    relative_paths
-        .iter()
-        .filter_map(|relative_path| {
-            observed_watcher_path_state(&root.join(relative_path)).map(|expected_state| {
-                CommittedWatcherEcho {
-                    relative_path: relative_path.clone(),
-                    expected_state,
+pub(super) fn capture_expected_path_state(path: &Path) -> ExpectedMutationPathState {
+    match std::fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() && metadata.len() <= MAX_WATCHER_ECHO_HASH_BYTES => {
+            match std::fs::read(path) {
+                Ok(bytes) => {
+                    ExpectedMutationPathState::ContentHash(*blake3::hash(&bytes).as_bytes())
                 }
-            })
+                Err(_) => ExpectedMutationPathState::Unverifiable,
+            }
+        }
+        Ok(metadata) => ExpectedMutationPathState::Metadata {
+            len: metadata.len(),
+            modified_ns: metadata
+                .modified()
+                .ok()
+                .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|duration| duration.as_nanos()),
+            is_dir: metadata.is_dir(),
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            ExpectedMutationPathState::Missing
+        }
+        Err(_) => ExpectedMutationPathState::Unverifiable,
+    }
+}
+
+pub(super) fn watcher_echoes_for_changes(
+    root: &Path,
+    changes: &[FileMutationChange],
+) -> Vec<CommittedWatcherEcho> {
+    let mut echoes = BTreeMap::new();
+    for change in changes {
+        for (path, state) in [
+            (
+                change.before_path.as_deref(),
+                change.expected_before_state.as_ref(),
+            ),
+            (
+                change.after_path.as_deref(),
+                change.expected_after_state.as_ref(),
+            ),
+        ] {
+            let (Some(path), Some(state)) = (path, state) else {
+                continue;
+            };
+            let Ok(relative_path) = path.strip_prefix(root) else {
+                continue;
+            };
+            let expected_state = match state {
+                ExpectedMutationPathState::Missing => CommittedWatcherPathState::Missing,
+                ExpectedMutationPathState::ContentHash(hash) => {
+                    CommittedWatcherPathState::ContentHash(*hash)
+                }
+                ExpectedMutationPathState::Metadata { .. }
+                | ExpectedMutationPathState::Unverifiable => continue,
+            };
+            echoes.insert(relative_path.to_path_buf(), expected_state);
+        }
+    }
+    echoes
+        .into_iter()
+        .map(|(relative_path, expected_state)| CommittedWatcherEcho {
+            relative_path,
+            expected_state,
         })
         .collect()
 }

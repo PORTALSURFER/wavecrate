@@ -209,6 +209,7 @@ fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
             let _ = locked_tx.send(());
             let _ = lock_release_rx.recv();
             let _ = conn.execute_batch("COMMIT");
+            drop(conn);
             let _ = lock_done_tx.send(());
         });
         locked_rx.recv().must();

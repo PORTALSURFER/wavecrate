@@ -9,13 +9,14 @@ use wavecrate::sample_sources::{
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::committed_file_mutations::{
-    FileMutationChange, FileMutationOperation,
+    FileMutationChange, FileMutationOperation, FileMutationProjection,
 };
 use crate::native_app::sample_library::context_menu_target as context_menu;
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextTargetKind,
 };
 use crate::native_app::sample_library::file_actions::sample_path_label;
+use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
 
 impl NativeAppState {
     pub(in crate::native_app) fn duplicate_context_sample_same(
@@ -195,20 +196,16 @@ impl NativeAppState {
     ) {
         match result {
             Ok(completion) => {
-                self.library
-                    .folder_browser
-                    .refresh_file_path_across_sources(&completion.destination);
-                self.library
-                    .folder_browser
-                    .select_file(completion.destination.display().to_string());
-                self.library
-                    .folder_browser
-                    .follow_selected_file_view_matching_tags(12, 6, 2, &self.metadata.tags_by_file);
                 self.ui.status.sample =
                     format!("Duplicated {}", sample_path_label(&completion.destination));
                 self.queue_committed_file_mutation(
                     FileMutationOperation::Duplicate,
-                    vec![FileMutationChange::created(completion.destination.clone())],
+                    vec![
+                        FileMutationChange::created(completion.destination.clone())
+                            .with_projection(FileMutationProjection::SelectAndFollow {
+                                path: completion.destination.clone(),
+                            }),
+                    ],
                     context,
                 );
                 emit_gui_action(
@@ -249,30 +246,22 @@ impl NativeAppState {
     ) {
         match result {
             Ok(completion) => {
-                self.library
-                    .folder_browser
-                    .refresh_file_path_across_sources(&completion.destination);
-                self.library
-                    .folder_browser
-                    .focus_file_across_sources_matching_tags(
-                        &completion.destination,
-                        &self.metadata.tags_by_file,
-                    );
                 self.record_harvest_whole_file_derivation(
                     &source_path,
                     &completion.destination,
                     HarvestDerivationOperation::DuplicateDoubleCopy,
                 );
-                self.load_navigation_sample_validated(
-                    completion.destination.to_string_lossy().to_string(),
-                    context,
-                    started_at,
-                );
                 self.ui.status.sample =
                     format!("Duplicated {}", sample_path_label(&completion.destination));
                 self.queue_committed_file_mutation(
                     FileMutationOperation::Duplicate,
-                    vec![FileMutationChange::created(completion.destination.clone())],
+                    vec![
+                        FileMutationChange::created(completion.destination.clone())
+                            .with_projection(FileMutationProjection::FocusAndLoad {
+                                path: completion.destination.clone(),
+                                reason: BrowserListingRevealReason::LoadedFileFocus,
+                            }),
+                    ],
                     context,
                 );
                 emit_gui_action(

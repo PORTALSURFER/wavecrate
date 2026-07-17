@@ -3,8 +3,9 @@ use std::{fs, path::Path, sync::atomic::AtomicBool};
 use wavecrate::sample_sources::scanner::ManifestIdentityDelta;
 use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceId, scanner};
 
+use super::watcher_echo::watcher_echoes_for_changes;
 use super::worker::{
-    SourceMutationRequest, build_source_requests, capture_expected_after_identities,
+    SourceMutationRequest, build_source_requests, capture_expected_filesystem_state,
     merge_file_mutation_failures, mutation_completion_is_stale_or_duplicate,
     reconcile_file_mutation_requests_with_database_roots, reconcile_source_mutation,
 };
@@ -13,8 +14,9 @@ use super::*;
 fn request(
     root: &Path,
     operation: FileMutationOperation,
-    changes: Vec<FileMutationChange>,
+    mut changes: Vec<FileMutationChange>,
 ) -> SourceMutationRequest {
+    capture_expected_filesystem_state(&mut changes);
     SourceMutationRequest {
         source: SampleSource::new_with_id(SourceId::from_string("source-a"), root.to_path_buf()),
         operation_id: 42,
@@ -28,6 +30,7 @@ fn request(
             })
             .filter_map(|path| path.strip_prefix(root).ok().map(Path::to_path_buf))
             .collect(),
+        watcher_echoes: watcher_echoes_for_changes(root, &changes),
         changes,
     }
 }
@@ -265,6 +268,47 @@ fn cross_source_database_root_failure_keeps_valid_commit_and_explicit_failure() 
 }
 
 #[test]
+fn failed_reconciliation_does_not_apply_browser_projection() {
+    let root = tempfile::tempdir().expect("source root");
+    let selected = root.path().join("selected.wav");
+    let created = root.path().join("created.wav");
+    fs::write(&selected, b"selected").expect("selected file");
+    fs::write(&created, b"created").expect("created file");
+    let source = SampleSource::new(root.path().to_path_buf());
+    let browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            source.clone()
+        ]);
+    let mut state = crate::native_app::test_support::state::NativeAppStateFixture::default()
+        .with_folder_browser(browser)
+        .build();
+    state
+        .library
+        .folder_browser
+        .select_file(selected.to_string_lossy().to_string());
+    let mut changes = vec![
+        FileMutationChange::created(created.clone()).with_projection(
+            FileMutationProjection::SelectAndFollow {
+                path: created.clone(),
+            },
+        ),
+    ];
+    capture_expected_filesystem_state(&mut changes);
+    let requests = build_source_requests(91, FileMutationOperation::Duplicate, changes, &[source]);
+    let outcome = reconcile_file_mutation_requests_with_database_roots(requests, |_| {
+        Err(String::from("metadata root unavailable"))
+    });
+
+    state
+        .finish_committed_file_mutation(outcome, &mut radiant::prelude::UiUpdateContext::default());
+
+    assert_eq!(
+        state.library.folder_browser.selected_file_id(),
+        Some(selected.to_string_lossy().as_ref())
+    );
+}
+
+#[test]
 fn failed_and_rolled_back_outcomes_are_explicit() {
     let failure = FileMutationFailure {
         source_id: Some(String::from("source-a")),
@@ -334,13 +378,40 @@ fn rapid_repeated_edit_fences_the_superseded_completion() {
     let root = tempfile::tempdir().expect("source root");
     let path = root.path().join("edited.wav");
     fs::write(&path, b"first committed edit").expect("first edit");
-    let mut changes = vec![FileMutationChange::content_changed(path.clone())];
-    capture_expected_after_identities(&mut changes);
+    let changes = vec![FileMutationChange::content_changed(path.clone())];
     let request = request(root.path(), FileMutationOperation::Edit, changes);
 
     fs::write(&path, b"second committed edit with different size").expect("second edit");
     let error = reconcile_test_request(request, &AtomicBool::new(false))
         .expect_err("superseded edit must not publish");
 
+    assert!(error.contains("superseded"));
+}
+
+#[test]
+fn intervening_equal_size_rewrite_with_preserved_mtime_is_not_acknowledged_as_owned() {
+    let root = tempfile::tempdir().expect("source root");
+    let path = root.path().join("edited.wav");
+    fs::write(&path, b"owned-content").expect("owned edit");
+    let committed_modified = fs::metadata(&path)
+        .expect("owned metadata")
+        .modified()
+        .expect("owned modified time");
+    let request = request(
+        root.path(),
+        FileMutationOperation::Edit,
+        vec![FileMutationChange::content_changed(path.clone())],
+    );
+
+    fs::write(&path, b"other-content").expect("intervening edit");
+    fs::File::options()
+        .write(true)
+        .open(&path)
+        .expect("open intervening edit")
+        .set_times(std::fs::FileTimes::new().set_modified(committed_modified))
+        .expect("preserve modified time");
+
+    let error = reconcile_test_request(request, &AtomicBool::new(false))
+        .expect_err("intervening content must not publish as the owned edit");
     assert!(error.contains("superseded"));
 }

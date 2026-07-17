@@ -5,12 +5,16 @@
 //! publishes one revisioned outcome, refreshes the browser projection from that committed state,
 //! acknowledges the matching watcher echo, and only then wakes durable readiness reconciliation.
 
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{collections::BTreeSet, path::PathBuf, time::Instant};
 
 use radiant::prelude as ui;
 use wavecrate::sample_sources::{readiness::ReadinessStage, scanner::CommittedSourceDelta};
 
 use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
+use crate::native_app::sample_library::folder_browser::commands::{
+    FileMoveConflictCompletion, FolderMoveRequest, FolderMoveSuccess, RenameCommitCompletion,
+};
 use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 
 #[cfg(test)]
@@ -22,8 +26,8 @@ pub(in crate::native_app) use watcher_echo::{
     CommittedWatcherEcho, CommittedWatcherPathState, observed_watcher_path_state,
 };
 use worker::{
-    build_source_requests, merge_file_mutation_failures, mutation_completion_is_stale_or_duplicate,
-    reconcile_file_mutation_requests,
+    build_source_requests, capture_expected_filesystem_state, merge_file_mutation_failures,
+    mutation_completion_is_stale_or_duplicate, reconcile_file_mutation_requests,
 };
 
 /// User-visible mutation family that owns one operation ID across all affected sources.
@@ -67,6 +71,100 @@ pub(in crate::native_app) enum FileMutationSemantics {
     Delete,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ExpectedMutationPathState {
+    Missing,
+    ContentHash([u8; 32]),
+    Metadata {
+        len: u64,
+        modified_ns: Option<u128>,
+        is_dir: bool,
+    },
+    Unverifiable,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum FileMutationProjection {
+    SelectAndFollow {
+        path: PathBuf,
+    },
+    SelectAndLoad {
+        path: PathBuf,
+    },
+    FocusAndLoad {
+        path: PathBuf,
+        reason: BrowserListingRevealReason,
+    },
+    LoadSelectedIfChanged {
+        target_path: PathBuf,
+        previous_selected: Option<String>,
+    },
+    RenameCompletion {
+        target_path: PathBuf,
+        completion: RenameCommitCompletion,
+    },
+    MoveCompletion {
+        target_path: PathBuf,
+        cut_paste: bool,
+        request: FolderMoveRequest,
+        success: FolderMoveSuccess,
+        previous_selected: Option<String>,
+        started_at: Instant,
+    },
+    MoveConflictCompletion {
+        target_path: PathBuf,
+        completion: FileMoveConflictCompletion,
+        previous_selected: Option<String>,
+        started_at: Instant,
+    },
+    MoveTransaction {
+        target_path: PathBuf,
+        source_root: PathBuf,
+        source_database_root: PathBuf,
+        moves: Vec<(PathBuf, PathBuf)>,
+    },
+    TrashFolder {
+        path: PathBuf,
+    },
+    TrashFiles {
+        target_path: PathBuf,
+        reconciled_paths: Vec<PathBuf>,
+        failed_paths: Vec<PathBuf>,
+        previous_selected: Option<String>,
+        loaded_removed: bool,
+        status: String,
+    },
+}
+
+impl FileMutationProjection {
+    fn target_path(&self) -> Option<&std::path::Path> {
+        match self {
+            Self::SelectAndFollow { path }
+            | Self::SelectAndLoad { path }
+            | Self::FocusAndLoad { path, .. } => Some(path),
+            Self::LoadSelectedIfChanged { target_path, .. }
+            | Self::RenameCompletion { target_path, .. }
+            | Self::MoveCompletion { target_path, .. }
+            | Self::MoveConflictCompletion { target_path, .. }
+            | Self::MoveTransaction { target_path, .. }
+            | Self::TrashFiles { target_path, .. } => Some(target_path),
+            Self::TrashFolder { path } => Some(path),
+        }
+    }
+
+    fn replaces_default_refresh(&self) -> bool {
+        matches!(
+            self,
+            Self::RenameCompletion { .. }
+                | Self::MoveCompletion { .. }
+                | Self::MoveConflictCompletion { .. }
+                | Self::MoveTransaction { .. }
+                | Self::TrashFolder { .. }
+                | Self::TrashFiles { .. }
+        )
+    }
+}
+
 /// One logical file or folder transition. Paths are absolute so cross-source moves retain both
 /// endpoints in every source-scoped outcome.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +174,9 @@ pub(in crate::native_app) struct FileMutationChange {
     pub(in crate::native_app) before_content_identity: Option<String>,
     pub(in crate::native_app) after_content_identity: Option<String>,
     pub(in crate::native_app) semantics: FileMutationSemantics,
+    expected_before_state: Option<ExpectedMutationPathState>,
+    expected_after_state: Option<ExpectedMutationPathState>,
+    projection: Option<FileMutationProjection>,
 }
 
 impl FileMutationChange {
@@ -86,6 +187,9 @@ impl FileMutationChange {
             before_content_identity: None,
             after_content_identity: None,
             semantics: FileMutationSemantics::Create,
+            expected_before_state: None,
+            expected_after_state: None,
+            projection: None,
         }
     }
 
@@ -96,6 +200,9 @@ impl FileMutationChange {
             before_content_identity: None,
             after_content_identity: None,
             semantics: FileMutationSemantics::ContentChanged,
+            expected_before_state: None,
+            expected_after_state: None,
+            projection: None,
         }
     }
 
@@ -106,6 +213,9 @@ impl FileMutationChange {
             before_content_identity: None,
             after_content_identity: None,
             semantics: FileMutationSemantics::PathOnlyMove,
+            expected_before_state: None,
+            expected_after_state: None,
+            projection: None,
         }
     }
 
@@ -116,6 +226,9 @@ impl FileMutationChange {
             before_content_identity: None,
             after_content_identity: None,
             semantics: FileMutationSemantics::Delete,
+            expected_before_state: None,
+            expected_after_state: None,
+            projection: None,
         }
     }
 
@@ -125,6 +238,25 @@ impl FileMutationChange {
     ) -> Self {
         self.before_content_identity = identity;
         self
+    }
+
+    pub(in crate::native_app) fn with_projection(
+        mut self,
+        projection: FileMutationProjection,
+    ) -> Self {
+        self.projection = Some(projection);
+        self
+    }
+
+    fn retain_projection_for_source(&mut self, source_root: &std::path::Path) {
+        if self
+            .projection
+            .as_ref()
+            .and_then(FileMutationProjection::target_path)
+            .is_some_and(|path| !path.starts_with(source_root))
+        {
+            self.projection = None;
+        }
     }
 }
 
@@ -191,7 +323,7 @@ impl NativeAppState {
     fn queue_file_mutation_outcome(
         &mut self,
         operation: FileMutationOperation,
-        changes: Vec<FileMutationChange>,
+        mut changes: Vec<FileMutationChange>,
         reported_failures: Vec<(Option<String>, String)>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) -> Option<u64> {
@@ -200,6 +332,7 @@ impl NativeAppState {
         }
         let operation_id = self.background.next_task_id();
         let had_changes = !changes.is_empty();
+        capture_expected_filesystem_state(&mut changes);
         let failures = reported_failures
             .into_iter()
             .map(|(source_id, error)| FileMutationFailure {
@@ -339,9 +472,22 @@ impl NativeAppState {
             }
             *last_commit = (*last_commit).max(current_commit);
 
-            self.library
-                .folder_browser
-                .refresh_filesystem_paths(&event.source_id, &event.affected_relative_paths);
+            let projections = event
+                .changes
+                .iter()
+                .filter_map(|change| change.projection.as_ref())
+                .collect::<Vec<_>>();
+            if !projections
+                .iter()
+                .any(|projection| projection.replaces_default_refresh())
+            {
+                self.library
+                    .folder_browser
+                    .refresh_filesystem_paths(&event.source_id, &event.affected_relative_paths);
+            }
+            for projection in projections {
+                self.apply_committed_file_mutation_projection(projection, context);
+            }
             if let Some(watcher) = self.library.source_watcher.as_ref() {
                 watcher.acknowledge_committed_paths(
                     event.source_id.clone(),
@@ -375,6 +521,144 @@ impl NativeAppState {
                 error = %failure.error,
                 "Wavecrate-owned file mutation failed before authoritative publication"
             );
+        }
+    }
+
+    fn apply_committed_file_mutation_projection(
+        &mut self,
+        projection: &FileMutationProjection,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        match projection {
+            FileMutationProjection::SelectAndFollow { path } => {
+                self.library
+                    .folder_browser
+                    .select_file(path.to_string_lossy().to_string());
+                self.library
+                    .folder_browser
+                    .follow_selected_file_view_matching_tags(12, 6, 2, &self.metadata.tags_by_file);
+            }
+            FileMutationProjection::SelectAndLoad { path } => {
+                let path = path.to_string_lossy().to_string();
+                self.library.folder_browser.select_file(path.clone());
+                self.load_navigation_sample(path, context);
+            }
+            FileMutationProjection::FocusAndLoad { path, reason } => {
+                self.library
+                    .folder_browser
+                    .focus_file_across_sources_matching_tags_for_reason(
+                        path,
+                        &self.metadata.tags_by_file,
+                        *reason,
+                    );
+                self.load_navigation_sample(path.to_string_lossy().to_string(), context);
+            }
+            FileMutationProjection::LoadSelectedIfChanged {
+                previous_selected, ..
+            } => {
+                let Some(selected) = self
+                    .library
+                    .folder_browser
+                    .selected_file_id()
+                    .map(str::to_owned)
+                else {
+                    return;
+                };
+                if previous_selected.as_deref() == Some(selected.as_str()) {
+                    return;
+                }
+                self.cancel_metadata_tag_entry();
+                self.metadata.selected_tag = None;
+                self.load_navigation_sample(selected, context);
+            }
+            FileMutationProjection::RenameCompletion { completion, .. } => {
+                self.apply_committed_folder_browser_rename(completion.clone(), context);
+            }
+            FileMutationProjection::MoveCompletion {
+                cut_paste,
+                request,
+                success,
+                previous_selected,
+                started_at,
+                ..
+            } => {
+                self.apply_committed_folder_move(
+                    *cut_paste,
+                    request.clone(),
+                    success.clone(),
+                    previous_selected.clone(),
+                    *started_at,
+                    context,
+                );
+            }
+            FileMutationProjection::MoveConflictCompletion {
+                completion,
+                previous_selected,
+                started_at,
+                ..
+            } => {
+                self.apply_committed_file_move_conflict(
+                    completion.clone(),
+                    previous_selected.clone(),
+                    *started_at,
+                    context,
+                );
+            }
+            FileMutationProjection::MoveTransaction {
+                source_root,
+                source_database_root,
+                moves,
+                ..
+            } => {
+                self.apply_committed_folder_move_transaction(
+                    source_root,
+                    source_database_root,
+                    moves,
+                );
+            }
+            FileMutationProjection::TrashFolder { path } => {
+                self.library
+                    .folder_browser
+                    .discard_trashed_folder_path(path);
+                self.clear_loaded_sample_if_path_within(path);
+            }
+            FileMutationProjection::TrashFiles {
+                reconciled_paths,
+                failed_paths,
+                previous_selected,
+                loaded_removed,
+                status,
+                ..
+            } => {
+                let discarded = self
+                    .library
+                    .folder_browser
+                    .discard_trashed_file_paths_matching_tags_preserving_selection(
+                        reconciled_paths,
+                        &self.metadata.tags_by_file,
+                        failed_paths,
+                    );
+                let selected_after_trash = discarded
+                    .then(|| {
+                        self.library
+                            .folder_browser
+                            .selected_file_id()
+                            .map(str::to_owned)
+                    })
+                    .flatten();
+                let focus_changed =
+                    discarded && previous_selected.as_deref() != selected_after_trash.as_deref();
+                for path in reconciled_paths {
+                    self.clear_loaded_sample_if_exact(path);
+                }
+                self.load_selected_sample_after_trash_if_needed(
+                    selected_after_trash,
+                    focus_changed,
+                    *loaded_removed,
+                    context,
+                );
+                self.ui.status.sample = status.clone();
+            }
         }
     }
 }

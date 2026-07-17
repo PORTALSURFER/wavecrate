@@ -9,7 +9,7 @@ use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 
 use crate::native_app::app::{GuiMessage, NativeAppState, NativeFileDropHover, emit_gui_action};
 use crate::native_app::sample_library::committed_file_mutations::{
-    FileMutationChange, FileMutationOperation,
+    FileMutationChange, FileMutationOperation, FileMutationProjection,
 };
 
 impl NativeAppState {
@@ -131,6 +131,18 @@ impl NativeAppState {
             );
             return;
         };
+        if path.parent() == Some(target_folder.as_path()) {
+            self.ui.status.sample = String::from("Drag cancelled");
+            emit_gui_action(
+                "waveform.external_file_drop",
+                Some("waveform"),
+                Some(file_name_or_path(&path).as_str()),
+                "unchanged",
+                started_at,
+                None,
+            );
+            return;
+        }
         if let Some(error) = self
             .library
             .folder_browser
@@ -197,13 +209,12 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
         started_at: Instant,
     ) {
-        let copied_id = copied.display().to_string();
-        self.library.folder_browser.refresh_file_path(&copied);
-        self.library.folder_browser.select_file(copied_id.clone());
-        self.load_sample(copied_id, context);
         self.queue_committed_file_mutation(
             FileMutationOperation::ImportDrop,
-            vec![FileMutationChange::created(copied)],
+            vec![
+                FileMutationChange::created(copied.clone())
+                    .with_projection(FileMutationProjection::SelectAndLoad { path: copied }),
+            ],
             context,
         );
         emit_gui_action(

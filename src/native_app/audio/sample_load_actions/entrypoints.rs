@@ -286,6 +286,7 @@ impl NativeAppState {
         );
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn load_sample(
         &mut self,
         path: String,
@@ -358,15 +359,6 @@ impl NativeAppState {
         );
     }
 
-    pub(in crate::native_app) fn load_navigation_sample_validated(
-        &mut self,
-        path: String,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-        started_at: Instant,
-    ) {
-        self.load_navigation_sample_validated_with_policy(path, context, started_at, false);
-    }
-
     fn load_navigation_sample_validated_with_policy(
         &mut self,
         path: String,
@@ -429,6 +421,16 @@ impl NativeAppState {
                 SampleLoadStrategy::CacheThenDecode
             },
         );
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn load_navigation_sample_validated(
+        &mut self,
+        path: String,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
+        self.load_navigation_sample_validated_with_policy(path, context, started_at, false);
     }
 
     fn queue_sample_load_path_validation(

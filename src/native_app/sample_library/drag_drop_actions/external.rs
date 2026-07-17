@@ -374,13 +374,6 @@ impl NativeAppState {
             .library
             .folder_browser
             .path_is_in_protected_source(source_path);
-        if protected_origin {
-            self.library
-                .folder_browser
-                .refresh_file_path_across_sources(copied_path);
-        } else {
-            self.library.folder_browser.refresh_file_path(copied_path);
-        }
         let metadata_error = self
             .assign_extracted_file_metadata(copied_path, playback_type, context)
             .err();

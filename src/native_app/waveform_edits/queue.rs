@@ -61,11 +61,6 @@ impl NativeAppState {
             } else {
                 None
             };
-        let before_selected_path = self
-            .library
-            .folder_browser
-            .selected_file_id()
-            .map(str::to_owned);
         let source_duration_seconds = (self.waveform.current.path() == request.absolute_path)
             .then(|| self.waveform.current.duration_seconds() as f64);
         let playback_was_active = self.waveform.current.is_playing();
@@ -87,7 +82,6 @@ impl NativeAppState {
         self.background.waveform_destructive_edit_context =
             Some(WaveformDestructiveEditUiContext {
                 request: request.clone(),
-                before_selected_path,
                 playback_was_active,
                 source_duration_seconds,
                 extracted_playback_type,

@@ -6,10 +6,10 @@ use std::{
 
 use wavecrate::sample_sources::{SampleSource, SourceDatabase, readiness::ReadinessStage};
 
-use super::watcher_echo::capture_watcher_echoes;
+use super::watcher_echo::{capture_expected_path_state, watcher_echoes_for_changes};
 use super::{
-    CommittedFileMutation, FileMutationChange, FileMutationFailure, FileMutationOperation,
-    FileMutationOutcome, FileMutationSemantics,
+    CommittedFileMutation, ExpectedMutationPathState, FileMutationChange, FileMutationFailure,
+    FileMutationOperation, FileMutationOutcome, FileMutationSemantics,
 };
 use crate::native_app::sample_library::folder_scan_actions::sync_source_database_paths;
 
@@ -20,6 +20,7 @@ pub(super) struct SourceMutationRequest {
     pub(super) operation: FileMutationOperation,
     pub(super) changes: Vec<FileMutationChange>,
     pub(super) affected_relative_paths: Vec<PathBuf>,
+    pub(super) watcher_echoes: Vec<super::CommittedWatcherEcho>,
 }
 
 impl PartialEq for SourceMutationRequest {
@@ -33,6 +34,7 @@ impl PartialEq for SourceMutationRequest {
             && self.operation == other.operation
             && self.changes == other.changes
             && self.affected_relative_paths == other.affected_relative_paths
+            && self.watcher_echoes == other.watcher_echoes
     }
 }
 
@@ -77,7 +79,7 @@ pub(super) fn merge_file_mutation_failures(
     }
 }
 
-pub(super) fn capture_expected_after_identities(changes: &mut [FileMutationChange]) {
+pub(super) fn capture_expected_filesystem_state(changes: &mut [FileMutationChange]) {
     for change in changes {
         if change.after_content_identity.is_none() {
             change.after_content_identity = change
@@ -85,6 +87,16 @@ pub(super) fn capture_expected_after_identities(changes: &mut [FileMutationChang
                 .as_deref()
                 .and_then(cache_content_identity);
         }
+        if change.before_path != change.after_path {
+            change.expected_before_state = change
+                .before_path
+                .as_deref()
+                .map(|_| ExpectedMutationPathState::Missing);
+        }
+        change.expected_after_state = change
+            .after_path
+            .as_deref()
+            .map(capture_expected_path_state);
     }
 }
 
@@ -128,6 +140,7 @@ pub(super) fn build_source_requests(
                         operation,
                         changes: Vec::new(),
                         affected_relative_paths: Vec::new(),
+                        watcher_echoes: Vec::new(),
                     });
             for path in [change.before_path.as_deref(), change.after_path.as_deref()]
                 .into_iter()
@@ -142,10 +155,19 @@ pub(super) fn build_source_requests(
                     request.affected_relative_paths.push(relative.to_path_buf());
                 }
             }
-            request.changes.push(change.clone());
+            let mut source_change = change.clone();
+            source_change.retain_projection_for_source(&source.root);
+            request.changes.push(source_change);
         }
     }
-    grouped.into_values().collect()
+    grouped
+        .into_values()
+        .map(|mut request| {
+            request.watcher_echoes =
+                watcher_echoes_for_changes(&request.source.root, &request.changes);
+            request
+        })
+        .collect()
 }
 
 fn source_for_path(sources: &[SampleSource], path: &Path) -> Option<String> {
@@ -177,8 +199,7 @@ pub(super) fn reconcile_file_mutation_requests_with_database_roots(
     let cancel = AtomicBool::new(false);
     let mut committed = Vec::new();
     let mut failures = Vec::new();
-    for mut request in requests {
-        capture_expected_after_identities(&mut request.changes);
+    for request in requests {
         let source_id = request.source.id.as_str().to_string();
         let result = database_root_for(&request.source).and_then(|database_root| {
             reconcile_source_mutation(request.clone(), database_root, &cancel)
@@ -209,7 +230,7 @@ pub(super) fn reconcile_source_mutation(
     cancel: &AtomicBool,
 ) -> Result<CommittedFileMutation, String> {
     let root = &request.source.root;
-    let watcher_echoes = capture_watcher_echoes(root, &request.affected_relative_paths);
+    verify_mutation_still_matches_filesystem(&request.changes)?;
     let before_database =
         SourceDatabase::open_for_background_job_with_database_root(root, &database_root)
             .map_err(|error| format!("open source before mutation reconciliation: {error}"))?;
@@ -294,30 +315,26 @@ pub(super) fn reconcile_source_mutation(
         changes,
         committed_delta: success.committed_delta,
         affected_relative_paths: request.affected_relative_paths,
-        watcher_echoes,
+        watcher_echoes: request.watcher_echoes,
     })
 }
 
 fn verify_mutation_still_matches_filesystem(changes: &[FileMutationChange]) -> Result<(), String> {
     for change in changes {
-        if change.semantics == FileMutationSemantics::Delete {
-            if change.before_path.as_deref().is_some_and(Path::exists) {
-                return Err(String::from(
-                    "committed delete was superseded before source reconciliation",
-                ));
-            }
-            continue;
-        }
-        let expected = change
-            .after_content_identity
-            .as_deref()
-            .filter(|identity| identity.starts_with("cache:"));
-        if let Some(expected) = expected {
-            let current = change
-                .after_path
-                .as_deref()
-                .and_then(cache_content_identity);
-            if current.as_deref() != Some(expected) {
+        for (path, expected) in [
+            (
+                change.before_path.as_deref(),
+                change.expected_before_state.as_ref(),
+            ),
+            (
+                change.after_path.as_deref(),
+                change.expected_after_state.as_ref(),
+            ),
+        ] {
+            let (Some(path), Some(expected)) = (path, expected) else {
+                continue;
+            };
+            if !expected_path_state_matches(path, expected) {
                 return Err(String::from(
                     "committed mutation was superseded before source reconciliation",
                 ));
@@ -325,6 +342,33 @@ fn verify_mutation_still_matches_filesystem(changes: &[FileMutationChange]) -> R
         }
     }
     Ok(())
+}
+
+fn expected_path_state_matches(path: &Path, expected: &ExpectedMutationPathState) -> bool {
+    match (expected, capture_expected_path_state(path)) {
+        (ExpectedMutationPathState::Missing, ExpectedMutationPathState::Missing) => true,
+        (
+            ExpectedMutationPathState::ContentHash(expected),
+            ExpectedMutationPathState::ContentHash(current),
+        ) => expected == &current,
+        (
+            ExpectedMutationPathState::Metadata {
+                len: expected_len,
+                modified_ns: expected_modified_ns,
+                is_dir: expected_is_dir,
+            },
+            ExpectedMutationPathState::Metadata {
+                len: current_len,
+                modified_ns: current_modified_ns,
+                is_dir: current_is_dir,
+            },
+        ) => {
+            expected_len == &current_len
+                && expected_modified_ns == &current_modified_ns
+                && expected_is_dir == &current_is_dir
+        }
+        _ => false,
+    }
 }
 
 fn manifest_by_path(

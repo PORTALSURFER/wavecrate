@@ -103,9 +103,15 @@ fn app_bridge_scene_routes_native_file_drop_to_waveform_view() {
         .expect("app bridge should lay out waveform widget");
 
     runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, Some(rect.center()), None));
-    runtime.drain_runtime_messages();
 
     let copied = loops.join("kick.wav");
+    for _ in 0..200 {
+        runtime.drain_runtime_messages();
+        if copied.is_file() && waveform_loading_label.borrow().as_deref() == Some("kick.wav") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
     assert!(copied.is_file());
     assert_eq!(waveform_loading_label.borrow().as_deref(), Some("kick.wav"));
     let messages = messages.borrow();
@@ -152,9 +158,15 @@ fn app_bridge_scene_routes_targetless_native_file_drop_to_single_waveform_target
     apply_strict_update_diagnostics(&mut runtime);
 
     runtime.dispatch_native_file_drop(NativeFileDrop::dropped(source, None, None));
-    runtime.drain_runtime_messages();
 
     let copied = loops.join("kick.wav");
+    for _ in 0..200 {
+        runtime.drain_runtime_messages();
+        if copied.is_file() && waveform_loading_label.borrow().as_deref() == Some("kick.wav") {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
     assert!(copied.is_file());
     assert_eq!(waveform_loading_label.borrow().as_deref(), Some("kick.wav"));
     let _ = fs::remove_dir_all(root);

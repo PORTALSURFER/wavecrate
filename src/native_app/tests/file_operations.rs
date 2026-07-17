@@ -474,7 +474,7 @@ fn loaded_waveform_sample_drag_reports_missing_file_from_move_worker() {
             .ui
             .status
             .sample
-            .contains("Sample move failed: missing-loaded-drag.wav is missing"),
+            .contains("File move failed: missing-loaded-drag.wav is missing"),
         "{}",
         state.ui.status.sample
     );
@@ -497,6 +497,7 @@ fn waveform_selection_drag_uses_prepared_extraction_for_sample_list_drop() {
         DragHandleMessage::started(Point::new(20.0, 12.0)),
         &mut drag_context,
     ));
+    run_command_for_tests(&mut state, drag_context.into_command());
     assert!(extraction.is_file());
 
     let mut drop_context = ui::UiUpdateContext::default();
@@ -615,12 +616,12 @@ fn moving_selected_file_loads_next_visible_sample() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(second_id.as_str())
     );
-    run_command_for_tests(&mut state, context.into_command());
     assert_eq!(state.waveform.load.label.as_deref(), Some("b-snare.wav"));
     assert!(
         state.active_sample_load_task().is_some(),
@@ -691,6 +692,7 @@ fn moving_folder_registers_undo_redo_transaction() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let moved_kicks = loops.join("kicks");
     assert!(!kicks.exists());
@@ -701,12 +703,14 @@ fn moving_folder_registers_undo_redo_transaction() {
         "Move folder"
     );
 
-    reduce_gui_message_for_tests(&mut state, GuiMessage::UndoTransaction);
+    let command = reduce_gui_message_for_tests(&mut state, GuiMessage::UndoTransaction);
+    run_command_for_tests(&mut state, command);
     assert_eq!(state.ui.status.sample, "Undid Move folder");
     assert!(kicks.join("kick.wav").is_file());
     assert!(!moved_kicks.exists());
 
-    reduce_gui_message_for_tests(&mut state, GuiMessage::RedoTransaction);
+    let command = reduce_gui_message_for_tests(&mut state, GuiMessage::RedoTransaction);
+    run_command_for_tests(&mut state, command);
     assert_eq!(state.ui.status.sample, "Redid Move folder");
     assert!(!kicks.exists());
     assert!(moved_kicks.join("kick.wav").is_file());
@@ -776,6 +780,7 @@ fn moving_scrolled_sample_materializes_source_rows_and_loads_next_sample() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let drums_id = drums.display().to_string();
     let replacement = samples[61].display().to_string();
@@ -787,7 +792,6 @@ fn moving_scrolled_sample_materializes_source_rows_and_loads_next_sample() {
         state.library.folder_browser.selected_file_id(),
         Some(replacement.as_str())
     );
-    run_command_for_tests(&mut state, context.into_command());
     assert_eq!(state.waveform.load.label.as_deref(), Some("sample_061.wav"));
     assert!(
         state.active_sample_load_task().is_some(),
@@ -1317,6 +1321,7 @@ fn moving_harvest_origin_remaps_derivation_graph_to_new_path() {
     let mut context = ui::UiUpdateContext::default();
 
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let new_parent_key = wavecrate::sample_sources::HarvestFileKey::new(
         source.id,
@@ -1408,6 +1413,7 @@ fn moving_harvest_folder_remaps_derivation_graph_prefix() {
     let mut context = ui::UiUpdateContext::default();
 
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let new_parent_key = wavecrate::sample_sources::HarvestFileKey::new(
         source.id.clone(),
@@ -1500,6 +1506,7 @@ fn folder_move_remaps_nested_metadata_tags_in_live_cache() {
     let mut context = ui::UiUpdateContext::default();
 
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    run_command_for_tests(&mut state, context.into_command());
 
     let moved_kick = loops.join("kicks").join("kick.wav");
     let moved_kick_id = moved_kick.to_string_lossy().to_string();
@@ -1656,13 +1663,13 @@ fn trashing_selected_block_materializes_remaining_rows_and_loads_next_sample() {
         outcomes,
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     let replacement = samples[68].display().to_string();
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
         Some(replacement.as_str())
     );
-    run_command_for_tests(&mut state, context.into_command());
     assert_eq!(state.waveform.load.label.as_deref(), Some("sample_068.wav"));
     assert!(
         state.active_sample_load_task().is_some(),
@@ -1737,6 +1744,7 @@ fn partial_batch_trash_reconciles_moved_rows_and_keeps_failed_rows() {
         ],
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     let visible = state.library.folder_browser.selected_audio_files();
     assert!(!visible.iter().any(|file| file.name == "a-moved.wav"));

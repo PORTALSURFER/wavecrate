@@ -108,7 +108,6 @@ impl BackgroundTaskState {
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformDestructiveEditUiContext {
     pub(in crate::native_app) request: PendingWaveformDestructiveEdit,
-    pub(in crate::native_app) before_selected_path: Option<String>,
     pub(in crate::native_app) playback_was_active: bool,
     pub(in crate::native_app) source_duration_seconds: Option<f64>,
     pub(in crate::native_app) extracted_playback_type: ExtractedFilePlaybackType,

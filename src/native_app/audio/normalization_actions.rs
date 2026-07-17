@@ -404,9 +404,6 @@ impl NativeAppState {
         self.background.progress_tick = 0.0;
 
         self.evict_waveform_cache_paths(&result.normalized);
-        self.library
-            .folder_browser
-            .refresh_file_entries(&result.source_id, &result.refreshed_files);
         self.mark_harvest_touched_for_paths(&result.normalized);
         self.record_harvest_derivations_for_finished_normalization_copies(
             &result.normalized,

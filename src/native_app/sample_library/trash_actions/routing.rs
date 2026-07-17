@@ -9,7 +9,7 @@ use crate::native_app::app::{
     sample_path_label,
 };
 use crate::native_app::sample_library::committed_file_mutations::{
-    FileMutationChange, FileMutationOperation,
+    FileMutationChange, FileMutationOperation, FileMutationProjection,
 };
 use crate::native_app::sample_library::context_menu_target::BrowserContextTargetKind;
 use crate::native_app::sample_library::sample_list::{
@@ -230,36 +230,48 @@ impl NativeAppState {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        match target {
+        let projection = match target {
             TrashMoveTarget::Folder(path) => {
                 match outcomes.first().map(|outcome| &outcome.result) {
-                    Some(TrashMoveResult::Moved { destination }) => {
-                        self.finish_folder_trash_move(path, destination.clone(), action, started_at)
-                    }
+                    Some(TrashMoveResult::Moved { destination }) => self.finish_folder_trash_move(
+                        path.clone(),
+                        destination.clone(),
+                        action,
+                        started_at,
+                    ),
                     Some(TrashMoveResult::Missing) => {
-                        self.finish_folder_trash_move_missing(path, action, started_at);
+                        self.finish_folder_trash_move_missing(path.clone(), action, started_at);
                     }
-                    Some(TrashMoveResult::Failed { error }) => {
-                        self.finish_trash_move_error(Some(path), action, started_at, error.clone())
-                    }
+                    Some(TrashMoveResult::Failed { error }) => self.finish_trash_move_error(
+                        Some(path.clone()),
+                        action,
+                        started_at,
+                        error.clone(),
+                    ),
                     None => self.finish_trash_move_error(
-                        Some(path),
+                        Some(path.clone()),
                         action,
                         started_at,
                         String::from("Trash move produced no outcome"),
                     ),
                 }
+                committed_paths
+                    .iter()
+                    .any(|committed| committed == &path)
+                    .then_some(FileMutationProjection::TrashFolder { path })
             }
-            TrashMoveTarget::Files(_) => {
-                self.finish_file_trash_move(outcomes, action, started_at, context);
-            }
+            TrashMoveTarget::Files(_) => self.finish_file_trash_move(&outcomes, action, started_at),
+        };
+        let mut committed_changes = committed_paths
+            .into_iter()
+            .map(FileMutationChange::deleted)
+            .collect::<Vec<_>>();
+        if let (Some(change), Some(projection)) = (committed_changes.first_mut(), projection) {
+            *change = change.clone().with_projection(projection);
         }
         self.queue_partially_committed_file_mutation(
             FileMutationOperation::Trash,
-            committed_paths
-                .into_iter()
-                .map(FileMutationChange::deleted)
-                .collect(),
+            committed_changes,
             failed_mutations
                 .into_iter()
                 .map(|error| (None, error))
@@ -275,10 +287,6 @@ impl NativeAppState {
         action: &'static str,
         started_at: Instant,
     ) {
-        self.library
-            .folder_browser
-            .discard_trashed_folder_path(&path);
-        self.clear_loaded_sample_if_path_within(&path);
         self.ui.status.sample = format!("Moved {} to trash", sample_path_label(&destination));
         emit_gui_action(
             action,
@@ -292,11 +300,10 @@ impl NativeAppState {
 
     fn finish_file_trash_move(
         &mut self,
-        outcomes: Vec<TrashMoveOutcome>,
+        outcomes: &[TrashMoveOutcome],
         action: &'static str,
         started_at: Instant,
-        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
-    ) {
+    ) -> Option<FileMutationProjection> {
         let reconciled_paths = outcomes
             .iter()
             .filter(|outcome| {
@@ -335,36 +342,9 @@ impl NativeAppState {
         let loaded_removed = reconciled_paths
             .iter()
             .any(|path| self.waveform.current.path() == path.as_path());
-        let discarded = self
-            .library
-            .folder_browser
-            .discard_trashed_file_paths_matching_tags_preserving_selection(
-                &reconciled_paths,
-                &self.metadata.tags_by_file,
-                &failed_paths,
-            );
-        let selected_after_trash = if discarded {
-            self.library
-                .folder_browser
-                .selected_file_id()
-                .map(str::to_owned)
-        } else {
-            None
-        };
-        let focus_changed =
-            discarded && previous_selected.as_deref() != selected_after_trash.as_deref();
-        for path in &reconciled_paths {
-            self.clear_loaded_sample_if_exact(path);
-        }
-        self.load_selected_sample_after_trash_if_needed(
-            selected_after_trash,
-            focus_changed,
-            loaded_removed,
-            context,
-        );
         let (status, outcome) =
             trash_batch_completion(moved_count, missing_count, &failures, action);
-        self.ui.status.sample = status;
+        self.ui.status.sample = status.clone();
         let noun = if moved_count == 1 { "file" } else { "files" };
         emit_gui_action(
             action,
@@ -374,9 +354,20 @@ impl NativeAppState {
             started_at,
             failures.first().copied(),
         );
+        reconciled_paths
+            .first()
+            .cloned()
+            .map(|target_path| FileMutationProjection::TrashFiles {
+                target_path,
+                reconciled_paths,
+                failed_paths,
+                previous_selected,
+                loaded_removed,
+                status,
+            })
     }
 
-    fn load_selected_sample_after_trash_if_needed(
+    pub(in crate::native_app) fn load_selected_sample_after_trash_if_needed(
         &mut self,
         selected_after_trash: Option<String>,
         focus_changed: bool,
@@ -416,10 +407,6 @@ impl NativeAppState {
         action: &'static str,
         started_at: Instant,
     ) {
-        self.library
-            .folder_browser
-            .discard_trashed_folder_path(&path);
-        self.clear_loaded_sample_if_path_within(&path);
         let label = sample_path_label(&path);
         self.ui.status.sample =
             format!("Folder {label} no longer exists; removed it from the browser");

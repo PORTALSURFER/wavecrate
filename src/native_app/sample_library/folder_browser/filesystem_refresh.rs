@@ -4,10 +4,11 @@ use std::{
 };
 use wavecrate::sample_sources::Rating;
 
+#[cfg(test)]
+use super::file_refresh::RefreshedFileEntry;
 use super::{
     FileColumnKind, FolderBrowserState, FolderEntry, FolderVerifyOutcome, FolderVerifyResult,
     file_columns::sort_kind_for_details_sort,
-    file_refresh::RefreshedFileEntry,
     path_helpers::path_id,
     scanning::{file_entry_for_source_path, load_folder_at_path, upsert_file, upsert_folder},
 };
@@ -140,6 +141,45 @@ impl FolderBrowserState {
         true
     }
 
+    pub(in crate::native_app) fn refresh_filesystem_paths(
+        &mut self,
+        source_id: &str,
+        relative_paths: &[PathBuf],
+    ) -> bool {
+        let Some(source_index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == source_id)
+        else {
+            return false;
+        };
+        let selected_tree_owns_root = self.source.selected_source == source_id
+            && self.source.sources[source_index].root_folder.is_none();
+        if selected_tree_owns_root {
+            self.source.sources[source_index].root_folder = self.tree.folders.first().cloned();
+        }
+        let root = self.source.sources[source_index].root.clone();
+        let database_root = self.source.sources[source_index].database_root.clone();
+        let mut changed = false;
+        for relative_path in relative_paths {
+            changed |= self.refresh_one_source_relative_path(
+                source_index,
+                &root,
+                &database_root,
+                relative_path,
+            );
+        }
+        if changed {
+            self.after_source_tree_changed(source_id);
+        }
+        if selected_tree_owns_root {
+            self.source.sources[source_index].root_folder = None;
+        }
+        changed
+    }
+
+    #[cfg(test)]
     pub(in crate::native_app) fn refresh_file_entries(
         &mut self,
         source_id: &str,
@@ -193,44 +233,6 @@ impl FolderBrowserState {
         self.bump_file_content_revision();
         self.refresh_missing_collection_state();
         true
-    }
-
-    pub(in crate::native_app) fn refresh_filesystem_paths(
-        &mut self,
-        source_id: &str,
-        relative_paths: &[PathBuf],
-    ) -> bool {
-        let Some(source_index) = self
-            .source
-            .sources
-            .iter()
-            .position(|source| source.id == source_id)
-        else {
-            return false;
-        };
-        let selected_tree_owns_root = self.source.selected_source == source_id
-            && self.source.sources[source_index].root_folder.is_none();
-        if selected_tree_owns_root {
-            self.source.sources[source_index].root_folder = self.tree.folders.first().cloned();
-        }
-        let root = self.source.sources[source_index].root.clone();
-        let database_root = self.source.sources[source_index].database_root.clone();
-        let mut changed = false;
-        for relative_path in relative_paths {
-            changed |= self.refresh_one_source_relative_path(
-                source_index,
-                &root,
-                &database_root,
-                relative_path,
-            );
-        }
-        if changed {
-            self.after_source_tree_changed(source_id);
-        }
-        if selected_tree_owns_root {
-            self.source.sources[source_index].root_folder = None;
-        }
-        changed
     }
 
     pub(in crate::native_app) fn apply_direct_folder_verify_result(
@@ -634,6 +636,7 @@ fn set_file_last_played_at_by_parent(
     root.set_file_last_played_at(file_id, last_played_at)
 }
 
+#[cfg(test)]
 fn upsert_refreshed_file_entries(
     root_folder: &mut FolderEntry,
     entries: &[RefreshedFileEntry],
