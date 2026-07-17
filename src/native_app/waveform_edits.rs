@@ -7,3 +7,7 @@ mod transaction;
 mod worker;
 
 pub(in crate::native_app) use worker::WaveformDestructiveEditResult;
+#[cfg(test)]
+pub(in crate::native_app) use worker::{
+    destructive_edit_before_backup_path_for_tests, execute_destructive_edit_for_tests,
+};

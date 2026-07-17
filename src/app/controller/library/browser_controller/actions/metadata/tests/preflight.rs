@@ -53,6 +53,7 @@ fn lock_db_until_released(source_root: &Path) -> (Sender<()>, Receiver<()>) {
         let _ = locked_tx.send(());
         let _ = lock_release_rx.recv();
         let _ = conn.execute_batch("COMMIT");
+        drop(conn);
         let _ = lock_done_tx.send(());
     });
     locked_rx.recv().expect("wait for sqlite lock");

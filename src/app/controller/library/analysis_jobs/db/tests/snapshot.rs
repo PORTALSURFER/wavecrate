@@ -275,6 +275,7 @@ fn lock_db_until_released(root: &Path) -> (mpsc::Sender<()>, mpsc::Receiver<()>)
         locked_tx.send(()).unwrap();
         release_rx.recv().unwrap();
         conn.execute_batch("COMMIT").unwrap();
+        drop(conn);
         done_tx.send(()).unwrap();
     });
     locked_rx.recv().unwrap();

@@ -228,7 +228,9 @@ fn submit_folder_browser_rename_for_tests(state: &mut NativeAppState, value: imp
                 super::sample_library::folder_browser::commands::execute_rename_commit_request(
                     request,
                 );
-            state.finish_folder_browser_rename(completion, &mut ui::UiUpdateContext::default());
+            let mut context = ui::UiUpdateContext::default();
+            state.finish_folder_browser_rename(completion, &mut context);
+            run_command_for_tests(state, context.into_command());
         }
     }
 }
@@ -237,9 +239,46 @@ fn run_command_for_tests(
     state: &mut NativeAppState,
     command: Command<super::test_support::state::GuiMessage>,
 ) {
-    command.run_inline_for_tests(|message| {
-        state.apply_message(message, &mut ui::UiUpdateContext::default());
-    });
+    let mut commands = std::collections::VecDeque::from([command]);
+    let mut processed = 0usize;
+    while let Some(command) = commands.pop_front() {
+        processed += 1;
+        assert!(
+            processed <= 1_000,
+            "test command follow-up loop did not settle"
+        );
+        command.run_inline_for_tests(|message| {
+            let continues_committed_mutation = matches!(
+                &message,
+                super::test_support::state::GuiMessage::CommittedFileMutationRequested(_)
+                    | super::test_support::state::GuiMessage::NormalizationFinished(_)
+                    | super::test_support::state::GuiMessage::ExternalWaveformFileDropFinished {
+                        ..
+                    }
+                    | super::test_support::state::GuiMessage::ContextSampleSameFinished { .. }
+                    | super::test_support::state::GuiMessage::ContextSampleDoubleFinished { .. }
+                    | super::test_support::state::GuiMessage::SelectedFilesCopyFinished { .. }
+                    | super::test_support::state::GuiMessage::WaveformSelectionCopyFinished { .. }
+                    | super::test_support::state::GuiMessage::FolderMoveFinished { .. }
+                    | super::test_support::state::GuiMessage::FileMoveConflictFinished { .. }
+                    | super::test_support::state::GuiMessage::TrashMoveFinished { .. }
+                    | super::test_support::state::GuiMessage::FolderBrowserRenameFinished(_)
+                    | super::test_support::state::GuiMessage::WaveformDestructiveEditFinished(_)
+                    | super::test_support::state::GuiMessage::PlaySelectionExtractionFinished {
+                        ..
+                    }
+                    | super::test_support::state::GuiMessage::SelectedWholeFilesHarvestExtractionFinished {
+                        ..
+                    }
+            );
+            let mut context = ui::UiUpdateContext::default();
+            state.apply_message(message, &mut context);
+            let followup = context.into_command();
+            if continues_committed_mutation && !followup.is_empty() {
+                commands.push_back(followup);
+            }
+        });
+    }
 }
 
 fn start_deferred_sample_load_for_tests(

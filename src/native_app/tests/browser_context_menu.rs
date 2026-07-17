@@ -1195,8 +1195,14 @@ fn harvest_context_menu_actions_are_active_for_selected_harvest_filter() {
 fn duplicate_double_context_action_routes_protected_source_to_primary_derivative() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
-    let (mut state, source_root, selected_file) =
-        native_app_state_with_temp_sample("protected-double.wav");
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::Builder::new()
+        .prefix("protected-source-")
+        .tempdir()
+        .expect("protected source root");
+    let source_path = source_root.path().join("protected-double.wav");
+    write_test_wav_i16(&source_path, &[0, 1_000, -1_000, 2_000]);
+    let selected_file = source_path.to_string_lossy().to_string();
     let primary_root = tempfile::tempdir().expect("primary source root");
     let protected_source =
         wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()).protected();
@@ -1211,8 +1217,6 @@ fn duplicate_double_context_action_routes_protected_source_to_primary_derivative
         .library
         .folder_browser
         .select_file(selected_file.clone());
-    let source_path = PathBuf::from(&selected_file);
-    write_test_wav_i16(&source_path, &[0, 1_000, -1_000, 2_000]);
     let harvest_source_folder = source_root
         .path()
         .file_name()

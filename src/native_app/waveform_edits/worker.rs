@@ -53,12 +53,11 @@ impl Drop for OverwriteBackup {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct AppliedWaveformEdit {
+pub(in crate::native_app) struct AppliedWaveformEdit {
     pub(super) source_id: String,
-    pub(super) source_root: PathBuf,
-    pub(super) source_database_root: PathBuf,
     pub(super) relative_path: PathBuf,
     pub(super) absolute_path: PathBuf,
+    pub(super) before_content_identity: Option<String>,
     pub(super) backup: OverwriteBackup,
     pub(super) extracted: Option<AppliedExtractedFile>,
 }
@@ -167,6 +166,22 @@ pub(super) fn execute_destructive_edit(
     }
 }
 
+#[cfg(test)]
+pub(in crate::native_app) fn execute_destructive_edit_for_tests(
+    edit: PendingWaveformDestructiveEdit,
+) -> AppliedWaveformEdit {
+    execute_destructive_edit(WaveformDestructiveEditWorkerRequest::new(edit, None))
+        .result
+        .expect("destructive edit should succeed")
+}
+
+#[cfg(test)]
+pub(in crate::native_app) fn destructive_edit_before_backup_path_for_tests(
+    applied: &AppliedWaveformEdit,
+) -> PathBuf {
+    applied.backup.before.clone()
+}
+
 fn prepare_destructive_edit_copy(
     source_path: &Path,
     request: &PendingWaveformDestructiveEdit,
@@ -182,11 +197,7 @@ fn prepare_destructive_edit_copy(
             request.absolute_path.display()
         )
     })?;
-    sync_source_entry(
-        &request.source,
-        &request.relative_path,
-        &request.absolute_path,
-    )
+    Ok(())
 }
 
 pub(super) fn validate_destructive_edit_target(path: &Path) -> Result<(), String> {
@@ -212,16 +223,12 @@ fn execute_destructive_edit_write(
     extracted_path: Option<PathBuf>,
 ) -> Result<AppliedWaveformEdit, String> {
     validate_destructive_edit_target(&request.absolute_path)?;
-    let source_database_root = request
-        .source
-        .database_root()
-        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
+    let before_content_identity = cache_content_identity(&request.absolute_path);
     let backup = OverwriteBackup::capture_before(&request.absolute_path)?;
     let extracted = extracted_path
         .map(|path| {
             let relative_path = source_relative_path(&request.source.root, &path)?;
             let backup_path = backup.capture_extracted(&path)?;
-            sync_source_entry(&request.source, &relative_path, &path)?;
             Ok::<_, String>(AppliedExtractedFile {
                 path,
                 relative_path,
@@ -238,18 +245,12 @@ fn execute_destructive_edit_write(
         ));
     }
     write_edited_wav(&request.absolute_path, &wav)?;
-    sync_source_entry(
-        &request.source,
-        &request.relative_path,
-        &request.absolute_path,
-    )?;
     backup.capture_after(&request.absolute_path)?;
     Ok(AppliedWaveformEdit {
         source_id: request.source.id.as_str().to_string(),
-        source_root: request.source.root.clone(),
-        source_database_root,
         relative_path: request.relative_path.clone(),
         absolute_path: request.absolute_path.clone(),
+        before_content_identity,
         backup,
         extracted,
     })
@@ -258,23 +259,34 @@ fn execute_destructive_edit_write(
 pub(super) fn restore_edited_waveform(
     backup_path: &Path,
     applied: &AppliedWaveformEdit,
-) -> Result<(), String> {
+) -> Result<Option<String>, String> {
+    let before_content_identity = cache_content_identity(&applied.absolute_path);
     fs::copy(backup_path, &applied.absolute_path)
         .map_err(|err| format!("Failed to restore waveform file: {err}"))?;
-    sync_source_entry_at(
-        &applied.source_root,
-        &applied.source_database_root,
-        &applied.relative_path,
-        &applied.absolute_path,
-    )?;
-    if let Some(extracted) = applied.extracted.as_ref() {
-        if backup_path == applied.backup.before.as_path() {
-            remove_extracted_file_for_undo(applied, extracted)?;
-        } else {
-            restore_extracted_file_for_redo(applied, extracted)?;
-        }
+    Ok(before_content_identity)
+}
+
+pub(super) fn restore_extracted_file_for_transaction(
+    backup_path: &Path,
+    applied: &AppliedWaveformEdit,
+    extracted: &AppliedExtractedFile,
+) -> Result<(), String> {
+    if backup_path == applied.backup.before.as_path() {
+        remove_extracted_file_for_undo(extracted)
+    } else {
+        restore_extracted_file_for_redo(extracted)
     }
-    Ok(())
+}
+
+fn cache_content_identity(path: &Path) -> Option<String> {
+    let metadata = fs::metadata(path).ok()?;
+    let modified_ns = metadata
+        .modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    Some(format!("cache:{}:{modified_ns}", metadata.len()))
 }
 
 fn apply_destructive_edit_to_wav(
@@ -453,45 +465,6 @@ fn selection_existing_frame_bounds(
     Ok((start_frame, end_frame))
 }
 
-fn sync_source_entry(
-    source: &wavecrate::sample_sources::SampleSource,
-    relative_path: &Path,
-    absolute_path: &Path,
-) -> Result<(), String> {
-    let database_root = source
-        .database_root()
-        .map_err(|err| format!("Resolve source metadata location failed: {err}"))?;
-    sync_source_entry_at(&source.root, &database_root, relative_path, absolute_path)
-}
-
-fn sync_source_entry_at(
-    source_root: &Path,
-    database_root: &Path,
-    relative_path: &Path,
-    absolute_path: &Path,
-) -> Result<(), String> {
-    let db = SourceDatabase::open_with_database_root(source_root, database_root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
-    let metadata =
-        fs::metadata(absolute_path).map_err(|err| format!("Failed to stat file: {err}"))?;
-    let file_size = metadata.len();
-    let modified_ns = metadata
-        .modified()
-        .map_err(|err| format!("Failed to read modified time: {err}"))?
-        .duration_since(UNIX_EPOCH)
-        .map_err(|err| format!("Failed to normalize modified time: {err}"))?
-        .as_nanos() as i64;
-    let mut batch = db
-        .write_batch()
-        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
-    batch
-        .upsert_file_without_hash(relative_path, file_size, modified_ns)
-        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
-    batch
-        .commit()
-        .map_err(|err| format!("Failed to sync database entry: {err}"))
-}
-
 fn source_relative_path(source_root: &Path, absolute_path: &Path) -> Result<PathBuf, String> {
     absolute_path
         .strip_prefix(source_root)
@@ -499,16 +472,13 @@ fn source_relative_path(source_root: &Path, absolute_path: &Path) -> Result<Path
         .map_err(|_| String::from("Edited sample is not inside the configured source"))
 }
 
-fn remove_extracted_file_for_undo(
-    applied: &AppliedWaveformEdit,
-    extracted: &AppliedExtractedFile,
-) -> Result<(), String> {
+fn remove_extracted_file_for_undo(extracted: &AppliedExtractedFile) -> Result<(), String> {
     match fs::remove_file(&extracted.path) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(error) => return Err(format!("Failed to remove extracted audio file: {error}")),
     }
-    mark_source_entry_missing(applied, &extracted.relative_path, true)
+    Ok(())
 }
 
 fn cleanup_failed_destructive_extraction(
@@ -525,31 +495,10 @@ fn cleanup_failed_destructive_extraction(
     let _ = mark_source_entry_missing_at(&source.root, &database_root, &relative_path, true);
 }
 
-fn restore_extracted_file_for_redo(
-    applied: &AppliedWaveformEdit,
-    extracted: &AppliedExtractedFile,
-) -> Result<(), String> {
+fn restore_extracted_file_for_redo(extracted: &AppliedExtractedFile) -> Result<(), String> {
     fs::copy(&extracted.backup_path, &extracted.path)
-        .map_err(|err| format!("Failed to restore extracted audio file: {err}"))?;
-    sync_source_entry_at(
-        &applied.source_root,
-        &applied.source_database_root,
-        &extracted.relative_path,
-        &extracted.path,
-    )
-}
-
-fn mark_source_entry_missing(
-    applied: &AppliedWaveformEdit,
-    relative_path: &Path,
-    missing: bool,
-) -> Result<(), String> {
-    mark_source_entry_missing_at(
-        &applied.source_root,
-        &applied.source_database_root,
-        relative_path,
-        missing,
-    )
+        .map(|_| ())
+        .map_err(|err| format!("Failed to restore extracted audio file: {err}"))
 }
 
 fn mark_source_entry_missing_at(

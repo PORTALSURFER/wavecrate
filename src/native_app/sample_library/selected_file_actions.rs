@@ -2,6 +2,10 @@ use crate::native_app::app::{
     ExtractedFilePlaybackType, GuiMessage, NativeAppState, PendingProtectedExtractionAction,
 };
 use crate::native_app::app::{emit_gui_action, sample_path_label};
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation, FileMutationProjection,
+};
+use crate::native_app::sample_library::folder_browser::BrowserListingRevealReason;
 use crate::native_app::sample_library::sample_list::{
     SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, SAMPLE_BROWSER_SELECTION_CONTEXT_ROWS,
 };
@@ -507,13 +511,6 @@ impl NativeAppState {
                     .folder_browser
                     .path_is_in_protected_source(&completion.source_path);
                 let focus_derivative = focus_derivative && cross_source_derivative;
-                if focus_derivative {
-                    self.library
-                        .folder_browser
-                        .refresh_file_path_across_sources(&path);
-                } else {
-                    self.library.folder_browser.refresh_file_path(&path);
-                }
                 self.log_sample_identity_checkpoint(
                     "waveform.extract.finished_after_refresh",
                     "finish_play_selection_extraction",
@@ -548,7 +545,7 @@ impl NativeAppState {
                         .begin_extracted_file_drag(path.clone(), position);
                     self.arm_browser_drag_without_handoff_rating(context);
                     let label = sample_path_label(&path);
-                    self.ui.status.sample = match metadata_error {
+                    self.ui.status.sample = match metadata_error.as_ref() {
                         Some(error) => {
                             format!("Dragging {label}; extracted metadata incomplete: {error}")
                         }
@@ -564,17 +561,6 @@ impl NativeAppState {
                     );
                 } else {
                     if focus_derivative {
-                        self.library
-                            .folder_browser
-                            .focus_file_across_sources_matching_tags(
-                                &path,
-                                &self.metadata.tags_by_file,
-                            );
-                        self.load_navigation_sample_validated(
-                            path.to_string_lossy().to_string(),
-                            context,
-                            started_at,
-                        );
                         self.log_sample_identity_checkpoint(
                             "waveform.extract.focused_derivative",
                             "finish_play_selection_extraction",
@@ -597,7 +583,7 @@ impl NativeAppState {
                         );
                     }
                     let label = sample_path_label(&path);
-                    self.ui.status.sample = match metadata_error {
+                    self.ui.status.sample = match metadata_error.as_ref() {
                         Some(error) => {
                             format!("Extracted {label}; extracted metadata incomplete: {error}")
                         }
@@ -612,8 +598,32 @@ impl NativeAppState {
                         None,
                     );
                 }
+                self.queue_partially_committed_file_mutation(
+                    FileMutationOperation::Extract,
+                    vec![if focus_derivative && drag_position.is_none() {
+                        FileMutationChange::created(path.clone()).with_projection(
+                            FileMutationProjection::FocusAndLoad {
+                                path,
+                                reason: BrowserListingRevealReason::LoadedFileFocus,
+                            },
+                        )
+                    } else {
+                        FileMutationChange::created(path)
+                    }],
+                    metadata_error
+                        .into_iter()
+                        .map(|error| (None, error))
+                        .collect(),
+                    context,
+                );
             }
             Err(error) => {
+                self.record_failed_file_mutation(
+                    FileMutationOperation::Extract,
+                    None,
+                    error.clone(),
+                    context,
+                );
                 let action = if drag_position.is_some() {
                     "waveform.selection_drag.start"
                 } else {
@@ -636,12 +646,10 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         result: WholeFileHarvestExtractionResult,
+        context: &mut radiant::prelude::UiUpdateContext<GuiMessage>,
     ) {
         let action = "browser.extract_selected_whole_files_to_harvest";
         for copy in &result.copied {
-            self.library
-                .folder_browser
-                .refresh_file_path_across_sources(&copy.output_path);
             self.record_harvest_whole_file_derivation(
                 &copy.source_path,
                 &copy.output_path,
@@ -651,6 +659,29 @@ impl NativeAppState {
 
         let copied_count = result.copied.len();
         let failed_count = result.failed.len();
+        self.queue_partially_committed_file_mutation(
+            FileMutationOperation::Extract,
+            result
+                .copied
+                .iter()
+                .map(|copy| FileMutationChange::created(copy.output_path.clone()))
+                .collect(),
+            result
+                .failed
+                .iter()
+                .map(|failure| {
+                    (
+                        None,
+                        format!(
+                            "{}: {}",
+                            sample_path_label(&failure.source_path),
+                            failure.error
+                        ),
+                    )
+                })
+                .collect(),
+            context,
+        );
         if copied_count == 0 {
             let error = result
                 .failed

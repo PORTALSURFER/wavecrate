@@ -6,6 +6,9 @@ use notify::{Event, EventKind, event::RemoveKind};
 use std::{path::PathBuf, time::Instant};
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
+#[path = "tests/committed_mutations.rs"]
+mod committed_mutations;
+
 #[test]
 fn removed_extension_named_folder_triggers_source_refresh() {
     let root = PathBuf::from(r"C:\samples");

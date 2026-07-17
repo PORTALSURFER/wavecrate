@@ -9,13 +9,16 @@ use crate::native_app::app::{
     FileMoveConflictResolution, FileMoveConflictResolutionRequest, FileMoveProgress, GuiMessage,
     NativeAppState, emit_gui_action,
 };
+use crate::native_app::sample_library::committed_file_mutations::{
+    FileMutationChange, FileMutationOperation, FileMutationProjection,
+};
 use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FolderDropResult, FolderMoveCompletion, FolderMoveDropInput,
-    FolderMoveRequest, execute_file_move_conflict_request_with_progress,
-    execute_folder_move_request_with_progress, file_move_conflict_progress_label,
-    file_move_conflict_progress_total, folder_move_progress_label, folder_move_progress_total,
+    FolderMoveRequest, FolderMoveSuccess, execute_file_move_conflict_request_with_progress,
+    execute_folder_move_request_with_progress, execute_folder_move_transaction,
+    file_move_conflict_progress_label, file_move_conflict_progress_total,
+    folder_move_progress_label, folder_move_progress_total,
 };
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
 use crate::native_app::shell::message_dispatch::waveform::PLAY_SELECTION_TRANSACTION_LABEL;
 use crate::native_app::transaction_history::TransactionContext;
 
@@ -30,7 +33,14 @@ impl NativeAppState {
         self.clear_pending_internal_file_drag_paths();
         match self.library.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(FolderMoveDropInput::Status(result)) => {
-                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                self.finish_folder_move_result(
+                    started_at,
+                    None,
+                    Vec::new(),
+                    None,
+                    Ok(result),
+                    context,
+                );
             }
             Ok(FolderMoveDropInput::Request(request)) => {
                 self.queue_folder_move_request(request, started_at, context);
@@ -62,7 +72,14 @@ impl NativeAppState {
         self.clear_pending_internal_file_drag_paths();
         match self.library.folder_browser.drop_drag_on_source(&source_id) {
             Ok(FolderMoveDropInput::Status(result)) => {
-                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                self.finish_folder_move_result(
+                    started_at,
+                    None,
+                    Vec::new(),
+                    None,
+                    Ok(result),
+                    context,
+                );
             }
             Ok(FolderMoveDropInput::Request(request)) => {
                 self.queue_folder_move_request(request, started_at, context);
@@ -95,7 +112,14 @@ impl NativeAppState {
     ) -> Option<u64> {
         match input {
             FolderMoveDropInput::Status(result) => {
-                self.finish_folder_move_result(started_at, None, Ok(result), context);
+                self.finish_folder_move_result(
+                    started_at,
+                    None,
+                    Vec::new(),
+                    None,
+                    Ok(result),
+                    context,
+                );
                 None
             }
             FolderMoveDropInput::Request(request) => {
@@ -179,7 +203,8 @@ impl NativeAppState {
             self.finish_file_move_conflict_result(
                 started_at,
                 None,
-                false,
+                Vec::new(),
+                None,
                 Ok(Default::default()),
                 context,
             );
@@ -189,7 +214,8 @@ impl NativeAppState {
             self.finish_file_move_conflict_result(
                 started_at,
                 None,
-                false,
+                Vec::new(),
+                None,
                 Ok(FolderDropResult {
                     moved_paths: Vec::new(),
                     status: Some(String::from("No file move conflicts pending")),
@@ -289,50 +315,81 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let task_id = completion.task_id;
-        let request = completion.request;
         self.finish_file_move_progress(task_id);
         let previous_selected = self
             .library
             .folder_browser
             .selected_file_id()
             .map(str::to_owned);
-        let result = completion.result.and_then(|success| {
-            let moved_paths = success.moved_paths.clone();
-            self.remap_metadata_tags_for_moved_files(&moved_paths);
-            let result = self.library.folder_browser.apply_folder_move_completion(
-                &request,
-                success,
-                &self.metadata.tags_by_file,
-            );
-            if result.is_ok() {
-                if let FolderMoveRequest::Folder {
-                    source_root,
-                    source_database_root,
-                    ..
-                } = &request
-                    && !moved_paths.is_empty()
-                {
-                    self.register_folder_move_transaction(
-                        source_root.clone(),
-                        source_database_root.clone(),
-                        moved_paths.clone(),
-                    );
-                }
-                self.reconcile_harvest_graph_after_folder_move(&request, &moved_paths);
-            }
-            result
-        });
-        let cut_paste_succeeded = self
+        let cut_paste = self
             .ui
             .browser_interaction
             .cut_file_paste_task_id
-            .is_some_and(|paste_task_id| paste_task_id == task_id)
-            && result.is_ok();
-        self.finish_folder_move_result(started_at, previous_selected, result, context);
-        if self.ui.browser_interaction.cut_file_paste_task_id == Some(task_id) {
+            .is_some_and(|paste_task_id| paste_task_id == task_id);
+        if cut_paste {
             self.ui.browser_interaction.cut_file_paste_task_id = None;
-            if cut_paste_succeeded {
-                self.ui.browser_interaction.cut_file_clipboard = None;
+        }
+        let request = completion.request;
+        match completion.result {
+            Err(error) => {
+                self.finish_folder_move_result(
+                    started_at,
+                    previous_selected,
+                    Vec::new(),
+                    None,
+                    Err(error),
+                    context,
+                );
+            }
+            Ok(success) if success.moved_paths.is_empty() => {
+                let metadata_error = success.metadata_error.clone();
+                let result = self.library.folder_browser.apply_folder_move_completion(
+                    &request,
+                    success,
+                    &self.metadata.tags_by_file,
+                );
+                let succeeded = result.is_ok();
+                self.finish_folder_move_result(
+                    started_at,
+                    previous_selected,
+                    Vec::new(),
+                    metadata_error,
+                    result,
+                    context,
+                );
+                if cut_paste && succeeded {
+                    self.ui.browser_interaction.cut_file_clipboard = None;
+                }
+            }
+            Ok(success) => {
+                let metadata_error = success.metadata_error.clone();
+                let mut committed_changes =
+                    folder_move_mutation_changes(&request, &success.moved_paths);
+                attach_move_completion_projection(
+                    &mut committed_changes,
+                    FileMutationProjection::MoveCompletion {
+                        target_path: success
+                            .moved_paths
+                            .first()
+                            .map(|(_, after)| after.clone())
+                            .expect("non-empty move completion"),
+                        cut_paste,
+                        request,
+                        success,
+                        previous_selected,
+                        started_at,
+                    },
+                );
+                self.ui.status.sample = String::from("Finishing file move");
+                self.queue_partially_committed_file_mutation(
+                    FileMutationOperation::Move,
+                    committed_changes,
+                    metadata_error
+                        .into_iter()
+                        .map(|error| (None, error))
+                        .collect(),
+                    context,
+                );
             }
         }
     }
@@ -341,12 +398,14 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         previous_selected: Option<String>,
+        committed_changes: Vec<FileMutationChange>,
+        metadata_error: Option<String>,
         result: Result<FolderDropResult, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(result) => {
-                let moved = !result.moved_paths.is_empty();
+                let moved = !committed_changes.is_empty() || !result.moved_paths.is_empty();
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.ui.status.sample = status;
@@ -356,9 +415,20 @@ impl NativeAppState {
                         "browser.drag_drop.move.cache_persist",
                         started_at,
                     );
-                    self.queue_selected_source_prep(SourcePrepTrigger::FilesystemChanged, context);
                 }
-                self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
+                if moved {
+                    let mut committed_changes = committed_changes;
+                    attach_move_projection(&mut committed_changes, previous_selected);
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Move,
+                        committed_changes,
+                        metadata_error
+                            .into_iter()
+                            .map(|error| (None, error))
+                            .collect(),
+                        context,
+                    );
+                }
                 emit_gui_action(
                     "browser.drag_drop.move",
                     Some("browser"),
@@ -373,6 +443,23 @@ impl NativeAppState {
                 );
             }
             Err(error) => {
+                if committed_changes.is_empty() {
+                    self.record_rolled_back_file_mutation(
+                        FileMutationOperation::Move,
+                        None,
+                        error.clone(),
+                        context,
+                    );
+                } else {
+                    let mut failures = vec![(None, error.clone())];
+                    failures.extend(metadata_error.map(|error| (None, error)));
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Move,
+                        committed_changes,
+                        failures,
+                        context,
+                    );
+                }
                 self.ui.status.sample = error.clone();
                 emit_gui_action(
                     "browser.drag_drop.move",
@@ -393,10 +480,6 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         self.finish_file_move_progress(completion.task_id);
-        let moved = match &completion.result {
-            Ok(success) => !success.moved_paths.is_empty(),
-            Err(failure) => !failure.moved_paths.is_empty(),
-        };
         let previous_selected = self
             .library
             .folder_browser
@@ -406,16 +489,54 @@ impl NativeAppState {
             Ok(success) => success.moved_paths.clone(),
             Err(failure) => failure.moved_paths.clone(),
         };
-        self.remap_metadata_tags_for_moved_files(&moved_paths);
-        let result = self
-            .library
-            .folder_browser
-            .apply_file_move_conflict_completion(completion, &self.metadata.tags_by_file);
-        self.finish_file_move_conflict_result(
-            started_at,
-            previous_selected,
-            moved,
-            result,
+        let metadata_error = match &completion.result {
+            Ok(success) => success.metadata_error.clone(),
+            Err(failure) => failure.metadata_error.clone(),
+        };
+        if moved_paths.is_empty() {
+            let result = self
+                .library
+                .folder_browser
+                .apply_file_move_conflict_completion(completion, &self.metadata.tags_by_file);
+            self.finish_file_move_conflict_result(
+                started_at,
+                previous_selected,
+                moved_paths,
+                metadata_error,
+                result,
+                context,
+            );
+            return;
+        }
+        let mut committed_changes = moved_paths
+            .iter()
+            .cloned()
+            .map(|(before, after)| FileMutationChange::path_only_move(before, after))
+            .collect::<Vec<_>>();
+        attach_move_completion_projection(
+            &mut committed_changes,
+            FileMutationProjection::MoveConflictCompletion {
+                target_path: moved_paths
+                    .first()
+                    .map(|(_, after)| after.clone())
+                    .expect("non-empty conflict completion"),
+                completion: completion.clone(),
+                previous_selected,
+                started_at,
+            },
+        );
+        let mut failures = metadata_error
+            .into_iter()
+            .map(|error| (None, error))
+            .collect::<Vec<_>>();
+        if let Err(failure) = &completion.result {
+            failures.push((None, failure.error.clone()));
+        }
+        self.ui.status.sample = String::from("Finishing file move");
+        self.queue_partially_committed_file_mutation(
+            FileMutationOperation::Move,
+            committed_changes,
+            failures,
             context,
         );
     }
@@ -424,13 +545,20 @@ impl NativeAppState {
         &mut self,
         started_at: Instant,
         previous_selected: Option<String>,
-        moved: bool,
+        committed_moves: Vec<(PathBuf, PathBuf)>,
+        metadata_error: Option<String>,
         result: Result<FolderDropResult, String>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         match result {
             Ok(result) => {
-                let moved = moved || !result.moved_paths.is_empty();
+                let moved = !committed_moves.is_empty() || !result.moved_paths.is_empty();
+                let mut authoritative_moves = committed_moves;
+                for moved_path in &result.moved_paths {
+                    if !authoritative_moves.contains(moved_path) {
+                        authoritative_moves.push(moved_path.clone());
+                    }
+                }
                 self.apply_moved_sample_paths(&result.moved_paths);
                 if let Some(status) = result.status {
                     self.ui.status.sample = status;
@@ -440,9 +568,23 @@ impl NativeAppState {
                         "browser.drag_drop.file_conflict.cache_persist",
                         started_at,
                     );
-                    self.queue_selected_source_prep(SourcePrepTrigger::FilesystemChanged, context);
                 }
-                self.load_selected_sample_after_move_if_needed(previous_selected, moved, context);
+                if moved {
+                    let mut committed_changes = authoritative_moves
+                        .into_iter()
+                        .map(|(before, after)| FileMutationChange::path_only_move(before, after))
+                        .collect::<Vec<_>>();
+                    attach_move_projection(&mut committed_changes, previous_selected);
+                    self.queue_partially_committed_file_mutation(
+                        FileMutationOperation::Move,
+                        committed_changes,
+                        metadata_error
+                            .into_iter()
+                            .map(|error| (None, error))
+                            .collect(),
+                        context,
+                    );
+                }
                 emit_gui_action(
                     "browser.drag_drop.file_conflict.resolve",
                     Some("browser"),
@@ -452,6 +594,133 @@ impl NativeAppState {
                     } else {
                         "success"
                     },
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                let mut failures = vec![(None, error.clone())];
+                failures.extend(metadata_error.map(|error| (None, error)));
+                self.queue_partially_committed_file_mutation(
+                    FileMutationOperation::Move,
+                    committed_moves
+                        .into_iter()
+                        .map(|(before, after)| FileMutationChange::path_only_move(before, after))
+                        .collect(),
+                    failures,
+                    context,
+                );
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.drag_drop.file_conflict.resolve",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn apply_committed_folder_move(
+        &mut self,
+        cut_paste: bool,
+        request: FolderMoveRequest,
+        success: FolderMoveSuccess,
+        previous_selected: Option<String>,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let moved_paths = success.moved_paths.clone();
+        self.remap_metadata_tags_for_moved_files(&moved_paths);
+        let result = self.library.folder_browser.apply_folder_move_completion(
+            &request,
+            success,
+            &self.metadata.tags_by_file,
+        );
+        match result {
+            Ok(result) => {
+                if let FolderMoveRequest::Folder {
+                    source_root,
+                    source_database_root,
+                    ..
+                } = &request
+                {
+                    self.register_folder_move_transaction(
+                        source_root.clone(),
+                        source_database_root.clone(),
+                        moved_paths.clone(),
+                    );
+                }
+                self.reconcile_harvest_graph_after_folder_move(&request, &moved_paths);
+                self.apply_moved_sample_paths(&result.moved_paths);
+                if let Some(status) = result.status {
+                    self.ui.status.sample = status;
+                }
+                self.persist_source_scan_cache_after_move(
+                    "browser.drag_drop.move.cache_persist",
+                    started_at,
+                );
+                self.load_selected_sample_after_committed_move(previous_selected, context);
+                if cut_paste {
+                    self.ui.browser_interaction.cut_file_clipboard = None;
+                }
+                emit_gui_action(
+                    "browser.drag_drop.move",
+                    Some("browser"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.ui.status.sample = error.clone();
+                emit_gui_action(
+                    "browser.drag_drop.move",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    pub(in crate::native_app) fn apply_committed_file_move_conflict(
+        &mut self,
+        completion: FileMoveConflictCompletion,
+        previous_selected: Option<String>,
+        started_at: Instant,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let moved_paths = match &completion.result {
+            Ok(success) => success.moved_paths.clone(),
+            Err(failure) => failure.moved_paths.clone(),
+        };
+        self.remap_metadata_tags_for_moved_files(&moved_paths);
+        let result = self
+            .library
+            .folder_browser
+            .apply_file_move_conflict_completion(completion, &self.metadata.tags_by_file);
+        match result {
+            Ok(result) => {
+                self.apply_moved_sample_paths(&result.moved_paths);
+                if let Some(status) = result.status {
+                    self.ui.status.sample = status;
+                }
+                self.persist_source_scan_cache_after_move(
+                    "browser.drag_drop.file_conflict.cache_persist",
+                    started_at,
+                );
+                self.load_selected_sample_after_committed_move(previous_selected, context);
+                emit_gui_action(
+                    "browser.drag_drop.file_conflict.resolve",
+                    Some("browser"),
+                    None,
+                    "success",
                     started_at,
                     None,
                 );
@@ -470,6 +739,59 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn apply_committed_folder_move_transaction(
+        &mut self,
+        source_root: &Path,
+        source_database_root: &Path,
+        moves: &[(PathBuf, PathBuf)],
+    ) {
+        if let Err(error) = self
+            .library
+            .folder_browser
+            .project_folder_move_transaction(source_root, moves)
+        {
+            tracing::warn!("folder move transaction browser projection failed: {error}");
+            self.ui.status.sample = error;
+            return;
+        }
+        self.remap_metadata_tags_for_moved_files(moves);
+        self.apply_moved_sample_paths(moves);
+        let request = FolderMoveRequest::Folder {
+            source_root: source_root.to_path_buf(),
+            source_database_root: source_database_root.to_path_buf(),
+            moves: moves.to_vec(),
+            target_folder: moves
+                .first()
+                .and_then(|(_, new_path)| new_path.parent().map(Path::to_path_buf))
+                .unwrap_or_else(|| source_root.to_path_buf()),
+        };
+        self.reconcile_harvest_graph_after_folder_move(&request, moves);
+        if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
+            tracing::warn!("folder move transaction source cache save failed: {error}");
+        }
+    }
+
+    fn load_selected_sample_after_committed_move(
+        &mut self,
+        previous_selected: Option<String>,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(selected) = self
+            .library
+            .folder_browser
+            .selected_file_id()
+            .map(str::to_owned)
+        else {
+            return;
+        };
+        if previous_selected.as_deref() == Some(selected.as_str()) {
+            return;
+        }
+        self.cancel_metadata_tag_entry();
+        self.metadata.selected_tag = None;
+        self.load_navigation_sample(selected, context);
+    }
+
     fn persist_source_scan_cache_after_move(&mut self, action: &'static str, started_at: Instant) {
         if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
             self.ui.status.sample = if self.ui.status.sample.is_empty() {
@@ -486,31 +808,6 @@ impl NativeAppState {
                 Some(&error),
             );
         }
-    }
-
-    fn load_selected_sample_after_move_if_needed(
-        &mut self,
-        previous_selected: Option<String>,
-        moved: bool,
-        context: &mut ui::UiUpdateContext<GuiMessage>,
-    ) {
-        if !moved {
-            return;
-        }
-        let Some(selected) = self
-            .library
-            .folder_browser
-            .selected_file_id()
-            .map(str::to_owned)
-        else {
-            return;
-        };
-        if previous_selected.as_deref() == Some(selected.as_str()) {
-            return;
-        }
-        self.cancel_metadata_tag_entry();
-        self.metadata.selected_tag = None;
-        self.load_navigation_sample(selected, context);
     }
 
     fn register_folder_move_transaction(
@@ -575,31 +872,87 @@ impl NativeAppState {
         source_database_root: &Path,
         moves: &[(PathBuf, PathBuf)],
     ) -> Result<(), String> {
-        let metadata_error = self.library.folder_browser.apply_folder_move_transaction(
-            source_root,
-            source_database_root,
-            moves,
-        )?;
-        self.remap_metadata_tags_for_moved_files(moves);
-        self.apply_moved_sample_paths(moves);
-        let request = FolderMoveRequest::Folder {
-            source_root: source_root.to_path_buf(),
-            source_database_root: source_database_root.to_path_buf(),
-            moves: moves.to_vec(),
-            target_folder: moves
-                .first()
-                .and_then(|(_, new_path)| new_path.parent().map(Path::to_path_buf))
-                .unwrap_or_else(|| source_root.to_path_buf()),
-        };
-        self.reconcile_harvest_graph_after_folder_move(&request, moves);
+        self.transactions.pending_file_mutation_attempted = true;
+        let (completed, metadata_error) =
+            execute_folder_move_transaction(source_root, source_database_root, moves)?;
         if let Some(error) = metadata_error {
             tracing::warn!("folder move transaction metadata update failed: {error}");
+            self.transactions.pending_file_mutation_failures.push(error);
         }
-        if let Err(error) = self.library.folder_browser.save_source_scan_cache() {
-            tracing::warn!("folder move transaction source cache save failed: {error}");
+        let mut changes = completed
+            .iter()
+            .map(|(before, after)| {
+                FileMutationChange::path_only_move(before.clone(), after.clone())
+            })
+            .collect::<Vec<_>>();
+        let target_path = completed
+            .first()
+            .map(|(_, target_path)| target_path.clone());
+        if let Some(target_path) = target_path {
+            attach_move_completion_projection(
+                &mut changes,
+                FileMutationProjection::MoveTransaction {
+                    target_path,
+                    source_root: source_root.to_path_buf(),
+                    source_database_root: source_database_root.to_path_buf(),
+                    moves: completed,
+                },
+            );
         }
+        self.transactions.pending_file_mutations.extend(changes);
         Ok(())
     }
+}
+
+fn folder_move_mutation_changes(
+    request: &FolderMoveRequest,
+    moved_paths: &[(PathBuf, PathBuf)],
+) -> Vec<FileMutationChange> {
+    moved_paths
+        .iter()
+        .map(|(before, after)| {
+            let copy_only = match request {
+                FolderMoveRequest::SourcedFiles { file_moves, .. } => file_moves
+                    .iter()
+                    .find(|item| Path::new(&item.file_id) == before)
+                    .is_some_and(|item| item.copy_only),
+                _ => false,
+            };
+            if copy_only {
+                FileMutationChange::created(after.clone())
+            } else {
+                FileMutationChange::path_only_move(before.clone(), after.clone())
+            }
+        })
+        .collect()
+}
+
+fn attach_move_projection(changes: &mut [FileMutationChange], previous_selected: Option<String>) {
+    let Some(target_path) = changes
+        .iter()
+        .find_map(|change| change.after_path.as_ref().cloned())
+    else {
+        return;
+    };
+    let Some(change) = changes.first_mut() else {
+        return;
+    };
+    *change = change
+        .clone()
+        .with_projection(FileMutationProjection::LoadSelectedIfChanged {
+            target_path,
+            previous_selected,
+        });
+}
+
+fn attach_move_completion_projection(
+    changes: &mut [FileMutationChange],
+    projection: FileMutationProjection,
+) {
+    let Some(change) = changes.first_mut() else {
+        return;
+    };
+    *change = change.clone().with_projection(projection);
 }
 
 impl TransactionContext<'_> {

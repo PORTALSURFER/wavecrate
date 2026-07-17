@@ -1,4 +1,4 @@
-use super::{gui_state_for_span_tests, temp_gui_root, write_test_wav_i16};
+use super::{gui_state_for_span_tests, run_command_for_tests, temp_gui_root, write_test_wav_i16};
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use radiant::{gui::types::Point, prelude as ui, runtime::NativeFileDrop};
 use std::fs;
@@ -118,6 +118,7 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
         ),
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     let copied = loops.join("kick.wav");
     let copied_id = copied.display().to_string();
@@ -126,17 +127,10 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
         state.library.folder_browser.selected_file_id(),
         Some(copied_id.as_str())
     );
-    assert_eq!(state.waveform.load.label.as_deref(), Some("kick.wav"));
     assert!(
-        state
-            .background
-            .deferred_sample_load_task
-            .active()
-            .is_some(),
-        "native file import should debounce uncached sample loading before queueing decode work"
+        state.active_sample_load_task().is_some(),
+        "accepted native file import should queue foreground loading"
     );
-    super::start_deferred_sample_load_for_tests(&mut state, copied_id, true, &mut context);
-    assert!(state.active_sample_load_task().is_some());
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(external_root);
 }
@@ -166,6 +160,7 @@ fn native_file_drop_without_widget_target_imports_into_selected_folder() {
         NativeFileDrop::dropped(source, Some(Point::new(8.0, 8.0)), None),
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     let copied = loops.join("kick.wav");
     let copied_id = copied.display().to_string();
@@ -202,6 +197,7 @@ fn native_file_drop_from_selected_folder_cancels_instead_of_copying() {
         NativeFileDrop::dropped(source.clone(), Some(Point::new(8.0, 8.0)), None),
         &mut context,
     );
+    run_command_for_tests(&mut state, context.into_command());
 
     assert!(source.is_file());
     assert!(!drums.join("kick_copy001.wav").exists());

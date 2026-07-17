@@ -175,6 +175,12 @@ impl NativeAppState {
                 started_at,
                 result,
             } => self.finish_external_waveform_file_drop(source, started_at, result, context),
+            GuiMessage::CommittedFileMutationRequested(work) => {
+                self.start_committed_file_mutation(work, context)
+            }
+            GuiMessage::CommittedFileMutationFinished(outcome) => {
+                self.finish_committed_file_mutation(outcome, context)
+            }
             GuiMessage::NativeAudioDocumentOpenValidated {
                 started_at,
                 validation,

@@ -12,6 +12,7 @@ pub(in crate::native_app) struct RenamePathRemap {
 pub(in crate::native_app) struct RenameCommitResult {
     pub(in crate::native_app) status: String,
     pub(in crate::native_app) path_remap: Option<RenamePathRemap>,
+    pub(in crate::native_app) metadata_error: Option<String>,
 }
 
 impl RenameCommitResult {
@@ -19,6 +20,7 @@ impl RenameCommitResult {
         Self {
             status: status.into(),
             path_remap: None,
+            metadata_error: None,
         }
     }
 
@@ -30,6 +32,20 @@ impl RenameCommitResult {
         Self {
             status: status.into(),
             path_remap: Some(RenamePathRemap { old_path, new_path }),
+            metadata_error: None,
+        }
+    }
+
+    pub(in crate::native_app) fn remapped_with_metadata_error(
+        status: impl Into<String>,
+        old_path: PathBuf,
+        new_path: PathBuf,
+        metadata_error: String,
+    ) -> Self {
+        Self {
+            status: status.into(),
+            path_remap: Some(RenamePathRemap { old_path, new_path }),
+            metadata_error: Some(metadata_error),
         }
     }
 }

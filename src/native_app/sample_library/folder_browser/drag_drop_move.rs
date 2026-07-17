@@ -7,8 +7,7 @@ use super::{
     FileMoveConflictBatch, FileMoveItem, FolderBrowserState, FolderDropResult, FolderMoveDropInput,
     FolderMoveRequest, FolderMoveSuccess, delete_workflow::fallback_after_deleted_focus,
     drag_drop_sourced_files::sourced_moved_files_from_items, file_move_conflicts::file_move_status,
-    file_move_execution::execute_folder_move_transaction, path_helpers::path_id,
-    placeholder_folder, selection_state::BrowserSelectionSnapshot,
+    path_helpers::path_id, placeholder_folder, selection_state::BrowserSelectionSnapshot,
 };
 
 impl FolderBrowserState {
@@ -475,16 +474,13 @@ impl FolderBrowserState {
             .ok_or_else(|| format!("{error_prefix}: selected source is unavailable"))
     }
 
-    pub(in crate::native_app) fn apply_folder_move_transaction(
+    pub(in crate::native_app) fn project_folder_move_transaction(
         &mut self,
         source_root: &Path,
-        source_database_root: &Path,
         moves: &[(PathBuf, PathBuf)],
-    ) -> Result<Option<String>, String> {
+    ) -> Result<(), String> {
         self.select_source_root_for_folder_move_transaction(source_root)?;
-        let (completed, metadata_error) =
-            execute_folder_move_transaction(source_root, source_database_root, moves)?;
-        for (old_path, new_path) in &completed {
+        for (old_path, new_path) in moves {
             let Some(target_parent) = new_path.parent() else {
                 return Err(format!(
                     "Folder move failed: {} has no parent",
@@ -493,7 +489,7 @@ impl FolderBrowserState {
             };
             self.relocate_moved_folder(old_path, new_path, target_parent)?;
         }
-        Ok(metadata_error)
+        Ok(())
     }
 
     fn select_source_root_for_folder_move_transaction(

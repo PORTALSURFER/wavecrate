@@ -5,6 +5,7 @@ pub(in crate::native_app) use super::file_move_execution::{
 };
 pub(in crate::native_app) use super::file_move_execution::{
     execute_file_move_conflict_request_with_progress, execute_folder_move_request_with_progress,
+    execute_folder_move_transaction,
 };
 pub(in crate::native_app) use super::file_move_progress::{
     file_move_conflict_progress_label, file_move_conflict_progress_total,
@@ -13,9 +14,10 @@ pub(in crate::native_app) use super::file_move_progress::{
 pub(in crate::native_app) use super::messages::{FilterFamily, FolderBrowserMessage};
 pub(in crate::native_app) use super::move_types::{
     FileMoveConflictCompletion, FileMoveConflictResolution, FileMoveConflictResolutionRequest,
-    FolderMoveCompletion, FolderMoveDropInput, FolderMoveRequest,
+    FolderMoveCompletion, FolderMoveDropInput, FolderMoveRequest, FolderMoveSuccess,
 };
 pub(in crate::native_app) use super::rename_execution::execute_rename_commit_request;
 pub(in crate::native_app) use super::rename_types::{
-    FileRenameView, RenameCommitCompletion, RenameCommitResult, RenameInputResult, RenamePathRemap,
+    FileRenameView, RenameCommitCompletion, RenameCommitRequest, RenameCommitResult,
+    RenameCommitSuccess, RenameInputResult, RenamePathRemap,
 };

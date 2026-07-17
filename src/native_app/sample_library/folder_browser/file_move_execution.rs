@@ -188,7 +188,7 @@ fn rollback_moved_folders(moved_paths: &[(PathBuf, PathBuf)]) -> Option<String> 
     (!errors.is_empty()).then(|| errors.join("; "))
 }
 
-pub(super) fn execute_folder_move_transaction(
+pub(in crate::native_app) fn execute_folder_move_transaction(
     source_root: &Path,
     source_database_root: &Path,
     moves: &[(PathBuf, PathBuf)],

@@ -147,6 +147,7 @@ fn moved_files_do_not_reappear_from_source_scan_cache_after_restart() {
 
     let mut context = radiant::prelude::UiUpdateContext::default();
     state.finish_folder_move(std::time::Instant::now(), completion, &mut context);
+    super::super::run_command_for_tests(&mut state, context.into_command());
 
     assert!(!kick.exists(), "source file should be moved out of drums");
     let mut reloaded =

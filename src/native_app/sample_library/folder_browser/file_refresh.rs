@@ -12,6 +12,7 @@ impl RefreshedFileEntry {
         Self { file }
     }
 
+    #[cfg(test)]
     pub(in crate::native_app::sample_library::folder_browser) fn path(&self) -> &Path {
         Path::new(&self.file.id)
     }
