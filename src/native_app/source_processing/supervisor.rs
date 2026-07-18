@@ -144,6 +144,7 @@ impl Drop for InFlightWorkGuard<'_> {
 }
 
 impl SourceProcessingBudgetHandle {
+    #[cfg(test)]
     pub(in crate::native_app) fn lifecycle_generation(&self, source_id: &str) -> Option<u64> {
         self.shared
             .control()

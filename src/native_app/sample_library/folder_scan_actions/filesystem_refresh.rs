@@ -246,20 +246,28 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
-        let Some((root, database_root)) = self.library.folder_browser.source_roots(&source_id)
-        else {
-            return;
-        };
+        let (root, database_root, expected_lifecycle_generation) =
+            match self.admit_source_filesystem_sync(&source_id) {
+                Ok(admission) => admission,
+                Err(error) => {
+                    tracing::warn!(
+                        target: "wavecrate::source_processing",
+                        source_id,
+                        error,
+                        "Source filesystem sync was not admitted"
+                    );
+                    return;
+                }
+            };
         let budget = self.background.source_processing.budget_handle();
-        let expected_lifecycle_generation = budget.lifecycle_generation(&source_id);
         context.business().background("gui-source-db-sync").run(
             move |_| {
-                let Some(permit) = expected_lifecycle_generation.and_then(|generation| {
-                    budget.acquire_scan_for_generation(&source_id, generation)
-                }) else {
+                let Some(permit) =
+                    budget.acquire_scan_for_generation(&source_id, expected_lifecycle_generation)
+                else {
                     return SourceFilesystemSyncResult {
                         source_id,
-                        lifecycle_generation: 0,
+                        lifecycle_generation: expected_lifecycle_generation,
                         changed_count,
                         cancelled: true,
                         result: Err(String::from("Source filesystem sync canceled")),
@@ -281,6 +289,31 @@ impl NativeAppState {
             },
             GuiMessage::SourceFilesystemSyncFinished,
         );
+    }
+
+    pub(in crate::native_app) fn admit_source_filesystem_sync(
+        &mut self,
+        source_id: &str,
+    ) -> Result<(PathBuf, PathBuf, u64), String> {
+        let source = self
+            .library
+            .folder_browser
+            .configured_sample_sources()
+            .into_iter()
+            .find(|source| source.id.as_str() == source_id)
+            .ok_or_else(|| "Source is not present in the configured source set".to_string())?;
+        let root = source.root.clone();
+        let database_root = source
+            .database_root()
+            .map_err(|error| format!("Resolve source metadata location failed: {error}"))?;
+        let lifecycle_generation = self
+            .background
+            .source_processing
+            .register_source_for_scan(source)?;
+        self.background
+            .source_lifecycle_generations
+            .insert(source_id.to_string(), lifecycle_generation);
+        Ok((root, database_root, lifecycle_generation))
     }
 }
 

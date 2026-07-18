@@ -188,6 +188,7 @@ impl NativeAppState {
         {
             Ok(status) => {
                 self.ui.status.sample = status.to_string();
+                self.sync_source_watcher();
                 self.persist_user_configuration("folder_browser.source.role.persist", started_at);
                 emit_gui_action(
                     "browser.context_menu.source.protection",
@@ -228,6 +229,7 @@ impl NativeAppState {
         match self.library.folder_browser.set_primary_source(&source_id) {
             Ok(status) => {
                 self.ui.status.sample = status.to_string();
+                self.sync_source_watcher();
                 self.persist_user_configuration("folder_browser.source.role.persist", started_at);
                 emit_gui_action(
                     "browser.context_menu.source.primary",
@@ -268,6 +270,7 @@ impl NativeAppState {
         match self.library.folder_browser.clear_primary_source(&source_id) {
             Ok(status) => {
                 self.ui.status.sample = status.to_string();
+                self.sync_source_watcher();
                 self.persist_user_configuration("folder_browser.source.role.persist", started_at);
                 emit_gui_action(
                     "browser.context_menu.source.primary",
