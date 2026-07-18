@@ -1,9 +1,13 @@
 use super::*;
-use crate::native_app::app::MetadataMessage;
+use crate::native_app::app::{MetadataMessage, SourceFilesystemSyncResult};
 use crate::native_app::app_chrome::view_models::sample_browser::prepare_sample_browser_view;
 use crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source;
 use crate::native_app::test_support::state::{FolderBrowserState, NativeAppStateFixture};
-use std::{fs, sync::Arc, time::Duration};
+use std::{
+    fs,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 #[test]
 fn root_dispatch_routes_metadata_messages_to_metadata_owner() {
@@ -174,6 +178,64 @@ fn late_progress_from_previous_readded_source_epoch_is_ignored() {
             .map(|progress| progress.lifecycle_generation),
         Some(2)
     );
+}
+
+#[test]
+fn source_completions_from_previous_readded_epoch_are_ignored() {
+    let directory = tempfile::tempdir().expect("completion source");
+    let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(directory.path().to_path_buf(), false)
+        .expect("source registered");
+    state.sync_source_watcher();
+    let current_generation = state.background.source_lifecycle_generations[&source_id];
+    let old_generation = current_generation.wrapping_sub(1);
+    let current_permit = state
+        .background
+        .source_processing
+        .budget_handle()
+        .acquire_scan(&source_id)
+        .expect("current source scan permit");
+    let current_cancel = current_permit.cancel_token();
+    let initial_status = state.ui.status.sample.clone();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceFilesystemSyncFinished(SourceFilesystemSyncResult {
+            source_id: source_id.clone(),
+            lifecycle_generation: old_generation,
+            changed_count: 1,
+            cancelled: true,
+            result: Err(String::from("old epoch cancelled")),
+        }),
+        &mut context,
+    );
+    assert_eq!(state.ui.status.sample, initial_status);
+
+    state.apply_message(
+        GuiMessage::SourceManifestAuditCommitted {
+            source_id,
+            lifecycle_generation: old_generation,
+            committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta {
+                revision: 2,
+                changed: vec![wavecrate::sample_sources::scanner::ManifestIdentityDelta {
+                    identity: String::from("old-file"),
+                    relative_path: std::path::PathBuf::from("old.wav"),
+                    content_generation: String::from("old-generation"),
+                    source_metadata_changed: true,
+                }],
+                ..Default::default()
+            },
+        },
+        &mut context,
+    );
+    assert!(
+        !current_cancel.load(Ordering::Acquire),
+        "an old completion must not cancel the re-added source generation"
+    );
+    drop(current_permit);
 }
 
 #[test]

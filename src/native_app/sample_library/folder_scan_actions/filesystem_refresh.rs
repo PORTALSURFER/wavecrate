@@ -81,6 +81,16 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let source_id = result.source_id;
+        if self.background.source_lifecycle_generations.get(&source_id)
+            != Some(&result.lifecycle_generation)
+        {
+            tracing::debug!(
+                source_id = %source_id,
+                lifecycle_generation = result.lifecycle_generation,
+                "Ignoring filesystem sync completion from an inactive source generation"
+            );
+            return;
+        }
         let changed_count = result.changed_count;
         if !self.library.folder_browser.source_exists(&source_id) {
             tracing::debug!(
@@ -137,10 +147,15 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_source_manifest_audit(
         &mut self,
         source_id: String,
+        lifecycle_generation: u64,
         committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if committed_delta.is_empty() || !self.library.folder_browser.source_exists(&source_id) {
+        if self.background.source_lifecycle_generations.get(&source_id)
+            != Some(&lifecycle_generation)
+            || committed_delta.is_empty()
+            || !self.library.folder_browser.source_exists(&source_id)
+        {
             return;
         }
         self.background
@@ -241,13 +256,15 @@ impl NativeAppState {
                 let Some(permit) = budget.acquire_scan(&source_id) else {
                     return SourceFilesystemSyncResult {
                         source_id,
+                        lifecycle_generation: 0,
                         changed_count,
                         cancelled: true,
                         result: Err(String::from("Source filesystem sync canceled")),
                     };
                 };
+                let lifecycle_generation = permit.lifecycle_generation();
                 let cancel = permit.cancel_token();
-                let result = sync_source_database_paths(
+                let mut result = sync_source_database_paths(
                     source_id,
                     root,
                     database_root,
@@ -255,6 +272,7 @@ impl NativeAppState {
                     changed_count,
                     cancel.as_ref(),
                 );
+                result.lifecycle_generation = lifecycle_generation;
                 drop(permit);
                 result
             },

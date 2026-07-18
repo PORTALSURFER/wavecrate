@@ -108,9 +108,15 @@ impl NativeAppState {
             }
             GuiMessage::SourceManifestAuditCommitted {
                 source_id,
+                lifecycle_generation,
                 committed_delta,
             } => {
-                self.finish_source_manifest_audit(source_id, committed_delta, context);
+                self.finish_source_manifest_audit(
+                    source_id,
+                    lifecycle_generation,
+                    committed_delta,
+                    context,
+                );
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);

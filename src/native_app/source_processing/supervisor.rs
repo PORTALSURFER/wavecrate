@@ -151,8 +151,8 @@ impl SourceProcessingBudgetHandle {
         {
             let mut control = self.shared.control();
             while !control.shutdown
-                && control.source_is_active(source_id)
-                && control.processing_paused()
+                && control.source_is_configured(source_id)
+                && (!control.source_is_active(source_id) || control.processing_paused())
             {
                 control = self
                     .shared
@@ -287,6 +287,10 @@ impl SourceProcessingBudgetHandle {
 impl SourceProcessingBudgetPermit {
     pub(in crate::native_app) fn cancel_token(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.cancel)
+    }
+
+    pub(in crate::native_app) fn lifecycle_generation(&self) -> u64 {
+        self.lifecycle_generation
     }
 
     fn should_cancel_now(&self) -> bool {
@@ -1002,6 +1006,10 @@ struct ControlState {
 }
 
 impl ControlState {
+    fn source_is_configured(&self, source_id: &str) -> bool {
+        self.sources.contains_key(source_id) && !self.quarantined_sources.contains(source_id)
+    }
+
     fn source_is_active(&self, source_id: &str) -> bool {
         let Some(source) = self.sources.get(source_id) else {
             return false;
@@ -1162,6 +1170,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             sources,
             dirty_sources,
             source_work_cancels,
+            source_lifecycle_generations,
             processing_paused,
             pause_feedback_pending,
             generation,
@@ -1238,6 +1247,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                     .collect::<Vec<_>>(),
                 dirty_sources,
                 control.source_work_cancels.clone(),
+                control.source_lifecycle_generations.clone(),
                 processing_paused,
                 pause_feedback_pending,
                 control.wake_generation,
@@ -1327,6 +1337,8 @@ fn run_coordinator(shared: Arc<Shared>) {
         if publish_source_processing_discovery_if_needed(
             &shared,
             &sources_to_discover,
+            &source_lifecycle_generations,
+            &source_work_cancels,
             progress_visible,
         ) {
             progress_visible = true;
@@ -1671,6 +1683,10 @@ fn process_ready_source_retirements(shared: &Shared) {
             control.pending_retirements.remove(&retirement_id);
             control.dirty_sources.insert(source_id);
             control.notify("source_storage_handoff_completed");
+            drop(control);
+            drop(replacement);
+            shared.wake.notify_all();
+            shared.budget_wake.notify_all();
             continue;
         }
         drop(control);
@@ -1770,22 +1786,31 @@ fn publish_source_processing_progress(
     ));
 }
 
-fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
+fn publish_source_processing_discovery(
+    shared: &Shared,
+    source: &SampleSource,
+    lifecycle_generation: u64,
+    source_cancel: &Arc<AtomicBool>,
+) -> bool {
     let control = shared.control();
-    if control.processing_paused() {
-        return;
+    if control.processing_paused()
+        || !control.source_is_active(source.id.as_str())
+        || control.source_lifecycle_generations.get(source.id.as_str())
+            != Some(&lifecycle_generation)
+        || control
+            .source_work_cancels
+            .get(source.id.as_str())
+            .is_none_or(|current| !Arc::ptr_eq(current, source_cancel))
+    {
+        return false;
     }
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
+        return false;
     };
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: source.id.as_str().to_string(),
-            lifecycle_generation: control
-                .source_lifecycle_generations
-                .get(source.id.as_str())
-                .copied()
-                .unwrap_or(0),
+            lifecycle_generation,
             active: true,
             completed: 0,
             total: 0,
@@ -1793,18 +1818,35 @@ fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
             detail: String::from("Counting unfinished analysis, similarity, and indexing jobs"),
         },
     ));
+    true
 }
 
 fn publish_source_processing_discovery_if_needed(
     shared: &Shared,
     sources: &[SampleSource],
+    lifecycle_generations: &BTreeMap<String, u64>,
+    source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
     progress_visible: bool,
 ) -> bool {
     if progress_visible || sources.is_empty() || shared.has_external_scan_activity() {
         return false;
     }
     if sources.len() == 1 {
-        publish_source_processing_discovery(shared, &sources[0]);
+        let source_id = sources[0].id.as_str();
+        let Some(lifecycle_generation) = lifecycle_generations.get(source_id).copied() else {
+            return false;
+        };
+        let Some(source_cancel) = source_work_cancels.get(source_id) else {
+            return false;
+        };
+        if !publish_source_processing_discovery(
+            shared,
+            &sources[0],
+            lifecycle_generation,
+            source_cancel,
+        ) {
+            return false;
+        }
     } else {
         publish_multi_source_processing_activity(shared, sources.len());
     }
@@ -3131,6 +3173,7 @@ fn execute_candidate(
             {
                 let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
                     source_id: candidate.source.id.as_str().to_string(),
+                    lifecycle_generation,
                     committed_delta: outcome.committed_delta,
                 });
             }
@@ -4306,7 +4349,12 @@ mod tests {
             SourceId::from_string("paused-discovery"),
             directory.path().to_path_buf(),
         );
-        publish_source_processing_discovery(&supervisor.shared, &source);
+        publish_source_processing_discovery(
+            &supervisor.shared,
+            &source,
+            0,
+            &Arc::new(AtomicBool::new(false)),
+        );
         assert!(receiver.try_recv().is_err());
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
@@ -4319,10 +4367,16 @@ mod tests {
         );
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source.clone()], Some(sender));
+        let control = shared.control();
+        let lifecycle_generations = control.source_lifecycle_generations.clone();
+        let source_work_cancels = control.source_work_cancels.clone();
+        drop(control);
 
         assert!(publish_source_processing_discovery_if_needed(
             &shared,
             std::slice::from_ref(&source),
+            &lifecycle_generations,
+            &source_work_cancels,
             false,
         ));
         let GuiMessage::SourceProcessingProgress(progress) = receiver
@@ -4336,12 +4390,48 @@ mod tests {
         assert!(!publish_source_processing_discovery_if_needed(
             &shared,
             &[source],
+            &lifecycle_generations,
+            &source_work_cancels,
             true,
         ));
         assert!(
             receiver.try_recv().is_err(),
             "an immediate rediscovery must not overwrite visible execution progress"
         );
+    }
+
+    #[test]
+    fn discovery_snapshot_from_previous_readded_epoch_is_not_published() {
+        let directory = tempfile::tempdir().expect("discovery source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("readded-discovery-source"),
+            directory.path().to_path_buf(),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let supervisor = SourceProcessingSupervisor {
+            shared: Arc::clone(&shared),
+            coordinator: None,
+        };
+        let control = shared.control();
+        let old_generation = control.source_lifecycle_generations[source.id.as_str()];
+        let old_cancel = Arc::clone(&control.source_work_cancels[source.id.as_str()]);
+        drop(control);
+
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove old discovery epoch");
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("re-add source with a new discovery epoch");
+
+        assert!(!publish_source_processing_discovery(
+            shared.as_ref(),
+            &source,
+            old_generation,
+            &old_cancel,
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[test]
@@ -4888,12 +4978,20 @@ mod tests {
         supervisor
             .replace_sources(vec![source.clone()])
             .expect("re-add source immediately");
+        let waiting_handle = supervisor.budget_handle();
+        let waiting_source_id = source.id.as_str().to_string();
+        let (waiting_sender, waiting_receiver) = std::sync::mpsc::channel();
+        let waiting = thread::spawn(move || {
+            let permit = waiting_handle.acquire_scan(&waiting_source_id);
+            waiting_sender
+                .send(permit)
+                .expect("report re-added source admission");
+        });
         assert!(
-            supervisor
-                .budget_handle()
-                .acquire_scan(source.id.as_str())
-                .is_none(),
-            "same-storage admission stays blocked while the retired epoch is still active"
+            waiting_receiver
+                .recv_timeout(Duration::from_millis(50))
+                .is_err(),
+            "same-storage admission must wait while the retired epoch is still active"
         );
         process_ready_source_retirements(&supervisor.shared);
         assert_eq!(supervisor.shared.control().pending_retirements.len(), 1);
@@ -4901,12 +4999,16 @@ mod tests {
         drop(old_work);
         process_ready_source_retirements(&supervisor.shared);
         assert!(supervisor.shared.control().pending_retirements.is_empty());
-        assert!(
-            supervisor
-                .budget_handle()
-                .acquire_scan(source.id.as_str())
-                .is_some()
+        let permit = waiting_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("re-added source admission should resume after the old epoch drains")
+            .expect("re-added source receives its current-generation permit");
+        assert_eq!(
+            permit.lifecycle_generation(),
+            supervisor.lifecycle_generations()[source.id.as_str()]
         );
+        drop(permit);
+        waiting.join().expect("join re-added source admission");
         let availability: String = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
             &database_root,
@@ -5727,18 +5829,20 @@ mod tests {
                 _ => None,
             })
             .expect("audit should publish checked-file progress");
-        let (source_id, committed_delta) = messages
+        let (source_id, lifecycle_generation, committed_delta) = messages
             .iter()
             .find_map(|message| match message {
                 GuiMessage::SourceManifestAuditCommitted {
                     source_id,
+                    lifecycle_generation,
                     committed_delta,
-                } => Some((source_id, committed_delta)),
+                } => Some((source_id, lifecycle_generation, committed_delta)),
                 _ => None,
             })
             .expect("audit should publish a browser projection wake");
 
         assert_eq!(source_id, "audit-browser-wake");
+        assert_eq!(*lifecycle_generation, 0);
         assert_eq!(progress.source_id, "audit-browser-wake");
         assert_eq!(progress.completed, 1);
         assert_eq!(progress.total, 1);
