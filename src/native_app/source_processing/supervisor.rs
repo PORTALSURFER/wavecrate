@@ -1402,6 +1402,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 candidates.push(candidate);
                 break;
             };
+            let lifecycle_generation = in_flight_work.lifecycle_generation;
             let progress_publish_due = last_progress_publish_at
                 .is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL);
             if (active_progress_source.as_deref() != Some(candidate.source.id.as_str())
@@ -1414,14 +1415,19 @@ fn run_coordinator(shared: Arc<Shared>) {
                     candidate.source.id.as_str(),
                     progress,
                 );
-                publish_source_processing_progress(&shared, &candidate, progress);
+                publish_source_processing_progress(
+                    &shared,
+                    &candidate,
+                    lifecycle_generation,
+                    progress,
+                );
                 active_progress_source = Some(candidate.source.id.as_str().to_string());
                 last_progress_publish_at = Some(Instant::now());
                 progress_visible = true;
             }
             let result = execute_candidate(
                 &candidate,
-                in_flight_work.lifecycle_generation,
+                lifecycle_generation,
                 candidate_cancel.as_ref(),
                 shared.worker_sender.as_ref(),
             );
@@ -1457,7 +1463,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                                     candidate.source.id.as_str(),
                                     progress,
                                 );
-                                publish_source_processing_progress(&shared, &candidate, progress);
+                                publish_source_processing_progress(
+                                    &shared,
+                                    &candidate,
+                                    lifecycle_generation,
+                                    progress,
+                                );
                                 last_progress_publish_at = Some(Instant::now());
                                 progress_visible = true;
                             }
@@ -1486,7 +1497,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                                     candidate.source.id.as_str(),
                                     progress,
                                 );
-                                publish_source_processing_progress(&shared, &candidate, progress);
+                                publish_source_processing_progress(
+                                    &shared,
+                                    &candidate,
+                                    lifecycle_generation,
+                                    progress,
+                                );
                                 last_progress_publish_at = Some(Instant::now());
                                 progress_visible = true;
                             }
@@ -1718,6 +1734,7 @@ fn publish_similarity_readiness_refreshes(
 fn publish_source_processing_progress(
     shared: &Shared,
     candidate: &RuntimeCandidate,
+    lifecycle_generation: u64,
     stats: SourceDiscoveryStats,
 ) {
     let control = shared.control();
@@ -1743,11 +1760,7 @@ fn publish_source_processing_progress(
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: candidate.source.id.as_str().to_string(),
-            lifecycle_generation: control
-                .source_lifecycle_generations
-                .get(candidate.source.id.as_str())
-                .copied()
-                .unwrap_or(0),
+            lifecycle_generation,
             active: true,
             completed,
             total,
@@ -5459,10 +5472,12 @@ mod tests {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source], Some(sender));
+        let lifecycle_generation = shared.control().source_lifecycle_generations["progress-source"];
 
         publish_source_processing_progress(
             &shared,
             &candidate,
+            lifecycle_generation,
             SourceDiscoveryStats {
                 progress_completed: 313,
                 progress_total: 9_985,
@@ -5507,10 +5522,12 @@ mod tests {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source], Some(sender));
+        let lifecycle_generation = shared.control().source_lifecycle_generations["boundary-source"];
 
         publish_source_processing_progress(
             &shared,
             &candidate,
+            lifecycle_generation,
             SourceDiscoveryStats {
                 progress_completed: 25_000,
                 progress_total: 25_000,
@@ -5528,6 +5545,65 @@ mod tests {
         assert_eq!(progress.completed, 0);
         assert_eq!(progress.total, 0);
         assert_eq!(progress.stage, "Analyzing audio");
+    }
+
+    #[test]
+    fn late_progress_preserves_executing_generation_across_remove_and_readd() {
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("readded-progress-source"),
+            directory.path().to_path_buf(),
+        );
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "identity-1",
+            "drums/kick.wav",
+            ReadinessStage::AnalysisFeatures,
+            "analysis-v1",
+            1,
+            "content-1",
+        );
+        let candidate = RuntimeCandidate {
+            schedule: WorkCandidate::readiness(&target, 1),
+            source: source.clone(),
+            task: RuntimeTask::Readiness(target),
+        };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let supervisor = SourceProcessingSupervisor {
+            shared: Arc::clone(&shared),
+            coordinator: None,
+        };
+        let executing_generation = supervisor.lifecycle_generations()["readded-progress-source"];
+
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove source while work is executing");
+        supervisor
+            .replace_sources(vec![source])
+            .expect("re-add source before late progress is published");
+        let readded_generation = supervisor.lifecycle_generations()["readded-progress-source"];
+        assert_ne!(executing_generation, readded_generation);
+
+        publish_source_processing_progress(
+            shared.as_ref(),
+            &candidate,
+            executing_generation,
+            SourceDiscoveryStats {
+                progress_completed: 1,
+                progress_total: 2,
+                ..SourceDiscoveryStats::default()
+            },
+        );
+
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("late progress message")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert_eq!(progress.lifecycle_generation, executing_generation);
+        assert_ne!(progress.lifecycle_generation, readded_generation);
     }
 
     #[test]
