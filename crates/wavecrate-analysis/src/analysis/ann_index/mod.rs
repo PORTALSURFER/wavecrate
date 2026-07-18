@@ -79,7 +79,44 @@ fn with_index_state_read<R>(
     let guard = state_arc
         .read()
         .map_err(|_| "ANN index state lock poisoned")?;
+    let expected_path = build::current_index_path(conn)?;
+    if guard.index_path != expected_path {
+        return Err("Cached ANN state is not the current published generation".to_string());
+    }
     f(&guard)
+}
+
+/// Persist a dirty similarity-artifact state and invalidate the cached ANN generation.
+///
+/// The state write is serialized with in-flight searches so no query can begin using the
+/// previous generation after the dirty marker becomes committed.
+pub fn mark_artifacts_dirty(conn: &Connection, dirty_state: &str) -> Result<(), String> {
+    let state: serde_json::Value = serde_json::from_str(dirty_state)
+        .map_err(|error| format!("Invalid dirty similarity artifact state: {error}"))?;
+    if state.get("state").and_then(serde_json::Value::as_str) != Some("dirty") {
+        return Err("Similarity artifact invalidation requires a dirty state".to_string());
+    }
+    let key = storage::index_key(conn)?;
+    let mut registry = ANN_INDEX
+        .write()
+        .map_err(|_| "ANN index lock poisoned".to_string())?;
+    let cached = registry.get(&key).cloned();
+    let _cached_guard = cached
+        .as_ref()
+        .map(|state| {
+            state
+                .write()
+                .map_err(|_| "ANN index state lock poisoned".to_string())
+        })
+        .transpose()?;
+    conn.execute(
+        "INSERT INTO metadata (key, value) VALUES ('similarity_artifact_state_v1', ?1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [dirty_state],
+    )
+    .map_err(|error| format!("Mark similarity artifacts dirty failed: {error}"))?;
+    registry.remove(&key);
+    Ok(())
 }
 
 /// Find the `k` nearest neighbors for a stored sample id.

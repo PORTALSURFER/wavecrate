@@ -2253,13 +2253,7 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         "artifact_version": similarity_artifact_version,
     })
     .to_string();
-    connection
-        .execute(
-            "INSERT INTO metadata (key, value) VALUES ('similarity_artifact_state_v1', ?1)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            [&similarity_state],
-        )
-        .map_err(|error| error.to_string())?;
+    wavecrate_analysis::ann_index::mark_artifacts_dirty(connection, &similarity_state)?;
     connection
         .execute(
             "INSERT INTO metadata (key, value) VALUES (?1, ?2)

@@ -21,6 +21,14 @@ struct CurrentSimilarityArtifactState {
 /// Load the exact ANN generation named by the current database metadata.
 pub(crate) fn load_current_index(conn: &Connection) -> Result<AnnIndexState, String> {
     let params = default_params();
+    let index_path = current_index_path(conn)?;
+    load_container_index(&index_path, &params)?
+        .ok_or_else(|| "Current ANN generation container is missing or invalid".to_string())
+}
+
+/// Resolve and validate the ANN path named by the current exact similarity bundle.
+pub(crate) fn current_index_path(conn: &Connection) -> Result<PathBuf, String> {
+    let params = default_params();
     let artifact_state = read_current_artifact_state(conn)?.ok_or_else(|| {
         "Current similarity artifact generation has not been published".to_string()
     })?;
@@ -38,8 +46,7 @@ pub(crate) fn load_current_index(conn: &Connection) -> Result<AnnIndexState, Str
             "Current ANN metadata does not name the published artifact generation".to_string(),
         );
     }
-    load_container_index(&meta.index_path, &meta.params)?
-        .ok_or_else(|| "Current ANN generation container is missing or invalid".to_string())
+    Ok(meta.index_path)
 }
 
 fn read_current_artifact_state(

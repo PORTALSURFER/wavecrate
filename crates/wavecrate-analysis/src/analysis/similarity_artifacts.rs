@@ -638,6 +638,66 @@ mod tests {
         assert_eq!(ann_meta_count(&connection), 1);
     }
 
+    #[test]
+    fn dirty_artifact_state_rejects_a_warm_ann_cache_until_current_publication() {
+        let directory = tempfile::tempdir().expect("similarity artifact directory");
+        let database_path = directory.path().join("source.db");
+        let mut connection = Connection::open(database_path).expect("open source database");
+        create_schema(&connection);
+        seed_path_artifacts(&connection, "source::current");
+        rebuild_exact_similarity_artifacts(
+            &mut connection,
+            request("warm-generation"),
+            &[manifest_entry("source::current", axis_embedding(0, 1.0))],
+            &AtomicBool::new(false),
+            &|_| Ok(true),
+        )
+        .expect("publish warm generation")
+        .expect("warm generation accepted");
+        assert_eq!(
+            nearest_id(&connection, &axis_embedding(0, 1.0)),
+            "source::current"
+        );
+        assert!(ann_index::index_is_cached_for_test(&connection).expect("inspect warm ANN cache"));
+        ann_index::mark_artifacts_dirty(
+            &connection,
+            &serde_json::json!({
+                "state": "dirty",
+                "source_generation": 2,
+                "membership_generation": "changed-membership",
+                "artifact_version": "changed-contract",
+            })
+            .to_string(),
+        )
+        .expect("mark similarity artifacts dirty");
+        assert!(
+            !ann_index::index_is_cached_for_test(&connection).expect("inspect dirty ANN cache"),
+            "dirty publication must evict the prior ANN generation"
+        );
+
+        let error = ann_index::find_similar_for_embedding(&connection, &axis_embedding(0, 1.0), 1)
+            .expect_err("dirty artifacts must reject a warm ANN cache");
+        assert!(
+            error.contains("Current similarity artifact")
+                || error.contains("Invalid current similarity artifact"),
+            "unexpected dirty-cache error: {error}"
+        );
+
+        rebuild_exact_similarity_artifacts(
+            &mut connection,
+            request("current-after-dirty"),
+            &[manifest_entry("source::current", axis_embedding(1, 1.0))],
+            &AtomicBool::new(false),
+            &|_| Ok(true),
+        )
+        .expect("publish replacement generation")
+        .expect("replacement generation accepted");
+        assert_eq!(
+            nearest_id(&connection, &axis_embedding(1, 1.0)),
+            "source::current"
+        );
+    }
+
     fn create_schema(connection: &Connection) {
         connection
             .execute_batch(
