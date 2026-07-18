@@ -251,9 +251,12 @@ impl NativeAppState {
             return;
         };
         let budget = self.background.source_processing.budget_handle();
+        let expected_lifecycle_generation = budget.lifecycle_generation(&source_id);
         context.business().background("gui-source-db-sync").run(
             move |_| {
-                let Some(permit) = budget.acquire_scan(&source_id) else {
+                let Some(permit) = expected_lifecycle_generation.and_then(|generation| {
+                    budget.acquire_scan_for_generation(&source_id, generation)
+                }) else {
                     return SourceFilesystemSyncResult {
                         source_id,
                         lifecycle_generation: 0,

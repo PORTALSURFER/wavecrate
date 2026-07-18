@@ -67,11 +67,14 @@ impl NativeAppState {
         );
         let budget = self.background.source_processing.budget_handle();
         let source_id = request.source_id.clone();
+        let expected_lifecycle_generation = budget.lifecycle_generation(&source_id);
         // Keep this stream fully ordered: discovery batches must not be
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
             move |_context, events| {
-                let Some(permit) = budget.acquire_scan(&source_id) else {
+                let Some(permit) = expected_lifecycle_generation.and_then(|generation| {
+                    budget.acquire_scan_for_generation(&source_id, generation)
+                }) else {
                     let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
                     return run_folder_scan_worker(request, events, cancel);
                 };

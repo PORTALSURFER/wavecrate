@@ -144,14 +144,25 @@ impl Drop for InFlightWorkGuard<'_> {
 }
 
 impl SourceProcessingBudgetHandle {
-    pub(in crate::native_app) fn acquire_scan(
+    pub(in crate::native_app) fn lifecycle_generation(&self, source_id: &str) -> Option<u64> {
+        self.shared
+            .control()
+            .source_lifecycle_generations
+            .get(source_id)
+            .copied()
+    }
+
+    pub(in crate::native_app) fn acquire_scan_for_generation(
         &self,
         source_id: &str,
+        expected_lifecycle_generation: u64,
     ) -> Option<SourceProcessingBudgetPermit> {
         {
             let mut control = self.shared.control();
             while !control.shutdown
                 && control.source_is_configured(source_id)
+                && control.source_lifecycle_generations.get(source_id)
+                    == Some(&expected_lifecycle_generation)
                 && (!control.source_is_active(source_id) || control.processing_paused())
             {
                 control = self
@@ -163,6 +174,8 @@ impl SourceProcessingBudgetHandle {
             if control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
                 || !control.source_is_active(source_id)
+                || control.source_lifecycle_generations.get(source_id)
+                    != Some(&expected_lifecycle_generation)
             {
                 return None;
             }
@@ -177,6 +190,8 @@ impl SourceProcessingBudgetHandle {
             if control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
                 || !control.source_is_active(source_id)
+                || control.source_lifecycle_generations.get(source_id)
+                    != Some(&expected_lifecycle_generation)
                 || control.processing_paused()
             {
                 return None;
@@ -195,7 +210,7 @@ impl SourceProcessingBudgetHandle {
                 );
             }
             let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
-            let lifecycle_generation = control.source_lifecycle_generations[source_id];
+            let lifecycle_generation = expected_lifecycle_generation;
             if admission_cancel.load(Ordering::Acquire) {
                 return None;
             }
@@ -281,6 +296,15 @@ impl SourceProcessingBudgetHandle {
                 return None;
             }
         }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn acquire_scan(
+        &self,
+        source_id: &str,
+    ) -> Option<SourceProcessingBudgetPermit> {
+        let lifecycle_generation = self.lifecycle_generation(source_id)?;
+        self.acquire_scan_for_generation(source_id, lifecycle_generation)
     }
 }
 
@@ -1638,7 +1662,13 @@ fn process_ready_source_retirements(shared: &Shared) {
         control
             .pending_retirements
             .iter()
-            .filter(|(_, retirement)| retirement.retry_at <= now)
+            .filter(|(_, retirement)| {
+                retirement.retry_at <= now
+                    || control
+                        .sources
+                        .values()
+                        .any(|active| source_storage_identity_matches(active, &retirement.source))
+            })
             .map(|(retirement_id, retirement)| (*retirement_id, retirement.clone()))
             .collect::<Vec<_>>()
     };
@@ -4614,6 +4644,43 @@ mod tests {
     }
 
     #[test]
+    fn external_admission_rejects_generation_captured_before_descriptor_replacement() {
+        let old_directory = tempfile::tempdir().expect("old source root");
+        let replacement_directory = tempfile::tempdir().expect("replacement source root");
+        let source_id = SourceId::from_string("replaced-external-admission");
+        let old_source =
+            SampleSource::new_with_id(source_id.clone(), old_directory.path().to_path_buf());
+        let replacement =
+            SampleSource::new_with_id(source_id, replacement_directory.path().to_path_buf());
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![old_source.clone()])
+            .expect("configure old descriptor");
+        let handle = supervisor.budget_handle();
+        let old_generation = handle
+            .lifecycle_generation(old_source.id.as_str())
+            .expect("capture queued request generation");
+
+        supervisor
+            .replace_sources(vec![replacement])
+            .expect("replace source descriptor before admission");
+
+        assert!(
+            handle
+                .acquire_scan_for_generation(old_source.id.as_str(), old_generation)
+                .is_none(),
+            "a queued request must not adopt the replacement descriptor generation"
+        );
+        assert_ne!(
+            handle
+                .lifecycle_generation(old_source.id.as_str())
+                .expect("replacement generation"),
+            old_generation
+        );
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
     fn identical_source_refresh_is_a_noop_and_descriptor_changes_are_source_local() {
         let (_first_directory, first) = unhashed_source("refresh-first");
         let (_second_directory, second) = unhashed_source("refresh-second");
@@ -4978,6 +5045,9 @@ mod tests {
         supervisor
             .replace_sources(vec![source.clone()])
             .expect("re-add source immediately");
+        for retirement in supervisor.shared.control().pending_retirements.values_mut() {
+            retirement.retry_at = now_epoch_seconds().saturating_add(60);
+        }
         let waiting_handle = supervisor.budget_handle();
         let waiting_source_id = source.id.as_str().to_string();
         let (waiting_sender, waiting_receiver) = std::sync::mpsc::channel();
