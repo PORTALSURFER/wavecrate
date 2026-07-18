@@ -34,6 +34,37 @@ fn persisted_waveform_cache_remaps_playback_sidecar_after_file_move() {
 }
 
 #[test]
+fn reverse_owned_cache_ref_remaps_after_old_source_path_disappears() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let old_path = dir.path().join("owned-old.wav");
+    let new_path = dir.path().join("owned-new.wav");
+    fs::write(&old_path, [1_u8, 2, 3, 4]).expect("write sample");
+    let mut file = waveform_file_from_mono_samples(
+        old_path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        48_000,
+        1,
+        vec![0.0, 0.5, -0.5, 0.25],
+    );
+    file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
+    store_cached_waveform_file(&file);
+    let old_cache_ref = persisted_waveform_cache_ref(&old_path).expect("old cache reference");
+
+    fs::rename(&old_path, &new_path).expect("move sample");
+    let new_cache_ref =
+        remap_persisted_waveform_cache_ref_after_move(&old_cache_ref, &old_path, &new_path)
+            .expect("remap reverse-owned cache");
+
+    assert!(!old_cache_ref.exists());
+    assert!(new_cache_ref.is_file());
+    assert!(persisted_waveform_cache_ref_is_current(
+        &new_path,
+        &new_cache_ref
+    ));
+}
+
+#[test]
 fn persisted_waveform_cache_remaps_source_ready_summary_after_file_move() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");

@@ -79,6 +79,16 @@ pub enum ReadinessError {
         /// Readiness stage requiring the version.
         stage: ReadinessStage,
     },
+    /// A cache-backed artifact omitted its durable reverse-ownership reference.
+    #[error("Readiness artifact reference must be non-empty for {source_id}:{scope_id}:{stage:?}")]
+    InvalidArtifactReference {
+        /// Source identity.
+        source_id: String,
+        /// File or source scope identity.
+        scope_id: String,
+        /// Readiness stage requiring the reference.
+        stage: ReadinessStage,
+    },
     /// A stage was assigned to the wrong durable ownership scope.
     #[error("Invalid readiness scope {scope_kind:?} for {source_id}:{scope_id}:{stage:?}")]
     InvalidStageScope {

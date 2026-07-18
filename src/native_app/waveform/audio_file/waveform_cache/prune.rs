@@ -6,6 +6,7 @@ use std::{
 
 use super::identity::{
     playback_descriptor_path, playback_ready_marker_path, playback_sidecar_path,
+    source_warm_marker_path,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -59,10 +60,9 @@ pub(super) fn prune_waveform_cache_dir(
             }
             continue;
         }
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "ready")
-        {
+        if path.extension().is_some_and(|extension| {
+            extension == "ready" || extension == "playback" || extension == "source-ready"
+        }) {
             if !path.with_extension("wfc").is_file() {
                 if fs::remove_file(path).is_ok() {
                     outcome.orphan_marker_removed += 1;
@@ -125,6 +125,9 @@ pub(super) fn prune_waveform_cache_dir(
                 outcome.companion_remove_failed += 1;
             }
             if remove_if_exists(playback_sidecar_path(&entry.path)).is_err() {
+                outcome.companion_remove_failed += 1;
+            }
+            if remove_if_exists(source_warm_marker_path(&entry.path)).is_err() {
                 outcome.companion_remove_failed += 1;
             }
             total_bytes = total_bytes.saturating_sub(entry.len);

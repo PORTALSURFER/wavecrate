@@ -34,18 +34,20 @@ pub(in crate::native_app) fn warm_persisted_waveform_cache(
     paths: Vec<PathBuf>,
     is_cancelled: impl Fn() -> bool,
 ) -> WaveformCacheWarmResult {
-    let loaded = paths
-        .into_iter()
-        .filter_map(|path| {
-            if is_cancelled() {
-                return None;
-            }
-            load_cached_waveform_file_for_playback(path.clone())
-                .map(Arc::new)
-                .map(|file| (path, file))
-        })
-        .collect();
-    WaveformCacheWarmResult { loaded }
+    let mut paths = paths.into_iter();
+    let mut loaded = Vec::new();
+    let mut deferred = Vec::new();
+    while let Some(path) = paths.next() {
+        if is_cancelled() {
+            deferred.push(path);
+            deferred.extend(paths);
+            break;
+        }
+        if let Some(file) = load_cached_waveform_file_for_playback(path.clone()) {
+            loaded.push((path, Arc::new(file)));
+        }
+    }
+    WaveformCacheWarmResult { loaded, deferred }
 }
 
 #[cfg(test)]
@@ -77,10 +79,12 @@ pub(in crate::native_app) fn plan_active_folder_waveform_cache_warm_with_progres
     );
     let playback_ready = Vec::new();
     let mut pending = Vec::new();
-    for (index, path) in paths.into_iter().enumerate() {
+    let mut paths = paths.into_iter().enumerate();
+    while let Some((index, path)) = paths.next() {
         let checked = index.saturating_add(1);
         if is_cancelled() {
             pending.push(path);
+            pending.extend(paths.map(|(_, path)| path));
             return ActiveFolderCacheWarmPlanResult {
                 folder_id,
                 playback_ready,
@@ -267,6 +271,32 @@ fn report_active_folder_cache_progress(
         stage,
         cached,
     });
+}
+
+#[cfg(test)]
+mod cancellation_tests {
+    use super::*;
+
+    #[test]
+    fn persisted_hydration_cancellation_returns_the_complete_unfinished_batch() {
+        let paths = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
+
+        let result = warm_persisted_waveform_cache(paths.clone(), || true);
+
+        assert!(result.loaded.is_empty());
+        assert_eq!(result.deferred, paths);
+    }
+
+    #[test]
+    fn source_warm_planning_cancellation_returns_the_complete_unfinished_plan() {
+        let paths = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
+        let request = ActiveFolderCacheWarmRequest::new(String::from("source"), paths.clone());
+
+        let result = plan_active_folder_waveform_cache_warm(request, || true);
+
+        assert!(result.cancelled);
+        assert_eq!(result.pending, paths);
+    }
 }
 
 pub(super) fn probe_persisted_waveform_cache_indicators(

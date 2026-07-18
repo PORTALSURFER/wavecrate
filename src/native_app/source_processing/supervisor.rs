@@ -21,7 +21,8 @@ use wavecrate::sample_sources::{
         ReadinessFailureClassification, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
         ReadinessRetryPolicy, ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome,
         SourceAvailability, cancel_readiness_work, claim_readiness_target, complete_readiness_work,
-        fail_readiness_work, invalidate_readiness_artifact, persist_readiness_deficits_with_cancel,
+        complete_readiness_work_with_artifact_ref, fail_readiness_work,
+        invalidate_readiness_artifact, persist_readiness_deficits_with_cancel,
         readiness_work_stats, reconcile_readiness_with_cancel, release_readiness_work,
         renew_readiness_lease, replace_readiness_targets_with_cancel,
     },
@@ -40,7 +41,9 @@ use crate::native_app::sample_library::similarity_artifacts::{
     native_similarity_artifact_version, reset_interrupted_readiness_jobs,
 };
 use crate::native_app::waveform::{
-    cached_waveform_file_audition_ready_exists, ensure_persisted_playback_summary,
+    ensure_persisted_playback_summary, invalidate_persisted_waveform_cache_path,
+    invalidate_persisted_waveform_cache_ref, persisted_waveform_cache_ref_is_current,
+    remap_persisted_waveform_cache_ref_after_move,
 };
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
@@ -52,7 +55,7 @@ const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
-const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v4";
+const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v5_owned";
 const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
 
 /// Owned runtime coordinator. All work is joined during shutdown and observes one cancel token.
@@ -1841,6 +1844,12 @@ fn discover_source_candidates_with_connection(
     ) {
         return Ok(Cancellable::Cancelled);
     }
+    if matches!(
+        reconcile_playback_cache_ownership(source, connection, cancel)?,
+        Cancellable::Cancelled
+    ) {
+        return Ok(Cancellable::Cancelled);
+    }
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
     }
@@ -1954,6 +1963,19 @@ fn source_processing_schema_available(connection: &rusqlite::Connection) -> Resu
             ][..],
         ),
         ("metadata", &["key", "value"][..]),
+        (
+            "source_readiness_artifacts",
+            &[
+                "source_id",
+                "scope_kind",
+                "scope_id",
+                "relative_path",
+                "stage",
+                "artifact_version",
+                "content_generation",
+                "artifact_ref",
+            ][..],
+        ),
     ] {
         let pragma = format!("PRAGMA table_info({table})");
         let mut statement = connection
@@ -2264,6 +2286,209 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     Ok(Cancellable::Completed(true))
 }
 
+#[derive(Debug)]
+struct PlaybackCacheOwnershipRow {
+    scope_id: String,
+    artifact_relative_path: Option<String>,
+    artifact_version: String,
+    artifact_content_generation: String,
+    artifact_ref: Option<String>,
+    target_relative_path: Option<String>,
+    target_version: Option<String>,
+    target_content_generation: Option<String>,
+    target_eligibility: Option<String>,
+}
+
+/// Reconcile source-owned playback artifact rows with their exact app-global cache payloads.
+///
+/// The source database is the durable reverse index. This pass runs on startup and every committed
+/// source wake, so changed/deleted identities can retire their old cache keys even after the old
+/// filesystem metadata is gone. Path-only moves remap reusable payloads without decoding again.
+fn reconcile_playback_cache_ownership(
+    source: &SampleSource,
+    connection: &mut rusqlite::Connection,
+    cancel: &AtomicBool,
+) -> Result<Cancellable<usize>, String> {
+    let rows = {
+        let mut statement = connection
+            .prepare(
+                "SELECT artifact.scope_id,
+                        artifact.relative_path,
+                        artifact.artifact_version,
+                        artifact.content_generation,
+                        artifact.artifact_ref,
+                        target.relative_path,
+                        target.required_version,
+                        target.content_generation,
+                        target.eligibility
+                 FROM source_readiness_artifacts AS artifact
+                 LEFT JOIN source_readiness_targets AS target
+                   ON target.source_id = artifact.source_id
+                  AND target.scope_kind = artifact.scope_kind
+                  AND target.scope_id = artifact.scope_id
+                  AND target.stage = artifact.stage
+                 WHERE artifact.source_id = ?1
+                   AND artifact.scope_kind = 'file'
+                   AND artifact.stage = 'playback_summary'
+                 ORDER BY artifact.scope_id",
+            )
+            .map_err(|error| error.to_string())?;
+        statement
+            .query_map([source.id.as_str()], |row| {
+                Ok(PlaybackCacheOwnershipRow {
+                    scope_id: row.get(0)?,
+                    artifact_relative_path: row.get(1)?,
+                    artifact_version: row.get(2)?,
+                    artifact_content_generation: row.get(3)?,
+                    artifact_ref: row.get(4)?,
+                    target_relative_path: row.get(5)?,
+                    target_version: row.get(6)?,
+                    target_content_generation: row.get(7)?,
+                    target_eligibility: row.get(8)?,
+                })
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
+    let mut changed = 0_usize;
+    for row in rows {
+        if cancelled(cancel) {
+            return Ok(Cancellable::Cancelled);
+        }
+        let target_matches = row.target_version.as_deref() == Some(row.artifact_version.as_str())
+            && row.target_content_generation.as_deref()
+                == Some(row.artifact_content_generation.as_str())
+            && row.target_eligibility.as_deref() == Some("eligible");
+        let Some(cache_ref) = row.artifact_ref.as_deref().map(std::path::Path::new) else {
+            changed = changed.saturating_add(delete_playback_cache_ownership_row(
+                connection,
+                source.id.as_str(),
+                &row,
+            )?);
+            continue;
+        };
+        if !target_matches {
+            invalidate_playback_cache_owner(source, &row);
+            changed = changed.saturating_add(delete_playback_cache_ownership_row(
+                connection,
+                source.id.as_str(),
+                &row,
+            )?);
+            continue;
+        }
+        let (Some(artifact_relative_path), Some(target_relative_path)) = (
+            row.artifact_relative_path.as_deref(),
+            row.target_relative_path.as_deref(),
+        ) else {
+            invalidate_playback_cache_owner(source, &row);
+            changed = changed.saturating_add(delete_playback_cache_ownership_row(
+                connection,
+                source.id.as_str(),
+                &row,
+            )?);
+            continue;
+        };
+        let target_path = source.root.join(target_relative_path);
+        if artifact_relative_path == target_relative_path
+            && persisted_waveform_cache_ref_is_current(&target_path, cache_ref)
+        {
+            continue;
+        }
+        if artifact_relative_path != target_relative_path {
+            let artifact_path = source.root.join(artifact_relative_path);
+            invalidate_persisted_waveform_cache_path(&artifact_path);
+            if let Some(remapped_ref) = remap_persisted_waveform_cache_ref_after_move(
+                cache_ref,
+                &artifact_path,
+                &target_path,
+            ) {
+                let updated = connection
+                    .execute(
+                        "UPDATE source_readiness_artifacts AS artifact
+                         SET relative_path = ?1, artifact_ref = ?2
+                         WHERE artifact.source_id = ?3
+                           AND artifact.scope_kind = 'file'
+                           AND artifact.scope_id = ?4
+                           AND artifact.stage = 'playback_summary'
+                           AND artifact.artifact_version = ?5
+                           AND artifact.content_generation = ?6
+                           AND artifact.artifact_ref IS ?7
+                           AND EXISTS (
+                               SELECT 1 FROM source_readiness_targets AS target
+                               WHERE target.source_id = artifact.source_id
+                                 AND target.scope_kind = artifact.scope_kind
+                                 AND target.scope_id = artifact.scope_id
+                                 AND target.stage = artifact.stage
+                                 AND target.relative_path = ?1
+                                 AND target.required_version = artifact.artifact_version
+                                 AND target.content_generation = artifact.content_generation
+                                 AND target.eligibility = 'eligible'
+                           )",
+                        params![
+                            target_relative_path,
+                            remapped_ref.to_string_lossy(),
+                            source.id.as_str(),
+                            row.scope_id,
+                            row.artifact_version,
+                            row.artifact_content_generation,
+                            row.artifact_ref,
+                        ],
+                    )
+                    .map_err(|error| error.to_string())?;
+                if updated == 1 {
+                    changed = changed.saturating_add(1);
+                    continue;
+                }
+                invalidate_persisted_waveform_cache_ref(&remapped_ref);
+            }
+        } else {
+            invalidate_playback_cache_owner(source, &row);
+        }
+        changed = changed.saturating_add(delete_playback_cache_ownership_row(
+            connection,
+            source.id.as_str(),
+            &row,
+        )?);
+    }
+    Ok(Cancellable::Completed(changed))
+}
+
+fn invalidate_playback_cache_owner(source: &SampleSource, row: &PlaybackCacheOwnershipRow) {
+    if let Some(relative_path) = row.artifact_relative_path.as_deref() {
+        invalidate_persisted_waveform_cache_path(&source.root.join(relative_path));
+    }
+    if let Some(cache_ref) = row.artifact_ref.as_deref() {
+        invalidate_persisted_waveform_cache_ref(std::path::Path::new(cache_ref));
+    }
+}
+
+fn delete_playback_cache_ownership_row(
+    connection: &rusqlite::Connection,
+    source_id: &str,
+    row: &PlaybackCacheOwnershipRow,
+) -> Result<usize, String> {
+    connection
+        .execute(
+            "DELETE FROM source_readiness_artifacts
+             WHERE source_id = ?1
+               AND scope_kind = 'file'
+               AND scope_id = ?2
+               AND stage = 'playback_summary'
+               AND artifact_version = ?3
+               AND content_generation = ?4
+               AND artifact_ref IS ?5",
+            params![
+                source_id,
+                row.scope_id,
+                row.artifact_version,
+                row.artifact_content_generation,
+                row.artifact_ref,
+            ],
+        )
+        .map_err(|error| error.to_string())
+}
+
 fn readiness_unsupported_content_generations(
     connection: &rusqlite::Connection,
     source_id: &str,
@@ -2471,7 +2696,7 @@ fn execute_candidate(
 }
 
 enum ReadinessExecutionOutcome {
-    Complete,
+    Complete(Option<std::path::PathBuf>),
     Retry(&'static str),
     Permanent(&'static str),
     Unsupported(&'static str),
@@ -2518,9 +2743,11 @@ fn execute_readiness_target(
         }
     };
     if lease_stale {
+        cleanup_unpublished_readiness_output(&outcome);
         return Ok(ExecutionOutcome::Stale);
     }
     if cancel.load(Ordering::Acquire) {
+        cleanup_unpublished_readiness_output(&outcome);
         return cancel_claim(
             &mut connection,
             &claim,
@@ -2529,12 +2756,33 @@ fn execute_readiness_target(
         );
     }
     match outcome {
-        Ok(ReadinessExecutionOutcome::Complete) => {
-            match complete_readiness_work(&mut connection, &claim, now_epoch_seconds())
-                .map_err(|error| error.to_string())?
-            {
+        Ok(ReadinessExecutionOutcome::Complete(artifact_ref)) => {
+            let completed = match artifact_ref.as_deref() {
+                Some(artifact_ref) => complete_readiness_work_with_artifact_ref(
+                    &mut connection,
+                    &claim,
+                    now_epoch_seconds(),
+                    &artifact_ref.to_string_lossy(),
+                ),
+                None => complete_readiness_work(&mut connection, &claim, now_epoch_seconds()),
+            };
+            let completed = match completed {
+                Ok(completed) => completed,
+                Err(error) => {
+                    if let Some(artifact_ref) = artifact_ref.as_deref() {
+                        invalidate_persisted_waveform_cache_ref(artifact_ref);
+                    }
+                    return Err(error.to_string());
+                }
+            };
+            match completed {
                 ArtifactPublishOutcome::Recorded => Ok(ExecutionOutcome::Completed),
-                ArtifactPublishOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
+                ArtifactPublishOutcome::RejectedStale => {
+                    if let Some(artifact_ref) = artifact_ref.as_deref() {
+                        invalidate_persisted_waveform_cache_ref(artifact_ref);
+                    }
+                    Ok(ExecutionOutcome::Stale)
+                }
             }
         }
         Ok(ReadinessExecutionOutcome::Retry(reason)) => {
@@ -2604,6 +2852,12 @@ fn execute_readiness_target(
                 ReadinessWorkMutationOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
             }
         }
+    }
+}
+
+fn cleanup_unpublished_readiness_output(outcome: &Result<ReadinessExecutionOutcome, String>) {
+    if let Ok(ReadinessExecutionOutcome::Complete(Some(artifact_ref))) = outcome {
+        invalidate_persisted_waveform_cache_ref(artifact_ref);
     }
 }
 
@@ -2877,7 +3131,7 @@ fn run_readiness_stage(
                     .flatten()
                     .filter(|content_hash| !content_hash.is_empty());
                 if committed_content_hash.as_deref() == Some(target.content_generation.as_str()) {
-                    ReadinessExecutionOutcome::Complete
+                    ReadinessExecutionOutcome::Complete(None)
                 } else if committed_content_hash.is_some() {
                     ReadinessExecutionOutcome::PrerequisiteInvalidated
                 } else {
@@ -2899,10 +3153,14 @@ fn run_readiness_stage(
                 ));
             };
             let absolute_path = source.root.join(relative_path);
-            if !cached_waveform_file_audition_ready_exists(&absolute_path) {
-                ensure_persisted_playback_summary(absolute_path, cancel)?;
+            // A claimed deficit has no exact current cache owner. Do not hydrate an unowned v4
+            // payload using only size/mtime; erase that key first so this generation produces a
+            // cache that can be committed atomically with its durable v5 ownership reference.
+            if !prepare_playback_cache_generation(connection, target, &absolute_path)? {
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
             }
-            Ok(ReadinessExecutionOutcome::Complete)
+            let cache_ref = ensure_persisted_playback_summary(absolute_path, cancel)?;
+            Ok(ReadinessExecutionOutcome::Complete(Some(cache_ref)))
         }
         ReadinessStage::AnalysisFeatures => {
             if target.content_generation.starts_with("pending-") {
@@ -2924,7 +3182,7 @@ fn run_readiness_stage(
                 ));
             }
             if analysis_features_are_current(connection, target)? {
-                return Ok(ReadinessExecutionOutcome::Complete);
+                return Ok(ReadinessExecutionOutcome::Complete(None));
             }
             let produced = super::worker::run_readiness_feature_stage(
                 connection,
@@ -2935,7 +3193,7 @@ fn run_readiness_stage(
                 cancel,
             )?;
             if produced && analysis_features_are_current(connection, target)? {
-                return Ok(ReadinessExecutionOutcome::Complete);
+                return Ok(ReadinessExecutionOutcome::Complete(None));
             }
             if !produced {
                 reconcile_stale_analysis_input(
@@ -2992,7 +3250,7 @@ fn run_readiness_stage(
                 return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
             }
             Ok(if embedding_aspects_are_current(connection, target)? {
-                ReadinessExecutionOutcome::Complete
+                ReadinessExecutionOutcome::Complete(None)
             } else {
                 let produced = super::worker::run_readiness_embedding_stage(
                     connection,
@@ -3003,7 +3261,7 @@ fn run_readiness_stage(
                     cancel,
                 )?;
                 if produced && embedding_aspects_are_current(connection, target)? {
-                    ReadinessExecutionOutcome::Complete
+                    ReadinessExecutionOutcome::Complete(None)
                 } else {
                     ReadinessExecutionOutcome::Retry(
                         "embedding feature prerequisite is not durable yet",
@@ -3026,7 +3284,7 @@ fn run_readiness_stage(
             finalize_similarity_artifacts_if_ready(source, &publication_fence, cancel).map(
                 |finalized| {
                     if finalized {
-                        ReadinessExecutionOutcome::Complete
+                        ReadinessExecutionOutcome::Complete(None)
                     } else {
                         ReadinessExecutionOutcome::PrerequisiteInvalidated
                     }
@@ -3034,6 +3292,51 @@ fn run_readiness_stage(
             )
         }
     }
+}
+
+fn prepare_playback_cache_generation(
+    connection: &mut rusqlite::Connection,
+    target: &ReadinessTarget,
+    absolute_path: &std::path::Path,
+) -> Result<bool, String> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    let current = transaction
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1
+                FROM source_readiness_sources AS source
+                JOIN source_readiness_targets AS target
+                  ON target.source_id = source.source_id
+                 AND target.source_generation = source.source_generation
+                WHERE target.source_id = ?1
+                  AND target.scope_kind = 'file'
+                  AND target.scope_id = ?2
+                  AND target.relative_path = ?3
+                  AND target.stage = 'playback_summary'
+                  AND target.required_version = ?4
+                  AND target.content_generation = ?5
+                  AND target.eligibility = 'eligible'
+                  AND source.availability = 'active'
+            )",
+            params![
+                target.source_id,
+                target.scope_id,
+                target.relative_path,
+                target.required_version,
+                target.content_generation,
+            ],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if !current {
+        transaction.rollback().map_err(|error| error.to_string())?;
+        return Ok(false);
+    }
+    invalidate_persisted_waveform_cache_path(absolute_path);
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(true)
 }
 
 fn readiness_stage_is_unsupported(
@@ -3296,6 +3599,8 @@ fn oldest_job_age_seconds(candidates: &[RuntimeCandidate], now: i64) -> u64 {
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
+
+    use crate::native_app::waveform::cached_waveform_file_audition_ready_exists;
 
     use wavecrate::sample_sources::{
         SourceId,
@@ -4806,6 +5111,14 @@ mod tests {
                           AND artifact.artifact_version = target.required_version
                           AND artifact.content_generation = target.content_generation
                           AND (
+                              target.stage != 'playback_summary'
+                              OR (
+                                  artifact.relative_path = target.relative_path
+                                  AND artifact.artifact_ref IS NOT NULL
+                                  AND length(trim(artifact.artifact_ref)) > 0
+                              )
+                          )
+                          AND (
                               target.scope_kind = 'file'
                               OR artifact.source_generation = target.source_generation
                           )
@@ -4838,6 +5151,90 @@ mod tests {
         assert!(cached_waveform_file_audition_ready_exists(
             &source.root.join("ready.wav")
         ));
+        let database_root = source.database_root().expect("database root");
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open converged readiness database");
+        let cache_ref = connection
+            .query_row(
+                "SELECT artifact_ref
+                 FROM source_readiness_artifacts
+                 WHERE source_id = ?1 AND stage = 'playback_summary'",
+                [source.id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("read playback ownership reference");
+        assert!(std::path::Path::new(&cache_ref).is_file());
+        assert!(
+            !std::path::Path::new(&cache_ref)
+                .with_extension("pcm")
+                .exists(),
+            "large-file readiness should remain file-backed without persisted decoded PCM"
+        );
+    }
+
+    #[test]
+    fn committed_delete_retires_exact_owned_playback_cache_without_old_file_metadata() {
+        let (_directory, source) = ready_analysis_source("playback-delete");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        let database_root = source.database_root().expect("database root");
+        let mut owned_cache_ref = None::<std::path::PathBuf>;
+        wait_until(Duration::from_secs(15), || {
+            let Ok(connection) = SourceDatabase::open_connection_with_role_and_database_root(
+                &source.root,
+                &database_root,
+                SourceDatabaseConnectionRole::JobWorker,
+            ) else {
+                return false;
+            };
+            owned_cache_ref = connection
+                .query_row(
+                    "SELECT artifact_ref
+                     FROM source_readiness_artifacts
+                     WHERE source_id = ?1
+                       AND stage = 'playback_summary'
+                       AND artifact_ref IS NOT NULL",
+                    [source.id.as_str()],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+                .map(std::path::PathBuf::from);
+            owned_cache_ref.as_ref().is_some_and(|path| path.is_file())
+        });
+        let owned_cache_ref = owned_cache_ref.expect("owned playback cache ref");
+
+        std::fs::remove_file(source.root.join("ready.wav")).expect("delete source sample");
+        let db = source.open_db().expect("open source after delete");
+        wavecrate::sample_sources::scanner::sync_paths(&db, &[PathBuf::from("ready.wav")])
+            .expect("commit source deletion");
+        supervisor.wake_source(source.id.as_str(), "test_committed_delete");
+
+        wait_until(Duration::from_secs(10), || {
+            let Ok(connection) = SourceDatabase::open_connection_with_role_and_database_root(
+                &source.root,
+                &database_root,
+                SourceDatabaseConnectionRole::JobWorker,
+            ) else {
+                return false;
+            };
+            let ownership_removed = connection
+                .query_row(
+                    "SELECT COUNT(*) = 0
+                     FROM source_readiness_artifacts
+                     WHERE source_id = ?1 AND stage = 'playback_summary'",
+                    [source.id.as_str()],
+                    |row| row.get::<_, bool>(0),
+                )
+                .unwrap_or(false);
+            ownership_removed && !owned_cache_ref.exists()
+        });
+        let report = supervisor.shutdown();
+        assert_eq!(report["joined"], true);
     }
 
     #[test]

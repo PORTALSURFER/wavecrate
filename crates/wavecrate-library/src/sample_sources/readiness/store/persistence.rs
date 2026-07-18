@@ -190,16 +190,20 @@ pub fn publish_readiness_artifact(
             source_id,
             scope_kind,
             scope_id,
+            relative_path,
             stage,
             artifact_version,
             source_generation,
             content_generation,
+            artifact_ref,
             completed_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, NULL, ?8)
          ON CONFLICT(source_id, scope_kind, scope_id, stage) DO UPDATE SET
+            relative_path = NULL,
             artifact_version = excluded.artifact_version,
             source_generation = excluded.source_generation,
             content_generation = excluded.content_generation,
+            artifact_ref = NULL,
             completed_at = excluded.completed_at",
         params![
             artifact.source_id,

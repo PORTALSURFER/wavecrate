@@ -77,6 +77,7 @@ pub(in crate::native_app) struct WaveformCacheEntry {
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct WaveformCacheWarmResult {
     pub(in crate::native_app) loaded: Vec<(PathBuf, Arc<WaveformFile>)>,
+    pub(in crate::native_app) deferred: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -100,10 +101,12 @@ pub(in crate::native_app) struct WaveformCacheIndicatorRefreshResult {
 
 impl PartialEq for WaveformCacheWarmResult {
     fn eq(&self, other: &Self) -> bool {
-        self.loaded
-            .iter()
-            .map(|(path, _)| path)
-            .eq(other.loaded.iter().map(|(path, _)| path))
+        self.deferred == other.deferred
+            && self
+                .loaded
+                .iter()
+                .map(|(path, _)| path)
+                .eq(other.loaded.iter().map(|(path, _)| path))
     }
 }
 

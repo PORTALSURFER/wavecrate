@@ -308,7 +308,7 @@ fn active_folder_cache_warm_tracks_worker_progress() {
                 running_ticket,
                 source_root.path().display().to_string(),
                 Vec::new(),
-                vec![second],
+                vec![second.clone()],
                 1,
                 true,
                 false,
@@ -940,7 +940,7 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
                 running_ticket,
                 source_root.path().display().to_string(),
                 Vec::new(),
-                vec![second],
+                vec![second.clone()],
                 1,
                 true,
                 false,
@@ -981,7 +981,7 @@ fn active_folder_cache_warm_does_not_chain_batches_while_playing() {
 }
 
 #[test]
-fn running_active_folder_cache_warm_pause_for_playback_clears_progress_immediately() {
+fn running_active_folder_cache_warm_pause_for_playback_preserves_and_resumes_backlog() {
     let source_root = tempfile::tempdir().expect("source root");
     let folder = source_root.path().join("large-folder");
     fs::create_dir_all(&folder).expect("create folder");
@@ -1033,19 +1033,12 @@ fn running_active_folder_cache_warm_pause_for_playback_clears_progress_immediate
         "running warm task should stay tracked until its cancellation completion arrives"
     );
     assert!(
-        state.waveform.cache.active_folder_warm_folder_id.is_none(),
-        "playback pause should clear source-cache progress immediately"
+        state.waveform.cache.active_folder_warm_folder_id.is_some(),
+        "playback pause should retain the durable source-cache job"
     );
     assert!(
         state.waveform.cache.active_folder_warm_pending.is_empty(),
-        "playback pause should abandon deferred source-cache work immediately"
-    );
-
-    let before = state.capture_frame_surface_inputs();
-    state.advance_frame(&mut ui::UiUpdateContext::default());
-    assert!(
-        state.frame_can_use_paint_only_since(before),
-        "a cancelled running source-cache warm must not force playback surface frames"
+        "the running batch returns its deferred paths through cancellation completion"
     );
 
     state.apply_message(
@@ -1054,7 +1047,7 @@ fn running_active_folder_cache_warm_pause_for_playback_clears_progress_immediate
                 running_ticket,
                 source_root.path().display().to_string(),
                 Vec::new(),
-                vec![second],
+                vec![second.clone()],
                 1,
                 true,
                 true,
@@ -1067,8 +1060,20 @@ fn running_active_folder_cache_warm_pause_for_playback_clears_progress_immediate
         "cancelled warm completion should retire the tracked running task"
     );
     assert!(
-        state.waveform.cache.active_folder_warm_pending.is_empty(),
-        "cancelled warm completion should not repopulate abandoned playback-time work"
+        state
+            .waveform
+            .cache
+            .active_folder_warm_pending
+            .iter()
+            .any(|path| path == &second),
+        "cancelled warm completion should restore unfinished playback-time work"
+    );
+
+    state.waveform.current.stop_playback();
+    state.maybe_start_active_folder_cache_warm(&mut context);
+    assert!(
+        active_folder_cache_warm_ticket(&state).is_some(),
+        "the preserved backlog should resume once playback stops"
     );
 }
 

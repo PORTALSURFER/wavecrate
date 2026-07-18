@@ -110,10 +110,12 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 source_id TEXT NOT NULL,
                 scope_kind TEXT NOT NULL,
                 scope_id TEXT NOT NULL,
+                relative_path TEXT,
                 stage TEXT NOT NULL,
                 artifact_version TEXT NOT NULL CHECK(length(trim(artifact_version)) > 0),
                 source_generation INTEGER NOT NULL,
                 content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
+                artifact_ref TEXT,
                 completed_at INTEGER NOT NULL,
                 CHECK (
                     (stage = 'similarity_layout' AND scope_kind = 'source')
@@ -146,6 +148,19 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 [],
             )
             .map_err(map_sql_error)?;
+    }
+    let artifact_columns = table_columns(connection, "source_readiness_artifacts")?;
+    for (column, definition) in [("relative_path", "TEXT"), ("artifact_ref", "TEXT")] {
+        if !artifact_columns.contains(column) {
+            connection
+                .execute(
+                    &format!(
+                        "ALTER TABLE source_readiness_artifacts ADD COLUMN {column} {definition}"
+                    ),
+                    [],
+                )
+                .map_err(map_sql_error)?;
+        }
     }
     Ok(())
 }

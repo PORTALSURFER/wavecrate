@@ -251,6 +251,35 @@ pub fn complete_readiness_work(
     claim: &ClaimedReadinessWork,
     completed_at: i64,
 ) -> Result<ArtifactPublishOutcome, ReadinessError> {
+    complete_readiness_work_inner(connection, claim, completed_at, None)
+}
+
+/// Atomically publish a cache-backed artifact reference and mark its exact work row complete.
+///
+/// The reference is stored beside the source/path/content generations so later reconciliation can
+/// retire the exact app-global payload after edits, moves, deletion, or cache pruning.
+pub fn complete_readiness_work_with_artifact_ref(
+    connection: &mut Connection,
+    claim: &ClaimedReadinessWork,
+    completed_at: i64,
+    artifact_ref: &str,
+) -> Result<ArtifactPublishOutcome, ReadinessError> {
+    if artifact_ref.trim().is_empty() {
+        return Err(ReadinessError::InvalidArtifactReference {
+            source_id: claim.target.source_id.clone(),
+            scope_id: claim.target.scope_id.clone(),
+            stage: claim.target.stage,
+        });
+    }
+    complete_readiness_work_inner(connection, claim, completed_at, Some(artifact_ref))
+}
+
+fn complete_readiness_work_inner(
+    connection: &mut Connection,
+    claim: &ClaimedReadinessWork,
+    completed_at: i64,
+    artifact_ref: Option<&str>,
+) -> Result<ArtifactPublishOutcome, ReadinessError> {
     let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let changed = finish_claim_update(
         &tx,
@@ -268,22 +297,26 @@ pub fn complete_readiness_work(
     let artifact = ReadinessArtifact::for_target(&claim.target, completed_at);
     tx.execute(
         "INSERT INTO source_readiness_artifacts (
-            source_id, scope_kind, scope_id, stage, artifact_version,
-            source_generation, content_generation, completed_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            source_id, scope_kind, scope_id, relative_path, stage, artifact_version,
+            source_generation, content_generation, artifact_ref, completed_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
          ON CONFLICT(source_id, scope_kind, scope_id, stage) DO UPDATE SET
+            relative_path = excluded.relative_path,
             artifact_version = excluded.artifact_version,
             source_generation = excluded.source_generation,
             content_generation = excluded.content_generation,
+            artifact_ref = excluded.artifact_ref,
             completed_at = excluded.completed_at",
         params![
             artifact.source_id,
             artifact.scope_kind.as_str(),
             artifact.scope_id,
+            claim.target.relative_path,
             artifact.stage.as_str(),
             artifact.artifact_version,
             artifact.source_generation,
             artifact.content_generation,
+            artifact_ref,
             artifact.completed_at,
         ],
     )?;

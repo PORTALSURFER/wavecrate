@@ -43,6 +43,21 @@ pub(super) fn cache_path_for_identity(
     Ok(dir.join(format!("{:016x}.wfc", hasher.finish())))
 }
 
+pub(super) fn cache_path_for_current_file(path: &Path) -> Result<PathBuf, String> {
+    let identity = CacheIdentity::for_path(path)?;
+    cache_path_for_identity(path, &identity)
+}
+
+pub(super) fn cache_ref_is_managed(cache_ref: &Path) -> bool {
+    let Ok(cache_dir) = wavecrate::app_dirs::waveform_cache_dir() else {
+        return false;
+    };
+    cache_ref.parent() == Some(cache_dir.as_path())
+        && cache_ref
+            .extension()
+            .is_some_and(|extension| extension == "wfc")
+}
+
 pub(super) fn playback_ready_marker_path(cache_path: &Path) -> PathBuf {
     cache_path.with_extension("ready")
 }

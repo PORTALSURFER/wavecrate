@@ -204,6 +204,20 @@ pub(super) fn read_cached_waveform_file(
     outcome.into_hit()
 }
 
+pub(super) fn read_cached_waveform_file_at_ref(
+    source_path: &Path,
+    cache_ref: &Path,
+) -> Option<CachedWaveformFile> {
+    let outcome = read_cache_file(
+        source_path,
+        cache_ref.to_path_buf(),
+        "browser.sample_cache.owned_metadata_read",
+        "browser.sample_cache.owned_metadata_deserialize",
+    );
+    outcome.log_if_unusable(source_path, CACHE_FORMAT_VERSION);
+    outcome.into_hit()
+}
+
 pub(super) fn read_cached_waveform_file_outcome(
     path: &Path,
     identity: &CacheIdentity,

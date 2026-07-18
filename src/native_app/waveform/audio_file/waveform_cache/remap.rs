@@ -10,7 +10,6 @@ use super::{
         playback_ready_marker_path, playback_sidecar_path, playback_sidecar_valid,
         source_warm_marker_path,
     },
-    read::read_cached_waveform_file,
     write::{
         mark_source_warm_ready_for_cache_path, update_playback_ready_marker,
         write_playback_descriptor_sidecar,
@@ -43,6 +42,35 @@ pub(in crate::native_app) fn remap_persisted_waveform_cache_after_move(
     }
 }
 
+/// Remap an exact reverse-owned cache payload after a committed path-only move.
+///
+/// Unlike the legacy path-only entrypoint, this remains usable after the old source path has
+/// disappeared because the caller supplies the previously persisted cache reference.
+pub(in crate::native_app) fn remap_persisted_waveform_cache_ref_after_move(
+    old_cache_ref: &Path,
+    old_path: &Path,
+    new_path: &Path,
+) -> Option<PathBuf> {
+    if !super::identity::cache_ref_is_managed(old_cache_ref) || !new_path.is_file() {
+        return None;
+    }
+    match remap_file_from_cache_ref(old_cache_ref, old_path, new_path) {
+        Ok(cache_ref) => cache_ref,
+        Err(err) => {
+            tracing::debug!(
+                target: "wavecrate::debug::sample_cache",
+                event = "browser.sample_cache.owned_move_remap_failed",
+                old_cache_ref = %old_cache_ref.display(),
+                old_path = %old_path.display(),
+                new_path = %new_path.display(),
+                error = %err,
+                "Reverse-owned waveform cache could not be remapped after file move"
+            );
+            None
+        }
+    }
+}
+
 fn remap_directory(old_dir: &Path, new_dir: &Path) -> usize {
     let Ok(entries) = fs::read_dir(new_dir) else {
         return 0;
@@ -69,15 +97,29 @@ fn remap_file(old_path: &Path, new_path: &Path) -> Result<bool, String> {
     if !old_cache_path.is_file() {
         return Ok(false);
     }
-    let Some(cached) = read_cached_waveform_file(old_path, &identity) else {
-        return Ok(false);
+    remap_file_from_cache_ref(&old_cache_path, old_path, new_path)
+        .map(|cache_ref| cache_ref.is_some())
+}
+
+fn remap_file_from_cache_ref(
+    old_cache_path: &Path,
+    old_path: &Path,
+    new_path: &Path,
+) -> Result<Option<PathBuf>, String> {
+    if !old_cache_path.is_file() {
+        return Ok(None);
+    }
+    let identity = CacheIdentity::for_path(new_path)?;
+    let Some(cached) = super::read::read_cached_waveform_file_at_ref(old_path, old_cache_path)
+    else {
+        return Ok(None);
     };
     let new_cache_path = cache_path_for_identity(new_path, &identity)?;
     let Some(mut moved_cache) = cached
         .clone()
         .into_moved_path(old_path, new_path, &identity)
     else {
-        return Ok(false);
+        return Ok(None);
     };
 
     let sidecar_paths = valid_playback_sidecar_paths(&cached, &old_cache_path, &new_cache_path);
@@ -107,7 +149,7 @@ fn remap_file(old_path: &Path, new_path: &Path) -> Result<bool, String> {
         let _ = update_playback_ready_marker(&new_cache_path, false);
     }
     cleanup_old_cache_artifacts(&old_cache_path);
-    Ok(true)
+    Ok(Some(new_cache_path))
 }
 
 fn valid_playback_sidecar_paths(

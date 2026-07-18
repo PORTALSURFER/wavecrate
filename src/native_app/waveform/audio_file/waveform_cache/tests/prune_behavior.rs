@@ -9,10 +9,14 @@ fn waveform_cache_prune_removes_old_payloads_and_stale_temps() {
     let pinned_path = dir.path().join("pinned.wfc");
     let temp_path = dir.path().join("stale.tmp");
     let old_sidecar = playback_sidecar_path(&old_path);
+    let old_source_ready = source_warm_marker_path(&old_path);
+    let pinned_source_ready = source_warm_marker_path(&pinned_path);
     fs::write(&old_path, [0_u8; 4]).expect("write old cache");
     fs::write(&old_sidecar, [9_u8; 8]).expect("write old sidecar");
+    fs::write(&old_source_ready, []).expect("write old source-ready marker");
     fs::write(&newer_path, [1_u8; 4]).expect("write newer cache");
     fs::write(&pinned_path, [2_u8; 4]).expect("write pinned cache");
+    fs::write(&pinned_source_ready, []).expect("write pinned source-ready marker");
     fs::write(&temp_path, [3_u8; 4]).expect("write temp cache");
 
     set_file_modified_seconds(&old_path, 10);
@@ -23,9 +27,11 @@ fn waveform_cache_prune_removes_old_payloads_and_stale_temps() {
 
     assert!(!old_path.exists());
     assert!(!old_sidecar.exists());
+    assert!(!old_source_ready.exists());
     assert!(!temp_path.exists());
     assert!(newer_path.exists());
     assert!(pinned_path.exists());
+    assert!(pinned_source_ready.exists());
     assert_eq!(prune.stale_temp_removed, 1);
     assert_eq!(prune.cache_removed, 1);
     assert_eq!(prune.companion_remove_failed, 0);

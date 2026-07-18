@@ -69,6 +69,9 @@ impl NativeAppState {
         };
         self.waveform.cache.warm_key = None;
         self.waveform.cache.warm_cancel = None;
+        for path in result.deferred.iter().rev() {
+            self.waveform.cache.warm_pending.push_front(path.clone());
+        }
         self.apply_waveform_cache_warm_result(result);
         log_slow_cache_phase(
             "browser.sample_cache.warm_finish",

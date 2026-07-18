@@ -13,6 +13,7 @@ pub use persistence::{
 pub(crate) use reconcile::reconcile_readiness_with_hook;
 pub use reconcile::{reconcile_readiness, reconcile_readiness_with_cancel};
 pub use work::{
-    cancel_readiness_work, claim_readiness_target, complete_readiness_work, fail_readiness_work,
-    readiness_work_stats, release_readiness_work, renew_readiness_lease,
+    cancel_readiness_work, claim_readiness_target, complete_readiness_work,
+    complete_readiness_work_with_artifact_ref, fail_readiness_work, readiness_work_stats,
+    release_readiness_work, renew_readiness_lease,
 };

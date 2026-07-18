@@ -127,10 +127,12 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         source_id TEXT NOT NULL,
         scope_kind TEXT NOT NULL,
         scope_id TEXT NOT NULL,
+        relative_path TEXT,
         stage TEXT NOT NULL,
         artifact_version TEXT NOT NULL CHECK(length(trim(artifact_version)) > 0),
         source_generation INTEGER NOT NULL,
         content_generation TEXT NOT NULL CHECK(length(trim(content_generation)) > 0),
+        artifact_ref TEXT,
         completed_at INTEGER NOT NULL,
         CHECK (
             (stage = 'similarity_layout' AND scope_kind = 'source')
