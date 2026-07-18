@@ -1139,6 +1139,7 @@ struct RuntimeCandidate {
 #[derive(Clone, Copy, Debug, Default)]
 struct SourceDiscoveryStats {
     readiness_queue_depth: usize,
+    prerequisites_blocked: usize,
     retries_due: usize,
     earliest_retry_at: Option<i64>,
     progress_completed: usize,
@@ -1217,10 +1218,15 @@ fn run_coordinator(shared: Arc<Shared>) {
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
                     control.processing_paused(),
                 );
-                if progress_visible && !wait_duration.is_zero() {
+                if progress_visible
+                    && !wait_duration.is_zero()
+                    && !source_stats
+                        .values()
+                        .any(|stats| stats.prerequisites_blocked > 0)
+                {
                     // Keep feedback stable across immediate coordinator handoffs. Only clear it
                     // when the coordinator is genuinely about to sleep with no newly published
-                    // work waiting to be handled.
+                    // work or prerequisite retry waiting to be handled.
                     publish_source_processing_finished(&shared);
                     progress_visible = false;
                     active_progress_source = None;
@@ -1632,6 +1638,17 @@ fn run_coordinator(shared: Arc<Shared>) {
         {
             last_similarity_refresh_publish_at = Some(Instant::now());
         }
+        if candidates.is_empty()
+            && publish_source_processing_prerequisite_wait(
+                &shared,
+                &source_lifecycle_generations,
+                &source_stats,
+            )
+        {
+            progress_visible = true;
+            active_progress_source = None;
+            last_progress_publish_at = Some(Instant::now());
+        }
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
         telemetry.oldest_job_age_seconds = oldest_job_age_seconds(&candidates, now_epoch_seconds());
@@ -1926,6 +1943,63 @@ fn publish_source_processing_finished(shared: &Shared) {
     ));
 }
 
+fn publish_source_processing_prerequisite_wait(
+    shared: &Shared,
+    lifecycle_generations: &BTreeMap<String, u64>,
+    source_stats: &BTreeMap<String, SourceDiscoveryStats>,
+) -> bool {
+    let Some((source_id, stats)) = source_stats
+        .iter()
+        .filter(|(_, stats)| stats.prerequisites_blocked > 0)
+        .min_by_key(|(_, stats)| stats.earliest_retry_at.unwrap_or(i64::MAX))
+    else {
+        return false;
+    };
+    let Some(lifecycle_generation) = lifecycle_generations.get(source_id).copied() else {
+        return false;
+    };
+    let control = shared.control();
+    if control.processing_paused()
+        || !control.source_is_active(source_id)
+        || control.source_lifecycle_generations.get(source_id) != Some(&lifecycle_generation)
+    {
+        return false;
+    }
+    drop(control);
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return false;
+    };
+    let (stage, detail) = match stats.earliest_retry_at {
+        Some(retry_at) => {
+            let retry_in = retry_at.saturating_sub(now_epoch_seconds());
+            (
+                String::from("Waiting for prerequisites"),
+                if retry_in <= 1 {
+                    String::from("Prerequisite retry is due")
+                } else {
+                    format!("Retrying prerequisites in {retry_in}s")
+                },
+            )
+        }
+        None => (
+            String::from("Blocked by prerequisites"),
+            String::from("Similarity finalization is waiting for durable prerequisites"),
+        ),
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation,
+            active: true,
+            completed: stats.progress_completed,
+            total: stats.progress_total,
+            stage,
+            detail,
+        },
+    ));
+    true
+}
+
 fn publish_source_processing_pausing(shared: &Shared, detail: &str) {
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
         return;
@@ -2217,6 +2291,10 @@ fn discover_source_candidates_with_connection(
             .filter(|deficit| snapshot.prerequisites_are_current(&deficit.target))
             .collect::<Vec<_>>();
         stats.readiness_queue_depth = schedulable_deficits.len();
+        stats.prerequisites_blocked = snapshot
+            .deficits
+            .len()
+            .saturating_sub(schedulable_deficits.len());
         candidates.extend(schedulable_deficits.iter().map(|deficit| RuntimeCandidate {
             schedule: WorkCandidate::readiness(&deficit.target, deficit.enqueued_at.unwrap_or(now)),
             source: source.clone(),
@@ -2240,10 +2318,7 @@ fn discover_source_candidates_with_connection(
             retries_due = work_stats.retries_due,
             retries_waiting = work_stats.retries_waiting,
             expired_leases = work_stats.expired_leases,
-            prerequisites_blocked = snapshot
-                .deficits
-                .len()
-                .saturating_sub(schedulable_deficits.len()),
+            prerequisites_blocked = stats.prerequisites_blocked,
             "Readiness work reconciled"
         );
     }
@@ -4146,6 +4221,9 @@ fn aggregate_source_stats(
             aggregate.readiness_queue_depth = aggregate
                 .readiness_queue_depth
                 .saturating_add(source.readiness_queue_depth);
+            aggregate.prerequisites_blocked = aggregate
+                .prerequisites_blocked
+                .saturating_add(source.prerequisites_blocked);
             aggregate.retries_due = aggregate.retries_due.saturating_add(source.retries_due);
             aggregate.earliest_retry_at =
                 earliest_deadline(aggregate.earliest_retry_at, source.earliest_retry_at);
@@ -5680,6 +5758,50 @@ mod tests {
         assert_eq!(progress.total, 9_985);
         assert_eq!(progress.stage, "Preparing similarity");
         assert_eq!(progress.detail, "drums/kick.wav");
+    }
+
+    #[test]
+    fn prerequisite_wait_feedback_preserves_determinate_progress_without_claiming_activity() {
+        let directory = tempfile::tempdir().expect("waiting source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("waiting-source"),
+            directory.path().to_path_buf(),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Shared::new(vec![source.clone()], Some(sender));
+        let lifecycle_generation = shared.control().source_lifecycle_generations["waiting-source"];
+        let lifecycle_generations =
+            BTreeMap::from([(String::from("waiting-source"), lifecycle_generation)]);
+        let source_stats = BTreeMap::from([(
+            String::from("waiting-source"),
+            SourceDiscoveryStats {
+                prerequisites_blocked: 1,
+                earliest_retry_at: Some(now_epoch_seconds().saturating_add(60)),
+                progress_completed: 72,
+                progress_total: 77,
+                ..SourceDiscoveryStats::default()
+            },
+        )]);
+
+        assert!(publish_source_processing_prerequisite_wait(
+            &shared,
+            &lifecycle_generations,
+            &source_stats,
+        ));
+
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("prerequisite wait message")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert!(progress.active);
+        assert_eq!(progress.source_id, "waiting-source");
+        assert_eq!(progress.lifecycle_generation, lifecycle_generation);
+        assert_eq!(progress.completed, 72);
+        assert_eq!(progress.total, 77);
+        assert_eq!(progress.stage, "Waiting for prerequisites");
+        assert!(progress.detail.starts_with("Retrying prerequisites in "));
     }
 
     #[test]
