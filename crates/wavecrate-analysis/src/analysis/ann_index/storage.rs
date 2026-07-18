@@ -97,6 +97,17 @@ pub(crate) fn default_index_path(conn: &Connection) -> Result<PathBuf, String> {
     Ok(root.join(ANN_CONTAINER_NAME))
 }
 
+/// Whether metadata names an exact generation container rather than the legacy default.
+pub(crate) fn is_generation_index_path(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name != ANN_CONTAINER_NAME
+                && name.starts_with("similarity_hnsw.")
+                && name.ends_with(".ann")
+        })
+}
+
 /// Best-effort removal for an obsolete generation container in the same source database.
 pub(crate) fn remove_superseded_generation(previous: &Path, current: &Path) {
     if previous == current || previous.parent() != current.parent() {

@@ -30,6 +30,52 @@ fn ann_index_container_round_trip_loads() {
 }
 
 #[test]
+fn generation_metadata_path_wins_over_a_stale_default_container() {
+    with_ann_test_db(|conn| {
+        let dim = similarity::SIMILARITY_DIM;
+        let params = crate::analysis::ann_index::state::default_params();
+        let default_path = ann_storage::default_index_path(conn).expect("default ANN path");
+        let mut stale = ann_build::build_index_from_embeddings(
+            &[("stale".to_string(), normalize(unit_vec(dim, 0)))],
+            params.clone(),
+            default_path,
+        )
+        .expect("build stale default ANN");
+        ann_update::flush_index(conn, &mut stale).expect("publish stale default ANN");
+
+        let generation_path = stale
+            .index_path
+            .parent()
+            .expect("ANN parent")
+            .join("similarity_hnsw.generation-new.ann");
+        let mut current = ann_build::build_index_from_embeddings(
+            &[("current".to_string(), normalize(unit_vec(dim, 1)))],
+            params.clone(),
+            generation_path.clone(),
+        )
+        .expect("build current generation ANN");
+        ann_update::flush_index(conn, &mut current).expect("publish current generation ANN");
+
+        let meta = ann_storage::read_meta(conn, &params.model_id)
+            .expect("read ANN metadata")
+            .expect("current ANN metadata");
+        assert_eq!(meta.index_path, generation_path);
+        let outcome = ann_build::load_index_from_disk(conn, &meta)
+            .expect("load current ANN generation")
+            .expect("current ANN generation available");
+        assert_eq!(outcome.state.id_map, vec!["current"]);
+
+        std::fs::remove_file(&meta.index_path).expect("remove current generation fixture");
+        assert!(
+            ann_build::load_index_from_disk(conn, &meta)
+                .expect("reject stale fallback")
+                .is_none(),
+            "a missing exact generation must rebuild from committed embeddings, not load a stale default"
+        );
+    });
+}
+
+#[test]
 fn ann_index_legacy_migrates_to_container() {
     with_ann_test_db(|conn| {
         let dim = similarity::SIMILARITY_DIM;

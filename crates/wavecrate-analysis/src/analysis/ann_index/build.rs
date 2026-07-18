@@ -4,8 +4,8 @@ use super::state::{
     default_params,
 };
 use super::storage::{
-    default_index_path, hnsw_dump_paths, legacy_id_map_path_for, load_legacy_id_map, read_meta,
-    remove_superseded_generation,
+    default_index_path, hnsw_dump_paths, is_generation_index_path, legacy_id_map_path_for,
+    load_legacy_id_map, read_meta, remove_superseded_generation,
 };
 use crate::analysis::decode_f32_le_blob;
 use hnsw_rs::prelude::*;
@@ -89,11 +89,14 @@ pub(crate) fn load_index_from_disk(
     conn: &Connection,
     meta: &AnnIndexMetaRow,
 ) -> Result<Option<LoadOutcome>, String> {
-    let container_path = default_index_path(conn)?;
-    if let Some(outcome) = load_container_outcome(meta, &container_path)? {
+    let default_container_path = default_index_path(conn)?;
+    if let Some(outcome) = load_container_outcome(meta, &default_container_path)? {
         return Ok(Some(outcome));
     }
-    load_legacy_outcome(conn, meta, &container_path)
+    if is_generation_index_path(&meta.index_path) {
+        return Ok(None);
+    }
+    load_legacy_outcome(conn, meta, &default_container_path)
 }
 
 fn count_embeddings(conn: &Connection, model_id: &str) -> Result<i64, String> {
@@ -257,6 +260,7 @@ fn load_container_outcome(
         )));
     }
     if meta.index_path != *container_path
+        && !is_generation_index_path(&meta.index_path)
         && let Some(state) = load_container_index(container_path, &meta.params)?
     {
         return Ok(Some(LoadOutcome::new(state, false, true)));
