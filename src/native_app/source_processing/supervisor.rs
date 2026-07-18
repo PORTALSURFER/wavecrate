@@ -21,10 +21,11 @@ use wavecrate::sample_sources::{
     readiness::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessClassification,
         ReadinessEligibility, ReadinessFailureClassification, ReadinessFailureOutcome,
-        ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessSnapshot, ReadinessStage,
-        ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability, cancel_readiness_work,
-        claim_readiness_target, complete_readiness_work, complete_readiness_work_with_artifact_ref,
-        fail_readiness_work, invalidate_readiness_artifact, persist_readiness_deficits_with_cancel,
+        ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
+        ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability,
+        cancel_readiness_work, claim_readiness_target, complete_readiness_work,
+        complete_readiness_work_with_artifact_ref, fail_readiness_work,
+        invalidate_readiness_artifact, persist_readiness_deficits_with_cancel,
         readiness_work_stats, reconcile_readiness_with_cancel, release_readiness_work,
         renew_readiness_lease, replace_readiness_targets_with_cancel,
     },
@@ -2088,6 +2089,7 @@ fn similarity_prerequisite_blocker_stats(snapshot: &ReadinessSnapshot) -> (usize
     for entry in snapshot.entries.iter().filter(|entry| {
         entry.target.source_id == layout.target.source_id
             && entry.target.source_generation == layout.target.source_generation
+            && entry.target.scope_kind == ReadinessScopeKind::File
             && entry.target.eligibility == ReadinessEligibility::Eligible
             && matches!(
                 entry.target.stage,
@@ -5863,7 +5865,7 @@ mod tests {
     }
 
     #[test]
-    fn similarity_blocker_state_ignores_unrelated_retry_deadlines() {
+    fn similarity_blocker_state_ignores_unrelated_retries_and_non_file_targets() {
         let source_id = "dependency-specific-retry";
         let layout = ReadinessTarget::source(
             source_id,
@@ -5890,7 +5892,7 @@ mod tests {
             availability: SourceAvailability::Active,
             entries: vec![
                 wavecrate::sample_sources::readiness::ReadinessEntry {
-                    target: layout,
+                    target: layout.clone(),
                     classification: ReadinessClassification::Pending,
                 },
                 wavecrate::sample_sources::readiness::ReadinessEntry {
@@ -5914,6 +5916,16 @@ mod tests {
                         reason: String::from("unrelated playback retry"),
                     },
                 },
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: ReadinessTarget::source(
+                        source_id,
+                        ReadinessStage::AnalysisFeatures,
+                        "malformed-source-analysis-v1",
+                        1,
+                        "malformed-source-analysis-generation",
+                    ),
+                    classification: ReadinessClassification::Pending,
+                },
             ],
             deficits: Vec::new(),
             stage_counts: BTreeMap::new(),
@@ -5935,6 +5947,15 @@ mod tests {
             similarity_prerequisite_blocker_stats(&snapshot),
             (1, Some(300))
         );
+
+        snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.target.stage == ReadinessStage::EmbeddingAspects)
+            .expect("embedding blocker")
+            .classification = ReadinessClassification::Current;
+        assert!(snapshot.prerequisites_are_current(&layout));
+        assert_eq!(similarity_prerequisite_blocker_stats(&snapshot), (0, None));
     }
 
     #[test]

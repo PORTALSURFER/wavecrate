@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use super::model::{ReadinessEligibility, ReadinessStage, ReadinessTarget, SourceAvailability};
+use super::model::{
+    ReadinessEligibility, ReadinessScopeKind, ReadinessStage, ReadinessTarget, SourceAvailability,
+};
 
 /// Authoritative classification for one target at one reconciliation instant.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,6 +155,7 @@ impl ReadinessSnapshot {
                 .filter(|entry| {
                     entry.target.source_id == target.source_id
                         && entry.target.source_generation == target.source_generation
+                        && entry.target.scope_kind == ReadinessScopeKind::File
                         && matches!(
                             entry.target.stage,
                             ReadinessStage::IndexedIdentity
