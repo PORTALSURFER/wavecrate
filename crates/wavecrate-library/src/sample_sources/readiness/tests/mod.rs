@@ -37,7 +37,6 @@ fn complete_targets(generation: i64, targets: &[ReadinessTarget]) -> Vec<Readine
     for seed in file_targets {
         for stage in [
             ReadinessStage::IndexedIdentity,
-            ReadinessStage::PlaybackSummary,
             ReadinessStage::AnalysisFeatures,
             ReadinessStage::EmbeddingAspects,
         ] {

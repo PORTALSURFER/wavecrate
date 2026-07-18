@@ -7,7 +7,6 @@ pub(super) struct RuntimeObservation {
     pub(super) source_active: bool,
     pub(super) source_dirty: bool,
     pub(super) source_quarantined: bool,
-    pub(super) processing_paused: bool,
     pub(super) wake_generation: u64,
     pub(super) settled_wake_generation: u64,
     pub(super) wake_reason: &'static str,
@@ -17,6 +16,7 @@ pub(super) struct RuntimeObservation {
     pub(super) queue_depth: usize,
     pub(super) readiness_queue_depth: usize,
     pub(super) retries_due: usize,
+    pub(super) retry_at: Option<i64>,
     pub(super) sweeps: u64,
     pub(super) claimed: u64,
     pub(super) completed: u64,
@@ -80,7 +80,7 @@ pub(super) fn silently_idle(snapshot: &ReadinessSnapshot, runtime: &RuntimeObser
         || runtime.readiness_queue_depth > 0
         || runtime.in_flight > 0
         || runtime.active_budget
-        || runtime.processing_paused
+        || runtime.retry_at.is_some_and(|retry_at| retry_at > now)
         || waiting_for_retry
         || waiting_for_prerequisite;
     !runtime.coordinator_running || !runtime.source_active || !observable_work
@@ -96,7 +96,6 @@ pub(super) fn runtime_observation(
     let source_active = control.source_is_active(source_id);
     let source_dirty = control.dirty_sources.contains(source_id);
     let source_quarantined = control.quarantined_sources.contains(source_id);
-    let processing_paused = control.processing_paused();
     let wake_generation = control.wake_generation;
     let wake_reason = control.wake_reason;
     drop(control);
@@ -126,16 +125,28 @@ pub(super) fn runtime_observation(
         source_active,
         source_dirty,
         source_quarantined,
-        processing_paused,
         wake_generation,
         settled_wake_generation: telemetry.settled_wake_generation,
         wake_reason,
         lifecycle_generation,
         in_flight,
         active_budget,
-        queue_depth: telemetry.queue_depth,
-        readiness_queue_depth: telemetry.readiness_queue_depth,
-        retries_due: telemetry.retries_due,
+        queue_depth: telemetry
+            .queue_depth_by_source
+            .get(source_id)
+            .copied()
+            .unwrap_or_default(),
+        readiness_queue_depth: telemetry
+            .readiness_queue_depth_by_source
+            .get(source_id)
+            .copied()
+            .unwrap_or_default(),
+        retries_due: telemetry
+            .retries_due_by_source
+            .get(source_id)
+            .copied()
+            .unwrap_or_default(),
+        retry_at: telemetry.retry_at_by_source.get(source_id).copied(),
         sweeps: telemetry.sweeps,
         claimed: telemetry.claimed,
         completed: telemetry.completed,

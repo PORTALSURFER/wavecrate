@@ -1,4 +1,6 @@
-use super::super::{format::CachedPlaybackCacheFile, prune::PruneWaveformCacheOutcome};
+#[cfg(test)]
+use super::super::format::CachedPlaybackCacheFile;
+use super::super::prune::PruneWaveformCacheOutcome;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::native_app::waveform::audio_file::waveform_cache) enum StoreWriteOutcome {
@@ -37,22 +39,29 @@ pub(in crate::native_app::waveform::audio_file::waveform_cache) enum FileCleanup
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(in crate::native_app::waveform::audio_file::waveform_cache) enum PlaybackSidecarOutcome {
+    #[cfg(test)]
     Stored(CachedPlaybackCacheFile),
-    ReusedExisting(CachedPlaybackCacheFile),
+    #[cfg(test)]
     TooLarge,
+    #[cfg(test)]
     SampleBytesOverflow,
+    #[cfg(test)]
     CreateTempFailed,
+    #[cfg(test)]
     WriteTempFailed,
+    #[cfg(test)]
     FlushTempFailed,
+    #[cfg(test)]
     RenameFailed,
     #[default]
     NoPlaybackPayload,
 }
 
 impl PlaybackSidecarOutcome {
+    #[cfg(test)]
     pub(super) fn cache_file(&self) -> Option<CachedPlaybackCacheFile> {
         match self {
-            Self::Stored(cache_file) | Self::ReusedExisting(cache_file) => Some(cache_file.clone()),
+            Self::Stored(cache_file) => Some(cache_file.clone()),
             Self::TooLarge
             | Self::SampleBytesOverflow
             | Self::CreateTempFailed
@@ -92,14 +101,7 @@ impl StoreWriteReport {
     pub(in crate::native_app::waveform::audio_file::waveform_cache) fn has_failures(&self) -> bool {
         self.initial_marker == MarkerUpdateOutcome::WriteFailed
             || self.initial_marker == MarkerUpdateOutcome::RemoveFailed
-            || matches!(
-                self.sidecar,
-                PlaybackSidecarOutcome::CreateTempFailed
-                    | PlaybackSidecarOutcome::WriteTempFailed
-                    | PlaybackSidecarOutcome::FlushTempFailed
-                    | PlaybackSidecarOutcome::RenameFailed
-                    | PlaybackSidecarOutcome::SampleBytesOverflow
-            )
+            || playback_sidecar_has_failures(&self.sidecar)
             || self.stale_sidecar_cleanup == Some(FileCleanupOutcome::Failed)
             || matches!(
                 self.ready_marker,
@@ -107,6 +109,23 @@ impl StoreWriteReport {
             )
             || self.prune.is_some_and(|prune| prune.has_failures())
     }
+}
+
+#[cfg(not(test))]
+fn playback_sidecar_has_failures(_outcome: &PlaybackSidecarOutcome) -> bool {
+    false
+}
+
+#[cfg(test)]
+fn playback_sidecar_has_failures(outcome: &PlaybackSidecarOutcome) -> bool {
+    matches!(
+        outcome,
+        PlaybackSidecarOutcome::CreateTempFailed
+            | PlaybackSidecarOutcome::WriteTempFailed
+            | PlaybackSidecarOutcome::FlushTempFailed
+            | PlaybackSidecarOutcome::RenameFailed
+            | PlaybackSidecarOutcome::SampleBytesOverflow
+    )
 }
 
 impl PruneWaveformCacheOutcome {

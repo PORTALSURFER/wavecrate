@@ -39,7 +39,7 @@ fn waveform_cache_prune_removes_old_payloads_and_stale_temps() {
 }
 
 #[test]
-fn waveform_cache_ready_marker_requires_valid_sidecar() {
+fn waveform_cache_store_persists_summary_without_decoded_playback_sidecar() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("missing-sidecar.wav");
@@ -57,8 +57,15 @@ fn waveform_cache_ready_marker_requires_valid_sidecar() {
     store_cached_waveform_file(&file);
     let identity = CacheIdentity::for_path(&path).expect("identity");
     let cache_path = cache_path_for_identity(&path, &identity).expect("cache path");
-    fs::remove_file(playback_sidecar_path(&cache_path)).expect("remove sidecar");
 
+    assert!(
+        cache_path.is_file(),
+        "compact waveform summary should persist"
+    );
+    assert!(
+        !playback_sidecar_path(&cache_path).exists(),
+        "decoded PCM must not be persisted"
+    );
     assert!(!cached_waveform_file_playback_ready_exists(&path));
     assert!(load_cached_waveform_file_for_playback(path).is_none());
 }

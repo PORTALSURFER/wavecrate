@@ -34,30 +34,36 @@ impl NativeAppState {
             .configured_sample_sources()
             .into_iter()
             .find(|source| source.id.as_str() == request.source_id);
-        let admission_generation = source
-            .ok_or_else(|| "Source is not present in the configured source set".to_string())
-            .and_then(|source| {
-                self.background
-                    .source_processing
-                    .register_source_for_scan(source)
-            });
-        let expected_lifecycle_generation = match admission_generation {
-            Ok(generation) => {
-                self.background
-                    .source_lifecycle_generations
-                    .insert(request.source_id.clone(), generation);
-                Some(generation)
+        let admission_generation = source.as_ref().and_then(|source| {
+            match self
+                .background
+                .source_processing
+                .register_source_for_scan(source.clone())
+            {
+                Ok(generation) => Some(generation),
+                Err(error) => {
+                    tracing::info!(
+                        target: "wavecrate::source_processing",
+                        source_id = request.source_id.as_str(),
+                        error,
+                        "Folder scan admission will wait on the background worker"
+                    );
+                    None
+                }
             }
-            Err(error) => {
-                tracing::error!(
-                    target: "wavecrate::source_processing",
-                    source_id = request.source_id.as_str(),
-                    error,
-                    "Folder scan will be cancelled because source admission could not be synchronized"
-                );
-                None
-            }
-        };
+        });
+        if let Some(generation) = admission_generation {
+            self.background
+                .source_lifecycle_generations
+                .insert(request.source_id.clone(), generation);
+        }
+        if source.is_none() {
+            tracing::error!(
+                target: "wavecrate::source_processing",
+                source_id = request.source_id.as_str(),
+                "Folder scan will be cancelled because the source is not configured"
+            );
+        }
         self.library.start_folder_scan(&request);
         self.ui.status.sample = format!("Queued source scan for {}", request.label);
         tracing::info!(
@@ -80,14 +86,34 @@ impl NativeAppState {
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
             move |_context, events| {
-                let Some(permit) = expected_lifecycle_generation.and_then(|generation| {
-                    budget.acquire_scan_for_generation(&source_id, generation)
-                }) else {
+                let Some(source) = source else {
+                    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                    return run_folder_scan_worker(request, events, cancel);
+                };
+                let generation = match match admission_generation {
+                    Some(generation) => Ok(generation),
+                    None => budget.register_source_for_scan_waiting(source),
+                } {
+                    Ok(generation) => generation,
+                    Err(error) => {
+                        tracing::error!(
+                            target: "wavecrate::source_processing",
+                            source_id,
+                            error,
+                            "Folder scan was cancelled because source admission failed"
+                        );
+                        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                        return run_folder_scan_worker(request, events, cancel);
+                    }
+                };
+                let Some(permit) = budget.acquire_scan_for_generation(&source_id, generation)
+                else {
                     let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
                     return run_folder_scan_worker(request, events, cancel);
                 };
                 let cancel = permit.cancel_token();
-                let result = run_folder_scan_worker(request, events, cancel);
+                let mut result = run_folder_scan_worker(request, events, cancel);
+                result.lifecycle_generation = Some(generation);
                 drop(permit);
                 result
             },
@@ -103,6 +129,20 @@ impl NativeAppState {
     ) {
         let prepared = prepared.into();
         let started_at = Instant::now();
+        if let Some(generation) = prepared.lifecycle_generation {
+            let source_id = prepared.scan.source_id.clone();
+            if self
+                .background
+                .source_processing
+                .lifecycle_generations()
+                .get(&source_id)
+                == Some(&generation)
+            {
+                self.background
+                    .source_lifecycle_generations
+                    .insert(source_id, generation);
+            }
+        }
         let scan_cache_update = prepared.scan_cache_update;
         match self.library.finish_folder_scan(prepared.scan) {
             SourceScanFinish::Applied {
@@ -234,6 +274,9 @@ impl NativeAppState {
     ) {
         self.ui.chrome.job_details_open = false;
         self.background.progress_tick = 0.0;
+        self.background
+            .source_processing
+            .finish_foreground_source_refresh(&scan.source_id, "source_scan_finished");
         if !scan.source_root_available {
             self.ui.status.sample = format!("Source missing: {}", scan.label);
             emit_gui_action(

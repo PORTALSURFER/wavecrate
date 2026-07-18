@@ -36,6 +36,10 @@ impl SourcePrepTrigger {
             Self::UserRequested | Self::SourceScanFinished | Self::FilesystemChanged
         )
     }
+
+    fn invalidates_running_source_work(self) -> bool {
+        matches!(self, Self::FilesystemChanged)
+    }
 }
 
 impl NativeAppState {
@@ -56,9 +60,15 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
-        self.background
-            .source_processing
-            .wake_source(&source_id, trigger.action_label());
+        if trigger.invalidates_running_source_work() {
+            self.background
+                .source_processing
+                .wake_source(&source_id, trigger.action_label());
+        } else {
+            self.background
+                .source_processing
+                .request_source_processing(&source_id, trigger.action_label());
+        }
         if selected_source {
             self.background
                 .source_processing

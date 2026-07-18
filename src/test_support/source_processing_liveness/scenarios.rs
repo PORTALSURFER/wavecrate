@@ -24,7 +24,6 @@ fn liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work()
         source_active: true,
         source_dirty: false,
         source_quarantined: false,
-        processing_paused: false,
         wake_generation: 1,
         settled_wake_generation: 1,
         wake_reason: "test",
@@ -34,6 +33,7 @@ fn liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work()
         queue_depth: 0,
         readiness_queue_depth: 0,
         retries_due: 0,
+        retry_at: None,
         sweeps: 1,
         claimed: 0,
         completed: 0,
@@ -51,6 +51,61 @@ fn liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work()
         ..runtime
     };
     assert!(!silently_idle(&snapshot, &scheduled));
+}
+
+#[test]
+fn unrelated_source_queue_does_not_mask_silent_idle_source() {
+    let first_directory = tempfile::tempdir().expect("first liveness source");
+    write_test_wav(&first_directory.path().join("pending.wav"), 0.25);
+    let first = SampleSource::new_with_id(
+        SourceId::from_string("liveness-source-a"),
+        first_directory.path().to_path_buf(),
+    );
+    let database = first.open_db().expect("open first source");
+    audit_source_and_record(&database, None, usize::MAX, now_epoch_seconds())
+        .expect("seed first manifest");
+    let mut connection = open_connection(&first).expect("open first connection");
+    publish_current_readiness_targets(&mut connection, first.id.as_str(), now_epoch_seconds())
+        .expect("publish first targets");
+    let snapshot = reconcile_readiness(&connection, first.id.as_str(), now_epoch_seconds())
+        .expect("reconcile first source");
+    assert!(!snapshot.deficits.is_empty());
+
+    let second_directory = tempfile::tempdir().expect("second liveness source");
+    let second = SampleSource::new_with_id(
+        SourceId::from_string("liveness-source-b"),
+        second_directory.path().to_path_buf(),
+    );
+    second.open_db().expect("open second source");
+    let mut supervisor = SourceProcessingSupervisor::start_with_playback_state(
+        vec![first.clone(), second.clone()],
+        true,
+    );
+    {
+        let mut telemetry = supervisor.shared.telemetry();
+        telemetry.queue_depth = 9;
+        telemetry.readiness_queue_depth = 9;
+        telemetry
+            .queue_depth_by_source
+            .insert(second.id.as_str().to_string(), 9);
+        telemetry
+            .readiness_queue_depth_by_source
+            .insert(second.id.as_str().to_string(), 9);
+    }
+
+    let observed = runtime_observation(&supervisor, first.id.as_str());
+    assert_eq!(observed.queue_depth, 0);
+    assert_eq!(observed.readiness_queue_depth, 0);
+    let unpaused = RuntimeObservation {
+        source_dirty: false,
+        settled_wake_generation: observed.wake_generation,
+        ..observed
+    };
+    assert!(
+        silently_idle(&snapshot, &unpaused),
+        "source B work must not make source A look observably scheduled"
+    );
+    assert_eq!(supervisor.shutdown()["joined"], true);
 }
 
 #[test]
@@ -116,12 +171,8 @@ fn source_processing_liveness_harness_converges_restart_churn_and_root_recovery(
         FileMutationOperation::Duplicate,
         vec![FileMutationChange::created(playback_churn)],
     );
-    let paused_snapshot = readiness_snapshot(&harness.source).expect("paused readiness snapshot");
-    let paused_runtime = runtime_observation(&harness.supervisor, harness.source.id.as_str());
-    assert!(paused_runtime.processing_paused);
-    assert!(!silently_idle(&paused_snapshot, &paused_runtime));
-    harness.supervisor.set_playback_active(false);
     harness.await_fully_ready();
+    harness.supervisor.set_playback_active(false);
 
     let report_before_restart = harness.shutdown();
     assert_eq!(report_before_restart["joined"], true);
@@ -143,25 +194,24 @@ fn source_processing_liveness_harness_converges_restart_churn_and_root_recovery(
     database
         .set_metadata(META_LAST_MANIFEST_AUDIT_AT, "0")
         .expect("make closed-app audit due");
-    harness.supervisor = SourceProcessingSupervisor::start(vec![harness.source.clone()]);
+    harness.restart_runtime();
     harness.watcher_stimulus = WatcherStimulus::ClosedAppAudit;
     harness.await_fully_ready();
 
     let offline_root = harness.source_parent.path().join("source-offline");
     fs::rename(&harness.source.root, &offline_root).expect("remove source root");
-    harness.watcher_stimulus = WatcherStimulus::RootUnavailable;
-    harness
-        .supervisor
-        .wake_source(harness.source.id.as_str(), "liveness_root_unavailable");
+    harness.force_root_refresh(WatcherStimulus::RootUnavailable);
     harness.await_availability(SourceAvailability::Offline);
 
     fs::rename(&offline_root, &harness.source.root).expect("restore source root");
-    harness.watcher_stimulus = WatcherStimulus::RootAvailable;
-    harness
-        .supervisor
-        .wake_source(harness.source.id.as_str(), "liveness_root_available");
+    harness.force_root_refresh(WatcherStimulus::RootAvailable);
     harness.await_fully_ready();
 
+    harness
+        .watcher
+        .as_ref()
+        .expect("active watcher")
+        .replace_sources(Vec::new());
     harness
         .supervisor
         .replace_sources(Vec::new())
@@ -170,7 +220,12 @@ fn source_processing_liveness_harness_converges_restart_churn_and_root_recovery(
         .supervisor
         .replace_sources(vec![harness.source.clone()])
         .expect("re-add retained source");
-    harness.watcher_stimulus = WatcherStimulus::WatcherRestart;
+    harness
+        .watcher
+        .as_ref()
+        .expect("active watcher")
+        .replace_sources(vec![harness.source.clone()]);
+    harness.force_watcher_restart();
     harness.await_fully_ready();
 
     let report = harness.shutdown();
@@ -185,7 +240,9 @@ fn source_processing_liveness_harness_converges_restart_churn_and_root_recovery(
 fn profile_source_processing_churn_under_playback_and_browser_priority() {
     const FILE_COUNT: usize = 10_000;
     const DISCOVERY_BUDGET: Duration = Duration::from_secs(180);
+    const DRAIN_BUDGET: Duration = Duration::from_secs(900);
     const MIN_MATERIALIZATION_THROUGHPUT: f64 = 200.0;
+    const MIN_DRAIN_THROUGHPUT: f64 = 40.0;
     const PRIORITY_P99_BUDGET: Duration = Duration::from_millis(10);
     const MEMORY_GROWTH_BUDGET_BYTES: u64 = 512 * 1024 * 1024;
     const CPU_CORE_EQUIVALENT_BUDGET: f64 = 2.0;
@@ -202,8 +259,10 @@ fn profile_source_processing_churn_under_playback_and_browser_priority() {
     drop(connection);
 
     let resources_before = process_resource_snapshot();
+    let expected_claims = (FILE_COUNT * 3 + 1) as u64;
+    let discovery_started = Instant::now();
     let mut supervisor =
-        SourceProcessingSupervisor::start_with_playback_state(vec![source.clone()], true);
+        SourceProcessingSupervisor::start_synthetic_profile(vec![source.clone()], true);
     let mut priority_samples = Vec::with_capacity(256);
     for index in 0..256 {
         let started = Instant::now();
@@ -220,22 +279,87 @@ fn profile_source_processing_churn_under_playback_and_browser_priority() {
     let priority_p99 = priority_samples[priority_samples.len() * 99 / 100];
     assert!(priority_p99 <= PRIORITY_P99_BUDGET);
 
-    let started = Instant::now();
-    let cancel = AtomicBool::new(false);
-    let Cancellable::Completed((candidates, stats)) =
-        discover_source_candidates(&source, now_epoch_seconds(), false, &cancel)
-            .expect("discover large liveness source")
-    else {
-        panic!("large liveness discovery unexpectedly cancelled");
-    };
-    let discovery_elapsed = started.elapsed();
+    loop {
+        if supervisor.shared.telemetry().claimed > 0 {
+            break;
+        }
+        assert!(
+            discovery_started.elapsed() <= DISCOVERY_BUDGET,
+            "10k supervisor profile did not discover and claim its first target before budget"
+        );
+        thread::sleep(Duration::from_millis(20));
+    }
+    let discovery_elapsed = discovery_started.elapsed();
     let materialization_throughput =
-        candidates.len() as f64 / discovery_elapsed.as_secs_f64().max(f64::EPSILON);
-    assert!(discovery_elapsed <= DISCOVERY_BUDGET);
+        expected_claims as f64 / discovery_elapsed.as_secs_f64().max(f64::EPSILON);
     assert!(materialization_throughput >= MIN_MATERIALIZATION_THROUGHPUT);
-    assert_eq!(candidates.len(), FILE_COUNT * 4 + 1);
-    assert_eq!(stats.readiness_queue_depth, FILE_COUNT * 4);
-    assert_eq!(stats.prerequisites_blocked, FILE_COUNT * 3);
+
+    let drain_started = Instant::now();
+    loop {
+        let telemetry = supervisor.shared.telemetry();
+        let drained = telemetry.claimed == expected_claims
+            && telemetry.completed == expected_claims
+            && telemetry.queue_depth == 0;
+        drop(telemetry);
+        let control = supervisor.shared.control();
+        let settled = control.dirty_sources.is_empty();
+        drop(control);
+        if drained && settled {
+            break;
+        }
+        if drain_started.elapsed() > DRAIN_BUDGET {
+            let (
+                claimed,
+                completed,
+                failed,
+                retried,
+                stale,
+                cancelled,
+                queue_depth,
+                readiness_queue_depth,
+            ) = {
+                let telemetry = supervisor.shared.telemetry();
+                (
+                    telemetry.claimed,
+                    telemetry.completed,
+                    telemetry.failed,
+                    telemetry.retried,
+                    telemetry.stale,
+                    telemetry.cancelled,
+                    telemetry.queue_depth,
+                    telemetry.readiness_queue_depth,
+                )
+            };
+            let control = supervisor.shared.control();
+            let dirty_sources = control.dirty_sources.clone();
+            let wake_reason = control.wake_reason;
+            drop(control);
+            let snapshot = readiness_snapshot(&source).expect("timed-out readiness snapshot");
+            panic!(
+                "10k supervisor profile did not drain {expected_claims} exact targets before \
+                 budget: claimed={} completed={} failed={} retried={} stale={} cancelled={} \
+                 queue_depth={} readiness_queue_depth={} dirty_sources={dirty_sources:?} \
+                 wake_reason={wake_reason} readiness_entries={} deficits={} activity={:?}",
+                claimed,
+                completed,
+                failed,
+                retried,
+                stale,
+                cancelled,
+                queue_depth,
+                readiness_queue_depth,
+                snapshot.entries.len(),
+                snapshot.deficits.len(),
+                snapshot.activity,
+            );
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    let drain_elapsed = drain_started.elapsed();
+    let drain_throughput = expected_claims as f64 / drain_elapsed.as_secs_f64().max(f64::EPSILON);
+    assert!(drain_throughput >= MIN_DRAIN_THROUGHPUT);
+    let final_snapshot = readiness_snapshot(&source).expect("profile readiness snapshot");
+    assert!(final_snapshot.is_fully_ready());
 
     let resources_after = process_resource_snapshot();
     let memory_growth = resources_after
@@ -244,8 +368,9 @@ fn profile_source_processing_churn_under_playback_and_browser_priority() {
     let cpu_time_ms = resources_after
         .cpu_time_ms
         .saturating_sub(resources_before.cpu_time_ms);
+    let profile_elapsed = discovery_elapsed.saturating_add(drain_elapsed);
     let cpu_core_equivalent =
-        cpu_time_ms as f64 / discovery_elapsed.as_secs_f64().max(f64::EPSILON) / 1_000.0;
+        cpu_time_ms as f64 / profile_elapsed.as_secs_f64().max(f64::EPSILON) / 1_000.0;
     let disk_read_bytes = resources_after
         .disk_read_bytes
         .saturating_sub(resources_before.disk_read_bytes);
@@ -258,16 +383,20 @@ fn profile_source_processing_churn_under_playback_and_browser_priority() {
     assert!(disk_written_bytes <= DISK_IO_BUDGET_BYTES);
     let report = supervisor.shutdown();
     assert_eq!(report["joined"], true);
-    assert_eq!(report["claimed"], 0, "playback must keep work paused");
+    assert_eq!(report["claimed"], expected_claims);
+    assert_eq!(report["completed"], expected_claims);
+    assert_eq!(report["queue_depth"], 0);
     assert_eq!(report["contention"], 0);
 
     eprintln!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({
             "file_count": FILE_COUNT,
-            "candidate_count": candidates.len(),
+            "candidate_count": expected_claims,
             "discovery_elapsed_ms": discovery_elapsed.as_secs_f64() * 1_000.0,
             "materialization_candidates_per_second": materialization_throughput,
+            "drain_elapsed_ms": drain_elapsed.as_secs_f64() * 1_000.0,
+            "drain_candidates_per_second": drain_throughput,
             "priority_p99_us": priority_p99.as_micros(),
             "memory_growth_bytes": memory_growth,
             "cpu_time_ms": cpu_time_ms,
@@ -277,6 +406,8 @@ fn profile_source_processing_churn_under_playback_and_browser_priority() {
             "budgets": {
                 "discovery_elapsed_ms": DISCOVERY_BUDGET.as_millis(),
                 "materialization_candidates_per_second": MIN_MATERIALIZATION_THROUGHPUT,
+                "drain_elapsed_ms": DRAIN_BUDGET.as_millis(),
+                "drain_candidates_per_second": MIN_DRAIN_THROUGHPUT,
                 "priority_p99_us": PRIORITY_P99_BUDGET.as_micros(),
                 "memory_growth_bytes": MEMORY_GROWTH_BUDGET_BYTES,
                 "cpu_core_equivalent": CPU_CORE_EQUIVALENT_BUDGET,

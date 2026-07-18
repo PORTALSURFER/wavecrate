@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn persisted_waveform_cache_remaps_playback_sidecar_after_file_move() {
+fn persisted_waveform_cache_remaps_summary_without_playback_sidecar_after_file_move() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
     let old_path = dir.path().join("old.wav");
@@ -17,7 +17,7 @@ fn persisted_waveform_cache_remaps_playback_sidecar_after_file_move() {
     );
     file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.5, -0.5, 0.25]));
     store_cached_waveform_file(&file);
-    assert!(cached_waveform_file_playback_ready_exists(&old_path));
+    assert!(!cached_waveform_file_playback_ready_exists(&old_path));
 
     fs::rename(&old_path, &new_path).expect("move sample");
     assert_eq!(
@@ -25,12 +25,12 @@ fn persisted_waveform_cache_remaps_playback_sidecar_after_file_move() {
         1
     );
 
-    assert!(cached_waveform_file_playback_ready_exists(&new_path));
-    let cached = load_cached_waveform_file_for_playback(new_path.clone())
-        .expect("moved playback cache should load");
+    assert!(!cached_waveform_file_playback_ready_exists(&new_path));
+    let cached =
+        load_cached_waveform_file_summary(new_path.clone()).expect("moved summary should load");
     assert_eq!(cached.path, new_path);
     assert!(cached.audio_bytes.is_empty());
-    assert!(cached.playback_cache_file.is_some());
+    assert!(cached.playback_cache_file.is_none());
 }
 
 #[test]
@@ -125,5 +125,6 @@ fn persisted_waveform_cache_remaps_nested_files_after_folder_move() {
         remap_persisted_waveform_cache_after_move(&old_folder, &new_folder),
         1
     );
-    assert!(cached_waveform_file_playback_ready_exists(&new_path));
+    assert!(cached_waveform_file_source_ready_exists(&new_path));
+    assert!(!cached_waveform_file_playback_ready_exists(&new_path));
 }

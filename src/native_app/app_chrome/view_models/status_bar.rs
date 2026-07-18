@@ -173,14 +173,23 @@ impl WorkerProgressViewModel {
 impl JobDetailsViewModel {
     pub(in crate::native_app) fn from_folder_progress(progress: &FolderScanProgress) -> Self {
         Self {
-            rows: job_rows(
-                progress.phase.as_str(),
-                progress.label.as_str(),
-                progress.completed,
-                progress.total,
-                progress.detail.as_str(),
-                "found",
-            ),
+            rows: if progress.phase == "Waiting" {
+                [
+                    String::from("Type: Source scan"),
+                    format!("Source: {}", progress.label),
+                    String::from("Progress: Waiting"),
+                    format!("Current: {}", progress.detail),
+                ]
+            } else {
+                job_rows(
+                    progress.phase.as_str(),
+                    progress.label.as_str(),
+                    progress.completed,
+                    progress.total,
+                    progress.detail.as_str(),
+                    "found",
+                )
+            },
         }
     }
 
@@ -259,15 +268,15 @@ impl JobDetailsViewModel {
         } else {
             format!("{} | {}", progress.stage, progress.detail)
         };
-        let source = if progress.source_id.is_empty() {
-            "Multiple sources"
-        } else {
-            state
-                .library
-                .folder_browser
-                .source_label(progress.source_id.as_str())
-                .unwrap_or(progress.source_id.as_str())
-        };
+        debug_assert!(
+            !progress.active || !progress.source_id.is_empty(),
+            "active source processing feedback must identify exactly one source"
+        );
+        let source = state
+            .library
+            .folder_browser
+            .source_label(progress.source_id.as_str())
+            .unwrap_or(progress.source_id.as_str());
         Self {
             rows: if progress.total == 0 {
                 let progress_label = if progress.stage == "Checking pending work" {

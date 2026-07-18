@@ -76,6 +76,47 @@ fn readiness_plan_materializes_missing_cache_for_current_sample_outputs() {
 }
 
 #[test]
+fn readiness_plan_republishes_current_outputs_when_cache_payload_differs() {
+    let conn = conn_with_schema();
+    insert_sample(&conn, "s::a.wav", "hash-a");
+    insert_current_embedding(&conn, "s::a.wav");
+    insert_current_aspects(&conn, "s::a.wav");
+    insert_current_features(&conn, "s::a.wav");
+    let cached_vec = vec![0.0_f32; wavecrate_analysis::similarity::SIMILARITY_DIM];
+    let cached_blob = wavecrate_analysis::vector::encode_f32_le_blob(&cached_vec);
+    conn.execute(
+        "INSERT INTO analysis_cache_embeddings
+            (content_hash, analysis_version, model_id, dim, dtype, l2_normed, vec, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, 42)",
+        params![
+            "hash-a",
+            "v1",
+            wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+            wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+            wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
+            cached_blob
+        ],
+    )
+    .unwrap();
+    insert_cached_aspects(&conn, "hash-a", "v1", 42);
+
+    let temp = tempfile::TempDir::new().unwrap();
+    let job = make_job(&["s::a.wav"], temp.path());
+    let plan =
+        planning::build_readiness_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
+            .expect("readiness plan");
+
+    assert!(plan.work.is_empty());
+    assert_eq!(plan.ready.len(), 1);
+    assert_eq!(plan.ready[0].sample_id, "s::a.wav");
+    assert_ne!(
+        wavecrate_analysis::vector::encode_f32_le_blob(&plan.ready[0].embedding),
+        cached_blob,
+        "the readiness publication must replace the stale cache payload"
+    );
+}
+
+#[test]
 fn plan_builds_work_when_cache_misses() {
     let conn = conn_with_schema();
     insert_sample(&conn, "s::a.wav", "hash-a");

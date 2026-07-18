@@ -1,4 +1,4 @@
-use notify::{Event, RecommendedWatcher};
+use notify::Event;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -9,9 +9,7 @@ use wavecrate::sample_sources::SampleSource;
 use super::classification::path_is_source_refresh_candidate;
 use super::debounce::{GuiSourceWatchEvent, PendingGuiSourceWatch};
 use super::path_mapping::{source_for_path, source_relative_path};
-use super::roots::{
-    RootWatchUpdate, observed_watcher_path_state, source_root_is_available, update_watched_roots,
-};
+use super::roots::{RootWatchUpdate, observed_watcher_path_state, source_root_is_available};
 use crate::native_app::sample_library::committed_file_mutations::{
     CommittedWatcherEcho, CommittedWatcherPathState,
 };
@@ -36,16 +34,6 @@ impl GuiSourceWatchState {
             .retain(|source_id, _| allowed.contains(source_id));
         self.acknowledged_paths
             .retain(|(source_id, _), _| allowed.contains(source_id));
-    }
-
-    pub(super) fn refresh_watched_roots(
-        &mut self,
-        watcher: &mut RecommendedWatcher,
-        now: Instant,
-        reconcile_changed_roots: bool,
-    ) -> (bool, bool) {
-        let update = update_watched_roots(watcher, &mut self.watched_roots, &self.sources);
-        self.apply_root_watch_update(update, now, reconcile_changed_roots)
     }
 
     pub(super) fn apply_root_watch_update(

@@ -1,4 +1,4 @@
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{RecursiveMode, Watcher};
 use std::{collections::HashSet, path::PathBuf};
 use wavecrate::sample_sources::SampleSource;
 
@@ -15,7 +15,7 @@ pub(super) struct RootWatchUpdate {
 }
 
 pub(super) fn update_watched_roots(
-    watcher: &mut RecommendedWatcher,
+    watcher: &mut dyn Watcher,
     watched_roots: &mut HashSet<PathBuf>,
     sources: &[SampleSource],
 ) -> RootWatchUpdate {

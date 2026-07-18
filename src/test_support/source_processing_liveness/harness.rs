@@ -4,6 +4,8 @@ pub(super) struct LivenessHarness {
     pub(super) source_parent: tempfile::TempDir,
     pub(super) source: SampleSource,
     pub(super) supervisor: SourceProcessingSupervisor,
+    pub(super) watcher: Option<GuiSourceWatcherHandle>,
+    watcher_rx: Receiver<GuiMessage>,
     pub(super) watcher_stimulus: WatcherStimulus,
     watcher_events_committed: u64,
     pub(super) expected_source_generation: i64,
@@ -20,11 +22,16 @@ impl LivenessHarness {
             SampleSource::new_with_id(SourceId::from_string(unique_source_id), source_root)
                 .protected();
         source.open_db().expect("create liveness source database");
+        let (watcher_tx, watcher_rx) = std::sync::mpsc::channel();
+        let watcher = GuiSourceWatcherHandle::spawn(vec![source.clone()], watcher_tx);
+        watcher.wait_until_ready_for_tests();
         let supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
         Self {
             source_parent,
             source,
             supervisor,
+            watcher: Some(watcher),
+            watcher_rx,
             watcher_stimulus: WatcherStimulus::Startup,
             watcher_events_committed: 0,
             expected_source_generation: 1,
@@ -32,39 +39,51 @@ impl LivenessHarness {
     }
 
     pub(super) fn commit_targeted_paths(&mut self, paths: Vec<PathBuf>, stimulus: WatcherStimulus) {
-        let result = sync_source_database_paths(
-            self.source.id.as_str().to_string(),
-            self.source.root.clone(),
-            self.source.database_root().expect("source database root"),
-            paths.clone(),
-            paths.len(),
-            &AtomicBool::new(false),
-        );
-        let success = result.result.expect("targeted watcher reconciliation");
-        assert!(
-            success.incomplete_error.is_none(),
-            "targeted watcher reconciliation must be complete: {:?}",
-            success.incomplete_error
-        );
-        self.watcher_stimulus = stimulus;
-        self.watcher_events_committed = self.watcher_events_committed.saturating_add(1);
-        self.expected_source_generation = self.current_manifest_generation();
-        self.supervisor
-            .wake_source(self.source.id.as_str(), "liveness_targeted_watcher_commit");
+        self.watcher
+            .as_ref()
+            .expect("active watcher")
+            .inject_paths_for_tests(
+                paths
+                    .iter()
+                    .map(|path| self.source.root.join(path))
+                    .collect(),
+            );
+        self.drive_watcher_until(stimulus, |event_paths, overflowed| {
+            overflowed
+                || paths.iter().any(|expected| {
+                    event_paths.iter().any(|observed| {
+                        observed == expected
+                            || expected.starts_with(observed)
+                            || observed.starts_with(expected)
+                    })
+                })
+        });
     }
 
     pub(super) fn commit_overflow_audit(&mut self, stimulus: WatcherStimulus) {
-        let database = self
-            .source
-            .open_db()
-            .expect("open source for overflow audit");
-        audit_source_and_record(&database, None, usize::MAX, now_epoch_seconds())
-            .expect("overflow audit must commit");
-        self.watcher_stimulus = stimulus;
-        self.watcher_events_committed = self.watcher_events_committed.saturating_add(1);
-        self.expected_source_generation = self.current_manifest_generation();
-        self.supervisor
-            .wake_source(self.source.id.as_str(), "liveness_overflow_watcher_commit");
+        self.watcher
+            .as_ref()
+            .expect("active watcher")
+            .force_overflow_for_tests();
+        self.drive_watcher_until(stimulus, |_paths, overflowed| overflowed);
+    }
+
+    pub(super) fn force_watcher_restart(&mut self) {
+        self.watcher
+            .as_ref()
+            .expect("active watcher")
+            .force_restart_for_tests();
+        self.drive_watcher_until(WatcherStimulus::WatcherRestart, |_paths, overflowed| {
+            overflowed
+        });
+    }
+
+    pub(super) fn force_root_refresh(&mut self, stimulus: WatcherStimulus) {
+        self.watcher
+            .as_ref()
+            .expect("active watcher")
+            .force_root_refresh_for_tests();
+        self.drive_watcher_until(stimulus, |_paths, overflowed| overflowed);
     }
 
     pub(super) fn commit_internal_mutation(
@@ -155,13 +174,108 @@ impl LivenessHarness {
     }
 
     pub(super) fn shutdown(&mut self) -> serde_json::Value {
+        self.watcher.take();
         self.supervisor.shutdown()
     }
 
+    pub(super) fn restart_runtime(&mut self) {
+        let (watcher_tx, watcher_rx) = std::sync::mpsc::channel();
+        self.watcher = Some(GuiSourceWatcherHandle::spawn(
+            vec![self.source.clone()],
+            watcher_tx,
+        ));
+        self.watcher
+            .as_ref()
+            .expect("restarted watcher")
+            .wait_until_ready_for_tests();
+        self.watcher_rx = watcher_rx;
+        self.supervisor = SourceProcessingSupervisor::start(vec![self.source.clone()]);
+    }
+
     fn current_manifest_generation(&self) -> i64 {
-        self.source
-            .open_db()
-            .and_then(|database| database.get_wav_paths_revision())
-            .expect("read committed manifest generation") as i64
+        open_connection(&self.source)
+            .and_then(|connection| {
+                connection
+                    .query_row(
+                        "SELECT CAST(value AS INTEGER)
+                         FROM metadata
+                         WHERE key = ?1",
+                        [META_WAV_PATHS_REVISION],
+                        |row| row.get(0),
+                    )
+                    .map_err(|error| error.to_string())
+            })
+            .expect("read committed manifest generation")
+    }
+
+    fn drive_watcher_until(
+        &mut self,
+        stimulus: WatcherStimulus,
+        accepts: impl Fn(&[PathBuf], bool) -> bool,
+    ) {
+        let deadline = Instant::now() + LIVENESS_TIMEOUT;
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let message = self
+                .watcher_rx
+                .recv_timeout(remaining.min(Duration::from_secs(1)));
+            let Ok(GuiMessage::SourceFilesystemChanged {
+                source_id,
+                paths,
+                overflowed,
+                source_root_available: reported_source_root_available,
+            }) = message
+            else {
+                if Instant::now() >= deadline {
+                    panic!("real source watcher did not publish the expected {stimulus:?} event");
+                }
+                continue;
+            };
+            if source_id != self.source.id.as_str() || !accepts(&paths, overflowed) {
+                continue;
+            }
+            let source_root_available = self.source.root.is_dir();
+            if source_root_available != reported_source_root_available {
+                tracing::debug!(
+                    source_id,
+                    reported_source_root_available,
+                    source_root_available,
+                    "Liveness harness observed root availability change after watcher publication"
+                );
+            }
+            if source_root_available {
+                if overflowed {
+                    let database = self
+                        .source
+                        .open_db()
+                        .expect("open source for watcher overflow audit");
+                    audit_source_and_record(&database, None, usize::MAX, now_epoch_seconds())
+                        .expect("watcher overflow audit must commit");
+                } else {
+                    let result = sync_source_database_paths(
+                        source_id.clone(),
+                        self.source.root.clone(),
+                        self.source.database_root().expect("source database root"),
+                        paths.clone(),
+                        paths.len(),
+                        &AtomicBool::new(false),
+                    );
+                    let success = result.result.expect("watcher targeted reconciliation");
+                    assert!(
+                        success.incomplete_error.is_none(),
+                        "watcher targeted reconciliation must be complete: {:?}",
+                        success.incomplete_error
+                    );
+                }
+            }
+            self.watcher_stimulus = stimulus;
+            self.watcher_events_committed = self.watcher_events_committed.saturating_add(1);
+            if source_root_available {
+                self.expected_source_generation = self.current_manifest_generation();
+            }
+            self.supervisor
+                .wake_source(self.source.id.as_str(), "liveness_real_watcher_commit");
+            return;
+        }
     }
 }

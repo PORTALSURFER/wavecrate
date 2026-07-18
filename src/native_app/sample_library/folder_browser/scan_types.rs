@@ -84,6 +84,7 @@ pub(in crate::native_app) struct PreparedFolderScanResult {
     pub(in crate::native_app) scan: FolderScanResult,
     pub(in crate::native_app) audio_file_paths: Vec<PathBuf>,
     pub(in crate::native_app) scan_cache_update: FolderScanCacheUpdate,
+    pub(in crate::native_app) lifecycle_generation: Option<u64>,
 }
 
 impl From<FolderScanResult> for PreparedFolderScanResult {
@@ -94,6 +95,7 @@ impl From<FolderScanResult> for PreparedFolderScanResult {
             scan,
             audio_file_paths,
             scan_cache_update,
+            lifecycle_generation: None,
         }
     }
 }

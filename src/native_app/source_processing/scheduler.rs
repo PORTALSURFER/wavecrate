@@ -220,6 +220,7 @@ impl BudgetTracker {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn active_sources(&self) -> BTreeSet<String> {
         self.by_source.keys().cloned().collect()
     }
@@ -305,23 +306,15 @@ impl WorkCandidate {
 pub(crate) struct FairScheduler {
     virtual_finish: BTreeMap<String, u64>,
     active_source: Option<String>,
-    paused: bool,
 }
 
 impl FairScheduler {
-    pub(crate) fn set_paused(&mut self, paused: bool) {
-        self.paused = paused;
-    }
-
     pub(crate) fn choose(
         &mut self,
         candidates: &[WorkCandidate],
         priority: &PriorityContext,
         budgets: &BudgetTracker,
     ) -> Option<usize> {
-        if self.paused {
-            return None;
-        }
         let mut best_by_source = BTreeMap::<&str, usize>::new();
         for (index, candidate) in candidates.iter().enumerate() {
             if !budgets.can_acquire(&candidate.source_id, candidate.lane) {
@@ -341,7 +334,13 @@ impl FairScheduler {
         {
             return Some(index);
         }
-        self.active_source = None;
+        if self.active_source.is_some() {
+            // Source ownership is released explicitly by the coordinator only after a fresh
+            // reconciliation proves convergence or terminal/offline state. An empty runnable
+            // queue can instead mean a retry deadline, prerequisite wait, watcher refresh, or
+            // temporary resource conflict, none of which may transfer visible ownership.
+            return None;
+        }
         let selected = best_by_source
             .into_iter()
             .map(|(source_id, index)| {
@@ -361,6 +360,14 @@ impl FairScheduler {
             .insert(selected.2.to_string(), selected.0);
         self.normalize_virtual_time();
         Some(selected.3)
+    }
+
+    pub(crate) fn active_source(&self) -> Option<&str> {
+        self.active_source.as_deref()
+    }
+
+    pub(crate) fn release_active_source(&mut self) -> Option<String> {
+        self.active_source.take()
     }
 
     fn normalize_virtual_time(&mut self) {
@@ -568,29 +575,66 @@ mod tests {
     }
 
     #[test]
-    fn pause_retains_the_same_pending_backlog_for_resume() {
+    fn blocked_active_source_does_not_switch_to_another_source() {
+        let mut scheduler = FairScheduler::default();
+        let limits =
+            ProcessingBudgets::for_tests(ResourceUse::new(2, 2, 2), ResourceUse::new(1, 1, 1), 2);
+        let mut budgets = BudgetTracker::new(limits);
+        let candidates = [
+            candidate("active", "first", ReadinessStage::PlaybackSummary),
+            candidate("backlog", "other", ReadinessStage::PlaybackSummary),
+        ];
+        let chosen = scheduler
+            .choose(&candidates, &PriorityContext::default(), &budgets)
+            .expect("select active source");
+        assert_eq!(candidates[chosen].source_id, "active");
+        let permit = budgets
+            .try_acquire("active", ProcessingLane::DecodeSummary)
+            .expect("occupy active-source budget");
+
+        assert_eq!(
+            scheduler.choose(&candidates, &PriorityContext::default(), &budgets),
+            None,
+            "temporary active-source contention must not switch sources"
+        );
+        assert_eq!(scheduler.active_source(), Some("active"));
+        budgets.release(permit);
+    }
+
+    #[test]
+    fn waiting_active_source_requires_explicit_release_before_handoff() {
         let mut scheduler = FairScheduler::default();
         let budgets = BudgetTracker::new(ProcessingBudgets::for_tests(
             ResourceUse::new(2, 2, 2),
             ResourceUse::new(1, 1, 1),
             2,
         ));
-        let candidates = [candidate(
-            "source",
-            "pending",
-            ReadinessStage::AnalysisFeatures,
+        let active = [candidate(
+            "active",
+            "first",
+            ReadinessStage::PlaybackSummary,
         )];
-        scheduler.set_paused(true);
-        assert!(
-            scheduler
-                .choose(&candidates, &PriorityContext::default(), &budgets)
-                .is_none()
-        );
-        scheduler.set_paused(false);
         assert_eq!(
-            scheduler.choose(&candidates, &PriorityContext::default(), &budgets),
+            scheduler.choose(&active, &PriorityContext::default(), &budgets),
             Some(0)
         );
+        let backlog = [candidate(
+            "backlog",
+            "other",
+            ReadinessStage::PlaybackSummary,
+        )];
+        assert_eq!(
+            scheduler.choose(&backlog, &PriorityContext::default(), &budgets),
+            None,
+            "an empty active-source runnable queue may represent a retry wait"
+        );
+        assert_eq!(scheduler.active_source(), Some("active"));
+        assert_eq!(scheduler.release_active_source().as_deref(), Some("active"));
+        assert_eq!(
+            scheduler.choose(&backlog, &PriorityContext::default(), &budgets),
+            Some(0)
+        );
+        assert_eq!(scheduler.active_source(), Some("backlog"));
     }
 
     #[test]

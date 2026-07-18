@@ -32,33 +32,20 @@ pub(super) fn assert_exact_artifact_coverage(source: &SampleSource, snapshot: &R
         .expect("read exact ANN count");
     assert_eq!(ann_count, eligible_count, "ANN membership must be exact");
 
-    let playback_refs = connection
-        .prepare(
-            "SELECT artifact.artifact_ref
-             FROM source_readiness_targets AS target
-             JOIN source_readiness_artifacts AS artifact
-               ON artifact.source_id = target.source_id
-              AND artifact.scope_kind = target.scope_kind
-              AND artifact.scope_id = target.scope_id
-              AND artifact.stage = target.stage
-              AND artifact.artifact_version = target.required_version
-              AND artifact.content_generation = target.content_generation
-             WHERE target.source_id = ?1
-               AND target.stage = 'playback_summary'
-               AND target.eligibility = 'eligible'",
+    let playback_rows = connection
+        .query_row(
+            "SELECT
+                (SELECT COUNT(*) FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'playback_summary')
+              + (SELECT COUNT(*) FROM source_readiness_artifacts
+                 WHERE source_id = ?1 AND stage = 'playback_summary')",
+            [source.id.as_str()],
+            |row| row.get::<_, usize>(0),
         )
-        .and_then(|mut statement| {
-            statement
-                .query_map([source.id.as_str()], |row| row.get::<_, String>(0))?
-                .collect::<rusqlite::Result<Vec<_>>>()
-        })
-        .expect("read playback ownership refs");
-    assert_eq!(playback_refs.len(), eligible_count);
-    assert!(
-        playback_refs
-            .iter()
-            .all(|cache_ref| Path::new(cache_ref).is_file()),
-        "every current playback target must own a live cache payload"
+        .expect("count retired playback readiness");
+    assert_eq!(
+        playback_rows, 0,
+        "persistent playback cache residency must not be a source-readiness target"
     );
     assert!(snapshot.is_fully_ready());
 }

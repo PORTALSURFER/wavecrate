@@ -39,6 +39,8 @@ const SOURCE_PROCESSING_ACTIVITY_HEIGHT: f32 = 2.0;
 const SOURCE_PROCESSING_ACTIVITY_CYCLES_PER_SECOND: f32 = 2.1;
 const SOURCE_PROCESSING_ACTIVITY_SEGMENT_FRACTION: f32 = 0.24;
 const SOURCE_PROCESSING_ACTIVITY_MIN_WIDTH: f32 = 18.0;
+const SOURCE_PROCESSING_SOURCE_PULSE_ID: u64 = 0x7372_635f_7075_6c73;
+const SOURCE_PROCESSING_SOURCE_PULSE_CYCLES_PER_SECOND: f32 = 0.85;
 
 pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::View<GuiMessage> {
     bottom_status_bar(StatusBarViewModel::from_app_state(state))
@@ -105,6 +107,37 @@ impl NativeAppState {
         };
         WidgetPaint::new(primitives, WORKER_PROGRESS_ACTIVITY_OVERLAY_ID)
             .push_visible_fill_rect(activity, SOURCE_PROCESSING_ACTIVITY_COLOR);
+    }
+
+    pub(in crate::native_app) fn paint_source_processing_source_pulse(
+        &mut self,
+        context: TransientOverlayContext<'_>,
+        primitives: &mut Vec<PaintPrimitive>,
+    ) {
+        let Some(progress) =
+            self.background
+                .source_processing_progress
+                .as_ref()
+                .filter(|progress| {
+                    progress.active && progress.source_row_active && !progress.source_id.is_empty()
+                })
+        else {
+            return;
+        };
+        let widget_id =
+            crate::native_app::app_chrome::library_browser::library_sidebar::source_row_widget_id(
+                &progress.source_id,
+            );
+        let Some(bounds) = context.plan.first_widget_rect_by_priority([widget_id]) else {
+            return;
+        };
+        let wave = (context.animation_time.as_secs_f32()
+            * std::f32::consts::TAU
+            * SOURCE_PROCESSING_SOURCE_PULSE_CYCLES_PER_SECOND)
+            .sin();
+        let alpha = (28.0 + 26.0 * ((wave + 1.0) * 0.5)).round() as u8;
+        WidgetPaint::new(primitives, SOURCE_PROCESSING_SOURCE_PULSE_ID)
+            .push_visible_fill_rect(bounds, ui::Rgba8::new(255, 151, 72, alpha));
     }
 }
 
@@ -296,7 +329,7 @@ mod tests {
             title: "Job Details",
             rows: [
                 String::from("Type: Source processing"),
-                String::from("Source: Multiple sources"),
+                String::from("Source: Projects"),
                 String::from("Progress: 61/200"),
                 String::from(current),
             ],

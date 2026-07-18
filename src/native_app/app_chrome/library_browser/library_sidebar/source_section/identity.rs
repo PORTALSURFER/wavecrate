@@ -10,9 +10,8 @@ pub(super) fn retained_source_row_key(source_id: &str) -> String {
     format!("source-row-{source_id}")
 }
 
-#[cfg(test)]
 /// Retained input id for a source row.
-pub(super) fn retained_source_row_input_id(source_id: &str) -> u64 {
+pub(in crate::native_app) fn retained_source_row_input_id(source_id: &str) -> u64 {
     radiant::widgets::stable_widget_id(
         RETAINED_SOURCE_ROW_INPUT_SCOPE,
         retained_source_row_key(source_id),

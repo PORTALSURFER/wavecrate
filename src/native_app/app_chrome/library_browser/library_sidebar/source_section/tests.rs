@@ -2,7 +2,8 @@ use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT,
     SOURCE_ROW_LABEL_PADDING_X, source_add_button, source_add_button_tooltip_for_tests,
-    source_missing_color_for_tests, source_protected_error_icon_color_for_tests,
+    source_missing_color_for_tests, source_processing_fill_for_tests,
+    source_processing_marker_color_for_tests, source_protected_error_icon_color_for_tests,
     source_role_icon_color_for_source_for_tests, source_role_icon_color_for_tests, source_row,
     source_row_outline_for_tests,
 };
@@ -147,6 +148,8 @@ fn source_row_routes_drop_to_source_root() {
         role: SourceRole::Normal,
         selected: false,
         scanning: false,
+        processing: false,
+        processing_pulse: 0.0,
         missing: false,
         protected_source_error_flash: false,
         drag_active: true,
@@ -190,6 +193,74 @@ fn selected_source_row_paints_selected_highlight_without_left_active_marker() {
             fill.rect.width() <= 3.5 && fill.rect.min.x <= 4.5 && fill.rect.height() < 20.0
         }),
         "selected source should not paint a separate left active marker"
+    );
+}
+
+#[test]
+fn processing_source_row_keeps_actions_enabled_and_paints_activity_marker() {
+    let source = test_source("source-processing");
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first_mut().expect("source row");
+    row.processing = true;
+    row.processing_pulse = 0.5;
+    let frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+
+    let pulse_fill = source_processing_fill_for_tests(row.processing_pulse);
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == pulse_fill && fill.rect.width() > 100.0),
+        "processing highlight must paint across the idle row without requiring hover"
+    );
+    assert!(frame.paint_plan.fill_rects().any(|fill| {
+        fill.color == source_processing_marker_color_for_tests() && fill.rect.width() <= 3.0
+    }));
+    assert_eq!(
+        source_row(row).view_dispatch_widget_output(
+            retained_source_row_input_id(source.id.as_str()),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+        ),
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::SelectSource(source.id.clone())
+        )),
+        "processing must never lock source interaction"
+    );
+}
+
+#[test]
+fn processing_source_idle_highlight_changes_with_progress_tick() {
+    let source = test_source("source-processing-pulse");
+    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first_mut().expect("source row");
+    row.processing = true;
+
+    row.processing_pulse = 0.0;
+    let dim_frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+    row.processing_pulse = 0.5;
+    let bright_frame = source_row(row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
+
+    let dim = source_processing_fill_for_tests(0.0);
+    let bright = source_processing_fill_for_tests(0.5);
+    assert_ne!(dim, bright);
+    assert!(
+        dim_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == dim),
+        "idle processing row should paint the dim pulse frame"
+    );
+    assert!(
+        bright_frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == bright),
+        "idle processing row should paint the bright pulse frame"
     );
 }
 

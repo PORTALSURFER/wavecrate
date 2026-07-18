@@ -265,6 +265,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn job_details_projection_distinguishes_waiting_from_zero_progress() {
+        let projection = job_details_popover_projection(&FolderScanProgress {
+            task_id: 7,
+            source_id: "assets".to_string(),
+            label: "Assets".to_string(),
+            phase: "Waiting".to_string(),
+            completed: 0,
+            total: 0,
+            detail: "Waiting for source access".to_string(),
+        });
+
+        assert_eq!(
+            projection.rows,
+            [
+                "Type: Source scan",
+                "Source: Assets",
+                "Progress: Waiting",
+                "Current: Waiting for source access"
+            ]
+        );
+    }
+
     fn projection_for_count(count: usize) -> BottomStatusBarProjection {
         bottom_status_bar_projection(StatusBarViewModel {
             selected_sample_count: count,

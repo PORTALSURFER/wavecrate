@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
-    sync::atomic::AtomicBool,
+    sync::{atomic::AtomicBool, mpsc::Receiver},
     thread,
     time::{Duration, Instant},
 };
@@ -11,7 +11,7 @@ use rusqlite::{Connection, params};
 use serde::Serialize;
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole, SourceId,
-    db::META_LAST_MANIFEST_AUDIT_AT,
+    db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
         ReadinessActivity, ReadinessClassification, ReadinessSnapshot, ReadinessStage,
         SourceAvailability, reconcile_readiness,
@@ -20,10 +20,12 @@ use wavecrate::sample_sources::{
 };
 
 use super::*;
+use crate::native_app::app::GuiMessage;
 use crate::native_app::sample_library::committed_file_mutations::{
     FileMutationChange, FileMutationOperation, reconcile_file_mutation_for_liveness_test,
 };
 use crate::native_app::sample_library::folder_scan_actions::sync_source_database_paths;
+use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
 
 mod artifacts;
 mod diagnostics;

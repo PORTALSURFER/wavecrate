@@ -1,10 +1,12 @@
 use super::classification::{path_is_source_refresh_candidate, retain_source_refresh_candidates};
-use super::handle::doubled_backoff;
+use super::handle::{GuiSourceWatcherHandle, doubled_backoff};
 use super::roots::RootWatchUpdate;
 use super::state::GuiSourceWatchState;
 use notify::{Event, EventKind, event::RemoveKind};
 use std::{path::PathBuf, time::Instant};
 use wavecrate::sample_sources::{SampleSource, SourceId};
+
+use crate::native_app::app::GuiMessage;
 
 #[path = "tests/committed_mutations.rs"]
 mod committed_mutations;
@@ -335,4 +337,98 @@ fn watcher_restart_backoff_is_bounded() {
         doubled_backoff(super::WATCHER_RESTART_MAX),
         super::WATCHER_RESTART_MAX
     );
+}
+
+#[test]
+fn idempotent_startup_source_sync_does_not_refresh_every_source() {
+    let root = tempfile::tempdir().expect("watched source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::startup-sync"),
+        root.path().to_path_buf(),
+    );
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let watcher = GuiSourceWatcherHandle::spawn(vec![source.clone()], sender);
+
+    watcher.replace_sources(vec![source]);
+    watcher.wait_until_ready_for_tests();
+    std::thread::sleep(
+        super::SOURCE_CHANGE_DEBOUNCE + super::WATCHER_POLL_INTERVAL.saturating_mul(2),
+    );
+
+    let messages = receiver.try_iter().collect::<Vec<_>>();
+    assert_eq!(
+        messages
+            .iter()
+            .filter(|message| matches!(message, GuiMessage::SourceWatcherReady))
+            .count(),
+        1,
+        "the startup audit boundary must be published exactly once"
+    );
+    let refreshes = messages
+        .into_iter()
+        .filter_map(|message| {
+            let GuiMessage::SourceFilesystemChanged {
+                source_id,
+                paths,
+                overflowed,
+                source_root_available,
+            } = message
+            else {
+                return None;
+            };
+            Some((source_id, paths, overflowed, source_root_available))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        refreshes.is_empty(),
+        "repeating the configured source list during startup must not synthesize overflow scans: \
+        {refreshes:?}"
+    );
+}
+
+#[test]
+fn filesystem_event_after_initial_watcher_ready_is_not_suppressed() {
+    let root = tempfile::tempdir().expect("watched source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::post-ready-event"),
+        root.path().to_path_buf(),
+    );
+    let source_id = source.id.as_str().to_string();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let watcher = GuiSourceWatcherHandle::spawn(vec![source], sender);
+    watcher.wait_until_ready_for_tests();
+    while !matches!(
+        receiver
+            .recv_timeout(super::WATCHER_START_TIMEOUT)
+            .expect("watcher-ready message"),
+        GuiMessage::SourceWatcherReady
+    ) {}
+
+    let created = root.path().join("recording.wav");
+    std::fs::write(&created, [0_u8; 8]).expect("create watched audio file");
+    watcher.inject_paths_for_tests(vec![created]);
+
+    let deadline = Instant::now()
+        + super::SOURCE_CHANGE_DEBOUNCE
+        + super::WATCHER_POLL_INTERVAL.saturating_mul(4);
+    let refresh = loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        let message = receiver
+            .recv_timeout(remaining)
+            .expect("post-ready filesystem refresh");
+        if let GuiMessage::SourceFilesystemChanged {
+            source_id,
+            paths,
+            overflowed,
+            source_root_available,
+        } = message
+        {
+            break (source_id, paths, overflowed, source_root_available);
+        }
+    };
+
+    assert_eq!(refresh.0, source_id);
+    assert_eq!(refresh.1, vec![PathBuf::from("recording.wav")]);
+    assert!(!refresh.2);
+    assert!(refresh.3);
 }

@@ -1,18 +1,22 @@
 use std::{
     fs,
-    io::{BufWriter, Write},
     path::Path,
-    sync::Arc,
     time::{Duration, Instant},
 };
+#[cfg(test)]
+use std::{
+    io::{BufWriter, Write},
+    sync::Arc,
+};
 
+#[cfg(test)]
+use super::{MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES, format::CachedPlaybackCacheFile};
 use super::{
-    MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES, MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
-    format::{CachedPlaybackCacheFile, CachedPlaybackDescriptor, CachedWaveformFile},
+    MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
+    format::{CachedPlaybackDescriptor, CachedWaveformFile},
     identity::{
         CacheIdentity, cache_path_for_identity, playback_descriptor_path,
-        playback_ready_marker_path, playback_sidecar_path, playback_sidecar_valid,
-        source_warm_marker_path,
+        playback_ready_marker_path, playback_sidecar_path, source_warm_marker_path,
     },
     invalidation::{
         cleanup_cache_artifacts, commit_if_store_job_current, store_job_matches_current_file,
@@ -20,7 +24,6 @@ use super::{
     prune::prune_waveform_cache_dir,
     store_queue::CachedWaveformStoreJob,
 };
-use crate::native_app::waveform::audio_file::WaveformFile;
 pub(super) use outcome::{
     FileCleanupOutcome, MarkerUpdateOutcome, PlaybackSidecarOutcome, StoreWriteOutcome,
     StoreWriteReport,
@@ -39,19 +42,13 @@ pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> Sto
         ..StoreWriteReport::default()
     };
     let sidecar_path = playback_sidecar_path(&job.cache_path);
-    let sidecar = persist_playback_sidecar(&job.file, &sidecar_path);
-    report.sidecar = sidecar.outcome;
-    if sidecar.cache_file.is_none() {
-        report.stale_sidecar_cleanup = Some(cleanup_file(&sidecar_path));
-    }
-    let cached =
-        CachedWaveformFile::from_waveform_file(&job.file, &job.identity, sidecar.cache_file);
-    let playback_ready = cached.playback_cache.is_some();
-    if playback_ready {
-        let _ = write_playback_descriptor_sidecar(&job.cache_path, &cached);
-    } else {
-        let _ = cleanup_file(&playback_descriptor_path(&job.cache_path));
-    }
+    // Playback streams directly from the original audio file. Persist only the
+    // compact visual summary and retire any decoded PCM left by older builds.
+    report.sidecar = PlaybackSidecarOutcome::NoPlaybackPayload;
+    report.stale_sidecar_cleanup = Some(cleanup_file(&sidecar_path));
+    let cached = CachedWaveformFile::from_waveform_file(&job.file, &job.identity, None);
+    let playback_ready = false;
+    let _ = cleanup_file(&playback_descriptor_path(&job.cache_path));
     let Ok(bytes) = bincode::serialize(&cached) else {
         return StoreWriteOutcome::SerializeFailed(report);
     };
@@ -128,46 +125,6 @@ pub(super) fn write_playback_descriptor_sidecar(
     true
 }
 
-struct PlaybackSidecarStore {
-    cache_file: Option<CachedPlaybackCacheFile>,
-    outcome: PlaybackSidecarOutcome,
-}
-
-fn persist_playback_sidecar(file: &WaveformFile, sidecar_path: &Path) -> PlaybackSidecarStore {
-    if let Some(samples) = file.playback_samples.as_ref() {
-        let outcome = write_playback_sidecar_outcome(samples, sidecar_path);
-        return PlaybackSidecarStore {
-            cache_file: outcome.cache_file(),
-            outcome,
-        };
-    }
-    let Some(cache_file) = file.playback_cache_file.as_ref() else {
-        return PlaybackSidecarStore {
-            cache_file: None,
-            outcome: PlaybackSidecarOutcome::NoPlaybackPayload,
-        };
-    };
-    if cache_file.path == sidecar_path
-        && playback_sidecar_valid(sidecar_path, cache_file.sample_count)
-    {
-        let cached = CachedPlaybackCacheFile {
-            sample_count: cache_file.sample_count,
-            byte_len: cache_file
-                .sample_count
-                .checked_mul(std::mem::size_of::<f32>() as u64)
-                .unwrap_or(0),
-        };
-        return PlaybackSidecarStore {
-            cache_file: Some(cached.clone()),
-            outcome: PlaybackSidecarOutcome::ReusedExisting(cached),
-        };
-    }
-    PlaybackSidecarStore {
-        cache_file: None,
-        outcome: PlaybackSidecarOutcome::NoPlaybackPayload,
-    }
-}
-
 #[cfg(test)]
 pub(super) fn write_playback_sidecar(
     samples: &Arc<[f32]>,
@@ -176,6 +133,7 @@ pub(super) fn write_playback_sidecar(
     write_playback_sidecar_outcome(samples, sidecar_path).cache_file()
 }
 
+#[cfg(test)]
 pub(super) fn write_playback_sidecar_outcome(
     samples: &Arc<[f32]>,
     sidecar_path: &Path,
@@ -245,6 +203,7 @@ pub(super) fn update_playback_ready_marker(
     }
 }
 
+#[cfg(test)]
 pub(super) fn playback_sample_bytes(sample_count: usize) -> Option<usize> {
     sample_count.checked_mul(std::mem::size_of::<f32>())
 }

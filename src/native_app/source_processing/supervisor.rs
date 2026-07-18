@@ -25,9 +25,9 @@ use wavecrate::sample_sources::{
         ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability,
         cancel_readiness_work, claim_readiness_target, complete_readiness_work,
         complete_readiness_work_with_artifact_ref, fail_readiness_work,
-        invalidate_readiness_artifact, persist_readiness_deficits_with_cancel,
-        readiness_work_stats, reconcile_readiness_with_cancel, release_readiness_work,
-        renew_readiness_lease, replace_readiness_targets_with_cancel,
+        invalidate_readiness_artifact, persist_readiness_deficits_with_cancel_and_progress,
+        readiness_work_stats, reconcile_readiness_with_cancel_and_progress, renew_readiness_lease,
+        replace_readiness_targets_with_cancel,
     },
     scanner::{
         ScanError, audit_source_and_record_with_progress, complete_pending_deep_hash_for_path,
@@ -51,6 +51,9 @@ use crate::native_app::waveform::{
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
 const PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
+const DISCOVERY_PROGRESS_UI_GRACE_INTERVAL: Duration = Duration::from_millis(250);
+const DISCOVERY_PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
+const DISCOVERY_PROGRESS_LOG_INTERVAL: Duration = Duration::from_secs(2);
 const SIMILARITY_SCORE_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 const MANIFEST_AUDIT_INTERVAL_SECONDS: i64 = 24 * 60 * 60;
 const MANIFEST_AUDIT_HASH_BATCH: usize = 8;
@@ -58,9 +61,11 @@ const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
-const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v5_owned";
 const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
 const SOURCE_RETIREMENT_RETRY_SECONDS: i64 = 5;
+const SOURCE_DISCOVERY_RETRY_SECONDS: i64 = 5;
+const PREREQUISITE_INVALIDATION_RETRY_SECONDS: i64 = 5;
+const ACTIVE_RECORDING_QUIET_SECONDS: i64 = 5;
 const ORPHAN_CACHE_MIN_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const ORPHAN_CACHE_MAX_SCANNED: usize = 4_096;
 const ORPHAN_CACHE_MAX_REMOVED: usize = 32;
@@ -71,6 +76,7 @@ static ORPHAN_CACHE_SCAN_CURSOR: AtomicUsize = AtomicUsize::new(0);
 pub(in crate::native_app) struct SourceProcessingSupervisor {
     shared: Arc<Shared>,
     coordinator: Option<JoinHandle<()>>,
+    retirement_worker: Option<JoinHandle<()>>,
 }
 
 #[derive(Clone)]
@@ -102,7 +108,10 @@ struct ExternalScanRegistration {
 struct PendingSourceRetirement {
     source: SampleSource,
     lifecycle_generation: u64,
+    cancel: Arc<AtomicBool>,
     retry_at: i64,
+    attempts: u32,
+    terminal_offline: bool,
 }
 
 #[derive(Default)]
@@ -165,7 +174,7 @@ impl SourceProcessingBudgetHandle {
                 && control.source_is_configured(source_id)
                 && control.source_lifecycle_generations.get(source_id)
                     == Some(&expected_lifecycle_generation)
-                && (!control.source_is_active(source_id) || control.processing_paused())
+                && !control.source_is_active(source_id)
             {
                 control = self
                     .shared
@@ -182,34 +191,20 @@ impl SourceProcessingBudgetHandle {
                 return None;
             }
         }
-        // Hold the budget lock through admission publication. This closes the race where the
-        // coordinator could acquire the scan lane after we inspected it but before it observed the
-        // foreground reservation.
+        // Publish the admission while holding the budget lock so the coordinator cannot start
+        // another candidate between observing capacity and observing the external scan. Existing
+        // source work is allowed to finish; watcher and UI scans must never cancel the active
+        // source merely to acquire the lane sooner.
         let budgets = self.shared.budgets();
-        let active_sources = budgets.active_sources();
         let (admission_id, admission_cancel, lifecycle_generation) = {
-            let mut control = self.shared.control();
+            let control = self.shared.control();
             if control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
                 || !control.source_is_active(source_id)
                 || control.source_lifecycle_generations.get(source_id)
                     != Some(&expected_lifecycle_generation)
-                || control.processing_paused()
             {
                 return None;
-            }
-            for active_source_id in active_sources {
-                tracing::info!(
-                    target: "wavecrate::source_processing",
-                    source_id,
-                    preempted_source_id = active_source_id.as_str(),
-                    "Foreground source scan admission is reserving occupied processing capacity"
-                );
-                control.cancel_source_work(&active_source_id);
-                control.mark_source_dirty(
-                    &active_source_id,
-                    "foreground_scan_preempted_background_work",
-                );
             }
             let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
             let lifecycle_generation = expected_lifecycle_generation;
@@ -245,7 +240,6 @@ impl SourceProcessingBudgetHandle {
                     || !control.source_is_active(source_id)
                     || control.source_lifecycle_generations.get(source_id)
                         != Some(&lifecycle_generation)
-                    || control.processing_paused()
                     || admission_cancel.load(Ordering::Acquire)
                 {
                     drop(external_scans);
@@ -290,7 +284,6 @@ impl SourceProcessingBudgetHandle {
                 || !control.source_is_active(source_id)
                 || control.source_lifecycle_generations.get(source_id)
                     != Some(&lifecycle_generation)
-                || control.processing_paused()
                 || admission_cancel.load(Ordering::Acquire);
             drop(control);
             if unavailable {
@@ -298,6 +291,25 @@ impl SourceProcessingBudgetHandle {
                 return None;
             }
         }
+    }
+
+    /// Wait for source replacement to finish, then resolve the descriptor
+    /// against the authoritative configured set.
+    ///
+    /// This is intentionally exposed on the background-only budget handle:
+    /// source replacement briefly fences retirement admission and publication,
+    /// so callers on the UI thread must use the supervisor's non-blocking
+    /// registration method instead.
+    pub(in crate::native_app) fn register_source_for_scan_waiting(
+        &self,
+        source: SampleSource,
+    ) -> Result<u64, String> {
+        let _replacement = self
+            .shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        resolve_registered_source_for_scan_locked(self.shared.as_ref(), &source)
     }
 
     #[cfg(test)]
@@ -325,7 +337,6 @@ impl SourceProcessingBudgetPermit {
         }
         let control = self.shared.control();
         control.shutdown
-            || control.processing_paused()
             || self
                 .permit
                 .as_ref()
@@ -390,7 +401,7 @@ impl SourceProcessingSupervisor {
         sources: Vec<SampleSource>,
         worker_sender: Sender<GuiMessage>,
     ) -> Self {
-        Self::start_with_playback_state_and_sender(sources, false, Some(worker_sender))
+        Self::start_with_options(sources, false, Some(worker_sender), false)
     }
 
     #[cfg(test)]
@@ -398,21 +409,40 @@ impl SourceProcessingSupervisor {
         Self::start_with_playback_state_and_sender(sources, playback_active, None)
     }
 
+    #[cfg(test)]
     fn start_with_playback_state_and_sender(
         sources: Vec<SampleSource>,
         playback_active: bool,
         worker_sender: Option<Sender<GuiMessage>>,
     ) -> Self {
+        Self::start_with_options(sources, playback_active, worker_sender, false)
+    }
+
+    fn start_with_options(
+        sources: Vec<SampleSource>,
+        playback_active: bool,
+        worker_sender: Option<Sender<GuiMessage>>,
+        synthetic_test_execution: bool,
+    ) -> Self {
         let shared = Arc::new(Shared::new(sources, worker_sender));
         shared.control().playback_active = playback_active;
+        shared
+            .synthetic_test_execution
+            .store(synthetic_test_execution, Ordering::Release);
         let thread_shared = Arc::clone(&shared);
         let coordinator = thread::Builder::new()
             .name(String::from("wavecrate-source-supervisor"))
             .spawn(move || run_coordinator(thread_shared))
             .expect("spawn source processing supervisor");
+        let retirement_shared = Arc::clone(&shared);
+        let retirement_worker = thread::Builder::new()
+            .name(String::from("wavecrate-source-retirement"))
+            .spawn(move || run_retirement_worker(retirement_shared))
+            .expect("spawn source retirement worker");
         Self {
             shared,
             coordinator: Some(coordinator),
+            retirement_worker: Some(retirement_worker),
         }
     }
 
@@ -421,6 +451,33 @@ impl SourceProcessingSupervisor {
         Self {
             shared: Arc::new(Shared::new(Vec::new(), None)),
             coordinator: None,
+            retirement_worker: None,
+        }
+    }
+
+    #[cfg(test)]
+    fn start_synthetic_profile(sources: Vec<SampleSource>, playback_active: bool) -> Self {
+        Self::start_with_options(sources, playback_active, None, true)
+    }
+
+    #[cfg(test)]
+    fn start_without_forced_manifest_audit(sources: Vec<SampleSource>) -> Self {
+        let shared = Arc::new(Shared::new(sources, None));
+        shared.control().force_manifest_audit_sources.clear();
+        let thread_shared = Arc::clone(&shared);
+        let coordinator = thread::Builder::new()
+            .name(String::from("wavecrate-source-supervisor"))
+            .spawn(move || run_coordinator(thread_shared))
+            .expect("spawn source processing supervisor");
+        let retirement_shared = Arc::clone(&shared);
+        let retirement_worker = thread::Builder::new()
+            .name(String::from("wavecrate-source-retirement"))
+            .spawn(move || run_retirement_worker(retirement_shared))
+            .expect("spawn source retirement worker");
+        Self {
+            shared,
+            coordinator: Some(coordinator),
+            retirement_worker: Some(retirement_worker),
         }
     }
 
@@ -485,7 +542,10 @@ impl SourceProcessingSupervisor {
                 PendingSourceRetirement {
                     source,
                     lifecycle_generation,
+                    cancel: Arc::new(AtomicBool::new(false)),
                     retry_at: 0,
+                    attempts: 0,
+                    terminal_offline: false,
                 },
             );
         }
@@ -514,6 +574,14 @@ impl SourceProcessingSupervisor {
             source_work_cancels.insert(source_id.clone(), cancel);
             source_lifecycle_generations.insert(source_id.clone(), lifecycle_generation);
         }
+        for retirement in control.pending_retirements.values() {
+            if sources
+                .values()
+                .any(|active| source_storage_identity_matches(active, &retirement.source))
+            {
+                retirement.cancel.store(true, Ordering::Release);
+            }
+        }
         control.sources = sources;
         control.source_work_cancels = source_work_cancels;
         control.source_lifecycle_generations = source_lifecycle_generations;
@@ -531,6 +599,11 @@ impl SourceProcessingSupervisor {
         control
             .dirty_sources
             .retain(|source_id| retained_source_ids.contains(source_id));
+        control
+            .awaiting_foreground_refresh_sources
+            .retain(|source_id| {
+                retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+            });
         control.dirty_sources.extend(
             changed_source_ids
                 .iter()
@@ -578,6 +651,7 @@ impl SourceProcessingSupervisor {
         });
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_all();
+        self.shared.retirement_wake.notify_all();
         Ok(())
     }
 
@@ -596,46 +670,7 @@ impl SourceProcessingSupervisor {
                 return Err("Configured sources are currently being replaced".to_string());
             }
         };
-        let source_id = source.id.as_str().to_string();
-        let mut control = self.shared.control();
-        if control.shutdown || self.shared.cancel.load(Ordering::Acquire) {
-            return Err("Source processing supervisor is shutting down".to_string());
-        }
-        if let Some(current) = control.sources.get(&source_id) {
-            if !source_descriptors_match(current, &source) {
-                return Err(format!(
-                    "Source {source_id} is already registered with a different descriptor"
-                ));
-            }
-            let lifecycle_generation = control.source_lifecycle_generations[&source_id];
-            if control.quarantined_sources.remove(&source_id) {
-                control
-                    .source_work_cancels
-                    .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
-                control.mark_source_dirty(&source_id, "source_scan_registration_reactivated");
-                drop(control);
-                self.shared.budget_wake.notify_all();
-                self.shared.wake.notify_one();
-            }
-            return Ok(lifecycle_generation);
-        }
-
-        control.sources.insert(source_id.clone(), source);
-        control
-            .source_work_cancels
-            .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
-        let lifecycle_generation = control.allocate_lifecycle_generation();
-        control
-            .source_lifecycle_generations
-            .insert(source_id.clone(), lifecycle_generation);
-        control
-            .force_manifest_audit_sources
-            .insert(source_id.clone());
-        control.mark_source_dirty(&source_id, "source_registered_for_scan");
-        drop(control);
-        self.shared.budget_wake.notify_all();
-        self.shared.wake.notify_one();
-        Ok(lifecycle_generation)
+        register_source_for_scan_locked(self.shared.as_ref(), source)
     }
 
     pub(in crate::native_app) fn budget_handle(&self) -> SourceProcessingBudgetHandle {
@@ -646,6 +681,31 @@ impl SourceProcessingSupervisor {
 
     pub(in crate::native_app) fn lifecycle_generations(&self) -> BTreeMap<String, u64> {
         self.shared.control().source_lifecycle_generations.clone()
+    }
+
+    /// Re-arm the authoritative source audits after the watcher stream is live.
+    ///
+    /// The initial audit and this watcher-ready request coalesce while an audit
+    /// is in flight. If it already completed, this request runs one final audit
+    /// that closes the gap between its snapshot and native event delivery.
+    pub(in crate::native_app) fn request_manifest_audits(&self, reason: &'static str) {
+        let mut control = self.shared.control();
+        let active_source_ids = control
+            .sources
+            .keys()
+            .filter(|source_id| control.source_is_active(source_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if active_source_ids.is_empty() {
+            return;
+        }
+        control
+            .force_manifest_audit_sources
+            .extend(active_source_ids.iter().cloned());
+        control.dirty_sources.extend(active_source_ids);
+        control.notify(reason);
+        drop(control);
+        self.shared.wake.notify_one();
     }
 
     pub(in crate::native_app) fn wake_source(&self, source_id: &str, reason: &'static str) {
@@ -659,6 +719,44 @@ impl SourceProcessingSupervisor {
         self.shared
             .cancel_external_scans(|registration| registration.source_id == source_id);
         self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_one();
+    }
+
+    /// Reconcile a source without invalidating work that already owns its
+    /// current lifecycle generation.
+    ///
+    /// UI projection refreshes and completed foreground scans can arrive well
+    /// after the source database commit that scheduled them. Treating those
+    /// delayed notifications as a new mutation would kill a valid long-running
+    /// finalizer and immediately start the same work again.
+    pub(in crate::native_app) fn request_source_processing(
+        &self,
+        source_id: &str,
+        reason: &'static str,
+    ) {
+        let mut control = self.shared.control();
+        if !control.source_is_active(source_id) {
+            return;
+        }
+        control.mark_source_dirty(source_id, reason);
+        drop(control);
+        self.shared.wake.notify_one();
+    }
+
+    pub(in crate::native_app) fn finish_foreground_source_refresh(
+        &self,
+        source_id: &str,
+        reason: &'static str,
+    ) {
+        let mut control = self.shared.control();
+        if !control.source_is_active(source_id) {
+            return;
+        }
+        control
+            .awaiting_foreground_refresh_sources
+            .remove(source_id);
+        control.mark_source_dirty(source_id, reason);
+        drop(control);
         self.shared.wake.notify_one();
     }
 
@@ -719,25 +817,14 @@ impl SourceProcessingSupervisor {
         let mut control = self.shared.control();
         if control.playback_active != active {
             control.playback_active = active;
-            if active {
-                control.cancel_all_source_work();
-                control.pause_feedback_pending = true;
-            } else if !control.foreground_active {
-                control.reset_source_work_tokens();
-            }
-            if active {
-                control.notify("playback_pause");
-            } else {
-                control.notify("playback_resume");
-            }
-            if active {
-                publish_source_processing_pausing(&self.shared, "Waiting for playback");
-            }
+            control.notify("playback_activity_changed");
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                event = "source_processing.playback_activity_changed",
+                active,
+                "Playback activity changed without pausing source processing"
+            );
             drop(control);
-            if active {
-                self.shared.cancel_external_scans(|_| true);
-            }
-            self.shared.budget_wake.notify_all();
             self.shared.wake.notify_all();
         }
     }
@@ -748,25 +835,14 @@ impl SourceProcessingSupervisor {
             return;
         }
         control.foreground_active = active;
-        if active {
-            control.cancel_all_source_work();
-            control.pause_feedback_pending = true;
-        } else if !control.playback_active {
-            control.reset_source_work_tokens();
-        }
-        if active {
-            control.notify("foreground_activity_pause");
-        } else {
-            control.notify("foreground_activity_resume");
-        }
-        if active {
-            publish_source_processing_pausing(&self.shared, "Waiting for source loading");
-        }
+        control.notify("foreground_activity_changed");
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            event = "source_processing.foreground_activity_changed",
+            active,
+            "Foreground loading activity changed without pausing source processing"
+        );
         drop(control);
-        if active {
-            self.shared.cancel_external_scans(|_| true);
-        }
-        self.shared.budget_wake.notify_all();
         self.shared.wake.notify_all();
     }
 
@@ -777,15 +853,24 @@ impl SourceProcessingSupervisor {
         {
             let mut control = self.shared.control();
             control.cancel_all_source_work();
+            for retirement in control.pending_retirements.values() {
+                retirement.cancel.store(true, Ordering::Release);
+            }
             control.shutdown = true;
             control.notify("shutdown");
         }
         self.shared.wake.notify_all();
         self.shared.budget_wake.notify_all();
-        let joined = self
+        self.shared.retirement_wake.notify_all();
+        let coordinator_joined = self
             .coordinator
             .take()
             .is_none_or(|coordinator| coordinator.join().is_ok());
+        let retirement_joined = self
+            .retirement_worker
+            .take()
+            .is_none_or(|worker| worker.join().is_ok());
+        let joined = coordinator_joined && retirement_joined;
         self.shared.wait_for_external_scans();
         let telemetry = self.shared.telemetry();
         serde_json::json!({
@@ -805,6 +890,10 @@ impl SourceProcessingSupervisor {
             "oldest_job_age_seconds": telemetry.oldest_job_age_seconds,
             "retries_due": telemetry.retries_due,
             "readiness_queue_depth": telemetry.readiness_queue_depth,
+            "queue_depth_by_source": telemetry.queue_depth_by_source,
+            "readiness_queue_depth_by_source": telemetry.readiness_queue_depth_by_source,
+            "retries_due_by_source": telemetry.retries_due_by_source,
+            "retry_at_by_source": telemetry.retry_at_by_source,
             "source_discoveries": telemetry.source_discoveries,
             "settled_wake_generation": telemetry.settled_wake_generation,
         })
@@ -813,7 +902,7 @@ impl SourceProcessingSupervisor {
 
 impl Drop for SourceProcessingSupervisor {
     fn drop(&mut self) {
-        if self.coordinator.is_some() {
+        if self.coordinator.is_some() || self.retirement_worker.is_some() {
             let _ = self.shutdown();
         }
     }
@@ -823,6 +912,7 @@ struct Shared {
     source_replacement: Mutex<()>,
     state: Mutex<ControlState>,
     wake: Condvar,
+    retirement_wake: Condvar,
     cancel: AtomicBool,
     telemetry: Mutex<SupervisorTelemetry>,
     budgets: Mutex<BudgetTracker>,
@@ -831,7 +921,12 @@ struct Shared {
     external_scan_wake: Condvar,
     next_external_scan_id: AtomicU64,
     in_flight_work: Mutex<BTreeMap<(String, u64), usize>>,
+    synthetic_test_execution: AtomicBool,
     worker_sender: Option<Sender<GuiMessage>>,
+    #[cfg(test)]
+    retirement_cleanup_blocked: AtomicBool,
+    #[cfg(test)]
+    retirement_cleanup_started: AtomicBool,
 }
 
 impl Shared {
@@ -877,6 +972,7 @@ impl Shared {
                 source_lifecycle_generations,
                 next_lifecycle_generation,
                 dirty_sources,
+                awaiting_foreground_refresh_sources: BTreeSet::new(),
                 force_manifest_audit_sources,
                 quarantined_sources: BTreeSet::new(),
                 pending_retirements,
@@ -885,11 +981,11 @@ impl Shared {
                 wake_reason: "startup",
                 playback_active: false,
                 foreground_active: false,
-                pause_feedback_pending: false,
                 shutdown: false,
                 priority: PriorityContext::default(),
             }),
             wake: Condvar::new(),
+            retirement_wake: Condvar::new(),
             cancel: AtomicBool::new(false),
             telemetry: Mutex::new(SupervisorTelemetry::default()),
             budgets: Mutex::new(BudgetTracker::new(ProcessingBudgets::default())),
@@ -898,7 +994,12 @@ impl Shared {
             external_scan_wake: Condvar::new(),
             next_external_scan_id: AtomicU64::new(1),
             in_flight_work: Mutex::new(BTreeMap::new()),
+            synthetic_test_execution: AtomicBool::new(false),
             worker_sender,
+            #[cfg(test)]
+            retirement_cleanup_blocked: AtomicBool::new(false),
+            #[cfg(test)]
+            retirement_cleanup_started: AtomicBool::new(false),
         }
     }
 
@@ -928,11 +1029,6 @@ impl Shared {
 
     fn has_external_scan_admission(&self) -> bool {
         !self.external_scans().admissions.is_empty()
-    }
-
-    fn has_external_scan_activity(&self) -> bool {
-        let scans = self.external_scans();
-        !scans.admissions.is_empty() || !scans.registrations.is_empty()
     }
 
     fn cancel_external_scans(&self, should_cancel: impl Fn(&ExternalScanRegistration) -> bool) {
@@ -993,7 +1089,6 @@ impl Shared {
         let control = self.control();
         let current_cancel = control.source_work_cancels.get(source_id)?;
         if control.shutdown
-            || control.processing_paused()
             || !control.source_is_active(source_id)
             || !Arc::ptr_eq(current_cancel, expected_cancel)
             || expected_cancel.load(Ordering::Acquire)
@@ -1035,6 +1130,7 @@ struct ControlState {
     source_lifecycle_generations: BTreeMap<String, u64>,
     next_lifecycle_generation: u64,
     dirty_sources: BTreeSet<String>,
+    awaiting_foreground_refresh_sources: BTreeSet<String>,
     force_manifest_audit_sources: BTreeSet<String>,
     quarantined_sources: BTreeSet<String>,
     pending_retirements: BTreeMap<u64, PendingSourceRetirement>,
@@ -1043,7 +1139,6 @@ struct ControlState {
     wake_reason: &'static str,
     playback_active: bool,
     foreground_active: bool,
-    pause_feedback_pending: bool,
     shutdown: bool,
     priority: PriorityContext,
 }
@@ -1092,10 +1187,6 @@ impl ControlState {
         self.notify(reason);
     }
 
-    fn processing_paused(&self) -> bool {
-        self.playback_active || self.foreground_active
-    }
-
     fn cancel_source_work(&mut self, source_id: &str) {
         if let Some(cancel) = self.source_work_cancels.get_mut(source_id) {
             cancel.store(true, Ordering::Release);
@@ -1138,6 +1229,10 @@ struct SupervisorTelemetry {
     oldest_job_age_seconds: u64,
     retries_due: usize,
     readiness_queue_depth: usize,
+    queue_depth_by_source: BTreeMap<String, usize>,
+    readiness_queue_depth_by_source: BTreeMap<String, usize>,
+    retries_due_by_source: BTreeMap<String, usize>,
+    retry_at_by_source: BTreeMap<String, i64>,
     source_discoveries: u64,
     settled_wake_generation: u64,
 }
@@ -1170,12 +1265,77 @@ enum Cancellable<T> {
     Cancelled,
 }
 
+struct DiscoveryProgressPublisher<'a> {
+    shared: &'a Shared,
+    source_id: &'a str,
+    lifecycle_generation: u64,
+    started_at: Instant,
+    last_phase: Option<&'static str>,
+    last_ui_publish_at: Option<Instant>,
+    last_log_publish_at: Option<Instant>,
+    ui_published: bool,
+}
+
+impl DiscoveryProgressPublisher<'_> {
+    fn advance(&mut self, phase: &'static str, work_units: usize) {
+        let phase_changed = self.last_phase != Some(phase);
+        let ui_due = self.started_at.elapsed() >= DISCOVERY_PROGRESS_UI_GRACE_INTERVAL
+            && (phase_changed
+                || self.last_ui_publish_at.is_none_or(|published_at| {
+                    published_at.elapsed() >= DISCOVERY_PROGRESS_REFRESH_INTERVAL
+                }));
+        if ui_due {
+            let current_epoch = {
+                let control = self.shared.control();
+                control.source_is_active(self.source_id)
+                    && control.source_lifecycle_generations.get(self.source_id)
+                        == Some(&self.lifecycle_generation)
+            };
+            if current_epoch && let Some(worker_sender) = self.shared.worker_sender.as_ref() {
+                let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+                    SourceProcessingProgress {
+                        source_id: self.source_id.to_string(),
+                        lifecycle_generation: self.lifecycle_generation,
+                        active: true,
+                        source_row_active: true,
+                        completed: 0,
+                        total: 0,
+                        stage: String::from("Checking pending work"),
+                        detail: format!("{phase} | {work_units} reconciliation steps completed"),
+                    },
+                ));
+                self.ui_published = true;
+            }
+            self.last_ui_publish_at = Some(Instant::now());
+        }
+        let log_due = phase_changed
+            || self.last_log_publish_at.is_none_or(|published_at| {
+                published_at.elapsed() >= DISCOVERY_PROGRESS_LOG_INTERVAL
+            });
+        if log_due {
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                event = "source_processing.discovery_progress",
+                source_id = self.source_id,
+                lifecycle_generation = self.lifecycle_generation,
+                phase,
+                work_units,
+                "Source discovery reconciliation advanced"
+            );
+            self.last_log_publish_at = Some(Instant::now());
+        }
+        self.last_phase = Some(phase);
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExecutionOutcome {
     Completed,
+    CompletedAwaitingForegroundRefresh,
     Retried { retry_at: i64 },
     Failed,
-    PrerequisiteInvalidated,
+    FailedAwaitingForegroundRefresh,
+    PrerequisiteInvalidated { retry_at: i64, reason: &'static str },
     Stale,
     Cancelled,
     Parked,
@@ -1204,22 +1364,23 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut reset_sources = BTreeMap::<String, bool>::new();
     let mut candidates = Vec::<RuntimeCandidate>::new();
     let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
-    let mut displayed_source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
     let mut active_progress_source = None::<String>;
     let mut last_progress_publish_at = None::<Instant>;
     let mut pending_similarity_refresh_sources = BTreeSet::<String>::new();
+    let mut pending_discovery_sources = BTreeSet::<String>::new();
     let mut last_similarity_refresh_publish_at = None::<Instant>;
     let mut progress_visible = false;
+    #[cfg(test)]
+    let mut synthetic_connections = BTreeMap::<String, rusqlite::Connection>::new();
     loop {
-        process_ready_source_retirements(&shared);
         let (
             sources,
             dirty_sources,
+            awaiting_foreground_refresh_sources,
             force_manifest_audit_sources,
             source_work_cancels,
             source_lifecycle_generations,
-            processing_paused,
-            pause_feedback_pending,
+            priority,
             generation,
             reason,
         ) = {
@@ -1236,13 +1397,14 @@ fn run_coordinator(shared: Arc<Shared>) {
                     earliest_deadline(next_retry_at, pending_retirement_retry_at),
                     now_epoch_seconds(),
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
-                    control.processing_paused(),
                 );
                 if progress_visible
                     && !wait_duration.is_zero()
-                    && !source_stats
-                        .values()
-                        .any(|stats| stats.prerequisites_blocked > 0)
+                    && !scheduler.active_source().is_some_and(|source_id| {
+                        source_stats.get(source_id).is_some_and(|stats| {
+                            stats.prerequisites_blocked > 0 || stats.earliest_retry_at.is_some()
+                        })
+                    })
                 {
                     // Keep feedback stable across immediate coordinator handoffs. Only clear it
                     // when the coordinator is genuinely about to sleep with no newly published
@@ -1251,7 +1413,6 @@ fn run_coordinator(shared: Arc<Shared>) {
                     progress_visible = false;
                     active_progress_source = None;
                     last_progress_publish_at = None;
-                    displayed_source_stats.clear();
                 }
                 let (next, _) = shared
                     .wake
@@ -1283,17 +1444,13 @@ fn run_coordinator(shared: Arc<Shared>) {
             if control.shutdown {
                 break;
             }
-            let processing_paused = control.processing_paused();
-            let pause_feedback_pending = std::mem::take(&mut control.pause_feedback_pending);
-            let dirty_sources = if processing_paused {
-                BTreeSet::new()
-            } else {
-                std::mem::take(&mut control.dirty_sources)
-            };
-            let force_manifest_audit_sources = dirty_sources
-                .intersection(&control.force_manifest_audit_sources)
-                .cloned()
+            let awaiting_foreground_refresh_sources =
+                control.awaiting_foreground_refresh_sources.clone();
+            let dirty_sources = std::mem::take(&mut control.dirty_sources)
+                .into_iter()
+                .filter(|source_id| !awaiting_foreground_refresh_sources.contains(source_id))
                 .collect::<BTreeSet<_>>();
+            let force_manifest_audit_sources = control.force_manifest_audit_sources.clone();
             (
                 control
                     .sources
@@ -1302,48 +1459,44 @@ fn run_coordinator(shared: Arc<Shared>) {
                     .map(|(_, source)| source.clone())
                     .collect::<Vec<_>>(),
                 dirty_sources,
+                awaiting_foreground_refresh_sources,
                 force_manifest_audit_sources,
                 control.source_work_cancels.clone(),
                 control.source_lifecycle_generations.clone(),
-                processing_paused,
-                pause_feedback_pending,
+                control.priority.clone(),
                 control.wake_generation,
                 control.wake_reason,
             )
         };
         observed_generation = generation;
-        scheduler.set_paused(processing_paused);
         let configured_source_ids = sources
             .iter()
             .map(|source| source.id.as_str().to_string())
             .collect::<BTreeSet<_>>();
+        pending_discovery_sources.extend(dirty_sources.iter().cloned());
+        pending_discovery_sources
+            .retain(|source_id| !awaiting_foreground_refresh_sources.contains(source_id));
+        pending_discovery_sources.retain(|source_id| configured_source_ids.contains(source_id));
+        let discovery_source_id = select_source_for_discovery(
+            &sources,
+            &pending_discovery_sources,
+            scheduler.active_source(),
+            &priority,
+        );
+        if let Some(source_id) = discovery_source_id.as_ref() {
+            pending_discovery_sources.remove(source_id);
+        }
+        let sources_to_discover = sources
+            .iter()
+            .filter(|source| discovery_source_id.as_deref() == Some(source.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
         candidates.retain(|candidate| {
             configured_source_ids.contains(candidate.source.id.as_str())
                 && !dirty_sources.contains(candidate.source.id.as_str())
         });
         source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
-        displayed_source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
-        if pause_feedback_pending {
-            // The pause may already have resumed by the time a long-running database
-            // checkpoint returns. Acknowledge the latched transition here so rapid foreground
-            // activity cannot leave stale pausing feedback behind.
-            publish_source_processing_finished(&shared);
-            progress_visible = false;
-            active_progress_source = None;
-            last_progress_publish_at = None;
-            displayed_source_stats.clear();
-        }
-        if processing_paused {
-            tracing::debug!(
-                target: "wavecrate::source_processing",
-                event = "source_processing.paused",
-                reason,
-                "Source processing paused for playback"
-            );
-            continue;
-        }
-
-        for source in &sources {
+        for source in &sources_to_discover {
             let source_id = source.id.as_str().to_string();
             if !reset_sources.contains_key(&source_id) {
                 let Some(permit) = shared
@@ -1363,17 +1516,33 @@ fn run_coordinator(shared: Arc<Shared>) {
                     shared.budget_wake.notify_all();
                     continue;
                 };
+                let recovery_started = Instant::now();
+                publish_source_recovery_progress(
+                    &shared,
+                    source,
+                    in_flight_work.lifecycle_generation,
+                );
+                progress_visible = true;
+                active_progress_source = Some(source_id.clone());
+                last_progress_publish_at = Some(recovery_started);
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    event = "source_processing.recovery.started",
+                    source_id = source.id.as_str(),
+                    source_root = %source.root.display(),
+                    "Recovering interrupted source jobs"
+                );
                 match reset_interrupted_readiness_jobs(source) {
                     Ok(reset) => {
                         reset_sources.insert(source_id, true);
-                        if reset > 0 {
-                            tracing::info!(
-                                target: "wavecrate::source_processing",
-                                source_id = source.id.as_str(),
-                                reset,
-                                "Recovered interrupted source jobs"
-                            );
-                        }
+                        tracing::info!(
+                            target: "wavecrate::source_processing",
+                            event = "source_processing.recovery.finished",
+                            source_id = source.id.as_str(),
+                            reset,
+                            elapsed_ms = recovery_started.elapsed().as_secs_f64() * 1_000.0,
+                            "Recovered interrupted source jobs"
+                        );
                     }
                     Err(error) => record_discovery_error(&shared, source, &error),
                 }
@@ -1386,32 +1555,29 @@ fn run_coordinator(shared: Arc<Shared>) {
             .retain(|source_id, _| sources.iter().any(|source| source.id.as_str() == source_id));
 
         let sweep_started = Instant::now();
-        let sources_to_discover = sources
-            .iter()
-            .filter(|source| dirty_sources.contains(source.id.as_str()))
-            .cloned()
-            .collect::<Vec<_>>();
-        if publish_source_processing_discovery_if_needed(
-            &shared,
-            &sources_to_discover,
-            &source_lifecycle_generations,
-            &source_work_cancels,
-            progress_visible,
-        ) {
-            progress_visible = true;
-        }
         for source in &sources_to_discover {
             source_stats.remove(source.id.as_str());
         }
-        let (mut discovered, discovered_source_stats, deferred_discoveries) = discover_candidates(
+        let (
+            mut discovered,
+            discovered_source_stats,
+            deferred_discoveries,
+            discovery_progress_published,
+        ) = discover_candidates(
             &shared,
             &sources_to_discover,
             &force_manifest_audit_sources,
             &source_work_cancels,
         );
-        if !deferred_discoveries.is_empty() {
-            shared.control().dirty_sources.extend(deferred_discoveries);
+        let discovery_deferred_for_capacity = !deferred_discoveries.is_empty();
+        if discovery_progress_published {
+            progress_visible = true;
+            active_progress_source = sources_to_discover
+                .first()
+                .map(|source| source.id.as_str().to_string());
+            last_progress_publish_at = Some(Instant::now());
         }
+        pending_discovery_sources.extend(deferred_discoveries);
         candidates.append(&mut discovered);
         source_stats.extend(discovered_source_stats);
         let discovered_stats = aggregate_source_stats(source_stats.values().copied());
@@ -1425,10 +1591,33 @@ fn run_coordinator(shared: Arc<Shared>) {
                 oldest_job_age_seconds(&candidates, now_epoch_seconds());
             telemetry.retries_due = discovered_stats.retries_due;
             telemetry.readiness_queue_depth = discovered_stats.readiness_queue_depth;
+            telemetry.queue_depth_by_source = queue_depths_by_source(&candidates);
+            telemetry.readiness_queue_depth_by_source = source_stats
+                .iter()
+                .map(|(source_id, stats)| (source_id.clone(), stats.readiness_queue_depth))
+                .collect();
+            telemetry.retries_due_by_source = source_stats
+                .iter()
+                .map(|(source_id, stats)| (source_id.clone(), stats.retries_due))
+                .collect();
+            telemetry.retry_at_by_source = source_stats
+                .iter()
+                .filter_map(|(source_id, stats)| {
+                    stats
+                        .earliest_retry_at
+                        .map(|retry_at| (source_id.clone(), retry_at))
+                })
+                .collect();
         }
+        release_converged_source_owner(
+            &mut scheduler,
+            &configured_source_ids,
+            &source_stats,
+            &candidates,
+        );
         while !candidates.is_empty() && !shared.cancel.load(Ordering::Acquire) {
             let control = shared.control();
-            let interrupted = control.processing_paused() || !control.dirty_sources.is_empty();
+            let interrupted = !control.dirty_sources.is_empty();
             let priority = control.priority.clone();
             drop(control);
             if interrupted {
@@ -1445,6 +1634,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 .iter()
                 .map(|index| candidates[*index].schedule.clone())
                 .collect::<Vec<_>>();
+            let previously_active_source = scheduler.active_source().map(str::to_string);
             let Some(schedule_index) = scheduler.choose(&schedules, &priority, &shared.budgets())
             else {
                 let mut telemetry = shared.telemetry();
@@ -1453,6 +1643,21 @@ fn run_coordinator(shared: Arc<Shared>) {
             };
             let index = eligible_indices[schedule_index];
             let candidate = candidates.swap_remove(index);
+            if scheduler.active_source() != previously_active_source.as_deref() {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    event = "source_processing.source_selected",
+                    previous_source_id = previously_active_source.as_deref().unwrap_or(""),
+                    source_id = candidate.source.id.as_str(),
+                    queued_for_source = candidates
+                        .iter()
+                        .filter(|queued| queued.source.id == candidate.source.id)
+                        .count()
+                        .saturating_add(1),
+                    queued_total = candidates.len().saturating_add(1),
+                    "Selected source for exclusive processing"
+                );
+            }
             let Some(permit) = shared
                 .budgets()
                 .try_acquire(&candidate.schedule.source_id, candidate.schedule.lane)
@@ -1483,11 +1688,6 @@ fn run_coordinator(shared: Arc<Shared>) {
                 || progress_publish_due)
                 && let Some(progress) = source_stats.get(candidate.source.id.as_str()).copied()
             {
-                let progress = stable_source_progress(
-                    &mut displayed_source_stats,
-                    candidate.source.id.as_str(),
-                    progress,
-                );
                 publish_source_processing_progress(
                     &shared,
                     &candidate,
@@ -1498,22 +1698,77 @@ fn run_coordinator(shared: Arc<Shared>) {
                 last_progress_publish_at = Some(Instant::now());
                 progress_visible = true;
             }
-            let result = execute_candidate(
-                &candidate,
+            let candidate_started = Instant::now();
+            let (candidate_stage, candidate_detail) = runtime_task_progress_detail(&candidate.task);
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                event = "source_processing.candidate.started",
+                source_id = candidate.source.id.as_str(),
                 lifecycle_generation,
-                candidate_cancel.as_ref(),
-                shared.worker_sender.as_ref(),
+                stage = candidate_stage,
+                detail = candidate_detail.as_str(),
+                lane = ?candidate.schedule.lane,
+                remaining_for_source = candidates
+                    .iter()
+                    .filter(|queued| queued.source.id == candidate.source.id)
+                    .count(),
+                "Source processing candidate started"
+            );
+            let result = if shared.synthetic_test_execution.load(Ordering::Acquire) {
+                #[cfg(test)]
+                {
+                    execute_synthetic_candidate_for_profile(
+                        &candidate,
+                        candidate_cancel.as_ref(),
+                        &mut synthetic_connections,
+                    )
+                }
+                #[cfg(not(test))]
+                {
+                    unreachable!("synthetic execution is only enabled by test supervisors")
+                }
+            } else {
+                execute_candidate(
+                    &candidate,
+                    lifecycle_generation,
+                    candidate_cancel.as_ref(),
+                    shared.worker_sender.as_ref(),
+                )
+            };
+            if matches!(
+                result,
+                Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
+                    | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+            ) {
+                shared
+                    .control()
+                    .awaiting_foreground_refresh_sources
+                    .insert(candidate.source.id.as_str().to_string());
+            }
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                event = "source_processing.candidate.finished",
+                source_id = candidate.source.id.as_str(),
+                lifecycle_generation,
+                stage = candidate_stage,
+                detail = candidate_detail.as_str(),
+                outcome = ?result,
+                elapsed_ms = candidate_started.elapsed().as_secs_f64() * 1_000.0,
+                "Source processing candidate finished"
             );
             drop(in_flight_work);
             shared.budgets().release(permit);
             shared.budget_wake.notify_all();
-            if matches!(&result, Ok(ExecutionOutcome::Completed))
-                && matches!(&candidate.task, RuntimeTask::ManifestAudit)
+            if matches!(
+                &result,
+                Ok(ExecutionOutcome::Completed
+                    | ExecutionOutcome::CompletedAwaitingForegroundRefresh)
+            ) && matches!(&candidate.task, RuntimeTask::ManifestAudit)
             {
-                shared
-                    .control()
-                    .force_manifest_audit_sources
-                    .remove(candidate.source.id.as_str());
+                clear_satisfied_manifest_audit_request(
+                    shared.as_ref(),
+                    candidate.source.id.as_str(),
+                );
             }
             let mut telemetry = shared.telemetry();
             let mut execution_outcome = None;
@@ -1530,7 +1785,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                         telemetry.claimed = telemetry.claimed.saturating_add(1);
                     }
                     match outcome {
-                        ExecutionOutcome::Completed => {
+                        ExecutionOutcome::Completed
+                        | ExecutionOutcome::CompletedAwaitingForegroundRefresh => {
                             telemetry.completed = telemetry.completed.saturating_add(1);
                             if matches!(&candidate.task, RuntimeTask::Readiness(_))
                                 && let Some(progress) = advance_source_progress(
@@ -1539,11 +1795,6 @@ fn run_coordinator(shared: Arc<Shared>) {
                                 )
                                 && progress_refresh_due(last_progress_publish_at)
                             {
-                                let progress = stable_source_progress(
-                                    &mut displayed_source_stats,
-                                    candidate.source.id.as_str(),
-                                    progress,
-                                );
                                 publish_source_processing_progress(
                                     &shared,
                                     &candidate,
@@ -1564,7 +1815,8 @@ fn run_coordinator(shared: Arc<Shared>) {
                             let aggregate = aggregate_source_stats(source_stats.values().copied());
                             next_retry_at = aggregate.earliest_retry_at;
                         }
-                        ExecutionOutcome::Failed => {
+                        ExecutionOutcome::Failed
+                        | ExecutionOutcome::FailedAwaitingForegroundRefresh => {
                             telemetry.failed = telemetry.failed.saturating_add(1);
                             if matches!(&candidate.task, RuntimeTask::Readiness(_))
                                 && let Some(progress) = advance_source_progress(
@@ -1573,11 +1825,6 @@ fn run_coordinator(shared: Arc<Shared>) {
                                 )
                                 && progress_refresh_due(last_progress_publish_at)
                             {
-                                let progress = stable_source_progress(
-                                    &mut displayed_source_stats,
-                                    candidate.source.id.as_str(),
-                                    progress,
-                                );
                                 publish_source_processing_progress(
                                     &shared,
                                     &candidate,
@@ -1588,12 +1835,18 @@ fn run_coordinator(shared: Arc<Shared>) {
                                 progress_visible = true;
                             }
                         }
-                        ExecutionOutcome::PrerequisiteInvalidated => {
+                        ExecutionOutcome::PrerequisiteInvalidated {
+                            retry_at,
+                            reason: _,
+                        } => {
                             telemetry.stale = telemetry.stale.saturating_add(1);
-                            shared.control().mark_source_dirty(
-                                candidate.source.id.as_str(),
-                                "readiness_prerequisite_invalidated",
-                            );
+                            if let Some(stats) = source_stats.get_mut(candidate.source.id.as_str())
+                            {
+                                stats.earliest_retry_at =
+                                    earliest_deadline(stats.earliest_retry_at, Some(retry_at));
+                            }
+                            let aggregate = aggregate_source_stats(source_stats.values().copied());
+                            next_retry_at = aggregate.earliest_retry_at;
                         }
                         ExecutionOutcome::Stale => {
                             telemetry.stale = telemetry.stale.saturating_add(1)
@@ -1648,6 +1901,18 @@ fn run_coordinator(shared: Arc<Shared>) {
                 candidates.push(candidate);
                 continue;
             }
+            match candidate_invalidation_scope(&candidate.task, execution_outcome) {
+                CandidateInvalidationScope::None => {}
+                CandidateInvalidationScope::TargetScope => {
+                    candidates.retain(|queued| {
+                        queued.source.id != candidate.source.id
+                            || queued.schedule.scope_id != candidate.schedule.scope_id
+                    });
+                }
+                CandidateInvalidationScope::Source => {
+                    candidates.retain(|queued| queued.source.id != candidate.source.id);
+                }
+            }
             let source_id = candidate.source.id.as_str();
             if candidates
                 .iter()
@@ -1660,7 +1925,13 @@ fn run_coordinator(shared: Arc<Shared>) {
                 | (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Failed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Retried { .. }))
-                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Failed)) => true,
+                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Failed))
+                | (
+                    RuntimeTask::Readiness(_),
+                    Some(ExecutionOutcome::PrerequisiteInvalidated { .. }),
+                )
+                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::NotClaimed))
+                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Stale)) => true,
                 _ => false,
             };
             if !should_refresh {
@@ -1675,9 +1946,15 @@ fn run_coordinator(shared: Arc<Shared>) {
         {
             last_similarity_refresh_publish_at = Some(Instant::now());
         }
-        if candidates.is_empty()
-            && publish_source_processing_prerequisite_wait(
+        let active_source_has_runnable_work = scheduler.active_source().is_some_and(|source_id| {
+            candidates
+                .iter()
+                .any(|candidate| candidate.source.id.as_str() == source_id)
+        });
+        if !active_source_has_runnable_work
+            && publish_source_processing_wait(
                 &shared,
+                scheduler.active_source(),
                 &source_lifecycle_generations,
                 &source_stats,
             )
@@ -1689,13 +1966,19 @@ fn run_coordinator(shared: Arc<Shared>) {
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
         telemetry.oldest_job_age_seconds = oldest_job_age_seconds(&candidates, now_epoch_seconds());
+        telemetry.queue_depth_by_source = queue_depths_by_source(&candidates);
         telemetry.settled_wake_generation = observed_generation;
-        tracing::debug!(
+        tracing::info!(
             target: "wavecrate::source_processing",
             event = "source_processing.sweep",
             reason,
+            active_source_id = scheduler.active_source().unwrap_or(""),
             source_count = sources.len(),
             queued = telemetry.queue_depth,
+            queue_depth_by_source = ?telemetry.queue_depth_by_source,
+            readiness_queue_depth_by_source = ?telemetry.readiness_queue_depth_by_source,
+            retries_due_by_source = ?telemetry.retries_due_by_source,
+            retry_at_by_source = ?telemetry.retry_at_by_source,
             oldest_job_age_seconds = telemetry.oldest_job_age_seconds,
             retries_due = telemetry.retries_due,
             claimed = telemetry.claimed,
@@ -1709,6 +1992,102 @@ fn run_coordinator(shared: Arc<Shared>) {
             "Source processing sweep complete"
         );
         drop(telemetry);
+        if scheduler.active_source().is_none()
+            && !pending_discovery_sources.is_empty()
+            && !discovery_deferred_for_capacity
+        {
+            shared.control().notify("next_source_discovery");
+            shared.wake.notify_one();
+        }
+    }
+}
+
+fn run_retirement_worker(shared: Arc<Shared>) {
+    loop {
+        let control = shared.control();
+        let (control, _) = shared
+            .retirement_wake
+            .wait_timeout_while(control, Duration::from_secs(1), |control| {
+                !control.shutdown && !source_retirement_is_ready(control, now_epoch_seconds())
+            })
+            .unwrap_or_else(|poison| poison.into_inner());
+        if control.shutdown {
+            return;
+        }
+        if !source_retirement_is_ready(&control, now_epoch_seconds()) {
+            continue;
+        }
+        drop(control);
+        process_ready_source_retirements(shared.as_ref());
+        let control = shared.control();
+        drop(
+            shared
+                .retirement_wake
+                .wait_timeout(control, Duration::from_millis(250))
+                .unwrap_or_else(|poison| poison.into_inner()),
+        );
+    }
+}
+
+fn source_retirement_is_ready(control: &ControlState, now: i64) -> bool {
+    control.pending_retirements.values().any(|retirement| {
+        (!retirement.terminal_offline && retirement.retry_at <= now)
+            || control
+                .sources
+                .values()
+                .any(|active| source_storage_identity_matches(active, &retirement.source))
+    })
+}
+
+fn clear_satisfied_manifest_audit_request(shared: &Shared, source_id: &str) {
+    let mut control = shared.control();
+    // A watcher-ready boundary or another reconciliation request can arrive
+    // while this audit is in flight. That newer request remains in
+    // `dirty_sources` until the coordinator snapshots it, so preserve the
+    // force flag for the closing audit instead of letting the older completion
+    // erase it.
+    if !control.dirty_sources.contains(source_id) {
+        control.force_manifest_audit_sources.remove(source_id);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CandidateInvalidationScope {
+    None,
+    TargetScope,
+    Source,
+}
+
+fn candidate_invalidation_scope(
+    task: &RuntimeTask,
+    outcome: Option<ExecutionOutcome>,
+) -> CandidateInvalidationScope {
+    match (task, outcome) {
+        (
+            RuntimeTask::ManifestAudit,
+            Some(
+                ExecutionOutcome::Completed
+                | ExecutionOutcome::CompletedAwaitingForegroundRefresh
+                | ExecutionOutcome::FailedAwaitingForegroundRefresh,
+            ),
+        ) => CandidateInvalidationScope::Source,
+        (RuntimeTask::Readiness(target), Some(ExecutionOutcome::Completed))
+            if target.stage == ReadinessStage::IndexedIdentity
+                && target.content_generation.starts_with("pending-") =>
+        {
+            CandidateInvalidationScope::TargetScope
+        }
+        (
+            RuntimeTask::Readiness(_),
+            Some(
+                ExecutionOutcome::Retried { .. }
+                | ExecutionOutcome::Failed
+                | ExecutionOutcome::PrerequisiteInvalidated { .. }
+                | ExecutionOutcome::Stale
+                | ExecutionOutcome::NotClaimed,
+            ),
+        ) => CandidateInvalidationScope::TargetScope,
+        _ => CandidateInvalidationScope::None,
     }
 }
 
@@ -1720,7 +2099,7 @@ fn process_ready_source_retirements(shared: &Shared) {
             .pending_retirements
             .iter()
             .filter(|(_, retirement)| {
-                retirement.retry_at <= now
+                (!retirement.terminal_offline && retirement.retry_at <= now)
                     || control
                         .sources
                         .values()
@@ -1731,30 +2110,78 @@ fn process_ready_source_retirements(shared: &Shared) {
     };
 
     for (retirement_id, retirement) in candidates {
-        // Serialize the final admission check and the short retirement transaction with source
-        // replacement. Removal itself only enqueues this work; a fast re-add can therefore
-        // supersede it before any durable state is changed.
-        let replacement = shared
+        // Fence only the admission snapshot and final publication. The potentially blocking
+        // source I/O runs in a killable child without owning `source_replacement`, so a fast
+        // re-add can cancel and supersede it instead of freezing source configuration.
+        {
+            let _replacement = shared
+                .source_replacement
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            let control = shared.control();
+            let Some(current) = control.pending_retirements.get(&retirement_id) else {
+                continue;
+            };
+            if current.lifecycle_generation != retirement.lifecycle_generation {
+                continue;
+            }
+            drop(control);
+            if shared.source_has_external_activity(
+                retirement.source.id.as_str(),
+                retirement.lifecycle_generation,
+            ) || shared.source_has_in_flight_work(
+                retirement.source.id.as_str(),
+                retirement.lifecycle_generation,
+            ) {
+                continue;
+            }
+            let mut control = shared.control();
+            let Some(current) = control.pending_retirements.get(&retirement_id) else {
+                continue;
+            };
+            if current.lifecycle_generation != retirement.lifecycle_generation {
+                continue;
+            }
+            if let Some(source_id) = reactivated_source_id(&control, &retirement.source) {
+                control.pending_retirements.remove(&retirement_id);
+                control.dirty_sources.insert(source_id);
+                control.notify("source_storage_handoff_completed");
+                drop(control);
+                shared.wake.notify_all();
+                shared.budget_wake.notify_all();
+                continue;
+            }
+        }
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            event = "source_processing.retirement.started",
+            source_id = retirement.source.id.as_str(),
+            source_root = %retirement.source.root.display(),
+            lifecycle_generation = retirement.lifecycle_generation,
+            "Retiring removed source state"
+        );
+        #[cfg(test)]
+        let result = if shared.retirement_cleanup_blocked.load(Ordering::Acquire) {
+            shared
+                .retirement_cleanup_started
+                .store(true, Ordering::Release);
+            while !shared.cancel.load(Ordering::Acquire)
+                && !retirement.cancel.load(Ordering::Acquire)
+            {
+                thread::sleep(Duration::from_millis(5));
+            }
+            Ok(None)
+        } else {
+            super::worker::run_source_retirement(&retirement.source, retirement.cancel.as_ref())
+        };
+        #[cfg(not(test))]
+        let result =
+            super::worker::run_source_retirement(&retirement.source, retirement.cancel.as_ref());
+
+        let _replacement = shared
             .source_replacement
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        let control = shared.control();
-        let Some(current) = control.pending_retirements.get(&retirement_id) else {
-            continue;
-        };
-        if current.lifecycle_generation != retirement.lifecycle_generation {
-            continue;
-        }
-        drop(control);
-        if shared.source_has_external_activity(
-            retirement.source.id.as_str(),
-            retirement.lifecycle_generation,
-        ) || shared.source_has_in_flight_work(
-            retirement.source.id.as_str(),
-            retirement.lifecycle_generation,
-        ) {
-            continue;
-        }
         let mut control = shared.control();
         let Some(current) = control.pending_retirements.get(&retirement_id) else {
             continue;
@@ -1762,50 +2189,71 @@ fn process_ready_source_retirements(shared: &Shared) {
         if current.lifecycle_generation != retirement.lifecycle_generation {
             continue;
         }
-        let reactivated_source_id = control.sources.values().find_map(|active| {
-            source_storage_identity_matches(active, &retirement.source)
-                .then(|| active.id.as_str().to_string())
-        });
-        if let Some(source_id) = reactivated_source_id {
+        if let Some(source_id) = reactivated_source_id(&control, &retirement.source) {
             control.pending_retirements.remove(&retirement_id);
             control.dirty_sources.insert(source_id);
             control.notify("source_storage_handoff_completed");
             drop(control);
-            drop(replacement);
             shared.wake.notify_all();
             shared.budget_wake.notify_all();
             continue;
         }
-        drop(control);
-        let result = retire_source_derived_state(&retirement.source);
-        let mut control = shared.control();
+        if control.shutdown {
+            return;
+        }
         match result {
-            Ok(retired_cache_refs) => {
+            Ok(Some(SourceRetirementOutcome::Retired { retired_cache_refs })) => {
                 control.pending_retirements.remove(&retirement_id);
                 tracing::info!(
                     target: "wavecrate::source_processing",
+                    event = "source_processing.retirement.completed",
                     source_id = retirement.source.id.as_str(),
                     retired_cache_refs,
                     "Retired removed source runtime and path-derived cache ownership"
                 );
-                drop(control);
-                drop(replacement);
-                if let Err(error) = prune_unreferenced_waveform_cache() {
-                    tracing::warn!(
-                        target: "wavecrate::source_processing",
-                        source_id = retirement.source.id.as_str(),
-                        error,
-                        "Bounded orphan cache collection was deferred"
-                    );
+            }
+            Ok(Some(SourceRetirementOutcome::TerminalOffline)) => {
+                if let Some(pending) = control.pending_retirements.get_mut(&retirement_id) {
+                    pending.terminal_offline = true;
+                    pending.retry_at = i64::MAX;
                 }
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    event = "source_processing.retirement.offline",
+                    source_id = retirement.source.id.as_str(),
+                    lifecycle_generation = retirement.lifecycle_generation,
+                    "Removed source storage is offline; retirement is parked until re-add"
+                );
+            }
+            Ok(None) => {
+                control.pending_retirements.remove(&retirement_id);
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    event = "source_processing.retirement.cancelled",
+                    source_id = retirement.source.id.as_str(),
+                    lifecycle_generation = retirement.lifecycle_generation,
+                    "Cancelled superseded removed-source retirement"
+                );
             }
             Err(error) => {
                 if let Some(pending) = control.pending_retirements.get_mut(&retirement_id) {
-                    pending.retry_at = now.saturating_add(SOURCE_RETIREMENT_RETRY_SECONDS);
+                    pending.attempts = pending.attempts.saturating_add(1);
+                    let delay = SOURCE_RETIREMENT_RETRY_SECONDS
+                        .saturating_mul(1_i64 << pending.attempts.min(6));
+                    pending.retry_at = now.saturating_add(delay);
                 }
                 tracing::warn!(
                     target: "wavecrate::source_processing",
+                    event = "source_processing.retirement.retry",
                     source_id = retirement.source.id.as_str(),
+                    attempt = control
+                        .pending_retirements
+                        .get(&retirement_id)
+                        .map_or(0, |pending| pending.attempts),
+                    retry_at = control
+                        .pending_retirements
+                        .get(&retirement_id)
+                        .map_or(0, |pending| pending.retry_at),
                     error,
                     "Removed source retirement will retry without reactivating the source"
                 );
@@ -1814,8 +2262,19 @@ fn process_ready_source_retirements(shared: &Shared) {
     }
 }
 
+fn reactivated_source_id(control: &ControlState, retired_source: &SampleSource) -> Option<String> {
+    control.sources.values().find_map(|active| {
+        source_storage_identity_matches(active, retired_source)
+            .then(|| active.id.as_str().to_string())
+    })
+}
+
 fn progress_refresh_due(last_publish_at: Option<Instant>) -> bool {
     last_publish_at.is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL)
+}
+
+fn manifest_audit_source_row_active(started_at: Instant) -> bool {
+    started_at.elapsed() >= DISCOVERY_PROGRESS_UI_GRACE_INTERVAL
 }
 
 fn publish_similarity_readiness_refreshes(
@@ -1840,10 +2299,6 @@ fn publish_source_processing_progress(
     lifecycle_generation: u64,
     stats: SourceDiscoveryStats,
 ) {
-    let control = shared.control();
-    if control.processing_paused() {
-        return;
-    }
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
         return;
     };
@@ -1865,6 +2320,7 @@ fn publish_source_processing_progress(
             source_id: candidate.source.id.as_str().to_string(),
             lifecycle_generation,
             active: true,
+            source_row_active: !matches!(candidate.task, RuntimeTask::ManifestAudit),
             completed,
             total,
             stage: stage.to_string(),
@@ -1873,93 +2329,24 @@ fn publish_source_processing_progress(
     ));
 }
 
-fn publish_source_processing_discovery(
+fn publish_source_recovery_progress(
     shared: &Shared,
     source: &SampleSource,
     lifecycle_generation: u64,
-    source_cancel: &Arc<AtomicBool>,
-) -> bool {
-    let control = shared.control();
-    if control.processing_paused()
-        || !control.source_is_active(source.id.as_str())
-        || control.source_lifecycle_generations.get(source.id.as_str())
-            != Some(&lifecycle_generation)
-        || control
-            .source_work_cancels
-            .get(source.id.as_str())
-            .is_none_or(|current| !Arc::ptr_eq(current, source_cancel))
-    {
-        return false;
-    }
+) {
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return false;
+        return;
     };
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: source.id.as_str().to_string(),
             lifecycle_generation,
             active: true,
+            source_row_active: true,
             completed: 0,
             total: 0,
-            stage: String::from("Checking pending work"),
-            detail: String::from("Counting unfinished analysis, similarity, and indexing jobs"),
-        },
-    ));
-    true
-}
-
-fn publish_source_processing_discovery_if_needed(
-    shared: &Shared,
-    sources: &[SampleSource],
-    lifecycle_generations: &BTreeMap<String, u64>,
-    source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
-    progress_visible: bool,
-) -> bool {
-    if progress_visible || sources.is_empty() || shared.has_external_scan_activity() {
-        return false;
-    }
-    if sources.len() == 1 {
-        let source_id = sources[0].id.as_str();
-        let Some(lifecycle_generation) = lifecycle_generations.get(source_id).copied() else {
-            return false;
-        };
-        let Some(source_cancel) = source_work_cancels.get(source_id) else {
-            return false;
-        };
-        if !publish_source_processing_discovery(
-            shared,
-            &sources[0],
-            lifecycle_generation,
-            source_cancel,
-        ) {
-            return false;
-        }
-    } else {
-        publish_multi_source_processing_activity(shared, sources.len());
-    }
-    true
-}
-
-fn publish_multi_source_processing_activity(shared: &Shared, source_count: usize) {
-    let control = shared.control();
-    if control.processing_paused() {
-        return;
-    }
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
-    };
-    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-        SourceProcessingProgress {
-            source_id: String::new(),
-            lifecycle_generation: 0,
-            active: true,
-            completed: 0,
-            total: 0,
-            stage: String::from("Processing source libraries"),
-            detail: format!(
-                "Advancing {source_count} source{}",
-                if source_count == 1 { "" } else { "s" }
-            ),
+            stage: String::from("Opening source database"),
+            detail: format!("Recovering interrupted jobs in {}", source.root.display()),
         },
     ));
 }
@@ -1973,6 +2360,7 @@ fn publish_source_processing_finished(shared: &Shared) {
             source_id: String::new(),
             lifecycle_generation: 0,
             active: false,
+            source_row_active: false,
             completed: 0,
             total: 0,
             stage: String::new(),
@@ -1981,6 +2369,7 @@ fn publish_source_processing_finished(shared: &Shared) {
     ));
 }
 
+#[cfg(test)]
 fn publish_source_processing_prerequisite_wait(
     shared: &Shared,
     lifecycle_generations: &BTreeMap<String, u64>,
@@ -1993,12 +2382,54 @@ fn publish_source_processing_prerequisite_wait(
     else {
         return false;
     };
+    publish_source_processing_wait_for_source(shared, source_id, lifecycle_generations, stats, true)
+}
+
+fn publish_source_processing_wait(
+    shared: &Shared,
+    active_source_id: Option<&str>,
+    lifecycle_generations: &BTreeMap<String, u64>,
+    source_stats: &BTreeMap<String, SourceDiscoveryStats>,
+) -> bool {
+    let Some(source_id) = active_source_id else {
+        return false;
+    };
+    let Some(stats) = source_stats.get(source_id) else {
+        return false;
+    };
+    if stats.prerequisites_blocked > 0 {
+        return publish_source_processing_wait_for_source(
+            shared,
+            source_id,
+            lifecycle_generations,
+            stats,
+            true,
+        );
+    }
+    if stats.earliest_retry_at.is_none() {
+        return false;
+    }
+    publish_source_processing_wait_for_source(
+        shared,
+        source_id,
+        lifecycle_generations,
+        stats,
+        false,
+    )
+}
+
+fn publish_source_processing_wait_for_source(
+    shared: &Shared,
+    source_id: &str,
+    lifecycle_generations: &BTreeMap<String, u64>,
+    stats: &SourceDiscoveryStats,
+    prerequisite_wait: bool,
+) -> bool {
     let Some(lifecycle_generation) = lifecycle_generations.get(source_id).copied() else {
         return false;
     };
     let control = shared.control();
-    if control.processing_paused()
-        || !control.source_is_active(source_id)
+    if !control.source_is_active(source_id)
         || control.source_lifecycle_generations.get(source_id) != Some(&lifecycle_generation)
     {
         return false;
@@ -2007,8 +2438,13 @@ fn publish_source_processing_prerequisite_wait(
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
         return false;
     };
-    let (stage, detail) = match stats.prerequisite_retry_at {
-        Some(retry_at) => {
+    let retry_at = if prerequisite_wait {
+        stats.prerequisite_retry_at
+    } else {
+        stats.earliest_retry_at
+    };
+    let (stage, detail) = match (prerequisite_wait, retry_at) {
+        (true, Some(retry_at)) => {
             let retry_in = retry_at.saturating_sub(now_epoch_seconds());
             (
                 String::from("Waiting for prerequisites"),
@@ -2019,16 +2455,29 @@ fn publish_source_processing_prerequisite_wait(
                 },
             )
         }
-        None => (
+        (true, None) => (
             String::from("Blocked by prerequisites"),
             String::from("Similarity finalization is waiting for durable prerequisites"),
         ),
+        (false, Some(retry_at)) => {
+            let retry_in = retry_at.saturating_sub(now_epoch_seconds());
+            (
+                String::from("Waiting to retry source"),
+                if retry_in <= 1 {
+                    String::from("Retry is due")
+                } else {
+                    format!("A changing or temporarily unavailable file will retry in {retry_in}s")
+                },
+            )
+        }
+        (false, None) => return false,
     };
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
-            source_id: source_id.clone(),
+            source_id: source_id.to_string(),
             lifecycle_generation,
             active: true,
+            source_row_active: true,
             completed: stats.progress_completed,
             total: stats.progress_total,
             stage,
@@ -2036,23 +2485,6 @@ fn publish_source_processing_prerequisite_wait(
         },
     ));
     true
-}
-
-fn publish_source_processing_pausing(shared: &Shared, detail: &str) {
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
-    };
-    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-        SourceProcessingProgress {
-            source_id: String::new(),
-            lifecycle_generation: 0,
-            active: true,
-            completed: 0,
-            total: 0,
-            stage: String::from("Pausing source processing"),
-            detail: detail.to_string(),
-        },
-    ));
 }
 
 fn advance_source_progress(
@@ -2065,23 +2497,6 @@ fn advance_source_progress(
         .saturating_add(1)
         .min(stats.progress_total);
     Some(*stats)
-}
-
-fn stable_source_progress(
-    displayed: &mut BTreeMap<String, SourceDiscoveryStats>,
-    source_id: &str,
-    observed: SourceDiscoveryStats,
-) -> SourceDiscoveryStats {
-    let stable = displayed.entry(source_id.to_string()).or_insert(observed);
-    if stable.progress_total != observed.progress_total {
-        *stable = observed;
-        return *stable;
-    }
-    stable.progress_completed = stable
-        .progress_completed
-        .max(observed.progress_completed)
-        .min(stable.progress_total);
-    *stable
 }
 
 fn runtime_task_progress_detail(task: &RuntimeTask) -> (&'static str, String) {
@@ -2169,11 +2584,13 @@ fn discover_candidates(
     Vec<RuntimeCandidate>,
     BTreeMap<String, SourceDiscoveryStats>,
     BTreeSet<String>,
+    bool,
 ) {
     let now = now_epoch_seconds();
     let mut candidates = Vec::new();
     let mut source_stats = BTreeMap::new();
     let mut deferred = BTreeSet::new();
+    let mut progress_published = false;
     for source in sources {
         let Some(permit) = shared
             .budgets()
@@ -2197,11 +2614,22 @@ fn discover_candidates(
             let mut telemetry = shared.telemetry();
             telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
         }
-        match discover_source_candidates(
+        let mut progress = DiscoveryProgressPublisher {
+            shared,
+            source_id: source.id.as_str(),
+            lifecycle_generation: in_flight_work.lifecycle_generation,
+            started_at: Instant::now(),
+            last_phase: None,
+            last_ui_publish_at: None,
+            last_log_publish_at: None,
+            ui_published: false,
+        };
+        match discover_source_candidates_with_progress(
             source,
             now,
             force_manifest_audit_sources.contains(source.id.as_str()),
             source_cancel,
+            &mut |phase, work_units| progress.advance(phase, work_units),
         ) {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 candidates.append(&mut source_candidates);
@@ -2210,20 +2638,49 @@ fn discover_candidates(
             Ok(Cancellable::Cancelled) => {
                 deferred.insert(source.id.as_str().to_string());
             }
-            Err(error) => record_discovery_error(shared, source, &error),
+            Err(error) => {
+                record_discovery_error(shared, source, &error);
+                source_stats.insert(
+                    source.id.as_str().to_string(),
+                    SourceDiscoveryStats {
+                        earliest_retry_at: Some(
+                            now_epoch_seconds().saturating_add(SOURCE_DISCOVERY_RETRY_SECONDS),
+                        ),
+                        ..SourceDiscoveryStats::default()
+                    },
+                );
+            }
         }
+        progress_published |= progress.ui_published;
         drop(in_flight_work);
         shared.budgets().release(permit);
         shared.budget_wake.notify_all();
     }
-    (candidates, source_stats, deferred)
+    (candidates, source_stats, deferred, progress_published)
 }
 
+#[cfg(test)]
 fn discover_source_candidates(
     source: &SampleSource,
     now: i64,
     force_manifest_audit: bool,
     cancel: &AtomicBool,
+) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
+    discover_source_candidates_with_progress(
+        source,
+        now,
+        force_manifest_audit,
+        cancel,
+        &mut |_, _| {},
+    )
+}
+
+fn discover_source_candidates_with_progress(
+    source: &SampleSource,
+    now: i64,
+    force_manifest_audit: bool,
+    cancel: &AtomicBool,
+    progress: &mut dyn FnMut(&'static str, usize),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
@@ -2251,15 +2708,17 @@ fn discover_source_candidates(
         SourceDatabaseConnectionRole::JobWorker,
     )
     .map_err(|error| error.to_string())?;
-    discover_source_candidates_with_connection(
+    discover_source_candidates_with_connection_and_progress(
         source,
         &mut connection,
         now,
         force_manifest_audit,
         cancel,
+        progress,
     )
 }
 
+#[cfg(test)]
 fn discover_source_candidates_with_connection(
     source: &SampleSource,
     connection: &mut rusqlite::Connection,
@@ -2267,7 +2726,26 @@ fn discover_source_candidates_with_connection(
     force_manifest_audit: bool,
     cancel: &AtomicBool,
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
+    discover_source_candidates_with_connection_and_progress(
+        source,
+        connection,
+        now,
+        force_manifest_audit,
+        cancel,
+        &mut |_, _| {},
+    )
+}
+
+fn discover_source_candidates_with_connection_and_progress(
+    source: &SampleSource,
+    connection: &mut rusqlite::Connection,
+    now: i64,
+    force_manifest_audit: bool,
+    cancel: &AtomicBool,
+    progress: &mut dyn FnMut(&'static str, usize),
+) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     let source_id = source.id.as_str();
+    let mut work_units = 0_usize;
     let mut candidates = Vec::new();
     let mut stats = SourceDiscoveryStats::default();
     if connection
@@ -2331,12 +2809,20 @@ fn discover_source_candidates_with_connection(
             task: RuntimeTask::ManifestAudit,
         });
     }
-    if matches!(
-        publish_current_readiness_targets_with_cancel(connection, source_id, now, cancel)?,
-        Cancellable::Cancelled
-    ) {
+    let target_publication = publish_current_readiness_targets_with_cancel_and_checkpoint(
+        connection,
+        source_id,
+        now,
+        cancel,
+        &mut || {
+            work_units = work_units.saturating_add(1);
+            progress("Reading manifest and readiness targets", work_units);
+        },
+    )?;
+    if matches!(target_publication, Cancellable::Cancelled) {
         return Ok(Cancellable::Cancelled);
     }
+    progress("Checking playback-cache ownership", work_units);
     if matches!(
         reconcile_playback_cache_ownership(source, connection, cancel)?,
         Cancellable::Cancelled
@@ -2363,22 +2849,51 @@ fn discover_source_candidates_with_connection(
                 "Reclassified deterministic audio decode failures as unsupported"
             );
         }
-        let snapshot = match reconcile_readiness_with_cancel(&connection, source_id, now, cancel) {
+        let snapshot = match reconcile_readiness_with_cancel_and_progress(
+            &connection,
+            source_id,
+            now,
+            cancel,
+            &mut || {
+                work_units = work_units.saturating_add(1);
+                progress("Comparing durable readiness", work_units);
+            },
+        ) {
             Ok(snapshot) => snapshot,
             Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
                 return Ok(Cancellable::Cancelled);
             }
             Err(error) => return Err(error.to_string()),
         };
-        match persist_readiness_deficits_with_cancel(connection, &snapshot.deficits, now, cancel) {
+        let active_recordings = active_recording_deferrals(connection, now)?;
+        let persistable_deficits = snapshot
+            .deficits
+            .iter()
+            .filter(|deficit| {
+                !active_recordings
+                    .scope_ids
+                    .contains(&deficit.target.scope_id)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        match persist_readiness_deficits_with_cancel_and_progress(
+            connection,
+            &persistable_deficits,
+            now,
+            cancel,
+            &mut || {
+                work_units = work_units.saturating_add(1);
+                progress("Queueing unfinished jobs", work_units);
+            },
+        ) {
             Ok(_) => {}
             Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
                 return Ok(Cancellable::Cancelled);
             }
             Err(error) => return Err(error.to_string()),
         }
-        let schedulable_deficits = snapshot
-            .deficits
+        park_active_recording_jobs(connection, &active_recordings.scope_ids)?;
+        let schedulable_deficits = persistable_deficits
             .iter()
             .filter(|deficit| snapshot.prerequisites_are_current(&deficit.target))
             .collect::<Vec<_>>();
@@ -2399,7 +2914,18 @@ fn discover_source_candidates_with_connection(
             .saturating_add(work_stats.unsupported)
             .min(stats.progress_total);
         stats.retries_due = work_stats.retries_due;
-        stats.earliest_retry_at = work_stats.earliest_retry_at;
+        stats.earliest_retry_at =
+            earliest_deadline(work_stats.earliest_retry_at, active_recordings.retry_at);
+        if !active_recordings.scope_ids.is_empty() {
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                event = "source_processing.active_recordings_deferred",
+                source_id,
+                file_count = active_recordings.scope_ids.len(),
+                retry_at = active_recordings.retry_at.unwrap_or_default(),
+                "Deferred files that are still being actively written"
+            );
+        }
         tracing::debug!(
             target: "wavecrate::source_processing",
             source_id,
@@ -2418,6 +2944,70 @@ fn discover_source_candidates_with_connection(
     } else {
         Ok(Cancellable::Completed((candidates, stats)))
     }
+}
+
+#[derive(Debug, Default)]
+struct ActiveRecordingDeferrals {
+    scope_ids: BTreeSet<String>,
+    retry_at: Option<i64>,
+}
+
+fn active_recording_deferrals(
+    connection: &rusqlite::Connection,
+    now: i64,
+) -> Result<ActiveRecordingDeferrals, String> {
+    const NANOS_PER_SECOND: i64 = 1_000_000_000;
+    let end_of_current_second_ns = now
+        .saturating_add(1)
+        .saturating_mul(NANOS_PER_SECOND)
+        .saturating_sub(1);
+    let cutoff_ns = now
+        .saturating_sub(ACTIVE_RECORDING_QUIET_SECONDS)
+        .saturating_mul(NANOS_PER_SECOND);
+    let mut statement = connection
+        .prepare(
+            "SELECT file_identity, modified_ns
+             FROM wav_files
+             WHERE missing = 0
+               AND file_identity IS NOT NULL
+               AND TRIM(file_identity) != ''
+               AND modified_ns BETWEEN ?1 AND ?2",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map(params![cutoff_ns, end_of_current_second_ns], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|error| error.to_string())?;
+    let mut deferrals = ActiveRecordingDeferrals::default();
+    for row in rows {
+        let (scope_id, modified_ns) = row.map_err(|error| error.to_string())?;
+        deferrals.scope_ids.insert(scope_id);
+        let modified_second = modified_ns.div_euclid(NANOS_PER_SECOND);
+        let stable_at = modified_second
+            .saturating_add(ACTIVE_RECORDING_QUIET_SECONDS)
+            .saturating_add(1);
+        deferrals.retry_at = earliest_deadline(deferrals.retry_at, Some(stable_at));
+    }
+    Ok(deferrals)
+}
+
+fn park_active_recording_jobs(
+    connection: &rusqlite::Connection,
+    scope_ids: &BTreeSet<String>,
+) -> Result<(), String> {
+    for scope_id in scope_ids {
+        connection
+            .execute(
+                "DELETE FROM analysis_jobs
+                 WHERE readiness_managed = 1
+                   AND readiness_scope_id = ?1
+                   AND status != 'running'",
+                [scope_id],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 fn prune_legacy_similarity_jobs(connection: &rusqlite::Connection) -> Result<usize, String> {
@@ -2510,16 +3100,22 @@ fn source_processing_schema_available(connection: &rusqlite::Connection) -> Resu
         .map_err(|error| error.to_string())
 }
 
-fn retire_source_derived_state(source: &SampleSource) -> Result<usize, String> {
+pub(super) enum SourceRetirementOutcome {
+    Retired { retired_cache_refs: usize },
+    TerminalOffline,
+}
+
+pub(super) fn retire_source_derived_state(
+    source: &SampleSource,
+) -> Result<SourceRetirementOutcome, String> {
     let database_path = source.db_path().map_err(|error| error.to_string())?;
     if !database_path.exists() {
         if source.metadata_storage == SourceMetadataStorage::SourceFolder && !source.root.is_dir() {
-            return Err(format!(
-                "source storage is unavailable: {}",
-                source.root.display()
-            ));
+            return Ok(SourceRetirementOutcome::TerminalOffline);
         }
-        return Ok(0);
+        return Ok(SourceRetirementOutcome::Retired {
+            retired_cache_refs: 0,
+        });
     }
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
@@ -2548,7 +3144,9 @@ fn retire_source_derived_state(source: &SampleSource) -> Result<usize, String> {
         )
         .map_err(|error| error.to_string())?;
     if !readiness_source_table_exists {
-        return Ok(0);
+        return Ok(SourceRetirementOutcome::Retired {
+            retired_cache_refs: 0,
+        });
     }
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
@@ -2618,7 +3216,17 @@ fn retire_source_derived_state(source: &SampleSource) -> Result<usize, String> {
             ),
         }
     }
-    Ok(invalidated)
+    if let Err(error) = prune_unreferenced_waveform_cache() {
+        tracing::warn!(
+            target: "wavecrate::source_processing",
+            source_id = source.id.as_str(),
+            error,
+            "Bounded orphan cache collection was deferred"
+        );
+    }
+    Ok(SourceRetirementOutcome::Retired {
+        retired_cache_refs: invalidated,
+    })
 }
 
 fn retained_waveform_cache_ref_is_owned(cache_ref: &str) -> Result<bool, String> {
@@ -2779,6 +3387,7 @@ fn publish_current_readiness_targets(
     }
 }
 
+#[cfg(test)]
 fn publish_current_readiness_targets_with_cancel(
     connection: &mut rusqlite::Connection,
     source_id: &str,
@@ -2870,7 +3479,7 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     );
     let similarity_artifact_version = native_similarity_artifact_version();
     let mut membership = blake3::Hasher::new();
-    let mut targets = Vec::with_capacity(manifest.len().saturating_mul(4).saturating_add(1));
+    let mut targets = Vec::with_capacity(manifest.len().saturating_mul(3).saturating_add(1));
     for (path, identity, content_hash, content_generation, file_size) in &manifest {
         checkpoint();
         if cancelled(cancel) {
@@ -2896,7 +3505,6 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
             content_generation,
         ));
         for (stage, version) in [
-            (ReadinessStage::PlaybackSummary, READINESS_PLAYBACK_VERSION),
             (
                 ReadinessStage::AnalysisFeatures,
                 wavecrate_analysis::analysis_version(),
@@ -3009,11 +3617,17 @@ struct PlaybackCacheOwnershipRow {
     target_eligibility: Option<String>,
 }
 
-/// Reconcile source-owned playback artifact rows with their exact app-global cache payloads.
+/// Reconcile source-owned playback artifact rows with their app-global cache payloads.
 ///
 /// The source database is the durable reverse index. This pass runs on startup and every committed
 /// source wake, so changed/deleted identities can retire their old cache keys even after the old
 /// filesystem metadata is gone. Path-only moves remap reusable payloads without decoding again.
+///
+/// Cache residency is deliberately not a readiness invariant: the app-global waveform cache is
+/// bounded and may evict a successfully prepared payload. In that case the durable artifact remains
+/// current, its stale cache reference is cleared, and playback may repopulate the cache on demand.
+/// Treating budget eviction as a readiness deficit would make source processing loop forever once
+/// the cache reaches its limit.
 fn reconcile_playback_cache_ownership(
     source: &SampleSource,
     connection: &mut rusqlite::Connection,
@@ -3070,14 +3684,6 @@ fn reconcile_playback_cache_ownership(
             && row.target_content_generation.as_deref()
                 == Some(row.artifact_content_generation.as_str())
             && row.target_eligibility.as_deref() == Some("eligible");
-        let Some(cache_ref) = row.artifact_ref.as_deref().map(std::path::Path::new) else {
-            changed = changed.saturating_add(delete_playback_cache_ownership_row(
-                connection,
-                source.id.as_str(),
-                &row,
-            )?);
-            continue;
-        };
         if !target_matches {
             invalidate_playback_cache_owner(source, &row);
             changed = changed.saturating_add(delete_playback_cache_ownership_row(
@@ -3087,10 +3693,7 @@ fn reconcile_playback_cache_ownership(
             )?);
             continue;
         }
-        let (Some(artifact_relative_path), Some(target_relative_path)) = (
-            row.artifact_relative_path.as_deref(),
-            row.target_relative_path.as_deref(),
-        ) else {
+        let Some(target_relative_path) = row.target_relative_path.as_deref() else {
             invalidate_playback_cache_owner(source, &row);
             changed = changed.saturating_add(delete_playback_cache_ownership_row(
                 connection,
@@ -3100,12 +3703,34 @@ fn reconcile_playback_cache_ownership(
             continue;
         };
         let target_path = source.root.join(target_relative_path);
-        if artifact_relative_path == target_relative_path
-            && persisted_waveform_cache_ref_is_current(&target_path, cache_ref)
-        {
+        let Some(cache_ref) = row.artifact_ref.as_deref().map(std::path::Path::new) else {
+            if row.artifact_relative_path.as_deref() == Some(target_relative_path) {
+                continue;
+            }
+            changed = changed.saturating_add(update_playback_cache_ownership_row(
+                connection,
+                source.id.as_str(),
+                &row,
+                target_relative_path,
+                None,
+            )?);
+            continue;
+        };
+        if row.artifact_relative_path.as_deref() == Some(target_relative_path) {
+            if persisted_waveform_cache_ref_is_current(&target_path, cache_ref) {
+                continue;
+            }
+            invalidate_persisted_waveform_cache_ref(cache_ref);
+            changed = changed.saturating_add(update_playback_cache_ownership_row(
+                connection,
+                source.id.as_str(),
+                &row,
+                target_relative_path,
+                None,
+            )?);
             continue;
         }
-        if artifact_relative_path != target_relative_path {
+        if let Some(artifact_relative_path) = row.artifact_relative_path.as_deref() {
             let artifact_path = source.root.join(artifact_relative_path);
             invalidate_persisted_waveform_cache_path(&artifact_path);
             if let Some(remapped_ref) = remap_persisted_waveform_cache_ref_after_move(
@@ -3152,16 +3777,48 @@ fn reconcile_playback_cache_ownership(
                 }
                 invalidate_persisted_waveform_cache_ref(&remapped_ref);
             }
-        } else {
-            invalidate_playback_cache_owner(source, &row);
         }
-        changed = changed.saturating_add(delete_playback_cache_ownership_row(
+        invalidate_persisted_waveform_cache_ref(cache_ref);
+        changed = changed.saturating_add(update_playback_cache_ownership_row(
             connection,
             source.id.as_str(),
             &row,
+            target_relative_path,
+            None,
         )?);
     }
     Ok(Cancellable::Completed(changed))
+}
+
+fn update_playback_cache_ownership_row(
+    connection: &rusqlite::Connection,
+    source_id: &str,
+    row: &PlaybackCacheOwnershipRow,
+    relative_path: &str,
+    artifact_ref: Option<&std::path::Path>,
+) -> Result<usize, String> {
+    connection
+        .execute(
+            "UPDATE source_readiness_artifacts
+             SET relative_path = ?1, artifact_ref = ?2
+             WHERE source_id = ?3
+               AND scope_kind = 'file'
+               AND scope_id = ?4
+               AND stage = 'playback_summary'
+               AND artifact_version = ?5
+               AND content_generation = ?6
+               AND artifact_ref IS ?7",
+            params![
+                relative_path,
+                artifact_ref.map(|path| path.to_string_lossy().into_owned()),
+                source_id,
+                row.scope_id,
+                row.artifact_version,
+                row.artifact_content_generation,
+                row.artifact_ref,
+            ],
+        )
+        .map_err(|error| error.to_string())
 }
 
 fn invalidate_playback_cache_owner(source: &SampleSource, row: &PlaybackCacheOwnershipRow) {
@@ -3310,6 +3967,7 @@ fn execute_candidate(
                 .len();
             let source_id = candidate.source.id.as_str().to_string();
             let source_root = candidate.source.root.clone();
+            let audit_started_at = Instant::now();
             let mut last_progress_publish_at = None::<Instant>;
             let mut publish_progress = |checked: usize, path: &std::path::Path| {
                 let publish_due = last_progress_publish_at.is_none_or(|published_at| {
@@ -3333,6 +3991,7 @@ fn execute_candidate(
                         source_id: source_id.clone(),
                         lifecycle_generation,
                         active: true,
+                        source_row_active: manifest_audit_source_row_active(audit_started_at),
                         completed: checked.min(total),
                         total,
                         stage: String::from("Scanning source changes"),
@@ -3374,7 +4033,21 @@ fn execute_candidate(
                     .collect::<Vec<_>>(),
                 "Periodic source manifest audit committed"
             );
-            if !outcome.committed_delta.is_empty()
+            let foreground_refresh_owns_reconciliation = !outcome.committed_delta.is_empty()
+                && crate::native_app::source_processing::manifest_delta_requires_browser_refresh(
+                    &outcome.committed_delta,
+                )
+                && worker_sender.is_some_and(|worker_sender| {
+                    worker_sender
+                        .send(GuiMessage::SourceManifestAuditCommitted {
+                            source_id: candidate.source.id.as_str().to_string(),
+                            lifecycle_generation,
+                            committed_delta: outcome.committed_delta.clone(),
+                        })
+                        .is_ok()
+                });
+            if !foreground_refresh_owns_reconciliation
+                && !outcome.committed_delta.is_empty()
                 && let Some(worker_sender) = worker_sender
             {
                 let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
@@ -3383,28 +4056,96 @@ fn execute_candidate(
                     committed_delta: outcome.committed_delta,
                 });
             }
-            if cancel.load(Ordering::Acquire) {
-                Ok(ExecutionOutcome::Cancelled)
-            } else if let Some(error) = incomplete_error {
+            let incomplete = incomplete_error.is_some();
+            if let Some(error) = incomplete_error {
                 tracing::warn!(
                     target: "wavecrate::source_processing",
                     source_id = candidate.source.id.as_str(),
                     error,
                     "Manifest audit published a committed checkpoint and remains due"
                 );
-                Ok(ExecutionOutcome::Failed)
-            } else {
-                Ok(ExecutionOutcome::Completed)
             }
+            Ok(manifest_audit_execution_outcome(
+                foreground_refresh_owns_reconciliation,
+                incomplete,
+                cancel.load(Ordering::Acquire),
+            ))
         }
         RuntimeTask::Readiness(target) => {
             execute_readiness_target(&candidate.source, target, cancel)
         }
     };
-    if cancel.load(Ordering::Acquire) {
+    if matches!(
+        result,
+        Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
+            | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+    ) {
+        result
+    } else if cancel.load(Ordering::Acquire) {
         Ok(ExecutionOutcome::Cancelled)
     } else {
         result
+    }
+}
+
+fn manifest_audit_execution_outcome(
+    foreground_refresh_owns_reconciliation: bool,
+    incomplete: bool,
+    cancelled: bool,
+) -> ExecutionOutcome {
+    match (
+        foreground_refresh_owns_reconciliation,
+        incomplete,
+        cancelled,
+    ) {
+        (true, false, _) => ExecutionOutcome::CompletedAwaitingForegroundRefresh,
+        (true, true, _) => ExecutionOutcome::FailedAwaitingForegroundRefresh,
+        (false, _, true) => ExecutionOutcome::Cancelled,
+        (false, false, false) => ExecutionOutcome::Completed,
+        (false, true, false) => ExecutionOutcome::Failed,
+    }
+}
+
+#[cfg(test)]
+fn execute_synthetic_candidate_for_profile(
+    candidate: &RuntimeCandidate,
+    cancel: &AtomicBool,
+    connections: &mut BTreeMap<String, rusqlite::Connection>,
+) -> Result<ExecutionOutcome, String> {
+    let RuntimeTask::Readiness(target) = &candidate.task else {
+        return Ok(ExecutionOutcome::Completed);
+    };
+    let source_id = candidate.source.id.as_str();
+    if !connections.contains_key(source_id) {
+        let database_root = candidate
+            .source
+            .database_root()
+            .map_err(|error| error.to_string())?;
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &candidate.source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .map_err(|error| error.to_string())?;
+        connections.insert(source_id.to_string(), connection);
+    }
+    let connection = connections
+        .get_mut(source_id)
+        .expect("synthetic source connection was inserted");
+    let now = now_epoch_seconds();
+    let Some(claim) = claim_readiness_target(connection, target, now, READINESS_LEASE_SECONDS)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(ExecutionOutcome::NotClaimed);
+    };
+    if cancel.load(Ordering::Acquire) {
+        return cancel_claim(connection, &claim, "profile cancellation", now);
+    }
+    match complete_readiness_work(connection, &claim, now_epoch_seconds())
+        .map_err(|error| error.to_string())?
+    {
+        ArtifactPublishOutcome::Recorded => Ok(ExecutionOutcome::Completed),
+        ArtifactPublishOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
     }
 }
 
@@ -3413,7 +4154,7 @@ enum ReadinessExecutionOutcome {
     Retry(&'static str),
     Permanent(&'static str),
     Unsupported(&'static str),
-    PrerequisiteInvalidated,
+    PrerequisiteInvalidated(&'static str),
 }
 
 fn execute_readiness_target(
@@ -3555,14 +4296,30 @@ fn execute_readiness_target(
             .map_err(|error| error.to_string())?;
             Ok(execution_outcome_for_failure(outcome))
         }
-        Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated) => {
-            match release_readiness_work(&mut connection, &claim, now_epoch_seconds())
-                .map_err(|error| error.to_string())?
+        Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(reason)) => {
+            let policy = ReadinessRetryPolicy::new(
+                PREREQUISITE_INVALIDATION_RETRY_SECONDS,
+                5 * 60,
+                READINESS_MAX_ATTEMPTS,
+            )
+            .expect("valid prerequisite invalidation retry policy");
+            match fail_readiness_work(
+                &mut connection,
+                &claim,
+                ReadinessFailureClassification::Retryable,
+                reason,
+                now_epoch_seconds(),
+                policy,
+            )
+            .map_err(|error| error.to_string())?
             {
-                ReadinessWorkMutationOutcome::Recorded => {
-                    Ok(ExecutionOutcome::PrerequisiteInvalidated)
+                ReadinessFailureOutcome::RetryScheduled { retry_at } => {
+                    Ok(ExecutionOutcome::PrerequisiteInvalidated { retry_at, reason })
                 }
-                ReadinessWorkMutationOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
+                ReadinessFailureOutcome::RejectedStale => Ok(ExecutionOutcome::Stale),
+                ReadinessFailureOutcome::Permanent
+                | ReadinessFailureOutcome::Unsupported
+                | ReadinessFailureOutcome::AttemptsExhausted => Ok(ExecutionOutcome::Failed),
             }
         }
     }
@@ -3661,23 +4418,6 @@ fn reclassify_known_unsupported_audio_failures(
                          AND prerequisite.status = 'failed'
                          AND prerequisite.failure_kind = 'unsupported'
                    )",
-                [],
-            )
-            .map_err(|error| error.to_string())?,
-    );
-    reclassified = reclassified.saturating_add(
-        transaction
-            .execute(
-                "UPDATE analysis_jobs
-                 SET failure_kind = 'retryable',
-                     attempts = 0,
-                     retry_at = NULL
-                 WHERE readiness_managed = 1
-                   AND status = 'failed'
-                   AND failure_kind = 'permanent'
-                   AND readiness_stage = 'embedding_aspects'
-                   AND last_error =
-                       'embedding feature prerequisite is not durable yet'",
                 [],
             )
             .map_err(|error| error.to_string())?,
@@ -3846,10 +4586,12 @@ fn run_readiness_stage(
                 if committed_content_hash.as_deref() == Some(target.content_generation.as_str()) {
                     ReadinessExecutionOutcome::Complete(None)
                 } else if committed_content_hash.is_some() {
-                    ReadinessExecutionOutcome::PrerequisiteInvalidated
+                    ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                        "indexed identity content generation changed",
+                    )
                 } else {
                     ReadinessExecutionOutcome::Retry(
-                        "indexed identity content hash is not durable yet",
+                        "file is still changing; waiting for a stable content hash",
                     )
                 }
             } else {
@@ -3858,7 +4600,9 @@ fn run_readiness_stage(
         }
         ReadinessStage::PlaybackSummary => {
             if target.content_generation.starts_with("pending-") {
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                    "playback target is waiting for a committed content generation",
+                ));
             }
             let Some(relative_path) = target.relative_path.as_deref() else {
                 return Ok(ReadinessExecutionOutcome::Permanent(
@@ -3870,25 +4614,24 @@ fn run_readiness_stage(
             // payload using only size/mtime; erase that key first so this generation produces a
             // cache that can be committed atomically with its durable v5 ownership reference.
             if !prepare_playback_cache_generation(connection, target, &absolute_path)? {
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                    "playback source fingerprint changed before cache publication",
+                ));
             }
             let cache_ref = ensure_persisted_playback_summary(absolute_path, cancel)?;
             Ok(ReadinessExecutionOutcome::Complete(Some(cache_ref)))
         }
         ReadinessStage::AnalysisFeatures => {
             if target.content_generation.starts_with("pending-") {
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                    "analysis target is waiting for a committed content generation",
+                ));
             }
             let Some(relative_path) = target.relative_path.as_deref() else {
                 return Ok(ReadinessExecutionOutcome::Permanent(
                     "analysis feature target has no relative path",
                 ));
             };
-            if readiness_stage_is_unsupported(connection, target, "playback_summary")? {
-                return Ok(ReadinessExecutionOutcome::Unsupported(
-                    "playback prerequisite is unsupported for this content generation",
-                ));
-            }
             if target.required_version != wavecrate_analysis::analysis_version() {
                 return Ok(ReadinessExecutionOutcome::Retry(
                     "feature executor version does not match target",
@@ -3924,7 +4667,9 @@ fn run_readiness_stage(
         }
         ReadinessStage::EmbeddingAspects => {
             if target.content_generation.starts_with("pending-") {
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                    "embedding target is waiting for a committed content generation",
+                ));
             }
             let expected_version = format!(
                 "{}+{}",
@@ -3960,7 +4705,9 @@ fn run_readiness_stage(
                         "Invalidated an analysis readiness marker whose payload was missing"
                     );
                 }
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated);
+                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                    "analysis prerequisite artifact payload is missing",
+                ));
             }
             Ok(if embedding_aspects_are_current(connection, target)? {
                 ReadinessExecutionOutcome::Complete(None)
@@ -3999,7 +4746,9 @@ fn run_readiness_stage(
                     if finalized {
                         ReadinessExecutionOutcome::Complete(None)
                     } else {
-                        ReadinessExecutionOutcome::PrerequisiteInvalidated
+                        ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                            "similarity prerequisites changed before publication",
+                        )
                     }
                 },
             )
@@ -4247,7 +4996,10 @@ fn recovered_source_retirements(
             PendingSourceRetirement {
                 source: retained,
                 lifecycle_generation,
+                cancel: Arc::new(AtomicBool::new(false)),
                 retry_at: 0,
+                attempts: 0,
+                terminal_offline: false,
             },
         );
         next_retirement_id = next_retirement_id.wrapping_add(1).max(1);
@@ -4265,6 +5017,78 @@ fn source_maps_match(
                 .get(source_id)
                 .is_some_and(|other| source_descriptors_match(source, other))
         })
+}
+
+fn register_source_for_scan_locked(shared: &Shared, source: SampleSource) -> Result<u64, String> {
+    let source_id = source.id.as_str().to_string();
+    let mut control = shared.control();
+    if control.shutdown || shared.cancel.load(Ordering::Acquire) {
+        return Err("Source processing supervisor is shutting down".to_string());
+    }
+    if let Some(current) = control.sources.get(&source_id) {
+        if !source_descriptors_match(current, &source) {
+            return Err(format!(
+                "Source {source_id} is already registered with a different descriptor"
+            ));
+        }
+        let lifecycle_generation = control.source_lifecycle_generations[&source_id];
+        if control.quarantined_sources.remove(&source_id) {
+            control
+                .source_work_cancels
+                .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
+            control.mark_source_dirty(&source_id, "source_scan_registration_reactivated");
+            drop(control);
+            shared.budget_wake.notify_all();
+            shared.wake.notify_one();
+        }
+        return Ok(lifecycle_generation);
+    }
+
+    control.sources.insert(source_id.clone(), source);
+    control
+        .source_work_cancels
+        .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
+    let lifecycle_generation = control.allocate_lifecycle_generation();
+    control
+        .source_lifecycle_generations
+        .insert(source_id.clone(), lifecycle_generation);
+    control
+        .force_manifest_audit_sources
+        .insert(source_id.clone());
+    control.mark_source_dirty(&source_id, "source_registered_for_scan");
+    drop(control);
+    shared.budget_wake.notify_all();
+    shared.wake.notify_one();
+    Ok(lifecycle_generation)
+}
+
+fn resolve_registered_source_for_scan_locked(
+    shared: &Shared,
+    source: &SampleSource,
+) -> Result<u64, String> {
+    let source_id = source.id.as_str();
+    let control = shared.control();
+    if control.shutdown || shared.cancel.load(Ordering::Acquire) {
+        return Err("Source processing supervisor is shutting down".to_string());
+    }
+    let Some(authoritative) = control.sources.get(source_id) else {
+        return Err(format!(
+            "Source {source_id} is no longer present in the configured source set"
+        ));
+    };
+    if !source_descriptors_match(authoritative, source) {
+        return Err(format!(
+            "Source {source_id} is registered with a different descriptor"
+        ));
+    }
+    if !control.source_is_active(source_id) {
+        return Err(format!("Source {source_id} is not active"));
+    }
+    control
+        .source_lifecycle_generations
+        .get(source_id)
+        .copied()
+        .ok_or_else(|| format!("Source {source_id} has no active lifecycle generation"))
 }
 
 fn source_descriptors_match(left: &SampleSource, right: &SampleSource) -> bool {
@@ -4302,6 +5126,96 @@ fn earliest_deadline(current: Option<i64>, candidate: Option<i64>) -> Option<i64
     }
 }
 
+fn select_source_for_discovery(
+    sources: &[SampleSource],
+    pending_source_ids: &BTreeSet<String>,
+    active_source_id: Option<&str>,
+    priority: &PriorityContext,
+) -> Option<String> {
+    if let Some(active_source_id) = active_source_id {
+        return pending_source_ids
+            .contains(active_source_id)
+            .then(|| active_source_id.to_string());
+    }
+    let prioritized = priority
+        .selected_source
+        .iter()
+        .map(String::as_str)
+        .chain(
+            priority
+                .current_folder
+                .iter()
+                .map(|(source_id, _)| source_id.as_str()),
+        )
+        .chain(
+            priority
+                .immediate_paths
+                .iter()
+                .map(|(source_id, _)| source_id.as_str()),
+        )
+        .chain(
+            priority
+                .visible_paths
+                .iter()
+                .map(|(source_id, _)| source_id.as_str()),
+        )
+        .find(|source_id| pending_source_ids.contains(*source_id));
+    prioritized.map(str::to_string).or_else(|| {
+        sources
+            .iter()
+            .map(|source| source.id.as_str())
+            .find(|source_id| pending_source_ids.contains(*source_id))
+            .map(str::to_string)
+    })
+}
+
+fn release_converged_source_owner(
+    scheduler: &mut FairScheduler,
+    configured_source_ids: &BTreeSet<String>,
+    source_stats: &BTreeMap<String, SourceDiscoveryStats>,
+    candidates: &[RuntimeCandidate],
+) {
+    let Some(active_source_id) = scheduler.active_source().map(str::to_string) else {
+        return;
+    };
+    let has_runnable_candidate = candidates
+        .iter()
+        .any(|candidate| candidate.source.id.as_str() == active_source_id);
+    let release_reason = if !configured_source_ids.contains(&active_source_id) {
+        Some("source_removed")
+    } else if let Some(stats) = source_stats.get(&active_source_id)
+        && !has_runnable_candidate
+        && stats.earliest_retry_at.is_some()
+    {
+        Some("waiting_for_retry")
+    } else if let Some(stats) = source_stats.get(&active_source_id)
+        && stats.readiness_queue_depth == 0
+        && stats.earliest_retry_at.is_none()
+        && !has_runnable_candidate
+    {
+        Some(if stats.prerequisites_blocked == 0 {
+            "converged_or_terminal"
+        } else {
+            "terminal_prerequisite_block"
+        })
+    } else {
+        None
+    };
+    let Some(reason) = release_reason else {
+        return;
+    };
+    let Some(source_id) = scheduler.release_active_source() else {
+        return;
+    };
+    tracing::info!(
+        target: "wavecrate::source_processing",
+        event = "source_processing.source_released",
+        source_id,
+        reason,
+        "Released exclusive source processing ownership"
+    );
+}
+
 fn aggregate_source_stats(
     stats: impl IntoIterator<Item = SourceDiscoveryStats>,
 ) -> SourceDiscoveryStats {
@@ -4331,11 +5245,7 @@ fn coordinator_wait_duration(
     next_retry_at: Option<i64>,
     now: i64,
     safety_wait: Duration,
-    processing_paused: bool,
 ) -> Duration {
-    if processing_paused {
-        return safety_wait;
-    }
     let retry_wait = next_retry_at.map_or(safety_wait, |deadline| {
         Duration::from_secs(deadline.saturating_sub(now).max(0) as u64)
     });
@@ -4350,6 +5260,16 @@ fn oldest_job_age_seconds(candidates: &[RuntimeCandidate], now: i64) -> u64 {
         .unwrap_or_default()
 }
 
+fn queue_depths_by_source(candidates: &[RuntimeCandidate]) -> BTreeMap<String, usize> {
+    let mut depths = BTreeMap::new();
+    for candidate in candidates {
+        *depths
+            .entry(candidate.source.id.as_str().to_string())
+            .or_default() += 1;
+    }
+    depths
+}
+
 #[cfg(test)]
 #[path = "../../test_support/source_processing_liveness/mod.rs"]
 mod liveness_tests;
@@ -4357,8 +5277,6 @@ mod liveness_tests;
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
-
-    use crate::native_app::waveform::cached_waveform_file_audition_ready_exists;
 
     use wavecrate::sample_sources::{
         SourceId,
@@ -4463,117 +5381,53 @@ mod tests {
     }
 
     #[test]
-    fn playback_pause_retains_hash_backlog_until_resume_and_shutdown_joins() {
-        let (_directory, source) = unhashed_source("paused");
+    fn playback_active_does_not_block_hash_backlog_and_shutdown_joins() {
+        let (_directory, source) = unhashed_source("playing");
         let mut supervisor =
             SourceProcessingSupervisor::start_with_playback_state(vec![source.clone()], true);
 
-        thread::sleep(Duration::from_millis(100));
-        assert!(!source_is_hashed(&source));
-
-        supervisor.set_playback_active(false);
         wait_until(Duration::from_secs(10), || source_is_hashed(&source));
         let report = supervisor.shutdown();
         assert_eq!(report["joined"], true);
     }
 
     #[test]
-    fn playback_pause_reports_transition_and_fences_source_processing_feedback() {
+    fn playback_and_foreground_activity_do_not_publish_pause_feedback() {
+        let (_directory, source) = unhashed_source("activity-feedback");
         let (sender, receiver) = std::sync::mpsc::channel();
         let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_sender(
-            Vec::new(),
-            false,
+            vec![source.clone()],
+            true,
             Some(sender),
         );
 
-        supervisor.set_playback_active(true);
-
-        let message = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("playback pause cleanup");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
-        };
-        assert!(progress.active);
-        assert_eq!(progress.stage, "Pausing source processing");
-        assert_eq!(progress.detail, "Waiting for playback");
-        let message = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("playback pause acknowledgement");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
-        };
-        assert!(!progress.active);
-
-        supervisor.set_playback_active(false);
         supervisor.set_foreground_activity(true);
-        let message = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("foreground activity cleanup");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
-        };
-        assert!(progress.active);
-        assert_eq!(progress.stage, "Pausing source processing");
-        assert_eq!(progress.detail, "Waiting for source loading");
-        let message = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("foreground activity pause acknowledgement");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
-        };
-        assert!(!progress.active);
-
-        supervisor.set_foreground_activity(false);
-        supervisor.set_foreground_activity(true);
-        let message = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("rapid foreground pause transition");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
-        };
-        assert!(progress.active);
-        supervisor.set_foreground_activity(false);
-        let message = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("rapid foreground pause acknowledgement");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
-        };
-        assert!(!progress.active);
-
-        supervisor.set_playback_active(true);
-        for expectation in ["final pause transition", "final pause acknowledgement"] {
-            let message = receiver
-                .recv_timeout(Duration::from_secs(1))
-                .expect(expectation);
-            let GuiMessage::SourceProcessingProgress(progress) = message else {
-                panic!("unexpected supervisor GUI message: {message:?}");
-            };
-            if expectation == "final pause transition" {
-                assert!(progress.active);
-            } else {
-                assert!(!progress.active);
-            }
-        }
-
-        let directory = tempfile::tempdir().expect("paused discovery source");
-        let source = SampleSource::new_with_id(
-            SourceId::from_string("paused-discovery"),
-            directory.path().to_path_buf(),
+        wait_until(Duration::from_secs(10), || source_is_hashed(&source));
+        let progress = receiver
+            .try_iter()
+            .filter_map(|message| {
+                let GuiMessage::SourceProcessingProgress(progress) = message else {
+                    return None;
+                };
+                Some(progress)
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            progress
+                .iter()
+                .any(|progress| progress.active && progress.source_id == source.id.as_str()),
+            "processing activity must remain visible while playback and foreground loading are active"
         );
-        publish_source_processing_discovery(
-            &supervisor.shared,
-            &source,
-            0,
-            &Arc::new(AtomicBool::new(false)),
+        assert!(
+            progress
+                .iter()
+                .all(|progress| progress.stage != "Pausing source processing")
         );
-        assert!(receiver.try_recv().is_err());
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
     #[test]
-    fn repeated_discovery_keeps_existing_processing_feedback_stable() {
+    fn brief_discovery_reconciliation_does_not_flash_processing_feedback() {
         let source = SampleSource::new_with_id(
             SourceId::from_string("stable-discovery"),
             PathBuf::from("/library/samples"),
@@ -4581,36 +5435,41 @@ mod tests {
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source.clone()], Some(sender));
         let control = shared.control();
-        let lifecycle_generations = control.source_lifecycle_generations.clone();
-        let source_work_cancels = control.source_work_cancels.clone();
+        let lifecycle_generation = control.source_lifecycle_generations[source.id.as_str()];
         drop(control);
+        let mut publisher = DiscoveryProgressPublisher {
+            shared: &shared,
+            source_id: source.id.as_str(),
+            lifecycle_generation,
+            started_at: Instant::now(),
+            last_phase: None,
+            last_ui_publish_at: None,
+            last_log_publish_at: None,
+            ui_published: false,
+        };
 
-        assert!(publish_source_processing_discovery_if_needed(
-            &shared,
-            std::slice::from_ref(&source),
-            &lifecycle_generations,
-            &source_work_cancels,
-            false,
-        ));
+        publisher.advance("Reading manifest and readiness targets", 1);
+        publisher.advance("Comparing durable readiness", 2);
+        assert!(
+            receiver.try_recv().is_err(),
+            "a brief converged-source check must not flash active processing feedback"
+        );
+        assert!(!publisher.ui_published);
+
+        publisher.started_at = Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL;
+        publisher.advance("Queueing unfinished jobs", 3);
         let GuiMessage::SourceProcessingProgress(progress) = receiver
             .recv_timeout(Duration::from_secs(1))
-            .expect("initial discovery feedback")
+            .expect("sustained discovery feedback")
         else {
             panic!("unexpected supervisor GUI message");
         };
         assert_eq!(progress.stage, "Checking pending work");
-
-        assert!(!publish_source_processing_discovery_if_needed(
-            &shared,
-            &[source],
-            &lifecycle_generations,
-            &source_work_cancels,
-            true,
-        ));
         assert!(
-            receiver.try_recv().is_err(),
-            "an immediate rediscovery must not overwrite visible execution progress"
+            progress.source_row_active,
+            "grace-surviving discovery must identify its active source row"
         );
+        assert!(publisher.ui_published);
     }
 
     #[test]
@@ -4625,11 +5484,9 @@ mod tests {
         let supervisor = SourceProcessingSupervisor {
             shared: Arc::clone(&shared),
             coordinator: None,
+            retirement_worker: None,
         };
-        let control = shared.control();
-        let old_generation = control.source_lifecycle_generations[source.id.as_str()];
-        let old_cancel = Arc::clone(&control.source_work_cancels[source.id.as_str()]);
-        drop(control);
+        let old_generation = shared.control().source_lifecycle_generations[source.id.as_str()];
 
         supervisor
             .replace_sources(Vec::new())
@@ -4638,12 +5495,18 @@ mod tests {
             .replace_sources(vec![source.clone()])
             .expect("re-add source with a new discovery epoch");
 
-        assert!(!publish_source_processing_discovery(
-            shared.as_ref(),
-            &source,
-            old_generation,
-            &old_cancel,
-        ));
+        let mut publisher = DiscoveryProgressPublisher {
+            shared: shared.as_ref(),
+            source_id: source.id.as_str(),
+            lifecycle_generation: old_generation,
+            started_at: Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL,
+            last_phase: None,
+            last_ui_publish_at: None,
+            last_log_publish_at: None,
+            ui_published: false,
+        };
+        publisher.advance("Comparing durable readiness", 1);
+        assert!(!publisher.ui_published);
         assert!(receiver.try_recv().is_err());
     }
 
@@ -4659,6 +5522,102 @@ mod tests {
 
         thread::sleep(Duration::from_millis(150));
         assert!(!source_is_hashed(&source));
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn retirement_cleanup_cannot_block_active_source_convergence() {
+        let (_retired_directory, retired) = unhashed_source("retirement-background");
+        let (_active_directory, active) = unhashed_source("retirement-active-source");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![retired])
+            .expect("configure source that will be retired");
+        supervisor
+            .replace_sources(vec![active.clone()])
+            .expect("replace retired source with active source");
+
+        let shared = Arc::clone(&supervisor.shared);
+        let retirement_blocker = shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let coordinator_shared = Arc::clone(&shared);
+        supervisor.coordinator = Some(
+            thread::Builder::new()
+                .name(String::from("wavecrate-source-supervisor-test"))
+                .spawn(move || run_coordinator(coordinator_shared))
+                .expect("spawn source processing supervisor"),
+        );
+
+        wait_until(Duration::from_secs(10), || source_is_hashed(&active));
+        drop(retirement_blocker);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn shutdown_cancels_blocked_retirement_cleanup_and_joins_worker() {
+        let (_directory, source) = unhashed_source("retirement-shutdown");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        supervisor
+            .shared
+            .retirement_cleanup_blocked
+            .store(true, Ordering::Release);
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove source while retirement cleanup is blocked");
+        wait_until(Duration::from_secs(5), || {
+            supervisor
+                .shared
+                .retirement_cleanup_started
+                .load(Ordering::Acquire)
+        });
+
+        let started_at = Instant::now();
+        let report = supervisor.shutdown();
+
+        assert_eq!(report["joined"], true);
+        assert!(
+            started_at.elapsed() < Duration::from_secs(1),
+            "shutdown must cancel blocked retirement cleanup before joining"
+        );
+    }
+
+    #[test]
+    fn source_replacement_cancels_blocked_retirement_without_waiting_for_storage() {
+        let (_directory, source) = unhashed_source("retirement-replacement");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        supervisor
+            .shared
+            .retirement_cleanup_blocked
+            .store(true, Ordering::Release);
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove source while retirement cleanup is blocked");
+        wait_until(Duration::from_secs(10), || {
+            supervisor
+                .shared
+                .retirement_cleanup_started
+                .load(Ordering::Acquire)
+        });
+
+        let started_at = Instant::now();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("re-add source while retirement child is blocked");
+        assert!(
+            started_at.elapsed() < Duration::from_millis(100),
+            "source replacement must cancel retirement instead of waiting for storage"
+        );
+        wait_until(Duration::from_secs(2), || {
+            supervisor.shared.control().pending_retirements.is_empty()
+        });
+        assert!(
+            supervisor
+                .shared
+                .control()
+                .source_is_active(source.id.as_str())
+        );
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -4711,6 +5670,65 @@ mod tests {
     }
 
     #[test]
+    fn busy_source_discovery_is_rescheduled_after_retry_deadline() {
+        let (_directory, source) = unhashed_source("busy-discovery-retry");
+        let database_path = source.db_path().expect("source database path");
+        let lock = rusqlite::Connection::open(&database_path).expect("open lock connection");
+        lock.execute_batch("BEGIN EXCLUSIVE")
+            .expect("hold source database lock");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+
+        wait_until(Duration::from_secs(15), || {
+            let telemetry = supervisor.shared.telemetry();
+            telemetry.failed > 0
+                && telemetry
+                    .retry_at_by_source
+                    .contains_key(source.id.as_str())
+        });
+        let retry_at = supervisor
+            .shared
+            .telemetry()
+            .retry_at_by_source
+            .get(source.id.as_str())
+            .copied();
+        assert!(
+            retry_at.is_some_and(|deadline| deadline > now_epoch_seconds()),
+            "busy discovery must remain observable as a scheduled retry"
+        );
+
+        lock.execute_batch("ROLLBACK").expect("release source lock");
+        drop(lock);
+        wait_until(Duration::from_secs(12), || source_is_hashed(&source));
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn missing_removed_source_is_parked_offline_without_retry_wakes() {
+        let (directory, source) = unhashed_source("retirement-offline");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove source");
+        drop(directory);
+
+        process_ready_source_retirements(&supervisor.shared);
+
+        let control = supervisor.shared.control();
+        let retirement = control
+            .pending_retirements
+            .values()
+            .next()
+            .expect("retain offline retirement fence");
+        assert!(retirement.terminal_offline);
+        assert_eq!(retirement.retry_at, i64::MAX);
+        drop(control);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
     fn source_wakes_cancel_only_that_sources_in_flight_generation() {
         let (_first_directory, first) = unhashed_source("first");
         let (_second_directory, second) = unhashed_source("second");
@@ -4744,6 +5762,32 @@ mod tests {
         ));
         drop(control);
         drop(first_scan);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn non_mutating_source_requests_preserve_in_flight_generation() {
+        let (_directory, source) = unhashed_source("non-mutating-source-request");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        let retained_generation = {
+            let mut control = supervisor.shared.control();
+            control.dirty_sources.clear();
+            Arc::clone(&control.source_work_cancels[source.id.as_str()])
+        };
+
+        supervisor.request_source_processing(source.id.as_str(), "source_scan_finished");
+
+        assert!(!retained_generation.load(Ordering::Acquire));
+        let control = supervisor.shared.control();
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        assert!(Arc::ptr_eq(
+            &retained_generation,
+            &control.source_work_cancels[source.id.as_str()]
+        ));
+        drop(control);
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -4823,6 +5867,152 @@ mod tests {
             "Configured sources are currently being replaced"
         );
         drop(replacement);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn background_scan_registration_waits_for_source_replacement_fence() {
+        let (_directory, source) = unhashed_source("scan-registration-waiting");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure authoritative source");
+        let replacement = supervisor
+            .shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let budget = supervisor.budget_handle();
+        let source_for_worker = source.clone();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let result = budget.register_source_for_scan_waiting(source_for_worker);
+            sender.send(result).expect("publish registration result");
+        });
+
+        assert!(
+            receiver.recv_timeout(Duration::from_millis(25)).is_err(),
+            "background admission should wait while source replacement owns the fence"
+        );
+        drop(replacement);
+        let generation = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("registration should resume after replacement")
+            .expect("register matching source");
+        worker.join().expect("join registration worker");
+
+        assert_eq!(
+            supervisor.lifecycle_generations()[source.id.as_str()],
+            generation
+        );
+        let permit = supervisor
+            .budget_handle()
+            .acquire_scan_for_generation(source.id.as_str(), generation)
+            .expect("deferred registration must admit the external scan");
+        drop(permit);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn background_scan_registration_cannot_readd_source_removed_behind_fence() {
+        let (_directory, source) = unhashed_source("scan-registration-removed");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        let replacement = supervisor
+            .shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let budget = supervisor.budget_handle();
+        let source_for_worker = source.clone();
+        let worker =
+            std::thread::spawn(move || budget.register_source_for_scan_waiting(source_for_worker));
+
+        thread::sleep(Duration::from_millis(25));
+        drop(replacement);
+        let error = worker
+            .join()
+            .expect("join deferred scan registration")
+            .expect_err("removed source must not be registered by a stale scan");
+
+        assert!(error.contains("no longer present"));
+        assert!(
+            !supervisor
+                .lifecycle_generations()
+                .contains_key(source.id.as_str()),
+            "stale scan admission must not resurrect a removed source"
+        );
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn watcher_ready_rearms_authoritative_manifest_audits() {
+        let (_directory, source) = unhashed_source("watcher-ready-audit");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        {
+            let mut control = supervisor.shared.control();
+            control.force_manifest_audit_sources.clear();
+            control.dirty_sources.clear();
+        }
+
+        supervisor.request_manifest_audits("source_watcher_ready");
+
+        let control = supervisor.shared.control();
+        assert!(
+            control
+                .force_manifest_audit_sources
+                .contains(source.id.as_str())
+        );
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        drop(control);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn watcher_ready_request_survives_older_in_flight_audit_completion() {
+        let (_directory, source) = unhashed_source("watcher-ready-in-flight-audit");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        {
+            let mut control = supervisor.shared.control();
+            // Model the coordinator having already captured the original
+            // startup audit request and started its candidate.
+            control.dirty_sources.clear();
+            assert!(
+                control
+                    .force_manifest_audit_sources
+                    .contains(source.id.as_str())
+            );
+        }
+
+        supervisor.request_manifest_audits("source_watcher_ready");
+        clear_satisfied_manifest_audit_request(&supervisor.shared, source.id.as_str());
+
+        {
+            let mut control = supervisor.shared.control();
+            assert!(control.dirty_sources.contains(source.id.as_str()));
+            assert!(
+                control
+                    .force_manifest_audit_sources
+                    .contains(source.id.as_str()),
+                "the older audit must not erase the watcher-ready closing audit"
+            );
+            // Once the coordinator captures that newer dirty request, its own
+            // successful audit may satisfy and clear the force flag.
+            control.dirty_sources.remove(source.id.as_str());
+        }
+        clear_satisfied_manifest_audit_request(&supervisor.shared, source.id.as_str());
+        assert!(
+            !supervisor
+                .shared
+                .control()
+                .force_manifest_audit_sources
+                .contains(source.id.as_str())
+        );
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -5379,12 +6569,129 @@ mod tests {
         };
         let elapsed = started_at.elapsed();
 
-        assert_eq!(candidates.len(), FILE_COUNT * 4 + 1);
-        assert_eq!(stats.readiness_queue_depth, FILE_COUNT * 4 + 1);
+        assert_eq!(candidates.len(), FILE_COUNT * 4);
+        assert_eq!(stats.readiness_queue_depth, FILE_COUNT * 4);
+        assert_eq!(
+            stats.prerequisites_blocked, 1,
+            "the source-wide similarity layout must remain parked until file embeddings converge"
+        );
         eprintln!(
             "large_source_discovery file_count={FILE_COUNT} candidate_count={} elapsed_ms={:.3}",
             candidates.len(),
             elapsed.as_secs_f64() * 1_000.0,
+        );
+    }
+
+    #[test]
+    fn discovery_reports_monotonic_work_backed_progress() {
+        const FILE_COUNT: usize = 8;
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("discovery-progress"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create progress source database");
+        let database_root = source.database_root().expect("progress database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open progress database");
+        let transaction = connection.transaction().expect("start progress seed");
+        for index in 0..FILE_COUNT {
+            transaction
+                .execute(
+                    "INSERT INTO wav_files (
+                        path, file_size, modified_ns, file_identity, content_hash, missing,
+                        extension
+                     ) VALUES (?1, 1024, 1, ?2, ?3, 0, 'wav')",
+                    params![
+                        format!("progress/sample-{index:02}.wav"),
+                        format!("progress-identity-{index:02}"),
+                        format!("progress-content-{index:02}"),
+                    ],
+                )
+                .expect("insert progress row");
+        }
+        transaction.commit().expect("commit progress seed");
+        drop(connection);
+
+        let mut updates = Vec::new();
+        let Cancellable::Completed(_) = discover_source_candidates_with_progress(
+            &source,
+            100,
+            false,
+            &AtomicBool::new(false),
+            &mut |phase, work_units| updates.push((phase, work_units)),
+        )
+        .expect("discover source with progress") else {
+            panic!("progress discovery unexpectedly cancelled");
+        };
+
+        assert!(updates.len() > FILE_COUNT);
+        assert!(
+            updates.windows(2).all(|pair| pair[0].1 <= pair[1].1),
+            "discovery work units must never move backward"
+        );
+        assert!(updates.last().unwrap().1 > updates.first().unwrap().1);
+        assert!(
+            updates
+                .iter()
+                .any(|(phase, _)| *phase == "Comparing durable readiness")
+        );
+        assert!(
+            updates
+                .iter()
+                .any(|(phase, _)| *phase == "Queueing unfinished jobs")
+        );
+    }
+
+    #[test]
+    fn discovery_progress_publisher_exposes_advancing_counter() {
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("progress-publisher"),
+            directory.path().to_path_buf(),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Shared::new(vec![source], Some(sender));
+        let lifecycle_generation =
+            shared.control().source_lifecycle_generations["progress-publisher"];
+        let mut publisher = DiscoveryProgressPublisher {
+            shared: &shared,
+            source_id: "progress-publisher",
+            lifecycle_generation,
+            started_at: Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL,
+            last_phase: None,
+            last_ui_publish_at: None,
+            last_log_publish_at: None,
+            ui_published: false,
+        };
+
+        publisher.advance("Comparing durable readiness", 128);
+        publisher.last_ui_publish_at = Some(Instant::now() - DISCOVERY_PROGRESS_REFRESH_INTERVAL);
+        publisher.advance("Comparing durable readiness", 256);
+
+        let updates = receiver
+            .try_iter()
+            .filter_map(|message| match message {
+                GuiMessage::SourceProcessingProgress(progress) => Some(progress),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(updates.len(), 2);
+        assert_eq!(updates[0].source_id, "progress-publisher");
+        assert_eq!(updates[0].lifecycle_generation, lifecycle_generation);
+        assert!(
+            updates[0]
+                .detail
+                .contains("128 reconciliation steps completed")
+        );
+        assert!(
+            updates[1]
+                .detail
+                .contains("256 reconciliation steps completed")
         );
     }
 
@@ -5477,7 +6784,7 @@ mod tests {
                     |row| row.get::<_, i64>(0),
                 )
                 .expect("count resumed readiness targets"),
-            i64::try_from(FILE_COUNT * 4 + 1).expect("target count fits i64")
+            i64::try_from(FILE_COUNT * 3 + 1).expect("target count fits i64")
         );
     }
 
@@ -5513,7 +6820,7 @@ mod tests {
     }
 
     #[test]
-    fn foreground_scan_admission_preempts_incompatible_background_work() {
+    fn foreground_scan_admission_waits_without_cancelling_background_work() {
         let (_first_directory, first) = unhashed_source("background-holder");
         let (_second_directory, second) = unhashed_source("foreground-waiter");
         let shared = Arc::new(Shared::new(vec![first.clone(), second.clone()], None));
@@ -5535,9 +6842,12 @@ mod tests {
         });
 
         wait_until(Duration::from_secs(2), || {
-            background_cancel.load(Ordering::Acquire)
-                && shared.external_scans().admissions.len() == 1
+            shared.external_scans().admissions.len() == 1
         });
+        assert!(
+            !background_cancel.load(Ordering::Acquire),
+            "external scan admission must let active source work finish"
+        );
         shared.budgets().release(background_permit);
         shared.budget_wake.notify_all();
 
@@ -5577,7 +6887,7 @@ mod tests {
     }
 
     #[test]
-    fn foreground_activity_cancels_in_flight_work_without_reviving_old_generations() {
+    fn foreground_activity_does_not_cancel_in_flight_work_or_external_scans() {
         let (_directory, source) = unhashed_source("foreground");
         let mut supervisor = SourceProcessingSupervisor::dormant();
         supervisor
@@ -5595,19 +6905,13 @@ mod tests {
 
         supervisor.set_foreground_activity(true);
 
-        assert!(source_generation.load(Ordering::Acquire));
-        assert!(scan_generation.load(Ordering::Acquire));
-        assert!(supervisor.shared.control().processing_paused());
+        assert!(!source_generation.load(Ordering::Acquire));
+        assert!(!scan_generation.load(Ordering::Acquire));
         drop(scan_permit);
 
         supervisor.set_foreground_activity(false);
 
-        assert!(
-            source_generation.load(Ordering::Acquire),
-            "resuming must not clear a token held by an interrupted worker"
-        );
         let control = supervisor.shared.control();
-        assert!(!control.processing_paused());
         assert!(!control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire));
         drop(control);
         assert_eq!(supervisor.shutdown()["joined"], true);
@@ -5901,6 +7205,38 @@ mod tests {
     }
 
     #[test]
+    fn source_database_recovery_is_visible_before_storage_io_starts() {
+        let directory = tempfile::tempdir().expect("recovery source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("recovery-progress-source"),
+            directory.path().to_path_buf(),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Shared::new(vec![source.clone()], Some(sender));
+        let lifecycle_generation =
+            shared.control().source_lifecycle_generations["recovery-progress-source"];
+
+        publish_source_recovery_progress(&shared, &source, lifecycle_generation);
+
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("recovery progress")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert!(progress.active);
+        assert!(progress.source_row_active);
+        assert_eq!(progress.source_id, "recovery-progress-source");
+        assert_eq!(progress.lifecycle_generation, lifecycle_generation);
+        assert_eq!(progress.stage, "Opening source database");
+        assert!(
+            progress
+                .detail
+                .contains(directory.path().to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
     fn prerequisite_wait_feedback_preserves_determinate_progress_without_claiming_activity() {
         let directory = tempfile::tempdir().expect("waiting source");
         let source = SampleSource::new_with_id(
@@ -6133,6 +7469,7 @@ mod tests {
         let supervisor = SourceProcessingSupervisor {
             shared: Arc::clone(&shared),
             coordinator: None,
+            retirement_worker: None,
         };
         let executing_generation = supervisor.lifecycle_generations()["readded-progress-source"];
 
@@ -6197,62 +7534,6 @@ mod tests {
     }
 
     #[test]
-    fn visible_source_progress_does_not_regress_across_rediscovery() {
-        let mut displayed = BTreeMap::new();
-        let first = stable_source_progress(
-            &mut displayed,
-            "projects",
-            SourceDiscoveryStats {
-                progress_completed: 15_888,
-                progress_total: 19_969,
-                ..SourceDiscoveryStats::default()
-            },
-        );
-        let rediscovered = stable_source_progress(
-            &mut displayed,
-            "projects",
-            SourceDiscoveryStats {
-                progress_completed: 15_747,
-                progress_total: 19_969,
-                ..SourceDiscoveryStats::default()
-            },
-        );
-
-        assert_eq!(first.progress_completed, 15_888);
-        assert_eq!(rediscovered.progress_completed, 15_888);
-        assert_eq!(rediscovered.progress_total, 19_969);
-    }
-
-    #[test]
-    fn visible_source_progress_starts_a_coherent_snapshot_when_total_changes() {
-        let mut displayed = BTreeMap::new();
-        let inflated = stable_source_progress(
-            &mut displayed,
-            "projects",
-            SourceDiscoveryStats {
-                progress_completed: 44_029,
-                progress_total: 46_678,
-                ..SourceDiscoveryStats::default()
-            },
-        );
-        let current = stable_source_progress(
-            &mut displayed,
-            "projects",
-            SourceDiscoveryStats {
-                progress_completed: 9_766,
-                progress_total: 9_985,
-                ..SourceDiscoveryStats::default()
-            },
-        );
-
-        assert_eq!(inflated.progress_completed, 44_029);
-        assert_eq!(inflated.progress_total, 46_678);
-        assert_eq!(current.progress_completed, 9_766);
-        assert_eq!(current.progress_total, 9_985);
-        assert!(current.progress_completed <= current.progress_total);
-    }
-
-    #[test]
     fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
         let directory = tempfile::tempdir().expect("manifest audit source");
         let source = SampleSource::new_with_id(
@@ -6277,7 +7558,7 @@ mod tests {
         assert_eq!(
             execute_candidate(&candidate, 0, &AtomicBool::new(false), Some(&sender))
                 .expect("execute manifest audit"),
-            ExecutionOutcome::Completed
+            ExecutionOutcome::CompletedAwaitingForegroundRefresh
         );
         let messages = receiver.try_iter().collect::<Vec<_>>();
         let progress = messages
@@ -6305,11 +7586,137 @@ mod tests {
         assert_eq!(progress.completed, 1);
         assert_eq!(progress.total, 1);
         assert_eq!(progress.stage, "Scanning source changes");
+        assert!(
+            !progress.source_row_active,
+            "manifest maintenance remains visible without claiming the active source pulse"
+        );
         assert!(progress.detail.contains("Checked 1 files"));
         assert_eq!(committed_delta.created.len(), 1);
         assert_eq!(
             committed_delta.created[0].relative_path,
             Path::new("missed.wav")
+        );
+    }
+
+    #[test]
+    fn delivered_manifest_handoff_survives_post_commit_cancellation() {
+        assert_eq!(
+            manifest_audit_execution_outcome(true, false, true),
+            ExecutionOutcome::CompletedAwaitingForegroundRefresh
+        );
+        assert_eq!(
+            manifest_audit_execution_outcome(true, true, true),
+            ExecutionOutcome::FailedAwaitingForegroundRefresh
+        );
+        assert_eq!(
+            manifest_audit_execution_outcome(false, false, true),
+            ExecutionOutcome::Cancelled
+        );
+    }
+
+    #[test]
+    fn manifest_projection_handoff_defers_discovery_until_external_scan_releases() {
+        let directory = tempfile::tempdir().expect("manifest handoff source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("audit-foreground-handoff"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create source database");
+        std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
+            .expect("write missed watcher file");
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_sender(
+            vec![source.clone()],
+            false,
+            Some(sender),
+        );
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let lifecycle_generation = loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let message = receiver
+                .recv_timeout(remaining)
+                .expect("manifest audit should publish its committed delta");
+            if let GuiMessage::SourceManifestAuditCommitted {
+                source_id,
+                lifecycle_generation,
+                committed_delta,
+            } = message
+                && source_id == source.id.as_str()
+                && !committed_delta.created.is_empty()
+            {
+                break lifecycle_generation;
+            }
+        };
+        let permit = supervisor
+            .budget_handle()
+            .acquire_scan_for_generation(source.id.as_str(), lifecycle_generation)
+            .expect("foreground refresh should acquire the source scan lane");
+        let discoveries_before = supervisor.shared.telemetry().source_discoveries;
+        supervisor.wake_source(source.id.as_str(), "change_during_manifest_refresh");
+
+        thread::sleep(Duration::from_millis(250));
+        assert_eq!(
+            supervisor.shared.telemetry().source_discoveries,
+            discoveries_before,
+            "coordinator must not rediscover while foreground refresh owns reconciliation"
+        );
+
+        drop(permit);
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(
+            supervisor.shared.telemetry().source_discoveries,
+            discoveries_before,
+            "scan permit release alone must not bypass SourceScanFinished reconciliation"
+        );
+        supervisor.finish_foreground_source_refresh(source.id.as_str(), "source_scan_finished");
+        wait_until(Duration::from_secs(10), || {
+            supervisor.shared.telemetry().source_discoveries > discoveries_before
+        });
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn unavailable_foreground_refresh_releases_handoff_for_offline_discovery() {
+        let (directory, source) = unhashed_source("audit-refresh-unavailable");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        {
+            let mut control = supervisor.shared.control();
+            control.dirty_sources.clear();
+            control
+                .awaiting_foreground_refresh_sources
+                .insert(source.id.as_str().to_string());
+        }
+        drop(directory);
+
+        supervisor.finish_foreground_source_refresh(
+            source.id.as_str(),
+            "source_refresh_root_unavailable",
+        );
+
+        let control = supervisor.shared.control();
+        assert!(
+            !control
+                .awaiting_foreground_refresh_sources
+                .contains(source.id.as_str())
+        );
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        drop(control);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn sustained_manifest_audit_activates_source_row_after_grace_period() {
+        assert!(
+            !manifest_audit_source_row_active(Instant::now()),
+            "brief manifest maintenance must not flash the source row"
+        );
+        assert!(
+            manifest_audit_source_row_active(Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL),
+            "a sustained manifest audit must identify its active source row"
         );
     }
 
@@ -6329,7 +7736,7 @@ mod tests {
             };
             connection
                 .query_row(
-                    "SELECT COUNT(*) = 5
+                    "SELECT COUNT(*) = 4
                         FROM source_readiness_sources AS source
                         JOIN source_readiness_targets AS target
                           ON target.source_id = source.source_id
@@ -6342,14 +7749,7 @@ mod tests {
                           AND source.availability = 'active'
                           AND artifact.artifact_version = target.required_version
                           AND artifact.content_generation = target.content_generation
-                          AND (
-                              target.stage != 'playback_summary'
-                              OR (
-                                  artifact.relative_path = target.relative_path
-                                  AND artifact.artifact_ref IS NOT NULL
-                                  AND length(trim(artifact.artifact_ref)) > 0
-                              )
-                          )
+                          AND target.stage != 'playback_summary'
                           AND (
                               target.scope_kind = 'file'
                               OR artifact.source_generation = target.source_generation
@@ -6380,9 +7780,6 @@ mod tests {
         assert_eq!(report["joined"], true);
         assert!(report["claimed"].as_u64().unwrap_or_default() >= 1);
         assert!(report["completed"].as_u64().unwrap_or_default() >= 4);
-        assert!(cached_waveform_file_audition_ready_exists(
-            &source.root.join("ready.wav")
-        ));
         let database_root = source.database_root().expect("database root");
         let connection = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
@@ -6390,60 +7787,98 @@ mod tests {
             SourceDatabaseConnectionRole::JobWorker,
         )
         .expect("open converged readiness database");
-        let cache_ref = connection
+        let playback_rows = connection
             .query_row(
-                "SELECT artifact_ref
+                "SELECT
+                    (SELECT COUNT(*) FROM source_readiness_targets
+                     WHERE source_id = ?1 AND stage = 'playback_summary')
+                  + (SELECT COUNT(*) FROM source_readiness_artifacts
+                     WHERE source_id = ?1 AND stage = 'playback_summary')",
+                [source.id.as_str()],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count playback readiness rows");
+        assert_eq!(
+            playback_rows, 0,
+            "source convergence must not create persistent playback work"
+        );
+    }
+
+    #[test]
+    fn budget_evicted_playback_cache_does_not_requeue_completed_source_work() {
+        let (_directory, source) = ready_analysis_source("playback-budget-eviction");
+        let database_root = source.database_root().expect("database root");
+        let (cache_ref, completed_at) = seed_legacy_playback_artifact(&source);
+
+        invalidate_persisted_waveform_cache_ref(&cache_ref);
+        assert!(
+            !cache_ref.exists(),
+            "fixture should model bounded-cache eviction"
+        );
+
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen source after cache eviction");
+        assert!(matches!(
+            reconcile_playback_cache_ownership(&source, &mut connection, &AtomicBool::new(false))
+                .expect("reconcile evicted cache ownership"),
+            Cancellable::Completed(1)
+        ));
+
+        let (artifact_ref, persisted_completed_at) = connection
+            .query_row(
+                "SELECT artifact_ref, completed_at
                  FROM source_readiness_artifacts
                  WHERE source_id = ?1 AND stage = 'playback_summary'",
                 [source.id.as_str()],
-                |row| row.get::<_, String>(0),
+                |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, i64>(1)?)),
             )
-            .expect("read playback ownership reference");
-        assert!(std::path::Path::new(&cache_ref).is_file());
+            .expect("read preserved playback artifact");
+        assert_eq!(artifact_ref, None);
+        assert_eq!(persisted_completed_at, completed_at);
+        assert!(matches!(
+            reconcile_playback_cache_ownership(&source, &mut connection, &AtomicBool::new(false))
+                .expect("repeat cache-ownership reconciliation"),
+            Cancellable::Completed(0)
+        ));
+
+        let snapshot = reconcile_readiness_with_cancel_and_progress(
+            &connection,
+            source.id.as_str(),
+            now_epoch_seconds(),
+            &AtomicBool::new(false),
+            &mut || {},
+        )
+        .expect("reconcile source readiness after cache eviction");
+        let playback = snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.target.stage == ReadinessStage::PlaybackSummary)
+            .expect("playback readiness entry");
+        assert_eq!(playback.classification, ReadinessClassification::Current);
         assert!(
-            !std::path::Path::new(&cache_ref)
-                .with_extension("pcm")
-                .exists(),
-            "large-file readiness should remain file-backed without persisted decoded PCM"
+            snapshot
+                .deficits
+                .iter()
+                .all(|deficit| deficit.target.stage != ReadinessStage::PlaybackSummary),
+            "bounded-cache eviction must not recreate completed playback work"
         );
     }
 
     #[test]
     fn committed_delete_retires_exact_owned_playback_cache_without_old_file_metadata() {
         let (_directory, source) = ready_analysis_source("playback-delete");
-        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
         let database_root = source.database_root().expect("database root");
-        let mut owned_cache_ref = None::<std::path::PathBuf>;
-        wait_until(Duration::from_secs(15), || {
-            let Ok(connection) = SourceDatabase::open_connection_with_role_and_database_root(
-                &source.root,
-                &database_root,
-                SourceDatabaseConnectionRole::JobWorker,
-            ) else {
-                return false;
-            };
-            owned_cache_ref = connection
-                .query_row(
-                    "SELECT artifact_ref
-                     FROM source_readiness_artifacts
-                     WHERE source_id = ?1
-                       AND stage = 'playback_summary'
-                       AND artifact_ref IS NOT NULL",
-                    [source.id.as_str()],
-                    |row| row.get::<_, String>(0),
-                )
-                .optional()
-                .ok()
-                .flatten()
-                .map(std::path::PathBuf::from);
-            owned_cache_ref.as_ref().is_some_and(|path| path.is_file())
-        });
-        let owned_cache_ref = owned_cache_ref.expect("owned playback cache ref");
+        let (owned_cache_ref, _) = seed_legacy_playback_artifact(&source);
 
         std::fs::remove_file(source.root.join("ready.wav")).expect("delete source sample");
         let db = source.open_db().expect("open source after delete");
         wavecrate::sample_sources::scanner::sync_paths(&db, &[PathBuf::from("ready.wav")])
             .expect("commit source deletion");
+        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
         supervisor.wake_source(source.id.as_str(), "test_committed_delete");
 
         wait_until(Duration::from_secs(10), || {
@@ -6569,10 +8004,19 @@ mod tests {
                  WHERE path = 'z-good.wav';",
             )
             .expect("assign hash identities");
+        connection
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![META_LAST_MANIFEST_AUDIT_AT, now_epoch_seconds().to_string()],
+            )
+            .expect("mark the fixture manifest audit current");
         drop(connection);
 
-        let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
-        wait_until(Duration::from_secs(10), || {
+        let mut supervisor =
+            SourceProcessingSupervisor::start_without_forced_manifest_audit(vec![source.clone()]);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
             let good_hashed = source
                 .open_db()
                 .expect("open hash source")
@@ -6603,8 +8047,25 @@ mod tests {
             })
             .as_deref()
                 == Some("failed");
-            good_hashed && failure_recorded
-        });
+            if good_hashed && failure_recorded {
+                break;
+            }
+            if Instant::now() >= deadline {
+                let telemetry = supervisor.shared.telemetry();
+                panic!(
+                    "hash fairness did not converge: good_hashed={good_hashed} \
+                     unavailable_status={failure_recorded} claimed={} completed={} failed={} \
+                     retried={} stale={} queue_depth={}",
+                    telemetry.claimed,
+                    telemetry.completed,
+                    telemetry.failed,
+                    telemetry.retried,
+                    telemetry.stale,
+                    telemetry.queue_depth,
+                );
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
         assert_eq!(supervisor.shutdown()["joined"], true);
 
         let connection = SourceDatabase::open_connection_with_role_and_database_root(
@@ -6672,9 +8133,14 @@ mod tests {
         let mut supervisor = SourceProcessingSupervisor {
             shared,
             coordinator: Some(coordinator),
+            retirement_worker: None,
         };
         thread::sleep(Duration::from_millis(150));
         assert!(!source_is_hashed(&source));
+        assert!(
+            supervisor.shared.telemetry().sweeps <= 2,
+            "a source blocked by an external scan must park instead of rediscovering in a tight loop"
+        );
         assert!(
             receiver.try_iter().all(|message| matches!(
                 message,
@@ -6692,7 +8158,7 @@ mod tests {
     }
 
     #[test]
-    fn external_scan_tokens_cancel_for_playback_removal_and_shutdown() {
+    fn external_scan_tokens_survive_playback_but_cancel_for_removal_and_shutdown() {
         let (_directory, source) = unhashed_source("external-cancel");
         let mut supervisor = SourceProcessingSupervisor::dormant();
         supervisor
@@ -6706,7 +8172,10 @@ mod tests {
         let playback_cancel = playback_permit.cancel_token();
         assert!(!playback_cancel.load(Ordering::Acquire));
         supervisor.set_playback_active(true);
-        assert!(playback_cancel.load(Ordering::Acquire));
+        assert!(
+            !playback_cancel.load(Ordering::Acquire),
+            "playback must not cancel source scanning"
+        );
         drop(playback_permit);
 
         supervisor.set_playback_active(false);
@@ -6868,10 +8337,6 @@ mod tests {
                     String::from("unsupported")
                 ),
                 (String::from("indexed_identity"), String::from("eligible")),
-                (
-                    String::from("playback_summary"),
-                    String::from("unsupported")
-                ),
             ]
         );
 
@@ -6884,9 +8349,7 @@ mod tests {
                 "SELECT COUNT(*)
                  FROM analysis_jobs
                  WHERE readiness_scope_id = 'zero-byte-identity'
-                   AND readiness_stage IN (
-                       'playback_summary', 'analysis_features', 'embedding_aspects'
-                   )",
+                   AND readiness_stage IN ('analysis_features', 'embedding_aspects')",
                 [],
                 |row| row.get(0),
             )
@@ -6920,7 +8383,6 @@ mod tests {
                 String::from("analysis_features"),
                 String::from("embedding_aspects"),
                 String::from("indexed_identity"),
-                String::from("playback_summary"),
             ]
         );
         let pending_content_generations = {
@@ -6970,7 +8432,6 @@ mod tests {
                 String::from("analysis_features"),
                 String::from("embedding_aspects"),
                 String::from("indexed_identity"),
-                String::from("playback_summary"),
             ]
         );
         let exact_membership: String = connection
@@ -7104,7 +8565,13 @@ mod tests {
 
         let outcome = execute_readiness_target(&source, &embedding, &AtomicBool::new(false))
             .expect("repair inconsistent prerequisite");
-        assert_eq!(outcome, ExecutionOutcome::PrerequisiteInvalidated);
+        assert!(matches!(
+            outcome,
+            ExecutionOutcome::PrerequisiteInvalidated {
+                reason: "analysis prerequisite artifact payload is missing",
+                ..
+            }
+        ));
 
         let connection = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
@@ -7211,31 +8678,316 @@ mod tests {
     #[test]
     fn retry_deadline_shortens_coordinator_wait_deterministically() {
         assert_eq!(
-            coordinator_wait_duration(Some(105), 100, SAFETY_SWEEP_INTERVAL, false),
+            coordinator_wait_duration(Some(105), 100, SAFETY_SWEEP_INTERVAL),
             Duration::from_secs(5)
         );
         assert_eq!(
-            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL, false),
+            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL),
             Duration::ZERO
         );
         assert_eq!(
-            coordinator_wait_duration(Some(200), 100, SAFETY_SWEEP_INTERVAL, false),
+            coordinator_wait_duration(Some(200), 100, SAFETY_SWEEP_INTERVAL),
             SAFETY_SWEEP_INTERVAL
         );
         assert_eq!(
-            coordinator_wait_duration(None, 100, SAFETY_SWEEP_INTERVAL, false),
+            coordinator_wait_duration(None, 100, SAFETY_SWEEP_INTERVAL),
             SAFETY_SWEEP_INTERVAL
         );
         assert_eq!(
-            coordinator_wait_duration(None, 100, Duration::from_secs(3), false),
+            coordinator_wait_duration(None, 100, Duration::from_secs(3)),
             Duration::from_secs(3),
             "priority wakes must preserve the remaining absolute safety-sweep deadline"
         );
+    }
+
+    #[test]
+    fn stale_scope_outcomes_discard_already_discovered_dependents() {
+        let indexed = RuntimeTask::Readiness(ReadinessTarget::file(
+            "source",
+            "identity",
+            "changing.wav",
+            ReadinessStage::IndexedIdentity,
+            "manifest-v1",
+            1,
+            "pending-identity",
+        ));
+        let mut playback_task = indexed.clone();
+        let RuntimeTask::Readiness(playback_target) = &mut playback_task else {
+            unreachable!();
+        };
+        playback_target.stage = ReadinessStage::PlaybackSummary;
+
         assert_eq!(
-            coordinator_wait_duration(Some(100), 100, SAFETY_SWEEP_INTERVAL, true),
-            SAFETY_SWEEP_INTERVAL,
-            "paused processing must not spin on an already-due retry deadline"
+            candidate_invalidation_scope(&indexed, Some(ExecutionOutcome::Retried { retry_at: 5 })),
+            CandidateInvalidationScope::TargetScope
         );
+        assert_eq!(
+            candidate_invalidation_scope(&indexed, Some(ExecutionOutcome::Completed)),
+            CandidateInvalidationScope::TargetScope,
+            "committing a content hash invalidates pending-generation dependents"
+        );
+        let mut indexed_exact = indexed.clone();
+        let RuntimeTask::Readiness(indexed_exact_target) = &mut indexed_exact else {
+            unreachable!();
+        };
+        indexed_exact_target.content_generation = String::from("exact-content-hash");
+        assert_eq!(
+            candidate_invalidation_scope(&indexed_exact, Some(ExecutionOutcome::Completed)),
+            CandidateInvalidationScope::None,
+            "recording an already exact indexed identity must preserve same-generation dependents"
+        );
+        assert_eq!(
+            candidate_invalidation_scope(&playback_task, Some(ExecutionOutcome::Completed)),
+            CandidateInvalidationScope::None
+        );
+        assert_eq!(
+            candidate_invalidation_scope(
+                &RuntimeTask::ManifestAudit,
+                Some(ExecutionOutcome::Completed)
+            ),
+            CandidateInvalidationScope::Source
+        );
+    }
+
+    #[test]
+    fn retry_only_source_releases_owner_before_another_source_runs() {
+        let mut scheduler = FairScheduler::default();
+        let budgets = BudgetTracker::new(ProcessingBudgets::default());
+        let first = [WorkCandidate::source(
+            "recording",
+            ProcessingLane::Hashing,
+            0,
+            0,
+        )];
+        assert_eq!(
+            scheduler.choose(&first, &PriorityContext::default(), &budgets),
+            Some(0)
+        );
+
+        let configured = ["recording".to_string(), "next".to_string()]
+            .into_iter()
+            .collect();
+        let stats = [(
+            "recording".to_string(),
+            SourceDiscoveryStats {
+                readiness_queue_depth: 1,
+                earliest_retry_at: Some(100),
+                ..SourceDiscoveryStats::default()
+            },
+        )]
+        .into_iter()
+        .collect();
+        release_converged_source_owner(&mut scheduler, &configured, &stats, &[]);
+        assert_eq!(scheduler.active_source(), None);
+
+        let next = [WorkCandidate::source("next", ProcessingLane::Hashing, 0, 0)];
+        assert_eq!(
+            scheduler.choose(&next, &PriorityContext::default(), &budgets),
+            Some(0)
+        );
+        assert_eq!(scheduler.active_source(), Some("next"));
+    }
+
+    #[test]
+    fn discovery_selects_exactly_one_source_and_keeps_the_active_owner() {
+        let first = SampleSource::new_with_id(
+            SourceId::from_string("first"),
+            PathBuf::from("/source/first"),
+        );
+        let second = SampleSource::new_with_id(
+            SourceId::from_string("second"),
+            PathBuf::from("/source/second"),
+        );
+        let sources = vec![first, second];
+        let pending = ["first".to_string(), "second".to_string()]
+            .into_iter()
+            .collect();
+        let priority = PriorityContext {
+            selected_source: Some("second".to_string()),
+            ..PriorityContext::default()
+        };
+
+        assert_eq!(
+            select_source_for_discovery(&sources, &pending, None, &priority).as_deref(),
+            Some("second")
+        );
+        assert_eq!(
+            select_source_for_discovery(&sources, &pending, Some("first"), &priority).as_deref(),
+            Some("first"),
+            "interactive priority must not switch an active source"
+        );
+        let pending = ["second".to_string()].into_iter().collect();
+        assert_eq!(
+            select_source_for_discovery(&sources, &pending, Some("first"), &priority),
+            None,
+            "another source cannot be discovered while the owner is active"
+        );
+    }
+
+    #[test]
+    fn actively_written_file_is_parked_until_its_quiet_deadline() {
+        let (_directory, source) = unhashed_source("active-recording");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        let now = now_epoch_seconds();
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'active-recording-identity',
+                     content_hash = NULL,
+                     modified_ns = ?1
+                 WHERE path = 'pending.wav'",
+                [now.saturating_mul(1_000_000_000)],
+            )
+            .expect("mark file as actively written");
+        connection
+            .execute(
+                "INSERT INTO metadata(key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![META_LAST_MANIFEST_AUDIT_AT, now.to_string()],
+            )
+            .expect("suppress unrelated manifest audit");
+
+        let Cancellable::Completed((candidates, stats)) =
+            discover_source_candidates_with_connection(
+                &source,
+                &mut connection,
+                now,
+                false,
+                &AtomicBool::new(false),
+            )
+            .expect("discover active recording")
+        else {
+            panic!("active recording discovery cancelled");
+        };
+        assert!(
+            candidates
+                .iter()
+                .all(|candidate| { candidate.schedule.scope_id != "active-recording-identity" }),
+            "no readiness stage may run while the file is still changing"
+        );
+        assert!(
+            stats
+                .earliest_retry_at
+                .is_some_and(|retry_at| retry_at > now)
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM analysis_jobs
+                     WHERE readiness_managed = 1
+                       AND readiness_scope_id = 'active-recording-identity'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count parked jobs"),
+            0
+        );
+
+        let stable_now = now.saturating_add(ACTIVE_RECORDING_QUIET_SECONDS + 1);
+        let Cancellable::Completed((candidates, _)) = discover_source_candidates_with_connection(
+            &source,
+            &mut connection,
+            stable_now,
+            false,
+            &AtomicBool::new(false),
+        )
+        .expect("rediscover stable recording") else {
+            panic!("stable recording discovery cancelled");
+        };
+        assert!(candidates.iter().any(|candidate| {
+            candidate.schedule.scope_id == "active-recording-identity"
+                && candidate.schedule.lane == ProcessingLane::Hashing
+        }));
+    }
+
+    #[test]
+    fn recently_modified_hashed_wav_with_subsecond_mtime_is_parked_until_quiet() {
+        let (_directory, source) = unhashed_source("hashed-active-recording");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open readiness database");
+        let now = now_epoch_seconds();
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'hashed-active-recording-identity',
+                     content_hash = 'already-hashed-recording-content',
+                     modified_ns = ?1
+                 WHERE path = 'pending.wav'",
+                [now.saturating_mul(1_000_000_000)
+                    .saturating_add(500_000_000)],
+            )
+            .expect("mark hashed file as actively written");
+        connection
+            .execute(
+                "INSERT INTO metadata(key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![META_LAST_MANIFEST_AUDIT_AT, now.to_string()],
+            )
+            .expect("suppress unrelated manifest audit");
+
+        let Cancellable::Completed((candidates, stats)) =
+            discover_source_candidates_with_connection(
+                &source,
+                &mut connection,
+                now,
+                false,
+                &AtomicBool::new(false),
+            )
+            .expect("discover hashed active recording")
+        else {
+            panic!("hashed active recording discovery cancelled");
+        };
+        assert!(
+            candidates.iter().all(|candidate| {
+                candidate.schedule.scope_id != "hashed-active-recording-identity"
+            }),
+            "an already-hashed WAV must not enter downstream readiness while recently modified"
+        );
+        assert!(
+            stats
+                .earliest_retry_at
+                .is_some_and(|retry_at| retry_at > now),
+            "the quiet deadline must keep the source scheduled for retry"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM analysis_jobs
+                     WHERE readiness_managed = 1
+                       AND readiness_scope_id = 'hashed-active-recording-identity'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count parked hashed recording jobs"),
+            0
+        );
+
+        let stable_now = now.saturating_add(ACTIVE_RECORDING_QUIET_SECONDS + 1);
+        let Cancellable::Completed((candidates, _)) = discover_source_candidates_with_connection(
+            &source,
+            &mut connection,
+            stable_now,
+            false,
+            &AtomicBool::new(false),
+        )
+        .expect("rediscover stable hashed recording") else {
+            panic!("stable hashed recording discovery cancelled");
+        };
+        assert!(candidates.iter().any(|candidate| {
+            candidate.schedule.scope_id == "hashed-active-recording-identity"
+                && candidate.schedule.lane == ProcessingLane::FeatureAnalysis
+        }));
     }
 
     #[test]
@@ -7323,7 +9075,7 @@ mod tests {
         assert_eq!(
             reclassify_known_unsupported_audio_failures(&mut connection)
                 .expect("reclassify unsupported failures"),
-            4
+            3
         );
         let first = connection
             .query_row(
@@ -7357,7 +9109,7 @@ mod tests {
             )
             .expect("read legacy permanent failure");
         assert_eq!(legacy_permanent, (String::from("unsupported"), None));
-        let repaired = connection
+        let exhausted = connection
             .query_row(
                 "SELECT failure_kind, attempts, retry_at FROM analysis_jobs WHERE id = 6",
                 [],
@@ -7369,8 +9121,8 @@ mod tests {
                     ))
                 },
             )
-            .expect("read repaired prerequisite failure");
-        assert_eq!(repaired, (String::from("retryable"), 0, None));
+            .expect("read exhausted prerequisite failure");
+        assert_eq!(exhausted, (String::from("permanent"), 8, None));
         let target = ReadinessTarget::file(
             "source",
             "bad-audio",
@@ -7450,6 +9202,52 @@ mod tests {
             )
             .expect("assign readiness identity");
         (directory, source)
+    }
+
+    fn seed_legacy_playback_artifact(source: &SampleSource) -> (std::path::PathBuf, i64) {
+        let now = now_epoch_seconds();
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open legacy playback database");
+        publish_current_readiness_targets(&mut connection, source.id.as_str(), now)
+            .expect("publish current target matrix");
+        let cache_ref = ensure_persisted_playback_summary(
+            source.root.join("ready.wav"),
+            &AtomicBool::new(false),
+        )
+        .expect("seed legacy playback cache");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 )
+                 SELECT source_id, scope_kind, scope_id, relative_path, 'playback_summary',
+                        'legacy-playback-v1', source_generation, content_generation,
+                        eligibility, ?2
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'indexed_identity'",
+                params![source.id.as_str(), now],
+            )
+            .expect("seed legacy playback target");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_artifacts (
+                    source_id, scope_kind, scope_id, relative_path, stage, artifact_version,
+                    source_generation, content_generation, artifact_ref, completed_at
+                 )
+                 SELECT source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                        source_generation, content_generation, ?2, ?3
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'playback_summary'",
+                params![source.id.as_str(), cache_ref.to_string_lossy(), now],
+            )
+            .expect("seed legacy playback artifact");
+        (cache_ref, now)
     }
 
     fn source_is_hashed(source: &SampleSource) -> bool {

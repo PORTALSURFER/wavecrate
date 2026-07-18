@@ -415,7 +415,6 @@ fn invalidated_stages(changes: &[FileMutationChange]) -> BTreeSet<ReadinessStage
             FileMutationSemantics::Create | FileMutationSemantics::ContentChanged => {
                 stages.extend([
                     ReadinessStage::IndexedIdentity,
-                    ReadinessStage::PlaybackSummary,
                     ReadinessStage::AnalysisFeatures,
                     ReadinessStage::EmbeddingAspects,
                     ReadinessStage::SimilarityLayout,

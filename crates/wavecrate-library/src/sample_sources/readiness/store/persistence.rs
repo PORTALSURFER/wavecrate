@@ -129,6 +129,27 @@ fn replace_readiness_targets_inner(
             refresh_work_metadata(&tx, target)?;
         }
     }
+    cancellation_checkpoint(cancel)?;
+    tx.execute(
+        "DELETE FROM analysis_jobs
+         WHERE source_id = ?1
+           AND readiness_managed = 1
+           AND NOT EXISTS (
+               SELECT 1
+               FROM source_readiness_targets AS target
+               WHERE target.source_id = analysis_jobs.source_id
+                 AND target.scope_kind = analysis_jobs.readiness_scope_kind
+                 AND target.scope_id = analysis_jobs.readiness_scope_id
+                 AND target.stage = analysis_jobs.readiness_stage
+                 AND target.required_version = analysis_jobs.artifact_version
+                 AND target.content_generation = analysis_jobs.content_generation
+                 AND (
+                     target.scope_kind = 'file'
+                     OR target.source_generation = analysis_jobs.source_generation
+                 )
+           )",
+        [source_id],
+    )?;
     tx.commit()?;
     Ok(())
 }
@@ -275,7 +296,7 @@ pub fn persist_readiness_deficits(
     deficits: &[ReadinessDeficit],
     created_at: i64,
 ) -> Result<usize, ReadinessError> {
-    persist_readiness_deficits_inner(connection, deficits, created_at, None)
+    persist_readiness_deficits_inner(connection, deficits, created_at, None, &mut || {})
 }
 
 /// Persist deficits while honoring cancellation; cancellation rolls back the current batch.
@@ -285,7 +306,18 @@ pub fn persist_readiness_deficits_with_cancel(
     created_at: i64,
     cancel: &AtomicBool,
 ) -> Result<usize, ReadinessError> {
-    persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel))
+    persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel), &mut || {})
+}
+
+/// Persist deficits while reporting each completed queue-reconciliation step.
+pub fn persist_readiness_deficits_with_cancel_and_progress(
+    connection: &mut Connection,
+    deficits: &[ReadinessDeficit],
+    created_at: i64,
+    cancel: &AtomicBool,
+    progress: &mut dyn FnMut(),
+) -> Result<usize, ReadinessError> {
+    persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel), progress)
 }
 
 fn persist_readiness_deficits_inner(
@@ -293,6 +325,7 @@ fn persist_readiness_deficits_inner(
     deficits: &[ReadinessDeficit],
     created_at: i64,
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<usize, ReadinessError> {
     cancellation_checkpoint(cancel)?;
     let mut unique = BTreeSet::new();
@@ -300,6 +333,7 @@ fn persist_readiness_deficits_inner(
     let mut changed = 0;
     for deficit in deficits {
         cancellation_checkpoint(cancel)?;
+        progress();
         let target = &deficit.target;
         if !unique.insert((
             target.key(),
@@ -688,7 +722,6 @@ fn validate_targets(
         cancellation_checkpoint(cancel)?;
         for stage in [
             ReadinessStage::IndexedIdentity,
-            ReadinessStage::PlaybackSummary,
             ReadinessStage::AnalysisFeatures,
             ReadinessStage::EmbeddingAspects,
         ] {

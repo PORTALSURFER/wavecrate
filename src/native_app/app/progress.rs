@@ -46,6 +46,10 @@ pub(in crate::native_app) struct SourceProcessingProgress {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) lifecycle_generation: u64,
     pub(in crate::native_app) active: bool,
+    /// Whether this work owns the source-processing lane strongly enough to
+    /// identify the source row as actively advancing. Brief maintenance checks
+    /// and manifest audits remain visible in job details without pulsing a row.
+    pub(in crate::native_app) source_row_active: bool,
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
     pub(in crate::native_app) stage: String,

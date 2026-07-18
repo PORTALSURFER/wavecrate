@@ -80,6 +80,10 @@ pub(in crate::native_app) enum GuiMessage {
         overflowed: bool,
         source_root_available: bool,
     },
+    /// The initial watcher stream is live. Re-arming startup manifest audits at
+    /// this boundary covers filesystem changes made while native roots were
+    /// being registered.
+    SourceWatcherReady,
     SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
     CommittedFileMutationRequested(FileMutationWork),
     CommittedFileMutationFinished(FileMutationOutcome),

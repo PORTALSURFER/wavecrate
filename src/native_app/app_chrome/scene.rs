@@ -40,6 +40,7 @@ fn paint_app_transient_overlay(
 ) {
     state.paint_waveform_transient_overlay(context, primitives);
     state.paint_source_processing_activity_overlay(context, primitives);
+    state.paint_source_processing_source_pulse(context, primitives);
     paint_starmap_active_audition_overlay(state, context, primitives);
 }
 

@@ -27,6 +27,7 @@ use tag_editor::tag_editor_section;
 pub(in crate::native_app) const LIBRARY_SIDEBAR_PADDING: f32 = 4.0;
 const LIBRARY_SIDEBAR_SECTION_SPACING: f32 = 3.0;
 
+pub(in crate::native_app) use source_section::source_row_widget_id;
 pub(in crate::native_app) use tag_completion::{TAG_COMPLETION_POPUP_GAP, tag_completion_overlay};
 pub(in crate::native_app) use tag_entry_layout::tag_field_content_width;
 #[cfg(test)]

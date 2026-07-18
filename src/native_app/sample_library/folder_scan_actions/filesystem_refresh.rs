@@ -8,6 +8,7 @@ use crate::native_app::app::{
 };
 use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths;
 use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::source_processing::manifest_delta_requires_browser_refresh;
 
 impl NativeAppState {
     pub(in crate::native_app) fn refresh_source_after_filesystem_change(
@@ -158,27 +159,33 @@ impl NativeAppState {
         {
             return;
         }
-        self.background
-            .source_processing
-            .wake_source(&source_id, "manifest_audit_committed");
-        if !manifest_delta_requires_browser_refresh(&committed_delta) {
-            tracing::debug!(
-                source_id = %source_id,
-                revision = committed_delta.revision,
-                "Skipping filesystem rescan for content-generation-only audit delta"
-            );
-            return;
+        match manifest_audit_followup(&committed_delta) {
+            ManifestAuditFollowup::ReconcileImmediately => {
+                self.background
+                    .source_processing
+                    .request_source_processing(&source_id, "manifest_audit_committed");
+                tracing::debug!(
+                    source_id = %source_id,
+                    revision = committed_delta.revision,
+                    "Skipping filesystem rescan for content-generation-only audit delta"
+                );
+            }
+            ManifestAuditFollowup::RefreshBrowserThenReconcile => {
+                tracing::info!(
+                    source_id = %source_id,
+                    revision = committed_delta.revision,
+                    created = committed_delta.created.len(),
+                    changed = committed_delta.changed.len(),
+                    moved = committed_delta.moved.len(),
+                    deleted = committed_delta.deleted.len(),
+                    "Refreshing browser projection after periodic source audit"
+                );
+                // The folder refresh writes the same source database that
+                // discovery reads. Its completion queues SourceScanFinished
+                // reconciliation, so wait until the refresh releases the DB.
+                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+            }
         }
-        tracing::info!(
-            source_id = %source_id,
-            revision = committed_delta.revision,
-            created = committed_delta.created.len(),
-            changed = committed_delta.changed.len(),
-            moved = committed_delta.moved.len(),
-            deleted = committed_delta.deleted.len(),
-            "Refreshing browser projection after periodic source audit"
-        );
-        self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
     }
 
     pub(in crate::native_app) fn maybe_run_pending_source_refresh(
@@ -224,6 +231,12 @@ impl NativeAppState {
                 );
             }
             SourceRefreshRequest::IgnoredMissing { source_id } => {
+                self.background
+                    .source_processing
+                    .finish_foreground_source_refresh(
+                        &source_id,
+                        "source_refresh_root_unavailable",
+                    );
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
@@ -317,27 +330,31 @@ impl NativeAppState {
     }
 }
 
-fn manifest_delta_requires_browser_refresh(
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ManifestAuditFollowup {
+    ReconcileImmediately,
+    RefreshBrowserThenReconcile,
+}
+
+fn manifest_audit_followup(
     delta: &wavecrate::sample_sources::scanner::CommittedSourceDelta,
-) -> bool {
-    !delta.created.is_empty()
-        || !delta.moved.is_empty()
-        || !delta.deleted.is_empty()
-        || delta
-            .changed
-            .iter()
-            .any(|change| change.source_metadata_changed)
+) -> ManifestAuditFollowup {
+    if manifest_delta_requires_browser_refresh(delta) {
+        ManifestAuditFollowup::RefreshBrowserThenReconcile
+    } else {
+        ManifestAuditFollowup::ReconcileImmediately
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
-    use super::manifest_delta_requires_browser_refresh;
+    use super::{ManifestAuditFollowup, manifest_audit_followup};
     use wavecrate::sample_sources::scanner::{CommittedSourceDelta, ManifestIdentityDelta};
 
     #[test]
-    fn content_generation_only_audit_does_not_queue_filesystem_rescan() {
+    fn content_generation_only_audit_reconciles_without_filesystem_rescan() {
         let delta = CommittedSourceDelta {
             revision: 7,
             changed: vec![ManifestIdentityDelta {
@@ -349,11 +366,14 @@ mod tests {
             ..CommittedSourceDelta::default()
         };
 
-        assert!(!manifest_delta_requires_browser_refresh(&delta));
+        assert_eq!(
+            manifest_audit_followup(&delta),
+            ManifestAuditFollowup::ReconcileImmediately
+        );
     }
 
     #[test]
-    fn source_metadata_change_requires_browser_refresh() {
+    fn source_metadata_change_reconciles_after_browser_refresh() {
         let delta = CommittedSourceDelta {
             revision: 8,
             changed: vec![ManifestIdentityDelta {
@@ -365,6 +385,9 @@ mod tests {
             ..CommittedSourceDelta::default()
         };
 
-        assert!(manifest_delta_requires_browser_refresh(&delta));
+        assert_eq!(
+            manifest_audit_followup(&delta),
+            ManifestAuditFollowup::RefreshBrowserThenReconcile
+        );
     }
 }
