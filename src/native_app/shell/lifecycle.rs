@@ -94,6 +94,8 @@ impl NativeAppState {
             );
             return;
         }
+        self.background.source_lifecycle_generations =
+            self.background.source_processing.lifecycle_generations();
         if sources.is_empty() {
             self.library.source_watcher = None;
             return;

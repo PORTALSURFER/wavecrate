@@ -259,6 +259,23 @@ impl SourceScanWorkflow {
             .map(|pending| pending.source_id)
     }
 
+    /// Retire every queued or visible scan projection for a removed source immediately.
+    ///
+    /// The worker is cancelled through the source-processing lifecycle token. Clearing the local
+    /// owner here prevents a late completion from leaving the one-at-a-time global scan lane
+    /// permanently active while the removed source no longer exists in the browser model.
+    pub(in crate::native_app) fn retire_source(&mut self, source_id: &str) -> bool {
+        self.remove_pending_refresh(source_id);
+        let active = self
+            .progress
+            .as_ref()
+            .is_some_and(|progress| progress.source_id == source_id);
+        if active {
+            self.progress = None;
+        }
+        active
+    }
+
     pub(in crate::native_app) fn begin_filesystem_refresh(
         &mut self,
         browser: &mut FolderBrowserState,

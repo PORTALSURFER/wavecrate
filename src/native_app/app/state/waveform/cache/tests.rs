@@ -116,6 +116,60 @@ fn instant_waveform_preview_cache_prunes_oldest_entries() {
 }
 
 #[test]
+fn source_runtime_release_clears_preview_only_and_queue_state_by_prefix() {
+    let removed_root = PathBuf::from("/tmp/removed-source");
+    let removed = removed_root.join("kick.wav");
+    let retained = PathBuf::from("/tmp/retained-source/snare.wav");
+    let mut cache = WaveformCacheState::default();
+    cache.store_preview_audition_clip(preview_clip(removed.clone()));
+    cache.store_preview_audition_clip(preview_clip(retained.clone()));
+    cache.store_instant_waveform_preview(instant_preview(removed.clone(), 4));
+    cache.store_instant_waveform_preview(instant_preview(retained.clone(), 4));
+    cache
+        .warm_pending
+        .extend([removed.clone(), retained.clone()]);
+    cache
+        .active_folder_warm_pending
+        .extend([removed.clone(), retained.clone()]);
+    cache.mark_preview_audition_warm_scheduled(&[
+        removed.display().to_string(),
+        retained.display().to_string(),
+    ]);
+    cache.mark_preview_audition_failed(&removed);
+    cache.mark_sample_playback_cache_ready(&removed);
+    cache.mark_sample_playback_cache_ready(&retained);
+
+    cache.release_source_runtime(&removed_root);
+
+    assert!(!cache.preview_audition_clips.contains_key(&removed));
+    assert!(!cache.instant_waveform_previews.contains_key(&removed));
+    assert!(
+        !cache
+            .cached_sample_paths
+            .contains(&removed.display().to_string())
+    );
+    assert!(
+        !cache
+            .preview_audition_attempted_paths
+            .contains(&removed.display().to_string())
+    );
+    assert!(
+        !cache
+            .preview_audition_failed_paths
+            .contains(&removed.display().to_string())
+    );
+    assert!(!cache.warm_pending.contains(&removed));
+    assert!(!cache.active_folder_warm_pending.contains(&removed));
+    assert!(cache.preview_audition_clips.contains_key(&retained));
+    assert!(cache.instant_waveform_previews.contains_key(&retained));
+    assert!(
+        cache
+            .cached_sample_paths
+            .contains(&retained.display().to_string())
+    );
+}
+
+#[test]
 fn instant_waveform_preview_loading_replaces_stale_waveform() {
     let mut app_state = WaveformAppState::new(WaveformState::from_cached_file(Arc::new(
         crate::native_app::waveform::test_file_backed_waveform_file_from_mono_samples(

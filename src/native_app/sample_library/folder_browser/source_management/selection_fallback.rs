@@ -42,14 +42,16 @@ impl FolderBrowserState {
         if self.source.sources[index].is_default_assets_source() {
             return Err(String::from("Default source cannot be removed"));
         }
+        let was_selected = self.source.selected_source == self.source.sources[index].id;
         let source = self.source.sources.remove(index);
         let removed = RemovedSource {
             label: source.label.clone(),
             root: source.root.clone(),
+            was_selected,
         };
         self.cancel_rename();
         self.clear_drag();
-        if self.source.selected_source == source.id {
+        if was_selected {
             self.select_first_available_source();
         }
         Ok(removed)

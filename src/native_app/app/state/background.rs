@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{BTreeMap, HashSet, VecDeque},
     path::PathBuf,
     sync::{
         Arc, Mutex,
@@ -43,6 +43,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) normalization_queue: VecDeque<NormalizationQueueItem>,
     pub(in crate::native_app) file_move_progress: Option<FileMoveProgress>,
     pub(in crate::native_app) source_processing_progress: Option<SourceProcessingProgress>,
+    pub(in crate::native_app) source_lifecycle_generations: BTreeMap<String, u64>,
     pub(in crate::native_app) progress_tick: f32,
     pub(in crate::native_app) frame_cadence: frame_ui::FrameCadenceMonitor,
     pub(in crate::native_app) source_processing: SourceProcessingSupervisor,
@@ -62,6 +63,7 @@ impl BackgroundTaskState {
             drop(sources);
             SourceProcessingSupervisor::dormant()
         };
+        let source_lifecycle_generations = source_processing.lifecycle_generations();
         Self {
             worker_sender,
             worker_receiver,
@@ -87,6 +89,7 @@ impl BackgroundTaskState {
             normalization_queue: VecDeque::new(),
             file_move_progress: None,
             source_processing_progress: None,
+            source_lifecycle_generations,
             progress_tick: 0.0,
             frame_cadence: frame_ui::FrameCadenceMonitor::new(),
             source_processing,

@@ -45,6 +45,26 @@ impl NativeAppState {
                 self.finish_similarity_readiness_advanced(source_id, context);
             }
             GuiMessage::SourceProcessingProgress(progress) => {
+                let source_is_current = if progress.source_id.is_empty() {
+                    !progress.active
+                        || !self
+                            .library
+                            .folder_browser
+                            .configured_sample_sources()
+                            .is_empty()
+                } else {
+                    self.library
+                        .folder_browser
+                        .source_exists(&progress.source_id)
+                        && self
+                            .background
+                            .source_lifecycle_generations
+                            .get(&progress.source_id)
+                            .is_none_or(|generation| *generation == progress.lifecycle_generation)
+                };
+                if !source_is_current {
+                    return;
+                }
                 if !progress.active {
                     self.background.source_processing_progress = None;
                     self.ui.chrome.job_details_open = false;

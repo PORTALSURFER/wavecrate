@@ -87,7 +87,7 @@ impl NativeAppState {
         self.audio.clear_sample_playback_session();
     }
 
-    pub(super) fn cancel_inflight_sample_load(&mut self) {
+    pub(in crate::native_app) fn cancel_inflight_sample_load(&mut self) {
         self.cancel_inflight_sample_load_preserving_early_playback(None);
     }
 

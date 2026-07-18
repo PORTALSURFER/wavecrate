@@ -432,6 +432,7 @@ fn scene_source_processing_frame_uses_paint_only_repaint_scope() {
     state.background.source_processing_progress = Some(
         crate::native_app::test_support::state::SourceProcessingProgress {
             source_id: String::from("source"),
+            lifecycle_generation: 0,
             active: true,
             completed: 3,
             total: 10,
@@ -469,6 +470,7 @@ fn source_processing_activity_moves_in_transient_overlay_without_input() {
     state.background.source_processing_progress = Some(
         crate::native_app::test_support::state::SourceProcessingProgress {
             source_id: String::from("source"),
+            lifecycle_generation: 0,
             active: true,
             completed: 3,
             total: 10,

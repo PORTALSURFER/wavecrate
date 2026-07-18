@@ -25,11 +25,9 @@ impl FolderBrowserState {
         {
             return Some(source.id.clone());
         }
-        let id = path_id(&root);
-        let label = folder_label(&root);
-        self.source
-            .sources
-            .push(SourceEntry::new(id.clone(), label, root.clone()));
+        let source = retained_source_entry(&root)?;
+        let id = source.id.clone();
+        self.source.sources.push(source);
         if select_source {
             self.park_selected_source_tree();
             self.select_pending_source(id.clone(), placeholder_folder(&root));
@@ -79,9 +77,9 @@ impl FolderBrowserState {
                 self.begin_source_scan_without_selection(index, task_id)
             };
         }
-        let id = path_id(&root);
-        let label = folder_label(&root);
-        let mut source = SourceEntry::new(id.clone(), label.clone(), root.clone());
+        let mut source = retained_source_entry(&root)?;
+        let id = source.id.clone();
+        let label = source.label.clone();
         source.loading_task = Some(task_id);
         let database_root = source.database_root.clone();
         if select_source {
@@ -435,6 +433,25 @@ impl FolderBrowserState {
             self.bump_file_content_revision();
         }
         changed
+    }
+}
+
+fn retained_source_entry(root: &std::path::Path) -> Option<SourceEntry> {
+    match wavecrate::sample_sources::library::lookup_retained_source_for_root(root) {
+        Ok(Some(source)) => Some(SourceEntry::from_sample_source(&source)),
+        Ok(None) => Some(SourceEntry::new(
+            path_id(root),
+            folder_label(root),
+            root.to_path_buf(),
+        )),
+        Err(error) => {
+            tracing::warn!(
+                root = %root.display(),
+                error = %error,
+                "Could not restore retained source descriptor; source add was rejected"
+            );
+            None
+        }
     }
 }
 

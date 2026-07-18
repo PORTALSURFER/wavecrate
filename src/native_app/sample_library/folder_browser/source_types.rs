@@ -4,4 +4,5 @@ use std::path::PathBuf;
 pub(in crate::native_app) struct RemovedSource {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) root: PathBuf,
+    pub(in crate::native_app) was_selected: bool,
 }

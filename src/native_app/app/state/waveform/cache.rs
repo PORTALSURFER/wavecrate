@@ -136,6 +136,81 @@ impl Default for WaveformCacheState {
 }
 
 impl WaveformCacheState {
+    /// Evict every volatile path-owned cache record below a removed source root.
+    ///
+    /// This intentionally leaves persisted waveform payloads alone; durable cleanup uses the
+    /// source database's reverse-ownership manifest after old lifecycle work has drained.
+    pub(in crate::native_app) fn release_source_runtime(&mut self, root: &Path) -> usize {
+        let entry_paths = self
+            .entries
+            .keys()
+            .filter(|path| path.starts_with(root))
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in &entry_paths {
+            if let Some(entry) = self.entries.remove(path) {
+                self.bytes = self.bytes.saturating_sub(entry.byte_len);
+            }
+        }
+        let removed_entries = entry_paths.len();
+        self.order.retain(|path| !path.starts_with(root));
+        self.warm_pending.retain(|path| !path.starts_with(root));
+        self.active_folder_warm_pending
+            .retain(|path| !path.starts_with(root));
+        if self
+            .active_folder_warm_current
+            .as_ref()
+            .is_some_and(|path| path.starts_with(root))
+        {
+            self.clear_active_folder_warm_current();
+        }
+        self.cached_sample_paths
+            .retain(|path| !Path::new(path).starts_with(root));
+        self.instant_audition_sample_paths
+            .retain(|path| !Path::new(path).starts_with(root));
+        self.instant_audition_descriptors
+            .retain(|path, _| !path.starts_with(root));
+
+        let preview_paths = self
+            .preview_audition_clips
+            .keys()
+            .filter(|path| path.starts_with(root))
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in preview_paths {
+            if let Some(entry) = self.preview_audition_clips.remove(&path) {
+                self.preview_audition_bytes =
+                    self.preview_audition_bytes.saturating_sub(entry.byte_len);
+            }
+        }
+        let waveform_preview_paths = self
+            .instant_waveform_previews
+            .keys()
+            .filter(|path| path.starts_with(root))
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in waveform_preview_paths {
+            if let Some(entry) = self.instant_waveform_previews.remove(&path) {
+                self.instant_waveform_preview_bytes = self
+                    .instant_waveform_preview_bytes
+                    .saturating_sub(entry.byte_len);
+            }
+        }
+        self.preview_audition_sample_paths
+            .retain(|path| !Path::new(path).starts_with(root));
+        self.preview_audition_attempted_paths
+            .retain(|path| !Path::new(path).starts_with(root));
+        let scheduled_before = self.preview_audition_scheduled_paths.len();
+        self.preview_audition_scheduled_paths
+            .retain(|path| !Path::new(path).starts_with(root));
+        let removed_scheduled =
+            scheduled_before.saturating_sub(self.preview_audition_scheduled_paths.len());
+        self.release_pending_preview_warm_reservation(removed_scheduled);
+        self.preview_audition_failed_paths
+            .retain(|path| !Path::new(path).starts_with(root));
+        removed_entries
+    }
+
     pub(in crate::native_app) fn start_active_folder_warm_plan(
         &mut self,
         folder_id: String,

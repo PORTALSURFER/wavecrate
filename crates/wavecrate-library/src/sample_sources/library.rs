@@ -102,6 +102,41 @@ pub fn lookup_source_id_for_root(root: &Path) -> Result<Option<SourceId>, Librar
     result
 }
 
+/// Rehydrate the last configured descriptor for a previously known source root.
+///
+/// Removed sources remain in the bounded known-source registry so re-adding one can reuse its
+/// stable id and, importantly, its protected/AppData metadata location. The source is not active
+/// merely because it is retained here; callers must still add it to [`LibraryState::sources`].
+pub fn lookup_retained_source_for_root(root: &Path) -> Result<Option<SampleSource>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.lookup_retained_source(root);
+    record_library_db_event(
+        "library.lookup_retained_source_for_root",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
+/// Load descriptors for every configured or historically retained source.
+///
+/// This is used by bounded cache garbage collection to avoid deleting payloads referenced by a
+/// source that is temporarily removed from the active configuration.
+pub fn retained_sources() -> Result<Vec<SampleSource>, LibraryError> {
+    let started_at = Instant::now();
+    let _guard = lock_library();
+    let db = LibraryDatabase::open()?;
+    let result = db.load_retained_sources();
+    record_library_db_event(
+        "library.load_retained_sources",
+        started_at,
+        result.as_ref().map(|_| ()),
+    );
+    result
+}
+
 /// Insert or refresh a harvest file row without changing its workflow state.
 pub fn upsert_harvest_file(
     identity: &HarvestFileIdentity,

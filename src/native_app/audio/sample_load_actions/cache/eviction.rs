@@ -9,6 +9,14 @@ const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 2048;
 const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 2 * 1024 * 1024 * 1024;
 
 impl NativeAppState {
+    /// Release source-owned decoded/runtime cache state without touching reusable disk payloads.
+    ///
+    /// Durable playback payload retirement is driven asynchronously from the source database's
+    /// reverse-ownership manifest after the lifecycle fence has joined old writers.
+    pub(in crate::native_app) fn release_waveform_source_memory(&mut self, root: &Path) -> usize {
+        self.waveform.cache.release_source_runtime(root)
+    }
+
     pub(in crate::native_app) fn evict_waveform_cache_path(&mut self, path: &Path) {
         invalidate_persisted_waveform_cache_path(path);
         self.remove_waveform_cache_path(path);

@@ -32,9 +32,15 @@ fn frame_messages_use_frame_budget_slow_threshold() {
 #[test]
 fn source_processing_progress_opens_the_shared_job_details_popover() {
     let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(std::path::PathBuf::from("/tmp/progress-source"), false)
+        .expect("source registered");
     state.background.source_processing_progress =
         Some(crate::native_app::app::SourceProcessingProgress {
-            source_id: String::from("source"),
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
             active: true,
             completed: 3,
             total: 10,
@@ -51,7 +57,8 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
 
     state.apply_message(
         GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
-            source_id: String::from("source"),
+            source_id,
+            lifecycle_generation: 0,
             active: false,
             completed: 10,
             total: 10,
@@ -68,11 +75,17 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
 #[test]
 fn source_processing_progress_refreshes_the_retained_details_projection() {
     let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(std::path::PathBuf::from("/tmp/progress-source"), false)
+        .expect("source registered");
     let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(
         GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
-            source_id: String::from("source"),
+            source_id,
+            lifecycle_generation: 0,
             active: true,
             completed: 4,
             total: 10,
@@ -86,6 +99,80 @@ fn source_processing_progress_refreshes_the_retained_details_projection() {
         context.into_command().repaint_scope(),
         Some(ui::RepaintScope::Projection),
         "background progress must refresh retained text and counters without user input"
+    );
+}
+
+#[test]
+fn late_progress_for_removed_source_is_ignored() {
+    let mut state = NativeAppStateFixture::default().build();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: String::from("retired-source"),
+            lifecycle_generation: 0,
+            active: true,
+            completed: 1,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("late.wav"),
+        }),
+        &mut context,
+    );
+
+    assert!(state.background.source_processing_progress.is_none());
+}
+
+#[test]
+fn late_progress_from_previous_readded_source_epoch_is_ignored() {
+    let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(
+            std::path::PathBuf::from("/tmp/readded-progress-source"),
+            false,
+        )
+        .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 2);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation: 1,
+            active: true,
+            completed: 1,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("old-epoch.wav"),
+        }),
+        &mut context,
+    );
+    assert!(state.background.source_processing_progress.is_none());
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id,
+            lifecycle_generation: 2,
+            active: true,
+            completed: 2,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("current-epoch.wav"),
+        }),
+        &mut context,
+    );
+    assert_eq!(
+        state
+            .background
+            .source_processing_progress
+            .as_ref()
+            .map(|progress| progress.lifecycle_generation),
+        Some(2)
     );
 }
 

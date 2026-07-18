@@ -128,6 +128,10 @@ impl LibraryAppState {
         self.source_scan.next_pending_refresh_if_idle()
     }
 
+    pub(in crate::native_app) fn retire_source_workflow(&mut self, source_id: &str) -> bool {
+        self.source_scan.retire_source(source_id)
+    }
+
     pub(in crate::native_app) fn begin_filesystem_refresh(
         &mut self,
         source_id: String,
