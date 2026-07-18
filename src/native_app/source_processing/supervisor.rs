@@ -2211,8 +2211,13 @@ fn discover_source_candidates_with_connection(
             }
             Err(error) => return Err(error.to_string()),
         }
-        stats.readiness_queue_depth = snapshot.deficits.len();
-        candidates.extend(snapshot.deficits.iter().map(|deficit| RuntimeCandidate {
+        let schedulable_deficits = snapshot
+            .deficits
+            .iter()
+            .filter(|deficit| snapshot.prerequisites_are_current(&deficit.target))
+            .collect::<Vec<_>>();
+        stats.readiness_queue_depth = schedulable_deficits.len();
+        candidates.extend(schedulable_deficits.iter().map(|deficit| RuntimeCandidate {
             schedule: WorkCandidate::readiness(&deficit.target, deficit.enqueued_at.unwrap_or(now)),
             source: source.clone(),
             task: RuntimeTask::Readiness(deficit.target.clone()),
@@ -2235,6 +2240,10 @@ fn discover_source_candidates_with_connection(
             retries_due = work_stats.retries_due,
             retries_waiting = work_stats.retries_waiting,
             expired_leases = work_stats.expired_leases,
+            prerequisites_blocked = snapshot
+                .deficits
+                .len()
+                .saturating_sub(schedulable_deficits.len()),
             "Readiness work reconciled"
         );
     }
@@ -6410,6 +6419,14 @@ mod tests {
             readiness
                 .iter()
                 .all(|candidate| candidate.schedule.enqueued_at == 100)
+        );
+        assert!(
+            readiness.iter().all(|candidate| !matches!(
+                candidate.task,
+                RuntimeTask::Readiness(ref target)
+                    if target.stage == ReadinessStage::SimilarityLayout
+            )),
+            "similarity layout must stay parked behind the pending embedding target"
         );
         assert_eq!(oldest_job_age_seconds(&candidates, 250), 150);
     }

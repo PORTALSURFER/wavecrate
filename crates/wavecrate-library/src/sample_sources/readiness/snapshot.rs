@@ -136,6 +136,34 @@ pub struct ReadinessSnapshot {
 }
 
 impl ReadinessSnapshot {
+    /// Whether the exact target's upstream durable artifacts are current.
+    ///
+    /// File-scoped stages are independently schedulable. Source-level similarity publication
+    /// depends on every eligible identity, analysis, and embedding target in the same source
+    /// generation, so it must stay parked until those exact artifacts have converged.
+    pub fn prerequisites_are_current(&self, target: &ReadinessTarget) -> bool {
+        if target.stage != ReadinessStage::SimilarityLayout {
+            return true;
+        }
+        target.source_id == self.source_id
+            && target.source_generation == self.source_generation
+            && self
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.target.source_id == target.source_id
+                        && entry.target.source_generation == target.source_generation
+                        && matches!(
+                            entry.target.stage,
+                            ReadinessStage::IndexedIdentity
+                                | ReadinessStage::AnalysisFeatures
+                                | ReadinessStage::EmbeddingAspects
+                        )
+                        && entry.target.eligibility == ReadinessEligibility::Eligible
+                })
+                .all(|entry| entry.classification == ReadinessClassification::Current)
+    }
+
     /// Whether the coordinator has no immediately actionable deficit.
     pub fn is_idle(&self) -> bool {
         self.activity == ReadinessActivity::Idle
