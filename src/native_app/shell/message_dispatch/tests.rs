@@ -1,9 +1,13 @@
 use super::*;
-use crate::native_app::app::MetadataMessage;
+use crate::native_app::app::{MetadataMessage, SourceFilesystemSyncResult};
 use crate::native_app::app_chrome::view_models::sample_browser::prepare_sample_browser_view;
 use crate::native_app::test_support::sample_browser::complete_starmap_layout_for_selected_source;
 use crate::native_app::test_support::state::{FolderBrowserState, NativeAppStateFixture};
-use std::{fs, sync::Arc, time::Duration};
+use std::{
+    fs,
+    sync::{Arc, atomic::Ordering},
+    time::Duration,
+};
 
 #[test]
 fn root_dispatch_routes_metadata_messages_to_metadata_owner() {
@@ -32,9 +36,19 @@ fn frame_messages_use_frame_budget_slow_threshold() {
 #[test]
 fn source_processing_progress_opens_the_shared_job_details_popover() {
     let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(std::path::PathBuf::from("/tmp/progress-source"), false)
+        .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 0);
     state.background.source_processing_progress =
         Some(crate::native_app::app::SourceProcessingProgress {
-            source_id: String::from("source"),
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
             active: true,
             completed: 3,
             total: 10,
@@ -51,7 +65,8 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
 
     state.apply_message(
         GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
-            source_id: String::from("source"),
+            source_id,
+            lifecycle_generation: 0,
             active: false,
             completed: 10,
             total: 10,
@@ -68,11 +83,21 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
 #[test]
 fn source_processing_progress_refreshes_the_retained_details_projection() {
     let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(std::path::PathBuf::from("/tmp/progress-source"), false)
+        .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 0);
     let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(
         GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
-            source_id: String::from("source"),
+            source_id,
+            lifecycle_generation: 0,
             active: true,
             completed: 4,
             total: 10,
@@ -87,6 +112,138 @@ fn source_processing_progress_refreshes_the_retained_details_projection() {
         Some(ui::RepaintScope::Projection),
         "background progress must refresh retained text and counters without user input"
     );
+}
+
+#[test]
+fn late_progress_for_removed_source_is_ignored() {
+    let mut state = NativeAppStateFixture::default().build();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: String::from("retired-source"),
+            lifecycle_generation: 0,
+            active: true,
+            completed: 1,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("late.wav"),
+        }),
+        &mut context,
+    );
+
+    assert!(state.background.source_processing_progress.is_none());
+}
+
+#[test]
+fn late_progress_from_previous_readded_source_epoch_is_ignored() {
+    let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(
+            std::path::PathBuf::from("/tmp/readded-progress-source"),
+            false,
+        )
+        .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 2);
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation: 1,
+            active: true,
+            completed: 1,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("old-epoch.wav"),
+        }),
+        &mut context,
+    );
+    assert!(state.background.source_processing_progress.is_none());
+
+    state.apply_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id,
+            lifecycle_generation: 2,
+            active: true,
+            completed: 2,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("current-epoch.wav"),
+        }),
+        &mut context,
+    );
+    assert_eq!(
+        state
+            .background
+            .source_processing_progress
+            .as_ref()
+            .map(|progress| progress.lifecycle_generation),
+        Some(2)
+    );
+}
+
+#[test]
+fn source_completions_from_previous_readded_epoch_are_ignored() {
+    let directory = tempfile::tempdir().expect("completion source");
+    let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(directory.path().to_path_buf(), false)
+        .expect("source registered");
+    state.sync_source_watcher();
+    let current_generation = state.background.source_lifecycle_generations[&source_id];
+    let old_generation = current_generation.wrapping_sub(1);
+    let current_permit = state
+        .background
+        .source_processing
+        .budget_handle()
+        .acquire_scan(&source_id)
+        .expect("current source scan permit");
+    let current_cancel = current_permit.cancel_token();
+    let initial_status = state.ui.status.sample.clone();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::SourceFilesystemSyncFinished(SourceFilesystemSyncResult {
+            source_id: source_id.clone(),
+            lifecycle_generation: old_generation,
+            changed_count: 1,
+            cancelled: true,
+            result: Err(String::from("old epoch cancelled")),
+        }),
+        &mut context,
+    );
+    assert_eq!(state.ui.status.sample, initial_status);
+
+    state.apply_message(
+        GuiMessage::SourceManifestAuditCommitted {
+            source_id,
+            lifecycle_generation: old_generation,
+            committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta {
+                revision: 2,
+                changed: vec![wavecrate::sample_sources::scanner::ManifestIdentityDelta {
+                    identity: String::from("old-file"),
+                    relative_path: std::path::PathBuf::from("old.wav"),
+                    content_generation: String::from("old-generation"),
+                    source_metadata_changed: true,
+                }],
+                ..Default::default()
+            },
+        },
+        &mut context,
+    );
+    assert!(
+        !current_cancel.load(Ordering::Acquire),
+        "an old completion must not cancel the re-added source generation"
+    );
+    drop(current_permit);
 }
 
 #[test]

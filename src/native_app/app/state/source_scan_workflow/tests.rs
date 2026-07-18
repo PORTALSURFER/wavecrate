@@ -115,6 +115,32 @@ fn cancelled_scan_releases_ownership_and_requeues_the_source() {
 }
 
 #[test]
+fn removed_active_source_releases_global_scan_lane_and_purges_refreshes() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 23)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    workflow.queue_required_refresh(source_id.clone());
+
+    assert!(workflow.retire_source(&source_id));
+    assert!(!workflow.active());
+    assert!(!workflow.pending_refresh_contains_for_tests(&source_id));
+
+    browser.remove_source(&source_id).expect("remove source");
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Stale { .. }
+    ));
+    assert!(!workflow.active());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
+}
+
+#[test]
 fn cached_source_selection_does_not_queue_refresh_while_another_scan_is_active() {
     let first_root = temp_dir_with_wav();
     let second_root = temp_dir_with_wav();

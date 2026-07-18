@@ -230,6 +230,7 @@ impl NativeAppState {
             self.ui.status.sample = format!("Add target source failed: {error}");
             return;
         }
+        self.sync_source_watcher();
         self.retry_pending_protected_extraction(context);
     }
 

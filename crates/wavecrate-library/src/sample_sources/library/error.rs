@@ -38,6 +38,16 @@ pub enum LibraryError {
         /// Underlying JSON error.
         source: serde_json::Error,
     },
+    /// A retained source descriptor contained a present but unsupported enum value.
+    #[error("Retained source '{root}' has invalid {field} value '{value}'")]
+    InvalidRetainedSourceDescriptor {
+        /// Retained source root used to identify the corrupt record.
+        root: PathBuf,
+        /// Descriptor field containing the unsupported value.
+        field: &'static str,
+        /// Unsupported stored value.
+        value: String,
+    },
 }
 
 pub(super) fn map_sql_error(err: rusqlite::Error) -> LibraryError {

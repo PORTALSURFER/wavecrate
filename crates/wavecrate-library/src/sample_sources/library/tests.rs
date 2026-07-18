@@ -742,6 +742,78 @@ fn reuses_known_source_id_for_same_root() {
 }
 
 #[test]
+fn retained_source_restores_protected_app_data_descriptor_after_removal() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let root = normalize_path(Path::new("protected/root"));
+        let mut protected = SampleSource::new(root.clone()).protected();
+        protected.primary_import_folder = PathBuf::from("Retained Inbox");
+        save(&LibraryState {
+            sources: vec![protected.clone()],
+        })
+        .unwrap();
+        save(&LibraryState { sources: vec![] }).unwrap();
+
+        let retained = lookup_retained_source_for_root(&root)
+            .unwrap()
+            .expect("retained descriptor");
+        assert_eq!(retained.id, protected.id);
+        assert_eq!(retained.role, SourceRole::Protected);
+        assert_eq!(retained.metadata_storage, SourceMetadataStorage::AppData);
+        assert_eq!(retained.primary_import_folder, Path::new("Retained Inbox"));
+
+        let retained_set = retained_sources().unwrap();
+        assert_eq!(retained_set.len(), 1);
+        assert_eq!(retained_set[0].id, retained.id);
+        assert_eq!(retained_set[0].root, retained.root);
+        assert_eq!(retained_set[0].role, retained.role);
+        assert_eq!(retained_set[0].metadata_storage, retained.metadata_storage);
+    });
+}
+
+#[test]
+fn unknown_retained_descriptor_values_fail_closed() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let db = LibraryDatabase::open().unwrap();
+        db.set_metadata(
+            KNOWN_SOURCES_KEY,
+            r#"[{"root":"protected/root","source_id":"protected-id","role":"future_role"}]"#,
+        )
+        .unwrap();
+
+        let err = lookup_retained_source_for_root(Path::new("protected/root")).unwrap_err();
+        assert!(matches!(
+            err,
+            LibraryError::InvalidRetainedSourceDescriptor { field: "role", .. }
+        ));
+    });
+}
+
+#[test]
+fn legacy_known_source_mapping_defaults_to_normal_source_folder_descriptor() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let db = LibraryDatabase::open().unwrap();
+        db.set_metadata(
+            KNOWN_SOURCES_KEY,
+            r#"[{"root":"legacy/root","source_id":"legacy-id"}]"#,
+        )
+        .unwrap();
+
+        let retained = lookup_retained_source_for_root(Path::new("legacy/root"))
+            .unwrap()
+            .expect("legacy retained descriptor");
+        assert_eq!(retained.id.as_str(), "legacy-id");
+        assert_eq!(retained.role, SourceRole::Normal);
+        assert_eq!(
+            retained.metadata_storage,
+            SourceMetadataStorage::SourceFolder
+        );
+    });
+}
+
+#[test]
 fn corrupt_known_source_metadata_is_reported() {
     let temp = tempdir().unwrap();
     with_config_home(temp.path(), || {

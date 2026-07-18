@@ -44,6 +44,7 @@ pub(in crate::native_app) struct FileMoveProgress {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct SourceProcessingProgress {
     pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) lifecycle_generation: u64,
     pub(in crate::native_app) active: bool,
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,

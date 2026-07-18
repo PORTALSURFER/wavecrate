@@ -53,7 +53,7 @@ impl AppController {
                 return Err(error.message);
             }
         };
-        let source = self.source_for_add_root(&normalized);
+        let source = self.source_for_add_root(&normalized)?;
         if let Some(message) = self.pending_source_add_conflict(&normalized) {
             self.set_status(message, StatusTone::Info);
             return Ok(());
@@ -72,17 +72,13 @@ impl AppController {
         }
     }
 
-    fn source_for_add_root(&mut self, normalized: &Path) -> SampleSource {
-        match crate::sample_sources::library::lookup_source_id_for_root(normalized) {
-            Ok(Some(id)) => SampleSource::new_with_id(id, normalized.to_path_buf()),
-            Ok(None) => SampleSource::new(normalized.to_path_buf()),
-            Err(err) => {
-                self.set_status(
-                    format!("Could not check library history (continuing): {err}"),
-                    StatusTone::Warning,
-                );
-                SampleSource::new(normalized.to_path_buf())
-            }
+    fn source_for_add_root(&mut self, normalized: &Path) -> Result<SampleSource, String> {
+        match crate::sample_sources::library::lookup_retained_source_for_root(normalized) {
+            Ok(Some(source)) => Ok(source),
+            Ok(None) => Ok(SampleSource::new(normalized.to_path_buf())),
+            Err(err) => Err(format!(
+                "Could not restore retained source settings; source was not added: {err}"
+            )),
         }
     }
 

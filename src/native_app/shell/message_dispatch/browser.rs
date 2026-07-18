@@ -45,6 +45,26 @@ impl NativeAppState {
                 self.finish_similarity_readiness_advanced(source_id, context);
             }
             GuiMessage::SourceProcessingProgress(progress) => {
+                let source_is_current = if progress.source_id.is_empty() {
+                    !progress.active
+                        || !self
+                            .library
+                            .folder_browser
+                            .configured_sample_sources()
+                            .is_empty()
+                } else {
+                    self.library
+                        .folder_browser
+                        .source_exists(&progress.source_id)
+                        && self
+                            .background
+                            .source_lifecycle_generations
+                            .get(&progress.source_id)
+                            == Some(&progress.lifecycle_generation)
+                };
+                if !source_is_current {
+                    return;
+                }
                 if !progress.active {
                     self.background.source_processing_progress = None;
                     self.ui.chrome.job_details_open = false;
@@ -88,9 +108,15 @@ impl NativeAppState {
             }
             GuiMessage::SourceManifestAuditCommitted {
                 source_id,
+                lifecycle_generation,
                 committed_delta,
             } => {
-                self.finish_source_manifest_audit(source_id, committed_delta, context);
+                self.finish_source_manifest_audit(
+                    source_id,
+                    lifecycle_generation,
+                    committed_delta,
+                    context,
+                );
             }
             GuiMessage::NormalizationProgress(progress) => {
                 self.apply_normalization_progress(progress);

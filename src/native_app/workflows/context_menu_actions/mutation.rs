@@ -111,21 +111,46 @@ impl NativeAppState {
         let loaded_path = self.waveform.current.path();
         match self.library.folder_browser.remove_source(&source_id) {
             Ok(removed) => {
+                self.library.retire_source_workflow(&source_id);
+                self.sync_source_watcher();
+                let owned_foreground_work =
+                    removed.was_selected || path_is_within(&loaded_path, &removed.root);
+                if owned_foreground_work {
+                    self.cancel_inflight_sample_load();
+                    self.cancel_active_folder_cache_warm();
+                    self.background.preview_audition_task.cancel();
+                    self.background.preview_audition_warm_task.cancel();
+                    self.background.settled_sample_promotion_task.cancel();
+                    self.background.starmap_audition_advance_task.cancel();
+                    self.background.starmap_audition_promotion_task.cancel();
+                    self.background.folder_tree_refresh_task.cancel();
+                    self.library.similarity_artifacts = Default::default();
+                }
+                self.background.source_processing_progress = self
+                    .background
+                    .source_processing_progress
+                    .take()
+                    .filter(|progress| progress.source_id != source_id);
+                let released_runtime_entries = self.release_waveform_source_memory(&removed.root);
                 if path_is_within(&loaded_path, &removed.root) {
                     self.stop_audio_output_playback();
                     self.waveform.current = WaveformState::empty();
                     self.audio.current_playback_span = None;
                 }
-                self.ui.status.sample = format!("Removed source {}", removed.label);
+                self.ui.status.sample = format!(
+                    "Removed source {}; files and reusable analysis were kept",
+                    removed.label
+                );
                 self.persist_user_configuration("folder_browser.source.remove.persist", started_at);
-                self.sync_source_watcher();
                 emit_gui_action(
                     "browser.context_menu.source.remove",
                     Some("sources"),
                     Some(&removed.label),
                     "success",
                     started_at,
-                    None,
+                    Some(&format!(
+                        "cancelled source lifecycle; released {released_runtime_entries} runtime cache entries"
+                    )),
                 );
             }
             Err(error) => {
@@ -163,6 +188,7 @@ impl NativeAppState {
         {
             Ok(status) => {
                 self.ui.status.sample = status.to_string();
+                self.sync_source_watcher();
                 self.persist_user_configuration("folder_browser.source.role.persist", started_at);
                 emit_gui_action(
                     "browser.context_menu.source.protection",
@@ -203,6 +229,7 @@ impl NativeAppState {
         match self.library.folder_browser.set_primary_source(&source_id) {
             Ok(status) => {
                 self.ui.status.sample = status.to_string();
+                self.sync_source_watcher();
                 self.persist_user_configuration("folder_browser.source.role.persist", started_at);
                 emit_gui_action(
                     "browser.context_menu.source.primary",
@@ -243,6 +270,7 @@ impl NativeAppState {
         match self.library.folder_browser.clear_primary_source(&source_id) {
             Ok(status) => {
                 self.ui.status.sample = status.to_string();
+                self.sync_source_watcher();
                 self.persist_user_configuration("folder_browser.source.role.persist", started_at);
                 emit_gui_action(
                     "browser.context_menu.source.primary",

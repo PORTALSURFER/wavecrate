@@ -2,9 +2,11 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         mpsc::Sender,
     },
     thread::{self, JoinHandle},
@@ -14,7 +16,7 @@ use std::{
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde_json::Value;
 use wavecrate::sample_sources::{
-    SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
+    SampleSource, SourceDatabase, SourceDatabaseConnectionRole, SourceMetadataStorage,
     db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessEligibility,
@@ -57,6 +59,12 @@ const READINESS_MAX_ATTEMPTS: u32 = 8;
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
 const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v5_owned";
 const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
+const SOURCE_RETIREMENT_RETRY_SECONDS: i64 = 5;
+const ORPHAN_CACHE_MIN_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+const ORPHAN_CACHE_MAX_SCANNED: usize = 4_096;
+const ORPHAN_CACHE_MAX_REMOVED: usize = 32;
+const RETAINED_SOURCE_MAX_SCANNED: usize = 1_024;
+static ORPHAN_CACHE_SCAN_CURSOR: AtomicUsize = AtomicUsize::new(0);
 
 /// Owned runtime coordinator. All work is joined during shutdown and observes one cancel token.
 pub(in crate::native_app) struct SourceProcessingSupervisor {
@@ -73,23 +81,39 @@ pub(in crate::native_app) struct SourceProcessingBudgetPermit {
     shared: Arc<Shared>,
     permit: Option<super::scheduler::BudgetPermit>,
     registration_id: u64,
+    lifecycle_generation: u64,
     cancel: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+struct ExternalScanAdmission {
+    source_id: String,
+    lifecycle_generation: u64,
 }
 
 struct ExternalScanRegistration {
     source_id: String,
+    lifecycle_generation: u64,
     cancel: Arc<AtomicBool>,
+}
+
+#[derive(Clone)]
+struct PendingSourceRetirement {
+    source: SampleSource,
+    lifecycle_generation: u64,
+    retry_at: i64,
 }
 
 #[derive(Default)]
 struct ExternalScanState {
-    admissions: BTreeMap<u64, String>,
+    admissions: BTreeMap<u64, ExternalScanAdmission>,
     registrations: BTreeMap<u64, ExternalScanRegistration>,
 }
 
 struct InFlightWorkGuard<'a> {
     shared: &'a Shared,
     source_id: String,
+    lifecycle_generation: u64,
 }
 
 impl Drop for InFlightWorkGuard<'_> {
@@ -99,27 +123,48 @@ impl Drop for InFlightWorkGuard<'_> {
             .in_flight_work
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        if let Some(count) = in_flight.get_mut(&self.source_id) {
+        let key = (self.source_id.clone(), self.lifecycle_generation);
+        if let Some(count) = in_flight.get_mut(&key) {
             *count = count.saturating_sub(1);
             if *count == 0 {
-                in_flight.remove(&self.source_id);
+                in_flight.remove(&key);
             }
         }
         drop(in_flight);
-        self.shared.in_flight_wake.notify_all();
+        let mut control = self.shared.control();
+        if control.pending_retirements.values().any(|retirement| {
+            retirement.source.id.as_str() == self.source_id
+                && retirement.lifecycle_generation == self.lifecycle_generation
+        }) {
+            control.notify("retired_source_work_released");
+            drop(control);
+            self.shared.wake.notify_one();
+        }
     }
 }
 
 impl SourceProcessingBudgetHandle {
-    pub(in crate::native_app) fn acquire_scan(
+    #[cfg(test)]
+    pub(in crate::native_app) fn lifecycle_generation(&self, source_id: &str) -> Option<u64> {
+        self.shared
+            .control()
+            .source_lifecycle_generations
+            .get(source_id)
+            .copied()
+    }
+
+    pub(in crate::native_app) fn acquire_scan_for_generation(
         &self,
         source_id: &str,
+        expected_lifecycle_generation: u64,
     ) -> Option<SourceProcessingBudgetPermit> {
         {
             let mut control = self.shared.control();
             while !control.shutdown
-                && control.source_is_active(source_id)
-                && control.processing_paused()
+                && control.source_is_configured(source_id)
+                && control.source_lifecycle_generations.get(source_id)
+                    == Some(&expected_lifecycle_generation)
+                && (!control.source_is_active(source_id) || control.processing_paused())
             {
                 control = self
                     .shared
@@ -130,6 +175,8 @@ impl SourceProcessingBudgetHandle {
             if control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
                 || !control.source_is_active(source_id)
+                || control.source_lifecycle_generations.get(source_id)
+                    != Some(&expected_lifecycle_generation)
             {
                 return None;
             }
@@ -139,11 +186,13 @@ impl SourceProcessingBudgetHandle {
         // foreground reservation.
         let budgets = self.shared.budgets();
         let active_sources = budgets.active_sources();
-        let (admission_id, admission_cancel) = {
+        let (admission_id, admission_cancel, lifecycle_generation) = {
             let mut control = self.shared.control();
             if control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
                 || !control.source_is_active(source_id)
+                || control.source_lifecycle_generations.get(source_id)
+                    != Some(&expected_lifecycle_generation)
                 || control.processing_paused()
             {
                 return None;
@@ -162,6 +211,7 @@ impl SourceProcessingBudgetHandle {
                 );
             }
             let admission_cancel = Arc::clone(&control.source_work_cancels[source_id]);
+            let lifecycle_generation = expected_lifecycle_generation;
             if admission_cancel.load(Ordering::Acquire) {
                 return None;
             }
@@ -170,10 +220,14 @@ impl SourceProcessingBudgetHandle {
                 .next_external_scan_id
                 .fetch_add(1, Ordering::Relaxed);
             let mut external_scans = self.shared.external_scans();
-            external_scans
-                .admissions
-                .insert(admission_id, source_id.to_string());
-            (admission_id, admission_cancel)
+            external_scans.admissions.insert(
+                admission_id,
+                ExternalScanAdmission {
+                    source_id: source_id.to_string(),
+                    lifecycle_generation,
+                },
+            );
+            (admission_id, admission_cancel, lifecycle_generation)
         };
         drop(budgets);
         self.shared.wake.notify_one();
@@ -188,6 +242,8 @@ impl SourceProcessingBudgetHandle {
                 if control.shutdown
                     || self.shared.cancel.load(Ordering::Acquire)
                     || !control.source_is_active(source_id)
+                    || control.source_lifecycle_generations.get(source_id)
+                        != Some(&lifecycle_generation)
                     || control.processing_paused()
                     || admission_cancel.load(Ordering::Acquire)
                 {
@@ -202,6 +258,7 @@ impl SourceProcessingBudgetHandle {
                     admission_id,
                     ExternalScanRegistration {
                         source_id: source_id.to_string(),
+                        lifecycle_generation,
                         cancel: Arc::clone(&cancel),
                     },
                 );
@@ -212,6 +269,7 @@ impl SourceProcessingBudgetHandle {
                     shared: Arc::clone(&self.shared),
                     permit: Some(permit),
                     registration_id: admission_id,
+                    lifecycle_generation,
                     cancel,
                 };
                 if permit.should_cancel_now() {
@@ -229,6 +287,8 @@ impl SourceProcessingBudgetHandle {
             let unavailable = control.shutdown
                 || self.shared.cancel.load(Ordering::Acquire)
                 || !control.source_is_active(source_id)
+                || control.source_lifecycle_generations.get(source_id)
+                    != Some(&lifecycle_generation)
                 || control.processing_paused()
                 || admission_cancel.load(Ordering::Acquire);
             drop(control);
@@ -238,11 +298,24 @@ impl SourceProcessingBudgetHandle {
             }
         }
     }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn acquire_scan(
+        &self,
+        source_id: &str,
+    ) -> Option<SourceProcessingBudgetPermit> {
+        let lifecycle_generation = self.lifecycle_generation(source_id)?;
+        self.acquire_scan_for_generation(source_id, lifecycle_generation)
+    }
 }
 
 impl SourceProcessingBudgetPermit {
     pub(in crate::native_app) fn cancel_token(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.cancel)
+    }
+
+    pub(in crate::native_app) fn lifecycle_generation(&self) -> u64 {
+        self.lifecycle_generation
     }
 
     fn should_cancel_now(&self) -> bool {
@@ -256,22 +329,45 @@ impl SourceProcessingBudgetPermit {
                 .permit
                 .as_ref()
                 .is_some_and(|permit| !control.source_is_active(permit.source_id()))
+            || self.permit.as_ref().is_some_and(|permit| {
+                control.source_lifecycle_generations.get(permit.source_id())
+                    != Some(&self.lifecycle_generation)
+            })
     }
 }
 
 impl Drop for SourceProcessingBudgetPermit {
     fn drop(&mut self) {
-        self.shared
+        let registration = self
+            .shared
             .external_scans()
             .registrations
             .remove(&self.registration_id);
         self.shared.external_scan_wake.notify_all();
+        if registration.as_ref().is_some_and(|registration| {
+            self.shared
+                .control()
+                .pending_retirements
+                .values()
+                .any(|retirement| {
+                    retirement.source.id.as_str() == registration.source_id
+                        && retirement.lifecycle_generation == registration.lifecycle_generation
+                })
+        }) {
+            let mut control = self.shared.control();
+            control.notify("retired_external_scan_released");
+            drop(control);
+            self.shared.wake.notify_one();
+        }
         if let Some(permit) = self.permit.take() {
             let source_id = permit.source_id().to_string();
             self.shared.budgets().release(permit);
             self.shared.budget_wake.notify_all();
             let mut control = self.shared.control();
-            if control.source_is_active(&source_id) {
+            if control.source_is_active(&source_id)
+                && control.source_lifecycle_generations.get(&source_id)
+                    == Some(&self.lifecycle_generation)
+            {
                 control.cancel_source_work(&source_id);
                 control.mark_source_dirty(&source_id, "external_source_work_committed");
             } else {
@@ -368,59 +464,58 @@ impl SourceProcessingSupervisor {
             .collect::<std::collections::BTreeSet<_>>();
         let retired_sources = changed_source_ids
             .iter()
-            .filter_map(|source_id| control.sources.get(source_id).cloned())
+            .filter_map(|source_id| {
+                Some((
+                    control.sources.get(source_id)?.clone(),
+                    *control.source_lifecycle_generations.get(source_id)?,
+                ))
+            })
             .collect::<Vec<_>>();
         for source_id in &changed_source_ids {
             if let Some(cancel) = control.source_work_cancels.get(source_id) {
                 cancel.store(true, Ordering::Release);
             }
         }
-        drop(control);
-        self.shared.cancel_external_scans(|registration| {
-            changed_source_ids.contains(&registration.source_id)
-        });
-        self.shared.budget_wake.notify_all();
-        self.shared.wake.notify_all();
-        self.shared
-            .wait_for_external_scans_for_sources(&changed_source_ids);
-        self.shared.wait_for_in_flight_sources(&changed_source_ids);
-        for source in retired_sources {
-            if let Err(error) = fence_retired_source_readiness(&source) {
-                let mut control = self.shared.control();
-                for source_id in &changed_source_ids {
-                    if let Some(cancel) = control.source_work_cancels.get(source_id) {
-                        cancel.store(true, Ordering::Release);
-                    }
-                    if control.sources.contains_key(source_id) {
-                        control.quarantined_sources.insert(source_id.clone());
-                    }
-                    control.dirty_sources.remove(source_id);
-                }
-                control.notify("configured_sources_retirement_quarantined");
-                drop(control);
-                self.shared.budget_wake.notify_all();
-                self.shared.wake.notify_all();
-                return Err(format!(
-                    "Persist retired source readiness fence for {} failed: {error}",
-                    source.id
-                ));
-            }
+        for (source, lifecycle_generation) in retired_sources {
+            let retirement_id = control.next_retirement_id;
+            control.next_retirement_id = control.next_retirement_id.wrapping_add(1).max(1);
+            control.pending_retirements.insert(
+                retirement_id,
+                PendingSourceRetirement {
+                    source,
+                    lifecycle_generation,
+                    retry_at: 0,
+                },
+            );
         }
-
-        let mut control = self.shared.control();
         let mut source_work_cancels = BTreeMap::new();
+        let mut source_lifecycle_generations = BTreeMap::new();
         for (source_id, source) in &sources {
-            let cancel = control
+            let unchanged = control
                 .sources
                 .get(source_id)
-                .filter(|current| source_descriptors_match(current, source))
-                .and_then(|_| control.source_work_cancels.get(source_id))
-                .cloned()
-                .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+                .is_some_and(|current| source_descriptors_match(current, source));
+            let cancel = if unchanged {
+                control.source_work_cancels.get(source_id).cloned()
+            } else {
+                None
+            }
+            .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+            let lifecycle_generation = if unchanged {
+                control
+                    .source_lifecycle_generations
+                    .get(source_id)
+                    .copied()
+                    .unwrap_or_else(|| control.allocate_lifecycle_generation())
+            } else {
+                control.allocate_lifecycle_generation()
+            };
             source_work_cancels.insert(source_id.clone(), cancel);
+            source_lifecycle_generations.insert(source_id.clone(), lifecycle_generation);
         }
         control.sources = sources;
         control.source_work_cancels = source_work_cancels;
+        control.source_lifecycle_generations = source_lifecycle_generations;
         control.quarantined_sources.clear();
         let retained_source_ids = control.sources.keys().cloned().collect::<BTreeSet<_>>();
         control
@@ -468,6 +563,9 @@ impl SourceProcessingSupervisor {
         }
         control.notify("configured_sources_changed");
         drop(control);
+        self.shared.cancel_external_scans(|registration| {
+            changed_source_ids.contains(&registration.source_id)
+        });
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_all();
         Ok(())
@@ -475,13 +573,12 @@ impl SourceProcessingSupervisor {
 
     /// Admit a newly configured source before its first external scan starts.
     ///
-    /// This deliberately only grows the configured set. Full replacement may
-    /// fence retired sources and wait for their in-flight work, so it must not
-    /// run from the UI scan-launch path.
+    /// This deliberately only grows the configured set. Full replacement also
+    /// retires removed lifecycle epochs and is owned by the configuration path.
     pub(in crate::native_app) fn register_source_for_scan(
         &self,
         source: SampleSource,
-    ) -> Result<(), String> {
+    ) -> Result<u64, String> {
         let _replacement = match self.shared.source_replacement.try_lock() {
             Ok(replacement) => replacement,
             Err(std::sync::TryLockError::Poisoned(poison)) => poison.into_inner(),
@@ -500,6 +597,7 @@ impl SourceProcessingSupervisor {
                     "Source {source_id} is already registered with a different descriptor"
                 ));
             }
+            let lifecycle_generation = control.source_lifecycle_generations[&source_id];
             if control.quarantined_sources.remove(&source_id) {
                 control
                     .source_work_cancels
@@ -509,24 +607,32 @@ impl SourceProcessingSupervisor {
                 self.shared.budget_wake.notify_all();
                 self.shared.wake.notify_one();
             }
-            return Ok(());
+            return Ok(lifecycle_generation);
         }
 
         control.sources.insert(source_id.clone(), source);
         control
             .source_work_cancels
             .insert(source_id.clone(), Arc::new(AtomicBool::new(false)));
+        let lifecycle_generation = control.allocate_lifecycle_generation();
+        control
+            .source_lifecycle_generations
+            .insert(source_id.clone(), lifecycle_generation);
         control.mark_source_dirty(&source_id, "source_registered_for_scan");
         drop(control);
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_one();
-        Ok(())
+        Ok(lifecycle_generation)
     }
 
     pub(in crate::native_app) fn budget_handle(&self) -> SourceProcessingBudgetHandle {
         SourceProcessingBudgetHandle {
             shared: Arc::clone(&self.shared),
         }
+    }
+
+    pub(in crate::native_app) fn lifecycle_generations(&self) -> BTreeMap<String, u64> {
+        self.shared.control().source_lifecycle_generations.clone()
     }
 
     pub(in crate::native_app) fn wake_source(&self, source_id: &str, reason: &'static str) {
@@ -710,8 +816,7 @@ struct Shared {
     external_scans: Mutex<ExternalScanState>,
     external_scan_wake: Condvar,
     next_external_scan_id: AtomicU64,
-    in_flight_work: Mutex<BTreeMap<String, usize>>,
-    in_flight_wake: Condvar,
+    in_flight_work: Mutex<BTreeMap<(String, u64), usize>>,
     worker_sender: Option<Sender<GuiMessage>>,
 }
 
@@ -722,14 +827,44 @@ impl Shared {
             .keys()
             .map(|source_id| (source_id.clone(), Arc::new(AtomicBool::new(false))))
             .collect();
+        let mut next_lifecycle_generation = 1_u64;
+        let source_lifecycle_generations = sources
+            .keys()
+            .map(|source_id| {
+                let generation = next_lifecycle_generation;
+                next_lifecycle_generation = next_lifecycle_generation.wrapping_add(1).max(1);
+                (source_id.clone(), generation)
+            })
+            .collect();
+        #[cfg(not(test))]
+        let (pending_retirements, next_retirement_id) =
+            match recovered_source_retirements(&sources, &mut next_lifecycle_generation) {
+                Ok(recovered) => recovered,
+                Err(error) => {
+                    tracing::warn!(
+                        target: "wavecrate::source_processing",
+                        error,
+                        "Retained source retirement recovery was deferred"
+                    );
+                    (BTreeMap::new(), 1)
+                }
+            };
+        #[cfg(test)]
+        let pending_retirements = BTreeMap::new();
+        #[cfg(test)]
+        let next_retirement_id = 1_u64;
         let dirty_sources = sources.keys().cloned().collect();
         Self {
             source_replacement: Mutex::new(()),
             state: Mutex::new(ControlState {
                 sources,
                 source_work_cancels,
+                source_lifecycle_generations,
+                next_lifecycle_generation,
                 dirty_sources,
                 quarantined_sources: BTreeSet::new(),
+                pending_retirements,
+                next_retirement_id,
                 wake_generation: 1,
                 wake_reason: "startup",
                 playback_active: false,
@@ -747,7 +882,6 @@ impl Shared {
             external_scan_wake: Condvar::new(),
             next_external_scan_id: AtomicU64::new(1),
             in_flight_work: Mutex::new(BTreeMap::new()),
-            in_flight_wake: Condvar::new(),
             worker_sender,
         }
     }
@@ -804,29 +938,35 @@ impl Shared {
         );
     }
 
-    fn wait_for_external_scans_for_sources(&self, source_ids: &BTreeSet<String>) {
-        let registrations = self.external_scans();
-        drop(
-            self.external_scan_wake
-                .wait_while(registrations, |state| {
-                    state
-                        .admissions
-                        .values()
-                        .any(|source_id| source_ids.contains(source_id))
-                        || state
-                            .registrations
-                            .values()
-                            .any(|registration| source_ids.contains(&registration.source_id))
-                })
-                .unwrap_or_else(|poison| poison.into_inner()),
-        );
+    fn source_has_external_activity(&self, source_id: &str, lifecycle_generation: u64) -> bool {
+        let scans = self.external_scans();
+        scans.admissions.values().any(|admitted| {
+            admitted.source_id == source_id && admitted.lifecycle_generation == lifecycle_generation
+        }) || scans.registrations.values().any(|registration| {
+            registration.source_id == source_id
+                && registration.lifecycle_generation == lifecycle_generation
+        })
     }
 
     fn finish_external_scan_admission(&self, admission_id: u64) {
         let mut external_scans = self.external_scans();
-        external_scans.admissions.remove(&admission_id);
+        let admission = external_scans.admissions.remove(&admission_id);
         drop(external_scans);
         self.external_scan_wake.notify_all();
+        if admission.as_ref().is_some_and(|admission| {
+            self.control()
+                .pending_retirements
+                .values()
+                .any(|retirement| {
+                    retirement.source.id.as_str() == admission.source_id
+                        && retirement.lifecycle_generation == admission.lifecycle_generation
+                })
+        }) {
+            let mut control = self.control();
+            control.notify("retired_external_admission_released");
+            drop(control);
+            self.wake.notify_one();
+        }
     }
 
     fn begin_in_flight_work<'a>(
@@ -848,37 +988,40 @@ impl Shared {
             .in_flight_work
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
-        *in_flight.entry(source_id.to_string()).or_default() += 1;
+        let lifecycle_generation = control
+            .source_lifecycle_generations
+            .get(source_id)
+            .copied()?;
+        *in_flight
+            .entry((source_id.to_string(), lifecycle_generation))
+            .or_default() += 1;
         drop(in_flight);
         drop(control);
         Some(InFlightWorkGuard {
             shared: self,
             source_id: source_id.to_string(),
+            lifecycle_generation,
         })
     }
 
-    fn wait_for_in_flight_sources(&self, source_ids: &BTreeSet<String>) {
-        let in_flight = self
-            .in_flight_work
+    fn source_has_in_flight_work(&self, source_id: &str, lifecycle_generation: u64) -> bool {
+        self.in_flight_work
             .lock()
-            .unwrap_or_else(|poison| poison.into_inner());
-        drop(
-            self.in_flight_wake
-                .wait_while(in_flight, |work| {
-                    source_ids
-                        .iter()
-                        .any(|source_id| work.get(source_id).is_some_and(|count| *count > 0))
-                })
-                .unwrap_or_else(|poison| poison.into_inner()),
-        );
+            .unwrap_or_else(|poison| poison.into_inner())
+            .get(&(source_id.to_string(), lifecycle_generation))
+            .is_some_and(|count| *count > 0)
     }
 }
 
 struct ControlState {
     sources: BTreeMap<String, SampleSource>,
     source_work_cancels: BTreeMap<String, Arc<AtomicBool>>,
+    source_lifecycle_generations: BTreeMap<String, u64>,
+    next_lifecycle_generation: u64,
     dirty_sources: BTreeSet<String>,
     quarantined_sources: BTreeSet<String>,
+    pending_retirements: BTreeMap<u64, PendingSourceRetirement>,
+    next_retirement_id: u64,
     wake_generation: u64,
     wake_reason: &'static str,
     playback_active: bool,
@@ -889,13 +1032,30 @@ struct ControlState {
 }
 
 impl ControlState {
-    fn source_is_active(&self, source_id: &str) -> bool {
+    fn source_is_configured(&self, source_id: &str) -> bool {
         self.sources.contains_key(source_id) && !self.quarantined_sources.contains(source_id)
+    }
+
+    fn source_is_active(&self, source_id: &str) -> bool {
+        let Some(source) = self.sources.get(source_id) else {
+            return false;
+        };
+        !self.quarantined_sources.contains(source_id)
+            && !self
+                .pending_retirements
+                .values()
+                .any(|retirement| source_storage_identity_matches(source, &retirement.source))
     }
 
     fn notify(&mut self, reason: &'static str) {
         self.wake_generation = self.wake_generation.wrapping_add(1);
         self.wake_reason = reason;
+    }
+
+    fn allocate_lifecycle_generation(&mut self) -> u64 {
+        let generation = self.next_lifecycle_generation;
+        self.next_lifecycle_generation = self.next_lifecycle_generation.wrapping_add(1).max(1);
+        generation
     }
 
     fn mark_source_dirty(&mut self, source_id: &str, reason: &'static str) {
@@ -1031,10 +1191,12 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut last_similarity_refresh_publish_at = None::<Instant>;
     let mut progress_visible = false;
     loop {
+        process_ready_source_retirements(&shared);
         let (
             sources,
             dirty_sources,
             source_work_cancels,
+            source_lifecycle_generations,
             processing_paused,
             pause_feedback_pending,
             generation,
@@ -1042,8 +1204,15 @@ fn run_coordinator(shared: Arc<Shared>) {
         ) = {
             let mut control = shared.control();
             while !control.shutdown && control.wake_generation == observed_generation {
+                let pending_retirement_retry_at = control
+                    .pending_retirements
+                    .values()
+                    .filter_map(|retirement| {
+                        (retirement.retry_at > 0).then_some(retirement.retry_at)
+                    })
+                    .min();
                 let wait_duration = coordinator_wait_duration(
-                    next_retry_at,
+                    earliest_deadline(next_retry_at, pending_retirement_retry_at),
                     now_epoch_seconds(),
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
                     control.processing_paused(),
@@ -1104,6 +1273,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                     .collect::<Vec<_>>(),
                 dirty_sources,
                 control.source_work_cancels.clone(),
+                control.source_lifecycle_generations.clone(),
                 processing_paused,
                 pause_feedback_pending,
                 control.wake_generation,
@@ -1193,6 +1363,8 @@ fn run_coordinator(shared: Arc<Shared>) {
         if publish_source_processing_discovery_if_needed(
             &shared,
             &sources_to_discover,
+            &source_lifecycle_generations,
+            &source_work_cancels,
             progress_visible,
         ) {
             progress_visible = true;
@@ -1268,6 +1440,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 candidates.push(candidate);
                 break;
             };
+            let lifecycle_generation = in_flight_work.lifecycle_generation;
             let progress_publish_due = last_progress_publish_at
                 .is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL);
             if (active_progress_source.as_deref() != Some(candidate.source.id.as_str())
@@ -1280,13 +1453,19 @@ fn run_coordinator(shared: Arc<Shared>) {
                     candidate.source.id.as_str(),
                     progress,
                 );
-                publish_source_processing_progress(&shared, &candidate, progress);
+                publish_source_processing_progress(
+                    &shared,
+                    &candidate,
+                    lifecycle_generation,
+                    progress,
+                );
                 active_progress_source = Some(candidate.source.id.as_str().to_string());
                 last_progress_publish_at = Some(Instant::now());
                 progress_visible = true;
             }
             let result = execute_candidate(
                 &candidate,
+                lifecycle_generation,
                 candidate_cancel.as_ref(),
                 shared.worker_sender.as_ref(),
             );
@@ -1322,7 +1501,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                                     candidate.source.id.as_str(),
                                     progress,
                                 );
-                                publish_source_processing_progress(&shared, &candidate, progress);
+                                publish_source_processing_progress(
+                                    &shared,
+                                    &candidate,
+                                    lifecycle_generation,
+                                    progress,
+                                );
                                 last_progress_publish_at = Some(Instant::now());
                                 progress_visible = true;
                             }
@@ -1351,7 +1535,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                                     candidate.source.id.as_str(),
                                     progress,
                                 );
-                                publish_source_processing_progress(&shared, &candidate, progress);
+                                publish_source_processing_progress(
+                                    &shared,
+                                    &candidate,
+                                    lifecycle_generation,
+                                    progress,
+                                );
                                 last_progress_publish_at = Some(Instant::now());
                                 progress_visible = true;
                             }
@@ -1468,6 +1657,108 @@ fn run_coordinator(shared: Arc<Shared>) {
     }
 }
 
+fn process_ready_source_retirements(shared: &Shared) {
+    let now = now_epoch_seconds();
+    let candidates = {
+        let control = shared.control();
+        control
+            .pending_retirements
+            .iter()
+            .filter(|(_, retirement)| {
+                retirement.retry_at <= now
+                    || control
+                        .sources
+                        .values()
+                        .any(|active| source_storage_identity_matches(active, &retirement.source))
+            })
+            .map(|(retirement_id, retirement)| (*retirement_id, retirement.clone()))
+            .collect::<Vec<_>>()
+    };
+
+    for (retirement_id, retirement) in candidates {
+        // Serialize the final admission check and the short retirement transaction with source
+        // replacement. Removal itself only enqueues this work; a fast re-add can therefore
+        // supersede it before any durable state is changed.
+        let replacement = shared
+            .source_replacement
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let control = shared.control();
+        let Some(current) = control.pending_retirements.get(&retirement_id) else {
+            continue;
+        };
+        if current.lifecycle_generation != retirement.lifecycle_generation {
+            continue;
+        }
+        drop(control);
+        if shared.source_has_external_activity(
+            retirement.source.id.as_str(),
+            retirement.lifecycle_generation,
+        ) || shared.source_has_in_flight_work(
+            retirement.source.id.as_str(),
+            retirement.lifecycle_generation,
+        ) {
+            continue;
+        }
+        let mut control = shared.control();
+        let Some(current) = control.pending_retirements.get(&retirement_id) else {
+            continue;
+        };
+        if current.lifecycle_generation != retirement.lifecycle_generation {
+            continue;
+        }
+        let reactivated_source_id = control.sources.values().find_map(|active| {
+            source_storage_identity_matches(active, &retirement.source)
+                .then(|| active.id.as_str().to_string())
+        });
+        if let Some(source_id) = reactivated_source_id {
+            control.pending_retirements.remove(&retirement_id);
+            control.dirty_sources.insert(source_id);
+            control.notify("source_storage_handoff_completed");
+            drop(control);
+            drop(replacement);
+            shared.wake.notify_all();
+            shared.budget_wake.notify_all();
+            continue;
+        }
+        drop(control);
+        let result = retire_source_derived_state(&retirement.source);
+        let mut control = shared.control();
+        match result {
+            Ok(retired_cache_refs) => {
+                control.pending_retirements.remove(&retirement_id);
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id = retirement.source.id.as_str(),
+                    retired_cache_refs,
+                    "Retired removed source runtime and path-derived cache ownership"
+                );
+                drop(control);
+                drop(replacement);
+                if let Err(error) = prune_unreferenced_waveform_cache() {
+                    tracing::warn!(
+                        target: "wavecrate::source_processing",
+                        source_id = retirement.source.id.as_str(),
+                        error,
+                        "Bounded orphan cache collection was deferred"
+                    );
+                }
+            }
+            Err(error) => {
+                if let Some(pending) = control.pending_retirements.get_mut(&retirement_id) {
+                    pending.retry_at = now.saturating_add(SOURCE_RETIREMENT_RETRY_SECONDS);
+                }
+                tracing::warn!(
+                    target: "wavecrate::source_processing",
+                    source_id = retirement.source.id.as_str(),
+                    error,
+                    "Removed source retirement will retry without reactivating the source"
+                );
+            }
+        }
+    }
+}
+
 fn progress_refresh_due(last_publish_at: Option<Instant>) -> bool {
     last_publish_at.is_none_or(|published_at| published_at.elapsed() >= PROGRESS_REFRESH_INTERVAL)
 }
@@ -1491,6 +1782,7 @@ fn publish_similarity_readiness_refreshes(
 fn publish_source_processing_progress(
     shared: &Shared,
     candidate: &RuntimeCandidate,
+    lifecycle_generation: u64,
     stats: SourceDiscoveryStats,
 ) {
     let control = shared.control();
@@ -1516,6 +1808,7 @@ fn publish_source_processing_progress(
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: candidate.source.id.as_str().to_string(),
+            lifecycle_generation,
             active: true,
             completed,
             total,
@@ -1525,17 +1818,31 @@ fn publish_source_processing_progress(
     ));
 }
 
-fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
+fn publish_source_processing_discovery(
+    shared: &Shared,
+    source: &SampleSource,
+    lifecycle_generation: u64,
+    source_cancel: &Arc<AtomicBool>,
+) -> bool {
     let control = shared.control();
-    if control.processing_paused() {
-        return;
+    if control.processing_paused()
+        || !control.source_is_active(source.id.as_str())
+        || control.source_lifecycle_generations.get(source.id.as_str())
+            != Some(&lifecycle_generation)
+        || control
+            .source_work_cancels
+            .get(source.id.as_str())
+            .is_none_or(|current| !Arc::ptr_eq(current, source_cancel))
+    {
+        return false;
     }
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
+        return false;
     };
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: source.id.as_str().to_string(),
+            lifecycle_generation,
             active: true,
             completed: 0,
             total: 0,
@@ -1543,18 +1850,35 @@ fn publish_source_processing_discovery(shared: &Shared, source: &SampleSource) {
             detail: String::from("Counting unfinished analysis, similarity, and indexing jobs"),
         },
     ));
+    true
 }
 
 fn publish_source_processing_discovery_if_needed(
     shared: &Shared,
     sources: &[SampleSource],
+    lifecycle_generations: &BTreeMap<String, u64>,
+    source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
     progress_visible: bool,
 ) -> bool {
     if progress_visible || sources.is_empty() || shared.has_external_scan_activity() {
         return false;
     }
     if sources.len() == 1 {
-        publish_source_processing_discovery(shared, &sources[0]);
+        let source_id = sources[0].id.as_str();
+        let Some(lifecycle_generation) = lifecycle_generations.get(source_id).copied() else {
+            return false;
+        };
+        let Some(source_cancel) = source_work_cancels.get(source_id) else {
+            return false;
+        };
+        if !publish_source_processing_discovery(
+            shared,
+            &sources[0],
+            lifecycle_generation,
+            source_cancel,
+        ) {
+            return false;
+        }
     } else {
         publish_multi_source_processing_activity(shared, sources.len());
     }
@@ -1572,6 +1896,7 @@ fn publish_multi_source_processing_activity(shared: &Shared, source_count: usize
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: String::new(),
+            lifecycle_generation: 0,
             active: true,
             completed: 0,
             total: 0,
@@ -1591,6 +1916,7 @@ fn publish_source_processing_finished(shared: &Shared) {
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: String::new(),
+            lifecycle_generation: 0,
             active: false,
             completed: 0,
             total: 0,
@@ -1607,6 +1933,7 @@ fn publish_source_processing_pausing(shared: &Shared, detail: &str) {
     let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
         SourceProcessingProgress {
             source_id: String::new(),
+            lifecycle_generation: 0,
             active: true,
             completed: 0,
             total: 0,
@@ -2009,10 +2336,16 @@ fn source_processing_schema_available(connection: &rusqlite::Connection) -> Resu
         .map_err(|error| error.to_string())
 }
 
-fn fence_retired_source_readiness(source: &SampleSource) -> Result<(), String> {
+fn retire_source_derived_state(source: &SampleSource) -> Result<usize, String> {
     let database_path = source.db_path().map_err(|error| error.to_string())?;
     if !database_path.exists() {
-        return Ok(());
+        if source.metadata_storage == SourceMetadataStorage::SourceFolder && !source.root.is_dir() {
+            return Err(format!(
+                "source storage is unavailable: {}",
+                source.root.display()
+            ));
+        }
+        return Ok(0);
     }
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
@@ -2025,7 +2358,10 @@ fn fence_retired_source_readiness(source: &SampleSource) -> Result<(), String> {
         .is_readonly(rusqlite::MAIN_DB)
         .map_err(|error| error.to_string())?
     {
-        return Ok(());
+        return Err(format!(
+            "source database is read-only: {}",
+            database_path.display()
+        ));
     }
     let readiness_source_table_exists = connection
         .query_row(
@@ -2038,11 +2374,28 @@ fn fence_retired_source_readiness(source: &SampleSource) -> Result<(), String> {
         )
         .map_err(|error| error.to_string())?;
     if !readiness_source_table_exists {
-        return Ok(());
+        return Ok(0);
     }
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|error| error.to_string())?;
+    let cache_refs = {
+        let mut statement = transaction
+            .prepare(
+                "SELECT artifact_ref
+                 FROM source_readiness_artifacts
+                 WHERE source_id = ?1
+                   AND stage = 'playback_summary'
+                   AND artifact_ref IS NOT NULL
+                   AND length(trim(artifact_ref)) > 0",
+            )
+            .map_err(|error| error.to_string())?;
+        statement
+            .query_map([source.id.as_str()], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?
+    };
     transaction
         .execute(
             "UPDATE source_readiness_sources
@@ -2053,7 +2406,190 @@ fn fence_retired_source_readiness(source: &SampleSource) -> Result<(), String> {
             params![source.id.as_str(), now_epoch_seconds()],
         )
         .map_err(|error| error.to_string())?;
-    transaction.commit().map_err(|error| error.to_string())
+    transaction
+        .execute(
+            "DELETE FROM analysis_jobs
+             WHERE source_id = ?1 AND readiness_managed = 1",
+            [source.id.as_str()],
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "DELETE FROM source_readiness_artifacts
+             WHERE source_id = ?1 AND stage = 'playback_summary'",
+            [source.id.as_str()],
+        )
+        .map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "DELETE FROM source_readiness_targets
+             WHERE source_id = ?1 AND stage = 'playback_summary'",
+            [source.id.as_str()],
+        )
+        .map_err(|error| error.to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    let mut invalidated = 0;
+    for cache_ref in &cache_refs {
+        match retained_waveform_cache_ref_is_owned(cache_ref) {
+            Ok(false) => {
+                invalidate_persisted_waveform_cache_ref(std::path::Path::new(cache_ref));
+                invalidated += 1;
+            }
+            Ok(true) => {}
+            Err(error) => tracing::warn!(
+                target: "wavecrate::source_processing",
+                cache_ref,
+                error,
+                "Retained cache ownership could not be proven; payload was preserved"
+            ),
+        }
+    }
+    Ok(invalidated)
+}
+
+fn retained_waveform_cache_ref_is_owned(cache_ref: &str) -> Result<bool, String> {
+    let retained_sources = wavecrate::sample_sources::library::retained_sources()
+        .map_err(|error| error.to_string())?;
+    let mut visited = BTreeSet::new();
+    for retained in retained_sources {
+        let database_path = retained.db_path().map_err(|error| error.to_string())?;
+        if !visited.insert(database_path.clone()) {
+            continue;
+        }
+        if !database_path.is_file() {
+            return Err(format!(
+                "retained source database is unavailable: {}",
+                database_path.display()
+            ));
+        }
+        let connection = rusqlite::Connection::open_with_flags(
+            &database_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(|error| error.to_string())?;
+        let owned = connection
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1
+                    FROM source_readiness_artifacts
+                    WHERE stage = 'playback_summary' AND artifact_ref = ?1
+                 )",
+                [cache_ref],
+                |row| row.get::<_, bool>(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .unwrap_or(false);
+        if owned {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn prune_unreferenced_waveform_cache() -> Result<usize, String> {
+    let retained_sources = wavecrate::sample_sources::library::retained_sources()
+        .map_err(|error| error.to_string())?;
+    if retained_sources.len() > RETAINED_SOURCE_MAX_SCANNED {
+        return Err(format!(
+            "retained source count {} exceeds bounded GC scan limit {RETAINED_SOURCE_MAX_SCANNED}",
+            retained_sources.len()
+        ));
+    }
+    let mut referenced = BTreeSet::<PathBuf>::new();
+    for source in retained_sources {
+        let database_path = source.db_path().map_err(|error| error.to_string())?;
+        if !database_path.is_file() {
+            return Err(format!(
+                "retained source database is unavailable: {}",
+                database_path.display()
+            ));
+        }
+        let connection = rusqlite::Connection::open_with_flags(
+            &database_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(|error| format!("open retained cache manifest: {error}"))?;
+        let manifest_exists = connection
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM sqlite_master
+                    WHERE type = 'table' AND name = 'source_readiness_artifacts'
+                 )",
+                [],
+                |row| row.get::<_, bool>(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if !manifest_exists {
+            continue;
+        }
+        let mut statement = connection
+            .prepare(
+                "SELECT artifact_ref
+                 FROM source_readiness_artifacts
+                 WHERE stage = 'playback_summary'
+                   AND artifact_ref IS NOT NULL
+                   AND length(trim(artifact_ref)) > 0",
+            )
+            .map_err(|error| error.to_string())?;
+        let refs = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        referenced.extend(refs.into_iter().map(PathBuf::from));
+    }
+
+    let cache_dir = wavecrate::app_dirs::waveform_cache_dir().map_err(|error| error.to_string())?;
+    let entries = match fs::read_dir(&cache_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error.to_string()),
+    };
+    let cutoff = SystemTime::now()
+        .checked_sub(ORPHAN_CACHE_MIN_AGE)
+        .unwrap_or(UNIX_EPOCH);
+    let mut removed = 0_usize;
+    let cursor = ORPHAN_CACHE_SCAN_CURSOR.load(Ordering::Relaxed);
+    let mut scanned = 0_usize;
+    let mut delete_limit_reached = false;
+    for entry in entries
+        .flatten()
+        .skip(cursor)
+        .take(ORPHAN_CACHE_MAX_SCANNED)
+    {
+        if removed >= ORPHAN_CACHE_MAX_REMOVED {
+            delete_limit_reached = true;
+            break;
+        }
+        scanned = scanned.saturating_add(1);
+        let path = entry.path();
+        if path.extension().is_none_or(|extension| extension != "wfc") || referenced.contains(&path)
+        {
+            continue;
+        }
+        let old_enough = entry
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .is_some_and(|modified| modified <= cutoff);
+        if !old_enough {
+            continue;
+        }
+        invalidate_persisted_waveform_cache_ref(&path);
+        if !path.exists() {
+            removed = removed.saturating_add(1);
+        }
+    }
+    ORPHAN_CACHE_SCAN_CURSOR.store(
+        if scanned < ORPHAN_CACHE_MAX_SCANNED && !delete_limit_reached {
+            0
+        } else {
+            cursor.saturating_add(scanned)
+        },
+        Ordering::Relaxed,
+    );
+    Ok(removed)
 }
 
 #[cfg(test)]
@@ -2569,6 +3105,7 @@ fn readiness_target_fingerprint_with_cancel(
 
 fn execute_candidate(
     candidate: &RuntimeCandidate,
+    lifecycle_generation: u64,
     cancel: &AtomicBool,
     worker_sender: Option<&Sender<GuiMessage>>,
 ) -> Result<ExecutionOutcome, String> {
@@ -2620,6 +3157,7 @@ fn execute_candidate(
                 let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
                     SourceProcessingProgress {
                         source_id: source_id.clone(),
+                        lifecycle_generation,
                         active: true,
                         completed: checked.min(total),
                         total,
@@ -2667,6 +3205,7 @@ fn execute_candidate(
             {
                 let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
                     source_id: candidate.source.id.as_str().to_string(),
+                    lifecycle_generation,
                     committed_delta: outcome.committed_delta,
                 });
             }
@@ -3514,6 +4053,34 @@ fn sources_by_id(sources: Vec<SampleSource>) -> BTreeMap<String, SampleSource> {
         .collect()
 }
 
+fn recovered_source_retirements(
+    active_sources: &BTreeMap<String, SampleSource>,
+    next_lifecycle_generation: &mut u64,
+) -> Result<(BTreeMap<u64, PendingSourceRetirement>, u64), String> {
+    let retained_sources = wavecrate::sample_sources::library::retained_sources()
+        .map_err(|error| error.to_string())?;
+    let mut pending = BTreeMap::new();
+    let mut next_retirement_id = 1_u64;
+    for retained in retained_sources.into_iter().filter(|retained| {
+        !active_sources
+            .values()
+            .any(|active| source_storage_identity_matches(active, retained))
+    }) {
+        let lifecycle_generation = *next_lifecycle_generation;
+        *next_lifecycle_generation = (*next_lifecycle_generation).wrapping_add(1).max(1);
+        pending.insert(
+            next_retirement_id,
+            PendingSourceRetirement {
+                source: retained,
+                lifecycle_generation,
+                retry_at: 0,
+            },
+        );
+        next_retirement_id = next_retirement_id.wrapping_add(1).max(1);
+    }
+    Ok((pending, next_retirement_id))
+}
+
 fn source_maps_match(
     current: &BTreeMap<String, SampleSource>,
     replacement: &BTreeMap<String, SampleSource>,
@@ -3532,6 +4099,16 @@ fn source_descriptors_match(left: &SampleSource, right: &SampleSource) -> bool {
         && left.role == right.role
         && left.metadata_storage == right.metadata_storage
         && left.primary_import_folder == right.primary_import_folder
+}
+
+fn source_storage_identity_matches(left: &SampleSource, right: &SampleSource) -> bool {
+    if left.id != right.id {
+        return false;
+    }
+    match (left.database_root(), right.database_root()) {
+        (Ok(left_root), Ok(right_root)) => left_root == right_root,
+        _ => false,
+    }
 }
 
 fn now_epoch_seconds() -> i64 {
@@ -3804,7 +4381,12 @@ mod tests {
             SourceId::from_string("paused-discovery"),
             directory.path().to_path_buf(),
         );
-        publish_source_processing_discovery(&supervisor.shared, &source);
+        publish_source_processing_discovery(
+            &supervisor.shared,
+            &source,
+            0,
+            &Arc::new(AtomicBool::new(false)),
+        );
         assert!(receiver.try_recv().is_err());
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
@@ -3817,10 +4399,16 @@ mod tests {
         );
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source.clone()], Some(sender));
+        let control = shared.control();
+        let lifecycle_generations = control.source_lifecycle_generations.clone();
+        let source_work_cancels = control.source_work_cancels.clone();
+        drop(control);
 
         assert!(publish_source_processing_discovery_if_needed(
             &shared,
             std::slice::from_ref(&source),
+            &lifecycle_generations,
+            &source_work_cancels,
             false,
         ));
         let GuiMessage::SourceProcessingProgress(progress) = receiver
@@ -3834,12 +4422,48 @@ mod tests {
         assert!(!publish_source_processing_discovery_if_needed(
             &shared,
             &[source],
+            &lifecycle_generations,
+            &source_work_cancels,
             true,
         ));
         assert!(
             receiver.try_recv().is_err(),
             "an immediate rediscovery must not overwrite visible execution progress"
         );
+    }
+
+    #[test]
+    fn discovery_snapshot_from_previous_readded_epoch_is_not_published() {
+        let directory = tempfile::tempdir().expect("discovery source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("readded-discovery-source"),
+            directory.path().to_path_buf(),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let supervisor = SourceProcessingSupervisor {
+            shared: Arc::clone(&shared),
+            coordinator: None,
+        };
+        let control = shared.control();
+        let old_generation = control.source_lifecycle_generations[source.id.as_str()];
+        let old_cancel = Arc::clone(&control.source_work_cancels[source.id.as_str()]);
+        drop(control);
+
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove old discovery epoch");
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("re-add source with a new discovery epoch");
+
+        assert!(!publish_source_processing_discovery(
+            shared.as_ref(),
+            &source,
+            old_generation,
+            &old_cancel,
+        ));
+        assert!(receiver.try_recv().is_err());
     }
 
     #[test]
@@ -3858,7 +4482,7 @@ mod tests {
     }
 
     #[test]
-    fn failed_retirement_fence_quarantines_source_until_retry_succeeds() {
+    fn failed_async_retirement_retries_without_reactivating_removed_source() {
         let (_directory, source) = unhashed_source("retirement-fence-failure");
         let database_path = source.db_path().expect("source database path");
         std::fs::remove_file(&database_path).expect("remove source database");
@@ -3868,18 +4492,18 @@ mod tests {
             .replace_sources(vec![source.clone()])
             .expect("configure source");
 
-        assert!(
-            supervisor.replace_sources(Vec::new()).is_err(),
-            "invalid database path must fail persistent retirement fencing"
-        );
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("removal returns before asynchronous cleanup");
+        process_ready_source_retirements(&supervisor.shared);
         supervisor.wake_source(source.id.as_str(), "late_watcher_event");
         supervisor.set_playback_active(true);
         supervisor.set_playback_active(false);
 
         let control = supervisor.shared.control();
-        assert!(control.quarantined_sources.contains(source.id.as_str()));
+        assert!(!control.sources.contains_key(source.id.as_str()));
         assert!(!control.dirty_sources.contains(source.id.as_str()));
-        assert!(control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire));
+        assert_eq!(control.pending_retirements.len(), 1);
         drop(control);
         assert!(
             supervisor
@@ -3891,8 +4515,13 @@ mod tests {
 
         std::fs::remove_dir(&database_path).expect("repair invalid database path");
         supervisor
-            .replace_sources(Vec::new())
-            .expect("retry retirement fence");
+            .shared
+            .control()
+            .pending_retirements
+            .values_mut()
+            .for_each(|retirement| retirement.retry_at = 0);
+        process_ready_source_retirements(&supervisor.shared);
+        assert!(supervisor.shared.control().pending_retirements.is_empty());
         let control = supervisor.shared.control();
         assert!(!control.sources.contains_key(source.id.as_str()));
         assert!(control.quarantined_sources.is_empty());
@@ -4013,6 +4642,43 @@ mod tests {
             "Configured sources are currently being replaced"
         );
         drop(replacement);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn external_admission_rejects_generation_captured_before_descriptor_replacement() {
+        let old_directory = tempfile::tempdir().expect("old source root");
+        let replacement_directory = tempfile::tempdir().expect("replacement source root");
+        let source_id = SourceId::from_string("replaced-external-admission");
+        let old_source =
+            SampleSource::new_with_id(source_id.clone(), old_directory.path().to_path_buf());
+        let replacement =
+            SampleSource::new_with_id(source_id, replacement_directory.path().to_path_buf());
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![old_source.clone()])
+            .expect("configure old descriptor");
+        let handle = supervisor.budget_handle();
+        let old_generation = handle
+            .lifecycle_generation(old_source.id.as_str())
+            .expect("capture queued request generation");
+
+        supervisor
+            .replace_sources(vec![replacement])
+            .expect("replace source descriptor before admission");
+
+        assert!(
+            handle
+                .acquire_scan_for_generation(old_source.id.as_str(), old_generation)
+                .is_none(),
+            "a queued request must not adopt the replacement descriptor generation"
+        );
+        assert_ne!(
+            handle
+                .lifecycle_generation(old_source.id.as_str())
+                .expect("replacement generation"),
+            old_generation
+        );
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -4277,7 +4943,7 @@ mod tests {
     }
 
     #[test]
-    fn source_removal_joins_in_flight_publication_before_disabling_readiness() {
+    fn source_removal_returns_immediately_and_retires_after_exact_epoch_drains() {
         let (_directory, source) = unhashed_source("retired-fence");
         let database_root = source.database_root().expect("database root");
         let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
@@ -4310,25 +4976,28 @@ mod tests {
             .shared
             .begin_in_flight_work(source.id.as_str(), &generation)
             .expect("register in-flight source publication");
-        let (removed, removal_finished) = std::sync::mpsc::channel();
-        thread::scope(|scope| {
-            scope.spawn(|| {
-                supervisor
-                    .replace_sources(Vec::new())
-                    .expect("remove configured source");
-                removed.send(()).expect("report source removal");
-            });
-            assert!(
-                removal_finished
-                    .recv_timeout(Duration::from_millis(50))
-                    .is_err(),
-                "source removal must join active publication before returning"
-            );
-            drop(in_flight);
-            removal_finished
-                .recv_timeout(Duration::from_secs(2))
-                .expect("source removal completes after publication joins");
-        });
+        let started = Instant::now();
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove configured source");
+        assert!(started.elapsed() < Duration::from_millis(50));
+        process_ready_source_retirements(&supervisor.shared);
+        let active_before_drain: String =
+            SourceDatabase::open_connection_with_role_and_database_root(
+                &source.root,
+                &database_root,
+                SourceDatabaseConnectionRole::JobWorker,
+            )
+            .expect("reopen readiness before old work drains")
+            .query_row(
+                "SELECT availability FROM source_readiness_sources WHERE source_id = ?1",
+                [source.id.as_str()],
+                |row| row.get(0),
+            )
+            .expect("read readiness before old work drains");
+        assert_eq!(active_before_drain, "active");
+        drop(in_flight);
+        process_ready_source_retirements(&supervisor.shared);
 
         let connection = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
@@ -4345,6 +5014,118 @@ mod tests {
             .expect("read retired source readiness");
         assert_eq!(availability, "disabled");
         assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn fast_readd_waits_for_old_epoch_then_preserves_shared_source_storage() {
+        let (_directory, source) = unhashed_source("fast-readd-retains-storage");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open source database");
+        publish_current_readiness_targets(&mut connection, source.id.as_str(), 1)
+            .expect("publish readiness targets");
+        drop(connection);
+
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        let old_cancel =
+            Arc::clone(&supervisor.shared.control().source_work_cancels[source.id.as_str()]);
+        let old_work = supervisor
+            .shared
+            .begin_in_flight_work(source.id.as_str(), &old_cancel)
+            .expect("register old epoch work");
+
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove source immediately");
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("re-add source immediately");
+        for retirement in supervisor.shared.control().pending_retirements.values_mut() {
+            retirement.retry_at = now_epoch_seconds().saturating_add(60);
+        }
+        let waiting_handle = supervisor.budget_handle();
+        let waiting_source_id = source.id.as_str().to_string();
+        let (waiting_sender, waiting_receiver) = std::sync::mpsc::channel();
+        let waiting = thread::spawn(move || {
+            let permit = waiting_handle.acquire_scan(&waiting_source_id);
+            waiting_sender
+                .send(permit)
+                .expect("report re-added source admission");
+        });
+        assert!(
+            waiting_receiver
+                .recv_timeout(Duration::from_millis(50))
+                .is_err(),
+            "same-storage admission must wait while the retired epoch is still active"
+        );
+        process_ready_source_retirements(&supervisor.shared);
+        assert_eq!(supervisor.shared.control().pending_retirements.len(), 1);
+
+        drop(old_work);
+        process_ready_source_retirements(&supervisor.shared);
+        assert!(supervisor.shared.control().pending_retirements.is_empty());
+        let permit = waiting_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("re-added source admission should resume after the old epoch drains")
+            .expect("re-added source receives its current-generation permit");
+        assert_eq!(
+            permit.lifecycle_generation(),
+            supervisor.lifecycle_generations()[source.id.as_str()]
+        );
+        drop(permit);
+        waiting.join().expect("join re-added source admission");
+        let availability: String = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen retained source database")
+        .query_row(
+            "SELECT availability FROM source_readiness_sources WHERE source_id = ?1",
+            [source.id.as_str()],
+            |row| row.get(0),
+        )
+        .expect("read retained source readiness");
+        assert_eq!(availability, "active");
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn startup_recovery_enqueues_retained_sources_missing_from_configuration() {
+        let config_base = tempfile::tempdir().expect("config base");
+        let _guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+        let source_root = tempfile::tempdir().expect("retained source root");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("startup-retirement"),
+            source_root.path().to_path_buf(),
+        );
+        wavecrate::sample_sources::library::save(
+            &wavecrate::sample_sources::library::LibraryState {
+                sources: vec![source.clone()],
+            },
+        )
+        .expect("remember retained source");
+        wavecrate::sample_sources::library::save(
+            &wavecrate::sample_sources::library::LibraryState::default(),
+        )
+        .expect("remove active configuration while retaining descriptor");
+
+        let mut next_generation = 1;
+        let (pending, next_retirement_id) =
+            recovered_source_retirements(&BTreeMap::new(), &mut next_generation)
+                .expect("recover inactive retained source");
+
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[&1].source.id, source.id);
+        assert_eq!(next_retirement_id, 2);
+        assert_eq!(next_generation, 2);
     }
 
     #[test]
@@ -4828,7 +5609,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("remove source after scheduling");
 
         assert_eq!(
-            execute_candidate(&candidate, &AtomicBool::new(false), None)
+            execute_candidate(&candidate, 0, &AtomicBool::new(false), None)
                 .expect("unavailable audit is parked"),
             ExecutionOutcome::Parked
         );
@@ -4865,10 +5646,12 @@ mod tests {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source], Some(sender));
+        let lifecycle_generation = shared.control().source_lifecycle_generations["progress-source"];
 
         publish_source_processing_progress(
             &shared,
             &candidate,
+            lifecycle_generation,
             SourceDiscoveryStats {
                 progress_completed: 313,
                 progress_total: 9_985,
@@ -4913,10 +5696,12 @@ mod tests {
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         let shared = Shared::new(vec![source], Some(sender));
+        let lifecycle_generation = shared.control().source_lifecycle_generations["boundary-source"];
 
         publish_source_processing_progress(
             &shared,
             &candidate,
+            lifecycle_generation,
             SourceDiscoveryStats {
                 progress_completed: 25_000,
                 progress_total: 25_000,
@@ -4934,6 +5719,65 @@ mod tests {
         assert_eq!(progress.completed, 0);
         assert_eq!(progress.total, 0);
         assert_eq!(progress.stage, "Analyzing audio");
+    }
+
+    #[test]
+    fn late_progress_preserves_executing_generation_across_remove_and_readd() {
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("readded-progress-source"),
+            directory.path().to_path_buf(),
+        );
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "identity-1",
+            "drums/kick.wav",
+            ReadinessStage::AnalysisFeatures,
+            "analysis-v1",
+            1,
+            "content-1",
+        );
+        let candidate = RuntimeCandidate {
+            schedule: WorkCandidate::readiness(&target, 1),
+            source: source.clone(),
+            task: RuntimeTask::Readiness(target),
+        };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let supervisor = SourceProcessingSupervisor {
+            shared: Arc::clone(&shared),
+            coordinator: None,
+        };
+        let executing_generation = supervisor.lifecycle_generations()["readded-progress-source"];
+
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove source while work is executing");
+        supervisor
+            .replace_sources(vec![source])
+            .expect("re-add source before late progress is published");
+        let readded_generation = supervisor.lifecycle_generations()["readded-progress-source"];
+        assert_ne!(executing_generation, readded_generation);
+
+        publish_source_processing_progress(
+            shared.as_ref(),
+            &candidate,
+            executing_generation,
+            SourceDiscoveryStats {
+                progress_completed: 1,
+                progress_total: 2,
+                ..SourceDiscoveryStats::default()
+            },
+        );
+
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("late progress message")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert_eq!(progress.lifecycle_generation, executing_generation);
+        assert_ne!(progress.lifecycle_generation, readded_generation);
     }
 
     #[test]
@@ -5045,7 +5889,7 @@ mod tests {
             task: RuntimeTask::ManifestAudit,
         };
         assert_eq!(
-            execute_candidate(&candidate, &AtomicBool::new(false), Some(&sender))
+            execute_candidate(&candidate, 0, &AtomicBool::new(false), Some(&sender))
                 .expect("execute manifest audit"),
             ExecutionOutcome::Completed
         );
@@ -5057,18 +5901,20 @@ mod tests {
                 _ => None,
             })
             .expect("audit should publish checked-file progress");
-        let (source_id, committed_delta) = messages
+        let (source_id, lifecycle_generation, committed_delta) = messages
             .iter()
             .find_map(|message| match message {
                 GuiMessage::SourceManifestAuditCommitted {
                     source_id,
+                    lifecycle_generation,
                     committed_delta,
-                } => Some((source_id, committed_delta)),
+                } => Some((source_id, lifecycle_generation, committed_delta)),
                 _ => None,
             })
             .expect("audit should publish a browser projection wake");
 
         assert_eq!(source_id, "audit-browser-wake");
+        assert_eq!(*lifecycle_generation, 0);
         assert_eq!(progress.source_id, "audit-browser-wake");
         assert_eq!(progress.completed, 1);
         assert_eq!(progress.total, 1);
@@ -5499,6 +6345,7 @@ mod tests {
         supervisor
             .replace_sources(vec![source.clone()])
             .expect("restore configured source");
+        process_ready_source_retirements(&supervisor.shared);
         let shutdown_permit = supervisor
             .budget_handle()
             .acquire_scan(source.id.as_str())

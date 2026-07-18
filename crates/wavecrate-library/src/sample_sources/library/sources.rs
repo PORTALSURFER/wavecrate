@@ -81,6 +81,30 @@ impl LibraryDatabase {
         Ok(result)
     }
 
+    pub(super) fn lookup_retained_source(
+        &self,
+        root: &Path,
+    ) -> Result<Option<SampleSource>, LibraryError> {
+        let started_at = Instant::now();
+        let normalized = normalize_path(root);
+        let needle = normalized.to_string_lossy().to_string();
+        let result = self
+            .load_known_sources()?
+            .into_iter()
+            .find(|entry| entry.root == needle)
+            .map(KnownSourceMapping::try_into_sample_source)
+            .transpose()?;
+        record_library_db_event("library.lookup_retained_source", started_at, Ok(()));
+        Ok(result)
+    }
+
+    pub(super) fn load_retained_sources(&self) -> Result<Vec<SampleSource>, LibraryError> {
+        self.load_known_sources()?
+            .into_iter()
+            .map(KnownSourceMapping::try_into_sample_source)
+            .collect()
+    }
+
     fn replace_sources(tx: &Transaction<'_>, sources: &[SampleSource]) -> Result<(), LibraryError> {
         tx.execute("DELETE FROM sources", [])
             .map_err(map_sql_error)?;
@@ -199,6 +223,51 @@ fn primary_import_folder_path(value: String) -> PathBuf {
 struct KnownSourceMapping {
     root: String,
     source_id: String,
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    metadata_storage: Option<String>,
+    #[serde(default)]
+    primary_import_folder: Option<String>,
+}
+
+impl KnownSourceMapping {
+    fn try_into_sample_source(self) -> Result<SampleSource, LibraryError> {
+        let root = PathBuf::from(&self.root);
+        let role = match self.role.as_deref() {
+            None | Some("normal") => SourceRole::Normal,
+            Some("protected") => SourceRole::Protected,
+            Some("primary") => SourceRole::Primary,
+            Some(value) => {
+                return Err(LibraryError::InvalidRetainedSourceDescriptor {
+                    root,
+                    field: "role",
+                    value: value.to_string(),
+                });
+            }
+        };
+        let metadata_storage = match self.metadata_storage.as_deref() {
+            None | Some("source_folder") => SourceMetadataStorage::SourceFolder,
+            Some("app_data") => SourceMetadataStorage::AppData,
+            Some(value) => {
+                return Err(LibraryError::InvalidRetainedSourceDescriptor {
+                    root,
+                    field: "metadata_storage",
+                    value: value.to_string(),
+                });
+            }
+        };
+        Ok(normalized_source(SampleSource {
+            id: SourceId::from_string(self.source_id),
+            root,
+            role,
+            metadata_storage,
+            primary_import_folder: primary_import_folder_path(
+                self.primary_import_folder
+                    .unwrap_or_else(|| default_primary_import_folder().to_string_lossy().into()),
+            ),
+        }))
+    }
 }
 
 fn upsert_known_source_mapping(mappings: &mut Vec<KnownSourceMapping>, source: &SampleSource) {
@@ -206,10 +275,17 @@ fn upsert_known_source_mapping(mappings: &mut Vec<KnownSourceMapping>, source: &
     let root = normalized.to_string_lossy().to_string();
     if let Some(existing) = mappings.iter_mut().find(|entry| entry.root == root) {
         existing.source_id = source.id.as_str().to_string();
+        existing.role = Some(source.role.as_str().to_string());
+        existing.metadata_storage = Some(source.metadata_storage.as_str().to_string());
+        existing.primary_import_folder =
+            Some(source.primary_import_folder.to_string_lossy().to_string());
         return;
     }
     mappings.push(KnownSourceMapping {
         root,
         source_id: source.id.as_str().to_string(),
+        role: Some(source.role.as_str().to_string()),
+        metadata_storage: Some(source.metadata_storage.as_str().to_string()),
+        primary_import_folder: Some(source.primary_import_folder.to_string_lossy().to_string()),
     });
 }

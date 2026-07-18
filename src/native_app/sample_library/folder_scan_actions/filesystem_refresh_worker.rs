@@ -44,6 +44,7 @@ pub(in crate::native_app) fn sync_source_database_paths(
     }
     SourceFilesystemSyncResult {
         source_id,
+        lifecycle_generation: 0,
         changed_count,
         cancelled: cancel.load(Ordering::Acquire),
         result,

@@ -85,6 +85,7 @@ pub(in crate::native_app) enum GuiMessage {
     CommittedFileMutationFinished(FileMutationOutcome),
     SourceManifestAuditCommitted {
         source_id: String,
+        lifecycle_generation: u64,
         committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
     },
     NormalizationProgress(NormalizationProgress),
@@ -387,6 +388,7 @@ pub(in crate::native_app) enum GuiMessage {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct SourceFilesystemSyncResult {
     pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) lifecycle_generation: u64,
     pub(in crate::native_app) changed_count: usize,
     pub(in crate::native_app) cancelled: bool,
     pub(in crate::native_app) result: Result<SourceFilesystemSyncSuccess, String>,

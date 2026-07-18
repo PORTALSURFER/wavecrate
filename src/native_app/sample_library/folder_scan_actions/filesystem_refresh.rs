@@ -81,6 +81,16 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let source_id = result.source_id;
+        if self.background.source_lifecycle_generations.get(&source_id)
+            != Some(&result.lifecycle_generation)
+        {
+            tracing::debug!(
+                source_id = %source_id,
+                lifecycle_generation = result.lifecycle_generation,
+                "Ignoring filesystem sync completion from an inactive source generation"
+            );
+            return;
+        }
         let changed_count = result.changed_count;
         if !self.library.folder_browser.source_exists(&source_id) {
             tracing::debug!(
@@ -137,10 +147,15 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_source_manifest_audit(
         &mut self,
         source_id: String,
+        lifecycle_generation: u64,
         committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if committed_delta.is_empty() || !self.library.folder_browser.source_exists(&source_id) {
+        if self.background.source_lifecycle_generations.get(&source_id)
+            != Some(&lifecycle_generation)
+            || committed_delta.is_empty()
+            || !self.library.folder_browser.source_exists(&source_id)
+        {
             return;
         }
         self.background
@@ -231,23 +246,36 @@ impl NativeAppState {
         if paths.is_empty() {
             return;
         }
-        let Some((root, database_root)) = self.library.folder_browser.source_roots(&source_id)
-        else {
-            return;
-        };
+        let (root, database_root, expected_lifecycle_generation) =
+            match self.admit_source_filesystem_sync(&source_id) {
+                Ok(admission) => admission,
+                Err(error) => {
+                    tracing::warn!(
+                        target: "wavecrate::source_processing",
+                        source_id,
+                        error,
+                        "Source filesystem sync was not admitted"
+                    );
+                    return;
+                }
+            };
         let budget = self.background.source_processing.budget_handle();
         context.business().background("gui-source-db-sync").run(
             move |_| {
-                let Some(permit) = budget.acquire_scan(&source_id) else {
+                let Some(permit) =
+                    budget.acquire_scan_for_generation(&source_id, expected_lifecycle_generation)
+                else {
                     return SourceFilesystemSyncResult {
                         source_id,
+                        lifecycle_generation: expected_lifecycle_generation,
                         changed_count,
                         cancelled: true,
                         result: Err(String::from("Source filesystem sync canceled")),
                     };
                 };
+                let lifecycle_generation = permit.lifecycle_generation();
                 let cancel = permit.cancel_token();
-                let result = sync_source_database_paths(
+                let mut result = sync_source_database_paths(
                     source_id,
                     root,
                     database_root,
@@ -255,11 +283,37 @@ impl NativeAppState {
                     changed_count,
                     cancel.as_ref(),
                 );
+                result.lifecycle_generation = lifecycle_generation;
                 drop(permit);
                 result
             },
             GuiMessage::SourceFilesystemSyncFinished,
         );
+    }
+
+    pub(in crate::native_app) fn admit_source_filesystem_sync(
+        &mut self,
+        source_id: &str,
+    ) -> Result<(PathBuf, PathBuf, u64), String> {
+        let source = self
+            .library
+            .folder_browser
+            .configured_sample_sources()
+            .into_iter()
+            .find(|source| source.id.as_str() == source_id)
+            .ok_or_else(|| "Source is not present in the configured source set".to_string())?;
+        let root = source.root.clone();
+        let database_root = source
+            .database_root()
+            .map_err(|error| format!("Resolve source metadata location failed: {error}"))?;
+        let lifecycle_generation = self
+            .background
+            .source_processing
+            .register_source_for_scan(source)?;
+        self.background
+            .source_lifecycle_generations
+            .insert(source_id.to_string(), lifecycle_generation);
+        Ok((root, database_root, lifecycle_generation))
     }
 }
 
