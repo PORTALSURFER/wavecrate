@@ -35,10 +35,9 @@ use super::scheduler::{
     BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
 };
 use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
-use crate::native_app::sample_library::similarity_prep::{
-    SimilarityPublicationFence, finalize_similarity_prep_if_ready,
-    native_similarity_artifact_version, reset_interrupted_similarity_prep_jobs,
-    similarity_prep_needs_finalization,
+use crate::native_app::sample_library::similarity_artifacts::{
+    SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
+    native_similarity_artifact_version, reset_interrupted_readiness_jobs,
 };
 use crate::native_app::waveform::{
     cached_waveform_file_audition_ready_exists, ensure_persisted_playback_summary,
@@ -52,7 +51,6 @@ const MANIFEST_AUDIT_HASH_BATCH: usize = 8;
 const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
-const MAX_DISCOVERED_ANALYSIS_JOBS: i64 = 256;
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
 const READINESS_PLAYBACK_VERSION: &str = "waveform_cache_v4";
 const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
@@ -966,12 +964,6 @@ struct SupervisorTelemetry {
 #[derive(Clone, Debug)]
 enum RuntimeTask {
     ManifestAudit,
-    LegacyAnalysis {
-        job_id: i64,
-    },
-    FinalizeSimilarity {
-        publication_fence: SimilarityPublicationFence,
-    },
     Readiness(ReadinessTarget),
 }
 
@@ -1167,7 +1159,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                     shared.budget_wake.notify_all();
                     continue;
                 };
-                match reset_interrupted_similarity_prep_jobs(source) {
+                match reset_interrupted_readiness_jobs(source) {
                     Ok(reset) => {
                         reset_sources.insert(source_id, true);
                         if reset > 0 {
@@ -1431,8 +1423,6 @@ fn run_coordinator(shared: Arc<Shared>) {
             let should_refresh = match (&candidate.task, execution_outcome) {
                 (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Failed))
-                | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Completed))
-                | (RuntimeTask::LegacyAnalysis { .. }, Some(ExecutionOutcome::Failed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Retried { .. }))
                 | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Failed)) => true,
@@ -1510,9 +1500,7 @@ fn publish_source_processing_progress(
     let (stage, detail) = runtime_task_progress_detail(&candidate.task);
     let (completed, total) = match &candidate.task {
         RuntimeTask::Readiness(_) => (stats.progress_completed, stats.progress_total),
-        RuntimeTask::ManifestAudit
-        | RuntimeTask::LegacyAnalysis { .. }
-        | RuntimeTask::FinalizeSimilarity { .. } => (0, 0),
+        RuntimeTask::ManifestAudit => (0, 0),
     };
     let (completed, total) = if total > 0 && completed < total {
         (completed, total)
@@ -1661,14 +1649,6 @@ fn runtime_task_progress_detail(task: &RuntimeTask) -> (&'static str, String) {
             "Scanning source changes",
             String::from("Checking the source manifest"),
         ),
-        RuntimeTask::LegacyAnalysis { .. } => (
-            "Migrating analysis",
-            String::from("Preparing legacy source data"),
-        ),
-        RuntimeTask::FinalizeSimilarity { .. } => (
-            "Finalizing similarity",
-            String::from("Publishing the source layout"),
-        ),
     }
 }
 
@@ -1814,6 +1794,15 @@ fn discover_source_candidates_with_connection(
         );
         return Ok(Cancellable::Completed((candidates, stats)));
     }
+    let pruned_legacy_jobs = prune_legacy_similarity_jobs(connection)?;
+    if pruned_legacy_jobs > 0 {
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            source_id,
+            pruned_legacy_jobs,
+            "Removed jobs owned by the retired similarity pipeline"
+        );
+    }
     let last_manifest_audit_at = connection
         .query_row(
             "SELECT value FROM metadata WHERE key = ?1",
@@ -1914,78 +1903,30 @@ fn discover_source_candidates_with_connection(
         );
     }
 
-    let legacy_jobs = {
-        let mut statement = connection
-            .prepare(
-                "SELECT id, relative_path, job_type, created_at
-                 FROM analysis_jobs
-                 WHERE readiness_managed = 0
-                   AND status = 'pending'
-                   AND job_type IN ('wav_metadata_v1', 'embedding_backfill_v1')
-                 ORDER BY created_at, id
-                 LIMIT ?1",
-            )
-            .map_err(|error| error.to_string())?;
-        statement
-            .query_map([MAX_DISCOVERED_ANALYSIS_JOBS], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?
-    };
-    for (job_id, relative_path, job_type, created_at) in legacy_jobs {
-        if cancelled(cancel) {
-            return Ok(Cancellable::Cancelled);
-        }
-        let lane = if job_type == "embedding_backfill_v1" {
-            ProcessingLane::Embedding
-        } else {
-            ProcessingLane::FeatureAnalysis
-        };
-        candidates.push(RuntimeCandidate {
-            schedule: WorkCandidate::file(source_id, relative_path, lane, 2, created_at),
-            source: source.clone(),
-            task: RuntimeTask::LegacyAnalysis { job_id },
-        });
-    }
-    if !readiness_source_exists
-        && candidates
-            .iter()
-            .all(|candidate| !matches!(&candidate.task, RuntimeTask::LegacyAnalysis { .. }))
-        && similarity_prep_needs_finalization(source)?
-    {
-        let paths_revision = connection
-            .query_row(
-                "SELECT COALESCE(
-                    (SELECT CAST(value AS INTEGER) FROM metadata
-                     WHERE key = 'wav_paths_revision_v1'),
-                    0
-                )",
-                [],
-                |row| row.get::<_, i64>(0),
-            )
-            .map_err(|error| error.to_string())?;
-        candidates.push(RuntimeCandidate {
-            schedule: WorkCandidate::source(source_id, ProcessingLane::Finalization, 4, now),
-            source: source.clone(),
-            task: RuntimeTask::FinalizeSimilarity {
-                publication_fence: SimilarityPublicationFence::legacy_paths_revision(
-                    paths_revision,
-                ),
-            },
-        });
-    }
     if cancelled(cancel) {
         Ok(Cancellable::Cancelled)
     } else {
         Ok(Cancellable::Completed((candidates, stats)))
     }
+}
+
+fn prune_legacy_similarity_jobs(connection: &rusqlite::Connection) -> Result<usize, String> {
+    let removed = connection
+        .execute(
+            "DELETE FROM analysis_jobs
+             WHERE readiness_managed = 0
+               AND job_type IN ('wav_metadata_v1', 'embedding_backfill_v1', 'rebuild_index_v1')",
+            [],
+        )
+        .map_err(|error| format!("Prune retired similarity jobs failed: {error}"))?;
+    connection
+        .execute(
+            "DELETE FROM analysis_job_progress_snapshots
+             WHERE job_type IN ('wav_metadata_v1', 'embedding_backfill_v1', 'rebuild_index_v1')",
+            [],
+        )
+        .map_err(|error| format!("Prune retired similarity progress failed: {error}"))?;
+    Ok(removed)
 }
 
 fn source_processing_schema_available(connection: &rusqlite::Connection) -> Result<bool, String> {
@@ -2321,13 +2262,6 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         .map_err(|error| error.to_string())?;
     connection
         .execute(
-            "INSERT INTO metadata (key, value) VALUES ('ann_index_dirty_v1', ?1)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            [&similarity_state],
-        )
-        .map_err(|error| error.to_string())?;
-    connection
-        .execute(
             "INSERT INTO metadata (key, value) VALUES (?1, ?2)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             params![META_READINESS_TARGET_FINGERPRINT, target_fingerprint],
@@ -2530,30 +2464,6 @@ fn execute_candidate(
             } else {
                 Ok(ExecutionOutcome::Completed)
             }
-        }
-        RuntimeTask::LegacyAnalysis { job_id } => {
-            super::worker::run_legacy_job(&candidate.source, *job_id, 1, cancel).map(
-                |(processed, failed)| {
-                    if processed == 0 {
-                        ExecutionOutcome::NotClaimed
-                    } else if failed > 0 {
-                        ExecutionOutcome::Failed
-                    } else {
-                        ExecutionOutcome::Completed
-                    }
-                },
-            )
-        }
-        RuntimeTask::FinalizeSimilarity { publication_fence } => {
-            finalize_similarity_prep_if_ready(&candidate.source, publication_fence, cancel).map(
-                |finalized| {
-                    if finalized {
-                        ExecutionOutcome::Completed
-                    } else {
-                        ExecutionOutcome::NotClaimed
-                    }
-                },
-            )
         }
         RuntimeTask::Readiness(target) => {
             execute_readiness_target(&candidate.source, target, cancel)
@@ -3119,13 +3029,15 @@ fn run_readiness_stage(
                 ));
             }
             let publication_fence = SimilarityPublicationFence::for_readiness_target(target)?;
-            finalize_similarity_prep_if_ready(source, &publication_fence, cancel).map(|finalized| {
-                if finalized {
-                    ReadinessExecutionOutcome::Complete
-                } else {
-                    ReadinessExecutionOutcome::PrerequisiteInvalidated
-                }
-            })
+            finalize_similarity_artifacts_if_ready(source, &publication_fence, cancel).map(
+                |finalized| {
+                    if finalized {
+                        ReadinessExecutionOutcome::Complete
+                    } else {
+                        ReadinessExecutionOutcome::PrerequisiteInvalidated
+                    }
+                },
+            )
         }
     }
 }
@@ -3401,6 +3313,97 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn retired_jobs_are_pruned_and_only_readiness_jobs_are_recovered() {
+        let directory = tempfile::tempdir().expect("source directory");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("current-only-jobs"),
+            directory.path().to_path_buf(),
+        );
+        source.open_db().expect("create source database");
+        let database_root = source.database_root().expect("database root");
+        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open source database");
+        connection
+            .execute_batch(
+                "INSERT INTO analysis_jobs
+                    (sample_id, source_id, relative_path, job_type, status, created_at,
+                     readiness_managed)
+                 VALUES
+                    ('legacy::sample', 'current-only-jobs', 'legacy.wav',
+                     'wav_metadata_v1', 'running', 1, 0),
+                    ('current::sample', 'current-only-jobs', 'current.wav',
+                     'wav_metadata_v1', 'running', 1, 1);
+                 INSERT INTO analysis_job_progress_snapshots
+                    (job_type, pending, running, done, failed)
+                 VALUES ('wav_metadata_v1', 0, 1, 0, 0);",
+            )
+            .expect("seed current and retired jobs");
+
+        let reset =
+            reset_interrupted_readiness_jobs(&source).expect("reset interrupted current job");
+        assert_eq!(reset, 1);
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM analysis_jobs WHERE sample_id = 'legacy::sample'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .expect("read retired job"),
+            "running"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status FROM analysis_jobs WHERE sample_id = 'current::sample'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .expect("read readiness job"),
+            "pending"
+        );
+
+        assert_eq!(
+            prune_legacy_similarity_jobs(&connection).expect("prune retired jobs"),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 0",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count retired jobs"),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count readiness jobs"),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM analysis_job_progress_snapshots",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count retired progress"),
+            0
+        );
+    }
 
     #[test]
     fn playback_pause_retains_hash_backlog_until_resume_and_shutdown_joins() {

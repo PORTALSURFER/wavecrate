@@ -18,7 +18,6 @@ pub(crate) mod progress_messages;
 pub(crate) mod scans;
 pub(crate) mod selection_edits;
 pub(crate) mod selection_export;
-pub(crate) mod similarity_prep;
 pub(crate) mod slices;
 pub(crate) mod source_cache_invalidator;
 pub(crate) mod source_folders;

@@ -113,7 +113,6 @@ fn ensure_recordings_source(
     controller.library.sources.push(source.clone());
     controller.select_source(Some(source.id.clone()));
     controller.persist_config("Failed to save config after adding recordings source")?;
-    controller.prepare_similarity_for_selected_source();
     Ok(source)
 }
 

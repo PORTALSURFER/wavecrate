@@ -6,13 +6,6 @@ use std::{
     collections::HashMap,
     mem::ManuallyDrop,
     path::{Path, PathBuf},
-    time::Instant,
-};
-
-#[cfg(test)]
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
 };
 
 /// Configuration parameters for ANN index building/loading.
@@ -35,8 +28,6 @@ pub(crate) struct AnnIndexState {
     pub(crate) id_lookup: HashMap<String, usize>,
     pub(crate) params: AnnIndexParams,
     pub(crate) index_path: PathBuf,
-    pub(crate) last_flush: Instant,
-    pub(crate) dirty_inserts: usize,
 }
 
 /// HNSW storage that either owns all point data directly or keeps its disk
@@ -47,13 +38,6 @@ pub(crate) enum AnnHnsw {
 }
 
 impl AnnHnsw {
-    pub(crate) fn insert(&self, embedding_with_id: (&[f32], usize)) {
-        match self {
-            Self::Built(hnsw) => hnsw.insert(embedding_with_id),
-            Self::Loaded(hnsw) => hnsw.insert(embedding_with_id),
-        }
-    }
-
     pub(crate) fn search(&self, embedding: &[f32], requested: usize, ef: usize) -> Vec<Neighbour> {
         match self {
             Self::Built(hnsw) => hnsw.search(embedding, requested, ef),
@@ -84,30 +68,10 @@ impl AnnHnsw {
 pub(crate) struct LoadedAnnHnsw {
     hnsw: ManuallyDrop<Hnsw<'static, f32, DistCosine>>,
     _loader: Box<HnswIo>,
-    #[cfg(test)]
-    live_probe: Option<Arc<AtomicUsize>>,
 }
 
 impl LoadedAnnHnsw {
     pub(crate) fn load(dir: &Path, basename: &str) -> Result<Self, String> {
-        Self::load_inner(dir, basename, None)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn load_with_live_probe(
-        dir: &Path,
-        basename: &str,
-        live_probe: Arc<AtomicUsize>,
-    ) -> Result<Self, String> {
-        Self::load_inner(dir, basename, Some(live_probe))
-    }
-
-    fn load_inner(
-        dir: &Path,
-        basename: &str,
-        #[cfg(test)] live_probe: Option<Arc<AtomicUsize>>,
-        #[cfg(not(test))] _live_probe: Option<()>,
-    ) -> Result<Self, String> {
         let mut loader = Box::new(HnswIo::new(dir, basename));
         let hnsw = loader
             .load_hnsw::<f32, DistCosine>()
@@ -119,20 +83,10 @@ impl LoadedAnnHnsw {
         let hnsw = unsafe {
             std::mem::transmute::<Hnsw<'_, f32, DistCosine>, Hnsw<'static, f32, DistCosine>>(hnsw)
         };
-        #[cfg(test)]
-        if let Some(probe) = &live_probe {
-            probe.fetch_add(1, Ordering::AcqRel);
-        }
         Ok(Self {
             hnsw: ManuallyDrop::new(hnsw),
             _loader: loader,
-            #[cfg(test)]
-            live_probe,
         })
-    }
-
-    fn insert(&self, embedding_with_id: (&[f32], usize)) {
-        self.hnsw.insert(embedding_with_id);
     }
 
     fn search(&self, embedding: &[f32], requested: usize, ef: usize) -> Vec<Neighbour> {
@@ -156,10 +110,6 @@ impl Drop for LoadedAnnHnsw {
         // explicit drop. `_loader` remains alive until after this method.
         unsafe {
             ManuallyDrop::drop(&mut self.hnsw);
-        }
-        #[cfg(test)]
-        if let Some(probe) = &self.live_probe {
-            probe.fetch_sub(1, Ordering::AcqRel);
         }
     }
 }

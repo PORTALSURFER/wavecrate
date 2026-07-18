@@ -51,10 +51,6 @@ pub(super) fn default_false() -> bool {
     false
 }
 
-pub(super) fn default_fast_similarity_prep_sample_rate() -> u32 {
-    8_000
-}
-
 pub(super) fn default_volume() -> f32 {
     1.0
 }

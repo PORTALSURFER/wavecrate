@@ -27,6 +27,6 @@ pub(crate) use crate::app_core::projection_state::{
 pub use crate::app_core::projection_state::{
     AudioPickerTarget, DestructiveEditPrompt, DestructiveSelectionEdit, DragPayload, DragSource,
     DragTarget, FocusContext, FolderActionPrompt, MapBounds, MapPoint, MapQueryBounds,
-    MapRenderMode, MapSimilarityPrepStatus, OptionsPanelPrompt, StatusTone, UiPoint, UpdateStatus,
+    MapRenderMode, OptionsPanelPrompt, StatusTone, UiPoint, UpdateStatus,
     WaveformSliceBatchProfile,
 };

@@ -2,9 +2,9 @@
 
 Similarity tools help you move by sound instead of only by folder name, filename, or tag.
 
-## Prepare Similarity Data
+## Automatic Similarity Processing
 
-Similarity search and Starmap depend on source processing. Use **Process Source** from the source context menu when a source needs analysis.
+Similarity search and Starmap depend on source processing, which reconciles automatically after source changes. Use **Process Source** only to prioritize that source.
 
 Large sources can take time to process. Wavecrate keeps browsing responsive while processing work runs in the background.
 
@@ -12,7 +12,7 @@ Large sources can take time to process. Wavecrate keeps browsing responsive whil
 
 Similarity search uses the selected sample as the reference sound.
 
-- Prepare similarity data for the source first.
+- Wait for automatic source processing when the source has just changed.
 - Select a sample to use as the reference.
 - Use similarity search to focus the list around related sounds.
 - Combine similarity with folder scope, search text, tags, ratings, collections, playback type, and Harvest filters.

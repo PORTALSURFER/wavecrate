@@ -66,15 +66,6 @@ pub(crate) enum AnalysisJobMessage {
     },
     /// An enqueue job failed.
     EnqueueFailed(String),
-    /// Embedding backfill enqueue finished.
-    EmbeddingBackfillEnqueueFinished {
-        inserted: usize,
-        progress: AnalysisProgress,
-        /// Whether the completion should surface a status toast.
-        announce: bool,
-    },
-    /// Embedding backfill enqueue failed.
-    EmbeddingBackfillEnqueueFailed(String),
     /// Duration metadata was updated for a source.
     DurationsUpdated {
         source_id: crate::sample_sources::SourceId,

@@ -3,6 +3,7 @@ pub(crate) mod build;
 #[cfg(not(test))]
 mod build;
 mod container;
+mod publication;
 #[cfg(test)]
 pub(crate) mod state;
 #[cfg(not(test))]
@@ -11,10 +12,6 @@ mod state;
 pub(crate) mod storage;
 #[cfg(not(test))]
 mod storage;
-#[cfg(test)]
-pub(crate) mod update;
-#[cfg(not(test))]
-mod update;
 
 use crate::analysis::{decode_f32_le_blob, similarity};
 use rusqlite::{Connection, TransactionBehavior};
@@ -57,10 +54,10 @@ fn get_index_entry(conn: &Connection) -> Result<Arc<RwLock<state::AnnIndexState>
         }
     }
 
-    // Slow path: load or build index without holding global lock
+    // Slow path: load the published current index without holding global lock
     // Note: This might do redundant work if multiple threads race here,
     // but better than blocking the world.
-    let loaded_state = build::load_or_build_index(conn)?;
+    let loaded_state = build::load_current_index(conn)?;
     let loaded_state = Arc::new(RwLock::new(loaded_state));
 
     // Write lock to insert
@@ -74,17 +71,6 @@ fn get_index_entry(conn: &Connection) -> Result<Arc<RwLock<state::AnnIndexState>
     Ok(loaded_state)
 }
 
-fn with_index_state_mut<R>(
-    conn: &Connection,
-    f: impl FnOnce(&mut state::AnnIndexState) -> Result<R, String>,
-) -> Result<R, String> {
-    let state_arc = get_index_entry(conn)?;
-    let mut guard = state_arc
-        .write()
-        .map_err(|_| "ANN index state lock poisoned")?;
-    f(&mut guard)
-}
-
 fn with_index_state_read<R>(
     conn: &Connection,
     f: impl FnOnce(&state::AnnIndexState) -> Result<R, String>,
@@ -96,74 +82,7 @@ fn with_index_state_read<R>(
     f(&guard)
 }
 
-/// Insert a single embedding into the ANN index when the sample id is absent.
-///
-/// Existing sample ids are left unchanged. This API currently does not replace
-/// or rebuild an already indexed vector in place; callers that need to refresh
-/// the full index should use [`crate::analysis::rebuild_ann_index`].
-pub fn upsert_embedding(
-    conn: &Connection,
-    sample_id: &str,
-    embedding: &[f32],
-) -> Result<(), String> {
-    with_index_state_mut(conn, |state| {
-        update::upsert_embedding(conn, state, sample_id, embedding)
-    })
-}
-
-/// Insert a batch of embeddings into the ANN index, skipping existing ids.
-///
-/// This preserves the current in-memory index contents for duplicate sample
-/// ids and only appends embeddings that are not already present.
-pub fn upsert_embeddings_batch<'a, I>(conn: &Connection, items: I) -> Result<(), String>
-where
-    I: IntoIterator<Item = (&'a str, &'a [f32])>,
-{
-    let mut iter = items.into_iter().peekable();
-    if iter.peek().is_none() {
-        return Ok(());
-    }
-    with_index_state_mut(conn, |state| {
-        update::upsert_embeddings_batch(conn, state, iter)
-    })
-}
-
-/// Flush any buffered ANN insertions to the on-disk index.
-pub fn flush_pending_inserts(conn: &Connection) -> Result<(), String> {
-    with_index_state_mut(conn, |state| update::flush_pending_inserts(conn, state))
-}
-
-/// Flush buffered ANN insertions only while a transactional generation fence is current.
-///
-/// The immediate SQLite transaction remains open while the index container and its database
-/// metadata are published, preventing a source mutation from crossing the generation check.
-pub fn flush_pending_inserts_with_publication_fence(
-    conn: &mut Connection,
-    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
-) -> Result<bool, String> {
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|err| format!("Start ANN publication transaction failed: {err}"))?;
-    if !publication_fence(&tx)? {
-        tx.rollback()
-            .map_err(|err| format!("Roll back stale ANN publication failed: {err}"))?;
-        return Ok(false);
-    }
-    let state_arc = get_index_entry(&tx)?;
-    let mut state = state_arc
-        .write()
-        .map_err(|_| "ANN index state lock poisoned")?;
-    update::flush_pending_inserts(&tx, &mut state)?;
-    tx.commit()
-        .map_err(|err| format!("Commit ANN publication failed: {err}"))?;
-    Ok(true)
-}
-
 /// Find the `k` nearest neighbors for a stored sample id.
-///
-/// If the sample exists in the embeddings table but is missing from the
-/// current ANN index cache, this call lazily backfills the missing ANN entry
-/// before searching.
 pub fn find_similar(
     conn: &Connection,
     sample_id: &str,
@@ -174,33 +93,13 @@ pub fn find_similar(
     }
     let embedding = load_embedding(conn, sample_id)?;
 
-    // Optimistic read
-    {
-        let state_arc = get_index_entry(conn)?;
-        let state = state_arc
-            .read()
-            .map_err(|_| "ANN index state lock poisoned")?;
-
-        // If the ID is already known, we can search with just the read lock
-        if state.id_lookup.contains_key(sample_id) {
-            let results = perform_search(&state, &embedding, k, Some(sample_id))?;
-            if results.len() >= k {
-                return Ok(results);
-            }
-        }
-        // If not found, drop read lock and fall through to write path
-    }
-
-    // Write path: update index with missing ID then search
-    with_index_state_mut(conn, |state| {
+    with_index_state_read(conn, |state| {
         if !state.id_lookup.contains_key(sample_id) {
-            update::upsert_embedding(conn, state, sample_id, embedding.as_slice())?;
+            return Err(format!(
+                "Sample {sample_id} is not present in the current ANN generation"
+            ));
         }
-        let results = perform_search(state, &embedding, k, Some(sample_id))?;
-        if results.len() >= k {
-            return Ok(results);
-        }
-        fallback_neighbors(conn, &embedding, k, Some(sample_id))
+        perform_search(state, &embedding, k, Some(sample_id))
     })
 }
 
@@ -224,11 +123,7 @@ pub fn find_similar_for_embedding(
         if state.id_map.is_empty() {
             return Err("ANN index has no embeddings".to_string());
         }
-        let results = perform_search(state, embedding, k, None)?;
-        if results.len() >= k {
-            return Ok(results);
-        }
-        fallback_neighbors(conn, embedding, k, None)
+        perform_search(state, embedding, k, None)
     })
 }
 
@@ -266,101 +161,6 @@ fn perform_search(
     });
     results.truncate(k);
     Ok(results)
-}
-
-fn fallback_neighbors(
-    conn: &Connection,
-    embedding: &[f32],
-    k: usize,
-    skip_id: Option<&str>,
-) -> Result<Vec<SimilarNeighbor>, String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT sample_id, vec
-             FROM embeddings
-             WHERE model_id = ?1",
-        )
-        .map_err(|err| format!("Failed to query embeddings: {err}"))?;
-    let mut rows = stmt
-        .query(rusqlite::params![similarity::SIMILARITY_MODEL_ID])
-        .map_err(|err| format!("Failed to iterate embeddings: {err}"))?;
-    let mut scored: Vec<SimilarNeighbor> = Vec::new();
-    while let Some(row) = rows.next().map_err(|err| err.to_string())? {
-        let sample_id: String = row.get(0).map_err(|err| err.to_string())?;
-        if skip_id == Some(sample_id.as_str()) {
-            continue;
-        }
-        let blob: Vec<u8> = row.get(1).map_err(|err| err.to_string())?;
-        let candidate = decode_f32_le_blob(&blob)?;
-        if candidate.len() != embedding.len() {
-            continue;
-        }
-        let distance = cosine_distance(embedding, &candidate);
-        scored.push(SimilarNeighbor {
-            sample_id,
-            distance,
-        });
-    }
-    scored.sort_by(|a, b| {
-        a.distance
-            .partial_cmp(&b.distance)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-    scored.truncate(k);
-    Ok(scored)
-}
-
-fn cosine_distance(a: &[f32], b: &[f32]) -> f32 {
-    let len = a.len().min(b.len());
-    let mut dot = 0.0;
-    for i in 0..len {
-        dot += a[i] * b[i];
-    }
-    1.0 - dot
-}
-
-/// Rebuild the ANN index from the embeddings stored in the database.
-pub fn rebuild_index(conn: &Connection) -> Result<(), String> {
-    let params = state::default_params();
-    let index_path = storage::default_index_path(conn)?;
-    let mut state = build::build_index_from_db(conn, params, index_path)?;
-    update::flush_index(conn, &mut state)?;
-    let key = storage::index_key(conn)?;
-
-    let wrapped_state = Arc::new(RwLock::new(state));
-    let mut guard = ANN_INDEX
-        .write()
-        .map_err(|_| "ANN index lock poisoned".to_string())?;
-    guard.insert(key, wrapped_state);
-    Ok(())
-}
-
-/// Rebuild and publish the complete ANN index only while an exact fence remains current.
-pub fn rebuild_index_with_publication_fence(
-    conn: &mut Connection,
-    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
-) -> Result<bool, String> {
-    let params = state::default_params();
-    let index_path = storage::default_index_path(conn)?;
-    let mut state = build::build_index_from_db(conn, params, index_path)?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|err| format!("Start ANN rebuild publication transaction failed: {err}"))?;
-    if !publication_fence(&tx)? {
-        tx.rollback()
-            .map_err(|err| format!("Roll back stale ANN rebuild failed: {err}"))?;
-        return Ok(false);
-    }
-    update::flush_index(&tx, &mut state)?;
-    tx.commit()
-        .map_err(|err| format!("Commit ANN rebuild publication failed: {err}"))?;
-    let key = storage::index_key(conn)?;
-    let wrapped_state = Arc::new(RwLock::new(state));
-    let mut guard = ANN_INDEX
-        .write()
-        .map_err(|_| "ANN index lock poisoned".to_string())?;
-    guard.insert(key, wrapped_state);
-    Ok(true)
 }
 
 pub(crate) fn publish_exact_index_with_transaction(
@@ -432,6 +232,7 @@ pub(crate) fn publish_exact_index_with_transaction(
     registry.insert(key, Arc::new(RwLock::new(state)));
     drop(registry);
     storage::remove_superseded_generation(&default_path, &published_index_path);
+    storage::remove_retired_artifacts(conn);
     Ok(true)
 }
 
@@ -462,6 +263,7 @@ where
     *published_state = state;
     drop(published_state);
     storage::remove_superseded_generation(&previous_index_path, &published_index_path);
+    storage::remove_retired_artifacts(conn);
     Ok(true)
 }
 
@@ -487,7 +289,13 @@ where
         .ok_or_else(|| "Exact similarity SQL publication was already consumed".to_string())?(
         &tx
     )?;
-    update::flush_index(&tx, state)?;
+    publication::publish_index(&tx, state)?;
+    tx.execute(
+        "DELETE FROM metadata
+         WHERE key IN ('ann_index_dirty_v1', 'last_similarity_prep_scan_at')",
+        [],
+    )
+    .map_err(|err| format!("Remove retired similarity metadata failed: {err}"))?;
     tx.commit()
         .map_err(|err| format!("Commit exact similarity publication failed: {err}"))?;
     Ok(true)

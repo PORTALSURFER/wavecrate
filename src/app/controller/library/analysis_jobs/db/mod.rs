@@ -1,4 +1,3 @@
-mod ann_index;
 /// Analysis artifact persistence helpers and typed upsert requests.
 pub(crate) mod artifacts;
 mod cleanup;
@@ -24,9 +23,6 @@ pub(crate) use self::artifacts::{
     upsert_analysis_features, upsert_aspect_descriptors, upsert_cached_aspect_descriptors,
     upsert_cached_embedding, upsert_cached_features, upsert_embedding,
 };
-pub(crate) use ann_index::{
-    clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,
-};
 #[cfg(test)]
 pub(crate) use cleanup::fail_stale_running_jobs;
 #[cfg(test)]
@@ -41,12 +37,10 @@ pub(crate) use connection::{
 };
 #[cfg(test)]
 pub(crate) use constants::DEFAULT_JOB_TYPE;
-pub(crate) use constants::{
-    ANALYZE_SAMPLE_JOB_TYPE, EMBEDDING_BACKFILL_JOB_TYPE, REBUILD_INDEX_JOB_TYPE,
-};
+pub(crate) use constants::{ANALYZE_SAMPLE_JOB_TYPE, EMBEDDING_BACKFILL_JOB_TYPE};
 #[cfg(test)]
-pub(crate) use enqueue::upsert_samples;
-pub(crate) use enqueue::{enqueue_jobs, enqueue_jobs_in_tx, upsert_samples_in_tx};
+pub(crate) use enqueue::{enqueue_jobs, upsert_samples};
+pub(crate) use enqueue::{enqueue_jobs_in_tx, upsert_samples_in_tx};
 pub(crate) use ids::{build_sample_id, parse_sample_id};
 #[cfg(test)]
 pub(crate) use jobs::claim_next_job;

@@ -3,7 +3,6 @@ use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::{self, AnalysisJobMessage};
 use crate::app::controller::state::cache::{FeatureCache, FeatureCacheKey};
 use crate::app::controller::test_support::{dummy_controller, write_test_wav};
-use crate::app::controller::{SimilarityPrepStage, SimilarityPrepState};
 use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::scanner::{
     ChangedSample, RenamedSample, ScanError, ScanStats, UpdatedSample,
@@ -114,7 +113,5 @@ fn renamed_sample(old_relative_path: &str, new_relative_path: &str) -> RenamedSa
 }
 
 mod analysis_suppression;
-mod failure_state;
 mod progress_reporting;
 mod result_application;
-mod similarity_bootstrap;

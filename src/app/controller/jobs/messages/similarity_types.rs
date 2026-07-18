@@ -1,59 +1,6 @@
-//! Similarity, UMAP, and analysis-failure DTOs for controller background work.
+//! Similarity-query and analysis-failure DTOs for controller background work.
 
 use super::*;
-
-/// Request to build or refresh UMAP data for one source snapshot.
-#[derive(Debug, Clone)]
-pub(crate) struct UmapBuildJob {
-    pub(crate) model_id: String,
-    pub(crate) umap_version: String,
-    pub(crate) source_id: SourceId,
-}
-
-/// Completion state for a Starmap write attempt.
-#[derive(Debug)]
-pub(crate) enum StarmapWriteOutcome<T> {
-    /// The write completed and produced its result.
-    Completed(T),
-    /// A same-source file operation owns write priority; retain and retry the job.
-    DeferredForFileOp,
-}
-
-/// Result of one UMAP build attempt.
-#[derive(Debug)]
-pub(crate) struct UmapBuildResult {
-    pub(crate) job: UmapBuildJob,
-    pub(crate) result: Result<StarmapWriteOutcome<()>, String>,
-}
-
-/// Request to cluster the current UMAP projection.
-#[derive(Debug, Clone)]
-pub(crate) struct UmapClusterBuildJob {
-    pub(crate) model_id: String,
-    pub(crate) umap_version: String,
-    pub(crate) source_id: Option<SourceId>,
-}
-
-/// Result of one UMAP clustering pass.
-#[derive(Debug)]
-pub(crate) struct UmapClusterBuildResult {
-    pub(crate) job: UmapClusterBuildJob,
-    pub(crate) result:
-        Result<StarmapWriteOutcome<wavecrate_analysis::hdbscan::HdbscanStats>, String>,
-}
-
-/// Final prepared similarity payload applied back to controller state.
-#[derive(Debug)]
-pub(crate) struct SimilarityPrepOutcome {
-    pub(crate) cluster_stats: wavecrate_analysis::hdbscan::HdbscanStats,
-}
-
-/// Result of one similarity-preparation run.
-#[derive(Debug)]
-pub(crate) struct SimilarityPrepResult {
-    pub(crate) source_id: SourceId,
-    pub(crate) result: Result<SimilarityPrepOutcome, String>,
-}
 
 /// Path-based similarity highlight payload computed off the controller thread.
 #[derive(Debug)]

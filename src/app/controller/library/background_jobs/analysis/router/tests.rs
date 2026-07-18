@@ -40,7 +40,6 @@ fn selected_source_progress_caches_and_updates_overlay() {
     let context = AnalysisProgressRouteContext {
         selected_source_id: Some(source_id.clone()),
         current_source_id: Some(source_id.clone()),
-        similarity_prep_source_id: None,
     };
 
     let actions = AnalysisProgressRouter::route_message(
@@ -64,32 +63,12 @@ fn selected_source_progress_caches_and_updates_overlay() {
 }
 
 #[test]
-fn similarity_prep_mismatch_ignores_progress() {
-    let context = AnalysisProgressRouteContext {
-        selected_source_id: Some(source_id("selected")),
-        current_source_id: Some(source_id("selected")),
-        similarity_prep_source_id: Some(source_id("prep")),
-    };
-
-    let actions = AnalysisProgressRouter::route_message(
-        &context,
-        AnalysisJobMessage::Progress {
-            source_id: Some(source_id("other")),
-            progress: progress(2, 1, 3, 0),
-        },
-    );
-
-    assert!(actions.is_empty());
-}
-
-#[test]
 fn idle_selected_progress_finalizes_selected_source() {
     let source_id = source_id("selected");
     let progress = progress(0, 0, 4, 0);
     let context = AnalysisProgressRouteContext {
         selected_source_id: Some(source_id.clone()),
         current_source_id: Some(source_id.clone()),
-        similarity_prep_source_id: None,
     };
 
     let actions = AnalysisProgressRouter::route_message(
@@ -118,13 +97,13 @@ fn idle_selected_progress_finalizes_selected_source() {
 fn failure_messages_route_to_status_actions() {
     let actions = AnalysisProgressRouter::route_message(
         &AnalysisProgressRouteContext::default(),
-        AnalysisJobMessage::EmbeddingBackfillEnqueueFailed("database locked".to_string()),
+        AnalysisJobMessage::EnqueueFailed("database locked".to_string()),
     );
 
     assert_eq!(
         actions,
         vec![AnalysisProgressRouteAction::SetStatus {
-            text: "Similarity artifact backfill enqueue failed: database locked".to_string(),
+            text: "Analysis enqueue failed: database locked".to_string(),
             tone: StatusTone::Error,
         }]
     );

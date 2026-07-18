@@ -83,47 +83,6 @@ fn sample_browser_renders_similarity_header_only_in_similarity_mode() {
 }
 
 #[test]
-fn sample_browser_hides_similarity_prep_footer_text_and_button() {
-    let mut state = crate::native_app::tests::gui_state_for_span_tests();
-    state.library.similarity_prep.status = Some(
-        crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepStatus::UpToDate,
-    );
-    state.library.similarity_prep.summary = Some(String::from("Similarity ready"));
-    prepare_sample_browser_view(&mut state);
-
-    let frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
-
-    assert!(
-        !frame.paint_plan.contains_text("Similarity ready"),
-        "ready similarity state should not paint footer text"
-    );
-
-    state.library.similarity_prep.status = Some(
-        crate::native_app::sample_library::similarity_prep::NativeSimilarityPrepStatus::Blocked {
-            failed_count: 1,
-            unsupported_count: 0,
-        },
-    );
-    state.library.similarity_prep.summary = Some(String::from("Similarity prep blocked"));
-    prepare_sample_browser_view(&mut state);
-
-    let blocked_frame = crate::native_app::test_support::sample_browser::sample_browser(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
-
-    assert!(
-        !blocked_frame
-            .paint_plan
-            .contains_text("Similarity prep blocked"),
-        "blocked similarity state should not paint footer text"
-    );
-    assert!(
-        !blocked_frame.paint_plan.contains_text("Prepare"),
-        "blocked similarity state should not paint the footer Prepare button"
-    );
-}
-
-#[test]
 fn sample_browser_similarity_controls_emit_control_messages() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");
@@ -479,10 +438,8 @@ fn sample_browser_similarity_anchor_delegates_missing_artifacts_to_readiness_wor
         &mut context,
     );
 
-    assert!(state.library.similarity_prep.running_source_id.is_none());
     super::super::run_command_for_tests(&mut state, context.into_command());
 
-    assert!(!state.library.similarity_prep.running);
     assert_eq!(
         source_jobs_by_status(source_root.path(), "wav_metadata_v1", "pending"),
         0,
@@ -659,10 +616,6 @@ fn source_selection_ui_path_does_not_directly_enqueue_heavy_readiness_work() {
         &mut context,
     );
 
-    assert_eq!(
-        state.library.similarity_prep.summary, None,
-        "the UI/read path should not show transient similarity prep footer text"
-    );
     assert_eq!(state.waveform.cache.active_folder_warm_total, 0);
     assert!(
         state
@@ -701,56 +654,6 @@ fn source_selection_ui_path_does_not_directly_enqueue_heavy_readiness_work() {
     assert_eq!(
         source_artifact_rows(source_root.path(), "similarity_aspect_descriptors"),
         0
-    );
-    assert!(!state.library.similarity_prep.running);
-}
-
-#[test]
-fn user_source_prep_retains_similarity_trigger_while_another_source_is_running() {
-    let mut state = crate::native_app::tests::gui_state_for_span_tests();
-    let first_root = tempfile::tempdir().expect("first root");
-    let second_root = tempfile::tempdir().expect("second root");
-    fs::write(first_root.path().join("first.wav"), []).expect("write first sample");
-    fs::write(second_root.path().join("second.wav"), []).expect("write second sample");
-    let first_source = wavecrate::sample_sources::SampleSource::new_with_id(
-        wavecrate::sample_sources::SourceId::from_string("first-source"),
-        first_root.path().to_path_buf(),
-    );
-    let second_source = wavecrate::sample_sources::SampleSource::new_with_id(
-        wavecrate::sample_sources::SourceId::from_string("second-source"),
-        second_root.path().to_path_buf(),
-    );
-    state.library.folder_browser =
-        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
-            first_source,
-            second_source,
-        ]);
-    let mut context = radiant::prelude::UiUpdateContext::default();
-
-    state.queue_source_prep(
-        String::from("first-source"),
-        crate::native_app::sample_library::source_prep::SourcePrepTrigger::UserRequested,
-        &mut context,
-    );
-    state.queue_source_prep(
-        String::from("second-source"),
-        crate::native_app::sample_library::source_prep::SourcePrepTrigger::UserRequested,
-        &mut context,
-    );
-
-    assert_eq!(
-        state.library.similarity_prep.running_source_id.as_deref(),
-        Some("first-source")
-    );
-    assert_eq!(
-        state
-            .library
-            .similarity_prep
-            .pending_source_ids
-            .iter()
-            .map(String::as_str)
-            .collect::<Vec<_>>(),
-        vec!["second-source"]
     );
 }
 

@@ -1,7 +1,9 @@
 //! Killable process boundary for supervisor-owned decode, DSP, and embedding work.
 
+#[cfg(not(test))]
 mod child_process;
 
+#[cfg(not(test))]
 pub(in crate::native_app) use child_process::wait_for_cancellable_child;
 
 use std::{path::Path, sync::atomic::AtomicBool};
@@ -28,10 +30,6 @@ enum SourceAnalysisTask {
         relative_path: String,
         content_hash: String,
         analysis_version: String,
-    },
-    LegacyJob {
-        job_id: i64,
-        embedding_worker_limit: usize,
     },
 }
 
@@ -120,46 +118,6 @@ pub(super) fn run_readiness_embedding_stage(
     }
 }
 
-pub(super) fn run_legacy_job(
-    source: &SampleSource,
-    job_id: i64,
-    embedding_worker_limit: usize,
-    cancel: &AtomicBool,
-) -> Result<(usize, usize), String> {
-    #[cfg(test)]
-    {
-        let summary = crate::native_app::sample_library::similarity_prep::run_similarity_prep_job(
-            source,
-            job_id,
-            cancel,
-            embedding_worker_limit,
-        )?;
-        Ok((summary.processed, summary.failed))
-    }
-    #[cfg(not(test))]
-    {
-        let request = SourceAnalysisRequest {
-            source: source.clone(),
-            task: SourceAnalysisTask::LegacyJob {
-                job_id,
-                embedding_worker_limit,
-            },
-        };
-        let result = match run_request_in_child(&request, cancel) {
-            Ok(result) => result,
-            Err(error) => {
-                reset_legacy_job(source, job_id)?;
-                return Err(error);
-            }
-        };
-        let Some(result) = result else {
-            reset_legacy_job(source, job_id)?;
-            return Ok((0, 0));
-        };
-        Ok((result.processed, result.failed))
-    }
-}
-
 pub(in crate::native_app) fn run_internal_source_analysis_from_args()
 -> Result<Option<String>, String> {
     let mut args = std::env::args();
@@ -226,23 +184,6 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
                 failed: 0,
             })
         }
-        SourceAnalysisTask::LegacyJob {
-            job_id,
-            embedding_worker_limit,
-        } => {
-            let summary =
-                crate::native_app::sample_library::similarity_prep::run_similarity_prep_job(
-                    &request.source,
-                    *job_id,
-                    &cancel,
-                    *embedding_worker_limit,
-                )?;
-            Ok(SourceAnalysisResult {
-                produced: summary.processed > 0 && summary.failed == 0,
-                processed: summary.processed,
-                failed: summary.failed,
-            })
-        }
     }
 }
 
@@ -254,12 +195,6 @@ fn open_source_connection(source: &SampleSource) -> Result<rusqlite::Connection,
         SourceDatabaseConnectionRole::JobWorker,
     )
     .map_err(|error| error.to_string())
-}
-
-#[cfg(not(test))]
-fn reset_legacy_job(source: &SampleSource, job_id: i64) -> Result<(), String> {
-    let connection = open_source_connection(source)?;
-    wavecrate::internal_analysis_jobs::release_job_by_id(&connection, job_id)
 }
 
 #[cfg(not(test))]

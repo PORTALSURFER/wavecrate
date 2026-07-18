@@ -26,5 +26,5 @@ This book is the public documentation surface for Wavecrate. It is intentionally
 - Make deliberate destructive edits such as crop, trim, mute, fade, reverse, and normalize.
 - Rate, tag, filter, and revisit sounds as taste changes.
 - Keep protected project material safe while still creating derived clips.
-- Prepare similarity data so related sounds become easier to find.
+- Find related sounds through automatically maintained similarity data.
 - Use current-app context menus for folders, sources, samples, collections, tags, and Harvest state.

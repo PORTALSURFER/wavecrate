@@ -130,9 +130,6 @@ pub fn rebuild_exact_similarity_artifacts(
                     [&state],
                 )
                 .map_err(|error| format!("Publish similarity generation state failed: {error}"))?;
-            transaction
-                .execute("DELETE FROM metadata WHERE key = 'ann_index_dirty_v1'", [])
-                .map_err(|error| format!("Clear ANN dirty state failed: {error}"))?;
             Ok(())
         },
     )?;
@@ -236,19 +233,12 @@ fn prune_path_derived_rows(
         .map_err(|error| format!("Prune obsolete readiness jobs failed: {error}"))?;
     pruned += transaction
         .execute(
-            "DELETE FROM analysis_jobs AS job
-             WHERE job.source_id = ?1
-               AND job.readiness_managed = 0
-               AND NOT EXISTS (
-                   SELECT 1 FROM source_readiness_targets AS target
-                   WHERE target.source_id = job.source_id
-                     AND target.scope_kind = 'file'
-                     AND target.relative_path IS NOT NULL
-                     AND target.source_id || '::' || target.relative_path = job.sample_id
-               )",
+            "DELETE FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_managed = 0",
             [source_id],
         )
-        .map_err(|error| format!("Prune stale similarity jobs failed: {error}"))?;
+        .map_err(|error| format!("Prune retired similarity jobs failed: {error}"))?;
     pruned += transaction
         .execute(
             "DELETE FROM source_readiness_artifacts AS artifact
@@ -382,6 +372,13 @@ mod tests {
         seed_current_readiness(&connection, "source::current-a", "identity-a", true);
         seed_current_readiness(&connection, "source::current-b", "identity-b", false);
         seed_obsolete_readiness(&connection);
+        seed_retired_ann_artifacts(directory.path());
+        connection
+            .execute_batch(
+                "INSERT INTO metadata VALUES ('ann_index_dirty_v1', '1');
+                 INSERT INTO metadata VALUES ('last_similarity_prep_scan_at', '123');",
+            )
+            .expect("seed retired similarity metadata");
 
         let first = vec![
             manifest_entry("source::current-a", axis_embedding(0, 1.0)),
@@ -402,8 +399,20 @@ mod tests {
         assert_exact_membership(&connection, "layout_umap", 2);
         assert_exact_membership(&connection, "hdbscan_clusters", 2);
         assert_eq!(ann_meta_count(&connection), 2);
-        assert_eq!(table_count(&connection, "analysis_jobs"), 3);
+        assert_eq!(table_count(&connection, "analysis_jobs"), 1);
         assert_eq!(table_count(&connection, "source_readiness_artifacts"), 1);
+        assert!(!directory.path().join("ann").exists());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM metadata
+                     WHERE key IN ('ann_index_dirty_v1', 'last_similarity_prep_scan_at')",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count retired similarity metadata"),
+            0
+        );
         assert_eq!(
             nearest_id(&connection, &axis_embedding(0, 1.0)),
             "source::current-a"
@@ -442,16 +451,6 @@ mod tests {
             )
             .expect("read similarity generation state");
         assert!(state.contains("generation-two"));
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT COUNT(*) FROM metadata WHERE key = 'ann_index_dirty_v1'",
-                    [],
-                    |row| row.get::<_, i64>(0),
-                )
-                .expect("count ANN dirty state"),
-            0
-        );
     }
 
     #[test]
@@ -496,6 +495,78 @@ mod tests {
             "old"
         );
         assert_eq!(ann_meta_count(&connection), 0);
+    }
+
+    #[test]
+    fn current_ann_generation_never_falls_back_to_an_unnamed_container() {
+        let directory = tempfile::tempdir().expect("similarity artifact directory");
+        let database_path = directory.path().join("source.db");
+        let mut connection = Connection::open(database_path).expect("open source database");
+        create_schema(&connection);
+        seed_path_artifacts(&connection, "source::current");
+        rebuild_exact_similarity_artifacts(
+            &mut connection,
+            request("current-generation"),
+            &[manifest_entry("source::current", axis_embedding(0, 1.0))],
+            &AtomicBool::new(false),
+            &|_| Ok(true),
+        )
+        .expect("publish exact generation")
+        .expect("generation accepted");
+        let current_path: String = connection
+            .query_row(
+                "SELECT index_path FROM ann_index_meta WHERE model_id = ?1",
+                [similarity::SIMILARITY_MODEL_ID],
+                |row| row.get(0),
+            )
+            .expect("read current ANN path");
+        std::fs::copy(&current_path, directory.path().join("similarity_hnsw.ann"))
+            .expect("seed unnamed fallback container");
+        std::fs::remove_file(&current_path).expect("remove current ANN generation");
+        ann_index::evict_index_for_test(&connection).expect("evict current ANN cache");
+
+        let error = ann_index::find_similar(&connection, "source::current", 1)
+            .expect_err("missing current generation must fail");
+
+        assert!(
+            error.contains("ANN container") || error.contains("Current ANN generation"),
+            "unexpected current-generation error: {error}"
+        );
+    }
+
+    #[test]
+    fn samples_absent_from_the_current_ann_generation_are_not_inserted_on_read() {
+        let directory = tempfile::tempdir().expect("similarity artifact directory");
+        let database_path = directory.path().join("source.db");
+        let mut connection = Connection::open(database_path).expect("open source database");
+        create_schema(&connection);
+        seed_path_artifacts(&connection, "source::current");
+        rebuild_exact_similarity_artifacts(
+            &mut connection,
+            request("current-generation"),
+            &[manifest_entry("source::current", axis_embedding(0, 1.0))],
+            &AtomicBool::new(false),
+            &|_| Ok(true),
+        )
+        .expect("publish exact generation")
+        .expect("generation accepted");
+        connection
+            .execute(
+                "INSERT INTO embeddings VALUES (?1, ?2, ?3, 'f32', 1, ?4, 1)",
+                params![
+                    "source::late",
+                    similarity::SIMILARITY_MODEL_ID,
+                    similarity::SIMILARITY_DIM as i64,
+                    crate::analysis::vector::encode_f32_le_blob(&axis_embedding(1, 1.0)),
+                ],
+            )
+            .expect("seed embedding outside current generation");
+
+        let error = ann_index::find_similar(&connection, "source::late", 1)
+            .expect_err("read must not mutate current ANN generation");
+
+        assert!(error.contains("not present in the current ANN generation"));
+        assert_eq!(ann_meta_count(&connection), 1);
     }
 
     fn create_schema(connection: &Connection) {
@@ -631,6 +702,18 @@ mod tests {
                 [],
             )
             .expect("seed obsolete readiness artifact");
+    }
+
+    fn seed_retired_ann_artifacts(root: &std::path::Path) {
+        let retired = root.join("ann");
+        std::fs::create_dir(&retired).expect("create retired ANN directory");
+        for filename in [
+            "similarity_hnsw.hnsw.graph",
+            "similarity_hnsw.hnsw.data",
+            "similarity_hnsw.idmap.json",
+        ] {
+            std::fs::write(retired.join(filename), b"retired").expect("seed retired ANN file");
+        }
     }
 
     fn manifest_entry(sample_id: &str, embedding: Vec<f32>) -> ExactSimilarityManifestEntry {

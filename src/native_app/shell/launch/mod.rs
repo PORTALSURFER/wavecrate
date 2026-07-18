@@ -28,7 +28,7 @@ pub(crate) fn run() -> Result<(), String> {
         return Ok(());
     }
     if let Some(finalized) =
-        crate::native_app::sample_library::similarity_prep::run_internal_similarity_finalizer_from_args()?
+        crate::native_app::sample_library::similarity_artifacts::run_internal_similarity_finalizer_from_args()?
     {
         println!("{finalized}");
         return Ok(());

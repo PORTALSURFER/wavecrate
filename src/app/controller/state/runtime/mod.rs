@@ -46,9 +46,7 @@ pub(crate) use file_recovery::FileRecoveryRuntimeState;
 pub(crate) use map_runtime::MapRuntimeState;
 pub(crate) use performance::PerformanceGovernorState;
 pub(crate) use projection_runtime::{ProjectionRevisionDirtyMask, ProjectionRuntimeState};
-pub(crate) use similarity_runtime::{
-    SimilarityPrepStage, SimilarityPrepState, SimilarityRuntimeState,
-};
+pub(crate) use similarity_runtime::SimilarityRuntimeState;
 pub(crate) use source_lane::ActiveAutoRenameBatchSnapshot;
 pub(crate) use source_lane::PendingSourceRemap;
 #[cfg(test)]

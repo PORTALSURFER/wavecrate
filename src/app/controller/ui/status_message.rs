@@ -2,41 +2,16 @@ use crate::app::controller::StatusTone;
 
 #[derive(Clone, Debug)]
 pub(crate) enum StatusMessage {
-    SelectSourceFirst {
-        tone: StatusTone,
-    },
+    SelectSourceFirst { tone: StatusTone },
     SelectSourceToScan,
     ScanAlreadyRunning,
-    SimilarityPrepAlreadyRunning,
-    SimilarityScanAlreadyRunning,
-    StarmapLayoutBuildAlreadyRunning,
-    ClusterBuildAlreadyRunning,
-    BuildingStarmapLayout,
-    BuildingClusters,
-    PreparingSimilarity {
-        source: String,
-    },
-    FinalizingSimilarityPrep,
-    SimilarityReady {
-        cluster_count: usize,
-        noise_ratio: f32,
-    },
-    SimilarityPrepFailed {
-        err: String,
-    },
-    SimilarityAlreadyUpToDate,
     RandomHistoryEmpty,
     RandomHistoryStart,
     RandomNavOff,
     NoSamplesToRandomize,
-    AddSourceFirst {
-        tone: StatusTone,
-    },
+    AddSourceFirst { tone: StatusTone },
     AddSourceWithSamplesFirst,
-    Custom {
-        text: String,
-        tone: StatusTone,
-    },
+    Custom { text: String, tone: StatusTone },
 }
 
 impl StatusMessage {
@@ -56,48 +31,6 @@ impl StatusMessage {
             StatusMessage::ScanAlreadyRunning => {
                 ("Scan already in progress".into(), StatusTone::Info)
             }
-            StatusMessage::SimilarityPrepAlreadyRunning => {
-                ("Similarity prep already running".into(), StatusTone::Info)
-            }
-            StatusMessage::SimilarityScanAlreadyRunning => {
-                ("Scan already in progress".into(), StatusTone::Info)
-            }
-            StatusMessage::StarmapLayoutBuildAlreadyRunning => (
-                "Starmap layout build already in progress".into(),
-                StatusTone::Info,
-            ),
-            StatusMessage::ClusterBuildAlreadyRunning => {
-                ("Cluster build already running".into(), StatusTone::Info)
-            }
-            StatusMessage::BuildingStarmapLayout => {
-                ("Building Starmap layout...".into(), StatusTone::Info)
-            }
-            StatusMessage::BuildingClusters => ("Building clusters...".into(), StatusTone::Info),
-            StatusMessage::PreparingSimilarity { source } => (
-                format!("Preparing similarity search for {}", source),
-                StatusTone::Busy,
-            ),
-            StatusMessage::FinalizingSimilarityPrep => {
-                ("Finalizing similarity prep...".into(), StatusTone::Busy)
-            }
-            StatusMessage::SimilarityReady {
-                cluster_count,
-                noise_ratio,
-            } => (
-                format!(
-                    "Similarity ready: {} clusters (noise {:.1}%)",
-                    cluster_count,
-                    noise_ratio * 100.0
-                ),
-                StatusTone::Info,
-            ),
-            StatusMessage::SimilarityPrepFailed { err } => {
-                (format!("Similarity prep failed: {err}"), StatusTone::Error)
-            }
-            StatusMessage::SimilarityAlreadyUpToDate => (
-                "Similarity search is already up to date for this source".into(),
-                StatusTone::Info,
-            ),
             StatusMessage::RandomHistoryEmpty => ("No random history yet".into(), StatusTone::Info),
             StatusMessage::RandomHistoryStart => {
                 ("Reached start of random history".into(), StatusTone::Info)

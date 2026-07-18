@@ -1,7 +1,6 @@
 //! Analysis enqueue and readiness-reconciliation trigger contract.
 
 use super::*;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 mod trigger;
@@ -10,8 +9,6 @@ mod trigger;
 pub(crate) enum AnalysisTriggerReason {
     SampleAdded,
     AudioContentChanged,
-    UserRequestedReanalysis,
-    SimilarityPrepBootstrap,
     ScanCompleted,
     WatcherAutoSync,
     DeferredMaintenance,
@@ -22,8 +19,6 @@ pub(crate) enum AnalysisTriggerReason {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AnalysisTriggerPolicy {
     ChangedSamples,
-    UserRequestedReanalysis,
-    SimilarityPrepBootstrap,
     ReadinessReconciliation,
     Forbidden,
 }
@@ -32,8 +27,6 @@ impl AnalysisTriggerReason {
     fn policy(self) -> AnalysisTriggerPolicy {
         match self {
             Self::SampleAdded | Self::AudioContentChanged => AnalysisTriggerPolicy::ChangedSamples,
-            Self::UserRequestedReanalysis => AnalysisTriggerPolicy::UserRequestedReanalysis,
-            Self::SimilarityPrepBootstrap => AnalysisTriggerPolicy::SimilarityPrepBootstrap,
             Self::ScanCompleted
             | Self::WatcherAutoSync
             | Self::DeferredMaintenance
@@ -75,22 +68,6 @@ impl ChangedSampleInput {
             content_hash: analysis_jobs::fast_content_hash(self.file_size, self.modified_ns),
         }
     }
-
-    fn sample_id(&self, source: &SampleSource) -> String {
-        analysis_jobs::build_sample_id(source.id.as_str(), &self.relative_path)
-    }
-}
-
-#[derive(Debug)]
-enum ManualReanalysisAction {
-    SelectedSource,
-    SelectedRows {
-        changed_samples: Vec<ChangedSampleInput>,
-        sample_ids: Vec<String>,
-    },
-    SimilarityPrepBootstrap {
-        force_full_analysis: bool,
-    },
 }
 
 enum AnalysisTrigger {
@@ -99,35 +76,12 @@ enum AnalysisTrigger {
         changed_samples: Vec<ChangedSampleInput>,
         announce: bool,
     },
-    UserRequestedReanalysis {
-        source: SampleSource,
-        action: ManualReanalysisAction,
-    },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RemapConflictPolicy {
-    CancelRemap,
-    BlockWithStatus,
 }
 
 impl AnalysisTrigger {
     fn source_id(&self) -> &SourceId {
         match self {
-            Self::ChangedSamples { source, .. } | Self::UserRequestedReanalysis { source, .. } => {
-                &source.id
-            }
-        }
-    }
-
-    fn remap_conflict_policy(&self) -> RemapConflictPolicy {
-        match self {
-            Self::ChangedSamples { .. }
-            | Self::UserRequestedReanalysis {
-                action: ManualReanalysisAction::SimilarityPrepBootstrap { .. },
-                ..
-            } => RemapConflictPolicy::CancelRemap,
-            Self::UserRequestedReanalysis { .. } => RemapConflictPolicy::BlockWithStatus,
+            Self::ChangedSamples { source, .. } => &source.id,
         }
     }
 }
@@ -186,91 +140,6 @@ impl AppController {
             vec![ChangedSampleInput::from_entry(entry)],
             announce,
         );
-    }
-
-    /// Manually reanalyze the selected source through the explicit replay surface.
-    pub fn reanalyze_selected_source(&mut self) {
-        let Some(source) = self.current_source() else {
-            self.set_status_message(StatusMessage::SelectSourceFirst {
-                tone: StatusTone::Warning,
-            });
-            return;
-        };
-        self.trigger_manual_reanalysis(source, ManualReanalysisAction::SelectedSource);
-    }
-
-    /// Queue analysis jobs to backfill the selected source.
-    pub fn backfill_missing_features_for_selected_source(&mut self) {
-        self.reanalyze_selected_source();
-    }
-
-    /// Queue analysis and embedding replay for the selected source.
-    pub fn backfill_embeddings_for_selected_source(&mut self) {
-        self.reanalyze_selected_source();
-    }
-
-    /// Manually reanalyze selected browser rows by visible index.
-    pub fn reanalyze_browser_rows(&mut self, rows: &[usize]) -> Result<(), String> {
-        let Some(source) = self.current_source() else {
-            return Err("Select a source first".to_string());
-        };
-
-        let mut row_samples = BTreeMap::new();
-        for &row in rows {
-            let Some(entry_index) = self.visible_browser_index(row) else {
-                continue;
-            };
-            let Some(entry) = self.wav_entry(entry_index) else {
-                continue;
-            };
-            let changed = ChangedSampleInput::from_entry(entry);
-            row_samples.insert(changed.sample_id(&source), changed);
-        }
-
-        if row_samples.is_empty() {
-            return Err("No valid samples selected".to_string());
-        }
-
-        let (sample_ids, changed_samples): (Vec<_>, Vec<_>) = row_samples.into_iter().unzip();
-
-        self.trigger_manual_reanalysis(
-            source,
-            ManualReanalysisAction::SelectedRows {
-                changed_samples,
-                sample_ids,
-            },
-        );
-        Ok(())
-    }
-
-    /// Recalculate similarity for the visible browser rows by index.
-    pub fn recalc_similarity_for_browser_rows(&mut self, rows: &[usize]) -> Result<(), String> {
-        self.reanalyze_browser_rows(rows)
-    }
-
-    pub(crate) fn enqueue_similarity_prep_bootstrap(
-        &mut self,
-        source: SampleSource,
-        force_full_analysis: bool,
-    ) {
-        debug_assert_eq!(
-            AnalysisTriggerReason::SimilarityPrepBootstrap.policy(),
-            AnalysisTriggerPolicy::SimilarityPrepBootstrap
-        );
-        self.trigger_manual_reanalysis(
-            source,
-            ManualReanalysisAction::SimilarityPrepBootstrap {
-                force_full_analysis,
-            },
-        );
-    }
-
-    fn trigger_manual_reanalysis(&mut self, source: SampleSource, action: ManualReanalysisAction) {
-        debug_assert_eq!(
-            AnalysisTriggerReason::UserRequestedReanalysis.policy(),
-            AnalysisTriggerPolicy::UserRequestedReanalysis
-        );
-        self.spawn_analysis_trigger(AnalysisTrigger::UserRequestedReanalysis { source, action });
     }
 
     /// Return true if any sources are configured.

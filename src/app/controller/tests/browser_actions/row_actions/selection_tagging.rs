@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::*;
 use crate::app::controller::jobs::JobMessage;
 

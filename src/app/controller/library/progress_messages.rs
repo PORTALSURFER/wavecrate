@@ -3,15 +3,6 @@ use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::scanner::ScanMode;
 
 const SCAN_PROGRESS_LABEL: &str = "Scanning source";
-const SIMILARITY_ANALYSIS_LABEL: &str = "Analyzing samples";
-const SIMILARITY_EMBEDDING_LABEL: &str = "Embedding similarity";
-const SIMILARITY_ASPECT_DESCRIPTOR_LABEL: &str = "Preparing similarity columns";
-const SIMILARITY_FINALIZE_LABEL: &str = "Finalizing similarity prep";
-const SIMILARITY_SCAN_DETAIL: &str = "Scanning source…";
-const SIMILARITY_ANALYSIS_DETAIL: &str = "Analyzing…";
-const SIMILARITY_EMBEDDING_DETAIL: &str = "Embedding backfill…";
-const SIMILARITY_ASPECT_DESCRIPTOR_DETAIL: &str = "Preparing similarity aspect descriptors…";
-const SIMILARITY_FINALIZE_DETAIL: &str = "Building Starmap layout, clustering, and ANN index…";
 const WAV_LOAD_LABEL: &str = "Loading samples";
 
 impl AppController {
@@ -65,94 +56,5 @@ impl AppController {
             format!("Loading wavs for {}", source.root.display()),
             StatusTone::Info,
         );
-    }
-
-    pub(crate) fn show_similarity_prep_progress(&mut self, total: usize, cancelable: bool) {
-        self.show_status_progress(
-            ProgressTaskKind::Analysis,
-            SIMILARITY_ANALYSIS_LABEL,
-            total,
-            cancelable,
-        );
-    }
-
-    pub(crate) fn set_similarity_scan_detail(&mut self) {
-        self.update_status_progress_title(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL);
-        if self.ui.progress.has_task(ProgressTaskKind::Scan)
-            && self
-                .ui
-                .progress
-                .task_detail(ProgressTaskKind::Scan)
-                .is_none()
-        {
-            self.update_progress_detail_for_task(ProgressTaskKind::Scan, SIMILARITY_SCAN_DETAIL);
-        }
-    }
-
-    pub(crate) fn set_similarity_embedding_detail(&mut self) {
-        if self.ui.progress.has_task(ProgressTaskKind::Analysis) {
-            self.update_status_progress_title(
-                ProgressTaskKind::Analysis,
-                SIMILARITY_EMBEDDING_LABEL,
-            );
-            self.update_progress_detail_for_task(
-                ProgressTaskKind::Analysis,
-                SIMILARITY_EMBEDDING_DETAIL,
-            );
-        }
-    }
-
-    pub(crate) fn set_similarity_aspect_descriptor_detail(&mut self) {
-        if self.ui.progress.has_task(ProgressTaskKind::Analysis) {
-            self.update_status_progress_title(
-                ProgressTaskKind::Analysis,
-                SIMILARITY_ASPECT_DESCRIPTOR_LABEL,
-            );
-            self.update_progress_detail_for_task(
-                ProgressTaskKind::Analysis,
-                SIMILARITY_ASPECT_DESCRIPTOR_DETAIL,
-            );
-        }
-    }
-
-    pub(crate) fn set_similarity_analysis_detail(&mut self) {
-        if self.ui.progress.has_task(ProgressTaskKind::Analysis) {
-            self.update_status_progress_title(
-                ProgressTaskKind::Analysis,
-                SIMILARITY_ANALYSIS_LABEL,
-            );
-            self.update_progress_detail_for_task(
-                ProgressTaskKind::Analysis,
-                SIMILARITY_ANALYSIS_DETAIL,
-            );
-        }
-    }
-
-    pub(crate) fn set_similarity_finalize_detail(&mut self) {
-        self.update_progress_detail_for_task(
-            ProgressTaskKind::Analysis,
-            SIMILARITY_FINALIZE_DETAIL,
-        );
-    }
-
-    pub(crate) fn ensure_similarity_prep_progress(&mut self, total: usize, cancelable: bool) {
-        if !self.ui.progress.has_task(ProgressTaskKind::Analysis) {
-            self.show_similarity_prep_progress(total, cancelable);
-        }
-    }
-
-    pub(crate) fn show_similarity_finalize_progress(&mut self) {
-        self.show_status_progress(
-            ProgressTaskKind::Analysis,
-            SIMILARITY_FINALIZE_LABEL,
-            0,
-            true,
-        );
-    }
-
-    pub(crate) fn ensure_similarity_finalize_progress(&mut self) {
-        if !self.ui.progress.has_task(ProgressTaskKind::Analysis) {
-            self.show_similarity_finalize_progress();
-        }
     }
 }

@@ -40,9 +40,6 @@ use crate::native_app::sample_library::folder_browser::scan::{
 };
 use crate::native_app::sample_library::folder_scan_actions::FolderScanMaintenanceResult;
 use crate::native_app::sample_library::native_file_open_actions::NativeAudioDocumentOpenValidation;
-use crate::native_app::sample_library::similarity_prep::{
-    SimilarityPrepEnqueueResult, SimilarityPrepStatusResult,
-};
 use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult;
 use crate::native_app::sample_library::trash_actions::movement::TrashMoveOutcome;
 use crate::native_app::waveform::WaveformInteraction;
@@ -180,8 +177,6 @@ pub(in crate::native_app) enum GuiMessage {
     },
     SimilaritySettingsPersisted(SimilaritySettingsPersistResult),
     StarmapLayoutLoaded(StarmapLayoutLoadResult),
-    SimilarityPrepStatusResolved(SimilarityPrepStatusResult),
-    SimilarityPrepEnqueueFinished(SimilarityPrepEnqueueResult),
     SimilarityScoresResolved(SimilarityScoresResult),
     SimilarityReadinessAdvanced {
         source_id: String,

@@ -16,9 +16,6 @@ pub type MapBounds = crate::app::state::MapBounds;
 /// Cached projected map point payload used by migration-facing map projections.
 pub type MapPoint = crate::app::state::MapPoint;
 
-/// Map similarity-preparation status surfaced by map projections.
-pub type MapSimilarityPrepStatus = crate::app::state::MapSimilarityPrepStatus;
-
 /// Map rendering mode exposed by migration-facing projections.
 pub type MapRenderMode = crate::app::state::MapRenderMode;
 

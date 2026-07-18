@@ -6108,7 +6108,6 @@ dependencies = [
 name = "wavecrate-analysis-admin"
 version = "19.1.1"
 dependencies = [
- "hdbscan",
  "rusqlite",
  "wavecrate",
  "wavecrate-analysis",
@@ -6156,13 +6155,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tracing",
  "wavecrate-library",
-]
-
-[[package]]
-name = "wavecrate-similarity-prep"
-version = "19.1.1"
-dependencies = [
- "wavecrate",
 ]
 
 [[package]]

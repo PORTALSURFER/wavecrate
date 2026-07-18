@@ -1,19 +1,12 @@
-use super::super::wakeup;
-use super::enqueue_embeddings::enqueue_jobs_for_embedding_backfill;
-use super::enqueue_samples::{
-    enqueue_jobs_for_source, enqueue_jobs_for_source_backfill,
-    enqueue_jobs_for_source_backfill_full, enqueue_jobs_for_source_missing_features,
-};
+use super::enqueue_samples::enqueue_jobs_for_source;
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app_dirs::ConfigBaseGuard;
 use crate::sample_sources::scanner::ChangedSample;
 use crate::sample_sources::{SampleSource, SourceDatabase};
 use rusqlite::{Connection, params};
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
 use tempfile::{TempDir, tempdir};
 
-mod backfill;
 mod invalidation;
 
 struct TestEnv {
@@ -22,8 +15,6 @@ struct TestEnv {
     _source_dir: TempDir,
     source: SampleSource,
 }
-
-static CLAIM_WAKEUP_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 impl TestEnv {
     fn new() -> Self {

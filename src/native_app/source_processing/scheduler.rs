@@ -297,25 +297,6 @@ impl WorkCandidate {
             enqueued_at,
         }
     }
-
-    pub(crate) fn file(
-        source_id: impl Into<String>,
-        relative_path: impl Into<String>,
-        lane: ProcessingLane,
-        stage_rank: u8,
-        enqueued_at: i64,
-    ) -> Self {
-        let source_id = source_id.into();
-        let relative_path = relative_path.into();
-        Self {
-            source_id,
-            scope_id: relative_path.clone(),
-            relative_path: Some(relative_path),
-            lane,
-            stage_rank,
-            enqueued_at,
-        }
-    }
 }
 
 /// Source-queued scheduler that chooses a source fairly, then drains its runnable work before

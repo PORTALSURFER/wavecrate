@@ -6,7 +6,6 @@ use crate::app_core::actions::NativeMapPanelModel as MapPanelModel;
 use crate::app_core::actions::ui_projection_dtos::MapRenderModeModel;
 use crate::app_core::controller::AppController;
 use crate::app_core::state::MapRenderMode;
-use crate::app_core::state::MapSimilarityPrepStatus;
 use std::{path::Path, sync::Arc};
 
 /// Resolve the projected ui-projection render mode and its label.
@@ -52,94 +51,19 @@ pub(super) fn build_map_unavailable_model(
     render_mode: MapRenderModeModel,
     render_mode_label: &str,
 ) -> MapPanelModel {
-    let (summary, selection_label, hover_label, cluster_label) =
-        unavailable_labels(controller.ui.map.similarity_prep_status.as_ref());
     MapPanelModel {
         active: true,
-        summary,
+        summary: String::from("Similarity data is still processing"),
         legend_label: format!("Render: {render_mode_label}"),
-        selection_label,
-        hover_label,
-        cluster_label,
+        selection_label: String::from("Selection: —"),
+        hover_label: String::from("Hover: —"),
+        cluster_label: String::from("Clusters: —"),
         viewport_label: viewport_label(controller),
         error: None,
         render_mode,
         selected_item_id: None,
         focused_item_id: None,
         points: Arc::default(),
-    }
-}
-
-fn unavailable_labels(
-    status: Option<&MapSimilarityPrepStatus>,
-) -> (String, String, String, String) {
-    match status {
-        Some(MapSimilarityPrepStatus::Outdated) => (
-            String::from("Similarity prep is out of date"),
-            String::from("Action: rerun similarity prep for this source"),
-            String::from("Reason: source changed after the last prep run"),
-            String::from("State: waiting for operator retry"),
-        ),
-        Some(MapSimilarityPrepStatus::Blocked {
-            failed_count,
-            unsupported_count,
-        }) => (
-            format!("Similarity prep blocked by {failed_count} failed files"),
-            String::from("Action: inspect failed rows, then retry similarity prep"),
-            if *unsupported_count > 0 {
-                format!(
-                    "Failures: {failed_count} total ({unsupported_count} unsupported stay excluded)"
-                )
-            } else {
-                format!("Failures: {failed_count} total")
-            },
-            String::from("State: prerequisite analysis incomplete"),
-        ),
-        Some(MapSimilarityPrepStatus::MissingArtifacts {
-            missing_embeddings,
-            missing_aspects,
-            missing_layout,
-        }) => (
-            String::from("Similarity prep artifacts are missing"),
-            String::from("Action: run similarity prep for this source"),
-            missing_artifacts_reason(*missing_embeddings, *missing_aspects, *missing_layout),
-            String::from("State: no completed prep artifacts yet"),
-        ),
-        Some(MapSimilarityPrepStatus::UpToDate) => (
-            String::from("No map data available"),
-            String::from("Selection: —"),
-            String::from("Hover: —"),
-            String::from("State: similarity prep is up to date"),
-        ),
-        None => (
-            String::from("No map data (run similarity prep)"),
-            String::from("Selection: —"),
-            String::from("Hover: —"),
-            String::from("Clusters: —"),
-        ),
-    }
-}
-
-fn missing_artifacts_reason(
-    missing_embeddings: bool,
-    missing_aspects: bool,
-    missing_layout: bool,
-) -> String {
-    match (missing_embeddings, missing_aspects, missing_layout) {
-        (true, true, true) => {
-            String::from("Reason: embeddings, similarity columns, and layout are missing")
-        }
-        (true, true, false) => {
-            String::from("Reason: embeddings and similarity columns are missing")
-        }
-        (true, false, true) => String::from("Reason: embeddings and layout artifacts are missing"),
-        (true, false, false) => String::from("Reason: embeddings are missing"),
-        (false, true, true) => {
-            String::from("Reason: similarity columns and map layout are missing")
-        }
-        (false, true, false) => String::from("Reason: similarity columns are missing"),
-        (false, false, true) => String::from("Reason: Starmap layout artifacts are missing"),
-        (false, false, false) => String::from("Reason: prep artifacts are unavailable"),
     }
 }
 

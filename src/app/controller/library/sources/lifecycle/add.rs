@@ -110,7 +110,6 @@ impl AppController {
         let _ = self.cache_db(&source);
         self.refresh_source_watcher();
         self.select_source(Some(source.id.clone()));
-        self.prepare_similarity_for_selected_source();
         record_source_lifecycle_event(
             "sources.add",
             Some(source.id.as_str()),

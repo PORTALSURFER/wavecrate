@@ -21,7 +21,7 @@ the same shipped app platforms: macOS and Windows.
 - Drag on the waveform with the primary mouse button to create a play mark selection, or use the secondary mouse button to create an edit mark selection for destructive in-place edits (crop, trim, reverse, fades, mute, smooth, normalize).
 - Drag the selection handle onto Samples or a folder to export a trimmed clip (saved into the selected folder when applicable).
 - Use the browser filter chips to triage quickly: `All/Keep/Trash/Untagged` for tags and `NVR/1M/1W` for playback age. `Space` toggles play/pause, `Esc` stops playback (or exits slice review first), and `Silence Split` opens a keyboard slice-review loop.
-- Use **Find similar** or the **Similarity map** tab to explore related samples after similarity prep finishes.
+- Use **Find similar** or the **Similarity map** tab to explore related samples after automatic similarity processing finishes.
 
 ## Layout at a glance
 - **Sources (left):** Source list plus folder browser + selected folders; missing sources show `!`.
@@ -43,8 +43,8 @@ the same shipped app platforms: macOS and Windows.
 
 ## Manage sources
 - Click **+** or drop a folder to add. Wavecrate creates/uses `.wavecrate_samples.db` and loads `.wav` entries.
-- Right-click a source row: **Quick sync**, **Hard sync (full rescan)**, **Prepare similarity search**, similarity prep options, **Open in file explorer**, **Remap source...**, **Remove source**. Add new files outside Wavecrate? Run a sync.
-- Selecting any row loads the waveform and (by default) starts playback. Missing sources are prefixed with `!`. Similarity prep starts automatically after adding a source.
+- Right-click a source row to sync, prioritize **Process Source**, open it in the file explorer, remap it, or remove it. Add new files outside Wavecrate? Run a sync.
+- Selecting any row loads the waveform and (by default) starts playback. Missing sources are prefixed with `!`. Similarity artifacts reconcile automatically after adding or changing a source.
 - Use the **Folders** tree to filter which subfolders appear in the Samples list. Drag samples onto folders to move files on disk.
 
 ## Browse and triage
@@ -58,7 +58,7 @@ the same shipped app platforms: macOS and Windows.
 - **Ctrl/Cmd + C** copies the focused or selected sample file(s) to the clipboard as file drops (for DAWs/file managers). Dragging a row into the browser retags it to the active filter (All/Untagged → Neutral).
 
 ## Similarity search & map
-- **Prepare similarity search** from a source row menu or the **Prepare similarity map** button in the map tab (runs analysis + embeddings + clustering for that source).
+- Similarity analysis, embeddings, layout, and clustering reconcile automatically. Use **Process Source** to prioritize the active source.
 - **Find similar** filters the Samples list to related items; use **Clear similar** to return to the full list.
 - **Similarity map** tab: scroll to zoom, right-drag to pan, hover or click a point to preview and focus that sample.
 

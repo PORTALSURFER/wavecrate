@@ -61,13 +61,6 @@ impl AppController {
             JobMessage::LoadedSimilarityQueryBuilt(message) => {
                 similarity::handle_loaded_similarity_query_built(self, message);
             }
-            JobMessage::UmapBuilt(message) => self.handle_umap_built_message(message),
-            JobMessage::UmapClustersBuilt(message) => {
-                self.handle_umap_clusters_built_message(message)
-            }
-            JobMessage::SimilarityPrepared(message) => {
-                similarity::handle_similarity_prepared(self, message);
-            }
             JobMessage::UpdateChecked(message) => {
                 updates::handle_update_checked(self, message);
             }

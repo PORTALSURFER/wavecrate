@@ -9,7 +9,6 @@ members = [
     "tools/analysis-admin",
     "tools/bench-cli",
     "tools/gui-test-cli",
-    "tools/similarity-prep",
 ]
 default-members = ["."]
 resolver = "3"
@@ -146,10 +145,6 @@ path = "src/main.rs"
 
 [[bench]]
 name = "tagging"
-harness = false
-
-[[bench]]
-name = "ann_index"
 harness = false
 
 [profile.release-local]
