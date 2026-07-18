@@ -535,6 +535,75 @@ mod tests {
     }
 
     #[test]
+    fn legacy_ann_metadata_fails_closed_until_current_publication() {
+        let directory = tempfile::tempdir().expect("similarity artifact directory");
+        let database_path = directory.path().join("source.db");
+        let mut connection = Connection::open(database_path).expect("open source database");
+        create_schema(&connection);
+        seed_path_artifacts(&connection, "source::current");
+        rebuild_exact_similarity_artifacts(
+            &mut connection,
+            request("seed-container"),
+            &[manifest_entry("source::current", axis_embedding(0, 1.0))],
+            &AtomicBool::new(false),
+            &|_| Ok(true),
+        )
+        .expect("publish seed generation")
+        .expect("seed generation accepted");
+        let current_path: String = connection
+            .query_row(
+                "SELECT index_path FROM ann_index_meta WHERE model_id = ?1",
+                [similarity::SIMILARITY_MODEL_ID],
+                |row| row.get(0),
+            )
+            .expect("read seed ANN path");
+        let legacy_path = directory.path().join("similarity_hnsw.ann");
+        std::fs::copy(&current_path, &legacy_path).expect("seed retired unnamed ANN container");
+        connection
+            .execute(
+                "UPDATE ann_index_meta SET index_path = ?1 WHERE model_id = ?2",
+                params![
+                    legacy_path.to_string_lossy(),
+                    similarity::SIMILARITY_MODEL_ID
+                ],
+            )
+            .expect("point legacy metadata at unnamed container");
+        connection
+            .execute(
+                "DELETE FROM metadata WHERE key = 'similarity_artifact_state_v1'",
+                [],
+            )
+            .expect("remove current artifact generation state");
+        ann_index::evict_index_for_test(&connection).expect("evict seed ANN cache");
+
+        let error = ann_index::find_similar(&connection, "source::current", 1)
+            .expect_err("legacy ANN metadata must fail closed");
+        assert!(
+            error.contains("Current similarity artifact generation"),
+            "unexpected legacy-generation error: {error}"
+        );
+
+        rebuild_exact_similarity_artifacts(
+            &mut connection,
+            request("current-after-legacy"),
+            &[manifest_entry("source::current", axis_embedding(0, 1.0))],
+            &AtomicBool::new(false),
+            &|_| Ok(true),
+        )
+        .expect("publish current generation")
+        .expect("current generation accepted");
+        assert!(
+            !legacy_path.exists(),
+            "current publication must remove the retired unnamed ANN container"
+        );
+        ann_index::evict_index_for_test(&connection).expect("evict current ANN cache");
+        assert_eq!(
+            nearest_id(&connection, &axis_embedding(0, 1.0)),
+            "source::current"
+        );
+    }
+
+    #[test]
     fn samples_absent_from_the_current_ann_generation_are_not_inserted_on_read() {
         let directory = tempfile::tempdir().expect("similarity artifact directory");
         let database_path = directory.path().join("source.db");

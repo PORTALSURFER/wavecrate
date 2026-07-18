@@ -2,24 +2,63 @@ use super::container;
 use super::state::{
     AnnHnsw, AnnIndexParams, AnnIndexState, LoadedAnnHnsw, build_id_lookup, default_params,
 };
-use super::storage::read_meta;
+use super::storage::{generation_index_path, read_meta};
 use hnsw_rs::prelude::*;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use tempfile::Builder;
 
 const TEMP_UNPACK_BASENAME: &str = "ann_unpack";
 
+#[derive(Deserialize)]
+struct CurrentSimilarityArtifactState {
+    state: String,
+    artifact_generation: String,
+    model_id: String,
+}
+
 /// Load the exact ANN generation named by the current database metadata.
 pub(crate) fn load_current_index(conn: &Connection) -> Result<AnnIndexState, String> {
     let params = default_params();
+    let artifact_state = read_current_artifact_state(conn)?.ok_or_else(|| {
+        "Current similarity artifact generation has not been published".to_string()
+    })?;
+    if artifact_state.state != "current" || artifact_state.model_id != params.model_id {
+        return Err("Current similarity artifact state uses a different contract".to_string());
+    }
     let meta = read_meta(conn, &params.model_id)?
         .ok_or_else(|| "Current ANN generation has not been published".to_string())?;
     if meta.params != params {
         return Err("Current ANN generation uses a different contract version".to_string());
     }
+    let expected_path = generation_index_path(conn, &artifact_state.artifact_generation)?;
+    if meta.index_path != expected_path {
+        return Err(
+            "Current ANN metadata does not name the published artifact generation".to_string(),
+        );
+    }
     load_container_index(&meta.index_path, &meta.params)?
         .ok_or_else(|| "Current ANN generation container is missing or invalid".to_string())
+}
+
+fn read_current_artifact_state(
+    conn: &Connection,
+) -> Result<Option<CurrentSimilarityArtifactState>, String> {
+    let state = conn
+        .query_row(
+            "SELECT value FROM metadata WHERE key = 'similarity_artifact_state_v1'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("Failed to read current similarity artifact state: {error}"))?;
+    state
+        .map(|state| {
+            serde_json::from_str(&state)
+                .map_err(|error| format!("Invalid current similarity artifact state: {error}"))
+        })
+        .transpose()
 }
 
 pub(crate) fn build_index_from_embeddings(

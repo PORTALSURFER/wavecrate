@@ -171,19 +171,7 @@ pub(crate) fn publish_exact_index_with_transaction(
     publish_sql_artifacts: impl FnOnce(&rusqlite::Transaction<'_>) -> Result<(), String>,
 ) -> Result<bool, String> {
     let params = state::default_params();
-    let default_path = storage::default_index_path(conn)?;
-    let parent = default_path
-        .parent()
-        .ok_or_else(|| "ANN index path missing parent".to_string())?;
-    let generation = artifact_generation
-        .chars()
-        .filter(|character| character.is_ascii_alphanumeric())
-        .take(32)
-        .collect::<String>();
-    if generation.is_empty() {
-        return Err("ANN artifact generation must not be empty".to_string());
-    }
-    let index_path = parent.join(format!("similarity_hnsw.{generation}.ann"));
+    let index_path = storage::generation_index_path(conn, artifact_generation)?;
     let mut state = Some(build::build_index_from_embeddings(
         embeddings, params, index_path,
     )?);
@@ -228,10 +216,8 @@ pub(crate) fn publish_exact_index_with_transaction(
         return Ok(false);
     }
     let state = state.take().expect("published ANN state must be available");
-    let published_index_path = state.index_path.clone();
     registry.insert(key, Arc::new(RwLock::new(state)));
     drop(registry);
-    storage::remove_superseded_generation(&default_path, &published_index_path);
     storage::remove_retired_artifacts(conn);
     Ok(true)
 }

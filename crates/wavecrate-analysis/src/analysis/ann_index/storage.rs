@@ -3,7 +3,7 @@ use crate::app_dirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::{Path, PathBuf};
 
-const ANN_CONTAINER_NAME: &str = "similarity_hnsw.ann";
+const RETIRED_ANN_CONTAINER_NAME: &str = "similarity_hnsw.ann";
 const RETIRED_ANN_DIR: &str = "ann";
 const RETIRED_ANN_FILES: &[&str] = &[
     "similarity_hnsw.hnsw.graph",
@@ -63,18 +63,33 @@ pub(crate) fn upsert_meta(conn: &Connection, state: &AnnIndexState) -> Result<()
 
 /// Produce a stable cache key for ANN state keyed by the source database.
 pub(crate) fn index_key(conn: &Connection) -> Result<String, String> {
-    let index_path = default_index_path(conn)?;
-    Ok(index_path.to_string_lossy().to_string())
+    let root = index_root_dir(conn)?;
+    Ok(root.to_string_lossy().to_string())
 }
 
-/// Resolve the current ANN container path for a source database.
-pub(crate) fn default_index_path(conn: &Connection) -> Result<PathBuf, String> {
+/// Resolve the exact generation-specific ANN container path for a source database.
+pub(crate) fn generation_index_path(
+    conn: &Connection,
+    artifact_generation: &str,
+) -> Result<PathBuf, String> {
+    let generation = artifact_generation
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .take(32)
+        .collect::<String>();
+    if generation.is_empty() {
+        return Err("ANN artifact generation must not be empty".to_string());
+    }
+    Ok(index_root_dir(conn)?.join(format!("similarity_hnsw.{generation}.ann")))
+}
+
+fn index_root_dir(conn: &Connection) -> Result<PathBuf, String> {
     let root = match database_root_dir(conn) {
         Ok(dir) => dir,
         Err(_) => app_dirs::app_root_dir().map_err(|err| err.to_string())?,
     };
     std::fs::create_dir_all(&root).map_err(|err| format!("Failed to create ANN dir: {err}"))?;
-    Ok(root.join(ANN_CONTAINER_NAME))
+    Ok(root)
 }
 
 /// Best-effort removal for an obsolete generation container in the same source database.
@@ -95,6 +110,10 @@ pub(crate) fn remove_retired_artifacts(conn: &Connection) {
     let Ok(root) = database_root_dir(conn) else {
         return;
     };
+    let retired_container = root.join(RETIRED_ANN_CONTAINER_NAME);
+    if retired_container.is_file() {
+        let _ = std::fs::remove_file(retired_container);
+    }
     let retired_dir = root.join(RETIRED_ANN_DIR);
     for filename in RETIRED_ANN_FILES {
         let path = retired_dir.join(filename);
