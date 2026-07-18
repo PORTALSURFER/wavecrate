@@ -82,11 +82,10 @@ impl FolderBrowserState {
     ) -> Option<VisibleSampleWindowFiles<'_>> {
         let required_tags = self.active_required_tags();
         let playback_type_filters = self.active_playback_type_filters();
-        let ids = self
-            .selected_collection_audio_file_ids_ref_with_sort_tags_if_cached(
-                collection,
-                Some(tags_by_file),
-            )?;
+        let ids = self.selected_collection_audio_file_ids_ref_with_sort_tags_if_cached(
+            collection,
+            Some(tags_by_file),
+        )?;
         if required_tags.is_empty()
             && playback_type_filters.is_empty()
             && !self.filters.curation.enabled

@@ -41,7 +41,6 @@ impl AppController {
             );
         self.clear_active_source_for_loading();
         self.invalidate_source_selection_map_state();
-        self.refresh_selected_source_similarity_prep_status();
         self.queue_active_source_hydration(self.selection_state.ctx.selected_source.clone());
         self.refresh_sources_ui();
         let _ = self.persist_config("Failed to save selection");

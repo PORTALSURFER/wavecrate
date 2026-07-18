@@ -5,7 +5,6 @@ const MAX_MAX_ANALYSIS_DURATION_SECONDS: f32 = 60.0 * 60.0;
 const MIN_LONG_SAMPLE_THRESHOLD_SECONDS: f32 = 1.0;
 const MAX_LONG_SAMPLE_THRESHOLD_SECONDS: f32 = 60.0 * 60.0;
 const MAX_ANALYSIS_WORKER_COUNT: u32 = 64;
-const MIN_FAST_PREP_SAMPLE_RATE: u32 = 8_000;
 
 pub(crate) fn clamp_max_analysis_duration_seconds(seconds: f32) -> f32 {
     seconds.clamp(
@@ -27,25 +26,9 @@ impl AppController {
         self.settings.analysis.max_analysis_duration_seconds
     }
 
-    /// Return whether similarity-prep duration capping is enabled.
-    pub fn similarity_prep_duration_cap_enabled(&self) -> bool {
-        self.settings.analysis.limit_similarity_prep_duration
-    }
-
     /// Return the threshold for marking long samples in the browser.
     pub fn long_sample_threshold_seconds(&self) -> f32 {
         self.settings.analysis.long_sample_threshold_seconds
-    }
-
-    /// Enable or disable similarity-prep duration capping.
-    pub fn set_similarity_prep_duration_cap_enabled(&mut self, enabled: bool) {
-        if self.settings.analysis.limit_similarity_prep_duration == enabled {
-            return;
-        }
-        self.settings.analysis.limit_similarity_prep_duration = enabled;
-        if let Err(err) = self.persist_config("Failed to save options") {
-            self.set_status(err, StatusTone::Warning);
-        }
     }
 
     /// Set the maximum analysis duration in seconds.
@@ -83,40 +66,6 @@ impl AppController {
     /// Return the auto-selected analysis worker count for this host.
     pub fn analysis_auto_worker_count(&self) -> u32 {
         crate::app::controller::library::analysis_jobs::default_worker_count()
-    }
-
-    /// Return whether fast similarity-prep mode is enabled.
-    pub fn similarity_prep_fast_mode_enabled(&self) -> bool {
-        self.settings.analysis.fast_similarity_prep
-    }
-
-    /// Enable or disable fast similarity-prep mode.
-    pub fn set_similarity_prep_fast_mode_enabled(&mut self, enabled: bool) {
-        if self.settings.analysis.fast_similarity_prep == enabled {
-            return;
-        }
-        self.settings.analysis.fast_similarity_prep = enabled;
-        if let Err(err) = self.persist_config("Failed to save options") {
-            self.set_status(err, StatusTone::Warning);
-        }
-    }
-
-    /// Return the sample rate used for fast similarity prep.
-    pub fn similarity_prep_fast_sample_rate(&self) -> u32 {
-        self.settings.analysis.fast_similarity_prep_sample_rate
-    }
-
-    /// Set the sample rate used for fast similarity prep.
-    pub fn set_similarity_prep_fast_sample_rate(&mut self, value: u32) {
-        let max_rate = wavecrate_analysis::ANALYSIS_SAMPLE_RATE;
-        let clamped = value.clamp(MIN_FAST_PREP_SAMPLE_RATE, max_rate);
-        if self.settings.analysis.fast_similarity_prep_sample_rate == clamped {
-            return;
-        }
-        self.settings.analysis.fast_similarity_prep_sample_rate = clamped;
-        if let Err(err) = self.persist_config("Failed to save options") {
-            self.set_status(err, StatusTone::Warning);
-        }
     }
 
     /// Set a fixed analysis worker count.

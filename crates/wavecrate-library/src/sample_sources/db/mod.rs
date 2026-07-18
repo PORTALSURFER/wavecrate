@@ -63,7 +63,6 @@ pub const META_LAST_SCAN_COMPLETED_AT: &str = "last_scan_completed_at";
 /// Metadata key storing the last completed periodic source-manifest audit timestamp.
 pub const META_LAST_MANIFEST_AUDIT_AT: &str = "last_manifest_audit_at_v1";
 /// Metadata key for the last similarity-prep scan timestamp.
-pub const META_LAST_SIMILARITY_PREP_SCAN_AT: &str = "last_similarity_prep_scan_at";
 /// Metadata key storing the last data revision cleaned by deferred maintenance.
 pub const META_DEFERRED_MAINTENANCE_REVISION: &str = "deferred_maintenance_revision_v1";
 /// Metadata key storing the last deferred-maintenance schema token.

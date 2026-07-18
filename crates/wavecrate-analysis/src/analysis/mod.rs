@@ -11,25 +11,20 @@ pub(crate) mod fft;
 pub(crate) mod frequency_domain;
 pub mod hdbscan;
 pub mod similarity;
+mod similarity_artifacts;
 pub(crate) mod time_domain;
-/// Legacy UMAP-named starmap layout utilities for visualization.
-///
-/// The current implementation is backed by t-SNE while persisted schema and
-/// compatibility shims still use `umap` naming internally.
-pub mod umap;
+pub(crate) mod umap;
 /// Feature vector encoding/decoding helpers.
 pub mod vector;
 pub(crate) mod version;
 
-pub use umap::{
-    MapLayoutReport, build_map_layout, build_map_layout_with_cancel,
-    build_map_layout_with_cancel_and_publication_fence, default_layout_report_path,
-    write_layout_report,
+pub use similarity_artifacts::{
+    ExactSimilarityArtifactRequest, ExactSimilarityManifestEntry, ExactSimilarityPublication,
+    rebuild_exact_similarity_artifacts,
 };
 pub use vector::decode_f32_le_blob;
 pub use vector::{FEATURE_VECTOR_LEN_V1, FEATURE_VERSION_V1};
 
-use rusqlite::Connection;
 use std::path::Path;
 
 /// Lightweight DSP vector length (time-domain features only).
@@ -95,14 +90,6 @@ pub fn preprocess_mono_for_embedding(samples: &[f32], sample_rate: u32) -> Vec<f
     audio::preprocess_mono_for_embedding(samples, sample_rate)
 }
 
-/// Deprecated compatibility stub for removed PANNs embedding inference.
-///
-/// This always returns an error because runtime embedding inference no longer
-/// ships in this codebase.
-pub fn infer_embedding(_samples: &[f32], _sample_rate: u32) -> Result<Vec<f32>, String> {
-    Err("PANNs embedding inference is deprecated and removed.".to_string())
-}
-
 /// Extract the lightweight DSP vector from a full V1 feature vector.
 pub fn light_dsp_from_features_v1(features: &[f32]) -> Option<Vec<f32>> {
     if features.len() < LIGHT_DSP_VECTOR_LEN {
@@ -110,35 +97,6 @@ pub fn light_dsp_from_features_v1(features: &[f32]) -> Option<Vec<f32>> {
     }
     Some(features[..LIGHT_DSP_VECTOR_LEN].to_vec())
 }
-
-/// Rebuild the ANN index from embeddings in the library database.
-pub fn rebuild_ann_index(conn: &Connection) -> Result<(), String> {
-    ann_index::rebuild_index(conn)
-}
-
-/// Rebuild the ANN index from authoritative embeddings while a publication fence is current.
-pub fn rebuild_ann_index_with_publication_fence(
-    conn: &mut Connection,
-    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
-) -> Result<bool, String> {
-    ann_index::rebuild_index_with_publication_fence(conn, publication_fence)
-}
-
-/// Flush any pending ANN insertions without forcing a rebuild.
-pub fn flush_ann_index(conn: &Connection) -> Result<(), String> {
-    ann_index::flush_pending_inserts(conn)
-}
-
-/// Flush pending ANN insertions while an exact transactional generation fence remains current.
-pub fn flush_ann_index_with_publication_fence(
-    conn: &mut Connection,
-    publication_fence: &impl Fn(&Connection) -> Result<bool, String>,
-) -> Result<bool, String> {
-    ann_index::flush_pending_inserts_with_publication_fence(conn, publication_fence)
-}
-
-#[cfg(test)]
-mod ann_index_tests;
 
 #[cfg(test)]
 mod tests {
@@ -195,12 +153,5 @@ mod tests {
             compute_feature_vector_v1_for_mono_samples(&samples, 44_100).expect("features");
         assert_eq!(features.len(), FEATURE_VECTOR_LEN_V1);
         assert!(features.iter().all(|value| value.is_finite()));
-    }
-
-    #[test]
-    fn infer_embedding_reports_removed_runtime_support() {
-        let err = infer_embedding(&[0.0, 1.0], 44_100).unwrap_err();
-        assert!(err.to_ascii_lowercase().contains("deprecated"));
-        assert!(err.to_ascii_lowercase().contains("removed"));
     }
 }

@@ -63,7 +63,7 @@ Wavecrate is a focused sample-library workstation for browsing large folders, au
   </section>
   <section>
     <h3>Find related sounds</h3>
-    <p>Prepare similarity data for a source, then use Find Similar or the map view to jump through related samples inside the active browser scope.</p>
+    <p>Wavecrate maintains similarity data automatically. Use Find Similar or the map view to jump through related samples inside the active browser scope.</p>
   </section>
 </div>
 

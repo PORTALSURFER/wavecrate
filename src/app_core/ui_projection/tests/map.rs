@@ -1,18 +1,4 @@
 use super::*;
-use crate::app_core::state::MapSimilarityPrepStatus;
-use std::path::PathBuf;
-
-fn add_selected_source(controller: &mut AppController) {
-    let source = crate::sample_sources::SampleSource::new(PathBuf::from("map-projection-source"));
-    let source_id = source.id.clone();
-    controller.register_source_for_tests(source);
-    controller.select_browser_source_for_tests(source_id);
-    controller.ui.map.cached_bounds_source_id = controller
-        .selected_source_id()
-        .map(|id| id.as_str().to_string());
-    controller.ui.map.cached_bounds_umap_version = Some(controller.ui.map.umap_version.clone());
-    controller.ui.map.bounds = None;
-}
 
 /// Map projection should expose legend, selection, hover, cluster, and viewport summary text.
 #[test]
@@ -179,55 +165,4 @@ fn map_projection_reuses_retained_points_for_selection_overlay_changes() {
 
     assert!(std::sync::Arc::ptr_eq(&first.points, &second.points));
     assert_eq!(second.selected_item_id.as_deref(), Some("source::kick.wav"));
-}
-
-#[test]
-fn map_projection_surfaces_outdated_similarity_prep_reason() {
-    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.active_tab = SampleBrowserTab::Map;
-    add_selected_source(&mut controller);
-    controller.ui.map.similarity_prep_status = Some(MapSimilarityPrepStatus::Outdated);
-
-    let projected = project_map_model(&mut controller);
-
-    assert_eq!(projected.summary, "Similarity prep is out of date");
-    assert_eq!(
-        projected.selection_label,
-        "Action: rerun similarity prep for this source"
-    );
-    assert_eq!(
-        projected.hover_label,
-        "Reason: source changed after the last prep run"
-    );
-    assert_eq!(projected.cluster_label, "State: waiting for operator retry");
-}
-
-#[test]
-fn map_projection_surfaces_blocked_similarity_prep_reason() {
-    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.browser.active_tab = SampleBrowserTab::Map;
-    add_selected_source(&mut controller);
-    controller.ui.map.similarity_prep_status = Some(MapSimilarityPrepStatus::Blocked {
-        failed_count: 4,
-        unsupported_count: 1,
-    });
-
-    let projected = project_map_model(&mut controller);
-
-    assert_eq!(
-        projected.summary,
-        "Similarity prep blocked by 4 failed files"
-    );
-    assert_eq!(
-        projected.selection_label,
-        "Action: inspect failed rows, then retry similarity prep"
-    );
-    assert_eq!(
-        projected.hover_label,
-        "Failures: 4 total (1 unsupported stay excluded)"
-    );
-    assert_eq!(
-        projected.cluster_label,
-        "State: prerequisite analysis incomplete"
-    );
 }

@@ -27,11 +27,8 @@ fn settings_round_trip_fixture() -> SettingsRoundTripFixture {
             },
             analysis: AnalysisSettings {
                 max_analysis_duration_seconds: 12.5,
-                limit_similarity_prep_duration: false,
                 long_sample_threshold_seconds: 42.0,
                 analysis_worker_count: 2,
-                fast_similarity_prep: true,
-                fast_similarity_prep_sample_rate: 8_000,
             },
             updates: UpdateSettings {
                 channel: UpdateChannel::Nightly,

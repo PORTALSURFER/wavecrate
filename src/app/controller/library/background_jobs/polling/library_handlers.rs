@@ -195,9 +195,6 @@ impl AppController {
                 );
             }
         }
-        if self.selection_state.ctx.selected_source.as_ref() == Some(&message.source_id) {
-            self.refresh_selected_source_similarity_prep_status();
-        }
     }
 
     /// Build triage partitions from controller-owned optimistic rows while metadata writes are pending.

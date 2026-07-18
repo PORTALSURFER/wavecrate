@@ -38,4 +38,4 @@ Run source sync from the source context menu. Use hard sync when ordinary sync d
 
 ## Why is similarity search empty?
 
-Prepare similarity data for the source first. Similarity search depends on analysis, embeddings, and clustering work that can take time on large folders.
+Similarity artifacts reconcile automatically. Large folders can take time to finish analysis, embeddings, layout, and clustering; use **Process Source** to prioritize the source.

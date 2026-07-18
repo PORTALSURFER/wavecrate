@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn unchanged_scan_stays_analysis_free_when_similarity_prep_is_idle() {
+fn unchanged_scan_stays_analysis_free() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).expect("cache db");

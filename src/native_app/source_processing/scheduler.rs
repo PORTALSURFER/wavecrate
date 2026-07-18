@@ -297,25 +297,6 @@ impl WorkCandidate {
             enqueued_at,
         }
     }
-
-    pub(crate) fn file(
-        source_id: impl Into<String>,
-        relative_path: impl Into<String>,
-        lane: ProcessingLane,
-        stage_rank: u8,
-        enqueued_at: i64,
-    ) -> Self {
-        let source_id = source_id.into();
-        let relative_path = relative_path.into();
-        Self {
-            source_id,
-            scope_id: relative_path.clone(),
-            relative_path: Some(relative_path),
-            lane,
-            stage_rank,
-            enqueued_at,
-        }
-    }
 }
 
 /// Source-queued scheduler that chooses a source fairly, then drains its runnable work before
@@ -453,8 +434,8 @@ fn priority_weight(candidate: &WorkCandidate, context: &PriorityContext) -> u64 
 
 fn stage_rank(stage: ReadinessStage) -> u8 {
     match stage {
-        ReadinessStage::PlaybackSummary => 0,
-        ReadinessStage::IndexedIdentity => 1,
+        ReadinessStage::IndexedIdentity => 0,
+        ReadinessStage::PlaybackSummary => 1,
         ReadinessStage::AnalysisFeatures => 2,
         ReadinessStage::EmbeddingAspects => 3,
         ReadinessStage::SimilarityLayout => 4,
@@ -537,6 +518,26 @@ mod tests {
         };
         let index = scheduler.choose(&candidates, &priority, &budgets).unwrap();
         assert_eq!(candidates[index].scope_id, "playback");
+    }
+
+    #[test]
+    fn exact_identity_is_drained_before_content_derived_stages() {
+        let mut scheduler = FairScheduler::default();
+        let budgets = BudgetTracker::new(ProcessingBudgets::for_tests(
+            ResourceUse::new(10, 10, 10),
+            ResourceUse::new(10, 10, 10),
+            10,
+        ));
+        let candidates = [
+            candidate("source", "sample", ReadinessStage::PlaybackSummary),
+            candidate("source", "sample", ReadinessStage::IndexedIdentity),
+        ];
+
+        let index = scheduler
+            .choose(&candidates, &PriorityContext::default(), &budgets)
+            .unwrap();
+
+        assert_eq!(candidates[index].stage_rank, 0);
     }
 
     #[test]

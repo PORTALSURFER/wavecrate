@@ -1,6 +1,5 @@
 use super::fixtures::{JobRow, TestDb};
 use super::*;
-use rusqlite::OptionalExtension;
 use std::io;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -80,50 +79,6 @@ fn progress_uses_relative_path_over_sample_id() {
     let progress = current_progress(&db.conn, std::path::Path::new("/tmp")).unwrap();
     assert_eq!(progress.total(), 1);
     assert_eq!(progress.pending, 1);
-}
-
-#[test]
-fn ann_index_dirty_marker_round_trips() {
-    let db = TestDb::new();
-    mark_ann_index_dirty(&db.conn, "failed").unwrap();
-    let value: String = db
-        .conn
-        .query_row(
-            "SELECT value FROM metadata WHERE key = 'ann_index_dirty_v1'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert!(value.contains("failed"));
-    clear_ann_index_dirty(&db.conn).unwrap();
-    let cleared: Option<String> = db
-        .conn
-        .query_row(
-            "SELECT value FROM metadata WHERE key = 'ann_index_dirty_v1'",
-            [],
-            |row| row.get(0),
-        )
-        .optional()
-        .unwrap();
-    assert!(cleared.is_none());
-}
-
-#[test]
-fn enqueue_rebuild_job_dedupes_pending() {
-    let db = TestDb::new();
-    let inserted = enqueue_rebuild_ann_index_job(&db.conn, "s", 10).unwrap();
-    assert_eq!(inserted, 1);
-    let second = enqueue_rebuild_ann_index_job(&db.conn, "s", 11).unwrap();
-    assert_eq!(second, 0);
-    let count: i64 = db
-        .conn
-        .query_row(
-            "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1",
-            rusqlite::params![REBUILD_INDEX_JOB_TYPE],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(count, 1);
 }
 
 #[test]

@@ -133,12 +133,6 @@ fn analysis_progress_route_context(controller: &AppController) -> AnalysisProgre
     AnalysisProgressRouteContext {
         selected_source_id: controller.selection_state.ctx.selected_source.clone(),
         current_source_id: controller.current_source().map(|source| source.id.clone()),
-        similarity_prep_source_id: controller
-            .runtime
-            .similarity
-            .prep
-            .as_ref()
-            .map(|state| state.source_id.clone()),
     }
 }
 
@@ -153,9 +147,6 @@ fn apply_analysis_progress_route_action(
         } => store_scoped_analysis_progress(controller, source_id, progress),
         AnalysisProgressRouteAction::ClearAnalysisProgress => {
             clear_analysis_progress_if_active(controller);
-        }
-        AnalysisProgressRouteAction::ForwardSimilarityPrepProgress(progress) => {
-            controller.handle_similarity_analysis_progress(&progress);
         }
         AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh => {
             controller.force_feature_cache_refresh_for_browser();

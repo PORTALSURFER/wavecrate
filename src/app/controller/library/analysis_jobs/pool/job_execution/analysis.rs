@@ -2,8 +2,8 @@ use crate::app::controller::library::analysis_jobs::db;
 
 use super::analysis_cache::{load_existing_embedding, lookup_cache_by_hash};
 use super::analysis_db::{
-    apply_cached_embedding, apply_cached_features_and_embedding, finish_decoded_analysis_write,
-    persist_decoded_analysis_write, update_metadata_for_skip,
+    apply_cached_embedding, apply_cached_features_and_embedding, persist_decoded_analysis_write,
+    update_metadata_for_skip,
 };
 use super::analysis_decode::{DecodeOutcome, decode_for_analysis};
 use super::support::JobHeartbeat;
@@ -47,9 +47,7 @@ pub(crate) fn run_analysis_job(
     }
     if context.use_cache {
         let cache = lookup_cache_by_hash(conn, content_hash, context.analysis_version)?;
-        if let (Some(features), Some(embedding), Some(embedding_vec)) =
-            (&cache.features, &cache.embedding, &cache.embedding_vec)
-        {
+        if let (Some(features), Some(embedding)) = (&cache.features, &cache.embedding) {
             checkpoint(context)?;
             apply_cached_features_and_embedding(
                 conn,
@@ -58,7 +56,6 @@ pub(crate) fn run_analysis_job(
                 features,
                 embedding,
                 cache.aspect_descriptors.as_ref(),
-                embedding_vec,
                 context.analysis_version,
             )?;
             return Ok(());
@@ -112,9 +109,9 @@ pub(crate) fn run_analysis_job_with_decoded(
         needs_embedding_upsert,
     )?;
     checkpoint(context)?;
-    let persisted = persist_decoded_analysis_write(conn, Some(job.source_root.as_path()), &write)?;
+    persist_decoded_analysis_write(conn, Some(job.source_root.as_path()), &write)?;
     checkpoint(context)?;
-    finish_decoded_analysis_write(conn, job, &write, persisted, true)
+    Ok(())
 }
 
 pub(crate) fn run_analysis_jobs_with_decoded_batch(
@@ -208,37 +205,17 @@ pub(crate) fn run_analysis_jobs_with_decoded_batch(
     let source_root = batch_jobs
         .first()
         .map(|item| item.job.source_root.as_path());
-    let persisted =
-        match super::analysis_db::persist_decoded_analysis_batch(conn, source_root, &writes) {
-            Ok(persisted) => Some(persisted),
-            Err(err) => {
-                return batch_jobs
-                    .into_iter()
-                    .map(|item| (item.job, Err(err.clone())))
-                    .collect();
-            }
-        };
+    if let Err(err) = super::analysis_db::persist_decoded_analysis_batch(conn, source_root, &writes)
+    {
+        return batch_jobs
+            .into_iter()
+            .map(|item| (item.job, Err(err.clone())))
+            .collect();
+    }
     let mut outcomes = Vec::with_capacity(batch_jobs.len());
     for item in batch_jobs {
         let _ = heartbeat.touch_jobs(conn, &job_ids);
-        let result = if let Some(err) = item.error {
-            Err(err)
-        } else if let Some(index) = item.write_index {
-            let persisted = persisted
-                .as_ref()
-                .and_then(|items| items.get(index))
-                .copied()
-                .unwrap_or(false);
-            super::analysis_db::finish_decoded_analysis_write(
-                conn,
-                &item.job,
-                &writes[index],
-                persisted,
-                true,
-            )
-        } else {
-            Ok(())
-        };
+        let result = item.error.map_or(Ok(()), Err);
         outcomes.push((item.job, result));
     }
     outcomes

@@ -132,6 +132,7 @@ impl FolderBrowserState {
         };
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn invalidate_starmap_layout(&mut self) {
         self.sample_list.starmap_layout = StarmapLayoutCache::default();
     }

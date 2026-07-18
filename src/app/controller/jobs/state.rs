@@ -66,8 +66,6 @@ pub(super) struct JobInProgressState {
     pub(crate) scan: bool,
     pub(crate) trash_move: bool,
     pub(crate) file_ops: bool,
-    pub(crate) umap_build: bool,
-    pub(crate) umap_cluster_build: bool,
     pub(crate) update_check: bool,
     pub(crate) issue_gateway: bool,
     pub(crate) issue_gateway_auth: bool,

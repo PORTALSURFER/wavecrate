@@ -2,7 +2,6 @@ use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::db::telemetry;
 use std::path::Path;
 
-use super::ann::upsert_ann_with_recovery;
 use super::planning::DecodedAnalysisWrite;
 
 pub(crate) fn apply_cached_features_and_embedding(
@@ -12,7 +11,6 @@ pub(crate) fn apply_cached_features_and_embedding(
     features: &db::CachedFeatures,
     embedding: &db::CachedEmbedding,
     aspect_descriptors: Option<&db::CachedAspectDescriptors>,
-    embedding_vec: &[f32],
     analysis_version: &str,
 ) -> Result<(), String> {
     if !persist_cached_analysis_write(
@@ -27,7 +25,6 @@ pub(crate) fn apply_cached_features_and_embedding(
     )? {
         return Ok(());
     }
-    upsert_ann_with_recovery(conn, job, embedding_vec)?;
     Ok(())
 }
 
@@ -100,20 +97,6 @@ pub(crate) fn persist_decoded_analysis_batch(
         .map_err(|err| format!("Failed to commit decoded analysis transaction: {err}"))?;
     maybe_checkpoint_source_db(source_root);
     Ok(persisted)
-}
-
-/// Finish one decoded analysis write by updating ANN state after the SQL commit.
-pub(crate) fn finish_decoded_analysis_write(
-    conn: &rusqlite::Connection,
-    job: &db::ClaimedJob,
-    write: &DecodedAnalysisWrite,
-    persisted: bool,
-    do_ann_upsert: bool,
-) -> Result<(), String> {
-    if !persisted || !do_ann_upsert {
-        return Ok(());
-    }
-    upsert_ann_with_recovery(conn, job, &write.ann_embedding)
 }
 
 fn persist_decoded_analysis_write_in_tx(

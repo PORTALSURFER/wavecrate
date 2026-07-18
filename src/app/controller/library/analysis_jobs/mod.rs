@@ -20,11 +20,8 @@ pub(crate) use db::{
     update_sample_long_mark,
 };
 pub(crate) use enqueue::enqueue_jobs_for_source;
-pub(crate) use enqueue::enqueue_jobs_for_source_backfill;
-pub(crate) use enqueue::enqueue_jobs_for_source_backfill_full;
 pub(crate) use enqueue::fast_content_hash;
 pub(crate) use enqueue::update_missing_durations_for_source;
-pub(crate) use enqueue::{enqueue_jobs_for_embedding_backfill, enqueue_jobs_for_embedding_samples};
 pub(crate) use failures::failed_samples_for_source;
 pub(crate) use pool::AnalysisWorkerPool;
 pub(crate) use types::{AnalysisJobMessage, AnalysisProgress};

@@ -11,8 +11,8 @@ use super::{
     curation, curation_filter_allows_file, filters, playback_type_filter, rating_filter, traversal,
 };
 use crate::native_app::sample_library::folder_browser::{
-    visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
     FileEntry, FolderBrowserState, FolderEntry,
+    visible_samples::{VisibleSampleProjectionRequest, VisibleSampleWindowFiles},
 };
 
 impl FolderBrowserState {

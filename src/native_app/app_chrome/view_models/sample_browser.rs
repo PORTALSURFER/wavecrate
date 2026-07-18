@@ -118,7 +118,11 @@ impl<'a> SampleBrowserViewProjection<'a> {
             visible_samples,
             map_items,
             map_status: state.library.folder_browser.starmap_status(),
-            map_prep_running: state.library.similarity_prep.running,
+            map_prep_running: state
+                .background
+                .source_processing_progress
+                .as_ref()
+                .is_some_and(|progress| progress.active),
             map_audition_drag: state.ui.chrome.starmap_audition_drag.clone(),
             map_active_audition_file_id: active_starmap_audition_file_id(state),
             map_viewport: state.ui.chrome.starmap_viewport,

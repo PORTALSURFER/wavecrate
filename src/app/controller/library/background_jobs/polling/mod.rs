@@ -15,20 +15,17 @@ impl AppController {
     /// Drain queued background job messages and apply their side effects.
     pub(crate) fn poll_background_jobs(&mut self) {
         self.apply_progress_cancel_request();
-        self.runtime.jobs.resume_deferred_starmap_writes();
         if self.has_pending_browser_focus_commit() {
             self.flush_pending_browser_focus_commit();
         }
         let mut applied = 0usize;
         while applied < MAX_BACKGROUND_MESSAGES_PER_POLL {
             let Some(message) = self.try_next_background_job_message() else {
-                self.runtime.jobs.resume_deferred_starmap_writes();
                 return;
             };
             self.handle_background_job_message(message);
             applied += 1;
         }
-        self.runtime.jobs.resume_deferred_starmap_writes();
         self.runtime.jobs.request_repaint();
     }
 

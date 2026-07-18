@@ -3,10 +3,13 @@ use crate::app_dirs;
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::{Path, PathBuf};
 
-const ANN_CONTAINER_NAME: &str = "similarity_hnsw.ann";
-const LEGACY_ANN_DIR: &str = "ann";
-const LEGACY_ANN_BASENAME: &str = "similarity_hnsw";
-const LEGACY_ANN_ID_MAP_SUFFIX: &str = "idmap.json";
+const RETIRED_ANN_CONTAINER_NAME: &str = "similarity_hnsw.ann";
+const RETIRED_ANN_DIR: &str = "ann";
+const RETIRED_ANN_FILES: &[&str] = &[
+    "similarity_hnsw.hnsw.graph",
+    "similarity_hnsw.hnsw.data",
+    "similarity_hnsw.idmap.json",
+];
 
 /// Load ANN metadata for the given model id, if present.
 pub(crate) fn read_meta(
@@ -60,50 +63,65 @@ pub(crate) fn upsert_meta(conn: &Connection, state: &AnnIndexState) -> Result<()
 
 /// Produce a stable cache key for ANN state keyed by the source database.
 pub(crate) fn index_key(conn: &Connection) -> Result<String, String> {
-    let index_path = default_index_path(conn)?;
-    Ok(index_path.to_string_lossy().to_string())
+    let root = index_root_dir(conn)?;
+    Ok(root.to_string_lossy().to_string())
 }
 
-/// Return the legacy id map path for a legacy ANN index base path.
-pub(crate) fn legacy_id_map_path_for(index_path: &Path) -> PathBuf {
-    let basename = index_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(LEGACY_ANN_BASENAME);
-    let parent = index_path.parent().unwrap_or_else(|| Path::new("."));
-    parent.join(format!("{basename}.{LEGACY_ANN_ID_MAP_SUFFIX}"))
+/// Resolve the exact generation-specific ANN container path for a source database.
+pub(crate) fn generation_index_path(
+    conn: &Connection,
+    artifact_generation: &str,
+) -> Result<PathBuf, String> {
+    let generation = artifact_generation
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .take(32)
+        .collect::<String>();
+    if generation.is_empty() {
+        return Err("ANN artifact generation must not be empty".to_string());
+    }
+    Ok(index_root_dir(conn)?.join(format!("similarity_hnsw.{generation}.ann")))
 }
 
-/// Load the legacy id map JSON from legacy ANN files.
-pub(crate) fn load_legacy_id_map(path: &Path) -> Result<Vec<String>, String> {
-    let bytes = std::fs::read(path).map_err(|err| format!("Failed to read id map: {err}"))?;
-    serde_json::from_slice(&bytes).map_err(|err| format!("Failed to decode id map: {err}"))
-}
-
-/// Save the legacy id map JSON (needed for testing migrations).
-#[cfg(test)]
-pub(crate) fn save_legacy_id_map(path: &Path, id_map: &[String]) -> Result<(), String> {
-    let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
-    serde_json::to_writer(file, id_map).map_err(|e| e.to_string())
-}
-
-/// Resolve the current ANN container path for a source database.
-pub(crate) fn default_index_path(conn: &Connection) -> Result<PathBuf, String> {
+fn index_root_dir(conn: &Connection) -> Result<PathBuf, String> {
     let root = match database_root_dir(conn) {
         Ok(dir) => dir,
         Err(_) => app_dirs::app_root_dir().map_err(|err| err.to_string())?,
     };
     std::fs::create_dir_all(&root).map_err(|err| format!("Failed to create ANN dir: {err}"))?;
-    Ok(root.join(ANN_CONTAINER_NAME))
+    Ok(root)
 }
 
-/// Resolve the legacy ANN index base path for migration checks.
-pub(crate) fn legacy_index_path(conn: &Connection) -> Result<PathBuf, String> {
-    let root = match database_root_dir(conn) {
-        Ok(dir) => dir,
-        Err(_) => app_dirs::app_root_dir().map_err(|err| err.to_string())?,
+/// Best-effort removal for an obsolete generation container in the same source database.
+pub(crate) fn remove_superseded_generation(previous: &Path, current: &Path) {
+    if previous == current || previous.parent() != current.parent() {
+        return;
+    }
+    let Some(name) = previous.file_name().and_then(|name| name.to_str()) else {
+        return;
     };
-    Ok(root.join(LEGACY_ANN_DIR).join(LEGACY_ANN_BASENAME))
+    if name.starts_with("similarity_hnsw.") && name.ends_with(".ann") {
+        let _ = std::fs::remove_file(previous);
+    }
+}
+
+/// Best-effort removal of files owned exclusively by the retired split-file ANN format.
+pub(crate) fn remove_retired_artifacts(conn: &Connection) {
+    let Ok(root) = database_root_dir(conn) else {
+        return;
+    };
+    let retired_container = root.join(RETIRED_ANN_CONTAINER_NAME);
+    if retired_container.is_file() {
+        let _ = std::fs::remove_file(retired_container);
+    }
+    let retired_dir = root.join(RETIRED_ANN_DIR);
+    for filename in RETIRED_ANN_FILES {
+        let path = retired_dir.join(filename);
+        if path.is_file() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+    let _ = std::fs::remove_dir(retired_dir);
 }
 
 /// Return the directory that contains the source database file.

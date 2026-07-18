@@ -79,13 +79,6 @@ fn handle_successful_scan(
 ) {
     let changed_samples = stats.changed_samples.clone();
     let scan_changed = !changed_samples.is_empty();
-    let similarity_prep_active = controller
-        .runtime
-        .similarity
-        .prep
-        .as_ref()
-        .is_some_and(|state| state.source_id == *source_id);
-
     if !apply_selected_source_scan_deltas(controller, source_id, is_selected_source, &stats) {
         invalidate_scan_caches(controller, source_id, is_selected_source);
     }
@@ -98,10 +91,6 @@ fn handle_successful_scan(
         scan_changed,
         &stats,
     );
-    if is_selected_source {
-        controller.refresh_selected_source_similarity_prep_status();
-    }
-
     let source = controller
         .library
         .sources
@@ -111,9 +100,6 @@ fn handle_successful_scan(
 
     if let Some(source) = source {
         spawn_duration_refresh(controller, source);
-    }
-    if similarity_prep_active {
-        controller.handle_similarity_scan_finished(source_id);
     }
     clear_scan_progress_if_active(controller);
 }
@@ -290,7 +276,7 @@ fn clear_scan_progress_if_active(controller: &mut AppController) {
 
 fn handle_scan_failure(
     controller: &mut AppController,
-    source_id: &SourceId,
+    _source_id: &SourceId,
     label: &str,
     is_selected_source: bool,
     err: Option<crate::sample_sources::scanner::ScanError>,
@@ -307,7 +293,6 @@ fn handle_scan_failure(
         };
         controller.set_background_status(message, tone);
     }
-    controller.cancel_similarity_prep(source_id);
 }
 
 #[cfg(test)]

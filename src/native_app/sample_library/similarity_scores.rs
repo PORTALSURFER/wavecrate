@@ -244,25 +244,48 @@ impl NativeAppState {
         if source.id.as_str() != source_id {
             return;
         }
-        if self.library.similarity_prep.readiness_score_refresh_running {
-            self.library.similarity_prep.readiness_score_refresh_pending = true;
+        if self
+            .library
+            .similarity_artifacts
+            .readiness_score_refresh_running
+        {
+            self.library
+                .similarity_artifacts
+                .readiness_score_refresh_pending = true;
             return;
         }
-        self.library.similarity_prep.readiness_score_refresh_running = true;
+        self.library
+            .similarity_artifacts
+            .readiness_score_refresh_running = true;
         self.queue_similarity_score_resolution(anchor_id, context);
     }
 
     fn finish_readiness_score_refresh(&mut self, context: &mut ui::UiUpdateContext<GuiMessage>) {
-        if !self.library.similarity_prep.readiness_score_refresh_running {
+        if !self
+            .library
+            .similarity_artifacts
+            .readiness_score_refresh_running
+        {
             return;
         }
-        self.library.similarity_prep.readiness_score_refresh_running = false;
-        if !std::mem::take(&mut self.library.similarity_prep.readiness_score_refresh_pending) {
+        self.library
+            .similarity_artifacts
+            .readiness_score_refresh_running = false;
+        if !std::mem::take(
+            &mut self
+                .library
+                .similarity_artifacts
+                .readiness_score_refresh_pending,
+        ) {
             return;
         }
-        self.library.similarity_prep.readiness_score_refresh_running = true;
+        self.library
+            .similarity_artifacts
+            .readiness_score_refresh_running = true;
         if !self.queue_active_similarity_score_resolution(context) {
-            self.library.similarity_prep.readiness_score_refresh_running = false;
+            self.library
+                .similarity_artifacts
+                .readiness_score_refresh_running = false;
         }
     }
 }

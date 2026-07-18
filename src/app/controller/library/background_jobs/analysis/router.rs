@@ -6,7 +6,6 @@ use crate::sample_sources::SourceId;
 pub(super) struct AnalysisProgressRouteContext {
     pub(super) selected_source_id: Option<SourceId>,
     pub(super) current_source_id: Option<SourceId>,
-    pub(super) similarity_prep_source_id: Option<SourceId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,7 +15,6 @@ pub(super) enum AnalysisProgressRouteAction {
         progress: AnalysisProgress,
     },
     ClearAnalysisProgress,
-    ForwardSimilarityPrepProgress(AnalysisProgress),
     ForceSelectedFeatureCacheRefresh,
     QueueAnalysisFailuresRefresh,
     QueueSelectedSourceProgress(AnalysisProgress),
@@ -46,21 +44,10 @@ impl AnalysisProgressRouter {
                 inserted,
                 progress,
                 announce,
-            } => route_enqueue_finished(context, inserted, progress, false, announce),
+            } => route_enqueue_finished(context, inserted, progress, announce),
             AnalysisJobMessage::EnqueueFailed(err) => {
                 vec![AnalysisProgressRouteAction::SetStatus {
                     text: format!("Analysis enqueue failed: {err}"),
-                    tone: StatusTone::Error,
-                }]
-            }
-            AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
-                inserted,
-                progress,
-                announce,
-            } => route_enqueue_finished(context, inserted, progress, true, announce),
-            AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err) => {
-                vec![AnalysisProgressRouteAction::SetStatus {
-                    text: format!("Similarity artifact backfill enqueue failed: {err}"),
                     tone: StatusTone::Error,
                 }]
             }
@@ -76,12 +63,6 @@ fn route_progress(
     source_id: Option<SourceId>,
     progress: AnalysisProgress,
 ) -> Vec<AnalysisProgressRouteAction> {
-    if context.similarity_prep_source_id.is_some()
-        && source_id.as_ref() != context.similarity_prep_source_id.as_ref()
-    {
-        return Vec::new();
-    }
-
     let mut actions = Vec::new();
     if source_id.as_ref() == context.selected_source_id.as_ref()
         && let Some(source_id) = source_id.as_ref()
@@ -90,11 +71,6 @@ fn route_progress(
             source_id: source_id.clone(),
             progress,
         });
-    }
-    if source_id.as_ref() == context.similarity_prep_source_id.as_ref() && source_id.is_some() {
-        actions.push(AnalysisProgressRouteAction::ForwardSimilarityPrepProgress(
-            progress,
-        ));
     }
     if !progress_matches_selected_source(context.selected_source_id.as_ref(), source_id.as_ref()) {
         return actions;
@@ -117,22 +93,16 @@ fn route_enqueue_finished(
     context: &AnalysisProgressRouteContext,
     inserted: usize,
     progress: AnalysisProgress,
-    embedding_backfill: bool,
     announce: bool,
 ) -> Vec<AnalysisProgressRouteAction> {
     let mut actions = vec![AnalysisProgressRouteAction::ResumeAnalysis];
     if inserted > 0 && announce {
-        let label = if embedding_backfill {
-            "similarity artifact jobs"
-        } else {
-            "analysis jobs"
-        };
         actions.push(AnalysisProgressRouteAction::SetStatus {
-            text: format!("Queued {inserted} {label}"),
+            text: format!("Queued {inserted} analysis jobs"),
             tone: StatusTone::Info,
         });
     }
-    if !embedding_backfill && let Some(source_id) = context.selected_source_id.as_ref() {
+    if let Some(source_id) = context.selected_source_id.as_ref() {
         if context.current_source_id.as_ref() == Some(source_id) {
             actions.push(AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh);
         } else {

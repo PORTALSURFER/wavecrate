@@ -3,7 +3,7 @@
 use super::*;
 use crate::app::controller::jobs::{
     ConfigPersistJob, ConfigPersistResult, SourceDbMaintenanceRefresh, SourceDbMaintenanceResult,
-    UmapBuildResult, UmapClusterBuildResult, WaveformRenderResult, WaveformTransientResult,
+    WaveformRenderResult, WaveformTransientResult,
 };
 
 mod metadata;
@@ -117,75 +117,6 @@ impl AppController {
                     format!("Waveform transient detection failed: {err}"),
                     StatusTone::Error,
                 );
-            }
-        }
-    }
-
-    /// Apply one completed Starmap layout build result.
-    pub(super) fn handle_umap_built_message(&mut self, message: UmapBuildResult) {
-        self.runtime.jobs.clear_umap_build();
-        match message.result {
-            Ok(crate::app::controller::jobs::StarmapWriteOutcome::Completed(())) => {
-                self.ui.map.bounds = None;
-                self.ui.map.cached_bounds_source_id = None;
-                self.ui.map.cached_bounds_umap_version = None;
-                self.ui.map.last_query = None;
-                self.ui.map.cached_points.clear();
-                self.ui.map.cached_points_source_id = None;
-                self.ui.map.cached_points_umap_version = None;
-                self.mark_map_dataset_projection_revision_dirty();
-                self.mark_map_query_projection_revision_dirty();
-                self.set_status(
-                    format!("Starmap layout {} built", message.job.umap_version),
-                    StatusTone::Info,
-                );
-            }
-            Ok(crate::app::controller::jobs::StarmapWriteOutcome::DeferredForFileOp) => {
-                self.runtime.jobs.defer_umap_build(message.job);
-            }
-            Err(err) => {
-                self.set_status(
-                    format!("Starmap layout build failed: {err}"),
-                    StatusTone::Error,
-                );
-            }
-        }
-    }
-
-    /// Apply one completed starmap cluster-build result.
-    pub(super) fn handle_umap_clusters_built_message(&mut self, message: UmapClusterBuildResult) {
-        self.runtime.jobs.clear_umap_cluster_build();
-        match message.result {
-            Ok(crate::app::controller::jobs::StarmapWriteOutcome::Completed(stats)) => {
-                self.ui.map.last_query = None;
-                self.ui.map.cached_points.clear();
-                self.ui.map.cached_points_source_id = None;
-                self.ui.map.cached_points_umap_version = None;
-                self.ui.map.cached_cluster_centroids_key = None;
-                self.ui.map.cached_cluster_centroids = None;
-                self.ui.map.auto_cluster_build_requested_key = None;
-                self.mark_map_dataset_projection_revision_dirty();
-                self.mark_map_query_projection_revision_dirty();
-                let scope = message
-                    .job
-                    .source_id
-                    .as_ref()
-                    .map(|id| id.as_str())
-                    .unwrap_or("all sources");
-                self.set_status(
-                    format!(
-                        "Clusters built for {scope} ({} clusters, {:.1}% noise)",
-                        stats.cluster_count,
-                        stats.noise_ratio * 100.0
-                    ),
-                    StatusTone::Info,
-                );
-            }
-            Ok(crate::app::controller::jobs::StarmapWriteOutcome::DeferredForFileOp) => {
-                self.runtime.jobs.defer_umap_cluster_build(message.job);
-            }
-            Err(err) => {
-                self.set_status(format!("Cluster build failed: {err}"), StatusTone::Error);
             }
         }
     }

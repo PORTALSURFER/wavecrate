@@ -11,7 +11,6 @@ mod audio;
 mod dispatch;
 mod file_ops;
 mod poll;
-mod similarity;
 
 fn decode_audio_outcome(
     controller: &AppController,

@@ -504,11 +504,10 @@ impl FolderBrowserState {
 
         let required_tags = self.active_required_tags();
         let playback_type_filter = self.active_playback_type_filters();
-        let indices =
-            self.selected_folder_audio_file_indices_ref_with_sort_tags_if_cached(
-                folder,
-                Some(tags_by_file),
-            )?;
+        let indices = self.selected_folder_audio_file_indices_ref_with_sort_tags_if_cached(
+            folder,
+            Some(tags_by_file),
+        )?;
         if required_tags.is_empty()
             && playback_type_filter.is_empty()
             && !self.filters.curation.enabled
@@ -778,7 +777,9 @@ impl FolderBrowserState {
         )
         .with_listing_reveal(listing_reveal_id)
         .with_playback_type_tag_sort(self.playback_type_tag_sort_enabled(sort_tags));
-        self.sample_list.projection_cache.cached_audio_indices(request)
+        self.sample_list
+            .projection_cache
+            .cached_audio_indices(request)
     }
 
     pub(super) fn active_listing_reveal_id(

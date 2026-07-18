@@ -1,79 +1,98 @@
 use super::container;
 use super::state::{
-    AnnHnsw, AnnIndexMetaRow, AnnIndexParams, AnnIndexState, LoadedAnnHnsw, build_id_lookup,
-    default_params,
+    AnnHnsw, AnnIndexParams, AnnIndexState, LoadedAnnHnsw, build_id_lookup, default_params,
 };
-use super::storage::{
-    default_index_path, hnsw_dump_paths, legacy_id_map_path_for, load_legacy_id_map, read_meta,
-};
-use crate::analysis::decode_f32_le_blob;
+use super::storage::{generation_index_path, read_meta};
 use hnsw_rs::prelude::*;
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension};
+use serde::Deserialize;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 use tempfile::Builder;
 
 const TEMP_UNPACK_BASENAME: &str = "ann_unpack";
 
-/// Load an ANN index from disk or build a new one from embeddings.
-pub(crate) fn load_or_build_index(conn: &Connection) -> Result<AnnIndexState, String> {
-    let params = default_params();
-    let meta = read_meta(conn, &params.model_id)?;
-    if let Some(meta_row) = meta.as_ref()
-        && meta_row.params == params
-        && let Some(outcome) = load_index_from_disk(conn, meta_row)?
-    {
-        let mut state = outcome.state;
-        if outcome.needs_migration {
-            super::update::flush_index(conn, &mut state)?;
-        } else if outcome.needs_meta_update {
-            super::storage::upsert_meta(conn, &state)?;
-        }
-        return Ok(state);
-    }
-    let index_path = default_index_path(conn)?;
-    let mut state = build_index_from_db(conn, params, index_path)?;
-    super::update::flush_index(conn, &mut state)?;
-    Ok(state)
+#[derive(Deserialize)]
+struct CurrentSimilarityArtifactState {
+    state: String,
+    artifact_generation: String,
+    model_id: String,
 }
 
-/// Build a fresh ANN index from the embeddings table.
-pub(crate) fn build_index_from_db(
+/// Load the exact ANN generation named by the current database metadata.
+pub(crate) fn load_current_index(conn: &Connection) -> Result<AnnIndexState, String> {
+    let params = default_params();
+    let index_path = current_index_path(conn)?;
+    load_container_index(&index_path, &params)?
+        .ok_or_else(|| "Current ANN generation container is missing or invalid".to_string())
+}
+
+/// Resolve and validate the ANN path named by the current exact similarity bundle.
+pub(crate) fn current_index_path(conn: &Connection) -> Result<PathBuf, String> {
+    let params = default_params();
+    let artifact_state = read_current_artifact_state(conn)?.ok_or_else(|| {
+        "Current similarity artifact generation has not been published".to_string()
+    })?;
+    if artifact_state.state != "current" || artifact_state.model_id != params.model_id {
+        return Err("Current similarity artifact state uses a different contract".to_string());
+    }
+    let meta = read_meta(conn, &params.model_id)?
+        .ok_or_else(|| "Current ANN generation has not been published".to_string())?;
+    if meta.params != params {
+        return Err("Current ANN generation uses a different contract version".to_string());
+    }
+    let expected_path = generation_index_path(conn, &artifact_state.artifact_generation)?;
+    if meta.index_path != expected_path {
+        return Err(
+            "Current ANN metadata does not name the published artifact generation".to_string(),
+        );
+    }
+    Ok(meta.index_path)
+}
+
+fn read_current_artifact_state(
     conn: &Connection,
+) -> Result<Option<CurrentSimilarityArtifactState>, String> {
+    let state = conn
+        .query_row(
+            "SELECT value FROM metadata WHERE key = 'similarity_artifact_state_v1'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| format!("Failed to read current similarity artifact state: {error}"))?;
+    state
+        .map(|state| {
+            serde_json::from_str(&state)
+                .map_err(|error| format!("Invalid current similarity artifact state: {error}"))
+        })
+        .transpose()
+}
+
+pub(crate) fn build_index_from_embeddings(
+    items: &[(String, Vec<f32>)],
     params: AnnIndexParams,
     index_path: PathBuf,
 ) -> Result<AnnIndexState, String> {
-    let count = count_embeddings(conn, &params.model_id)?;
-    let mut hnsw = build_hnsw(&params, count);
-    let mut id_map = Vec::with_capacity(count.max(0) as usize);
-    insert_embeddings(conn, &params, &mut hnsw, &mut id_map)?;
+    let hnsw = build_hnsw(&params, items.len() as i64);
+    let mut id_map = Vec::with_capacity(items.len());
+    for (sample_id, embedding) in items {
+        if embedding.len() != params.dim {
+            return Err(format!(
+                "Embedding dim mismatch: expected {}, got {} for {sample_id}",
+                params.dim,
+                embedding.len()
+            ));
+        }
+        let id = id_map.len();
+        id_map.push(sample_id.clone());
+        hnsw.insert((embedding.as_slice(), id));
+    }
     Ok(build_state(
         params,
         AnnHnsw::Built(hnsw),
         id_map,
         index_path,
     ))
-}
-
-/// Attempt to load an ANN index from disk using stored metadata.
-pub(crate) fn load_index_from_disk(
-    conn: &Connection,
-    meta: &AnnIndexMetaRow,
-) -> Result<Option<LoadOutcome>, String> {
-    let container_path = default_index_path(conn)?;
-    if let Some(outcome) = load_container_outcome(meta, &container_path)? {
-        return Ok(Some(outcome));
-    }
-    load_legacy_outcome(conn, meta, &container_path)
-}
-
-fn count_embeddings(conn: &Connection, model_id: &str) -> Result<i64, String> {
-    conn.query_row(
-        "SELECT COUNT(*) FROM embeddings WHERE model_id = ?1",
-        params![model_id],
-        |row| row.get(0),
-    )
-    .map_err(|err| format!("Failed to count embeddings: {err}"))
 }
 
 fn build_hnsw(params: &AnnIndexParams, count: i64) -> Hnsw<'static, f32, DistCosine> {
@@ -85,37 +104,6 @@ fn build_hnsw(params: &AnnIndexParams, count: i64) -> Hnsw<'static, f32, DistCos
         params.ef_construction,
         DistCosine {},
     )
-}
-
-fn insert_embeddings(
-    conn: &Connection,
-    params: &AnnIndexParams,
-    hnsw: &mut Hnsw<f32, DistCosine>,
-    id_map: &mut Vec<String>,
-) -> Result<(), String> {
-    let mut stmt = conn
-        .prepare(
-            "SELECT sample_id, vec
-             FROM embeddings
-             WHERE model_id = ?1
-             ORDER BY sample_id ASC",
-        )
-        .map_err(|err| format!("Failed to query embeddings: {err}"))?;
-    let mut rows = stmt
-        .query(params![params.model_id])
-        .map_err(|err| format!("Failed to iterate embeddings: {err}"))?;
-    while let Some(row) = rows.next().map_err(|err| err.to_string())? {
-        let sample_id: String = row.get(0).map_err(|err| err.to_string())?;
-        let blob: Vec<u8> = row.get(1).map_err(|err| err.to_string())?;
-        let embedding = decode_f32_le_blob(&blob)?;
-        if embedding.len() != params.dim {
-            continue;
-        }
-        let id = id_map.len();
-        id_map.push(sample_id);
-        hnsw.insert((embedding.as_slice(), id));
-    }
-    Ok(())
 }
 
 fn build_state(
@@ -131,25 +119,6 @@ fn build_state(
         id_lookup,
         params,
         index_path,
-        last_flush: Instant::now(),
-        dirty_inserts: 0,
-    }
-}
-
-/// Result of loading an ANN index from disk.
-pub(crate) struct LoadOutcome {
-    pub(crate) state: AnnIndexState,
-    pub(crate) needs_migration: bool,
-    pub(crate) needs_meta_update: bool,
-}
-
-impl LoadOutcome {
-    fn new(state: AnnIndexState, needs_migration: bool, needs_meta_update: bool) -> Self {
-        Self {
-            state,
-            needs_migration,
-            needs_meta_update,
-        }
     }
 }
 
@@ -176,95 +145,8 @@ fn load_container_index(
     build_loaded_state(hnsw, unpack.id_map, params, index_path.to_path_buf())
 }
 
-fn load_legacy_index(
-    index_path: &Path,
-    params: &AnnIndexParams,
-) -> Result<Option<AnnIndexState>, String> {
-    let (graph_path, data_path) = hnsw_dump_paths(index_path)?;
-    if !graph_path.is_file() || !data_path.is_file() {
-        return Ok(None);
-    }
-    let id_map_path = legacy_id_map_path_for(index_path);
-    if !id_map_path.is_file() {
-        return Ok(None);
-    }
-    let id_map = match load_legacy_id_map(&id_map_path) {
-        Ok(id_map) => id_map,
-        Err(_) => return Ok(None),
-    };
-    let hnsw = match load_hnsw_from_path(index_path) {
-        Ok(hnsw) => hnsw,
-        Err(_) => return Ok(None),
-    };
-    build_loaded_state(hnsw, id_map, params, index_path.to_path_buf())
-}
-
 fn load_hnsw(dir: &std::path::Path, basename: &str) -> Result<AnnHnsw, String> {
     LoadedAnnHnsw::load(dir, basename).map(AnnHnsw::Loaded)
-}
-
-fn load_hnsw_from_path(index_path: &Path) -> Result<AnnHnsw, String> {
-    let basename = index_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| "Index path missing basename".to_string())?;
-    let dir = index_path
-        .parent()
-        .ok_or_else(|| "Index path missing parent".to_string())?;
-    load_hnsw(dir, basename)
-}
-
-fn load_container_outcome(
-    meta: &AnnIndexMetaRow,
-    container_path: &Path,
-) -> Result<Option<LoadOutcome>, String> {
-    if let Some(state) = load_container_index(&meta.index_path, &meta.params)? {
-        let needs_migration = meta.index_path != *container_path;
-        let state = update_index_path(state, container_path, needs_migration);
-        return Ok(Some(LoadOutcome::new(
-            state,
-            needs_migration,
-            needs_migration,
-        )));
-    }
-    if meta.index_path != *container_path
-        && let Some(state) = load_container_index(container_path, &meta.params)?
-    {
-        return Ok(Some(LoadOutcome::new(state, false, true)));
-    }
-    Ok(None)
-}
-
-fn load_legacy_outcome(
-    conn: &Connection,
-    meta: &AnnIndexMetaRow,
-    container_path: &Path,
-) -> Result<Option<LoadOutcome>, String> {
-    if let Some(state) = load_legacy_index(&meta.index_path, &meta.params)? {
-        return Ok(Some(LoadOutcome::new(
-            update_index_path(state, container_path, true),
-            true,
-            true,
-        )));
-    }
-    let legacy_path = super::storage::legacy_index_path(conn)?;
-    if meta.index_path != *container_path
-        && let Some(state) = load_legacy_index(&legacy_path, &meta.params)?
-    {
-        return Ok(Some(LoadOutcome::new(
-            update_index_path(state, container_path, true),
-            true,
-            true,
-        )));
-    }
-    Ok(None)
-}
-
-fn update_index_path(mut state: AnnIndexState, index_path: &Path, force: bool) -> AnnIndexState {
-    if force {
-        state.index_path = index_path.to_path_buf();
-    }
-    state
 }
 
 fn build_loaded_state(

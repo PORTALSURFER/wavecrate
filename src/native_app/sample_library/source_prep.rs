@@ -3,7 +3,6 @@ use std::time::Instant;
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
-use crate::native_app::sample_library::similarity_prep::SimilarityPrepTrigger;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum SourcePrepTrigger {
@@ -70,13 +69,6 @@ impl NativeAppState {
             trigger.force_metadata_refresh(),
             context,
         );
-        if trigger == SourcePrepTrigger::UserRequested {
-            self.prepare_similarity_for_source(
-                &source_id,
-                SimilarityPrepTrigger::UserRequested,
-                context,
-            );
-        }
         if selected_source {
             self.schedule_persisted_waveform_cache_indicator_refresh(context);
         }

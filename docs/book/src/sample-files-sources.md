@@ -40,7 +40,7 @@ Right-click a source in the Sources list to open source actions.
 - **Protect Source** or **Unprotect Source:** change whether Wavecrate treats the source as protected original material.
 - **Set as Primary** or **Clear Primary:** choose the primary writable destination used by protected-source workflows.
 - **Refresh Source:** rescan the source folder tree.
-- **Process Source:** queue source processing work such as cache and similarity preparation.
+- **Process Source:** prioritize automatic cache and similarity-artifact reconciliation for this source.
 - **Remove Source:** remove the source from Wavecrate.
 
 ## Folder Actions
