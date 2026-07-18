@@ -19,10 +19,11 @@ use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole, SourceMetadataStorage,
     db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
-        ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessEligibility,
-        ReadinessFailureClassification, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
-        ReadinessRetryPolicy, ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome,
-        SourceAvailability, cancel_readiness_work, claim_readiness_target, complete_readiness_work,
+        ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessClassification,
+        ReadinessEligibility, ReadinessFailureClassification, ReadinessFailureOutcome,
+        ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
+        ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability,
+        cancel_readiness_work, claim_readiness_target, complete_readiness_work,
         complete_readiness_work_with_artifact_ref, fail_readiness_work,
         invalidate_readiness_artifact, persist_readiness_deficits_with_cancel,
         readiness_work_stats, reconcile_readiness_with_cancel, release_readiness_work,
@@ -1139,6 +1140,8 @@ struct RuntimeCandidate {
 #[derive(Clone, Copy, Debug, Default)]
 struct SourceDiscoveryStats {
     readiness_queue_depth: usize,
+    prerequisites_blocked: usize,
+    prerequisite_retry_at: Option<i64>,
     retries_due: usize,
     earliest_retry_at: Option<i64>,
     progress_completed: usize,
@@ -1217,10 +1220,15 @@ fn run_coordinator(shared: Arc<Shared>) {
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
                     control.processing_paused(),
                 );
-                if progress_visible && !wait_duration.is_zero() {
+                if progress_visible
+                    && !wait_duration.is_zero()
+                    && !source_stats
+                        .values()
+                        .any(|stats| stats.prerequisites_blocked > 0)
+                {
                     // Keep feedback stable across immediate coordinator handoffs. Only clear it
                     // when the coordinator is genuinely about to sleep with no newly published
-                    // work waiting to be handled.
+                    // work or prerequisite retry waiting to be handled.
                     publish_source_processing_finished(&shared);
                     progress_visible = false;
                     active_progress_source = None;
@@ -1632,6 +1640,17 @@ fn run_coordinator(shared: Arc<Shared>) {
         {
             last_similarity_refresh_publish_at = Some(Instant::now());
         }
+        if candidates.is_empty()
+            && publish_source_processing_prerequisite_wait(
+                &shared,
+                &source_lifecycle_generations,
+                &source_stats,
+            )
+        {
+            progress_visible = true;
+            active_progress_source = None;
+            last_progress_publish_at = Some(Instant::now());
+        }
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
         telemetry.oldest_job_age_seconds = oldest_job_age_seconds(&candidates, now_epoch_seconds());
@@ -1926,6 +1945,63 @@ fn publish_source_processing_finished(shared: &Shared) {
     ));
 }
 
+fn publish_source_processing_prerequisite_wait(
+    shared: &Shared,
+    lifecycle_generations: &BTreeMap<String, u64>,
+    source_stats: &BTreeMap<String, SourceDiscoveryStats>,
+) -> bool {
+    let Some((source_id, stats)) = source_stats
+        .iter()
+        .filter(|(_, stats)| stats.prerequisites_blocked > 0)
+        .min_by_key(|(_, stats)| stats.prerequisite_retry_at.unwrap_or(i64::MAX))
+    else {
+        return false;
+    };
+    let Some(lifecycle_generation) = lifecycle_generations.get(source_id).copied() else {
+        return false;
+    };
+    let control = shared.control();
+    if control.processing_paused()
+        || !control.source_is_active(source_id)
+        || control.source_lifecycle_generations.get(source_id) != Some(&lifecycle_generation)
+    {
+        return false;
+    }
+    drop(control);
+    let Some(worker_sender) = shared.worker_sender.as_ref() else {
+        return false;
+    };
+    let (stage, detail) = match stats.prerequisite_retry_at {
+        Some(retry_at) => {
+            let retry_in = retry_at.saturating_sub(now_epoch_seconds());
+            (
+                String::from("Waiting for prerequisites"),
+                if retry_in <= 1 {
+                    String::from("Prerequisite retry is due")
+                } else {
+                    format!("Retrying prerequisites in {retry_in}s")
+                },
+            )
+        }
+        None => (
+            String::from("Blocked by prerequisites"),
+            String::from("Similarity finalization is waiting for durable prerequisites"),
+        ),
+    };
+    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
+        SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation,
+            active: true,
+            completed: stats.progress_completed,
+            total: stats.progress_total,
+            stage,
+            detail,
+        },
+    ));
+    true
+}
+
 fn publish_source_processing_pausing(shared: &Shared, detail: &str) {
     let Some(worker_sender) = shared.worker_sender.as_ref() else {
         return;
@@ -1996,6 +2072,45 @@ fn readiness_progress_detail(target: &ReadinessTarget) -> (&'static str, String)
         .map(str::to_string)
         .unwrap_or_else(|| String::from("Finalizing source"));
     (stage, detail)
+}
+
+fn similarity_prerequisite_blocker_stats(snapshot: &ReadinessSnapshot) -> (usize, Option<i64>) {
+    let Some(layout) = snapshot.entries.iter().find(|entry| {
+        entry.target.stage == ReadinessStage::SimilarityLayout
+            && entry.target.eligibility == ReadinessEligibility::Eligible
+            && entry.classification != ReadinessClassification::Current
+            && !snapshot.prerequisites_are_current(&entry.target)
+    }) else {
+        return (0, None);
+    };
+    let mut blocked = 0_usize;
+    let mut all_retryable = true;
+    let mut earliest_retry_at = None;
+    for entry in snapshot.entries.iter().filter(|entry| {
+        entry.target.source_id == layout.target.source_id
+            && entry.target.source_generation == layout.target.source_generation
+            && entry.target.scope_kind == ReadinessScopeKind::File
+            && entry.target.eligibility == ReadinessEligibility::Eligible
+            && matches!(
+                entry.target.stage,
+                ReadinessStage::IndexedIdentity
+                    | ReadinessStage::AnalysisFeatures
+                    | ReadinessStage::EmbeddingAspects
+            )
+            && entry.classification != ReadinessClassification::Current
+    }) {
+        blocked = blocked.saturating_add(1);
+        match entry.classification {
+            ReadinessClassification::RetryableFailure { retry_at, .. } => {
+                earliest_retry_at = earliest_deadline(earliest_retry_at, Some(retry_at));
+            }
+            _ => all_retryable = false,
+        }
+    }
+    (
+        blocked,
+        all_retryable.then_some(earliest_retry_at).flatten(),
+    )
 }
 
 fn scheduler_candidate_indices(
@@ -2211,8 +2326,15 @@ fn discover_source_candidates_with_connection(
             }
             Err(error) => return Err(error.to_string()),
         }
-        stats.readiness_queue_depth = snapshot.deficits.len();
-        candidates.extend(snapshot.deficits.iter().map(|deficit| RuntimeCandidate {
+        let schedulable_deficits = snapshot
+            .deficits
+            .iter()
+            .filter(|deficit| snapshot.prerequisites_are_current(&deficit.target))
+            .collect::<Vec<_>>();
+        stats.readiness_queue_depth = schedulable_deficits.len();
+        (stats.prerequisites_blocked, stats.prerequisite_retry_at) =
+            similarity_prerequisite_blocker_stats(&snapshot);
+        candidates.extend(schedulable_deficits.iter().map(|deficit| RuntimeCandidate {
             schedule: WorkCandidate::readiness(&deficit.target, deficit.enqueued_at.unwrap_or(now)),
             source: source.clone(),
             task: RuntimeTask::Readiness(deficit.target.clone()),
@@ -2235,6 +2357,7 @@ fn discover_source_candidates_with_connection(
             retries_due = work_stats.retries_due,
             retries_waiting = work_stats.retries_waiting,
             expired_leases = work_stats.expired_leases,
+            prerequisites_blocked = stats.prerequisites_blocked,
             "Readiness work reconciled"
         );
     }
@@ -4137,6 +4260,9 @@ fn aggregate_source_stats(
             aggregate.readiness_queue_depth = aggregate
                 .readiness_queue_depth
                 .saturating_add(source.readiness_queue_depth);
+            aggregate.prerequisites_blocked = aggregate
+                .prerequisites_blocked
+                .saturating_add(source.prerequisites_blocked);
             aggregate.retries_due = aggregate.retries_due.saturating_add(source.retries_due);
             aggregate.earliest_retry_at =
                 earliest_deadline(aggregate.earliest_retry_at, source.earliest_retry_at);
@@ -5674,6 +5800,165 @@ mod tests {
     }
 
     #[test]
+    fn prerequisite_wait_feedback_preserves_determinate_progress_without_claiming_activity() {
+        let directory = tempfile::tempdir().expect("waiting source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("waiting-source"),
+            directory.path().to_path_buf(),
+        );
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let shared = Shared::new(vec![source.clone()], Some(sender));
+        let lifecycle_generation = shared.control().source_lifecycle_generations["waiting-source"];
+        let lifecycle_generations =
+            BTreeMap::from([(String::from("waiting-source"), lifecycle_generation)]);
+        let mut source_stats = BTreeMap::from([(
+            String::from("waiting-source"),
+            SourceDiscoveryStats {
+                prerequisites_blocked: 1,
+                earliest_retry_at: Some(now_epoch_seconds().saturating_add(60)),
+                progress_completed: 72,
+                progress_total: 77,
+                ..SourceDiscoveryStats::default()
+            },
+        )]);
+
+        assert!(publish_source_processing_prerequisite_wait(
+            &shared,
+            &lifecycle_generations,
+            &source_stats,
+        ));
+
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("blocked prerequisite message")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert!(progress.active);
+        assert_eq!(progress.source_id, "waiting-source");
+        assert_eq!(progress.lifecycle_generation, lifecycle_generation);
+        assert_eq!(progress.completed, 72);
+        assert_eq!(progress.total, 77);
+        assert_eq!(progress.stage, "Blocked by prerequisites");
+        assert_eq!(
+            progress.detail,
+            "Similarity finalization is waiting for durable prerequisites"
+        );
+
+        source_stats
+            .get_mut("waiting-source")
+            .expect("waiting source stats")
+            .prerequisite_retry_at = Some(now_epoch_seconds().saturating_add(60));
+        assert!(publish_source_processing_prerequisite_wait(
+            &shared,
+            &lifecycle_generations,
+            &source_stats,
+        ));
+        let GuiMessage::SourceProcessingProgress(progress) = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("retrying prerequisite message")
+        else {
+            panic!("unexpected supervisor GUI message");
+        };
+        assert_eq!(progress.stage, "Waiting for prerequisites");
+        assert!(progress.detail.starts_with("Retrying prerequisites in "));
+    }
+
+    #[test]
+    fn similarity_blocker_state_ignores_unrelated_retries_and_non_file_targets() {
+        let source_id = "dependency-specific-retry";
+        let layout = ReadinessTarget::source(
+            source_id,
+            ReadinessStage::SimilarityLayout,
+            "layout-v1",
+            1,
+            "membership-v1",
+        );
+        let file_target = |stage| {
+            ReadinessTarget::file(
+                source_id,
+                "identity-1",
+                "kick.wav",
+                stage,
+                "v1",
+                1,
+                "content-1",
+            )
+        };
+        let mut snapshot = ReadinessSnapshot {
+            source_id: source_id.to_string(),
+            source_generation: 1,
+            readiness_revision: 1,
+            availability: SourceAvailability::Active,
+            entries: vec![
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: layout.clone(),
+                    classification: ReadinessClassification::Pending,
+                },
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: file_target(ReadinessStage::IndexedIdentity),
+                    classification: ReadinessClassification::Current,
+                },
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: file_target(ReadinessStage::AnalysisFeatures),
+                    classification: ReadinessClassification::Current,
+                },
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: file_target(ReadinessStage::EmbeddingAspects),
+                    classification: ReadinessClassification::PermanentFailure {
+                        reason: String::from("embedding failed permanently"),
+                    },
+                },
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: file_target(ReadinessStage::PlaybackSummary),
+                    classification: ReadinessClassification::RetryableFailure {
+                        retry_at: 200,
+                        reason: String::from("unrelated playback retry"),
+                    },
+                },
+                wavecrate::sample_sources::readiness::ReadinessEntry {
+                    target: ReadinessTarget::source(
+                        source_id,
+                        ReadinessStage::AnalysisFeatures,
+                        "malformed-source-analysis-v1",
+                        1,
+                        "malformed-source-analysis-generation",
+                    ),
+                    classification: ReadinessClassification::Pending,
+                },
+            ],
+            deficits: Vec::new(),
+            stage_counts: BTreeMap::new(),
+            activity: wavecrate::sample_sources::readiness::ReadinessActivity::Idle,
+        };
+
+        assert_eq!(similarity_prerequisite_blocker_stats(&snapshot), (1, None));
+
+        snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.target.stage == ReadinessStage::EmbeddingAspects)
+            .expect("embedding blocker")
+            .classification = ReadinessClassification::RetryableFailure {
+            retry_at: 300,
+            reason: String::from("embedding retry"),
+        };
+        assert_eq!(
+            similarity_prerequisite_blocker_stats(&snapshot),
+            (1, Some(300))
+        );
+
+        snapshot
+            .entries
+            .iter_mut()
+            .find(|entry| entry.target.stage == ReadinessStage::EmbeddingAspects)
+            .expect("embedding blocker")
+            .classification = ReadinessClassification::Current;
+        assert!(snapshot.prerequisites_are_current(&layout));
+        assert_eq!(similarity_prerequisite_blocker_stats(&snapshot), (0, None));
+    }
+
+    #[test]
     fn executing_candidate_remains_active_at_discovery_counter_boundary() {
         let directory = tempfile::tempdir().expect("progress source");
         let source = SampleSource::new_with_id(
@@ -6410,6 +6695,14 @@ mod tests {
             readiness
                 .iter()
                 .all(|candidate| candidate.schedule.enqueued_at == 100)
+        );
+        assert!(
+            readiness.iter().all(|candidate| !matches!(
+                candidate.task,
+                RuntimeTask::Readiness(ref target)
+                    if target.stage == ReadinessStage::SimilarityLayout
+            )),
+            "similarity layout must stay parked behind the pending embedding target"
         );
         assert_eq!(oldest_job_age_seconds(&candidates, 250), 150);
     }

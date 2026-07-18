@@ -308,6 +308,164 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
 }
 
 #[test]
+fn similarity_layout_waits_for_delayed_embeddings_without_hot_reclaiming() {
+    const FILE_COUNT: usize = 19;
+    const DELAYED_EMBEDDINGS: usize = 4;
+    const NOW: i64 = 100;
+    const RETRY_AT: i64 = 180;
+
+    let (_root, mut connection) = open_fixture();
+    let mut targets = Vec::with_capacity(FILE_COUNT * 4 + 1);
+    for index in 0..FILE_COUNT {
+        let identity = format!("sample-{index:02}");
+        for stage in [
+            ReadinessStage::IndexedIdentity,
+            ReadinessStage::PlaybackSummary,
+            ReadinessStage::AnalysisFeatures,
+            ReadinessStage::EmbeddingAspects,
+        ] {
+            targets.push(file_target(&identity, stage, 1));
+        }
+    }
+    let layout = ReadinessTarget::source(
+        SOURCE_ID,
+        ReadinessStage::SimilarityLayout,
+        "layout-v1",
+        1,
+        "membership-v1",
+    );
+    targets.push(layout.clone());
+    replace(&mut connection, 1, &targets);
+
+    let initial = reconcile_readiness(&connection, SOURCE_ID, NOW).expect("initial snapshot");
+    assert_eq!(initial.deficits.len(), FILE_COUNT * 4 + 1);
+    persist_readiness_deficits(&mut connection, &initial.deficits, NOW)
+        .expect("persist exact readiness queue");
+
+    let retry_policy =
+        ReadinessRetryPolicy::new(RETRY_AT - NOW, RETRY_AT - NOW, 3).expect("retry policy");
+    let mut delayed = Vec::new();
+    for target in targets
+        .iter()
+        .filter(|target| target.stage != ReadinessStage::SimilarityLayout)
+    {
+        let claim = claim_readiness_target(&mut connection, target, NOW, 100)
+            .expect("claim file readiness")
+            .expect("file readiness available");
+        let embedding_index = target
+            .scope_id
+            .strip_prefix("sample-")
+            .and_then(|value| value.parse::<usize>().ok());
+        if target.stage == ReadinessStage::EmbeddingAspects
+            && embedding_index.is_some_and(|index| index >= FILE_COUNT - DELAYED_EMBEDDINGS)
+        {
+            assert_eq!(
+                fail_readiness_work(
+                    &mut connection,
+                    &claim,
+                    ReadinessFailureClassification::Retryable,
+                    "embedding feature prerequisite is not durable yet",
+                    NOW,
+                    retry_policy,
+                )
+                .expect("delay embedding"),
+                ReadinessFailureOutcome::RetryScheduled { retry_at: RETRY_AT }
+            );
+            delayed.push(target.clone());
+        } else {
+            assert_eq!(
+                complete_readiness_work(&mut connection, &claim, NOW)
+                    .expect("complete file readiness"),
+                ArtifactPublishOutcome::Recorded
+            );
+        }
+    }
+    assert_eq!(delayed.len(), DELAYED_EMBEDDINGS);
+
+    let waiting =
+        reconcile_readiness(&connection, SOURCE_ID, NOW + 1).expect("waiting similarity snapshot");
+    assert_eq!(waiting.deficits.len(), 1);
+    assert_eq!(waiting.deficits[0].target, layout);
+    assert!(!waiting.prerequisites_are_current(&layout));
+    let stats = readiness_work_stats(&connection, NOW + 1).expect("72 of 77 stats");
+    assert_eq!(stats.completed, 72);
+    assert_eq!(stats.total, 77);
+    assert_eq!(stats.pending, 1);
+    assert_eq!(stats.retries_waiting, DELAYED_EMBEDDINGS);
+    assert_eq!(stats.earliest_retry_at, Some(RETRY_AT));
+    assert_eq!(
+        claim_readiness_target(&mut connection, &layout, NOW + 1, 100)
+            .expect("blocked layout claim"),
+        None
+    );
+
+    let retry_due =
+        reconcile_readiness(&connection, SOURCE_ID, RETRY_AT).expect("retry-due snapshot");
+    assert_eq!(retry_due.deficits.len(), DELAYED_EMBEDDINGS + 1);
+    assert_eq!(
+        retry_due
+            .deficits
+            .iter()
+            .filter(|deficit| retry_due.prerequisites_are_current(&deficit.target))
+            .count(),
+        DELAYED_EMBEDDINGS
+    );
+    for target in &delayed {
+        let claim = claim_readiness_target(&mut connection, target, RETRY_AT, 100)
+            .expect("claim delayed embedding")
+            .expect("delayed embedding is due");
+        assert_eq!(
+            complete_readiness_work(&mut connection, &claim, RETRY_AT)
+                .expect("complete delayed embedding"),
+            ArtifactPublishOutcome::Recorded
+        );
+    }
+
+    let analysis = targets
+        .iter()
+        .find(|target| {
+            target.scope_id == "sample-00" && target.stage == ReadinessStage::AnalysisFeatures
+        })
+        .expect("analysis prerequisite");
+    connection
+        .execute(
+            "DELETE FROM source_readiness_artifacts
+             WHERE source_id = ?1
+               AND scope_kind = 'file'
+               AND scope_id = ?2
+               AND stage = 'analysis_features'",
+            rusqlite::params![analysis.source_id, analysis.scope_id],
+        )
+        .expect("remove one analysis prerequisite");
+    let inconsistent = reconcile_readiness(&connection, SOURCE_ID, RETRY_AT + 1)
+        .expect("inconsistent prerequisite snapshot");
+    assert!(!inconsistent.prerequisites_are_current(&layout));
+    assert_eq!(
+        claim_readiness_target(&mut connection, &layout, RETRY_AT + 1, 100)
+            .expect("analysis-blocked layout claim"),
+        None
+    );
+    assert_eq!(
+        publish_readiness_artifact(
+            &mut connection,
+            &ReadinessArtifact::for_target(analysis, RETRY_AT + 1),
+        )
+        .expect("restore analysis prerequisite"),
+        ArtifactPublishOutcome::Recorded
+    );
+
+    let ready =
+        reconcile_readiness(&connection, SOURCE_ID, RETRY_AT + 2).expect("layout-ready snapshot");
+    assert_eq!(ready.deficits.len(), 1);
+    assert!(ready.prerequisites_are_current(&layout));
+    assert!(
+        claim_readiness_target(&mut connection, &layout, RETRY_AT + 2, 100)
+            .expect("claim unblocked layout")
+            .is_some()
+    );
+}
+
+#[test]
 fn explicit_failure_classifications_are_terminal_and_observable() {
     let (_root, mut connection) = open_fixture();
     let permanent = file_target("permanent", ReadinessStage::AnalysisFeatures, 1);

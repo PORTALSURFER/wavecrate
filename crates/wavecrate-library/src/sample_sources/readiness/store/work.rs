@@ -59,6 +59,34 @@ pub fn claim_readiness_target(
                         AND (job.lease_expires_at IS NULL OR job.lease_expires_at <= ?8)
                     )
                )
+               AND (
+                    target.stage <> 'similarity_layout'
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM source_readiness_targets AS prerequisite
+                        WHERE prerequisite.source_id = target.source_id
+                          AND prerequisite.source_generation = target.source_generation
+                          AND prerequisite.scope_kind = 'file'
+                          AND prerequisite.stage IN (
+                              'indexed_identity',
+                              'analysis_features',
+                              'embedding_aspects'
+                          )
+                          AND prerequisite.eligibility = 'eligible'
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM source_readiness_artifacts AS prerequisite_artifact
+                              WHERE prerequisite_artifact.source_id = prerequisite.source_id
+                                AND prerequisite_artifact.scope_kind = prerequisite.scope_kind
+                                AND prerequisite_artifact.scope_id = prerequisite.scope_id
+                                AND prerequisite_artifact.stage = prerequisite.stage
+                                AND prerequisite_artifact.artifact_version =
+                                    prerequisite.required_version
+                                AND prerequisite_artifact.content_generation =
+                                    prerequisite.content_generation
+                          )
+                    )
+               )
                AND NOT EXISTS (
                     SELECT 1
                     FROM source_readiness_artifacts AS artifact
