@@ -316,6 +316,8 @@ Every enabled, available source should converge automatically in background work
 
 The source-local database is the authoritative durable coordination boundary. It should store desired versioned readiness targets, exact artifact completion generations, source availability, and readiness-owned work metadata. Readiness work must reuse the existing source-local persistent analysis/job storage rather than introducing an unrelated queue format. App-global cache payloads may remain app-global, but their source/file identity, artifact version, and completion generation must be projected into the source readiness contract.
 
+Playback-summary completions must also persist the current source-relative path and exact app-global cache reference beside those generations. That record is the reverse-ownership manifest: reconciliation uses it to retire a replaced or deleted identity after the old filesystem metadata is gone, remap reusable payloads on path-only moves, and invalidate readiness when disk-budget pruning removes a payload. Cache-backed readiness completion and its ownership reference publish under the same generation fence; a rejected, cancelled, or otherwise stale completion must remove its unpublished cache payload rather than repopulating an obsolete entry.
+
 For every current eligible file, the readiness stages are:
 
 1. the committed source index contains the current file identity and content generation;
@@ -1231,6 +1233,8 @@ Scan progress should expose queued, active, completed, skipped, failed, and canc
 Waveform and playback-readiness cache/pre-cache progress should be visible both globally and per item. The bottom status bar should include a compact background-job progress bar for scanning, indexing, and cache preparation work. The visible progress bar should represent one current job at a time rather than combining unrelated concurrent job types into a misleading aggregate. If several job types are active, the visible status-bar job should prefer foreground/current-selection work first, active-folder work second, and source-wide background work after that. The indicator should show successive job progress as queued jobs run, so a sequence of small background jobs can appear as repeated fills while broader queue counts live in the details popover.
 
 The status-bar background-job indicator should provide a direct way to pause and resume non-critical background work such as pre-caching. This may be a small pause/resume button on the indicator, a click target, or a right-click context menu. Pausing background work should not cancel the currently selected foreground file load, prevent selected-file loading from starting, or block urgent user-requested work. The pause is session-local, should not auto-resume because the user is idle, and should reset to enabled on the next application launch.
+
+Playback and foreground source loading may cooperatively cancel the current low-priority cache batch, but cancellation is a pause boundary rather than queue deletion. Every unprocessed path from planning, persisted-cache hydration, or source warming must return to the retained backlog and resume after foreground activity ends.
 
 Background scan, indexing, and pre-cache jobs should continue while Wavecrate is minimized unless the user manually pauses them, the operating system suspends the process, or the app is shutting down.
 

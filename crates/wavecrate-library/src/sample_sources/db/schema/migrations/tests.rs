@@ -315,6 +315,17 @@ fn readiness_schema_repairs_current_stamped_analysis_storage() {
             source_generation INTEGER NOT NULL,
             availability TEXT NOT NULL,
             updated_at INTEGER NOT NULL
+        ) WITHOUT ROWID;
+        CREATE TABLE source_readiness_artifacts (
+            source_id TEXT NOT NULL,
+            scope_kind TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            artifact_version TEXT NOT NULL,
+            source_generation INTEGER NOT NULL,
+            content_generation TEXT NOT NULL,
+            completed_at INTEGER NOT NULL,
+            PRIMARY KEY (source_id, scope_kind, scope_id, stage)
         ) WITHOUT ROWID;",
     )
     .unwrap();
@@ -329,6 +340,9 @@ fn readiness_schema_repairs_current_stamped_analysis_storage() {
     assert!(job_columns.contains("lease_expires_at"));
     let source_columns = table_columns(&conn, "source_readiness_sources").unwrap();
     assert!(source_columns.contains("readiness_revision"));
+    let artifact_columns = table_columns(&conn, "source_readiness_artifacts").unwrap();
+    assert!(artifact_columns.contains("relative_path"));
+    assert!(artifact_columns.contains("artifact_ref"));
     for table in [
         "source_readiness_sources",
         "source_readiness_targets",

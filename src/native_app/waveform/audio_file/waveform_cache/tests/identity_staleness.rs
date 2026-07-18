@@ -79,6 +79,50 @@ fn invalidating_path_removes_current_persisted_playback_cache() {
 }
 
 #[test]
+fn reverse_owned_invalidation_removes_cache_after_source_file_is_deleted() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("deleted.wav");
+    fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+    let mut file = waveform_file_from_mono_samples(
+        path.clone(),
+        Arc::from([1_u8, 2, 3, 4]),
+        48_000,
+        1,
+        vec![0.0, 0.5, -0.5, 0.25],
+    );
+    file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
+    store_cached_waveform_file(&file);
+    let cache_ref = persisted_waveform_cache_ref(&path).expect("cache reference");
+    let descriptor = playback_descriptor_path(&cache_ref);
+    let sidecar = playback_sidecar_path(&cache_ref);
+    assert!(cache_ref.is_file());
+    assert!(descriptor.is_file());
+    assert!(sidecar.is_file());
+
+    fs::remove_file(&path).expect("delete source file");
+    invalidate_persisted_waveform_cache_ref(&cache_ref);
+
+    assert!(!cache_ref.exists());
+    assert!(!descriptor.exists());
+    assert!(!sidecar.exists());
+    assert!(!playback_ready_marker_path(&cache_ref).exists());
+    assert!(!source_warm_marker_path(&cache_ref).exists());
+}
+
+#[test]
+fn reverse_owned_invalidation_refuses_paths_outside_the_managed_cache_directory() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let outside = dir.path().join("outside.wfc");
+    fs::write(&outside, [1_u8, 2, 3, 4]).expect("write outside payload");
+
+    invalidate_persisted_waveform_cache_ref(&outside);
+
+    assert!(outside.is_file());
+}
+
+#[test]
 fn invalidating_path_makes_existing_store_job_stale() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");

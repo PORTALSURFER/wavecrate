@@ -806,7 +806,10 @@ mod tests {
                 .expect("seed current readiness job");
             connection
                 .execute(
-                    "INSERT INTO source_readiness_artifacts VALUES
+                    "INSERT INTO source_readiness_artifacts (
+                         source_id, scope_kind, scope_id, stage, artifact_version,
+                         source_generation, content_generation
+                     ) VALUES
                      ('source', 'file', ?1, 'embedding_aspects', 'v1', 1, 'content-v1')",
                     [identity],
                 )
@@ -825,7 +828,10 @@ mod tests {
             .expect("seed obsolete readiness job");
         connection
             .execute(
-                "INSERT INTO source_readiness_artifacts VALUES
+                "INSERT INTO source_readiness_artifacts (
+                     source_id, scope_kind, scope_id, stage, artifact_version,
+                     source_generation, content_generation
+                 ) VALUES
                  ('source', 'file', 'deleted-identity', 'embedding_aspects',
                   'v1', 1, 'deleted-content')",
                 [],

@@ -118,6 +118,81 @@ fn stale_completion_cannot_publish_over_a_changed_exact_target() {
 }
 
 #[test]
+fn cache_backed_completion_persists_exact_reverse_ownership_atomically() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("owned", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&target));
+    persist_target(&mut connection, &target, 10);
+    let claim = claim_readiness_target(&mut connection, &target, 10, 100)
+        .expect("claim cache-backed target")
+        .expect("cache-backed target available");
+
+    assert_eq!(
+        complete_readiness_work_with_artifact_ref(
+            &mut connection,
+            &claim,
+            11,
+            "/app-cache/owned.wfc",
+        )
+        .expect("complete cache-backed target"),
+        ArtifactPublishOutcome::Recorded
+    );
+    let stored = connection
+        .query_row(
+            "SELECT relative_path, artifact_ref, content_generation
+             FROM source_readiness_artifacts
+             WHERE source_id = ?1 AND scope_id = ?2 AND stage = 'playback_summary'",
+            rusqlite::params![SOURCE_ID, target.scope_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .expect("read reverse ownership");
+    assert_eq!(stored.0, target.relative_path.as_deref().unwrap());
+    assert_eq!(stored.1, "/app-cache/owned.wfc");
+    assert_eq!(stored.2, target.content_generation);
+}
+
+#[test]
+fn stale_cache_backed_completion_cannot_replace_current_ownership() {
+    let (_root, mut connection) = open_fixture();
+    let original = file_target("owned-stale", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&original));
+    persist_target(&mut connection, &original, 10);
+    let stale_claim = claim_readiness_target(&mut connection, &original, 10, 100)
+        .expect("claim original target")
+        .expect("original target available");
+
+    let current = file_target("owned-stale", ReadinessStage::PlaybackSummary, 2);
+    replace(&mut connection, 2, std::slice::from_ref(&current));
+    assert_eq!(
+        complete_readiness_work_with_artifact_ref(
+            &mut connection,
+            &stale_claim,
+            11,
+            "/app-cache/stale.wfc",
+        )
+        .expect("reject stale cache-backed target"),
+        ArtifactPublishOutcome::RejectedStale
+    );
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM source_readiness_artifacts
+                 WHERE source_id = ?1 AND scope_id = ?2 AND stage = 'playback_summary'",
+                rusqlite::params![SOURCE_ID, original.scope_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count stale ownership"),
+        0
+    );
+}
+
+#[test]
 fn file_completion_survives_unrelated_source_generation_changes() {
     let (_root, mut connection) = open_fixture();
     let original = file_target("stable", ReadinessStage::AnalysisFeatures, 1);

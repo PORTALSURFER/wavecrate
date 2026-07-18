@@ -57,11 +57,16 @@ pub(in crate::native_app::waveform) fn load_waveform_file_with_progress_and_canc
 pub(in crate::native_app) fn ensure_persisted_playback_summary(
     path: PathBuf,
     cancel: &std::sync::atomic::AtomicBool,
-) -> Result<(), String> {
+) -> Result<PathBuf, String> {
     use std::sync::atomic::Ordering;
 
     if waveform_cache::cached_waveform_file_audition_ready_exists(&path) {
-        return Ok(());
+        return waveform_cache::persisted_waveform_cache_ref(&path).ok_or_else(|| {
+            format!(
+                "waveform cache reference is unavailable: {}",
+                path.display()
+            )
+        });
     }
     let file = load_waveform_file_with_progress_cancel_playback_ready_and_cache_policy(
         path.clone(),
@@ -78,7 +83,12 @@ pub(in crate::native_app) fn ensure_persisted_playback_summary(
     }
     waveform_cache::persist_cached_waveform_file(&file)?;
     if waveform_cache::cached_waveform_file_audition_ready_exists(&path) {
-        Ok(())
+        waveform_cache::persisted_waveform_cache_ref(&path).ok_or_else(|| {
+            format!(
+                "waveform cache reference is unavailable after persistence: {}",
+                path.display()
+            )
+        })
     } else {
         Err(format!(
             "waveform cache did not publish an audition-ready summary: {}",

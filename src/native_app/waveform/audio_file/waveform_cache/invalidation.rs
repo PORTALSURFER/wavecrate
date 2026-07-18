@@ -27,6 +27,16 @@ pub(in crate::native_app) fn invalidate_persisted_waveform_cache_paths(paths: &[
     }
 }
 
+/// Remove one exact cache payload and every companion without consulting the source file.
+///
+/// This is the reverse-ownership cleanup path used after the source file was replaced or deleted
+/// and its old metadata can no longer be reconstructed from disk.
+pub(in crate::native_app) fn invalidate_persisted_waveform_cache_ref(cache_ref: &Path) {
+    if super::identity::cache_ref_is_managed(cache_ref) {
+        cleanup_cache_artifacts(cache_ref);
+    }
+}
+
 pub(super) fn current_path_generation(path: &Path) -> u64 {
     CACHE_PATH_GENERATIONS
         .lock()

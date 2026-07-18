@@ -151,7 +151,13 @@ impl NativeAppState {
         };
         self.waveform.cache.active_folder_warm_plan_cancel = None;
         if result.cancelled {
-            self.waveform.cache.clear_active_folder_warm_job();
+            if result.pending.is_empty() {
+                self.waveform.cache.clear_active_folder_warm_job();
+            } else {
+                self.waveform
+                    .cache
+                    .start_active_folder_warm_decode_queue(result.folder_id, result.pending);
+            }
             return;
         }
         for path in result.playback_ready {
@@ -333,13 +339,13 @@ impl NativeAppState {
         if let Some(token) = self.waveform.cache.active_folder_warm_cancel.take() {
             token.cancel();
         }
-        self.waveform.cache.clear_active_folder_warm_job();
         if running {
             return;
         }
         if let Some(key) = self.waveform.cache.active_folder_warm_key.take() {
             self.waveform.cache.active_folder_warm_tasks.cancel(&key);
         }
+        self.waveform.cache.clear_active_folder_warm_current();
     }
 
     fn reschedule_active_folder_cache_warm_delay(
