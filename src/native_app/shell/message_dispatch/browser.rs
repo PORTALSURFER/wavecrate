@@ -60,7 +60,7 @@ impl NativeAppState {
                             .background
                             .source_lifecycle_generations
                             .get(&progress.source_id)
-                            .is_none_or(|generation| *generation == progress.lifecycle_generation)
+                            == Some(&progress.lifecycle_generation)
                 };
                 if !source_is_current {
                     return;

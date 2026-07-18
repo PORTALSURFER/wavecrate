@@ -577,7 +577,7 @@ impl SourceProcessingSupervisor {
     pub(in crate::native_app) fn register_source_for_scan(
         &self,
         source: SampleSource,
-    ) -> Result<(), String> {
+    ) -> Result<u64, String> {
         let _replacement = match self.shared.source_replacement.try_lock() {
             Ok(replacement) => replacement,
             Err(std::sync::TryLockError::Poisoned(poison)) => poison.into_inner(),
@@ -596,6 +596,7 @@ impl SourceProcessingSupervisor {
                     "Source {source_id} is already registered with a different descriptor"
                 ));
             }
+            let lifecycle_generation = control.source_lifecycle_generations[&source_id];
             if control.quarantined_sources.remove(&source_id) {
                 control
                     .source_work_cancels
@@ -605,7 +606,7 @@ impl SourceProcessingSupervisor {
                 self.shared.budget_wake.notify_all();
                 self.shared.wake.notify_one();
             }
-            return Ok(());
+            return Ok(lifecycle_generation);
         }
 
         control.sources.insert(source_id.clone(), source);
@@ -620,7 +621,7 @@ impl SourceProcessingSupervisor {
         drop(control);
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_one();
-        Ok(())
+        Ok(lifecycle_generation)
     }
 
     pub(in crate::native_app) fn budget_handle(&self) -> SourceProcessingBudgetHandle {

@@ -41,6 +41,10 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
         .folder_browser
         .defer_add_source_path(std::path::PathBuf::from("/tmp/progress-source"), false)
         .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 0);
     state.background.source_processing_progress =
         Some(crate::native_app::app::SourceProcessingProgress {
             source_id: source_id.clone(),
@@ -84,6 +88,10 @@ fn source_processing_progress_refreshes_the_retained_details_projection() {
         .folder_browser
         .defer_add_source_path(std::path::PathBuf::from("/tmp/progress-source"), false)
         .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 0);
     let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(

@@ -34,21 +34,30 @@ impl NativeAppState {
             .configured_sample_sources()
             .into_iter()
             .find(|source| source.id.as_str() == request.source_id);
-        let admission = source
+        let admission_generation = source
             .ok_or_else(|| "Source is not present in the configured source set".to_string())
             .and_then(|source| {
                 self.background
                     .source_processing
                     .register_source_for_scan(source)
             });
-        if let Err(error) = admission {
-            tracing::error!(
-                target: "wavecrate::source_processing",
-                source_id = request.source_id.as_str(),
-                error,
-                "Folder scan will be cancelled because source admission could not be synchronized"
-            );
-        }
+        let expected_lifecycle_generation = match admission_generation {
+            Ok(generation) => {
+                self.background
+                    .source_lifecycle_generations
+                    .insert(request.source_id.clone(), generation);
+                Some(generation)
+            }
+            Err(error) => {
+                tracing::error!(
+                    target: "wavecrate::source_processing",
+                    source_id = request.source_id.as_str(),
+                    error,
+                    "Folder scan will be cancelled because source admission could not be synchronized"
+                );
+                None
+            }
+        };
         self.library.start_folder_scan(&request);
         self.ui.status.sample = format!("Queued source scan for {}", request.label);
         tracing::info!(
@@ -67,7 +76,6 @@ impl NativeAppState {
         );
         let budget = self.background.source_processing.budget_handle();
         let source_id = request.source_id.clone();
-        let expected_lifecycle_generation = budget.lifecycle_generation(&source_id);
         // Keep this stream fully ordered: discovery batches must not be
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
