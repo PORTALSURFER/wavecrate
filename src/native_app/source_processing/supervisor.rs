@@ -520,6 +520,15 @@ impl SourceProcessingSupervisor {
         control.quarantined_sources.clear();
         let retained_source_ids = control.sources.keys().cloned().collect::<BTreeSet<_>>();
         control
+            .force_manifest_audit_sources
+            .retain(|source_id| retained_source_ids.contains(source_id));
+        control.force_manifest_audit_sources.extend(
+            changed_source_ids
+                .iter()
+                .filter(|source_id| retained_source_ids.contains(*source_id))
+                .cloned(),
+        );
+        control
             .dirty_sources
             .retain(|source_id| retained_source_ids.contains(source_id));
         control.dirty_sources.extend(
@@ -619,6 +628,9 @@ impl SourceProcessingSupervisor {
         control
             .source_lifecycle_generations
             .insert(source_id.clone(), lifecycle_generation);
+        control
+            .force_manifest_audit_sources
+            .insert(source_id.clone());
         control.mark_source_dirty(&source_id, "source_registered_for_scan");
         drop(control);
         self.shared.budget_wake.notify_all();
@@ -794,6 +806,7 @@ impl SourceProcessingSupervisor {
             "retries_due": telemetry.retries_due,
             "readiness_queue_depth": telemetry.readiness_queue_depth,
             "source_discoveries": telemetry.source_discoveries,
+            "settled_wake_generation": telemetry.settled_wake_generation,
         })
     }
 }
@@ -855,6 +868,7 @@ impl Shared {
         #[cfg(test)]
         let next_retirement_id = 1_u64;
         let dirty_sources = sources.keys().cloned().collect();
+        let force_manifest_audit_sources = sources.keys().cloned().collect();
         Self {
             source_replacement: Mutex::new(()),
             state: Mutex::new(ControlState {
@@ -863,6 +877,7 @@ impl Shared {
                 source_lifecycle_generations,
                 next_lifecycle_generation,
                 dirty_sources,
+                force_manifest_audit_sources,
                 quarantined_sources: BTreeSet::new(),
                 pending_retirements,
                 next_retirement_id,
@@ -1020,6 +1035,7 @@ struct ControlState {
     source_lifecycle_generations: BTreeMap<String, u64>,
     next_lifecycle_generation: u64,
     dirty_sources: BTreeSet<String>,
+    force_manifest_audit_sources: BTreeSet<String>,
     quarantined_sources: BTreeSet<String>,
     pending_retirements: BTreeMap<u64, PendingSourceRetirement>,
     next_retirement_id: u64,
@@ -1123,6 +1139,7 @@ struct SupervisorTelemetry {
     retries_due: usize,
     readiness_queue_depth: usize,
     source_discoveries: u64,
+    settled_wake_generation: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -1198,6 +1215,7 @@ fn run_coordinator(shared: Arc<Shared>) {
         let (
             sources,
             dirty_sources,
+            force_manifest_audit_sources,
             source_work_cancels,
             source_lifecycle_generations,
             processing_paused,
@@ -1272,6 +1290,10 @@ fn run_coordinator(shared: Arc<Shared>) {
             } else {
                 std::mem::take(&mut control.dirty_sources)
             };
+            let force_manifest_audit_sources = dirty_sources
+                .intersection(&control.force_manifest_audit_sources)
+                .cloned()
+                .collect::<BTreeSet<_>>();
             (
                 control
                     .sources
@@ -1280,6 +1302,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                     .map(|(_, source)| source.clone())
                     .collect::<Vec<_>>(),
                 dirty_sources,
+                force_manifest_audit_sources,
                 control.source_work_cancels.clone(),
                 control.source_lifecycle_generations.clone(),
                 processing_paused,
@@ -1380,8 +1403,12 @@ fn run_coordinator(shared: Arc<Shared>) {
         for source in &sources_to_discover {
             source_stats.remove(source.id.as_str());
         }
-        let (mut discovered, discovered_source_stats, deferred_discoveries) =
-            discover_candidates(&shared, &sources_to_discover, &source_work_cancels);
+        let (mut discovered, discovered_source_stats, deferred_discoveries) = discover_candidates(
+            &shared,
+            &sources_to_discover,
+            &force_manifest_audit_sources,
+            &source_work_cancels,
+        );
         if !deferred_discoveries.is_empty() {
             shared.control().dirty_sources.extend(deferred_discoveries);
         }
@@ -1480,6 +1507,14 @@ fn run_coordinator(shared: Arc<Shared>) {
             drop(in_flight_work);
             shared.budgets().release(permit);
             shared.budget_wake.notify_all();
+            if matches!(&result, Ok(ExecutionOutcome::Completed))
+                && matches!(&candidate.task, RuntimeTask::ManifestAudit)
+            {
+                shared
+                    .control()
+                    .force_manifest_audit_sources
+                    .remove(candidate.source.id.as_str());
+            }
             let mut telemetry = shared.telemetry();
             let mut execution_outcome = None;
             match result {
@@ -1654,6 +1689,7 @@ fn run_coordinator(shared: Arc<Shared>) {
         let mut telemetry = shared.telemetry();
         telemetry.queue_depth = candidates.len();
         telemetry.oldest_job_age_seconds = oldest_job_age_seconds(&candidates, now_epoch_seconds());
+        telemetry.settled_wake_generation = observed_generation;
         tracing::debug!(
             target: "wavecrate::source_processing",
             event = "source_processing.sweep",
@@ -2127,6 +2163,7 @@ fn scheduler_candidate_indices(
 fn discover_candidates(
     shared: &Shared,
     sources: &[SampleSource],
+    force_manifest_audit_sources: &BTreeSet<String>,
     source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
 ) -> (
     Vec<RuntimeCandidate>,
@@ -2160,7 +2197,12 @@ fn discover_candidates(
             let mut telemetry = shared.telemetry();
             telemetry.source_discoveries = telemetry.source_discoveries.saturating_add(1);
         }
-        match discover_source_candidates(source, now, source_cancel) {
+        match discover_source_candidates(
+            source,
+            now,
+            force_manifest_audit_sources.contains(source.id.as_str()),
+            source_cancel,
+        ) {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 candidates.append(&mut source_candidates);
                 source_stats.insert(source.id.as_str().to_string(), stats);
@@ -2180,6 +2222,7 @@ fn discover_candidates(
 fn discover_source_candidates(
     source: &SampleSource,
     now: i64,
+    force_manifest_audit: bool,
     cancel: &AtomicBool,
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     if cancelled(cancel) {
@@ -2208,13 +2251,20 @@ fn discover_source_candidates(
         SourceDatabaseConnectionRole::JobWorker,
     )
     .map_err(|error| error.to_string())?;
-    discover_source_candidates_with_connection(source, &mut connection, now, cancel)
+    discover_source_candidates_with_connection(
+        source,
+        &mut connection,
+        now,
+        force_manifest_audit,
+        cancel,
+    )
 }
 
 fn discover_source_candidates_with_connection(
     source: &SampleSource,
     connection: &mut rusqlite::Connection,
     now: i64,
+    force_manifest_audit: bool,
     cancel: &AtomicBool,
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
     let source_id = source.id.as_str();
@@ -2271,7 +2321,8 @@ fn discover_source_candidates_with_connection(
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
-    if manifest_identity_repair_due
+    if force_manifest_audit
+        || manifest_identity_repair_due
         || now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS
     {
         candidates.push(RuntimeCandidate {
@@ -4300,6 +4351,10 @@ fn oldest_job_age_seconds(candidates: &[RuntimeCandidate], now: i64) -> u64 {
 }
 
 #[cfg(test)]
+#[path = "../../test_support/source_processing_liveness/mod.rs"]
+mod liveness_tests;
+
+#[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
 
@@ -4887,14 +4942,24 @@ mod tests {
     fn priority_only_wakes_reuse_candidates_without_source_rediscovery() {
         let directory = tempfile::tempdir().expect("priority source");
         let source = SampleSource::new_with_id(
-            SourceId::from_string("priority-cache"),
+            SourceId::from_string(format!("priority-cache-{}", uuid::Uuid::new_v4())),
             directory.path().to_path_buf(),
         );
         source.open_db().expect("create priority source database");
         let mut supervisor = SourceProcessingSupervisor::start(vec![source.clone()]);
+        // The empty-source fixture converges through startup, manifest-audit, and readiness
+        // handoffs. Do not capture the baseline at a transient queue-empty boundary between them.
         wait_until(Duration::from_secs(5), || {
             let telemetry = supervisor.shared.telemetry();
-            telemetry.source_discoveries >= 2 && telemetry.queue_depth == 0
+            let completed = telemetry.completed;
+            let queue_depth = telemetry.queue_depth;
+            let settled_wake_generation = telemetry.settled_wake_generation;
+            drop(telemetry);
+            let control = supervisor.shared.control();
+            completed >= 2
+                && queue_depth == 0
+                && settled_wake_generation == control.wake_generation
+                && control.dirty_sources.is_empty()
         });
         let discoveries_before = supervisor.shared.telemetry().source_discoveries;
 
@@ -4919,14 +4984,24 @@ mod tests {
     fn playback_and_foreground_resumes_reuse_the_retained_source_snapshot() {
         let directory = tempfile::tempdir().expect("resume source");
         let source = SampleSource::new_with_id(
-            SourceId::from_string("resume-cache"),
+            SourceId::from_string(format!("resume-cache-{}", uuid::Uuid::new_v4())),
             directory.path().to_path_buf(),
         );
         source.open_db().expect("create resume source database");
         let mut supervisor = SourceProcessingSupervisor::start(vec![source]);
+        // The empty-source fixture converges through startup, manifest-audit, and readiness
+        // handoffs. Do not capture the baseline at a transient queue-empty boundary between them.
         wait_until(Duration::from_secs(5), || {
             let telemetry = supervisor.shared.telemetry();
-            telemetry.source_discoveries >= 2 && telemetry.queue_depth == 0
+            let completed = telemetry.completed;
+            let queue_depth = telemetry.queue_depth;
+            let settled_wake_generation = telemetry.settled_wake_generation;
+            drop(telemetry);
+            let control = supervisor.shared.control();
+            completed >= 2
+                && queue_depth == 0
+                && settled_wake_generation == control.wake_generation
+                && control.dirty_sources.is_empty()
         });
         let discoveries_before = supervisor.shared.telemetry().source_discoveries;
 
@@ -5297,7 +5372,8 @@ mod tests {
         let started_at = Instant::now();
         let cancel = AtomicBool::new(false);
         let Cancellable::Completed((candidates, stats)) =
-            discover_source_candidates(&source, 100, &cancel).expect("discover large source")
+            discover_source_candidates(&source, 100, false, &cancel)
+                .expect("discover large source")
         else {
             panic!("large source discovery unexpectedly cancelled");
         };
@@ -5552,8 +5628,14 @@ mod tests {
 
         let cancel = AtomicBool::new(false);
         let Cancellable::Completed((candidates, stats)) =
-            discover_source_candidates_with_connection(&source, &mut connection, 100, &cancel)
-                .expect("skip read-only source processing")
+            discover_source_candidates_with_connection(
+                &source,
+                &mut connection,
+                100,
+                false,
+                &cancel,
+            )
+            .expect("skip read-only source processing")
         else {
             panic!("read-only discovery unexpectedly cancelled");
         };
@@ -5574,7 +5656,7 @@ mod tests {
         let cancel = AtomicBool::new(false);
 
         let Cancellable::Completed((due, _)) =
-            discover_source_candidates(&source, MANIFEST_AUDIT_INTERVAL_SECONDS, &cancel)
+            discover_source_candidates(&source, MANIFEST_AUDIT_INTERVAL_SECONDS, false, &cancel)
                 .expect("discover due manifest audit")
         else {
             panic!("manifest audit discovery unexpectedly cancelled");
@@ -5589,16 +5671,34 @@ mod tests {
             &MANIFEST_AUDIT_INTERVAL_SECONDS.to_string(),
         )
         .expect("record manifest audit");
-        let Cancellable::Completed((not_due, _)) =
-            discover_source_candidates(&source, MANIFEST_AUDIT_INTERVAL_SECONDS * 2 - 1, &cancel)
-                .expect("discover recent manifest audit")
-        else {
+        let Cancellable::Completed((not_due, _)) = discover_source_candidates(
+            &source,
+            MANIFEST_AUDIT_INTERVAL_SECONDS * 2 - 1,
+            false,
+            &cancel,
+        )
+        .expect("discover recent manifest audit") else {
             panic!("manifest audit discovery unexpectedly cancelled");
         };
         assert!(
             not_due
                 .iter()
                 .all(|candidate| !matches!(candidate.task, RuntimeTask::ManifestAudit))
+        );
+
+        let Cancellable::Completed((forced, _)) = discover_source_candidates(
+            &source,
+            MANIFEST_AUDIT_INTERVAL_SECONDS * 2 - 1,
+            true,
+            &cancel,
+        )
+        .expect("discover forced startup manifest audit") else {
+            panic!("forced manifest audit discovery unexpectedly cancelled");
+        };
+        assert!(
+            forced
+                .iter()
+                .any(|candidate| matches!(candidate.task, RuntimeTask::ManifestAudit))
         );
     }
 
@@ -5618,7 +5718,7 @@ mod tests {
         let cancel = AtomicBool::new(false);
 
         let Cancellable::Completed((candidates, _)) =
-            discover_source_candidates(&source, 100, &cancel)
+            discover_source_candidates(&source, 100, false, &cancel)
                 .expect("discover manifest identity repair")
         else {
             panic!("manifest identity repair discovery unexpectedly cancelled");
@@ -5646,7 +5746,7 @@ mod tests {
         let cancel = AtomicBool::new(false);
 
         let Cancellable::Completed((candidates, _)) =
-            discover_source_candidates(&source, 100, &cancel)
+            discover_source_candidates(&source, 100, false, &cancel)
                 .expect("discover source with ignored AppleDouble row")
         else {
             panic!("AppleDouble source discovery unexpectedly cancelled");
@@ -5687,7 +5787,8 @@ mod tests {
         let cancel = AtomicBool::new(false);
 
         let Cancellable::Completed((candidates, _)) =
-            discover_source_candidates(&source, 100, &cancel).expect("discover unavailable source")
+            discover_source_candidates(&source, 100, false, &cancel)
+                .expect("discover unavailable source")
         else {
             panic!("missing source discovery unexpectedly cancelled");
         };
@@ -6682,7 +6783,7 @@ mod tests {
 
         let cancel = AtomicBool::new(false);
         let Cancellable::Completed((candidates, _)) =
-            discover_source_candidates(&source, 250, &cancel).expect("rediscover work")
+            discover_source_candidates(&source, 250, false, &cancel).expect("rediscover work")
         else {
             panic!("source rediscovery unexpectedly cancelled");
         };

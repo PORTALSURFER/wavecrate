@@ -226,6 +226,66 @@ tests should prove that an acknowledged internal echo is removed without
 starting duplicate work and that later external changes still reach the
 authoritative reconciliation path.
 
+### Source-processing liveness, churn, and performance
+
+Use this explicit lane when changing source readiness, the background supervisor,
+watcher-to-manifest reconciliation, committed mutations, retry/lease recovery,
+source removal/re-add, playback scheduling, or exact similarity publication.
+The end-to-end tests are ignored by the default suite so normal CI does not
+inherit a real-time soak:
+
+- deterministic liveness oracle:
+  `cargo test -p wavecrate --bin wavecrate liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work`
+- real temporary source through add, targeted and overflow reconciliation,
+  same-size content change, rename, delete, playback pause, committed internal
+  mutation, closed-app restart audit, root disappearance/reappearance, and
+  source remove/re-add:
+  `cargo test -p wavecrate --bin wavecrate source_processing_liveness_harness_converges_restart_churn_and_root_recovery -- --ignored --nocapture`
+- 10,000-file / 40,001-target calibrated source-processing profile:
+  `cargo test -p wavecrate --bin wavecrate profile_source_processing_churn_under_playback_and_browser_priority -- --ignored --nocapture`
+- full mutation and watcher family coverage:
+  `cargo test -p wavecrate --bin wavecrate committed_file_mutations`
+  and
+  `cargo test -p wavecrate --bin wavecrate source_watcher`
+- supervisor and durable-readiness failure injection (busy/resource contention,
+  retry deadlines, expired leases, cancellation, worker failures, unsupported
+  inputs, and stale completions):
+  `cargo test -p wavecrate --bin wavecrate native_app::source_processing::supervisor::tests`
+  and
+  `cargo test -p wavecrate-library sample_sources::readiness::tests`
+- UI frame and input budgets while exercising browser interactions:
+  `bash scripts/perf.sh guard` on macOS/Linux/WSL or
+  `powershell -ExecutionPolicy Bypass -File scripts/perf.ps1 guard` on Windows
+
+Run the deterministic liveness test repeatedly when changing timing or wakeup
+behavior. Its oracle reads committed manifest/readiness generations and
+supervisor state directly; it does not infer completion from UI progress or
+sleep for a fixed success delay. An active source with actionable deficits must
+be dirty/scheduled, queued, in flight, resource-paused, waiting for a retry, or
+waiting for an exact prerequisite. A stable state outside those categories
+fails as silently idle.
+
+Timeouts and invariant failures emit a JSON snapshot containing source and
+readiness generations, availability, activity, per-stage deficits and
+classifications, durable job status/lease/retry state, active runtime work,
+watcher stimulus/root health, and supervisor resource counters. The calibrated
+profile enforces these source-processing budgets in debug test builds:
+
+- materialize 40,001 exact targets from 10,000 files within 180 seconds;
+- sustain at least 200 materialized candidates per second;
+- keep browser-priority update p99 at or below 10 ms while playback pauses
+  processing;
+- keep process-memory growth at or below 512 MiB; and
+- keep average process CPU at or below two core-equivalents and process disk
+  reads/writes at or below 1 GiB each for candidate materialization; and
+- record zero supervisor database-contention events.
+
+The profile prints wall time, completion throughput, queue-priority latency,
+CPU time/core-equivalent, memory growth, disk I/O, database-contention events,
+and their exact budgets as JSON. Pair it with the maintained perf guard for the
+frame/input-latency budgets from
+`scripts/internal/data/validation_contract.json`.
+
 ### Script and golden checks
 
 Use for tooling, fixtures, and numerical-reference flows.

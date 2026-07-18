@@ -30,6 +30,36 @@ use worker::{
     mutation_completion_is_stale_or_duplicate, reconcile_file_mutation_requests,
 };
 
+#[cfg(test)]
+pub(in crate::native_app) fn reconcile_file_mutation_for_liveness_test(
+    source: wavecrate::sample_sources::SampleSource,
+    operation_id: u64,
+    operation: FileMutationOperation,
+    mut changes: Vec<FileMutationChange>,
+) -> Result<CommittedFileMutation, String> {
+    capture_expected_filesystem_state(&mut changes);
+    let requests = build_source_requests(operation_id, operation, changes, &[source]);
+    match reconcile_file_mutation_requests(requests) {
+        FileMutationOutcome::Committed(mut committed) if committed.len() == 1 => {
+            Ok(committed.remove(0))
+        }
+        FileMutationOutcome::Committed(committed) => Err(format!(
+            "liveness mutation expected one committed source, got {}",
+            committed.len()
+        )),
+        FileMutationOutcome::Failed {
+            committed,
+            failures,
+        } => Err(format!(
+            "liveness mutation partially failed: {} committed, failures={failures:?}",
+            committed.len()
+        )),
+        FileMutationOutcome::RolledBack(failure) => {
+            Err(format!("liveness mutation rolled back: {failure:?}"))
+        }
+    }
+}
+
 /// User-visible mutation family that owns one operation ID across all affected sources.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum FileMutationOperation {

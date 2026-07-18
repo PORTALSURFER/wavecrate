@@ -338,6 +338,21 @@ One revision-aware reconciler owns source completeness. It compares the complete
 
 Detection and execution stay off UI, render, and latency-sensitive read paths. UI and read paths may observe a side-effect-free readiness snapshot and request priority, repair, or retry, but they must not discover a missing artifact by directly enqueueing hidden work. Lifecycle writers publish committed desired generations and wake the background coordinator only after their authoritative transaction succeeds.
 
+The readiness contract must be protected by a deterministic native-runtime
+liveness oracle over real temporary sources. The oracle observes committed
+manifest/readiness generations and the supervisor's durable/runtime state
+directly rather than treating UI progress, queue length alone, or fixed sleeps
+as proof. While an active source has an actionable deficit, the source must be
+dirty or scheduled, queued, in flight, resource-paused, waiting for a retry
+deadline, or waiting for an exact prerequisite; a stable state outside those
+categories is silently idle and must fail with generation, stage, job,
+lease/retry, watcher-health, active-work, and resource diagnostics. Restart,
+external and internal churn, watcher overflow/loss, playback, source
+disappearance/reappearance, removal/re-add, stale completion, terminal inputs,
+and exact removal of obsolete similarity/playback membership belong in this
+proof. Large-library throughput and browser/frame responsiveness remain an
+explicit calibrated lane rather than an unbounded normal-CI soak.
+
 If a source database is missing, corrupt, locked, or unreadable, Wavecrate should keep the user's audio files untouched, report the source database problem clearly, and offer repair/rebuild/reindex options where safe.
 
 ## Audio Format and Channel Target
