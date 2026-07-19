@@ -82,13 +82,6 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         ON analysis_jobs (status, created_at, id);
     CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status_sample_id
         ON analysis_jobs (status, sample_id);
-    CREATE TABLE IF NOT EXISTS analysis_job_progress_snapshots (
-        job_type TEXT PRIMARY KEY,
-        pending INTEGER NOT NULL DEFAULT 0,
-        running INTEGER NOT NULL DEFAULT 0,
-        done INTEGER NOT NULL DEFAULT 0,
-        failed INTEGER NOT NULL DEFAULT 0
-    ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS source_readiness_sources (
         source_id TEXT PRIMARY KEY,
         source_generation INTEGER NOT NULL,

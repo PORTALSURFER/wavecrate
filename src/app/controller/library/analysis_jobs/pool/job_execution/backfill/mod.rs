@@ -1,6 +1,5 @@
 //! Embedding backfill job orchestration.
 
-use crate::app::controller::library::analysis_jobs::db;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::warn;
 
@@ -15,104 +14,25 @@ mod tests;
 
 use model::BackfillPlan;
 
-/// Runs the embedding backfill job for a claimed analysis job.
-///
-/// This job reuses cached embeddings or features when possible, computes any
-/// remaining embeddings in worker threads, persists the results, and refreshes
-/// the ANN index in chunked batches.
-pub(crate) fn run_embedding_backfill_job(
+pub(crate) fn run_readiness_embedding_backfill(
     conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    use_cache: bool,
-    analysis_sample_rate: u32,
-    analysis_version: &str,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), String> {
-    run_embedding_backfill_job_with_options(
-        conn,
-        job,
-        use_cache,
-        analysis_sample_rate,
-        analysis_version,
-        cancel,
-        None,
-        false,
-    )
-}
-
-pub(crate) fn run_embedding_backfill_job_with_worker_limit(
-    conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    use_cache: bool,
+    source_root: &std::path::Path,
+    sample_ids: &[String],
     analysis_sample_rate: u32,
     analysis_version: &str,
     cancel: Option<&AtomicBool>,
     worker_limit: Option<usize>,
-) -> Result<(), String> {
-    run_embedding_backfill_job_with_options(
-        conn,
-        job,
-        use_cache,
-        analysis_sample_rate,
-        analysis_version,
-        cancel,
-        worker_limit,
-        false,
-    )
-}
-
-pub(crate) fn run_readiness_embedding_backfill_job_with_worker_limit(
-    conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    use_cache: bool,
-    analysis_sample_rate: u32,
-    analysis_version: &str,
-    cancel: Option<&AtomicBool>,
-    worker_limit: Option<usize>,
-) -> Result<(), String> {
-    run_embedding_backfill_job_with_options(
-        conn,
-        job,
-        use_cache,
-        analysis_sample_rate,
-        analysis_version,
-        cancel,
-        worker_limit,
-        true,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_embedding_backfill_job_with_options(
-    conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    use_cache: bool,
-    analysis_sample_rate: u32,
-    analysis_version: &str,
-    cancel: Option<&AtomicBool>,
-    worker_limit: Option<usize>,
-    require_cache_materialization: bool,
 ) -> Result<(), String> {
     checkpoint(cancel)?;
-    let sample_ids = planning::parse_backfill_payload(job)?;
     if sample_ids.is_empty() {
         return Ok(());
     }
 
-    let plan = if require_cache_materialization {
-        planning::build_readiness_backfill_plan(
-            conn,
-            job,
-            &sample_ids,
-            use_cache,
-            analysis_version,
-        )?
-    } else {
-        planning::build_backfill_plan(conn, job, &sample_ids, use_cache, analysis_version)?
-    };
+    let plan =
+        planning::build_readiness_backfill_plan(conn, source_root, sample_ids, analysis_version)?;
     finalize_backfill_job(
         conn,
-        job,
+        source_root,
         plan,
         analysis_sample_rate,
         analysis_version,
@@ -123,7 +43,7 @@ fn run_embedding_backfill_job_with_options(
 
 fn finalize_backfill_job(
     conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
+    source_root: &std::path::Path,
     plan: BackfillPlan,
     analysis_sample_rate: u32,
     analysis_version: &str,
@@ -139,7 +59,7 @@ fn finalize_backfill_job(
         return finish_empty_backfill(errors);
     }
 
-    persistence::write_backfill_results(conn, job, &results, analysis_version, cancel)?;
+    persistence::write_backfill_results(conn, source_root, &results, analysis_version, cancel)?;
     log_worker_errors(&errors);
     Ok(())
 }

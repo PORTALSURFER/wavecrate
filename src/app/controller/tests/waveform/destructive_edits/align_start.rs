@@ -1,14 +1,14 @@
 use super::*;
 
-fn wait_for_analysis_enqueue_finished(
+fn wait_for_readiness_reconciliation(
     controller: &mut crate::app::controller::AppController,
 ) -> AnalysisJobMessage {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
         match controller.runtime.jobs.try_recv_message() {
-            Ok(JobMessage::Analysis(message @ AnalysisJobMessage::EnqueueFinished { .. })) => {
-                return message;
-            }
+            Ok(JobMessage::Analysis(
+                message @ AnalysisJobMessage::ReadinessReconciliationFinished { .. },
+            )) => return message,
             Ok(_) => {}
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 std::thread::sleep(Duration::from_millis(10));
@@ -16,7 +16,7 @@ fn wait_for_analysis_enqueue_finished(
             Err(err) => panic!("unexpected receive error: {err:?}"),
         }
     }
-    panic!("timed out waiting for analysis enqueue message");
+    panic!("timed out waiting for readiness reconciliation");
 }
 
 #[test]
@@ -44,7 +44,7 @@ fn align_waveform_start_uses_hover_cursor() {
 }
 
 #[test]
-fn align_waveform_start_enqueues_reanalysis_for_overwrite_in_place() {
+fn align_waveform_start_reconciles_readiness_for_overwrite_in_place() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "align.wav",
         crate::sample_sources::Rating::NEUTRAL,
@@ -58,11 +58,11 @@ fn align_waveform_start_enqueues_reanalysis_for_overwrite_in_place() {
 
     controller.align_waveform_start_to_last_marker().unwrap();
 
-    match wait_for_analysis_enqueue_finished(&mut controller) {
-        AnalysisJobMessage::EnqueueFinished {
-            inserted, announce, ..
+    match wait_for_readiness_reconciliation(&mut controller) {
+        AnalysisJobMessage::ReadinessReconciliationFinished {
+            changed, announce, ..
         } => {
-            assert!(inserted >= 1);
+            assert!(changed >= 1);
             assert!(!announce);
         }
         other => panic!("unexpected analysis message: {other:?}"),

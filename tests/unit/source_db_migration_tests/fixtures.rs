@@ -72,10 +72,6 @@ pub(super) const SOURCE_DB_SCHEMA_CONTRACT: &[TableContract] = &[
         ],
     },
     TableContract {
-        name: "analysis_job_progress_snapshots",
-        columns: &["job_type", "pending", "running", "done", "failed"],
-    },
-    TableContract {
         name: "source_readiness_sources",
         columns: &[
             "source_id",

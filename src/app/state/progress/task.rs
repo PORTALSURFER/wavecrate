@@ -1,4 +1,3 @@
-use super::AnalysisProgressSnapshot;
 use std::time::Instant;
 
 /// Modal progress indicator for slow tasks.
@@ -13,8 +12,6 @@ pub enum ProgressTaskKind {
     Scan,
     /// Preparing a newly added source.
     SourceAdd,
-    /// Running background analysis jobs.
-    Analysis,
     /// Normalizing audio samples.
     Normalization,
     /// Exporting waveform slice batches in the background.
@@ -36,7 +33,6 @@ pub(super) struct ProgressTaskState {
     pub(super) cancel_requested: bool,
     pub(super) last_update_at: Option<Instant>,
     pub(super) last_progress_at: Option<Instant>,
-    pub(super) analysis: Option<AnalysisProgressSnapshot>,
     pub(super) started_at: Instant,
 }
 
@@ -58,7 +54,6 @@ impl ProgressTaskState {
             cancel_requested: false,
             last_update_at: Some(now),
             last_progress_at: Some(now),
-            analysis: None,
             started_at: now,
         }
     }
@@ -69,7 +64,6 @@ pub(super) fn task_priority(task: ProgressTaskKind) -> u8 {
         ProgressTaskKind::TrashMove => 100,
         ProgressTaskKind::Scan => 90,
         ProgressTaskKind::SourceAdd => 85,
-        ProgressTaskKind::Analysis => 80,
         ProgressTaskKind::FileOps => 70,
         ProgressTaskKind::Normalization => 60,
         ProgressTaskKind::SelectionExport => 50,

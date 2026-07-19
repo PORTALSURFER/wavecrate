@@ -457,6 +457,7 @@ impl SourceProcessingSupervisor {
     fn start_without_forced_manifest_audit(sources: Vec<SampleSource>) -> Self {
         let shared = Arc::new(Shared::new(sources, None));
         shared.control().force_manifest_audit_sources.clear();
+        shared.control().force_reanalysis_sources.clear();
         let thread_shared = Arc::clone(&shared);
         let coordinator = thread::Builder::new()
             .name(String::from("wavecrate-source-supervisor"))
@@ -582,6 +583,9 @@ impl SourceProcessingSupervisor {
         let retained_source_ids = control.sources.keys().cloned().collect::<BTreeSet<_>>();
         control
             .force_manifest_audit_sources
+            .retain(|source_id| retained_source_ids.contains(source_id));
+        control
+            .force_reanalysis_sources
             .retain(|source_id| retained_source_ids.contains(source_id));
         control.force_manifest_audit_sources.extend(
             changed_source_ids
@@ -733,6 +737,30 @@ impl SourceProcessingSupervisor {
         }
         control.mark_source_dirty(source_id, reason);
         drop(control);
+        self.shared.wake.notify_one();
+    }
+
+    /// Requeue exact current feature, embedding, and similarity targets after
+    /// an explicit user request.
+    pub(in crate::native_app) fn request_source_reanalysis(
+        &self,
+        source_id: &str,
+        reason: &'static str,
+    ) {
+        let mut control = self.shared.control();
+        if !control.source_is_active(source_id) {
+            return;
+        }
+        control.cancel_source_work(source_id);
+        control
+            .force_reanalysis_sources
+            .insert(source_id.to_string());
+        control.priority.selected_source = Some(source_id.to_string());
+        control.mark_source_dirty(source_id, reason);
+        drop(control);
+        self.shared
+            .cancel_external_scans(|registration| registration.source_id == source_id);
+        self.shared.budget_wake.notify_all();
         self.shared.wake.notify_one();
     }
 
@@ -967,6 +995,7 @@ impl Shared {
                 dirty_sources,
                 awaiting_foreground_refresh_sources: BTreeSet::new(),
                 force_manifest_audit_sources,
+                force_reanalysis_sources: BTreeSet::new(),
                 quarantined_sources: BTreeSet::new(),
                 pending_retirements,
                 next_retirement_id,
@@ -1125,6 +1154,7 @@ struct ControlState {
     dirty_sources: BTreeSet<String>,
     awaiting_foreground_refresh_sources: BTreeSet<String>,
     force_manifest_audit_sources: BTreeSet<String>,
+    force_reanalysis_sources: BTreeSet<String>,
     quarantined_sources: BTreeSet<String>,
     pending_retirements: BTreeMap<u64, PendingSourceRetirement>,
     next_retirement_id: u64,
@@ -1370,6 +1400,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             dirty_sources,
             awaiting_foreground_refresh_sources,
             force_manifest_audit_sources,
+            force_reanalysis_sources,
             source_work_cancels,
             source_lifecycle_generations,
             priority,
@@ -1443,6 +1474,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 .filter(|source_id| !awaiting_foreground_refresh_sources.contains(source_id))
                 .collect::<BTreeSet<_>>();
             let force_manifest_audit_sources = control.force_manifest_audit_sources.clone();
+            let force_reanalysis_sources = control.force_reanalysis_sources.clone();
             (
                 control
                     .sources
@@ -1453,6 +1485,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 dirty_sources,
                 awaiting_foreground_refresh_sources,
                 force_manifest_audit_sources,
+                force_reanalysis_sources,
                 control.source_work_cancels.clone(),
                 control.source_lifecycle_generations.clone(),
                 control.priority.clone(),
@@ -1501,6 +1534,7 @@ fn run_coordinator(shared: Arc<Shared>) {
             &shared,
             &sources_to_discover,
             &force_manifest_audit_sources,
+            &force_reanalysis_sources,
             &source_work_cancels,
         );
         let discovery_deferred_for_capacity = !deferred_discoveries.is_empty();
@@ -2513,6 +2547,7 @@ fn discover_candidates(
     shared: &Shared,
     sources: &[SampleSource],
     force_manifest_audit_sources: &BTreeSet<String>,
+    force_reanalysis_sources: &BTreeSet<String>,
     source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
 ) -> (
     Vec<RuntimeCandidate>,
@@ -2562,12 +2597,17 @@ fn discover_candidates(
             source,
             now,
             force_manifest_audit_sources.contains(source.id.as_str()),
+            force_reanalysis_sources.contains(source.id.as_str()),
             source_cancel,
             &mut |phase, work_units| progress.advance(phase, work_units),
         ) {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 candidates.append(&mut source_candidates);
                 source_stats.insert(source.id.as_str().to_string(), stats);
+                shared
+                    .control()
+                    .force_reanalysis_sources
+                    .remove(source.id.as_str());
             }
             Ok(Cancellable::Cancelled) => {
                 deferred.insert(source.id.as_str().to_string());
@@ -2604,6 +2644,7 @@ fn discover_source_candidates(
         source,
         now,
         force_manifest_audit,
+        false,
         cancel,
         &mut |_, _| {},
     )
@@ -2613,6 +2654,7 @@ fn discover_source_candidates_with_progress(
     source: &SampleSource,
     now: i64,
     force_manifest_audit: bool,
+    force_reanalysis: bool,
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(&'static str, usize),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
@@ -2649,6 +2691,7 @@ fn discover_source_candidates_with_progress(
         &mut connection,
         now,
         force_manifest_audit,
+        force_reanalysis,
         cancel,
         progress,
     )
@@ -2667,6 +2710,7 @@ fn discover_source_candidates_with_connection(
         connection,
         now,
         force_manifest_audit,
+        false,
         cancel,
         &mut |_, _| {},
     )
@@ -2677,6 +2721,7 @@ fn discover_source_candidates_with_connection_and_progress(
     connection: &mut rusqlite::Connection,
     now: i64,
     force_manifest_audit: bool,
+    force_reanalysis: bool,
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(&'static str, usize),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
@@ -2703,15 +2748,15 @@ fn discover_source_candidates_with_connection_and_progress(
         );
         return Ok(Cancellable::Completed((candidates, stats)));
     }
-    let pruned_legacy_jobs = ReadinessStore::new(connection)
-        .prune_legacy_similarity_jobs()
-        .map_err(|error| format!("Prune retired similarity jobs failed: {error}"))?;
-    if pruned_legacy_jobs > 0 {
+    if force_reanalysis {
+        let changed = ReadinessStore::new(connection)
+            .requeue_source_analysis(source_id, now)
+            .map_err(|error| format!("Requeue source analysis failed: {error}"))?;
         tracing::info!(
             target: "wavecrate::source_processing",
             source_id,
-            pruned_legacy_jobs,
-            "Removed jobs owned by the retired similarity pipeline"
+            changed,
+            "Requeued source analysis through readiness"
         );
     }
     let last_manifest_audit_at = connection
@@ -4781,96 +4826,6 @@ mod tests {
     }
 
     #[test]
-    fn retired_jobs_are_pruned_without_mutating_readiness_jobs() {
-        let directory = tempfile::tempdir().expect("source directory");
-        let source = SampleSource::new_with_id(
-            SourceId::from_string("current-only-jobs"),
-            directory.path().to_path_buf(),
-        );
-        source.open_db().expect("create source database");
-        let database_root = source.database_root().expect("database root");
-        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
-            &source.root,
-            &database_root,
-            SourceDatabaseConnectionRole::JobWorker,
-        )
-        .expect("open source database");
-        connection
-            .execute_batch(
-                "INSERT INTO analysis_jobs
-                    (sample_id, source_id, relative_path, job_type, status, created_at,
-                     readiness_managed)
-                 VALUES
-                    ('legacy::sample', 'current-only-jobs', 'legacy.wav',
-                     'wav_metadata_v1', 'running', 1, 0),
-                    ('current::sample', 'current-only-jobs', 'current.wav',
-                     'wav_metadata_v1', 'running', 1, 1);
-                 INSERT INTO analysis_job_progress_snapshots
-                    (job_type, pending, running, done, failed)
-                 VALUES ('wav_metadata_v1', 0, 1, 0, 0);",
-            )
-            .expect("seed current and retired jobs");
-
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT status FROM analysis_jobs WHERE sample_id = 'legacy::sample'",
-                    [],
-                    |row| row.get::<_, String>(0),
-                )
-                .expect("read retired job"),
-            "running"
-        );
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT status FROM analysis_jobs WHERE sample_id = 'current::sample'",
-                    [],
-                    |row| row.get::<_, String>(0),
-                )
-                .expect("read readiness job"),
-            "running"
-        );
-
-        assert_eq!(
-            ReadinessStore::new(&mut connection)
-                .prune_legacy_similarity_jobs()
-                .expect("prune retired jobs"),
-            1
-        );
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 0",
-                    [],
-                    |row| row.get::<_, i64>(0),
-                )
-                .expect("count retired jobs"),
-            0
-        );
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 1",
-                    [],
-                    |row| row.get::<_, i64>(0),
-                )
-                .expect("count readiness jobs"),
-            1
-        );
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT COUNT(*) FROM analysis_job_progress_snapshots",
-                    [],
-                    |row| row.get::<_, i64>(0),
-                )
-                .expect("count retired progress"),
-            0
-        );
-    }
-
-    #[test]
     fn playback_active_does_not_block_hash_backlog_and_shutdown_joins() {
         let (_directory, source) = unhashed_source("playing");
         let mut supervisor =
@@ -5278,6 +5233,48 @@ mod tests {
             &control.source_work_cancels[source.id.as_str()]
         ));
         drop(control);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn explicit_reanalysis_cancels_current_work_and_prioritizes_the_source() {
+        let (_directory, source) = unhashed_source("explicit-reanalysis-request");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        let retained_generation = {
+            let mut control = supervisor.shared.control();
+            control.dirty_sources.clear();
+            Arc::clone(&control.source_work_cancels[source.id.as_str()])
+        };
+        let scan = supervisor
+            .budget_handle()
+            .acquire_scan(source.id.as_str())
+            .expect("admit source scan");
+        let scan_cancel = scan.cancel_token();
+
+        supervisor.request_source_reanalysis(source.id.as_str(), "user_process_source");
+
+        assert!(retained_generation.load(Ordering::Acquire));
+        assert!(scan_cancel.load(Ordering::Acquire));
+        let control = supervisor.shared.control();
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        assert!(
+            control
+                .force_reanalysis_sources
+                .contains(source.id.as_str())
+        );
+        assert_eq!(
+            control.priority.selected_source.as_deref(),
+            Some(source.id.as_str())
+        );
+        assert!(
+            !control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire),
+            "the replacement generation must be available for the reanalysis run"
+        );
+        drop(control);
+        drop(scan);
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -6112,6 +6109,7 @@ mod tests {
         let Cancellable::Completed(_) = discover_source_candidates_with_progress(
             &source,
             100,
+            false,
             false,
             &AtomicBool::new(false),
             &mut |phase, work_units| updates.push((phase, work_units)),

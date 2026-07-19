@@ -221,8 +221,7 @@ impl ControllerJobs {
 impl AppController {
     /// Install the repaint signal used by controller-owned async subsystems.
     pub(crate) fn set_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
-        self.runtime.jobs.set_repaint_signal(signal.clone());
-        self.runtime.analysis.set_repaint_signal(signal);
+        self.runtime.jobs.set_repaint_signal(signal);
     }
 
     /// Shut down background workers owned by the controller.
@@ -236,9 +235,7 @@ impl AppController {
         let jobs_started = Instant::now();
         self.runtime.jobs.shutdown();
         let jobs_shutdown = jobs_started.elapsed();
-        let analysis_started = Instant::now();
-        self.runtime.analysis.shutdown();
-        let analysis_shutdown = analysis_started.elapsed();
+        let analysis_shutdown = Duration::ZERO;
         ControllerShutdownTiming {
             jobs_shutdown,
             analysis_shutdown,
@@ -253,9 +250,7 @@ impl AppController {
         let jobs_started = Instant::now();
         self.runtime.jobs.request_shutdown_detached();
         let jobs_shutdown = jobs_started.elapsed();
-        let analysis_started = Instant::now();
-        self.runtime.analysis.request_shutdown_detached();
-        let analysis_shutdown = analysis_started.elapsed();
+        let analysis_shutdown = Duration::ZERO;
         ControllerShutdownTiming {
             jobs_shutdown,
             analysis_shutdown,

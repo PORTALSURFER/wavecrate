@@ -45,10 +45,6 @@ impl AppController {
                     cancel.store(true, Ordering::Relaxed);
                 }
             }
-            helpers::CancelRequestAction::Analysis => {
-                self.runtime.analysis.cancel();
-                self.clear_progress_task(ProgressTaskKind::Analysis);
-            }
             helpers::CancelRequestAction::FileOps => {
                 if let Some(cancel) = self.runtime.jobs.file_ops_cancel().as_ref() {
                     cancel.store(true, Ordering::Relaxed);

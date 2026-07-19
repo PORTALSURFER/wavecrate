@@ -99,7 +99,7 @@ fn current_stamped_source_database_repairs_schema_contract() {
     );
     assert_eq!(db.list_files().unwrap().len(), 1);
     assert_eq!(db.list_search_entry_rows().unwrap().len(), 1);
-    assert_eq!(analysis_job_pending_count(&db.connection), 1);
+    assert_eq!(analysis_job_count(&db.connection), 1);
 }
 
 fn schema_version(connection: &rusqlite::Connection) -> i64 {
@@ -108,14 +108,8 @@ fn schema_version(connection: &rusqlite::Connection) -> i64 {
         .unwrap()
 }
 
-fn analysis_job_pending_count(connection: &rusqlite::Connection) -> i64 {
+fn analysis_job_count(connection: &rusqlite::Connection) -> i64 {
     connection
-        .query_row(
-            "SELECT pending
-             FROM analysis_job_progress_snapshots
-             WHERE job_type = 'analyze_sample'",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| row.get(0))
         .unwrap()
 }

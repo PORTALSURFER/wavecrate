@@ -111,7 +111,8 @@ fn test_connection() -> Connection {
          CREATE TABLE analysis_jobs (
             sample_id TEXT NOT NULL,
             job_type TEXT NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            readiness_managed INTEGER NOT NULL DEFAULT 0
          );",
     )
     .expect("create schema");
@@ -154,7 +155,8 @@ fn insert_embedding(conn: &Connection, sample_id: &str) {
 
 fn insert_analysis_job(conn: &Connection, sample_id: &str, status: &str) {
     conn.execute(
-        "INSERT INTO analysis_jobs (sample_id, job_type, status) VALUES (?1, ?2, ?3)",
+        "INSERT INTO analysis_jobs (sample_id, job_type, status, readiness_managed)
+         VALUES (?1, ?2, ?3, 1)",
         params![sample_id, ANALYSIS_JOB_TYPE, status],
     )
     .expect("insert analysis job");

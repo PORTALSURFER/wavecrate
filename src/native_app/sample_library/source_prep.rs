@@ -60,7 +60,11 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let selected_source = source_id == self.library.folder_browser.selected_source_id();
-        if trigger.invalidates_running_source_work() {
+        if trigger == SourcePrepTrigger::UserRequested {
+            self.background
+                .source_processing
+                .request_source_reanalysis(&source_id, trigger.action_label());
+        } else if trigger.invalidates_running_source_work() {
             self.background
                 .source_processing
                 .wake_source(&source_id, trigger.action_label());

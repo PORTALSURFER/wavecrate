@@ -69,11 +69,6 @@ pub(crate) fn audio_device_view(
     }
 }
 
-/// Progress task fixture for analysis progress.
-pub(crate) fn analysis_progress_task() -> ProgressTaskKind {
-    ProgressTaskKind::Analysis
-}
-
 /// Progress task fixture for normalization progress.
 pub(crate) fn normalization_progress_task() -> ProgressTaskKind {
     ProgressTaskKind::Normalization

@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::JobMessage;
-use crate::app::controller::library::analysis_jobs::{self, AnalysisJobMessage};
+use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
 use crate::app::controller::state::cache::{FeatureCache, FeatureCacheKey};
 use crate::app::controller::test_support::{dummy_controller, write_test_wav};
 use crate::app::state::ProgressTaskKind;
@@ -60,10 +60,7 @@ fn assert_no_analysis_jobs_inserted(source: &SampleSource) {
             "SELECT COUNT(*)
              FROM analysis_jobs
              WHERE job_type IN (?1, ?2)",
-            rusqlite::params![
-                analysis_jobs::db::ANALYZE_SAMPLE_JOB_TYPE,
-                analysis_jobs::db::EMBEDDING_BACKFILL_JOB_TYPE,
-            ],
+            rusqlite::params!["wav_metadata_v1", "embedding_backfill_v1",],
             |row| row.get(0),
         )
         .expect("count analysis jobs");

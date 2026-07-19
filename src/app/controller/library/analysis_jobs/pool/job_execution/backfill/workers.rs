@@ -1,7 +1,7 @@
 //! Worker-thread execution for embedding backfill decode and embedding computation.
 
-use crate::app::controller::library::analysis_jobs::pool::job_execution::errors::ErrorCollector;
-use crate::app::controller::library::analysis_jobs::pool::job_execution::support::now_epoch_seconds;
+use super::super::errors::ErrorCollector;
+use super::super::support::now_epoch_seconds;
 use std::collections::VecDeque;
 use std::sync::{
     Arc, Mutex,

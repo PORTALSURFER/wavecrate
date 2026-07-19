@@ -14,8 +14,8 @@ mod invalid_paths;
 mod tag_catalog;
 
 use self::analysis_jobs::{
-    ensure_analysis_job_progress_snapshots, ensure_analysis_jobs_optional_columns,
-    ensure_source_readiness_schema,
+    ensure_analysis_jobs_optional_columns, ensure_source_readiness_schema,
+    retire_legacy_analysis_runtime_state,
 };
 use self::aspect_descriptors::ensure_aspect_descriptor_tables;
 use self::columns::{
@@ -29,6 +29,7 @@ use self::tag_catalog::{backfill_tag_catalog, ensure_tag_catalog_schema};
 /// Apply additive column migrations needed by older source databases.
 pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), SourceDbError> {
     apply_structural_migrations(connection)?;
+    retire_legacy_analysis_runtime_state(connection)?;
     migrate_canonical_file_identities(connection)?;
     backfill_tag_catalog(connection)?;
     Ok(())
@@ -44,7 +45,6 @@ fn apply_structural_migrations(connection: &Connection) -> Result<(), SourceDbEr
     ensure_pending_rename_optional_columns(connection)?;
     ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
-    ensure_analysis_job_progress_snapshots(connection)?;
     ensure_source_readiness_schema(connection)?;
     ensure_samples_optional_columns(connection)?;
     ensure_feature_metric_columns(connection, "features")?;
@@ -89,6 +89,7 @@ fn ensure_collection_membership_schema(connection: &Connection) -> Result<(), So
 }
 
 fn migrate_canonical_file_identities(connection: &Connection) -> Result<(), SourceDbError> {
+    let mut migrated_identities = 0usize;
     for table in ["wav_files", "pending_wav_renames"] {
         if !table_columns(connection, table)?.contains("file_identity") {
             continue;
@@ -109,9 +110,23 @@ fn migrate_canonical_file_identities(connection: &Connection) -> Result<(), Sour
                      THEN file_identity
                  ELSE NULL
              END
-             WHERE file_identity IS NOT NULL"
+             WHERE file_identity IS NOT NULL
+               AND (
+                   file_identity LIKE 'unix-v2:%'
+                   OR file_identity LIKE 'windows-v2:%'
+                   OR NOT (
+                       (file_identity LIKE 'unix:%' OR file_identity LIKE 'windows:%')
+                       AND (
+                           length(file_identity) - length(replace(file_identity, ':', ''))
+                       ) = 3
+                   )
+               )"
         );
-        connection.execute(&sql, []).map_err(map_sql_error)?;
+        migrated_identities = migrated_identities
+            .saturating_add(connection.execute(&sql, []).map_err(map_sql_error)?);
+    }
+    if migrated_identities == 0 {
+        return Ok(());
     }
     // Readiness rows are derived from the manifest. Rebuilding them is both
     // simpler and safer than rewriting identity-bearing keys in place: mixed

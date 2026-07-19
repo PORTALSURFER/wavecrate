@@ -60,7 +60,6 @@ pub(crate) use gui_fixtures::build_named_gui_fixture_controller;
 #[cfg(test)]
 pub(crate) use history::catalog_history_handler_supported;
 pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
-use library::analysis_jobs::AnalysisWorkerPool;
 pub(crate) use library::wav_io::supports_wav_destructive_edits;
 pub(crate) use library::wavs::WaveformRenderMeta;
 use open;
@@ -204,7 +203,6 @@ impl AppController {
             search_worker,
             job_message_queue_capacity,
         });
-        let analysis = AnalysisWorkerPool::new();
         Self {
             ui: UiState::default(),
             audio: ControllerAudioState::new(player, AUDIO_CACHE_CAPACITY, AUDIO_HISTORY_LIMIT),
@@ -226,7 +224,7 @@ impl AppController {
             wav_entries: WavEntriesState::new(0, 1024),
             selection_state: ControllerSelectionState::new(),
             settings: AppSettingsState::new(),
-            runtime: ControllerRuntimeState::new(jobs, analysis),
+            runtime: ControllerRuntimeState::new(jobs),
             history: ControllerHistoryState::new(UNDO_LIMIT),
             #[cfg(target_os = "windows")]
             drag_hwnd: None,

@@ -1,5 +1,5 @@
 use super::super::{model, persistence};
-use super::support::{conn_with_schema, count_rows, insert_sample, make_job};
+use super::support::{conn_with_schema, count_rows, insert_sample};
 
 #[test]
 fn write_backfill_results_rolls_back_chunk_on_late_failure() {
@@ -16,7 +16,6 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
     )
     .unwrap();
     let temp = tempfile::TempDir::new().unwrap();
-    let job = make_job(&["s::a.wav", "s::b.wav"], temp.path());
     let results = vec![
         model::EmbeddingResult {
             sample_id: "s::a.wav".to_string(),
@@ -34,8 +33,8 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
         },
     ];
 
-    let err =
-        persistence::write_backfill_results(&mut conn, &job, &results, "v1", None).unwrap_err();
+    let err = persistence::write_backfill_results(&mut conn, temp.path(), &results, "v1", None)
+        .unwrap_err();
 
     assert!(err.contains("synthetic backfill cache failure"));
     assert_eq!(count_rows(&conn, "embeddings"), 0);
@@ -49,7 +48,6 @@ fn write_backfill_results_skips_stale_content_before_sql_and_ann_publication() {
     let mut conn = conn_with_schema();
     insert_sample(&conn, "s::stale.wav", "current-hash");
     let temp = tempfile::TempDir::new().unwrap();
-    let job = make_job(&["s::stale.wav"], temp.path());
     let results = vec![model::EmbeddingResult {
         sample_id: "s::stale.wav".to_string(),
         content_hash: "stale-hash".to_string(),
@@ -58,7 +56,7 @@ fn write_backfill_results_skips_stale_content_before_sql_and_ann_publication() {
         created_at: 1,
     }];
 
-    persistence::write_backfill_results(&mut conn, &job, &results, "v1", None).unwrap();
+    persistence::write_backfill_results(&mut conn, temp.path(), &results, "v1", None).unwrap();
 
     assert_eq!(count_rows(&conn, "embeddings"), 0);
     assert_eq!(count_rows(&conn, "similarity_aspect_descriptors"), 0);

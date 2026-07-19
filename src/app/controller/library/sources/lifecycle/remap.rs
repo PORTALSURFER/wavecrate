@@ -96,11 +96,6 @@ impl AppController {
                 "Cannot remap a source while database maintenance is running",
             ));
         }
-        if self.runtime.analysis.source_enqueue_in_progress(&source_id) {
-            return Err(String::from(
-                "Cannot remap a source while analysis jobs are being queued",
-            ));
-        }
         if crate::app::controller::library::analysis_jobs::source_has_pending_or_running_jobs(
             existing_source,
         )

@@ -11,8 +11,6 @@ pub(crate) struct PerformanceGovernorState {
     pub(crate) avg_frame_ms: f64,
     /// Number of valid frame samples captured so far.
     pub(crate) frame_sample_count: u32,
-    pub(crate) last_worker_count: Option<u32>,
-    pub(crate) idle_worker_override: Option<u32>,
 }
 
 impl PerformanceGovernorState {
@@ -23,8 +21,6 @@ impl PerformanceGovernorState {
             last_frame_at: None,
             avg_frame_ms: 0.0,
             frame_sample_count: 0,
-            last_worker_count: None,
-            idle_worker_override: None,
         }
     }
 

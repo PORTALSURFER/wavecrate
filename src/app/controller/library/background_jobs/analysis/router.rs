@@ -1,155 +1,81 @@
-use crate::app::controller::library::analysis_jobs::{AnalysisJobMessage, AnalysisProgress};
+use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
 use crate::app_core::state::StatusTone;
 use crate::sample_sources::SourceId;
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct AnalysisProgressRouteContext {
+pub(super) struct AnalysisRouteContext {
     pub(super) selected_source_id: Option<SourceId>,
     pub(super) current_source_id: Option<SourceId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum AnalysisProgressRouteAction {
-    CacheSelectedSourceProgress {
-        source_id: SourceId,
-        progress: AnalysisProgress,
-    },
-    ClearAnalysisProgress,
+pub(super) enum AnalysisRouteAction {
     ForceSelectedFeatureCacheRefresh,
-    QueueAnalysisFailuresRefresh,
-    QueueSelectedSourceProgress(AnalysisProgress),
     RemoveBrowserDurations(SourceId),
     RemoveFeatureCache(SourceId),
-    ResumeAnalysis,
-    SetStatus {
-        text: String,
-        tone: StatusTone,
-    },
-    ShowAnalysisProgress(AnalysisProgress),
+    SetStatus { text: String, tone: StatusTone },
 }
 
-pub(super) struct AnalysisProgressRouter;
-
-impl AnalysisProgressRouter {
-    pub(super) fn route_message(
-        context: &AnalysisProgressRouteContext,
-        message: AnalysisJobMessage,
-    ) -> Vec<AnalysisProgressRouteAction> {
-        match message {
-            AnalysisJobMessage::Progress {
-                source_id,
-                progress,
-            } => route_progress(context, source_id, progress),
-            AnalysisJobMessage::EnqueueFinished {
-                inserted,
-                progress,
-                announce,
-            } => route_enqueue_finished(context, inserted, progress, announce),
-            AnalysisJobMessage::EnqueueFailed(err) => {
-                vec![AnalysisProgressRouteAction::SetStatus {
-                    text: format!("Analysis enqueue failed: {err}"),
-                    tone: StatusTone::Error,
-                }]
-            }
-            AnalysisJobMessage::DurationsUpdated { source_id, updated } => {
-                route_durations_updated(context, source_id, updated)
-            }
+pub(super) fn route_message(
+    context: &AnalysisRouteContext,
+    message: AnalysisJobMessage,
+) -> Vec<AnalysisRouteAction> {
+    match message {
+        AnalysisJobMessage::ReadinessReconciliationFinished {
+            source_id,
+            changed,
+            announce,
+        } => route_reconciliation_finished(context, source_id, changed, announce),
+        AnalysisJobMessage::ReadinessReconciliationFailed(err) => {
+            vec![AnalysisRouteAction::SetStatus {
+                text: format!("Readiness reconciliation failed: {err}"),
+                tone: StatusTone::Error,
+            }]
+        }
+        AnalysisJobMessage::DurationsUpdated { source_id, updated } => {
+            route_durations_updated(context, source_id, updated)
         }
     }
 }
 
-fn route_progress(
-    context: &AnalysisProgressRouteContext,
-    source_id: Option<SourceId>,
-    progress: AnalysisProgress,
-) -> Vec<AnalysisProgressRouteAction> {
-    let mut actions = Vec::new();
-    if source_id.as_ref() == context.selected_source_id.as_ref()
-        && let Some(source_id) = source_id.as_ref()
-    {
-        actions.push(AnalysisProgressRouteAction::CacheSelectedSourceProgress {
-            source_id: source_id.clone(),
-            progress,
-        });
-    }
-    if !progress_matches_selected_source(context.selected_source_id.as_ref(), source_id.as_ref()) {
-        return actions;
-    }
-    if progress.total() == 0 {
-        actions.push(AnalysisProgressRouteAction::ClearAnalysisProgress);
-        return actions;
-    }
-    if progress_is_idle(&progress) {
-        actions.push(AnalysisProgressRouteAction::QueueAnalysisFailuresRefresh);
-        actions.push(AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh);
-        actions.push(AnalysisProgressRouteAction::ClearAnalysisProgress);
-        return actions;
-    }
-    actions.push(AnalysisProgressRouteAction::ShowAnalysisProgress(progress));
-    actions
-}
-
-fn route_enqueue_finished(
-    context: &AnalysisProgressRouteContext,
-    inserted: usize,
-    progress: AnalysisProgress,
+fn route_reconciliation_finished(
+    context: &AnalysisRouteContext,
+    source_id: SourceId,
+    changed: usize,
     announce: bool,
-) -> Vec<AnalysisProgressRouteAction> {
-    let mut actions = vec![AnalysisProgressRouteAction::ResumeAnalysis];
-    if inserted > 0 && announce {
-        actions.push(AnalysisProgressRouteAction::SetStatus {
-            text: format!("Queued {inserted} analysis jobs"),
+) -> Vec<AnalysisRouteAction> {
+    let mut actions = Vec::new();
+    if changed > 0 && announce {
+        actions.push(AnalysisRouteAction::SetStatus {
+            text: format!("Queued readiness reconciliation for {changed} samples"),
             tone: StatusTone::Info,
         });
     }
-    if let Some(source_id) = context.selected_source_id.as_ref() {
-        if context.current_source_id.as_ref() == Some(source_id) {
-            actions.push(AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh);
+    if context.selected_source_id.as_ref() == Some(&source_id) {
+        if context.current_source_id.as_ref() == Some(&source_id) {
+            actions.push(AnalysisRouteAction::ForceSelectedFeatureCacheRefresh);
         } else {
-            actions.push(AnalysisProgressRouteAction::RemoveFeatureCache(
-                source_id.clone(),
-            ));
+            actions.push(AnalysisRouteAction::RemoveFeatureCache(source_id));
         }
     }
-    actions.push(AnalysisProgressRouteAction::QueueSelectedSourceProgress(
-        progress,
-    ));
     actions
 }
 
 fn route_durations_updated(
-    context: &AnalysisProgressRouteContext,
+    context: &AnalysisRouteContext,
     source_id: SourceId,
     updated: usize,
-) -> Vec<AnalysisProgressRouteAction> {
+) -> Vec<AnalysisRouteAction> {
     if updated == 0 {
         return Vec::new();
     }
     let mut actions = if context.selected_source_id.as_ref() == Some(&source_id) {
-        vec![AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh]
+        vec![AnalysisRouteAction::ForceSelectedFeatureCacheRefresh]
     } else {
-        vec![AnalysisProgressRouteAction::RemoveFeatureCache(
-            source_id.clone(),
-        )]
+        vec![AnalysisRouteAction::RemoveFeatureCache(source_id.clone())]
     };
-    actions.push(AnalysisProgressRouteAction::RemoveBrowserDurations(
-        source_id,
-    ));
+    actions.push(AnalysisRouteAction::RemoveBrowserDurations(source_id));
     actions
-}
-
-fn progress_matches_selected_source(
-    selected_source: Option<&SourceId>,
-    source_id: Option<&SourceId>,
-) -> bool {
-    match source_id {
-        None => true,
-        Some(id) => selected_source.is_some_and(|selected| selected == id),
-    }
-}
-
-fn progress_is_idle(progress: &AnalysisProgress) -> bool {
-    progress.pending == 0 && progress.running == 0
 }
 
 #[cfg(test)]

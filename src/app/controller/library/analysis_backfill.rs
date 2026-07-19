@@ -39,17 +39,11 @@ impl AnalysisTriggerReason {
 #[derive(Clone, Debug)]
 pub(crate) struct ChangedSampleInput {
     relative_path: PathBuf,
-    file_size: u64,
-    modified_ns: i64,
 }
 
 impl ChangedSampleInput {
-    fn new(relative_path: PathBuf, file_size: u64, modified_ns: i64) -> Self {
-        Self {
-            relative_path,
-            file_size,
-            modified_ns,
-        }
+    fn new(relative_path: PathBuf, _file_size: u64, _modified_ns: i64) -> Self {
+        Self { relative_path }
     }
 
     fn from_entry(entry: &WavEntry) -> Self {
@@ -58,15 +52,6 @@ impl ChangedSampleInput {
             entry.file_size,
             entry.modified_ns,
         )
-    }
-
-    fn to_changed_sample(&self) -> crate::sample_sources::scanner::ChangedSample {
-        crate::sample_sources::scanner::ChangedSample {
-            relative_path: self.relative_path.clone(),
-            file_size: self.file_size,
-            modified_ns: self.modified_ns,
-            content_hash: analysis_jobs::fast_content_hash(self.file_size, self.modified_ns),
-        }
     }
 }
 

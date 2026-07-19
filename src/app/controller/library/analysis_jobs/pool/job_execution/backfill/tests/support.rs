@@ -1,6 +1,5 @@
-use super::super::db;
 use rusqlite::{Connection, params};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub(super) fn conn_with_schema() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -107,17 +106,6 @@ pub(super) fn insert_sample(conn: &Connection, sample_id: &str, content_hash: &s
         params![sample_id, content_hash],
     )
     .unwrap();
-}
-
-pub(super) fn make_job(sample_ids: &[&str], root: &Path) -> db::ClaimedJob {
-    let payload = serde_json::to_string(sample_ids).unwrap();
-    db::ClaimedJob {
-        id: 1,
-        sample_id: sample_ids.first().unwrap_or(&"").to_string(),
-        content_hash: Some(payload),
-        job_type: "embedding_backfill".to_string(),
-        source_root: root.to_path_buf(),
-    }
 }
 
 pub(super) fn make_work(id: &str) -> super::super::model::EmbeddingWork {

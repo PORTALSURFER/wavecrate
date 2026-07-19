@@ -33,6 +33,7 @@ fn failed_samples_for_source_conn(
                AND a.dtype = ?7
                AND a.l2_normed = 1
              WHERE aj.status = 'failed'
+               AND aj.readiness_managed = 1
                AND aj.source_id = ?1
                AND (
                   f.sample_id IS NULL
@@ -99,20 +100,20 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, last_error)
-             VALUES ('s1::Pack/a.wav', 's1', 'Pack/a.wav', 'x', 'failed', 1, 0, 'boom')",
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, last_error, readiness_managed)
+             VALUES ('s1::Pack/a.wav', 's1', 'Pack/a.wav', 'x', 'failed', 1, 0, 'boom', 1)",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
-             VALUES ('s1::Pack/b.wav', 's1', 'Pack/b.wav', 'x', 'failed', 1, 0)",
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, readiness_managed)
+             VALUES ('s1::Pack/b.wav', 's1', 'Pack/b.wav', 'x', 'failed', 1, 0, 1)",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, last_error)
-             VALUES ('s2::Other/c.wav', 's2', 'Other/c.wav', 'x', 'failed', 1, 0, 'nope')",
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, last_error, readiness_managed)
+             VALUES ('s2::Other/c.wav', 's2', 'Other/c.wav', 'x', 'failed', 1, 0, 'nope', 1)",
             [],
         )
         .unwrap();

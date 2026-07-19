@@ -28,15 +28,14 @@ mod test_faults;
 mod waveform_runtime;
 
 use crate::app::controller::jobs;
-use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use browser_runtime::BrowserRuntimeState;
 pub(crate) use config_persistence::{ConfigPersistenceRuntimeState, PendingConfigPersist};
 pub(crate) use deferred::{
-    AnalysisProgressUiCache, BrowserSelectionCommitRequest, BrowserSelectionCommitStage,
-    BrowserSelectionLoadState, BrowserSelectionTransition, LoadedSimilarityQueryCache,
-    LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate, LoadedSimilaritySourceSnapshot,
+    BrowserSelectionCommitRequest, BrowserSelectionCommitStage, BrowserSelectionLoadState,
+    BrowserSelectionTransition, LoadedSimilarityQueryCache, LoadedSimilarityQueryData,
+    LoadedSimilaritySourceCandidate, LoadedSimilaritySourceSnapshot,
     PendingBrowserFeatureCacheRefresh, PendingFocusedSimilarityQuery,
     PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery,
     PendingSimilarityFilterRebuild,
@@ -69,7 +68,6 @@ pub(crate) use waveform_runtime::{
 
 pub(crate) struct ControllerRuntimeState {
     pub(crate) jobs: jobs::ControllerJobs,
-    pub(crate) analysis: analysis_jobs::AnalysisWorkerPool,
     pub(crate) performance: PerformanceGovernorState,
     pub(crate) config_persistence: ConfigPersistenceRuntimeState,
     pub(crate) waveform: WaveformRuntimeState,
@@ -87,13 +85,9 @@ pub(crate) struct ControllerRuntimeState {
 }
 
 impl ControllerRuntimeState {
-    pub(crate) fn new(
-        jobs: jobs::ControllerJobs,
-        analysis: analysis_jobs::AnalysisWorkerPool,
-    ) -> Self {
+    pub(crate) fn new(jobs: jobs::ControllerJobs) -> Self {
         Self {
             jobs,
-            analysis,
             performance: PerformanceGovernorState::new(),
             config_persistence: ConfigPersistenceRuntimeState::default(),
             waveform: WaveformRuntimeState::default(),

@@ -1,6 +1,165 @@
 use super::*;
 
 #[test]
+fn explicit_reanalysis_fences_running_work_and_requeues_exact_current_targets() {
+    let (_root, mut connection) = open_fixture();
+    let indexed = file_target("reanalysis", ReadinessStage::IndexedIdentity, 1);
+    let analysis = file_target("reanalysis", ReadinessStage::AnalysisFeatures, 1);
+    let embedding = file_target("reanalysis", ReadinessStage::EmbeddingAspects, 1);
+    let layout = ReadinessTarget::source(
+        SOURCE_ID,
+        ReadinessStage::SimilarityLayout,
+        "layout-v1",
+        1,
+        "membership-v1",
+    );
+    let targets = vec![
+        indexed.clone(),
+        analysis.clone(),
+        embedding.clone(),
+        layout.clone(),
+    ];
+    sync_manifest(&connection, &targets);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        &targets,
+        1,
+    )
+    .expect("publish targets");
+    let deficits = reconcile_readiness(&connection, SOURCE_ID, 2)
+        .expect("initial deficits")
+        .deficits;
+    persist_readiness_deficits(&mut connection, &deficits, 2).expect("persist readiness work");
+    let stale_claim = claim_readiness_target(&mut connection, &analysis, 3, 30)
+        .expect("claim analysis")
+        .expect("analysis claim available");
+    for target in &targets {
+        publish_readiness_artifact(&mut connection, &ReadinessArtifact::for_target(target, 4))
+            .expect("seed current artifact");
+    }
+
+    let sample_id = format!("{SOURCE_ID}::Pack/reanalysis.wav");
+    connection
+        .execute_batch(&format!(
+            "INSERT INTO samples (sample_id, content_hash, size, mtime_ns)
+             VALUES ('{sample_id}', 'content', 1, 1);
+             INSERT INTO analysis_features (sample_id, content_hash, features)
+             VALUES ('{sample_id}', 'content', X'00');
+             INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
+             VALUES ('{sample_id}', 1, X'00', 1);
+             INSERT INTO embeddings
+                 (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
+             VALUES ('{sample_id}', 'model', 1, 'f32', 1, X'00', 1);
+             INSERT INTO similarity_aspect_descriptors
+                 (sample_id, model_id, dim, dtype, l2_normed, valid_mask, vec, created_at)
+             VALUES ('{sample_id}', 'aspects', 1, 'f32', 1, 0, X'00', 1);
+             INSERT INTO layout_umap
+                 (sample_id, model_id, umap_version, x, y, created_at)
+             VALUES ('{sample_id}', 'model', 'layout', 0.0, 0.0, 1);
+             INSERT INTO hdbscan_clusters
+                 (sample_id, model_id, method, umap_version, cluster_id, created_at)
+             VALUES ('{sample_id}', 'model', 'umap', 'layout', 0, 1);
+             INSERT INTO analysis_cache_features
+                 (content_hash, analysis_version, feat_version, vec_blob, computed_at,
+                  duration_seconds, sr_used)
+             VALUES ('content', 'v1', 1, X'00', 1, 1.0, 48000);"
+        ))
+        .expect("seed current derived outputs");
+
+    ReadinessStore::new(&mut connection)
+        .requeue_source_analysis(SOURCE_ID, 10)
+        .expect("requeue source analysis");
+
+    for table in [
+        "analysis_features",
+        "features",
+        "embeddings",
+        "similarity_aspect_descriptors",
+        "layout_umap",
+        "hdbscan_clusters",
+    ] {
+        assert_eq!(
+            connection
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0,
+            "{table} must be invalidated"
+        );
+    }
+    assert_eq!(
+        connection
+            .query_row("SELECT COUNT(*) FROM analysis_cache_features", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap(),
+        1,
+        "content-addressed caches remain reusable"
+    );
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM source_readiness_artifacts
+                 WHERE stage = 'indexed_identity'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap(),
+        1,
+        "index identity remains current"
+    );
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM source_readiness_artifacts
+                 WHERE stage IN ('analysis_features', 'embedding_aspects', 'similarity_layout')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        complete_readiness_work(&mut connection, &stale_claim, 11)
+            .expect("reject pre-reanalysis completion"),
+        ArtifactPublishOutcome::RejectedStale
+    );
+
+    let snapshot = reconcile_readiness(&connection, SOURCE_ID, 11).expect("requeued snapshot");
+    assert_eq!(
+        entry_for(&snapshot, "reanalysis", ReadinessStage::IndexedIdentity).classification,
+        ReadinessClassification::Current
+    );
+    for stage in [
+        ReadinessStage::AnalysisFeatures,
+        ReadinessStage::EmbeddingAspects,
+    ] {
+        assert_eq!(
+            entry_for(&snapshot, "reanalysis", stage).classification,
+            ReadinessClassification::Pending
+        );
+    }
+    assert_eq!(
+        entry_for(&snapshot, SOURCE_ID, ReadinessStage::SimilarityLayout).classification,
+        ReadinessClassification::Pending
+    );
+    let fresh_claim = claim_readiness_target(&mut connection, &analysis, 11, 30)
+        .expect("claim requeued analysis")
+        .expect("requeued analysis available");
+    assert!(fresh_claim.claim_generation > stale_claim.claim_generation);
+    assert_eq!(
+        complete_readiness_work(&mut connection, &fresh_claim, 12)
+            .expect("publish exact reanalysis completion"),
+        ArtifactPublishOutcome::Recorded
+    );
+}
+
+#[test]
 fn stale_completion_cannot_overwrite_a_new_generation() {
     let (_root, mut connection) = open_fixture();
     let generation_one = file_target("changed", ReadinessStage::AnalysisFeatures, 1);

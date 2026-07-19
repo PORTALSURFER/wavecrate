@@ -233,14 +233,6 @@ fn prune_path_derived_rows(
         .map_err(|error| format!("Prune obsolete readiness jobs failed: {error}"))?;
     pruned += transaction
         .execute(
-            "DELETE FROM analysis_jobs
-             WHERE source_id = ?1
-               AND readiness_managed = 0",
-            [source_id],
-        )
-        .map_err(|error| format!("Prune retired similarity jobs failed: {error}"))?;
-    pruned += transaction
-        .execute(
             "DELETE FROM source_readiness_artifacts AS artifact
              WHERE artifact.source_id = ?1
                AND NOT EXISTS (
@@ -399,7 +391,11 @@ mod tests {
         assert_exact_membership(&connection, "layout_umap", 2);
         assert_exact_membership(&connection, "hdbscan_clusters", 2);
         assert_eq!(ann_meta_count(&connection), 2);
-        assert_eq!(table_count(&connection, "analysis_jobs"), 1);
+        assert_eq!(
+            table_count(&connection, "analysis_jobs"),
+            4,
+            "exact publication must retain non-readiness jobs it does not own"
+        );
         assert_eq!(table_count(&connection, "source_readiness_artifacts"), 1);
         assert!(!directory.path().join("ann").exists());
         assert_eq!(

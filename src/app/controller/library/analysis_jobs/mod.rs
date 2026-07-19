@@ -3,9 +3,9 @@
 pub(crate) mod db;
 mod enqueue;
 mod failures;
-mod pool;
+#[path = "pool/job_execution/mod.rs"]
+mod job_execution;
 mod types;
-mod wakeup;
 
 /// Typed failure emitted while producing one readiness stage.
 #[derive(Debug)]
@@ -34,34 +34,10 @@ pub(crate) use db::{
     SampleMetadata, build_sample_id, parse_sample_id, update_sample_duration,
     update_sample_long_mark,
 };
-pub(crate) use enqueue::enqueue_jobs_for_source;
 pub(crate) use enqueue::fast_content_hash;
 pub(crate) use enqueue::update_missing_durations_for_source;
 pub(crate) use failures::failed_samples_for_source;
-pub(crate) use pool::AnalysisWorkerPool;
-pub(crate) use types::{AnalysisJobMessage, AnalysisProgress};
-
-pub(crate) fn current_progress_for_source(
-    source: &crate::sample_sources::SampleSource,
-) -> Result<AnalysisProgress, String> {
-    let conn = db::open_source_db_ui_read(&source.root)?;
-    db::current_progress(&conn, &source.root)
-}
-
-pub(crate) fn current_embedding_backfill_progress_for_source(
-    source: &crate::sample_sources::SampleSource,
-) -> Result<AnalysisProgress, String> {
-    let conn = db::open_source_db_ui_read(&source.root)?;
-    db::current_embedding_backfill_progress(&conn, &source.root)
-}
-
-pub(crate) fn current_running_jobs_for_source(
-    source: &crate::sample_sources::SampleSource,
-    limit: usize,
-) -> Result<Vec<types::RunningJobInfo>, String> {
-    let conn = db::open_source_db_ui_read(&source.root)?;
-    db::current_running_jobs(&conn, &source.root, limit)
-}
+pub(crate) use types::AnalysisJobMessage;
 
 pub(crate) fn source_has_pending_or_running_jobs(
     source: &crate::sample_sources::SampleSource,
@@ -88,62 +64,6 @@ fn database_path_entry_present(path: &std::path::Path) -> Result<bool, String> {
     }
 }
 
-pub(crate) fn default_worker_count() -> u32 {
-    pool::default_worker_count().max(1) as u32
-}
-
-pub(crate) fn stale_running_job_seconds() -> i64 {
-    if let Ok(value) = std::env::var("WAVECRATE_ANALYSIS_STALE_SECS")
-        && let Ok(parsed) = value.trim().parse::<i64>()
-        && parsed >= 60
-    {
-        return parsed;
-    }
-    2 * 60
-}
-
-pub(crate) fn run_claimed_job(
-    conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    use_cache: bool,
-    max_analysis_duration_seconds: f32,
-    analysis_sample_rate: u32,
-    analysis_version: &str,
-    cancel: Option<&std::sync::atomic::AtomicBool>,
-) -> Result<(), String> {
-    pool::job_execution::run_job(
-        conn,
-        job,
-        use_cache,
-        max_analysis_duration_seconds,
-        analysis_sample_rate,
-        analysis_version,
-        cancel,
-    )
-}
-
-pub(crate) fn run_claimed_job_with_embedding_worker_limit(
-    conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
-    use_cache: bool,
-    max_analysis_duration_seconds: f32,
-    analysis_sample_rate: u32,
-    analysis_version: &str,
-    cancel: Option<&std::sync::atomic::AtomicBool>,
-    embedding_worker_limit: usize,
-) -> Result<(), String> {
-    pool::job_execution::run_job_with_embedding_worker_limit(
-        conn,
-        job,
-        use_cache,
-        max_analysis_duration_seconds,
-        analysis_sample_rate,
-        analysis_version,
-        cancel,
-        Some(embedding_worker_limit),
-    )
-}
-
 pub(crate) fn run_readiness_feature_stage(
     conn: &mut rusqlite::Connection,
     source_root: &std::path::Path,
@@ -153,7 +73,7 @@ pub(crate) fn run_readiness_feature_stage(
     analysis_version: &str,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<bool, ReadinessStageError> {
-    pool::job_execution::run_feature_stage(
+    job_execution::run_feature_stage(
         conn,
         source_root,
         source_id,
@@ -173,7 +93,7 @@ pub(crate) fn run_readiness_embedding_stage(
     analysis_version: &str,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<bool, String> {
-    pool::job_execution::run_embedding_stage(
+    job_execution::run_embedding_stage(
         conn,
         source_root,
         source_id,

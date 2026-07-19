@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
 use super::super::{
     model::{
@@ -262,6 +262,84 @@ pub(crate) fn invalidate_readiness_artifact(
         ],
     )?;
     Ok(changed == 1)
+}
+
+/// Fence in-flight claims, retire current derived rows, and make the exact
+/// current analysis targets actionable again.
+pub(crate) fn requeue_source_analysis(
+    connection: &mut Connection,
+    source_id: &str,
+    requested_at: i64,
+) -> Result<usize, ReadinessError> {
+    let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let analysis_stages = "('analysis_features', 'embedding_aspects', 'similarity_layout')";
+    let sample_target = "EXISTS (
+        SELECT 1
+        FROM source_readiness_targets AS target
+        WHERE target.source_id = ?1
+          AND target.scope_kind = 'file'
+          AND target.relative_path IS NOT NULL
+          AND target.stage IN ('analysis_features', 'embedding_aspects')
+          AND sample_id = target.source_id || '::' || target.relative_path
+    )";
+    let mut changed = 0usize;
+    for table in [
+        "analysis_features",
+        "features",
+        "embeddings",
+        "similarity_aspect_descriptors",
+    ] {
+        changed = changed.saturating_add(tx.execute(
+            &format!("DELETE FROM {table} WHERE {sample_target}"),
+            [source_id],
+        )?);
+    }
+    let source_sample_prefix = format!("{source_id}::");
+    for table in ["layout_umap", "hdbscan_clusters"] {
+        changed = changed.saturating_add(tx.execute(
+            &format!(
+                "DELETE FROM {table}
+                 WHERE substr(sample_id, 1, length(?1)) = ?1"
+            ),
+            [&source_sample_prefix],
+        )?);
+    }
+    changed = changed.saturating_add(tx.execute(
+        &format!(
+            "DELETE FROM source_readiness_artifacts
+             WHERE source_id = ?1
+               AND stage IN {analysis_stages}"
+        ),
+        [source_id],
+    )?);
+    changed = changed.saturating_add(tx.execute(
+        &format!(
+            "UPDATE analysis_jobs
+             SET status = 'pending',
+                 attempts = 0,
+                 running_at = NULL,
+                 last_error = NULL,
+                 readiness_claim_generation = readiness_claim_generation + 1,
+                 retry_at = NULL,
+                 failure_kind = NULL,
+                 failure_code = NULL,
+                 lease_expires_at = NULL,
+                 created_at = ?2
+             WHERE source_id = ?1
+               AND readiness_managed = 1
+               AND readiness_stage IN {analysis_stages}"
+        ),
+        params![source_id, requested_at],
+    )?);
+    tx.execute(
+        "UPDATE source_readiness_sources
+         SET readiness_revision = readiness_revision + 1,
+             updated_at = ?2
+         WHERE source_id = ?1",
+        params![source_id, requested_at],
+    )?;
+    tx.commit()?;
+    Ok(changed)
 }
 
 /// Persist actionable deficits into the existing source-local analysis job table.

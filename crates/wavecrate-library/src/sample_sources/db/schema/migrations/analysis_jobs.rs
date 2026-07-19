@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use super::super::super::SourceDbError;
 use super::super::super::util::map_sql_error;
@@ -166,63 +166,49 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
     Ok(())
 }
 
-pub(super) fn ensure_analysis_job_progress_snapshots(
+/// Retire rows owned by the pre-readiness controller runtime exactly once as
+/// part of the v9 schema upgrade.
+///
+/// The transaction keeps the migration restart-safe. The readiness predicate
+/// and explicit job-type allowlist preserve current work and unknown producers.
+pub(super) fn retire_legacy_analysis_runtime_state(
     connection: &Connection,
 ) -> Result<(), SourceDbError> {
-    connection
-        .execute_batch(
-            "CREATE TABLE IF NOT EXISTS analysis_job_progress_snapshots (
-                job_type TEXT PRIMARY KEY,
-                pending INTEGER NOT NULL DEFAULT 0,
-                running INTEGER NOT NULL DEFAULT 0,
-                done INTEGER NOT NULL DEFAULT 0,
-                failed INTEGER NOT NULL DEFAULT 0
-            ) WITHOUT ROWID;",
+    let tx = connection.unchecked_transaction().map_err(map_sql_error)?;
+    tx.execute(
+        "DELETE FROM analysis_jobs
+         WHERE readiness_managed = 0
+           AND job_type IN (
+               'wav_metadata_v1',
+               'embedding_backfill_v1',
+               'rebuild_index_v1'
+           )",
+        [],
+    )
+    .map_err(map_sql_error)?;
+    let progress_table_exists = tx
+        .query_row(
+            "SELECT 1 FROM sqlite_master
+             WHERE type = 'table' AND name = 'analysis_job_progress_snapshots'",
+            [],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(map_sql_error)?
+        .is_some();
+    if progress_table_exists {
+        tx.execute(
+            "DELETE FROM analysis_job_progress_snapshots
+             WHERE job_type IN (
+                 'wav_metadata_v1',
+                 'embedding_backfill_v1',
+                 'rebuild_index_v1'
+             )",
+            [],
         )
         .map_err(map_sql_error)?;
-    connection
-        .execute(
-            "INSERT INTO analysis_job_progress_snapshots (job_type, pending, running, done, failed)
-             SELECT
-                 aj.job_type,
-                 SUM(CASE WHEN aj.status = 'pending' AND (
-                     aj.job_type != ?1
-                     OR EXISTS(
-                         SELECT 1
-                         FROM wav_files wf
-                         WHERE wf.path = aj.relative_path
-                     )
-                 ) THEN 1 ELSE 0 END),
-                 SUM(CASE WHEN aj.status = 'running' AND (
-                     aj.job_type != ?1
-                     OR EXISTS(
-                         SELECT 1
-                         FROM wav_files wf
-                         WHERE wf.path = aj.relative_path
-                     )
-                 ) THEN 1 ELSE 0 END),
-                 SUM(CASE WHEN aj.status = 'done' AND (
-                     aj.job_type != ?1
-                     OR EXISTS(
-                         SELECT 1
-                         FROM wav_files wf
-                         WHERE wf.path = aj.relative_path
-                     )
-                 ) THEN 1 ELSE 0 END),
-                 SUM(CASE WHEN aj.status = 'failed' AND (
-                     aj.job_type != ?1
-                     OR EXISTS(
-                         SELECT 1
-                         FROM wav_files wf
-                         WHERE wf.path = aj.relative_path
-                     )
-                 ) THEN 1 ELSE 0 END)
-             FROM analysis_jobs aj
-             GROUP BY aj.job_type
-             ON CONFLICT(job_type) DO NOTHING",
-            ["analyze_sample"],
-        )
-        .map_err(map_sql_error)?;
+    }
+    tx.commit().map_err(map_sql_error)?;
     Ok(())
 }
 
