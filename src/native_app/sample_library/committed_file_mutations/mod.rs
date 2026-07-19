@@ -534,6 +534,11 @@ impl NativeAppState {
                 invalidated_stages = ?event.invalidated_stages,
                 "Committed Wavecrate-owned file mutation"
             );
+            self.background.source_processing.request_source_delta(
+                &event.source_id,
+                &event.committed_delta,
+                "committed_file_mutation_delta",
+            );
             // This call refreshes metadata projections and wakes the source-owned readiness
             // reconciler. It deliberately happens after the source DB and browser projection.
             self.queue_source_prep(

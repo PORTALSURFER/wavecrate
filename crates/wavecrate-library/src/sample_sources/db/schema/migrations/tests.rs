@@ -452,6 +452,9 @@ fn readiness_schema_repairs_current_stamped_analysis_storage() {
     assert!(job_columns.contains("lease_expires_at"));
     let source_columns = table_columns(&conn, "source_readiness_sources").unwrap();
     assert!(source_columns.contains("readiness_revision"));
+    assert!(source_columns.contains("contract_version"));
+    assert!(source_columns.contains("membership_digest"));
+    assert!(source_columns.contains("membership_count"));
     let artifact_columns = table_columns(&conn, "source_readiness_artifacts").unwrap();
     assert!(artifact_columns.contains("relative_path"));
     assert!(artifact_columns.contains("artifact_ref"));

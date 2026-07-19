@@ -11,6 +11,9 @@ pub enum ReadinessError {
     /// SQLite persistence or query failed.
     #[error("Readiness database operation failed: {0}")]
     Sql(#[from] rusqlite::Error),
+    /// A readiness publication omitted its independently revisioned contract identity.
+    #[error("Readiness contract version must be non-empty")]
+    InvalidContractVersion,
     /// A stored enum value is not part of the versioned readiness contract.
     #[error("Unknown stored readiness value for {field}: {value}")]
     UnknownStoredValue {
@@ -69,6 +72,9 @@ pub enum ReadinessError {
         /// Readiness stage requiring the generation.
         stage: ReadinessStage,
     },
+    /// The source-level target did not match the exact eligible file membership.
+    #[error("Readiness similarity membership does not match eligible file targets")]
+    SimilarityMembershipMismatch,
     /// A target or artifact omitted its versioned readiness contract identity.
     #[error("Readiness artifact version must be non-empty for {source_id}:{scope_id}:{stage:?}")]
     InvalidArtifactVersion {

@@ -109,6 +109,66 @@ pub enum ReadinessEligibility {
     Deleted,
 }
 
+/// Order-independent exact membership checkpoint for source-scoped similarity work.
+///
+/// Each eligible file identity and content generation contributes one cryptographic digest. The
+/// XOR accumulator allows a committed manifest delta to remove an old contribution and add a new
+/// one without reading the complete source manifest. The member count is part of the published
+/// generation so duplicate cancellation cannot hide a membership change.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ReadinessMembership {
+    pub(crate) digest: [u8; 32],
+    pub(crate) count: u64,
+}
+
+impl ReadinessMembership {
+    /// Restore a durable membership checkpoint.
+    pub fn from_parts(digest: [u8; 32], count: u64) -> Self {
+        Self { digest, count }
+    }
+
+    /// Add or remove one identity generation contribution.
+    ///
+    /// Applying the same contribution twice restores the original digest. Callers must update the
+    /// count separately through `add` or `remove` so the durable member cardinality stays exact.
+    pub(crate) fn toggle(&mut self, identity: &str, content_generation: &str) {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(b"wavecrate-readiness-membership-v1");
+        hasher.update(&[0]);
+        hasher.update(identity.as_bytes());
+        hasher.update(&[0]);
+        hasher.update(content_generation.as_bytes());
+        for (slot, contribution) in self.digest.iter_mut().zip(hasher.finalize().as_bytes()) {
+            *slot ^= contribution;
+        }
+    }
+
+    /// Add one eligible identity generation.
+    pub fn add(&mut self, identity: &str, content_generation: &str) {
+        self.toggle(identity, content_generation);
+        self.count = self.count.saturating_add(1);
+    }
+
+    /// Remove one eligible identity generation.
+    pub(crate) fn remove(&mut self, identity: &str, content_generation: &str) {
+        self.toggle(identity, content_generation);
+        self.count = self.count.saturating_sub(1);
+    }
+
+    /// Return the stable source-scoped generation token.
+    pub fn generation(&self) -> String {
+        use std::fmt::Write as _;
+
+        let mut generation = format!("membership-xor-v1:{}:", self.count);
+        generation.reserve(64);
+        for byte in self.digest {
+            write!(&mut generation, "{byte:02x}")
+                .expect("writing into an owned string cannot fail");
+        }
+        generation
+    }
+}
+
 impl ReadinessEligibility {
     pub(crate) fn as_str(self) -> &'static str {
         match self {

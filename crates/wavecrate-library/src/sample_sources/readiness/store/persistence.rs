@@ -7,11 +7,15 @@ use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, 
 
 use super::super::{
     model::{
-        ReadinessArtifact, ReadinessScopeKind, ReadinessStage, ReadinessTarget, SourceAvailability,
+        ReadinessArtifact, ReadinessEligibility, ReadinessMembership, ReadinessScopeKind,
+        ReadinessStage, ReadinessTarget, SourceAvailability,
     },
     snapshot::{ArtifactPublishOutcome, ReadinessDeficit},
 };
-use super::error::ReadinessError;
+use super::{ReadinessDeltaPublicationOutcome, error::ReadinessError};
+
+#[cfg(test)]
+const TEST_READINESS_CONTRACT_VERSION: &str = "readiness-test-contract-v1";
 
 /// Atomically replace the complete desired readiness set for one source generation.
 #[cfg(test)]
@@ -30,6 +34,7 @@ pub fn replace_readiness_targets(
         source_generation,
         readiness_revision,
         availability,
+        TEST_READINESS_CONTRACT_VERSION,
         targets,
         updated_at,
         None,
@@ -43,11 +48,14 @@ pub(super) fn replace_readiness_targets_inner(
     source_generation: i64,
     readiness_revision: i64,
     availability: SourceAvailability,
+    contract_version: &str,
     targets: &[ReadinessTarget],
     updated_at: i64,
     cancel: Option<&AtomicBool>,
 ) -> Result<(), ReadinessError> {
+    validate_contract_version(contract_version)?;
     validate_targets(source_id, source_generation, targets, cancel)?;
+    let membership = membership_from_targets(targets);
     cancellation_checkpoint(cancel)?;
     let tx = connection.transaction()?;
     let current_state = tx
@@ -79,18 +87,25 @@ pub(super) fn replace_readiness_targets_inner(
     cancellation_checkpoint(cancel)?;
     tx.execute(
         "INSERT INTO source_readiness_sources (
-            source_id, source_generation, readiness_revision, availability, updated_at
-         ) VALUES (?1, ?2, ?3, ?4, ?5)
+            source_id, source_generation, readiness_revision, availability, contract_version,
+            membership_digest, membership_count, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(source_id) DO UPDATE SET
             source_generation = excluded.source_generation,
             readiness_revision = excluded.readiness_revision,
             availability = excluded.availability,
+            contract_version = excluded.contract_version,
+            membership_digest = excluded.membership_digest,
+            membership_count = excluded.membership_count,
             updated_at = excluded.updated_at",
         params![
             source_id,
             source_generation,
             readiness_revision,
             availability.as_str(),
+            contract_version,
+            membership.digest.as_slice(),
+            i64::try_from(membership.count).unwrap_or(i64::MAX),
             updated_at
         ],
     )?;
@@ -131,6 +146,245 @@ pub(super) fn replace_readiness_targets_inner(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn apply_readiness_target_delta_inner(
+    connection: &mut Connection,
+    source_id: &str,
+    source_generation: i64,
+    readiness_revision: i64,
+    availability: SourceAvailability,
+    contract_version: &str,
+    upsert_targets: &[ReadinessTarget],
+    deleted_file_scope_ids: &[String],
+    similarity_artifact_version: &str,
+    updated_at: i64,
+    cancel: Option<&AtomicBool>,
+) -> Result<ReadinessDeltaPublicationOutcome, ReadinessError> {
+    validate_contract_version(contract_version)?;
+    if similarity_artifact_version.trim().is_empty() {
+        return Err(ReadinessError::InvalidArtifactVersion {
+            source_id: source_id.to_string(),
+            scope_id: source_id.to_string(),
+            stage: ReadinessStage::SimilarityLayout,
+        });
+    }
+    validate_delta_targets(source_id, source_generation, upsert_targets, cancel)?;
+    cancellation_checkpoint(cancel)?;
+    let tx = connection.transaction()?;
+    let Some((
+        current_generation,
+        current_revision,
+        current_contract,
+        raw_membership_digest,
+        raw_membership_count,
+    )) = tx
+        .query_row(
+            "SELECT source_generation, readiness_revision, contract_version,
+                    membership_digest, membership_count
+             FROM source_readiness_sources
+             WHERE source_id = ?1",
+            [source_id],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Vec<u8>>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            },
+        )
+        .optional()?
+    else {
+        tx.rollback()?;
+        return Ok(ReadinessDeltaPublicationOutcome::RequiresFullPublication);
+    };
+    if source_generation < current_generation {
+        return Err(ReadinessError::StaleSourceGeneration {
+            source_id: source_id.to_string(),
+            attempted: source_generation,
+            current: current_generation,
+        });
+    }
+    if readiness_revision <= current_revision {
+        return Err(ReadinessError::StaleReadinessRevision {
+            source_id: source_id.to_string(),
+            attempted: readiness_revision,
+            current: current_revision,
+        });
+    }
+    if source_generation == current_generation {
+        tx.rollback()?;
+        let digest = decode_membership_digest(&raw_membership_digest)?;
+        return Ok(ReadinessDeltaPublicationOutcome::Applied {
+            membership_generation: ReadinessMembership::from_parts(
+                digest,
+                raw_membership_count.max(0) as u64,
+            )
+            .generation(),
+            changed: 0,
+        });
+    }
+    if source_generation != current_generation.saturating_add(1)
+        || current_contract != contract_version
+        || raw_membership_digest.len() != 32
+        || raw_membership_count < 0
+    {
+        tx.rollback()?;
+        return Ok(ReadinessDeltaPublicationOutcome::RequiresFullPublication);
+    }
+    validate_delta_manifest_membership(&tx, upsert_targets, deleted_file_scope_ids, cancel)?;
+
+    let mut membership = ReadinessMembership::from_parts(
+        decode_membership_digest(&raw_membership_digest)?,
+        raw_membership_count.max(0) as u64,
+    );
+    let upsert_scope_ids = upsert_targets
+        .iter()
+        .map(|target| target.scope_id.clone())
+        .collect::<BTreeSet<_>>();
+    let affected_scope_ids = upsert_scope_ids
+        .iter()
+        .cloned()
+        .chain(deleted_file_scope_ids.iter().cloned())
+        .collect::<BTreeSet<_>>();
+    for scope_id in &affected_scope_ids {
+        cancellation_checkpoint(cancel)?;
+        let old_member = tx
+            .query_row(
+                "SELECT content_generation
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1
+                   AND scope_kind = 'file'
+                   AND scope_id = ?2
+                   AND stage = 'embedding_aspects'
+                   AND eligibility = 'eligible'",
+                params![source_id, scope_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        if let Some(content_generation) = old_member {
+            if membership.count == 0 {
+                tx.rollback()?;
+                return Ok(ReadinessDeltaPublicationOutcome::RequiresFullPublication);
+            }
+            membership.remove(scope_id, &content_generation);
+        }
+    }
+    for target in upsert_targets.iter().filter(|target| {
+        target.stage == ReadinessStage::EmbeddingAspects
+            && target.eligibility == ReadinessEligibility::Eligible
+    }) {
+        membership.add(&target.scope_id, &target.content_generation);
+    }
+    let membership_generation = membership.generation();
+    let similarity_target = ReadinessTarget::source(
+        source_id,
+        ReadinessStage::SimilarityLayout,
+        similarity_artifact_version,
+        source_generation,
+        membership_generation.as_str(),
+    );
+
+    let mut changed = 0_usize;
+    for scope_id in deleted_file_scope_ids {
+        cancellation_checkpoint(cancel)?;
+        if upsert_scope_ids.contains(scope_id) {
+            continue;
+        }
+        changed = changed.saturating_add(tx.execute(
+            "DELETE FROM source_readiness_targets
+             WHERE source_id = ?1 AND scope_kind = 'file' AND scope_id = ?2",
+            params![source_id, scope_id],
+        )?);
+        changed = changed.saturating_add(tx.execute(
+            "DELETE FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_managed = 1
+               AND readiness_scope_kind = 'file'
+               AND readiness_scope_id = ?2",
+            params![source_id, scope_id],
+        )?);
+    }
+    for target in upsert_targets {
+        cancellation_checkpoint(cancel)?;
+        changed = changed.saturating_add(upsert_target(&tx, target, updated_at)?);
+    }
+    changed = changed.saturating_add(upsert_target(&tx, &similarity_target, updated_at)?);
+    for scope_id in &upsert_scope_ids {
+        cancellation_checkpoint(cancel)?;
+        changed = changed.saturating_add(tx.execute(
+            "DELETE FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_managed = 1
+               AND readiness_scope_kind = 'file'
+               AND readiness_scope_id = ?2
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM source_readiness_targets AS target
+                   WHERE target.source_id = analysis_jobs.source_id
+                     AND target.scope_kind = analysis_jobs.readiness_scope_kind
+                     AND target.scope_id = analysis_jobs.readiness_scope_id
+                     AND target.stage = analysis_jobs.readiness_stage
+                     AND target.required_version = analysis_jobs.artifact_version
+                     AND target.content_generation = analysis_jobs.content_generation
+               )",
+            params![source_id, scope_id],
+        )?);
+    }
+    changed = changed.saturating_add(tx.execute(
+        "DELETE FROM analysis_jobs
+         WHERE source_id = ?1
+           AND readiness_managed = 1
+           AND readiness_scope_kind = 'source'
+           AND NOT EXISTS (
+               SELECT 1
+               FROM source_readiness_targets AS target
+               WHERE target.source_id = analysis_jobs.source_id
+                 AND target.scope_kind = analysis_jobs.readiness_scope_kind
+                 AND target.scope_id = analysis_jobs.readiness_scope_id
+                 AND target.stage = analysis_jobs.readiness_stage
+                 AND target.required_version = analysis_jobs.artifact_version
+                 AND target.source_generation = analysis_jobs.source_generation
+                 AND target.content_generation = analysis_jobs.content_generation
+           )",
+        [source_id],
+    )?);
+    for target in upsert_targets {
+        changed = changed.saturating_add(refresh_work_metadata(&tx, target)?);
+    }
+    changed = changed.saturating_add(tx.execute(
+        "INSERT INTO source_readiness_sources (
+            source_id, source_generation, readiness_revision, availability, contract_version,
+            membership_digest, membership_count, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(source_id) DO UPDATE SET
+            source_generation = excluded.source_generation,
+            readiness_revision = excluded.readiness_revision,
+            availability = excluded.availability,
+            contract_version = excluded.contract_version,
+            membership_digest = excluded.membership_digest,
+            membership_count = excluded.membership_count,
+            updated_at = excluded.updated_at",
+        params![
+            source_id,
+            source_generation,
+            readiness_revision,
+            availability.as_str(),
+            contract_version,
+            membership.digest.as_slice(),
+            i64::try_from(membership.count).unwrap_or(i64::MAX),
+            updated_at,
+        ],
+    )?);
+    cancellation_checkpoint(cancel)?;
+    tx.commit()?;
+    Ok(ReadinessDeltaPublicationOutcome::Applied {
+        membership_generation,
+        changed,
+    })
+}
+
 /// Publish a completion only when its version and generations still match the desired target.
 pub(crate) fn publish_readiness_artifact(
     connection: &mut Connection,
@@ -165,7 +419,10 @@ pub(crate) fn publish_readiness_artifact(
               AND (?2 = 'file' OR target.source_generation = ?6)
               AND target.content_generation IS ?7
               AND target.eligibility = 'eligible'
-              AND source.source_generation = target.source_generation
+              AND (
+                  target.scope_kind = 'file'
+                  OR source.source_generation = target.source_generation
+              )
               AND source.availability = 'active'
         )",
         params![
@@ -238,9 +495,12 @@ pub(crate) fn invalidate_readiness_artifact(
            AND EXISTS (
                SELECT 1
                FROM source_readiness_sources AS source
-               JOIN source_readiness_targets AS target
-                 ON target.source_id = source.source_id
-                AND target.source_generation = source.source_generation
+            JOIN source_readiness_targets AS target
+              ON target.source_id = source.source_id
+             AND (
+                 target.scope_kind = 'file'
+                 OR target.source_generation = source.source_generation
+             )
                WHERE target.source_id = artifact.source_id
                  AND target.scope_kind = artifact.scope_kind
                  AND target.scope_id = artifact.scope_id
@@ -417,7 +677,10 @@ fn current_actionable_target(
               AND current.content_generation = ?6
               AND current.eligibility = 'eligible'
               AND source.availability = 'active'
-              AND source.source_generation = current.source_generation
+              AND (
+                  current.scope_kind = 'file'
+                  OR source.source_generation = current.source_generation
+              )
               AND (?2 = 'file' OR current.source_generation = ?7)",
             params![
                 target.source_id,
@@ -774,6 +1037,175 @@ fn validate_targets(
     Ok(())
 }
 
+fn validate_contract_version(contract_version: &str) -> Result<(), ReadinessError> {
+    if contract_version.trim().is_empty() {
+        Err(ReadinessError::InvalidContractVersion)
+    } else {
+        Ok(())
+    }
+}
+
+fn membership_from_targets(targets: &[ReadinessTarget]) -> ReadinessMembership {
+    let mut membership = ReadinessMembership::default();
+    for target in targets.iter().filter(|target| {
+        target.stage == ReadinessStage::EmbeddingAspects
+            && target.eligibility == ReadinessEligibility::Eligible
+    }) {
+        membership.add(&target.scope_id, &target.content_generation);
+    }
+    membership
+}
+
+fn validate_delta_targets(
+    source_id: &str,
+    source_generation: i64,
+    targets: &[ReadinessTarget],
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ReadinessError> {
+    let mut keys = BTreeSet::new();
+    let mut file_stages = BTreeMap::<String, BTreeSet<ReadinessStage>>::new();
+    for target in targets {
+        cancellation_checkpoint(cancel)?;
+        if target.source_id != source_id
+            || target.source_generation != source_generation
+            || target.scope_kind != ReadinessScopeKind::File
+        {
+            return Err(ReadinessError::TargetGenerationMismatch {
+                source_id: source_id.to_string(),
+                generation: source_generation,
+            });
+        }
+        if target.content_generation.trim().is_empty() {
+            return Err(ReadinessError::InvalidContentGeneration {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+            });
+        }
+        if target.required_version.trim().is_empty() {
+            return Err(ReadinessError::InvalidArtifactVersion {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+            });
+        }
+        if target.scope_id.trim().is_empty()
+            || (target.eligibility == ReadinessEligibility::Eligible
+                && target
+                    .relative_path
+                    .as_deref()
+                    .is_none_or(|path| path.trim().is_empty()))
+        {
+            return Err(ReadinessError::InvalidRelativePath {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+            });
+        }
+        if !keys.insert(target.key()) {
+            return Err(ReadinessError::DuplicateTarget {
+                source_id: target.source_id.clone(),
+                scope_id: target.scope_id.clone(),
+                stage: target.stage,
+            });
+        }
+        file_stages
+            .entry(target.scope_id.clone())
+            .or_default()
+            .insert(target.stage);
+    }
+    for (scope_id, stages) in file_stages {
+        for stage in [
+            ReadinessStage::IndexedIdentity,
+            ReadinessStage::AnalysisFeatures,
+            ReadinessStage::EmbeddingAspects,
+        ] {
+            if !stages.contains(&stage) {
+                return Err(ReadinessError::IncompleteTargetMatrix { scope_id, stage });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_delta_manifest_membership(
+    tx: &Transaction<'_>,
+    upsert_targets: &[ReadinessTarget],
+    deleted_scope_ids: &[String],
+    cancel: Option<&AtomicBool>,
+) -> Result<(), ReadinessError> {
+    let mut desired_paths = BTreeMap::<String, String>::new();
+    for target in upsert_targets {
+        cancellation_checkpoint(cancel)?;
+        let path = target.relative_path.as_deref().unwrap_or_default();
+        if let Some(existing) = desired_paths.insert(target.scope_id.clone(), path.to_string())
+            && existing != path
+        {
+            return Err(ReadinessError::InconsistentTargetPath {
+                identity: target.scope_id.clone(),
+            });
+        }
+    }
+    for (identity, path) in &desired_paths {
+        let current = tx.query_row(
+            "SELECT MIN(path), COUNT(*)
+                 FROM wav_files
+                 WHERE missing = 0 AND file_identity = ?1",
+            [identity],
+            |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        match current {
+            (Some(current), 1) if current == *path => {}
+            (Some(first_path), count) if count > 1 => {
+                return Err(ReadinessError::DuplicateManifestIdentity {
+                    identity: identity.clone(),
+                    first_path,
+                    second_path: path.clone(),
+                });
+            }
+            (Some(current), _) => {
+                return Err(ReadinessError::ManifestPathMismatch {
+                    identity: identity.clone(),
+                    expected: current,
+                    supplied: path.clone(),
+                });
+            }
+            (None, _) => {
+                return Err(ReadinessError::ManifestMembershipMismatch {
+                    missing: vec![identity.clone()],
+                    unexpected: Vec::new(),
+                });
+            }
+        }
+    }
+    for identity in deleted_scope_ids {
+        cancellation_checkpoint(cancel)?;
+        if desired_paths.contains_key(identity) {
+            continue;
+        }
+        let still_current = tx.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM wav_files
+                WHERE missing = 0 AND file_identity = ?1
+            )",
+            [identity],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if still_current {
+            return Err(ReadinessError::ManifestMembershipMismatch {
+                missing: Vec::new(),
+                unexpected: vec![identity.clone()],
+            });
+        }
+    }
+    Ok(())
+}
+
+fn decode_membership_digest(raw: &[u8]) -> Result<[u8; 32], ReadinessError> {
+    raw.try_into()
+        .map_err(|_| ReadinessError::SimilarityMembershipMismatch)
+}
+
 fn validate_manifest_membership(
     tx: &Transaction<'_>,
     targets: &[ReadinessTarget],
@@ -890,4 +1322,41 @@ fn insert_target(
         ],
     )?;
     Ok(())
+}
+
+fn upsert_target(
+    tx: &Transaction<'_>,
+    target: &ReadinessTarget,
+    updated_at: i64,
+) -> Result<usize, rusqlite::Error> {
+    tx.execute(
+        "INSERT INTO source_readiness_targets (
+            source_id, scope_kind, scope_id, relative_path, stage, required_version,
+            source_generation, content_generation, eligibility, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+         ON CONFLICT(source_id, scope_kind, scope_id, stage) DO UPDATE SET
+            relative_path = excluded.relative_path,
+            required_version = excluded.required_version,
+            source_generation = excluded.source_generation,
+            content_generation = excluded.content_generation,
+            eligibility = excluded.eligibility,
+            updated_at = excluded.updated_at
+         WHERE source_readiness_targets.relative_path IS NOT excluded.relative_path
+            OR source_readiness_targets.required_version != excluded.required_version
+            OR source_readiness_targets.source_generation != excluded.source_generation
+            OR source_readiness_targets.content_generation != excluded.content_generation
+            OR source_readiness_targets.eligibility != excluded.eligibility",
+        params![
+            target.source_id,
+            target.scope_kind.as_str(),
+            target.scope_id,
+            target.relative_path,
+            target.stage.as_str(),
+            target.required_version,
+            target.source_generation,
+            target.content_generation,
+            target.eligibility.as_str(),
+            updated_at,
+        ],
+    )
 }

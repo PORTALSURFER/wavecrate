@@ -11,7 +11,7 @@ mod store;
 pub use model::{
     ClaimedReadinessWork, ReadinessArtifact, ReadinessClaimOrigin, ReadinessEligibility,
     ReadinessFailureClassification, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
-    ReadinessRetryPolicy, ReadinessScopeKind, ReadinessStage, ReadinessTarget,
+    ReadinessMembership, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessStage, ReadinessTarget,
     ReadinessWorkMutationOutcome, ReadinessWorkStats, SourceAvailability,
 };
 pub use snapshot::{
@@ -21,10 +21,11 @@ pub use snapshot::{
 #[cfg(test)]
 pub(crate) use store::reconcile_readiness_with_hook;
 pub use store::{
-    ReadinessCompatibilityCleanup, ReadinessEmbeddingArtifactTarget, ReadinessError,
-    ReadinessSimilarityManifest, ReadinessSimilarityManifestRequest,
-    ReadinessSimilarityManifestRow, ReadinessSimilarityPayloadContract, ReadinessSourceState,
-    ReadinessStore, ReadinessTargetPublication, ReadinessView,
+    ReadinessCompatibilityCleanup, ReadinessDeltaPublicationOutcome,
+    ReadinessEmbeddingArtifactTarget, ReadinessError, ReadinessSimilarityManifest,
+    ReadinessSimilarityManifestRequest, ReadinessSimilarityManifestRow,
+    ReadinessSimilarityPayloadContract, ReadinessSourceState, ReadinessStore,
+    ReadinessTargetDeltaPublication, ReadinessTargetPublication, ReadinessView,
 };
 #[cfg(test)]
 pub(crate) use store::{

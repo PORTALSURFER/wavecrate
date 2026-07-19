@@ -138,7 +138,7 @@ impl ReadinessStore<'_> {
         source_generation: i64,
     ) -> Result<Vec<ReadinessEmbeddingArtifactTarget>, ReadinessError> {
         let mut statement = self.connection.prepare(
-            "SELECT target.scope_id, target.relative_path, target.required_version, target.source_generation, target.content_generation FROM source_readiness_targets AS target JOIN source_readiness_artifacts AS artifact ON artifact.source_id = target.source_id AND artifact.scope_kind = target.scope_kind AND artifact.scope_id = target.scope_id AND artifact.stage = target.stage AND artifact.artifact_version = target.required_version AND artifact.content_generation = target.content_generation WHERE target.source_id = ?1 AND target.scope_kind = 'file' AND target.stage = 'embedding_aspects' AND target.source_generation = ?2 AND target.eligibility = 'eligible'",
+            "SELECT target.scope_id, target.relative_path, target.required_version, target.source_generation, target.content_generation FROM source_readiness_targets AS target JOIN source_readiness_sources AS source ON source.source_id = target.source_id AND source.source_generation = ?2 AND source.availability = 'active' JOIN source_readiness_artifacts AS artifact ON artifact.source_id = target.source_id AND artifact.scope_kind = target.scope_kind AND artifact.scope_id = target.scope_id AND artifact.stage = target.stage AND artifact.artifact_version = target.required_version AND artifact.content_generation = target.content_generation WHERE target.source_id = ?1 AND target.scope_kind = 'file' AND target.stage = 'embedding_aspects' AND target.eligibility = 'eligible'",
         )?;
         statement
             .query_map(params![source_id, source_generation], |row| {
@@ -173,6 +173,10 @@ impl ReadinessStore<'_> {
             "SELECT target.scope_id, target.relative_path, target.content_generation,
                     embedding.dim, embedding.vec
              FROM source_readiness_targets AS target
+             JOIN source_readiness_sources AS source
+               ON source.source_id = target.source_id
+              AND source.source_generation = ?2
+              AND source.availability = 'active'
              JOIN source_readiness_artifacts AS artifact
                ON artifact.source_id = target.source_id
               AND artifact.scope_kind = target.scope_kind
@@ -219,7 +223,6 @@ impl ReadinessStore<'_> {
              WHERE target.source_id = ?1
                AND target.scope_kind = 'file'
                AND target.stage = 'embedding_aspects'
-               AND target.source_generation = ?2
                AND target.eligibility = 'eligible'
                AND feature.feat_version = ?6
                AND embedding.dim = ?7

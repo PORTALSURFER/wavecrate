@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use super::*;
 
 #[test]
@@ -860,6 +862,247 @@ fn delayed_deficit_preserves_terminal_failure_and_future_retry() {
             ),
         ]
     );
+}
+
+#[test]
+fn one_identity_delta_preserves_unchanged_targets_and_running_work() {
+    let (_root, mut connection) = open_fixture();
+    let mut initial = Vec::new();
+    initial.extend(eligible_file_targets(
+        "keep",
+        "Pack/keep.wav",
+        1,
+        "keep-hash",
+    ));
+    initial.extend(eligible_file_targets(
+        "change",
+        "Pack/change.wav",
+        1,
+        "old-hash",
+    ));
+    initial.extend(eligible_file_targets(
+        "delete",
+        "Pack/delete.wav",
+        1,
+        "delete-hash",
+    ));
+    let mut membership = ReadinessMembership::default();
+    membership.add("keep", "keep-hash");
+    membership.add("change", "old-hash");
+    membership.add("delete", "delete-hash");
+    initial.push(ReadinessTarget::source(
+        SOURCE_ID,
+        ReadinessStage::SimilarityLayout,
+        "layout-v1",
+        1,
+        membership.generation(),
+    ));
+    sync_manifest(&connection, &initial);
+    replace_readiness_targets(
+        &mut connection,
+        SOURCE_ID,
+        1,
+        101,
+        SourceAvailability::Active,
+        &initial,
+        100,
+    )
+    .expect("publish initial targets");
+    let initial_snapshot =
+        reconcile_readiness(&connection, SOURCE_ID, 101).expect("initial deficits");
+    persist_readiness_deficits(&mut connection, &initial_snapshot.deficits, 101)
+        .expect("persist initial work");
+    let keep_analysis = initial
+        .iter()
+        .find(|target| {
+            target.scope_id == "keep" && target.stage == ReadinessStage::AnalysisFeatures
+        })
+        .expect("keep analysis target")
+        .clone();
+    let keep_claim = claim_readiness_target(&mut connection, &keep_analysis, 102, 300)
+        .expect("claim keep analysis")
+        .expect("keep analysis claim");
+    let keep_embedding = initial
+        .iter()
+        .find(|target| {
+            target.scope_id == "keep" && target.stage == ReadinessStage::EmbeddingAspects
+        })
+        .expect("keep embedding target");
+    assert_eq!(
+        publish_readiness_artifact(
+            &mut connection,
+            &ReadinessArtifact::for_target(keep_embedding, 103),
+        )
+        .expect("publish unchanged embedding artifact"),
+        ArtifactPublishOutcome::Recorded
+    );
+
+    let changed = eligible_file_targets("change", "Pack/change.wav", 2, "new-hash").to_vec();
+    let mut current_manifest_targets =
+        eligible_file_targets("keep", "Pack/keep.wav", 1, "keep-hash").to_vec();
+    current_manifest_targets.extend(changed.iter().cloned());
+    sync_manifest(&connection, &current_manifest_targets);
+    let deleted_scope_ids = [String::from("delete")];
+    let publication = ReadinessTargetDeltaPublication::new(
+        SOURCE_ID,
+        2,
+        102,
+        SourceAvailability::Active,
+        "readiness-test-contract-v1",
+        &changed,
+        &deleted_scope_ids,
+        "layout-v1",
+        200,
+    );
+    let outcome = ReadinessStore::new(&mut connection)
+        .publish_target_delta_with_cancel(&publication, &std::sync::atomic::AtomicBool::new(false))
+        .expect("publish readiness delta");
+    membership.remove("change", "old-hash");
+    membership.remove("delete", "delete-hash");
+    membership.add("change", "new-hash");
+    let ReadinessDeltaPublicationOutcome::Applied {
+        membership_generation,
+        changed: changed_rows_count,
+    } = outcome
+    else {
+        panic!("one-generation delta unexpectedly required a full publication");
+    };
+    assert_eq!(membership_generation, membership.generation());
+    assert!(changed_rows_count <= 15);
+    let delta_snapshot = ReadinessStore::new(&mut connection)
+        .reconcile_scopes_with_cancel_and_progress(
+            SOURCE_ID,
+            &BTreeSet::from([String::from("change"), String::from("delete")]),
+            200,
+            &std::sync::atomic::AtomicBool::new(false),
+            &mut || {},
+        )
+        .expect("reconcile only affected readiness scopes");
+    assert_eq!(delta_snapshot.entries.len(), 4);
+    assert!(
+        delta_snapshot
+            .entries
+            .iter()
+            .all(|entry| entry.target.scope_id != "keep")
+    );
+
+    let keep_rows = connection
+        .query_row(
+            "SELECT COUNT(*), MIN(source_generation), MAX(updated_at)
+             FROM source_readiness_targets
+             WHERE source_id = ?1 AND scope_kind = 'file' AND scope_id = 'keep'",
+            [SOURCE_ID],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            },
+        )
+        .expect("read unchanged targets");
+    assert_eq!(keep_rows, (3, 1, 100));
+    let changed_rows = connection
+        .query_row(
+            "SELECT COUNT(*), MIN(source_generation), MIN(content_generation)
+             FROM source_readiness_targets
+             WHERE source_id = ?1 AND scope_kind = 'file' AND scope_id = 'change'",
+            [SOURCE_ID],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .expect("read changed targets");
+    assert_eq!(changed_rows, (3, 2, String::from("new-hash")));
+    let deleted_rows: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM source_readiness_targets
+             WHERE source_id = ?1 AND scope_id = 'delete'",
+            [SOURCE_ID],
+            |row| row.get(0),
+        )
+        .expect("count deleted targets");
+    assert_eq!(deleted_rows, 0);
+    let changed_embedding = changed
+        .iter()
+        .find(|target| target.stage == ReadinessStage::EmbeddingAspects)
+        .expect("changed embedding target");
+    assert_eq!(
+        publish_readiness_artifact(
+            &mut connection,
+            &ReadinessArtifact::for_target(changed_embedding, 201),
+        )
+        .expect("publish changed embedding artifact"),
+        ArtifactPublishOutcome::Recorded
+    );
+    let embedding_targets = ReadinessStore::new(&mut connection)
+        .embedding_artifact_targets(SOURCE_ID, 2)
+        .expect("load exact cross-generation embedding membership");
+    assert_eq!(
+        embedding_targets
+            .iter()
+            .map(|target| (target.scope_id.as_str(), target.source_generation))
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([("change", 2), ("keep", 1)])
+    );
+    let keep_work = connection
+        .query_row(
+            "SELECT status, readiness_claim_generation
+             FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_scope_id = 'keep'
+               AND readiness_stage = 'analysis_features'",
+            [SOURCE_ID],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?)),
+        )
+        .expect("read preserved running work");
+    assert_eq!(
+        keep_work,
+        (String::from("running"), keep_claim.claim_generation())
+    );
+    assert_eq!(
+        complete_readiness_work(&mut connection, &keep_claim, 201)
+            .expect("complete unchanged file work after unrelated delta"),
+        ArtifactPublishOutcome::Recorded
+    );
+}
+
+#[test]
+fn readiness_delta_generation_gap_requires_complete_publication() {
+    let (_root, mut connection) = open_fixture();
+    let initial = eligible_file_targets("file", "Pack/file.wav", 1, "old-hash").to_vec();
+    replace(&mut connection, 1, &initial);
+    let changed = eligible_file_targets("file", "Pack/file.wav", 3, "new-hash").to_vec();
+    sync_manifest(&connection, &changed);
+    let publication = ReadinessTargetDeltaPublication::new(
+        SOURCE_ID,
+        3,
+        102,
+        SourceAvailability::Active,
+        "readiness-test-contract-v1",
+        &changed,
+        &[],
+        "layout-v1",
+        200,
+    );
+    assert_eq!(
+        ReadinessStore::new(&mut connection)
+            .publish_target_delta_with_cancel(
+                &publication,
+                &std::sync::atomic::AtomicBool::new(false),
+            )
+            .expect("attempt readiness delta"),
+        ReadinessDeltaPublicationOutcome::RequiresFullPublication
+    );
+    let state = ReadinessStore::new(&mut connection)
+        .source_state(SOURCE_ID)
+        .expect("read source state")
+        .expect("source state exists");
+    assert_eq!(state.source_generation, 1);
 }
 
 #[test]

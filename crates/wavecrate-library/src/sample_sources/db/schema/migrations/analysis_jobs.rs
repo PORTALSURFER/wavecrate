@@ -77,6 +77,9 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 source_generation INTEGER NOT NULL,
                 readiness_revision INTEGER NOT NULL,
                 availability TEXT NOT NULL,
+                contract_version TEXT NOT NULL DEFAULT '',
+                membership_digest BLOB NOT NULL DEFAULT X'',
+                membership_count INTEGER NOT NULL DEFAULT 0,
                 updated_at INTEGER NOT NULL
             ) WITHOUT ROWID;
             CREATE TABLE IF NOT EXISTS source_readiness_targets (
@@ -149,6 +152,22 @@ pub(super) fn ensure_source_readiness_schema(connection: &Connection) -> Result<
                 [],
             )
             .map_err(map_sql_error)?;
+    }
+    for (column, definition) in [
+        ("contract_version", "TEXT NOT NULL DEFAULT ''"),
+        ("membership_digest", "BLOB NOT NULL DEFAULT X''"),
+        ("membership_count", "INTEGER NOT NULL DEFAULT 0"),
+    ] {
+        if !source_columns.contains(column) {
+            connection
+                .execute(
+                    &format!(
+                        "ALTER TABLE source_readiness_sources ADD COLUMN {column} {definition}"
+                    ),
+                    [],
+                )
+                .map_err(map_sql_error)?;
+        }
     }
     let artifact_columns = table_columns(connection, "source_readiness_artifacts")?;
     for (column, definition) in [("relative_path", "TEXT"), ("artifact_ref", "TEXT")] {

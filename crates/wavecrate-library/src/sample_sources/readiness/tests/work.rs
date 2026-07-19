@@ -608,6 +608,39 @@ fn explicit_failure_classifications_are_terminal_and_observable() {
     let stats = readiness_work_stats(&connection, 1).expect("classification stats");
     assert_eq!(stats.permanent_failures, 1);
     assert_eq!(stats.unsupported, 1);
+    let unsupported_target_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_id = 'unsupported'
+               AND stage IN ('analysis_features', 'embedding_aspects')
+               AND eligibility = 'unsupported'",
+            [SOURCE_ID],
+            |row| row.get(0),
+        )
+        .expect("count terminalized unsupported targets");
+    assert_eq!(unsupported_target_count, 2);
+    let source_state = ReadinessStore::new(&mut connection)
+        .source_state(SOURCE_ID)
+        .expect("read source membership")
+        .expect("source membership exists");
+    assert_eq!(source_state.membership, ReadinessMembership::default());
+    let source_target_generation: String = connection
+        .query_row(
+            "SELECT content_generation
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_kind = 'source'
+               AND stage = 'similarity_layout'",
+            [SOURCE_ID],
+            |row| row.get(0),
+        )
+        .expect("read terminalized similarity membership");
+    assert_eq!(
+        source_target_generation,
+        source_state.membership.generation()
+    );
 }
 
 #[test]

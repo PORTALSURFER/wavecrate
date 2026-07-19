@@ -20,14 +20,15 @@ use wavecrate::sample_sources::{
     db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessClassification,
-        ReadinessEligibility, ReadinessFailureClassification, ReadinessFailureOutcome,
-        ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
-        ReadinessStage, ReadinessStore, ReadinessTarget, ReadinessTargetPublication,
-        ReadinessWorkMutationOutcome, SourceAvailability,
+        ReadinessDeltaPublicationOutcome, ReadinessEligibility, ReadinessFailureClassification,
+        ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessMembership,
+        ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot, ReadinessStage,
+        ReadinessStore, ReadinessTarget, ReadinessTargetDeltaPublication,
+        ReadinessTargetPublication, ReadinessWorkMutationOutcome, SourceAvailability,
     },
     scanner::{
-        ScanError, audit_source_and_record_with_progress, complete_pending_deep_hash_for_path,
-        sync_paths_with_progress,
+        CommittedSourceDelta, ScanError, audit_source_and_record_with_progress,
+        complete_pending_deep_hash_for_path, sync_paths_with_progress,
     },
 };
 
@@ -54,7 +55,7 @@ const MAX_VISIBLE_PRIORITY_PATHS: usize = 128;
 const READINESS_LEASE_SECONDS: i64 = 5 * 60;
 const READINESS_MAX_ATTEMPTS: u32 = 8;
 const READINESS_MANIFEST_VERSION: &str = "source_manifest_v1";
-const META_READINESS_TARGET_FINGERPRINT: &str = "readiness_target_fingerprint_v1";
+const READINESS_MEMBERSHIP_VERSION: &str = "membership-xor-v1";
 const SOURCE_RETIREMENT_RETRY_SECONDS: i64 = 5;
 const SOURCE_DISCOVERY_RETRY_SECONDS: i64 = 5;
 const PREREQUISITE_INVALIDATION_RETRY_SECONDS: i64 = 5;
@@ -105,6 +106,30 @@ struct PendingSourceRetirement {
     retry_at: i64,
     attempts: u32,
     terminal_offline: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct PendingReadinessDelta {
+    scope_ids: BTreeSet<String>,
+}
+
+impl PendingReadinessDelta {
+    fn merge(&mut self, delta: &CommittedSourceDelta) {
+        self.scope_ids.extend(
+            delta
+                .created
+                .iter()
+                .chain(&delta.changed)
+                .chain(&delta.deleted)
+                .map(|entry| entry.identity.clone()),
+        );
+        self.scope_ids
+            .extend(delta.moved.iter().map(|entry| entry.identity.clone()));
+    }
+
+    fn is_empty(&self) -> bool {
+        self.scope_ids.is_empty()
+    }
 }
 
 #[derive(Default)]
@@ -596,6 +621,12 @@ impl SourceProcessingSupervisor {
         control
             .dirty_sources
             .retain(|source_id| retained_source_ids.contains(source_id));
+        control.safety_probe_sources.retain(|source_id| {
+            retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+        });
+        control.pending_readiness_deltas.retain(|source_id, _| {
+            retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
+        });
         control
             .awaiting_foreground_refresh_sources
             .retain(|source_id| {
@@ -710,13 +741,31 @@ impl SourceProcessingSupervisor {
         if !control.source_is_active(source_id) {
             return;
         }
-        control.cancel_source_work(source_id);
+        let bounded_delta_pending = control.pending_readiness_deltas.contains_key(source_id);
+        if !bounded_delta_pending {
+            control.cancel_source_work(source_id);
+        }
         control.mark_source_dirty(source_id, reason);
         drop(control);
-        self.shared
-            .cancel_external_scans(|registration| registration.source_id == source_id);
-        self.shared.budget_wake.notify_all();
+        if !bounded_delta_pending {
+            self.shared
+                .cancel_external_scans(|registration| registration.source_id == source_id);
+            self.shared.budget_wake.notify_all();
+        }
         self.shared.wake.notify_one();
+    }
+
+    /// Force complete source reconciliation when a bounded delta cannot describe all changes.
+    pub(in crate::native_app) fn wake_source_for_full_reconciliation(
+        &self,
+        source_id: &str,
+        reason: &'static str,
+    ) {
+        self.shared
+            .control()
+            .pending_readiness_deltas
+            .remove(source_id);
+        self.wake_source(source_id, reason);
     }
 
     /// Reconcile a source without invalidating work that already owns its
@@ -735,6 +784,30 @@ impl SourceProcessingSupervisor {
         if !control.source_is_active(source_id) {
             return;
         }
+        control.mark_source_dirty(source_id, reason);
+        drop(control);
+        self.shared.wake.notify_one();
+    }
+
+    /// Publish the affected identity set from one authoritative committed manifest delta.
+    pub(in crate::native_app) fn request_source_delta(
+        &self,
+        source_id: &str,
+        delta: &CommittedSourceDelta,
+        reason: &'static str,
+    ) {
+        if delta.is_empty() {
+            return;
+        }
+        let mut control = self.shared.control();
+        if !control.source_is_active(source_id) {
+            return;
+        }
+        control
+            .pending_readiness_deltas
+            .entry(source_id.to_string())
+            .or_default()
+            .merge(delta);
         control.mark_source_dirty(source_id, reason);
         drop(control);
         self.shared.wake.notify_one();
@@ -916,6 +989,9 @@ impl SourceProcessingSupervisor {
             "retries_due_by_source": telemetry.retries_due_by_source,
             "retry_at_by_source": telemetry.retry_at_by_source,
             "source_discoveries": telemetry.source_discoveries,
+            "cheap_noop_sweeps": telemetry.cheap_noop_sweeps,
+            "delta_reconciliations": telemetry.delta_reconciliations,
+            "full_audits": telemetry.full_audits,
             "settled_wake_generation": telemetry.settled_wake_generation,
         })
     }
@@ -993,6 +1069,8 @@ impl Shared {
                 source_lifecycle_generations,
                 next_lifecycle_generation,
                 dirty_sources,
+                safety_probe_sources: BTreeSet::new(),
+                pending_readiness_deltas: BTreeMap::new(),
                 awaiting_foreground_refresh_sources: BTreeSet::new(),
                 force_manifest_audit_sources,
                 force_reanalysis_sources: BTreeSet::new(),
@@ -1152,6 +1230,8 @@ struct ControlState {
     source_lifecycle_generations: BTreeMap<String, u64>,
     next_lifecycle_generation: u64,
     dirty_sources: BTreeSet<String>,
+    safety_probe_sources: BTreeSet<String>,
+    pending_readiness_deltas: BTreeMap<String, PendingReadinessDelta>,
     awaiting_foreground_refresh_sources: BTreeSet<String>,
     force_manifest_audit_sources: BTreeSet<String>,
     force_reanalysis_sources: BTreeSet<String>,
@@ -1195,12 +1275,14 @@ impl ControlState {
 
     fn mark_source_dirty(&mut self, source_id: &str, reason: &'static str) {
         if self.source_is_active(source_id) {
+            self.safety_probe_sources.remove(source_id);
             self.dirty_sources.insert(source_id.to_string());
             self.notify(reason);
         }
     }
 
     fn mark_all_sources_dirty(&mut self, reason: &'static str) {
+        self.safety_probe_sources.clear();
         self.dirty_sources.extend(
             self.sources
                 .keys()
@@ -1208,6 +1290,18 @@ impl ControlState {
                 .cloned(),
         );
         self.notify(reason);
+    }
+
+    fn mark_all_sources_for_safety_probe(&mut self) {
+        let source_ids = self
+            .sources
+            .keys()
+            .filter(|source_id| !self.quarantined_sources.contains(*source_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.safety_probe_sources.extend(source_ids.iter().cloned());
+        self.dirty_sources.extend(source_ids);
+        self.notify("periodic_safety_sweep");
     }
 
     fn cancel_source_work(&mut self, source_id: &str) {
@@ -1257,6 +1351,9 @@ struct SupervisorTelemetry {
     retries_due_by_source: BTreeMap<String, usize>,
     retry_at_by_source: BTreeMap<String, i64>,
     source_discoveries: u64,
+    cheap_noop_sweeps: u64,
+    delta_reconciliations: u64,
+    full_audits: u64,
     settled_wake_generation: u64,
 }
 
@@ -1281,6 +1378,8 @@ struct SourceDiscoveryStats {
     earliest_retry_at: Option<i64>,
     progress_completed: usize,
     progress_total: usize,
+    cheap_noop_sweep: bool,
+    delta_reconciled: bool,
 }
 
 enum Cancellable<T> {
@@ -1390,6 +1489,7 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut last_progress_publish_at = None::<Instant>;
     let mut pending_similarity_refresh_sources = BTreeSet::<String>::new();
     let mut pending_discovery_sources = BTreeSet::<String>::new();
+    let mut pending_safety_probe_sources = BTreeSet::<String>::new();
     let mut last_similarity_refresh_publish_at = None::<Instant>;
     let mut progress_visible = false;
     #[cfg(test)]
@@ -1398,9 +1498,11 @@ fn run_coordinator(shared: Arc<Shared>) {
         let (
             sources,
             dirty_sources,
+            safety_probe_sources,
             awaiting_foreground_refresh_sources,
             force_manifest_audit_sources,
             force_reanalysis_sources,
+            pending_readiness_deltas,
             source_work_cancels,
             source_lifecycle_generations,
             priority,
@@ -1445,7 +1547,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 if control.wake_generation == observed_generation {
                     let now = now_epoch_seconds();
                     if Instant::now() >= next_safety_sweep_at {
-                        control.mark_all_sources_dirty("periodic_safety_sweep");
+                        control.mark_all_sources_for_safety_probe();
                         next_safety_sweep_at = Instant::now() + SAFETY_SWEEP_INTERVAL;
                     } else {
                         let due_sources = source_stats
@@ -1473,8 +1575,13 @@ fn run_coordinator(shared: Arc<Shared>) {
                 .into_iter()
                 .filter(|source_id| !awaiting_foreground_refresh_sources.contains(source_id))
                 .collect::<BTreeSet<_>>();
+            let safety_probe_sources = std::mem::take(&mut control.safety_probe_sources)
+                .into_iter()
+                .filter(|source_id| dirty_sources.contains(source_id))
+                .collect::<BTreeSet<_>>();
             let force_manifest_audit_sources = control.force_manifest_audit_sources.clone();
             let force_reanalysis_sources = control.force_reanalysis_sources.clone();
+            let pending_readiness_deltas = control.pending_readiness_deltas.clone();
             (
                 control
                     .sources
@@ -1483,9 +1590,11 @@ fn run_coordinator(shared: Arc<Shared>) {
                     .map(|(_, source)| source.clone())
                     .collect::<Vec<_>>(),
                 dirty_sources,
+                safety_probe_sources,
                 awaiting_foreground_refresh_sources,
                 force_manifest_audit_sources,
                 force_reanalysis_sources,
+                pending_readiness_deltas,
                 control.source_work_cancels.clone(),
                 control.source_lifecycle_generations.clone(),
                 control.priority.clone(),
@@ -1499,17 +1608,30 @@ fn run_coordinator(shared: Arc<Shared>) {
             .map(|source| source.id.as_str().to_string())
             .collect::<BTreeSet<_>>();
         pending_discovery_sources.extend(dirty_sources.iter().cloned());
+        for source_id in &dirty_sources {
+            if safety_probe_sources.contains(source_id) {
+                pending_safety_probe_sources.insert(source_id.clone());
+            } else {
+                pending_safety_probe_sources.remove(source_id);
+            }
+        }
         pending_discovery_sources
             .retain(|source_id| !awaiting_foreground_refresh_sources.contains(source_id));
         pending_discovery_sources.retain(|source_id| configured_source_ids.contains(source_id));
+        pending_safety_probe_sources
+            .retain(|source_id| pending_discovery_sources.contains(source_id));
         let discovery_source_id = select_source_for_discovery(
             &sources,
             &pending_discovery_sources,
             scheduler.active_source(),
             &priority,
         );
+        let discovery_is_safety_probe = discovery_source_id
+            .as_ref()
+            .is_some_and(|source_id| pending_safety_probe_sources.contains(source_id));
         if let Some(source_id) = discovery_source_id.as_ref() {
             pending_discovery_sources.remove(source_id);
+            pending_safety_probe_sources.remove(source_id);
         }
         let sources_to_discover = sources
             .iter()
@@ -1517,26 +1639,54 @@ fn run_coordinator(shared: Arc<Shared>) {
             .cloned()
             .collect::<Vec<_>>();
         candidates.retain(|candidate| {
-            configured_source_ids.contains(candidate.source.id.as_str())
-                && !dirty_sources.contains(candidate.source.id.as_str())
+            let source_id = candidate.source.id.as_str();
+            if !configured_source_ids.contains(source_id) {
+                return false;
+            }
+            if !dirty_sources.contains(source_id) {
+                return true;
+            }
+            pending_readiness_deltas
+                .get(source_id)
+                .is_some_and(|delta| {
+                    candidate.schedule.scope_id != source_id
+                        && !delta.scope_ids.contains(&candidate.schedule.scope_id)
+                })
         });
         source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
         let sweep_started = Instant::now();
         for source in &sources_to_discover {
-            source_stats.remove(source.id.as_str());
+            if !discovery_is_safety_probe
+                && !pending_readiness_deltas.contains_key(source.id.as_str())
+            {
+                source_stats.remove(source.id.as_str());
+            }
         }
         let (
             mut discovered,
-            discovered_source_stats,
+            mut discovered_source_stats,
             deferred_discoveries,
+            consumed_readiness_delta_sources,
             discovery_progress_published,
         ) = discover_candidates(
             &shared,
             &sources_to_discover,
             &force_manifest_audit_sources,
             &force_reanalysis_sources,
+            &pending_readiness_deltas,
+            discovery_is_safety_probe,
             &source_work_cancels,
         );
+        if !consumed_readiness_delta_sources.is_empty() {
+            let mut control = shared.control();
+            for source_id in consumed_readiness_delta_sources {
+                if control.pending_readiness_deltas.get(&source_id)
+                    == pending_readiness_deltas.get(&source_id)
+                {
+                    control.pending_readiness_deltas.remove(&source_id);
+                }
+            }
+        }
         let discovery_deferred_for_capacity = !deferred_discoveries.is_empty();
         if discovery_progress_published {
             progress_visible = true;
@@ -1546,6 +1696,43 @@ fn run_coordinator(shared: Arc<Shared>) {
             last_progress_publish_at = Some(Instant::now());
         }
         pending_discovery_sources.extend(deferred_discoveries);
+        if discovery_is_safety_probe {
+            pending_safety_probe_sources.extend(
+                pending_discovery_sources
+                    .iter()
+                    .filter(|source_id| {
+                        sources_to_discover
+                            .iter()
+                            .any(|source| source.id.as_str() == source_id.as_str())
+                    })
+                    .cloned(),
+            );
+        }
+        for (source_id, delta_stats) in &mut discovered_source_stats {
+            if !pending_readiness_deltas.contains_key(source_id) {
+                continue;
+            }
+            let Some(previous) = source_stats.get(source_id).copied() else {
+                continue;
+            };
+            let retained_readiness = candidates
+                .iter()
+                .filter(|candidate| {
+                    candidate.source.id.as_str() == source_id
+                        && matches!(candidate.task, RuntimeTask::Readiness(_))
+                })
+                .count();
+            delta_stats.readiness_queue_depth = delta_stats
+                .readiness_queue_depth
+                .saturating_add(retained_readiness);
+            delta_stats.progress_total = previous.progress_total.max(delta_stats.progress_total);
+            delta_stats.progress_completed = previous
+                .progress_completed
+                .saturating_sub(delta_stats.readiness_queue_depth);
+            delta_stats.earliest_retry_at =
+                earliest_deadline(previous.earliest_retry_at, delta_stats.earliest_retry_at);
+            delta_stats.retries_due = previous.retries_due.saturating_add(delta_stats.retries_due);
+        }
         candidates.append(&mut discovered);
         source_stats.extend(discovered_source_stats);
         let discovered_stats = aggregate_source_stats(source_stats.values().copied());
@@ -1682,6 +1869,10 @@ fn run_coordinator(shared: Arc<Shared>) {
                     .count(),
                 "Source processing candidate started"
             );
+            if matches!(&candidate.task, RuntimeTask::ManifestAudit) {
+                let mut telemetry = shared.telemetry();
+                telemetry.full_audits = telemetry.full_audits.saturating_add(1);
+            }
             let result = if shared.synthetic_test_execution.load(Ordering::Acquire) {
                 #[cfg(test)]
                 {
@@ -1848,6 +2039,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                     break;
                 }
             }
+            let aggregate = aggregate_source_stats(source_stats.values().copied());
+            telemetry.readiness_queue_depth = aggregate.readiness_queue_depth;
+            telemetry.readiness_queue_depth_by_source = source_stats
+                .iter()
+                .map(|(source_id, stats)| (source_id.clone(), stats.readiness_queue_depth))
+                .collect();
             drop(telemetry);
             if last_similarity_refresh_publish_at.is_none_or(|published_at| {
                 published_at.elapsed() >= SIMILARITY_SCORE_REFRESH_INTERVAL
@@ -1888,20 +2085,36 @@ fn run_coordinator(shared: Arc<Shared>) {
             {
                 continue;
             }
-            let should_refresh = match (&candidate.task, execution_outcome) {
-                (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Completed))
-                | (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Failed))
-                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Completed))
-                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Retried { .. }))
-                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Failed))
-                | (
-                    RuntimeTask::Readiness(_),
-                    Some(ExecutionOutcome::PrerequisiteInvalidated { .. }),
-                )
-                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::NotClaimed))
-                | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Stale)) => true,
-                _ => false,
-            };
+            let should_refresh = matches!(
+                (&candidate.task, execution_outcome),
+                (
+                    RuntimeTask::ManifestAudit,
+                    Some(ExecutionOutcome::Completed)
+                ) | (RuntimeTask::ManifestAudit, Some(ExecutionOutcome::Failed))
+                    | (
+                        RuntimeTask::Readiness(ReadinessTarget {
+                            stage: ReadinessStage::IndexedIdentity
+                                | ReadinessStage::AnalysisFeatures
+                                | ReadinessStage::EmbeddingAspects,
+                            ..
+                        }),
+                        Some(ExecutionOutcome::Completed),
+                    )
+                    | (
+                        RuntimeTask::Readiness(_),
+                        Some(ExecutionOutcome::Retried { .. })
+                    )
+                    | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Failed))
+                    | (
+                        RuntimeTask::Readiness(_),
+                        Some(ExecutionOutcome::PrerequisiteInvalidated { .. }),
+                    )
+                    | (
+                        RuntimeTask::Readiness(_),
+                        Some(ExecutionOutcome::NotClaimed)
+                    )
+                    | (RuntimeTask::Readiness(_), Some(ExecutionOutcome::Stale))
+            );
             if !should_refresh {
                 continue;
             }
@@ -2461,6 +2674,7 @@ fn advance_source_progress(
     source_id: &str,
 ) -> Option<SourceDiscoveryStats> {
     let stats = source_stats.get_mut(source_id)?;
+    stats.readiness_queue_depth = stats.readiness_queue_depth.saturating_sub(1);
     stats.progress_completed = stats
         .progress_completed
         .saturating_add(1)
@@ -2548,10 +2762,13 @@ fn discover_candidates(
     sources: &[SampleSource],
     force_manifest_audit_sources: &BTreeSet<String>,
     force_reanalysis_sources: &BTreeSet<String>,
+    pending_readiness_deltas: &BTreeMap<String, PendingReadinessDelta>,
+    safety_probe_only: bool,
     source_work_cancels: &BTreeMap<String, Arc<AtomicBool>>,
 ) -> (
     Vec<RuntimeCandidate>,
     BTreeMap<String, SourceDiscoveryStats>,
+    BTreeSet<String>,
     BTreeSet<String>,
     bool,
 ) {
@@ -2559,6 +2776,7 @@ fn discover_candidates(
     let mut candidates = Vec::new();
     let mut source_stats = BTreeMap::new();
     let mut deferred = BTreeSet::new();
+    let mut consumed_readiness_deltas = BTreeSet::new();
     let mut progress_published = false;
     for source in sources {
         let Some(permit) = shared
@@ -2598,12 +2816,28 @@ fn discover_candidates(
             now,
             force_manifest_audit_sources.contains(source.id.as_str()),
             force_reanalysis_sources.contains(source.id.as_str()),
+            pending_readiness_deltas.get(source.id.as_str()),
+            safety_probe_only,
             source_cancel,
             &mut |phase, work_units| progress.advance(phase, work_units),
         ) {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
+                if stats.cheap_noop_sweep {
+                    let mut telemetry = shared.telemetry();
+                    telemetry.cheap_noop_sweeps = telemetry.cheap_noop_sweeps.saturating_add(1);
+                }
+                if stats.delta_reconciled {
+                    let mut telemetry = shared.telemetry();
+                    telemetry.delta_reconciliations =
+                        telemetry.delta_reconciliations.saturating_add(1);
+                }
                 candidates.append(&mut source_candidates);
-                source_stats.insert(source.id.as_str().to_string(), stats);
+                if !stats.cheap_noop_sweep {
+                    source_stats.insert(source.id.as_str().to_string(), stats);
+                }
+                if pending_readiness_deltas.contains_key(source.id.as_str()) {
+                    consumed_readiness_deltas.insert(source.id.as_str().to_string());
+                }
                 shared
                     .control()
                     .force_reanalysis_sources
@@ -2630,7 +2864,13 @@ fn discover_candidates(
         shared.budgets().release(permit);
         shared.budget_wake.notify_all();
     }
-    (candidates, source_stats, deferred, progress_published)
+    (
+        candidates,
+        source_stats,
+        deferred,
+        consumed_readiness_deltas,
+        progress_published,
+    )
 }
 
 #[cfg(test)]
@@ -2645,6 +2885,8 @@ fn discover_source_candidates(
         now,
         force_manifest_audit,
         false,
+        None,
+        false,
         cancel,
         &mut |_, _| {},
     )
@@ -2655,6 +2897,8 @@ fn discover_source_candidates_with_progress(
     now: i64,
     force_manifest_audit: bool,
     force_reanalysis: bool,
+    pending_readiness_delta: Option<&PendingReadinessDelta>,
+    safety_probe_only: bool,
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(&'static str, usize),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
@@ -2680,6 +2924,44 @@ fn discover_source_candidates_with_progress(
             SourceDiscoveryStats::default(),
         )));
     }
+    if safety_probe_only {
+        match SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::BackgroundRead,
+        ) {
+            Ok(mut probe_connection) => {
+                if readiness_safety_probe_is_current(
+                    &mut probe_connection,
+                    source.id.as_str(),
+                    now,
+                    force_manifest_audit,
+                )? {
+                    tracing::debug!(
+                        target: "wavecrate::source_processing",
+                        event = "source_processing.safety_sweep_noop",
+                        source_id = source.id.as_str(),
+                        "Periodic readiness safety probe found no durable delta"
+                    );
+                    return Ok(Cancellable::Completed((
+                        Vec::new(),
+                        SourceDiscoveryStats {
+                            cheap_noop_sweep: true,
+                            ..SourceDiscoveryStats::default()
+                        },
+                    )));
+                }
+            }
+            Err(error) => {
+                tracing::debug!(
+                    target: "wavecrate::source_processing",
+                    source_id = source.id.as_str(),
+                    %error,
+                    "Read-only readiness safety probe unavailable; retrying with worker connection"
+                );
+            }
+        }
+    }
     let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,
         &database_root,
@@ -2692,9 +2974,54 @@ fn discover_source_candidates_with_progress(
         now,
         force_manifest_audit,
         force_reanalysis,
+        pending_readiness_delta,
+        false,
         cancel,
         progress,
     )
+}
+
+fn readiness_safety_probe_is_current(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    now: i64,
+    force_manifest_audit: bool,
+) -> Result<bool, String> {
+    if force_manifest_audit || !source_processing_schema_available(connection)? {
+        return Ok(false);
+    }
+    let last_manifest_audit_at = connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = ?1",
+            [META_LAST_MANIFEST_AUDIT_AT],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or_default();
+    if now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS {
+        return Ok(false);
+    }
+    let source_generation = connection
+        .query_row(
+            "SELECT COALESCE(
+                (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
+                0
+             )",
+            [META_WAV_PATHS_REVISION],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let contract_version = readiness_contract_version();
+    Ok(ReadinessStore::new(connection)
+        .source_state(source_id)
+        .map_err(|error| error.to_string())?
+        .is_some_and(|state| {
+            state.source_generation == source_generation
+                && state.availability == SourceAvailability::Active
+                && state.contract_version == contract_version
+        }))
 }
 
 #[cfg(test)]
@@ -2711,6 +3038,8 @@ fn discover_source_candidates_with_connection(
         now,
         force_manifest_audit,
         false,
+        None,
+        false,
         cancel,
         &mut |_, _| {},
     )
@@ -2722,6 +3051,8 @@ fn discover_source_candidates_with_connection_and_progress(
     now: i64,
     force_manifest_audit: bool,
     force_reanalysis: bool,
+    pending_readiness_delta: Option<&PendingReadinessDelta>,
+    safety_probe_only: bool,
     cancel: &AtomicBool,
     progress: &mut dyn FnMut(&'static str, usize),
 ) -> Result<Cancellable<(Vec<RuntimeCandidate>, SourceDiscoveryStats)>, String> {
@@ -2748,6 +3079,28 @@ fn discover_source_candidates_with_connection_and_progress(
         );
         return Ok(Cancellable::Completed((candidates, stats)));
     }
+    let last_manifest_audit_at = connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = ?1",
+            [META_LAST_MANIFEST_AUDIT_AT],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .and_then(|value| value.parse::<i64>().ok())
+        .unwrap_or_default();
+    if safety_probe_only
+        && readiness_safety_probe_is_current(connection, source_id, now, force_manifest_audit)?
+    {
+        stats.cheap_noop_sweep = true;
+        tracing::debug!(
+            target: "wavecrate::source_processing",
+            event = "source_processing.safety_sweep_noop",
+            source_id,
+            "Periodic readiness safety probe found no durable delta"
+        );
+        return Ok(Cancellable::Completed((candidates, stats)));
+    }
     if force_reanalysis {
         let changed = ReadinessStore::new(connection)
             .requeue_source_analysis(source_id, now)
@@ -2759,16 +3112,6 @@ fn discover_source_candidates_with_connection_and_progress(
             "Requeued source analysis through readiness"
         );
     }
-    let last_manifest_audit_at = connection
-        .query_row(
-            "SELECT value FROM metadata WHERE key = ?1",
-            [META_LAST_MANIFEST_AUDIT_AT],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?
-        .and_then(|value| value.parse::<i64>().ok())
-        .unwrap_or_default();
     let manifest_identity_repair_due: bool = connection
         .query_row(
             "SELECT EXISTS(
@@ -2799,18 +3142,34 @@ fn discover_source_candidates_with_connection_and_progress(
     ) {
         return Ok(Cancellable::Cancelled);
     }
-    let target_publication = publish_current_readiness_targets_with_cancel_and_checkpoint(
-        connection,
-        source_id,
-        now,
-        cancel,
-        &mut || {
-            work_units = work_units.saturating_add(1);
-            progress("Reading manifest and readiness targets", work_units);
-        },
-    )?;
-    if matches!(target_publication, Cancellable::Cancelled) {
-        return Ok(Cancellable::Cancelled);
+    let mut delta_applied = false;
+    if let Some(delta) = pending_readiness_delta.filter(|delta| !delta.is_empty()) {
+        match publish_current_readiness_delta_with_cancel(
+            connection, source_id, delta, now, cancel,
+        )? {
+            Cancellable::Completed(Some(_changed)) => {
+                stats.delta_reconciled = true;
+                delta_applied = true;
+            }
+            Cancellable::Completed(None) => {}
+            Cancellable::Cancelled => return Ok(Cancellable::Cancelled),
+        }
+    }
+    if !delta_applied {
+        let target_publication = publish_current_readiness_targets_with_cancel_and_checkpoint(
+            connection,
+            source_id,
+            now,
+            cancel,
+            true,
+            &mut || {
+                work_units = work_units.saturating_add(1);
+                progress("Reading manifest and readiness targets", work_units);
+            },
+        )?;
+        if matches!(target_publication, Cancellable::Cancelled) {
+            return Ok(Cancellable::Cancelled);
+        }
     }
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
@@ -2830,15 +3189,31 @@ fn discover_source_candidates_with_connection_and_progress(
                 "Reclassified deterministic audio decode failures as unsupported"
             );
         }
-        let snapshot = match ReadinessStore::new(connection).reconcile_with_cancel_and_progress(
-            source_id,
-            now,
-            cancel,
-            &mut || {
-                work_units = work_units.saturating_add(1);
-                progress("Comparing durable readiness", work_units);
-            },
-        ) {
+        let reconciliation = if delta_applied {
+            ReadinessStore::new(connection).reconcile_scopes_with_cancel_and_progress(
+                source_id,
+                &pending_readiness_delta
+                    .expect("a published readiness delta has affected scopes")
+                    .scope_ids,
+                now,
+                cancel,
+                &mut || {
+                    work_units = work_units.saturating_add(1);
+                    progress("Comparing changed readiness", work_units);
+                },
+            )
+        } else {
+            ReadinessStore::new(connection).reconcile_with_cancel_and_progress(
+                source_id,
+                now,
+                cancel,
+                &mut || {
+                    work_units = work_units.saturating_add(1);
+                    progress("Comparing durable readiness", work_units);
+                },
+            )
+        };
+        let snapshot = match reconciliation {
             Ok(snapshot) => snapshot,
             Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
                 return Ok(Cancellable::Cancelled);
@@ -2876,7 +3251,7 @@ fn discover_source_candidates_with_connection_and_progress(
             .map_err(|error| error.to_string())?;
         let schedulable_deficits = persistable_deficits
             .iter()
-            .filter(|deficit| snapshot.prerequisites_are_current(&deficit.target))
+            .filter(|deficit| delta_applied || snapshot.prerequisites_are_current(&deficit.target))
             .collect::<Vec<_>>();
         stats.readiness_queue_depth = schedulable_deficits.len();
         (stats.prerequisites_blocked, stats.prerequisite_retry_at) =
@@ -2886,23 +3261,74 @@ fn discover_source_candidates_with_connection_and_progress(
             source: source.clone(),
             task: RuntimeTask::Readiness(deficit.target.clone()),
         }));
-        let work_stats = ReadinessStore::new(connection)
-            .work_stats(now)
-            .map_err(|error| error.to_string())?;
-        stats.progress_total = work_stats.total;
-        stats.progress_completed = work_stats
-            .completed
-            .saturating_add(work_stats.permanent_failures)
-            .saturating_add(work_stats.unsupported)
-            .min(stats.progress_total);
-        stats.retries_due = work_stats.retries_due;
-        stats.earliest_retry_at = earliest_deadline(
-            earliest_deadline(
-                work_stats.earliest_retry_at,
-                work_stats.earliest_lease_expiry_at,
-            ),
-            active_recordings.retry_at,
-        );
+        let work_stats = if delta_applied {
+            None
+        } else {
+            Some(
+                ReadinessStore::new(connection)
+                    .work_stats(now)
+                    .map_err(|error| error.to_string())?,
+            )
+        };
+        if let Some(work_stats) = work_stats {
+            stats.progress_total = work_stats.total;
+            stats.progress_completed = work_stats
+                .completed
+                .saturating_add(work_stats.permanent_failures)
+                .saturating_add(work_stats.unsupported)
+                .min(stats.progress_total);
+            stats.retries_due = work_stats.retries_due;
+            stats.earliest_retry_at = earliest_deadline(
+                earliest_deadline(
+                    work_stats.earliest_retry_at,
+                    work_stats.earliest_lease_expiry_at,
+                ),
+                active_recordings.retry_at,
+            );
+            tracing::debug!(
+                target: "wavecrate::source_processing",
+                source_id,
+                pending = work_stats.pending,
+                running = work_stats.running,
+                retries_due = work_stats.retries_due,
+                retries_waiting = work_stats.retries_waiting,
+                expired_leases = work_stats.expired_leases,
+                prerequisites_blocked = stats.prerequisites_blocked,
+                "Readiness work reconciled"
+            );
+        } else {
+            stats.progress_total = snapshot.entries.len();
+            stats.progress_completed = snapshot
+                .entries
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        entry.classification,
+                        ReadinessClassification::Current
+                            | ReadinessClassification::PermanentFailure { .. }
+                            | ReadinessClassification::Unsupported
+                    )
+                })
+                .count();
+            for entry in &snapshot.entries {
+                match entry.classification {
+                    ReadinessClassification::RetryableFailure { retry_at, .. } => {
+                        stats.earliest_retry_at =
+                            earliest_deadline(stats.earliest_retry_at, Some(retry_at));
+                        if retry_at <= now {
+                            stats.retries_due = stats.retries_due.saturating_add(1);
+                        }
+                    }
+                    ReadinessClassification::Running { lease_expires_at } => {
+                        stats.earliest_retry_at =
+                            earliest_deadline(stats.earliest_retry_at, Some(lease_expires_at));
+                    }
+                    _ => {}
+                }
+            }
+            stats.earliest_retry_at =
+                earliest_deadline(stats.earliest_retry_at, active_recordings.retry_at);
+        }
         if !active_recordings.scope_ids.is_empty() {
             tracing::info!(
                 target: "wavecrate::source_processing",
@@ -2913,17 +3339,6 @@ fn discover_source_candidates_with_connection_and_progress(
                 "Deferred files that are still being actively written"
             );
         }
-        tracing::debug!(
-            target: "wavecrate::source_processing",
-            source_id,
-            pending = work_stats.pending,
-            running = work_stats.running,
-            retries_due = work_stats.retries_due,
-            retries_waiting = work_stats.retries_waiting,
-            expired_leases = work_stats.expired_leases,
-            prerequisites_blocked = stats.prerequisites_blocked,
-            "Readiness work reconciled"
-        );
     }
 
     if cancelled(cancel) {
@@ -3226,8 +3641,204 @@ fn publish_current_readiness_targets_with_cancel(
         source_id,
         now,
         cancel,
+        false,
         &mut || {},
     )
+}
+
+fn publish_current_readiness_delta_with_cancel(
+    connection: &mut rusqlite::Connection,
+    source_id: &str,
+    delta: &PendingReadinessDelta,
+    now: i64,
+    cancel: &AtomicBool,
+) -> Result<Cancellable<Option<usize>>, String> {
+    if cancelled(cancel) {
+        return Ok(Cancellable::Cancelled);
+    }
+    let source_generation = connection
+        .query_row(
+            "SELECT COALESCE(
+                (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
+                0
+             )",
+            [META_WAV_PATHS_REVISION],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let contract_version = readiness_contract_version();
+    let Some(current_source) = ReadinessStore::new(connection)
+        .source_state(source_id)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(Cancellable::Completed(None));
+    };
+    if current_source.contract_version != contract_version {
+        return Ok(Cancellable::Completed(None));
+    }
+    if current_source.source_generation == source_generation {
+        return Ok(Cancellable::Completed(Some(0)));
+    }
+
+    let embedding_version = format!(
+        "{}+{}",
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+    );
+    let mut targets = Vec::with_capacity(delta.scope_ids.len().saturating_mul(3));
+    let mut deleted_scope_ids = Vec::new();
+    for scope_id in &delta.scope_ids {
+        if cancelled(cancel) {
+            return Ok(Cancellable::Cancelled);
+        }
+        let mut statement = connection
+            .prepare(
+                "SELECT path, content_hash, file_size, modified_ns
+                 FROM wav_files
+                 WHERE missing = 0 AND file_identity = ?1
+                 ORDER BY path
+                 LIMIT 2",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([scope_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        drop(statement);
+        match rows.as_slice() {
+            [] => deleted_scope_ids.push(scope_id.clone()),
+            [(path, content_hash, file_size, modified_ns)] => {
+                if !wavecrate_library::sample_sources::is_supported_audio(std::path::Path::new(
+                    path,
+                )) {
+                    return Ok(Cancellable::Completed(None));
+                }
+                let content_generation = content_hash
+                    .as_deref()
+                    .filter(|value| !value.trim().is_empty())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("pending-{scope_id}-{file_size}-{modified_ns}"));
+                let unsupported = *file_size <= 0
+                    || ReadinessStore::new(connection)
+                        .generation_is_known_unsupported(source_id, scope_id, &content_generation)
+                        .map_err(|error| error.to_string())?;
+                targets.extend(file_readiness_targets(
+                    source_id,
+                    scope_id,
+                    path,
+                    source_generation,
+                    &content_generation,
+                    embedding_version.as_str(),
+                    unsupported,
+                ));
+            }
+            _ => return Ok(Cancellable::Completed(None)),
+        }
+    }
+    let readiness_revision = current_source.readiness_revision.saturating_add(1);
+    let similarity_artifact_version = native_similarity_artifact_version();
+    let publication = ReadinessTargetDeltaPublication::new(
+        source_id,
+        source_generation,
+        readiness_revision,
+        SourceAvailability::Active,
+        contract_version.as_str(),
+        &targets,
+        &deleted_scope_ids,
+        similarity_artifact_version.as_str(),
+        now,
+    );
+    let outcome = match ReadinessStore::new(connection)
+        .publish_target_delta_with_cancel(&publication, cancel)
+    {
+        Ok(outcome) => outcome,
+        Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
+            return Ok(Cancellable::Cancelled);
+        }
+        Err(error) => return Err(error.to_string()),
+    };
+    let ReadinessDeltaPublicationOutcome::Applied {
+        membership_generation,
+        changed,
+    } = outcome
+    else {
+        return Ok(Cancellable::Completed(None));
+    };
+    let similarity_state = serde_json::json!({
+        "state": "dirty",
+        "source_generation": source_generation,
+        "membership_generation": membership_generation,
+        "artifact_version": similarity_artifact_version,
+    })
+    .to_string();
+    wavecrate_analysis::ann_index::mark_artifacts_dirty(connection, &similarity_state)?;
+    tracing::debug!(
+        target: "wavecrate::source_processing",
+        event = "source_processing.readiness_delta_reconciled",
+        source_id,
+        source_generation,
+        identities = delta.scope_ids.len(),
+        target_upserts = targets.len(),
+        target_deletes = deleted_scope_ids.len(),
+        changed,
+        "Applied committed readiness target delta"
+    );
+    Ok(Cancellable::Completed(Some(changed)))
+}
+
+fn file_readiness_targets(
+    source_id: &str,
+    identity: &str,
+    path: &str,
+    source_generation: i64,
+    content_generation: &str,
+    embedding_version: &str,
+    unsupported: bool,
+) -> [ReadinessTarget; 3] {
+    let indexed = ReadinessTarget::file(
+        source_id,
+        identity,
+        path,
+        ReadinessStage::IndexedIdentity,
+        READINESS_MANIFEST_VERSION,
+        source_generation,
+        content_generation,
+    );
+    let analysis = ReadinessTarget::file(
+        source_id,
+        identity,
+        path,
+        ReadinessStage::AnalysisFeatures,
+        wavecrate_analysis::analysis_version(),
+        source_generation,
+        content_generation,
+    );
+    let embedding = ReadinessTarget::file(
+        source_id,
+        identity,
+        path,
+        ReadinessStage::EmbeddingAspects,
+        embedding_version,
+        source_generation,
+        content_generation,
+    );
+    if unsupported {
+        [
+            indexed,
+            analysis.with_eligibility(ReadinessEligibility::Unsupported),
+            embedding.with_eligibility(ReadinessEligibility::Unsupported),
+        ]
+    } else {
+        [indexed, analysis, embedding]
+    }
 }
 
 fn publish_current_readiness_targets_with_cancel_and_checkpoint(
@@ -3235,11 +3846,35 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     source_id: &str,
     now: i64,
     cancel: &AtomicBool,
+    allow_revision_noop: bool,
     checkpoint: &mut impl FnMut(),
 ) -> Result<Cancellable<bool>, String> {
     checkpoint();
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
+    }
+    let source_generation = connection
+        .query_row(
+            "SELECT COALESCE(
+                (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
+                0
+             )",
+            [META_WAV_PATHS_REVISION],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let contract_version = readiness_contract_version();
+    let current_source = ReadinessStore::new(connection)
+        .source_state(source_id)
+        .map_err(|error| error.to_string())?;
+    if allow_revision_noop
+        && current_source.as_ref().is_some_and(|state| {
+            state.source_generation == source_generation
+                && state.availability == SourceAvailability::Active
+                && state.contract_version == contract_version
+        })
+    {
+        return Ok(Cancellable::Completed(false));
     }
     let rows = {
         let mut statement = connection
@@ -3293,23 +3928,13 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
             .unwrap_or_else(|| format!("pending-{identity}-{file_size}-{modified_ns}"));
         manifest.push((path, identity, content_hash, content_generation, file_size));
     }
-    let source_generation = connection
-        .query_row(
-            "SELECT COALESCE(
-                (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1),
-                0
-             )",
-            [META_WAV_PATHS_REVISION],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(|error| error.to_string())?;
     let embedding_version = format!(
         "{}+{}",
         wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
         wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
     );
     let similarity_artifact_version = native_similarity_artifact_version();
-    let mut membership = blake3::Hasher::new();
+    let mut membership = ReadinessMembership::default();
     let mut targets = Vec::with_capacity(manifest.len().saturating_mul(3).saturating_add(1));
     for (path, identity, content_hash, content_generation, file_size) in &manifest {
         checkpoint();
@@ -3321,10 +3946,7 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
             unsupported_generations.contains(&(identity.clone(), content_hash.clone()))
         });
         if analyzable && !unsupported {
-            membership.update(identity.as_bytes());
-            membership.update(&[0]);
-            membership.update(content_generation.as_bytes());
-            membership.update(&[0xff]);
+            membership.add(identity, content_generation);
         }
         targets.push(ReadinessTarget::file(
             source_id,
@@ -3357,7 +3979,7 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
             targets.push(target);
         }
     }
-    let membership_generation = membership.finalize().to_hex().to_string();
+    let membership_generation = membership.generation();
     targets.push(ReadinessTarget::source(
         source_id,
         ReadinessStage::SimilarityLayout,
@@ -3365,29 +3987,6 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         source_generation,
         membership_generation.as_str(),
     ));
-    let Some(target_fingerprint) = readiness_target_fingerprint_with_cancel(&targets, cancel)
-    else {
-        return Ok(Cancellable::Cancelled);
-    };
-    let current_fingerprint = connection
-        .query_row(
-            "SELECT value FROM metadata WHERE key = ?1",
-            [META_READINESS_TARGET_FINGERPRINT],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?;
-    let current_source = ReadinessStore::new(connection)
-        .source_state(source_id)
-        .map_err(|error| error.to_string())?;
-    if current_fingerprint.as_deref() == Some(target_fingerprint.as_str())
-        && current_source.as_ref().is_some_and(|state| {
-            state.source_generation == source_generation
-                && state.availability == SourceAvailability::Active
-        })
-    {
-        return Ok(Cancellable::Completed(false));
-    }
     let readiness_revision = current_source
         .map(|state| state.readiness_revision.saturating_add(1))
         .unwrap_or(1);
@@ -3396,6 +3995,7 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         source_generation,
         readiness_revision,
         SourceAvailability::Active,
+        contract_version.as_str(),
         &targets,
         now,
     );
@@ -3417,13 +4017,6 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     })
     .to_string();
     wavecrate_analysis::ann_index::mark_artifacts_dirty(connection, &similarity_state)?;
-    connection
-        .execute(
-            "INSERT INTO metadata (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![META_READINESS_TARGET_FINGERPRINT, target_fingerprint],
-        )
-        .map_err(|error| error.to_string())?;
     Ok(Cancellable::Completed(true))
 }
 
@@ -3475,36 +4068,21 @@ fn cancelled(cancel: &AtomicBool) -> bool {
     cancel.load(Ordering::Acquire)
 }
 
-fn readiness_target_fingerprint_with_cancel(
-    targets: &[ReadinessTarget],
-    cancel: &AtomicBool,
-) -> Option<String> {
+fn readiness_contract_version() -> String {
     let mut hash = blake3::Hasher::new();
-    for target in targets {
-        if cancelled(cancel) {
-            return None;
-        }
-        hash.update(target.source_id.as_bytes());
+    let similarity_artifact_version = native_similarity_artifact_version();
+    for component in [
+        READINESS_MANIFEST_VERSION,
+        wavecrate_analysis::analysis_version(),
+        wavecrate_analysis::similarity::SIMILARITY_MODEL_ID,
+        wavecrate_analysis::aspects::ASPECT_DESCRIPTOR_MODEL_ID,
+        similarity_artifact_version.as_str(),
+        READINESS_MEMBERSHIP_VERSION,
+    ] {
+        hash.update(component.as_bytes());
         hash.update(&[0]);
-        hash.update(target.scope_id.as_bytes());
-        hash.update(&[0]);
-        hash.update(format!("{:?}", target.stage).as_bytes());
-        hash.update(&[0]);
-        hash.update(target.required_version.as_bytes());
-        hash.update(&[0]);
-        hash.update(target.source_generation.to_string().as_bytes());
-        hash.update(&[0]);
-        hash.update(target.content_generation.as_bytes());
-        hash.update(&[0]);
-        let eligibility: &[u8] = match target.eligibility {
-            ReadinessEligibility::Eligible => b"eligible",
-            ReadinessEligibility::Unsupported => b"unsupported",
-            ReadinessEligibility::Deleted => b"deleted",
-        };
-        hash.update(eligibility);
-        hash.update(&[0xff]);
     }
-    Some(hash.finalize().to_hex().to_string())
+    format!("readiness-contract-v2:{}", hash.finalize().to_hex())
 }
 
 fn execute_candidate(
@@ -4780,6 +5358,7 @@ mod tests {
             source_generation,
             readiness_revision,
             availability,
+            "wavecrate-source-readiness-v1",
             targets,
             updated_at,
         ))
@@ -5207,6 +5786,51 @@ mod tests {
         ));
         drop(control);
         drop(first_scan);
+        assert_eq!(supervisor.shutdown()["joined"], true);
+    }
+
+    #[test]
+    fn bounded_manifest_delta_preserves_unaffected_in_flight_generation() {
+        let (_directory, source) = unhashed_source("bounded-delta-generation");
+        let mut supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![source.clone()])
+            .expect("configure source");
+        let retained_generation = {
+            let mut control = supervisor.shared.control();
+            control.dirty_sources.clear();
+            Arc::clone(&control.source_work_cancels[source.id.as_str()])
+        };
+        supervisor.request_source_delta(
+            source.id.as_str(),
+            &CommittedSourceDelta {
+                revision: 1,
+                changed: vec![wavecrate::sample_sources::scanner::ManifestIdentityDelta {
+                    identity: String::from("changed"),
+                    relative_path: PathBuf::from("changed.wav"),
+                    content_generation: String::from("changed-generation"),
+                    source_metadata_changed: false,
+                }],
+                ..CommittedSourceDelta::default()
+            },
+            "test_bounded_delta",
+        );
+
+        supervisor.wake_source(source.id.as_str(), "filesystem_changed");
+
+        assert!(!retained_generation.load(Ordering::Acquire));
+        let control = supervisor.shared.control();
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        assert!(
+            control
+                .pending_readiness_deltas
+                .contains_key(source.id.as_str())
+        );
+        assert!(Arc::ptr_eq(
+            &retained_generation,
+            &control.source_work_cancels[source.id.as_str()]
+        ));
+        drop(control);
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
 
@@ -6007,6 +6631,222 @@ mod tests {
     }
 
     #[test]
+    fn converged_periodic_safety_probes_do_not_rematerialize_targets() {
+        let (_directory, source) = unhashed_source("revision-gated-safety-probe");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open source database");
+        publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+            .expect("publish initial readiness");
+        let durable_before = discovery_durable_counts(&connection);
+        let source_before = ReadinessStore::new(&mut connection)
+            .source_state(source.id.as_str())
+            .expect("read source state")
+            .expect("source state exists");
+        drop(connection);
+        let cancel = AtomicBool::new(false);
+
+        for interval in 0..10 {
+            let Cancellable::Completed((candidates, stats)) =
+                discover_source_candidates_with_progress(
+                    &source,
+                    101 + interval,
+                    false,
+                    false,
+                    None,
+                    true,
+                    &cancel,
+                    &mut |_, _| panic!("cheap safety probe must not materialize target work"),
+                )
+                .expect("run revision-gated safety probe")
+            else {
+                panic!("safety probe unexpectedly cancelled");
+            };
+            assert!(candidates.is_empty());
+            assert!(stats.cheap_noop_sweep);
+        }
+
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen source database");
+        assert_eq!(discovery_durable_counts(&connection), durable_before);
+        assert_eq!(
+            ReadinessStore::new(&mut connection)
+                .source_state(source.id.as_str())
+                .expect("read final source state")
+                .expect("source state exists"),
+            source_before
+        );
+    }
+
+    #[test]
+    fn safety_probe_recovers_manifest_commit_without_delta_publication() {
+        let (_directory, source) = unhashed_source("revision-gap-recovery");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open source database");
+        publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+            .expect("publish initial readiness");
+        let previous_generation = ReadinessStore::new(&mut connection)
+            .source_state(source.id.as_str())
+            .expect("read source state")
+            .expect("source state exists")
+            .source_generation;
+        connection
+            .execute(
+                "UPDATE wav_files SET content_hash = 'changed-after-crash'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("commit manifest content change");
+        connection
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES (?1, '1')
+                 ON CONFLICT(key) DO UPDATE
+                 SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
+                [META_WAV_PATHS_REVISION],
+            )
+            .expect("advance manifest generation");
+
+        let Cancellable::Completed((_candidates, stats)) =
+            discover_source_candidates_with_connection_and_progress(
+                &source,
+                &mut connection,
+                101,
+                false,
+                false,
+                None,
+                true,
+                &AtomicBool::new(false),
+                &mut |_, _| {},
+            )
+            .expect("recover readiness publication")
+        else {
+            panic!("recovery unexpectedly cancelled");
+        };
+        assert!(!stats.cheap_noop_sweep);
+        let recovered = ReadinessStore::new(&mut connection)
+            .source_state(source.id.as_str())
+            .expect("read recovered source state")
+            .expect("source state exists");
+        assert_eq!(
+            recovered.source_generation,
+            previous_generation.saturating_add(1)
+        );
+    }
+
+    #[test]
+    fn committed_one_file_delta_updates_only_that_identity_targets() {
+        let (_directory, source) = unhashed_source("one-file-readiness-delta");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open source database");
+        publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+            .expect("publish initial readiness");
+        let identity: String = connection
+            .query_row(
+                "SELECT file_identity FROM wav_files WHERE path = 'pending.wav'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read file identity");
+        let state_before = ReadinessStore::new(&mut connection)
+            .source_state(source.id.as_str())
+            .expect("read source state")
+            .expect("source state exists");
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET content_hash = 'one-file-new-hash',
+                     file_size = file_size + 1,
+                     modified_ns = modified_ns + 1
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("commit one-file manifest change");
+        connection
+            .execute(
+                "INSERT INTO metadata (key, value) VALUES (?1, '1')
+                 ON CONFLICT(key) DO UPDATE
+                 SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
+                [META_WAV_PATHS_REVISION],
+            )
+            .expect("advance manifest generation");
+        let delta = PendingReadinessDelta {
+            scope_ids: [identity.clone()].into_iter().collect(),
+        };
+
+        let Cancellable::Completed((_candidates, stats)) =
+            discover_source_candidates_with_connection_and_progress(
+                &source,
+                &mut connection,
+                101,
+                false,
+                false,
+                Some(&delta),
+                false,
+                &AtomicBool::new(false),
+                &mut |_, _| {},
+            )
+            .expect("reconcile committed delta")
+        else {
+            panic!("delta reconciliation unexpectedly cancelled");
+        };
+        assert!(stats.delta_reconciled);
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM source_readiness_targets
+                     WHERE source_id = ?1 AND scope_kind = 'file'",
+                    [source.id.as_str()],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count file targets"),
+            3
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM source_readiness_targets
+                     WHERE source_id = ?1
+                       AND scope_id = ?2
+                       AND content_generation = 'one-file-new-hash'",
+                    params![source.id.as_str(), identity],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count changed identity targets"),
+            3
+        );
+        let state_after = ReadinessStore::new(&mut connection)
+            .source_state(source.id.as_str())
+            .expect("read source state")
+            .expect("source state exists");
+        assert_eq!(
+            state_after.source_generation,
+            state_before.source_generation.saturating_add(1)
+        );
+        assert_eq!(
+            state_after.readiness_revision,
+            state_before.readiness_revision.saturating_add(1)
+        );
+    }
+
+    #[test]
     #[ignore = "representative 10k-file source discovery profile"]
     fn profile_large_source_discovery_baseline() {
         const FILE_COUNT: usize = 10_000;
@@ -6110,6 +6950,8 @@ mod tests {
             &source,
             100,
             false,
+            false,
+            None,
             false,
             &AtomicBool::new(false),
             &mut |phase, work_units| updates.push((phase, work_units)),
@@ -6232,6 +7074,7 @@ mod tests {
             source.id.as_str(),
             100,
             &cancel,
+            false,
             &mut || {
                 checkpoints += 1;
                 if checkpoints == 128 {
@@ -7002,6 +7845,7 @@ mod tests {
             (
                 String::from("first"),
                 SourceDiscoveryStats {
+                    readiness_queue_depth: 1,
                     progress_completed: 25_000,
                     progress_total: 26_000,
                     ..SourceDiscoveryStats::default()
@@ -7022,6 +7866,7 @@ mod tests {
 
         assert_eq!(progress.progress_completed, 25_001);
         assert_eq!(progress.progress_total, 26_000);
+        assert_eq!(progress.readiness_queue_depth, 0);
         assert_eq!(source_stats["second"].progress_completed, 24_000);
         assert_eq!(source_stats["second"].progress_total, 25_000);
     }
@@ -8046,7 +8891,7 @@ mod tests {
             .expect("read supported source membership");
         assert_eq!(
             source_membership,
-            blake3::Hasher::new().finalize().to_hex().to_string()
+            ReadinessMembership::default().generation()
         );
     }
 
@@ -8947,8 +9792,9 @@ mod tests {
                 "SELECT
                     (SELECT COUNT(*) FROM source_readiness_targets),
                     (SELECT COUNT(*) FROM analysis_jobs),
-                    (SELECT COUNT(*) FROM metadata WHERE key = ?1)",
-                [META_READINESS_TARGET_FINGERPRINT],
+                    (SELECT COUNT(*) FROM source_readiness_sources
+                     WHERE contract_version != '')",
+                [],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .expect("read durable discovery counts")

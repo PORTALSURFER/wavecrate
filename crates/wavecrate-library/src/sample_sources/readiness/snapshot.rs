@@ -154,7 +154,6 @@ impl ReadinessSnapshot {
                 .iter()
                 .filter(|entry| {
                     entry.target.source_id == target.source_id
-                        && entry.target.source_generation == target.source_generation
                         && entry.target.scope_kind == ReadinessScopeKind::File
                         && matches!(
                             entry.target.stage,
