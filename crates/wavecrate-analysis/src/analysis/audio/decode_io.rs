@@ -106,12 +106,23 @@ pub fn decode_for_analysis_with_rate_limit(
     sample_rate: u32,
     max_seconds: Option<f32>,
 ) -> Result<AnalysisAudio, String> {
+    decode_for_analysis_with_rate_limit_typed(path, sample_rate, max_seconds)
+        .map_err(|error| error.to_string())
+}
+
+/// Decode and prepare audio while retaining a structured decoder failure.
+pub fn decode_for_analysis_with_rate_limit_typed(
+    path: &Path,
+    sample_rate: u32,
+    max_seconds: Option<f32>,
+) -> Result<AnalysisAudio, crate::analysis::audio_decode::AnalysisDecodeError> {
     let default_max = MAX_ANALYSIS_SECONDS + WINDOW_SECONDS;
     let max_decode_seconds = max_seconds
         .filter(|limit| limit.is_finite() && *limit > 0.0)
         .map(|limit| default_max.min(limit + WINDOW_SECONDS))
         .unwrap_or(default_max);
-    let decoded = crate::analysis::audio_decode::decode_audio(path, Some(max_decode_seconds))?;
+    let decoded =
+        crate::analysis::audio_decode::decode_audio_typed(path, Some(max_decode_seconds))?;
     DECODE_SCRATCH.with(|scratch| {
         let mut scratch = scratch.borrow_mut();
         downmix_to_mono_into(&mut scratch.mono, &decoded.samples, decoded.channels);

@@ -95,6 +95,22 @@ pub(super) struct SourceProcessingFailure {
 }
 
 impl SourceProcessingFailure {
+    pub(super) const fn readiness_failure_classification(
+        &self,
+    ) -> wavecrate::sample_sources::readiness::ReadinessFailureClassification {
+        match self.class {
+            SourceProcessingFailureClass::Retryable => {
+                wavecrate::sample_sources::readiness::ReadinessFailureClassification::Retryable
+            }
+            SourceProcessingFailureClass::Permanent => {
+                wavecrate::sample_sources::readiness::ReadinessFailureClassification::Permanent
+            }
+            SourceProcessingFailureClass::Unsupported => {
+                wavecrate::sample_sources::readiness::ReadinessFailureClassification::Unsupported
+            }
+        }
+    }
+
     fn retryable(code: SourceProcessingFailureCode, context: impl Into<String>) -> Self {
         Self {
             class: SourceProcessingFailureClass::Retryable,
@@ -151,6 +167,31 @@ impl From<rusqlite::Error> for SourceProcessingFailure {
             "Source database operation failed",
             Some(error.to_string()),
         )
+    }
+}
+
+impl From<wavecrate::internal_analysis_jobs::ReadinessStageError> for SourceProcessingFailure {
+    fn from(error: wavecrate::internal_analysis_jobs::ReadinessStageError) -> Self {
+        match error {
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(
+                wavecrate_analysis::AnalysisDecodeError::Unsupported(detail),
+            ) => Self {
+                class: SourceProcessingFailureClass::Unsupported,
+                code: SourceProcessingFailureCode::DecoderUnsupported,
+                context: "Audio codec is unsupported".to_string(),
+                source_error: Some(detail),
+            },
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(error) => {
+                Self::permanent(
+                    SourceProcessingFailureCode::ExecutionUnclassified,
+                    "Audio decoding failed",
+                    Some(error.to_string()),
+                )
+            }
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Other(error) => {
+                Self::from(error)
+            }
+        }
     }
 }
 

@@ -25,10 +25,12 @@ pub(crate) const SLICE_SILENCE_POST_ROLL_SECONDS: f32 = 0.015;
 pub(crate) const SLICE_SILENCE_MERGE_GAP_SECONDS: f32 = 0.01;
 const EMBEDDING_TARGET_RMS_DB: f32 = -20.0;
 
+pub use crate::analysis::audio_decode::AnalysisDecodeError;
 pub(crate) use decode::decode_for_analysis;
 pub use decode_io::AudioProbe;
 pub use decode_io::{
-    decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit, probe_metadata,
+    decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit,
+    decode_for_analysis_with_rate_limit_typed, probe_metadata,
 };
 pub use exact_duplicates::DetectedDuplicateWindow;
 pub use exact_duplicates::detect_exact_duplicate_window_ranges;

@@ -7,6 +7,8 @@ use rusqlite::Connection;
 
 use crate::app::controller::library::analysis_jobs;
 
+pub use crate::app::controller::library::analysis_jobs::ReadinessStageError;
+
 /// Opaque analysis job claimed from a source database.
 #[derive(Clone, Debug)]
 pub struct ClaimedAnalysisJob {
@@ -94,7 +96,7 @@ pub fn run_readiness_feature_stage(
     content_hash: &str,
     analysis_version: &str,
     cancel: &AtomicBool,
-) -> Result<bool, String> {
+) -> Result<bool, ReadinessStageError> {
     analysis_jobs::run_readiness_feature_stage(
         conn,
         source_root,

@@ -1,3 +1,4 @@
+use crate::app::controller::library::analysis_jobs::ReadinessStageError;
 use crate::app::controller::library::analysis_jobs::db;
 
 use super::analysis::AnalysisContext;
@@ -42,5 +43,21 @@ pub(crate) fn decode_for_analysis(
         context.analysis_sample_rate,
         decode_limit_seconds,
     )?;
+    Ok(DecodeOutcome::Decoded(decoded))
+}
+
+pub(crate) fn decode_for_readiness(
+    job: &db::ClaimedJob,
+    context: &AnalysisContext<'_>,
+) -> Result<DecodeOutcome, ReadinessStageError> {
+    let (_source_id, relative_path) =
+        db::parse_sample_id(&job.sample_id).map_err(ReadinessStageError::Other)?;
+    let absolute = job.source_root.join(&relative_path);
+    let decoded = wavecrate_analysis::decode_for_analysis_with_rate_limit_typed(
+        &absolute,
+        context.analysis_sample_rate,
+        None,
+    )
+    .map_err(ReadinessStageError::Decode)?;
     Ok(DecodeOutcome::Decoded(decoded))
 }

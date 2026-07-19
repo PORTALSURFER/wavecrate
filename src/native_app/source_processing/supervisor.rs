@@ -34,11 +34,7 @@ use wavecrate::sample_sources::{
 use super::scheduler::{
     BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
 };
-#[cfg(test)]
-use super::worker::SourceProcessingFailureCode;
-use super::worker::{
-    SourceProcessingFailure, SourceProcessingFailureClass, source_database_failure,
-};
+use super::worker::{SourceProcessingFailure, source_database_failure};
 use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
 use crate::native_app::sample_library::similarity_artifacts::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
@@ -3842,23 +3838,12 @@ fn execute_readiness_target(
             Ok(execution_outcome_for_failure(outcome))
         }
         Err(failure) => {
-            let classification = match failure.class {
-                SourceProcessingFailureClass::Retryable => {
-                    ReadinessFailureClassification::Retryable
-                }
-                SourceProcessingFailureClass::Permanent => {
-                    ReadinessFailureClassification::Permanent
-                }
-                SourceProcessingFailureClass::Unsupported => {
-                    ReadinessFailureClassification::Unsupported
-                }
-            };
             let policy = ReadinessRetryPolicy::new(5, 5 * 60, READINESS_MAX_ATTEMPTS)
                 .expect("valid readiness retry policy");
             let outcome = ReadinessStore::new(&mut connection)
                 .fail(
                     &claim,
-                    classification,
+                    failure.readiness_failure_classification(),
                     failure.code.as_str(),
                     &failure.context,
                     now_epoch_seconds(),
@@ -8607,32 +8592,121 @@ mod tests {
     }
 
     #[test]
-    fn typed_execution_failures_keep_their_class_when_context_changes() {
-        for context in [
-            "unsupported codec",
-            "worker wrapped: no suitable format reader found",
-            "a future decoder changed this diagnostic entirely",
-        ] {
-            let failure = SourceProcessingFailure {
-                class: SourceProcessingFailureClass::Unsupported,
-                code: SourceProcessingFailureCode::DecoderUnsupported,
-                context: context.to_string(),
-                source_error: Some("decoder detail".to_string()),
-            };
-            let classification = match failure.class {
-                SourceProcessingFailureClass::Retryable => {
-                    ReadinessFailureClassification::Retryable
-                }
-                SourceProcessingFailureClass::Permanent => {
-                    ReadinessFailureClassification::Permanent
-                }
-                SourceProcessingFailureClass::Unsupported => {
-                    ReadinessFailureClassification::Unsupported
-                }
-            };
-            assert_eq!(classification, ReadinessFailureClassification::Unsupported);
-            assert_eq!(failure.code.as_str(), "decoder_unsupported");
-        }
+    fn typed_decoder_failure_persists_unsupported_code_without_text_classification() {
+        let (_directory, source) = unhashed_source("typed-decoder-failure");
+        let database_root = source.database_root().expect("database root");
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("open source database");
+        connection
+            .execute(
+                "UPDATE wav_files
+                 SET file_identity = 'typed-decoder-identity', content_hash = 'typed-decoder-hash'
+                 WHERE path = 'pending.wav'",
+                [],
+            )
+            .expect("set typed decoder identity");
+        let indexed_target = ReadinessTarget::file(
+            source.id.as_str(),
+            "typed-decoder-identity",
+            "pending.wav",
+            ReadinessStage::IndexedIdentity,
+            "manifest-v1",
+            1,
+            "typed-decoder-hash",
+        );
+        let target = ReadinessTarget::file(
+            source.id.as_str(),
+            "typed-decoder-identity",
+            "pending.wav",
+            ReadinessStage::AnalysisFeatures,
+            "analysis-v1",
+            1,
+            "typed-decoder-hash",
+        );
+        let mut embedding_target = target.clone();
+        embedding_target.stage = ReadinessStage::EmbeddingAspects;
+        embedding_target.eligibility = ReadinessEligibility::Unsupported;
+        let similarity_target = ReadinessTarget::source(
+            source.id.as_str(),
+            ReadinessStage::SimilarityLayout,
+            "layout-v1",
+            1,
+            "members-1",
+        )
+        .with_eligibility(ReadinessEligibility::Unsupported);
+        let now = now_epoch_seconds();
+        replace_readiness_targets(
+            &mut connection,
+            source.id.as_str(),
+            1,
+            1,
+            SourceAvailability::Active,
+            &[
+                indexed_target,
+                target.clone(),
+                embedding_target,
+                similarity_target,
+            ],
+            now,
+        )
+        .expect("publish readiness target");
+        let snapshot = reconcile_readiness(&connection, source.id.as_str(), now)
+            .expect("reconcile readiness target");
+        persist_readiness_deficits(&mut connection, &snapshot.deficits, now)
+            .expect("persist readiness target");
+        let claim = claim_readiness_target(&mut connection, &target, now, 30)
+            .expect("claim readiness target")
+            .expect("target claimed");
+
+        let failure = SourceProcessingFailure::from(
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(
+                wavecrate_analysis::AnalysisDecodeError::Unsupported(
+                    "wrapped decoder wording must not affect policy".to_string(),
+                ),
+            ),
+        );
+        let policy =
+            ReadinessRetryPolicy::new(5, 300, READINESS_MAX_ATTEMPTS).expect("valid retry policy");
+        assert_eq!(
+            ReadinessStore::new(&mut connection)
+                .fail(
+                    &claim,
+                    failure.readiness_failure_classification(),
+                    failure.code.as_str(),
+                    &failure.context,
+                    now,
+                    policy,
+                )
+                .expect("persist typed decoder failure"),
+            ReadinessFailureOutcome::Unsupported
+        );
+        let stored = connection
+            .query_row(
+                "SELECT failure_kind, failure_code, last_error
+                 FROM analysis_jobs
+                 WHERE source_id = ?1",
+                [claim.target.source_id.as_str()],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )
+            .expect("read persisted typed failure");
+        assert_eq!(
+            stored,
+            (
+                "unsupported".to_string(),
+                "decoder_unsupported".to_string(),
+                "Audio codec is unsupported".to_string(),
+            )
+        );
     }
 
     #[test]

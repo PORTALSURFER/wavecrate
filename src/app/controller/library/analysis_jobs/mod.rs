@@ -7,6 +7,21 @@ mod pool;
 mod types;
 mod wakeup;
 
+/// Typed failure emitted while producing one readiness stage.
+#[derive(Debug)]
+pub enum ReadinessStageError {
+    /// The decoder identified a media-specific failure.
+    Decode(wavecrate_analysis::AnalysisDecodeError),
+    /// A non-decoder stage failure whose owner has no narrower type yet.
+    Other(String),
+}
+
+impl From<String> for ReadinessStageError {
+    fn from(error: String) -> Self {
+        Self::Other(error)
+    }
+}
+
 #[cfg(test)]
 pub(crate) use db::sample_bpm;
 #[cfg(test)]
@@ -137,7 +152,7 @@ pub(crate) fn run_readiness_feature_stage(
     content_hash: &str,
     analysis_version: &str,
     cancel: &std::sync::atomic::AtomicBool,
-) -> Result<bool, String> {
+) -> Result<bool, ReadinessStageError> {
     pool::job_execution::run_feature_stage(
         conn,
         source_root,
