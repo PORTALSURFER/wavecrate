@@ -5,11 +5,11 @@
 # branch/source updates.
 #
 # Hooks installed for wavecrate:
-# - post-merge / post-checkout: run bounded repository-state checks
+# - post-checkout: run bounded repository-state checks
 # - pre-commit / pre-push: verify local `main` tracks `origin/main`; feature branches are allowed for PR work
 #
 # Hooks installed for vendor/radiant:
-# - post-merge / post-checkout / pre-commit / pre-push: fail unless radiant uses
+# - post-checkout / pre-commit / pre-push: fail unless radiant uses
 #   local `main` tracking `origin/main`
 #
 # To temporarily disable hook execution, set WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK=1.
@@ -88,30 +88,21 @@ write_hook() {
   chmod +x "$target"
 }
 
+remove_managed_hook() {
+  local hook_dir="$1"
+  local hook_name="$2"
+  local sentinel="$3"
+  local target="$hook_dir/$hook_name"
+
+  if [[ -f "$target" ]] && grep -q "$sentinel" "$target" 2>/dev/null; then
+    rm -f -- "$target"
+    echo "[agent_hook_install] Removed deprecated managed hook: $target"
+  fi
+}
+
 ROOT_HOOK_DIR="$(git rev-parse --git-common-dir)/hooks"
 ensure_hook_dir "$ROOT_HOOK_DIR"
-
-write_hook "$ROOT_HOOK_DIR" "post-merge" "run_agent_hook_checks.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
-  exit 0
-fi
-
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [[ -z "$repo_root" ]]; then
-  exit 0
-fi
-
-hook_checks="$repo_root/scripts/internal/agent/run_agent_hook_checks.sh"
-if [[ -x "$hook_checks" ]]; then
-  "$hook_checks" --event post-merge
-else
-  echo "[agent_preflight_hook] ERROR: missing $hook_checks" >&2
-  exit 1
-fi
-EOF
+remove_managed_hook "$ROOT_HOOK_DIR" "post-merge" "run_agent_hook_checks.sh"
 
 write_hook "$ROOT_HOOK_DIR" "post-checkout" "run_agent_hook_checks.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -188,8 +179,9 @@ RADIANT_HOOK_DIR=""
 if git -C "$RADIANT_DIR" rev-parse --git-common-dir >/dev/null 2>&1; then
   RADIANT_HOOK_DIR="$(git -C "$RADIANT_DIR" rev-parse --git-common-dir)/hooks"
   ensure_hook_dir "$RADIANT_HOOK_DIR"
+  remove_managed_hook "$RADIANT_HOOK_DIR" "post-merge" "vendor/radiant must use local 'main'"
 
-  for hook_name in post-merge post-checkout pre-commit pre-push; do
+  for hook_name in post-checkout pre-commit pre-push; do
     write_hook "$RADIANT_HOOK_DIR" "$hook_name" "vendor/radiant must use local 'main'" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -233,12 +225,10 @@ EOF
 fi
 
 echo "[agent_hook_install] Installed hooks:"
-echo "[agent_hook_install]   - $ROOT_HOOK_DIR/post-merge"
 echo "[agent_hook_install]   - $ROOT_HOOK_DIR/post-checkout"
 echo "[agent_hook_install]   - $ROOT_HOOK_DIR/pre-commit"
 echo "[agent_hook_install]   - $ROOT_HOOK_DIR/pre-push"
 if [[ -n "$RADIANT_HOOK_DIR" ]]; then
-  echo "[agent_hook_install]   - $RADIANT_HOOK_DIR/post-merge"
   echo "[agent_hook_install]   - $RADIANT_HOOK_DIR/post-checkout"
   echo "[agent_hook_install]   - $RADIANT_HOOK_DIR/pre-commit"
   echo "[agent_hook_install]   - $RADIANT_HOOK_DIR/pre-push"

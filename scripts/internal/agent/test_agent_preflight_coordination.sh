@@ -53,6 +53,12 @@ git init --bare "$REMOTE_DIR" >/dev/null
 git -C "$REPO_DIR" remote add origin "$REMOTE_DIR"
 WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK=1 git -C "$REPO_DIR" push -u origin main >/dev/null
 
+cat > "$REPO_DIR/.git/hooks/post-merge" <<'EOF'
+#!/usr/bin/env bash
+# run_agent_hook_checks.sh
+EOF
+chmod +x "$REPO_DIR/.git/hooks/post-merge"
+
 HOOK_COUNT="$FIXTURE_DIR/hook-count"
 FULL_COUNT="$FIXTURE_DIR/full-count"
 FAKE_HOOK_CHECK="$FIXTURE_DIR/fake-hook-check"
@@ -76,30 +82,30 @@ chmod +x "$FAKE_HOOK_CHECK" "$FAKE_FULL_CHECK"
 
 (cd "$REPO_DIR" && ./scripts/internal/agent/install_agent_preflight_hooks.sh --force) >/dev/null
 
-for hook in post-merge post-checkout pre-commit pre-push; do
+for hook in post-checkout pre-commit pre-push; do
   if [[ ! -x "$REPO_DIR/.git/hooks/$hook" ]]; then
     fail "installer did not create executable $hook hook"
   fi
 done
+if [[ -e "$REPO_DIR/.git/hooks/post-merge" ]]; then
+  fail "installer did not remove the deprecated managed post-merge hook"
+fi
 
-# A merge, automatic checkout, and explicit checkout each run only the cheap
-# hook state check. None may launch the full preflight command.
-(cd "$REPO_DIR" && WAVECRATE_AGENT_HOOK_CHECK_COMMAND="$FAKE_HOOK_CHECK" \
-  WAVECRATE_AGENT_CI_CHECKS_COMMAND="$FAKE_FULL_CHECK" \
-  .git/hooks/post-merge)
+# Automatic and explicit checkouts each run only the cheap hook state check.
+# Neither may launch the full preflight command.
 (cd "$REPO_DIR" && WAVECRATE_AGENT_HOOK_CHECK_COMMAND="$FAKE_HOOK_CHECK" \
   WAVECRATE_AGENT_CI_CHECKS_COMMAND="$FAKE_FULL_CHECK" \
   .git/hooks/post-checkout before after 1)
 (cd "$REPO_DIR" && WAVECRATE_AGENT_HOOK_CHECK_COMMAND="$FAKE_HOOK_CHECK" \
   WAVECRATE_AGENT_CI_CHECKS_COMMAND="$FAKE_FULL_CHECK" \
   .git/hooks/post-checkout after after 1)
-expect_file_count "$HOOK_COUNT" 3
+expect_file_count "$HOOK_COUNT" 2
 expect_file_count "$FULL_COUNT" 0
 
 # Pre-commit and pre-push retain their branch-policy ownership.
 (cd "$REPO_DIR" && WAVECRATE_AGENT_HOOK_CHECK_COMMAND="$FAKE_HOOK_CHECK" .git/hooks/pre-commit)
 (cd "$REPO_DIR" && WAVECRATE_AGENT_HOOK_CHECK_COMMAND="$FAKE_HOOK_CHECK" .git/hooks/pre-push)
-expect_file_count "$HOOK_COUNT" 5
+expect_file_count "$HOOK_COUNT" 4
 
 # Two concurrent explicit full-preflight requests coalesce to one owner.
 STATE_DIR="$FIXTURE_DIR/preflight-state"

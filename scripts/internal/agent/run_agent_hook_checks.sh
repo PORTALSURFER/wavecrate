@@ -13,7 +13,7 @@ cd "$ROOT_DIR"
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/internal/agent/run_agent_hook_checks.sh --event <post-merge|post-checkout>
+Usage: scripts/internal/agent/run_agent_hook_checks.sh --event post-checkout
 
 Run cheap repository-state checks for a Git hook. This command intentionally
 does not run the full Cargo-backed agent preflight.
@@ -45,10 +45,10 @@ while (( $# > 0 )); do
 done
 
 case "$EVENT" in
-  post-merge|post-checkout)
+  post-checkout)
     ;;
   *)
-    echo "[agent_hook_checks] --event must be post-merge or post-checkout." >&2
+    echo "[agent_hook_checks] --event must be post-checkout." >&2
     exit 2
     ;;
 esac
