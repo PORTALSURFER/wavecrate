@@ -16,6 +16,12 @@ const WATCHER_RESTART_MAX: Duration = Duration::from_secs(60);
 const WATCHER_START_TIMEOUT: Duration = Duration::from_secs(5);
 const ROOT_REFRESH_AVAILABLE: Duration = Duration::from_secs(10);
 const ROOT_REFRESH_UNAVAILABLE: Duration = Duration::from_secs(30);
+const ROOT_IDENTITY_RETRY_MIN: Duration = Duration::from_secs(30);
+const ROOT_IDENTITY_RETRY_MAX: Duration = Duration::from_secs(60 * 60);
+
+fn doubled_duration(current: Duration, maximum: Duration) -> Duration {
+    current.saturating_mul(2).min(maximum)
+}
 
 pub(in crate::native_app) use handle::GuiSourceWatcherHandle;
 

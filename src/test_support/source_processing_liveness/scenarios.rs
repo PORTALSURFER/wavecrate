@@ -207,6 +207,20 @@ fn source_processing_liveness_harness_converges_restart_churn_and_root_recovery(
     harness.force_root_refresh(WatcherStimulus::RootAvailable);
     harness.await_fully_ready();
 
+    let retired_root = harness
+        .source_parent
+        .path()
+        .join("source-retired-after-identity-replacement");
+    fs::rename(&harness.source.root, &retired_root).expect("retire live source root");
+    fs::create_dir(&harness.source.root).expect("create same-path replacement source root");
+    write_test_wav(&harness.source.root.join("replacement.wav"), 1.75);
+    harness
+        .source
+        .open_db()
+        .expect("create replacement source database");
+    harness.force_root_refresh(WatcherStimulus::RootIdentityReplacement);
+    harness.await_fully_ready();
+
     harness
         .watcher
         .as_ref()

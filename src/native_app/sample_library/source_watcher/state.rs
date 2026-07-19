@@ -9,14 +9,17 @@ use wavecrate::sample_sources::SampleSource;
 use super::classification::path_is_source_refresh_candidate;
 use super::debounce::{GuiSourceWatchEvent, PendingGuiSourceWatch};
 use super::path_mapping::{source_for_path, source_relative_path};
-use super::roots::{RootWatchUpdate, observed_watcher_path_state, source_root_is_available};
+use super::roots::{
+    RootWatchUpdate, WatchedRootIdentities, observed_watcher_path_state, root_identity_is_current,
+    source_root_is_available,
+};
 use crate::native_app::sample_library::committed_file_mutations::{
     CommittedWatcherEcho, CommittedWatcherPathState,
 };
 
 #[derive(Default)]
 pub(super) struct GuiSourceWatchState {
-    pub(super) watched_roots: HashSet<PathBuf>,
+    pub(super) watched_roots: WatchedRootIdentities,
     pub(super) sources: Vec<SampleSource>,
     pub(super) pending: HashMap<String, PendingGuiSourceWatch>,
     pub(super) acknowledged_paths: HashMap<(String, PathBuf), (CommittedWatcherPathState, Instant)>,
@@ -63,6 +66,23 @@ impl GuiSourceWatchState {
         self.mark_all_overflowed(now);
     }
 
+    pub(super) fn clear_watches(&mut self) {
+        self.watched_roots.clear();
+    }
+
+    pub(super) fn mark_roots_overflowed(&mut self, roots: &[PathBuf], now: Instant) {
+        let roots = roots.iter().collect::<HashSet<_>>();
+        let source_ids = self
+            .sources
+            .iter()
+            .filter(|source| roots.contains(&source.root))
+            .map(|source| source.id.as_str().to_string())
+            .collect::<Vec<_>>();
+        for source_id in source_ids {
+            self.mark_source_overflowed(&source_id, now);
+        }
+    }
+
     pub(super) fn mark_all_overflowed(&mut self, now: Instant) {
         let source_ids = self
             .sources
@@ -85,7 +105,8 @@ impl GuiSourceWatchState {
             .or_insert_with(|| PendingGuiSourceWatch::new(now, None));
     }
 
-    pub(super) fn collect_event(&mut self, event: &Event, now: Instant) {
+    pub(super) fn collect_event(&mut self, event: &Event, now: Instant) -> bool {
+        let mut root_invalidated = false;
         self.acknowledged_paths
             .retain(|_, (_, deadline)| *deadline > now);
         for path in &event.paths {
@@ -94,16 +115,18 @@ impl GuiSourceWatchState {
             }
             if let Some(source) = source_for_path(&self.sources, path) {
                 let relative = source_relative_path(source, path);
+                let source_id = source.id.as_str().to_string();
+                let source_root = source.root.clone();
                 let matching_acknowledgement = relative.as_ref().is_some_and(|relative| {
                     self.acknowledged_paths
-                        .remove(&(source.id.as_str().to_string(), relative.clone()))
+                        .remove(&(source_id.clone(), relative.clone()))
                         .is_some_and(|(expected, _)| {
                             observed_watcher_path_state(path).as_ref() == Some(&expected)
                         })
                 });
                 if matching_acknowledgement {
                     tracing::debug!(
-                        source_id = source.id.as_str(),
+                        source_id,
                         path = %path.display(),
                         kind = ?event.kind,
                         "Suppressing watcher echo for committed Wavecrate mutation"
@@ -113,18 +136,38 @@ impl GuiSourceWatchState {
                 // FSEvents may coalesce writes to `.wavecrate.db`, its WAL, or related source
                 // metadata into an event for the watched root itself. Re-scanning that live root
                 // would write the database again and create a self-sustaining watcher loop.
-                // Root disappearance/reappearance is observed independently by the periodic root
-                // refresh; child paths still retain normal low-latency watcher behavior.
-                if path == &source.root && source_root_is_available(source) {
+                //
+                // A known changed identity proves that this path now names a replacement object.
+                // When identity is unreadable, destructive/name root events fail toward a full
+                // reconciliation while metadata-like echoes remain suppressed; the bounded
+                // identity-recovery audit covers replacements that only produce ambiguous events.
+                if path == &source_root {
+                    let available = source_root_is_available(source);
+                    let requires_reconciliation = root_event_can_replace_identity(event.kind)
+                        || match root_identity_is_current(&self.watched_roots, &source_root) {
+                            Some(current) => !current,
+                            None if !available => true,
+                            None => false,
+                        };
+                    if requires_reconciliation {
+                        tracing::warn!(
+                            source_id,
+                            kind = ?event.kind,
+                            "Source root event invalidated the active watcher"
+                        );
+                        self.mark_source_overflowed(&source_id, now);
+                        root_invalidated = true;
+                        continue;
+                    }
                     tracing::debug!(
-                        source_id = source.id.as_str(),
+                        source_id,
                         kind = ?event.kind,
                         "Ignoring coalesced live-root watcher event"
                     );
                     continue;
                 }
                 self.pending
-                    .entry(source.id.as_str().to_string())
+                    .entry(source_id)
                     .and_modify(|pending| {
                         pending.last_event = now;
                         pending.add_path(relative.clone());
@@ -132,6 +175,7 @@ impl GuiSourceWatchState {
                     .or_insert_with(|| PendingGuiSourceWatch::new(now, relative));
             }
         }
+        root_invalidated
     }
 
     pub(super) fn acknowledge_committed_paths(
@@ -222,4 +266,13 @@ impl GuiSourceWatchState {
         }
         ready
     }
+}
+
+fn root_event_can_replace_identity(kind: notify::EventKind) -> bool {
+    matches!(
+        kind,
+        notify::EventKind::Create(_)
+            | notify::EventKind::Remove(_)
+            | notify::EventKind::Modify(notify::event::ModifyKind::Name(_))
+    )
 }
