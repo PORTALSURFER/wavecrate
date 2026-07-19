@@ -35,13 +35,13 @@ Use the lightest lane that still gives trustworthy coverage for the change.
 `scripts/agent.sh preflight` / `scripts/agent.sh request` and their PowerShell
 equivalents own the full agent preflight, including Cargo-backed architecture
 checks. Concurrent full-preflight invocations for the same repository coalesce
-to one owner and report the shared result. `post-merge` and branch-changing
-`post-checkout` hooks deliberately run only `run_agent_hook_checks.sh`: bounded
+to one owner and report the shared result. Branch-changing `post-checkout`
+hooks deliberately run only `run_agent_hook_checks.sh`: bounded
 repository-state checks that preserve reviewed-head validation evidence during
 merge cleanup.
 
 Run `bash scripts/internal/agent/test_agent_preflight_coordination.sh` to
-exercise hook installation, merge/checkout ownership, concurrent coalescing,
+exercise hook installation, checkout ownership, concurrent coalescing,
 and stale-lock recovery without invoking Cargo.
 
 ## Validation and release lane contract
