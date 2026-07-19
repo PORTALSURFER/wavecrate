@@ -42,35 +42,6 @@ pub(in crate::native_app) fn remap_persisted_waveform_cache_after_move(
     }
 }
 
-/// Remap an exact reverse-owned cache payload after a committed path-only move.
-///
-/// Unlike the legacy path-only entrypoint, this remains usable after the old source path has
-/// disappeared because the caller supplies the previously persisted cache reference.
-pub(in crate::native_app) fn remap_persisted_waveform_cache_ref_after_move(
-    old_cache_ref: &Path,
-    old_path: &Path,
-    new_path: &Path,
-) -> Option<PathBuf> {
-    if !super::identity::cache_ref_is_managed(old_cache_ref) || !new_path.is_file() {
-        return None;
-    }
-    match remap_file_from_cache_ref(old_cache_ref, old_path, new_path) {
-        Ok(cache_ref) => cache_ref,
-        Err(err) => {
-            tracing::debug!(
-                target: "wavecrate::debug::sample_cache",
-                event = "browser.sample_cache.owned_move_remap_failed",
-                old_cache_ref = %old_cache_ref.display(),
-                old_path = %old_path.display(),
-                new_path = %new_path.display(),
-                error = %err,
-                "Reverse-owned waveform cache could not be remapped after file move"
-            );
-            None
-        }
-    }
-}
-
 fn remap_directory(old_dir: &Path, new_dir: &Path) -> usize {
     let Ok(entries) = fs::read_dir(new_dir) else {
         return 0;

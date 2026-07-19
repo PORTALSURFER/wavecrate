@@ -20,11 +20,8 @@ use read::read_cached_waveform_file;
 pub(in crate::native_app) use read::{
     cached_waveform_file_audition_ready_exists, cached_waveform_file_exists,
 };
-pub(in crate::native_app) use remap::{
-    remap_persisted_waveform_cache_after_move, remap_persisted_waveform_cache_ref_after_move,
-};
+pub(in crate::native_app) use remap::remap_persisted_waveform_cache_after_move;
 pub(in crate::native_app) use store_queue::flush_background_waveform_cache_stores_for_shutdown;
-pub(super) use store_queue::persist_cached_waveform_file;
 #[cfg(test)]
 pub(super) use store_queue::store_cached_waveform_file;
 pub(super) use store_queue::store_cached_waveform_file_in_background;
@@ -49,18 +46,11 @@ pub(super) const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 8 * GIB;
 pub(super) const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 2 * GIB as u64;
 pub(super) const BACKGROUND_STORE_SHUTDOWN_WAIT: Duration = Duration::from_secs(30);
 
+#[cfg(test)]
 pub(in crate::native_app) fn persisted_waveform_cache_ref(
     path: &std::path::Path,
 ) -> Option<PathBuf> {
     identity::cache_path_for_current_file(path).ok()
-}
-
-pub(in crate::native_app) fn persisted_waveform_cache_ref_is_current(
-    path: &std::path::Path,
-    cache_ref: &std::path::Path,
-) -> bool {
-    identity::cache_path_for_current_file(path).is_ok_and(|current| current == cache_ref)
-        && read::cached_waveform_file_audition_ready_exists(path)
 }
 
 pub(super) fn load_cached_waveform_file(

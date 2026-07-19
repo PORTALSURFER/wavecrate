@@ -182,6 +182,7 @@ fn load_targets(
                 source_generation, content_generation, eligibility
          FROM source_readiness_targets
          WHERE source_id = ?1
+           AND stage != 'playback_summary'
          ORDER BY scope_kind, scope_id, stage",
     )?;
     let mut rows = statement.query([source_id])?;
@@ -214,7 +215,8 @@ fn load_artifacts(
         "SELECT scope_kind, scope_id, stage, artifact_version,
                 source_generation, content_generation
          FROM source_readiness_artifacts
-         WHERE source_id = ?1",
+         WHERE source_id = ?1
+           AND stage != 'playback_summary'",
     )?;
     let mut rows = statement.query([source_id])?;
     let mut artifacts = BTreeMap::new();
@@ -250,7 +252,9 @@ fn load_work(
                 artifact_version, source_generation, content_generation, retry_at,
                 failure_kind, last_error, lease_expires_at, created_at
          FROM analysis_jobs
-         WHERE source_id = ?1 AND readiness_managed = 1
+         WHERE source_id = ?1
+           AND readiness_managed = 1
+           AND readiness_stage != 'playback_summary'
          ORDER BY id",
     )?;
     let mut rows = statement.query([source_id])?;

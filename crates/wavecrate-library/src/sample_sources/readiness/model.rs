@@ -3,8 +3,6 @@
 pub enum ReadinessStage {
     /// The source manifest contains the current file identity.
     IndexedIdentity,
-    /// A bounded playback descriptor and compact waveform summary are current.
-    PlaybackSummary,
     /// Versioned analysis features are current.
     AnalysisFeatures,
     /// Versioned similarity embedding and aspect descriptors are current.
@@ -14,9 +12,8 @@ pub enum ReadinessStage {
 }
 
 impl ReadinessStage {
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 4] = [
         Self::IndexedIdentity,
-        Self::PlaybackSummary,
         Self::AnalysisFeatures,
         Self::EmbeddingAspects,
         Self::SimilarityLayout,
@@ -25,7 +22,6 @@ impl ReadinessStage {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::IndexedIdentity => "indexed_identity",
-            Self::PlaybackSummary => "playback_summary",
             Self::AnalysisFeatures => "analysis_features",
             Self::EmbeddingAspects => "embedding_aspects",
             Self::SimilarityLayout => "similarity_layout",
@@ -39,7 +35,6 @@ impl ReadinessStage {
     pub(crate) fn job_type(self) -> &'static str {
         match self {
             Self::IndexedIdentity => "readiness_indexed_identity_v1",
-            Self::PlaybackSummary => "readiness_playback_summary_v1",
             Self::AnalysisFeatures => "readiness_analysis_features_v1",
             Self::EmbeddingAspects => "readiness_embedding_aspects_v1",
             Self::SimilarityLayout => "readiness_similarity_layout_v1",

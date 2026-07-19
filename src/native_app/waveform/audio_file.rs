@@ -27,8 +27,7 @@ pub(in crate::native_app) use cache_facade::{
     flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
     invalidate_persisted_waveform_cache_paths, invalidate_persisted_waveform_cache_ref,
     load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor_sidecar,
-    mark_cached_waveform_file_source_warm_attempted, persisted_waveform_cache_ref_is_current,
-    remap_persisted_waveform_cache_after_move, remap_persisted_waveform_cache_ref_after_move,
+    mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 #[cfg(test)]
 pub(in crate::native_app) use cache_facade::{
@@ -61,14 +60,13 @@ pub(in crate::native_app) use loader::file_backed_wav_playback_descriptor;
 pub(super) use loader::load_waveform_file;
 #[cfg(test)]
 pub(super) use loader::load_waveform_file_with_progress_cancel_and_playback_ready;
-pub(in crate::native_app) use loader::{
-    ensure_persisted_playback_summary, should_use_file_backed_wav_decode,
-    should_use_file_backed_wav_decode_for_entry,
-};
 pub(super) use loader::{
     is_wav_path, load_waveform_file_for_foreground_audition,
     load_waveform_file_for_instant_audition_display,
     load_waveform_file_for_looped_foreground_audition, load_waveform_file_with_progress_and_cancel,
+};
+pub(in crate::native_app) use loader::{
+    should_use_file_backed_wav_decode, should_use_file_backed_wav_decode_for_entry,
 };
 pub(in crate::native_app) use model::{
     PersistedPlaybackCacheFile, PersistedPlaybackDescriptor, WaveformFile, WaveformPlaybackReady,

@@ -399,40 +399,40 @@ impl AudioPlayer {
             );
             Box::new(editable)
         } else {
-            let source: Box<dyn Source<Item = f32> + Send> =
-                if let Some(samples) = self.playback_samples.as_ref().cloned() {
-                    let playback_span =
-                        PlaybackSpanHandle::from_plan_with_metronome(&plan, metronome);
-                    let source = SpanSamplesSource::new(
-                        channels,
-                        sample_rate,
-                        samples,
-                        playback_span.clone(),
-                        SpanSamplesMode::OneShot,
-                        plan.start_sample(),
-                    )
-                    .with_edge_fade(self.anti_clip_fade());
-                    active_playback_span = Some(playback_span);
-                    Box::new(source)
-                } else {
-                    let lazy_source = span_source_for_audio_source(self.audio_source()?, &plan)?;
-                    let mut async_source = AsyncSource::with_buffer_seconds(
-                        lazy_source,
-                        self.stream_policy.buffer_seconds,
-                    );
-                    async_source.prefill_for_duration(
-                        self.stream_policy.prefill_duration,
-                        self.stream_policy.prefill_timeout,
-                    );
-                    let source = async_source
-                        .take_samples(plan.sample_count() as usize)
-                        .buffered();
-                    Box::new(StaticSpanEdgeFadeSource::new(
-                        source,
-                        &plan,
-                        self.anti_clip_fade(),
-                    ))
-                };
+            let source: Box<dyn Source<Item = f32> + Send> = if let Some(samples) =
+                self.playback_samples.as_ref().cloned()
+            {
+                let playback_span = PlaybackSpanHandle::from_plan_with_metronome(&plan, metronome);
+                let source = SpanSamplesSource::new(
+                    channels,
+                    sample_rate,
+                    samples,
+                    playback_span.clone(),
+                    SpanSamplesMode::OneShot,
+                    plan.start_sample(),
+                )
+                .with_edge_fade(self.anti_clip_fade());
+                active_playback_span = Some(playback_span);
+                Box::new(source)
+            } else {
+                let lazy_source = span_source_for_audio_source(self.audio_source()?, &plan)?;
+                let mut async_source = AsyncSource::with_buffer_seconds(
+                    lazy_source,
+                    self.stream_policy.buffer_seconds,
+                );
+                async_source.prefill_for_duration(
+                    self.stream_policy.prefill_duration,
+                    self.stream_policy.prefill_timeout,
+                );
+                let source = async_source
+                    .take_samples(plan.sample_count() as usize)
+                    .buffered();
+                Box::new(StaticSpanEdgeFadeSource::new(
+                    source,
+                    &plan,
+                    self.anti_clip_fade(),
+                ))
+            };
             let editable =
                 EditFadeSource::new(source, self.edit_fade_handle.clone(), plan.start_seconds());
             Box::new(editable)

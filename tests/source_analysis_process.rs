@@ -191,7 +191,6 @@ impl SourceAnalysisFixture {
         let mut targets = Vec::new();
         for stage in [
             ReadinessStage::IndexedIdentity,
-            ReadinessStage::PlaybackSummary,
             ReadinessStage::AnalysisFeatures,
             ReadinessStage::EmbeddingAspects,
         ] {

@@ -316,6 +316,8 @@ Every enabled, available source should converge automatically in background work
 
 The source-local database is the authoritative durable coordination boundary. It should store desired versioned readiness targets, exact artifact completion generations, source availability, and readiness-owned work metadata. Readiness work must reuse the existing source-local persistent analysis/job storage rather than introducing an unrelated queue format. App-global cache payloads remain rebuildable performance aids outside this readiness contract: compact waveform or browser caches may be missing, stale, or evicted without making an otherwise complete source unready.
 
+Playback and waveform cache work remains automatic, bounded, attributable to exact source-file identity, invalidatable after content changes, and subordinate to foreground audition. Its separate cache lifecycle owns stale-completion rejection, path move/remap, delete, pruning, and source-retirement cleanup. It must not publish a `playback_summary` desired target or completion artifact, and legacy rows from builds that did so must be ignored by read-only reconciliation and retired on the next writable source-processing pass.
+
 Configured source lifecycles also carry a runtime epoch distinct from the durable source identity. Removing or replacing a descriptor cancels that exact epoch, immediately closes new admission, purges its queued UI/readiness work, and lets the control-plane transition return without waiting for scans, hashing, finalization, or cleanup. Late work may not publish after its epoch is retired. A replacement that shares the same source database waits for the old epoch to drain before new processing admission; destructive retirement is suppressed when that database has already been re-added.
 
 Source retirement keeps the audio folder, authoritative source database, source manifest, reusable analysis/similarity artifacts, and safe content-addressed analysis caches. It releases source-owned in-memory playback/preview/browser state and asynchronously removes readiness-managed jobs and unshared managed cache payloads. The source descriptor registry retains role, metadata-storage policy, and primary-import settings so protected/AppData sources rehydrate safely; corrupt present descriptor values fail closed. Cleanup is idempotent, retryable after unavailable/read-only storage, recovered from retained inactive descriptors at startup, and bounded so removal never waits for database maintenance or cache garbage collection.
@@ -326,6 +328,8 @@ For every current eligible file, the readiness stages are:
 2. the required analysis feature version is current;
 3. the required embedding model and aspect-descriptor version are current; and
 4. the source-level similarity membership, ANN/index, layout, and cluster generation covers exactly the current eligible identities.
+
+This is exactly three file-scoped targets per current eligible file plus one source-scoped similarity target. Playback-cache residency is not a fifth readiness stage.
 
 Each target and completion must carry the committed source generation, a non-empty file content generation or source-membership generation, and the stage's artifact-contract version. Desired-state publications also carry a per-source monotonic readiness revision; a writer whose revision is not newer than the persisted revision is stale even when its source generation is equal, so delayed lifecycle writers cannot reactivate an offline or disabled source. The source generation is a publication and diagnostic fence, not a blanket invalidation token for file-scoped artifacts: an unchanged stable file identity remains current across unrelated manifest changes when its stage version and stage-relevant content/path generation still match. Source-scoped similarity work must additionally match the current source generation and membership generation. A late completion may publish only when the values relevant to its scope still match the current desired target. Timestamps, total row counts, source-prep markers, or the existence of some artifacts are diagnostic inputs only; they must never make a source look ready when a current eligible identity lacks an exact artifact or when stale/deleted identities are still the only covered rows.
 
@@ -346,7 +350,8 @@ categories is silently idle and must fail with generation, stage, job,
 lease/retry, watcher-health, active-work, and resource diagnostics. Restart,
 external and internal churn, watcher overflow/loss, playback, source
 disappearance/reappearance, removal/re-add, stale completion, terminal inputs,
-and exact removal of obsolete similarity/playback membership belong in this
+exact removal of obsolete similarity membership, and legacy playback-readiness
+retirement belong in this
 proof. Large-library throughput and browser/frame responsiveness remain an
 explicit calibrated lane rather than an unbounded normal-CI soak.
 

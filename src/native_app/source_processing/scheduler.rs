@@ -9,7 +9,6 @@ use wavecrate::sample_sources::readiness::{ReadinessStage, ReadinessTarget};
 pub(crate) enum ProcessingLane {
     Scan,
     Hashing,
-    DecodeSummary,
     FeatureAnalysis,
     Embedding,
     Finalization,
@@ -18,10 +17,9 @@ pub(crate) enum ProcessingLane {
 
 impl ProcessingLane {
     #[cfg(test)]
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 6] = [
         Self::Scan,
         Self::Hashing,
-        Self::DecodeSummary,
         Self::FeatureAnalysis,
         Self::Embedding,
         Self::Finalization,
@@ -31,7 +29,6 @@ impl ProcessingLane {
     pub(crate) fn for_readiness_stage(stage: ReadinessStage) -> Self {
         match stage {
             ReadinessStage::IndexedIdentity => Self::Hashing,
-            ReadinessStage::PlaybackSummary => Self::DecodeSummary,
             ReadinessStage::AnalysisFeatures => Self::FeatureAnalysis,
             ReadinessStage::EmbeddingAspects => Self::Embedding,
             ReadinessStage::SimilarityLayout => Self::Finalization,
@@ -41,7 +38,7 @@ impl ProcessingLane {
     fn demand(self) -> ResourceUse {
         match self {
             Self::Scan | Self::Cleanup => ResourceUse::new(0, 1, 1),
-            Self::Hashing | Self::DecodeSummary => ResourceUse::new(1, 1, 1),
+            Self::Hashing => ResourceUse::new(1, 1, 1),
             Self::FeatureAnalysis | Self::Embedding => ResourceUse::new(1, 1, 1),
             Self::Finalization => ResourceUse::new(1, 1, 1),
         }
@@ -124,7 +121,6 @@ impl Default for ProcessingBudgets {
             lane_limits: [
                 (ProcessingLane::Scan, 1),
                 (ProcessingLane::Hashing, 1),
-                (ProcessingLane::DecodeSummary, cpu.min(2)),
                 (ProcessingLane::FeatureAnalysis, cpu),
                 (ProcessingLane::Embedding, 1),
                 (ProcessingLane::Finalization, 1),
@@ -442,10 +438,9 @@ fn priority_weight(candidate: &WorkCandidate, context: &PriorityContext) -> u64 
 fn stage_rank(stage: ReadinessStage) -> u8 {
     match stage {
         ReadinessStage::IndexedIdentity => 0,
-        ReadinessStage::PlaybackSummary => 1,
-        ReadinessStage::AnalysisFeatures => 2,
-        ReadinessStage::EmbeddingAspects => 3,
-        ReadinessStage::SimilarityLayout => 4,
+        ReadinessStage::AnalysisFeatures => 1,
+        ReadinessStage::EmbeddingAspects => 2,
+        ReadinessStage::SimilarityLayout => 3,
     }
 }
 
@@ -482,7 +477,7 @@ mod tests {
             10,
         ));
         let mut candidates = vec![
-            candidate("active", "now", ReadinessStage::PlaybackSummary),
+            candidate("active", "now", ReadinessStage::IndexedIdentity),
             candidate("active", "next", ReadinessStage::AnalysisFeatures),
             candidate("backlog", "old", ReadinessStage::AnalysisFeatures),
         ];
@@ -517,14 +512,14 @@ mod tests {
         ));
         let candidates = [
             candidate("source", "analysis", ReadinessStage::AnalysisFeatures),
-            candidate("source", "playback", ReadinessStage::PlaybackSummary),
+            candidate("source", "identity", ReadinessStage::IndexedIdentity),
         ];
         let priority = PriorityContext {
             current_folder: Some(("source".to_string(), "folder/".to_string())),
             ..PriorityContext::default()
         };
         let index = scheduler.choose(&candidates, &priority, &budgets).unwrap();
-        assert_eq!(candidates[index].scope_id, "playback");
+        assert_eq!(candidates[index].scope_id, "identity");
     }
 
     #[test]
@@ -536,7 +531,7 @@ mod tests {
             10,
         ));
         let candidates = [
-            candidate("source", "sample", ReadinessStage::PlaybackSummary),
+            candidate("source", "sample", ReadinessStage::AnalysisFeatures),
             candidate("source", "sample", ReadinessStage::IndexedIdentity),
         ];
 
@@ -553,7 +548,7 @@ mod tests {
             ProcessingBudgets::for_tests(ResourceUse::new(2, 2, 2), ResourceUse::new(1, 1, 1), 1);
         let mut tracker = BudgetTracker::new(limits);
         let first = tracker
-            .try_acquire("one", ProcessingLane::DecodeSummary)
+            .try_acquire("one", ProcessingLane::Hashing)
             .expect("first permit");
         assert!(
             tracker
@@ -562,7 +557,7 @@ mod tests {
         );
         assert!(
             tracker
-                .try_acquire("two", ProcessingLane::DecodeSummary)
+                .try_acquire("two", ProcessingLane::Hashing)
                 .is_none()
         );
         let second = tracker
@@ -581,15 +576,15 @@ mod tests {
             ProcessingBudgets::for_tests(ResourceUse::new(2, 2, 2), ResourceUse::new(1, 1, 1), 2);
         let mut budgets = BudgetTracker::new(limits);
         let candidates = [
-            candidate("active", "first", ReadinessStage::PlaybackSummary),
-            candidate("backlog", "other", ReadinessStage::PlaybackSummary),
+            candidate("active", "first", ReadinessStage::AnalysisFeatures),
+            candidate("backlog", "other", ReadinessStage::AnalysisFeatures),
         ];
         let chosen = scheduler
             .choose(&candidates, &PriorityContext::default(), &budgets)
             .expect("select active source");
         assert_eq!(candidates[chosen].source_id, "active");
         let permit = budgets
-            .try_acquire("active", ProcessingLane::DecodeSummary)
+            .try_acquire("active", ProcessingLane::FeatureAnalysis)
             .expect("occupy active-source budget");
 
         assert_eq!(
@@ -612,7 +607,7 @@ mod tests {
         let active = [candidate(
             "active",
             "first",
-            ReadinessStage::PlaybackSummary,
+            ReadinessStage::AnalysisFeatures,
         )];
         assert_eq!(
             scheduler.choose(&active, &PriorityContext::default(), &budgets),
@@ -621,7 +616,7 @@ mod tests {
         let backlog = [candidate(
             "backlog",
             "other",
-            ReadinessStage::PlaybackSummary,
+            ReadinessStage::AnalysisFeatures,
         )];
         assert_eq!(
             scheduler.choose(&backlog, &PriorityContext::default(), &budgets),

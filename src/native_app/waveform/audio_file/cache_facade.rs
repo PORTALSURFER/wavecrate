@@ -5,8 +5,7 @@ pub(in crate::native_app) use super::waveform_cache::{
     flush_background_waveform_cache_stores_for_shutdown, invalidate_persisted_waveform_cache_path,
     invalidate_persisted_waveform_cache_paths, invalidate_persisted_waveform_cache_ref,
     load_cached_waveform_file_for_playback, load_cached_waveform_playback_descriptor_sidecar,
-    mark_cached_waveform_file_source_warm_attempted, persisted_waveform_cache_ref_is_current,
-    remap_persisted_waveform_cache_after_move, remap_persisted_waveform_cache_ref_after_move,
+    mark_cached_waveform_file_source_warm_attempted, remap_persisted_waveform_cache_after_move,
 };
 
 #[cfg(test)]

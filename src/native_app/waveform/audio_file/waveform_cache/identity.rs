@@ -43,6 +43,7 @@ pub(super) fn cache_path_for_identity(
     Ok(dir.join(format!("{:016x}.wfc", hasher.finish())))
 }
 
+#[cfg(test)]
 pub(super) fn cache_path_for_current_file(path: &Path) -> Result<PathBuf, String> {
     let identity = CacheIdentity::for_path(path)?;
     cache_path_for_identity(path, &identity)

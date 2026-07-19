@@ -241,7 +241,7 @@ inherit a real-time soak:
   mutation, closed-app restart audit, root disappearance/reappearance, and
   source remove/re-add:
   `cargo test -p wavecrate --bin wavecrate source_processing_liveness_harness_converges_restart_churn_and_root_recovery -- --ignored --nocapture`
-- 10,000-file / 40,001-target calibrated source-processing profile:
+- 10,000-file / 30,001-target calibrated source-processing profile:
   `cargo test -p wavecrate --bin wavecrate profile_source_processing_churn_under_playback_and_browser_priority -- --ignored --nocapture`
 - full mutation and watcher family coverage:
   `cargo test -p wavecrate --bin wavecrate committed_file_mutations`
@@ -271,7 +271,7 @@ classifications, durable job status/lease/retry state, active runtime work,
 watcher stimulus/root health, and supervisor resource counters. The calibrated
 profile enforces these source-processing budgets in debug test builds:
 
-- materialize 40,001 exact targets from 10,000 files within 180 seconds;
+- materialize 30,001 exact targets from 10,000 files within 180 seconds;
 - sustain at least 200 materialized candidates per second;
 - keep browser-priority update p99 at or below 10 ms while playback pauses
   processing;
