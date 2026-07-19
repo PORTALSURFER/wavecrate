@@ -15,7 +15,8 @@ use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::META_WAV_PATHS_REVISION,
     readiness::{
-        ReadinessScopeKind, ReadinessStage, ReadinessTarget, invalidate_readiness_artifact,
+        ReadinessScopeKind, ReadinessSimilarityManifestRequest, ReadinessSimilarityPayloadContract,
+        ReadinessStage, ReadinessStore, ReadinessTarget, ReadinessView,
     },
 };
 use wavecrate_analysis::{
@@ -67,36 +68,20 @@ impl SimilarityPublicationFence {
     }
 
     fn is_current(&self, connection: &rusqlite::Connection) -> Result<bool, String> {
-        connection
+        let manifest_generation = connection
             .query_row(
-                "SELECT EXISTS(
-                    SELECT 1
-                    FROM source_readiness_sources AS source
-                    JOIN source_readiness_targets AS target
-                      ON target.source_id = source.source_id
-                    WHERE source.source_id = ?1
-                      AND source.source_generation = ?2
-                      AND source.availability = 'active'
-                      AND target.scope_kind = 'source'
-                      AND target.scope_id = ?1
-                      AND target.stage = 'similarity_layout'
-                      AND target.required_version = ?3
-                      AND target.source_generation = ?2
-                      AND target.content_generation = ?4
-                      AND target.eligibility = 'eligible'
-                      AND COALESCE(
-                          (SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?5),
-                          0
-                      ) = ?2
-                )",
-                rusqlite::params![
-                    self.source_id,
-                    self.source_generation,
-                    self.artifact_version,
-                    self.membership_generation,
-                    META_WAV_PATHS_REVISION,
-                ],
+                "SELECT COALESCE((SELECT CAST(value AS INTEGER) FROM metadata WHERE key = ?1), 0)",
+                [META_WAV_PATHS_REVISION],
                 |row| row.get(0),
+            )
+            .map_err(|error| format!("Read manifest revision failed: {error}"))?;
+        ReadinessView::new(connection)
+            .similarity_publication_is_current(
+                &self.source_id,
+                self.source_generation,
+                &self.artifact_version,
+                &self.membership_generation,
+                manifest_generation,
             )
             .map_err(|error| format!("Validate similarity readiness generation failed: {error}"))
     }
@@ -228,18 +213,8 @@ fn finalize_exact_readiness_similarity(
     if !publication_fence.is_current(&connection)? {
         return Ok(false);
     }
-    let pending_content_identities: bool = connection
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM source_readiness_targets
-                WHERE source_id = ?1
-                  AND scope_kind = 'file'
-                  AND stage = 'indexed_identity'
-                  AND content_generation LIKE 'pending-%'
-             )",
-            [source_id],
-            |row| row.get(0),
-        )
+    let pending_content_identities = ReadinessStore::new(&mut connection)
+        .has_pending_file_content(source_id)
         .map_err(|error| format!("Check deferred similarity identities failed: {error}"))?;
     if pending_content_identities {
         return Ok(false);
@@ -290,132 +265,47 @@ fn exact_similarity_manifest(
     source_generation: i64,
     expected_membership_generation: &str,
 ) -> Result<Option<Vec<analysis::ExactSimilarityManifestEntry>>, String> {
-    let target_count: i64 = connection
-        .query_row(
-            "SELECT COUNT(*)
-             FROM source_readiness_targets
-             WHERE source_id = ?1
-               AND scope_kind = 'file'
-               AND stage = 'embedding_aspects'
-               AND eligibility = 'eligible'",
-            [source_id],
-            |row| row.get(0),
-        )
-        .map_err(|error| format!("Count exact similarity targets failed: {error}"))?;
-    let mut statement = connection
-        .prepare(
-            "SELECT target.scope_id, target.relative_path, target.content_generation,
-                    embedding.dim, embedding.vec
-             FROM source_readiness_targets AS target
-             JOIN source_readiness_artifacts AS artifact
-               ON artifact.source_id = target.source_id
-              AND artifact.scope_kind = target.scope_kind
-              AND artifact.scope_id = target.scope_id
-              AND artifact.stage = target.stage
-              AND artifact.artifact_version = target.required_version
-              AND artifact.content_generation = target.content_generation
-             JOIN samples AS sample
-               ON sample.sample_id = target.source_id || '::' || target.relative_path
-              AND sample.content_hash = target.content_generation
-              AND sample.analysis_version = ?4
-             JOIN features AS feature
-               ON feature.sample_id = sample.sample_id
-             JOIN analysis_cache_features AS cached_feature
-               ON cached_feature.content_hash = target.content_generation
-              AND cached_feature.analysis_version = ?4
-              AND cached_feature.feat_version = feature.feat_version
-              AND cached_feature.vec_blob = feature.vec_blob
-              AND cached_feature.light_dsp_blob IS feature.light_dsp_blob
-              AND cached_feature.rms IS feature.rms
-             JOIN embeddings AS embedding
-               ON embedding.sample_id = sample.sample_id
-              AND embedding.model_id = ?3
-             JOIN analysis_cache_embeddings AS cached_embedding
-               ON cached_embedding.content_hash = target.content_generation
-              AND cached_embedding.analysis_version = ?4
-              AND cached_embedding.model_id = embedding.model_id
-              AND cached_embedding.dim = embedding.dim
-              AND cached_embedding.dtype = embedding.dtype
-              AND cached_embedding.l2_normed = embedding.l2_normed
-              AND cached_embedding.vec = embedding.vec
-             JOIN similarity_aspect_descriptors AS aspects
-               ON aspects.sample_id = sample.sample_id
-              AND aspects.model_id = ?5
-             JOIN analysis_cache_aspect_descriptors AS cached_aspects
-               ON cached_aspects.content_hash = target.content_generation
-              AND cached_aspects.analysis_version = ?4
-              AND cached_aspects.model_id = aspects.model_id
-              AND cached_aspects.dim = aspects.dim
-              AND cached_aspects.dtype = aspects.dtype
-              AND cached_aspects.l2_normed = aspects.l2_normed
-              AND cached_aspects.valid_mask = aspects.valid_mask
-              AND cached_aspects.vec = aspects.vec
-             WHERE target.source_id = ?1
-               AND target.scope_kind = 'file'
-               AND target.stage = 'embedding_aspects'
-              AND target.source_generation = ?2
-              AND target.eligibility = 'eligible'
-              AND feature.feat_version = ?6
-              AND embedding.dim = ?7
-              AND embedding.dtype = ?8
-              AND embedding.l2_normed = 1
-              AND aspects.dim = ?9
-              AND aspects.dtype = ?10
-              AND aspects.l2_normed = 1
-             ORDER BY target.relative_path",
-        )
-        .map_err(|error| format!("Prepare exact similarity manifest failed: {error}"))?;
-    let rows = statement
-        .query_map(
-            rusqlite::params![
-                source_id,
-                source_generation,
-                SIMILARITY_MODEL_ID,
-                wavecrate_analysis::analysis_version(),
-                ASPECT_DESCRIPTOR_MODEL_ID,
-                wavecrate_analysis::vector::FEATURE_VERSION_V1,
-                wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
-                wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
-                ASPECT_DESCRIPTOR_DIM as i64,
-                ASPECT_DESCRIPTOR_DTYPE_F32,
-            ],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, Vec<u8>>(4)?,
-                ))
-            },
-        )
+    let contract = ReadinessSimilarityPayloadContract::new(
+        wavecrate_analysis::analysis_version(),
+        SIMILARITY_MODEL_ID,
+        wavecrate_analysis::vector::FEATURE_VERSION_V1,
+        wavecrate_analysis::similarity::SIMILARITY_DIM as i64,
+        wavecrate_analysis::similarity::SIMILARITY_DTYPE_F32,
+        ASPECT_DESCRIPTOR_MODEL_ID,
+        ASPECT_DESCRIPTOR_DIM as i64,
+        ASPECT_DESCRIPTOR_DTYPE_F32,
+    );
+    let selection = ReadinessStore::new(connection)
+        .similarity_manifest(ReadinessSimilarityManifestRequest::new(
+            source_id,
+            source_generation,
+            contract,
+        ))
         .map_err(|error| format!("Query exact similarity manifest failed: {error}"))?;
     let mut membership = blake3::Hasher::new();
     let mut manifest = Vec::new();
     let mut valid_identities = HashSet::new();
-    for row in rows {
-        let (identity, relative_path, content_generation, dim, vector) =
-            row.map_err(|error| format!("Decode exact similarity manifest failed: {error}"))?;
-        membership.update(identity.as_bytes());
+    for row in selection.rows {
+        membership.update(row.scope_id.as_bytes());
         membership.update(&[0]);
-        membership.update(content_generation.as_bytes());
+        membership.update(row.content_generation.as_bytes());
         membership.update(&[0xff]);
-        valid_identities.insert(identity);
-        let embedding = analysis::decode_f32_le_blob(&vector)?;
-        if embedding.len() != usize::try_from(dim).unwrap_or_default()
+        valid_identities.insert(row.scope_id);
+        let embedding = analysis::decode_f32_le_blob(&row.embedding)?;
+        if embedding.len() != usize::try_from(row.embedding_dim).unwrap_or_default()
             || embedding.len() != wavecrate_analysis::similarity::SIMILARITY_DIM
         {
             return Err(format!(
-                "Invalid exact similarity embedding for {relative_path}"
+                "Invalid exact similarity embedding for {}",
+                row.relative_path
             ));
         }
         manifest.push(analysis::ExactSimilarityManifestEntry {
-            sample_id: format!("{source_id}::{}", relative_path.replace('\\', "/")),
+            sample_id: format!("{source_id}::{}", row.relative_path.replace('\\', "/")),
             embedding,
         });
     }
-    drop(statement);
-    if i64::try_from(manifest.len()).unwrap_or(i64::MAX) != target_count {
+    if manifest.len() != selection.target_count {
         invalidate_incomplete_embedding_artifacts(
             connection,
             source_id,
@@ -437,56 +327,27 @@ fn invalidate_incomplete_embedding_artifacts(
     source_generation: i64,
     valid_identities: &HashSet<String>,
 ) -> Result<(), String> {
-    let artifact_targets = {
-        let mut statement = connection
-            .prepare(
-                "SELECT target.scope_id, target.relative_path, target.required_version,
-                        target.source_generation, target.content_generation
-                 FROM source_readiness_targets AS target
-                 JOIN source_readiness_artifacts AS artifact
-                   ON artifact.source_id = target.source_id
-                  AND artifact.scope_kind = target.scope_kind
-                  AND artifact.scope_id = target.scope_id
-                  AND artifact.stage = target.stage
-                  AND artifact.artifact_version = target.required_version
-                  AND artifact.content_generation = target.content_generation
-                 WHERE target.source_id = ?1
-                   AND target.scope_kind = 'file'
-                   AND target.stage = 'embedding_aspects'
-                   AND target.source_generation = ?2
-                   AND target.eligibility = 'eligible'",
-            )
-            .map_err(|error| format!("Prepare incomplete similarity artifacts failed: {error}"))?;
-        statement
-            .query_map(rusqlite::params![source_id, source_generation], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, i64>(3)?,
-                    row.get::<_, String>(4)?,
-                ))
-            })
-            .map_err(|error| format!("Query incomplete similarity artifacts failed: {error}"))?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| format!("Decode incomplete similarity artifacts failed: {error}"))?
-    };
-    for (identity, relative_path, version, generation, content_generation) in artifact_targets {
-        if valid_identities.contains(&identity) {
+    let artifact_targets = ReadinessStore::new(connection)
+        .embedding_artifact_targets(source_id, source_generation)
+        .map_err(|error| format!("Query incomplete similarity artifacts failed: {error}"))?;
+    for artifact in artifact_targets {
+        if valid_identities.contains(&artifact.scope_id) {
             continue;
         }
         let target = ReadinessTarget::file(
             source_id,
-            identity,
-            relative_path,
+            artifact.scope_id,
+            artifact.relative_path,
             ReadinessStage::EmbeddingAspects,
-            version,
-            generation,
-            content_generation,
+            artifact.required_version,
+            artifact.source_generation,
+            artifact.content_generation,
         );
-        invalidate_readiness_artifact(connection, &target).map_err(|error| {
-            format!("Invalidate incomplete similarity artifact failed: {error}")
-        })?;
+        ReadinessStore::new(connection)
+            .invalidate_artifact(&target)
+            .map_err(|error| {
+                format!("Invalidate incomplete similarity artifact failed: {error}")
+            })?;
     }
     Ok(())
 }
@@ -494,17 +355,10 @@ fn invalidate_incomplete_embedding_artifacts(
 pub(in crate::native_app) fn reset_interrupted_readiness_jobs(
     source: &SampleSource,
 ) -> Result<usize, String> {
-    let conn = open_source_db(source)?;
-    conn.execute(
-        "UPDATE analysis_jobs
-         SET status = 'pending',
-             running_at = NULL,
-             lease_expires_at = NULL
-         WHERE status = 'running'
-           AND readiness_managed = 1",
-        [],
-    )
-    .map_err(|error| format!("Reset interrupted readiness jobs failed: {error}"))
+    let mut conn = open_source_db(source)?;
+    ReadinessStore::new(&mut conn)
+        .reset_interrupted_work()
+        .map_err(|error| format!("Reset interrupted readiness jobs failed: {error}"))
 }
 
 pub(super) fn open_source_db(source: &SampleSource) -> Result<rusqlite::Connection, String> {

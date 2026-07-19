@@ -13,7 +13,7 @@ use super::error::ReadinessError;
 /// File targets remain claimable across unrelated source-generation changes when their stable
 /// identity, stage, artifact version, and content generation are unchanged. The returned target is
 /// always refreshed from the current desired-state row.
-pub fn claim_readiness_target(
+pub(crate) fn claim_readiness_target(
     connection: &mut Connection,
     requested: &ReadinessTarget,
     now: i64,
@@ -189,7 +189,7 @@ pub fn claim_readiness_target(
 }
 
 /// Renew an unexpired claim without changing its claim generation.
-pub fn renew_readiness_lease(
+pub(crate) fn renew_readiness_lease(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     now: i64,
@@ -274,7 +274,7 @@ pub fn renew_readiness_lease(
 }
 
 /// Atomically publish the exact claimed artifact and mark its work row complete.
-pub fn complete_readiness_work(
+pub(crate) fn complete_readiness_work(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     completed_at: i64,
@@ -286,7 +286,7 @@ pub fn complete_readiness_work(
 ///
 /// The reference is stored beside the source/path/content generations so later reconciliation can
 /// retire the exact app-global payload after edits, moves, deletion, or cache pruning.
-pub fn complete_readiness_work_with_artifact_ref(
+pub(crate) fn complete_readiness_work_with_artifact_ref(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     completed_at: i64,
@@ -353,7 +353,7 @@ fn complete_readiness_work_inner(
 }
 
 /// Record a classified failure, applying bounded backoff to retryable failures.
-pub fn fail_readiness_work(
+pub(crate) fn fail_readiness_work(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     classification: ReadinessFailureClassification,
@@ -424,7 +424,7 @@ pub fn fail_readiness_work(
 }
 
 /// Voluntarily release a current claim back to pending without deleting durable work.
-pub fn release_readiness_work(
+pub(crate) fn release_readiness_work(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     released_at: i64,
@@ -433,7 +433,7 @@ pub fn release_readiness_work(
 }
 
 /// Cancel in-flight execution back to pending while retaining a cancellation diagnostic.
-pub fn cancel_readiness_work(
+pub(crate) fn cancel_readiness_work(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     reason: &str,
@@ -448,7 +448,7 @@ pub fn cancel_readiness_work(
 }
 
 /// Read queue, retry, lease-recovery, cancellation, and terminal counts for telemetry.
-pub fn readiness_work_stats(
+pub(crate) fn readiness_work_stats(
     connection: &Connection,
     now: i64,
 ) -> Result<ReadinessWorkStats, ReadinessError> {

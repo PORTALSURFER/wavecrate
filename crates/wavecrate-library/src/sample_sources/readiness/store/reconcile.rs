@@ -18,6 +18,7 @@ use super::super::{
 use super::error::ReadinessError;
 
 /// Compare desired readiness with persisted artifacts and work without mutating the database.
+#[cfg(test)]
 pub fn reconcile_readiness(
     connection: &Connection,
     source_id: &str,
@@ -26,28 +27,7 @@ pub fn reconcile_readiness(
     reconcile_readiness_inner(connection, source_id, now, None, &mut || {})
 }
 
-/// Compare desired readiness with persisted state while honoring cancellation during large scans.
-pub fn reconcile_readiness_with_cancel(
-    connection: &Connection,
-    source_id: &str,
-    now: i64,
-    cancel: &AtomicBool,
-) -> Result<ReadinessSnapshot, ReadinessError> {
-    reconcile_readiness_inner(connection, source_id, now, Some(cancel), &mut || {})
-}
-
-/// Compare desired readiness with persisted state while reporting completed reconciliation steps.
-pub fn reconcile_readiness_with_cancel_and_progress(
-    connection: &Connection,
-    source_id: &str,
-    now: i64,
-    cancel: &AtomicBool,
-    progress: &mut dyn FnMut(),
-) -> Result<ReadinessSnapshot, ReadinessError> {
-    reconcile_readiness_inner(connection, source_id, now, Some(cancel), progress)
-}
-
-fn reconcile_readiness_inner(
+pub(super) fn reconcile_readiness_inner(
     connection: &Connection,
     source_id: &str,
     now: i64,

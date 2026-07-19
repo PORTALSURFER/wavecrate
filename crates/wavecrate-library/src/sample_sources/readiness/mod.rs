@@ -21,13 +21,17 @@ pub use snapshot::{
 #[cfg(test)]
 pub(crate) use store::reconcile_readiness_with_hook;
 pub use store::{
-    ReadinessError, cancel_readiness_work, claim_readiness_target, complete_readiness_work,
+    ReadinessCompatibilityCleanup, ReadinessEmbeddingArtifactTarget, ReadinessError,
+    ReadinessSimilarityManifest, ReadinessSimilarityManifestRequest,
+    ReadinessSimilarityManifestRow, ReadinessSimilarityPayloadContract, ReadinessSourceState,
+    ReadinessStore, ReadinessTargetPublication, ReadinessView,
+};
+#[cfg(test)]
+pub(crate) use store::{
+    cancel_readiness_work, claim_readiness_target, complete_readiness_work,
     complete_readiness_work_with_artifact_ref, fail_readiness_work, invalidate_readiness_artifact,
-    persist_readiness_deficits, persist_readiness_deficits_with_cancel,
-    persist_readiness_deficits_with_cancel_and_progress, publish_readiness_artifact,
-    readiness_work_stats, reconcile_readiness, reconcile_readiness_with_cancel,
-    reconcile_readiness_with_cancel_and_progress, release_readiness_work, renew_readiness_lease,
-    replace_readiness_targets, replace_readiness_targets_with_cancel,
+    persist_readiness_deficits, publish_readiness_artifact, readiness_work_stats,
+    reconcile_readiness, release_readiness_work, renew_readiness_lease, replace_readiness_targets,
 };
 
 #[cfg(test)]

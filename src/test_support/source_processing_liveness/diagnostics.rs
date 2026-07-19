@@ -243,8 +243,10 @@ fn durable_job_diagnostics(connection: &Connection) -> rusqlite::Result<DurableJ
 }
 
 pub(super) fn readiness_snapshot(source: &SampleSource) -> Option<ReadinessSnapshot> {
-    let connection = open_connection(source).ok()?;
-    reconcile_readiness(&connection, source.id.as_str(), now_epoch_seconds()).ok()
+    let mut connection = open_connection(source).ok()?;
+    ReadinessStore::new(&mut connection)
+        .reconcile(source.id.as_str(), now_epoch_seconds())
+        .ok()
 }
 
 pub(super) fn open_connection(source: &SampleSource) -> Result<Connection, String> {
