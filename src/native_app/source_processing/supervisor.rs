@@ -13,7 +13,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use rusqlite::{OptionalExtension, TransactionBehavior, params};
+use rusqlite::{OptionalExtension, params};
 use serde_json::Value;
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole, SourceMetadataStorage,
@@ -22,12 +22,8 @@ use wavecrate::sample_sources::{
         ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessClassification,
         ReadinessEligibility, ReadinessFailureClassification, ReadinessFailureOutcome,
         ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessSnapshot,
-        ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, SourceAvailability,
-        cancel_readiness_work, claim_readiness_target, complete_readiness_work,
-        complete_readiness_work_with_artifact_ref, fail_readiness_work,
-        invalidate_readiness_artifact, persist_readiness_deficits_with_cancel_and_progress,
-        readiness_work_stats, reconcile_readiness_with_cancel_and_progress, renew_readiness_lease,
-        replace_readiness_targets_with_cancel,
+        ReadinessStage, ReadinessStore, ReadinessTarget, ReadinessTargetPublication,
+        ReadinessWorkMutationOutcome, SourceAvailability,
     },
     scanner::{
         ScanError, audit_source_and_record_with_progress, complete_pending_deep_hash_for_path,
@@ -2683,13 +2679,15 @@ fn discover_source_candidates_with_progress(
     let database_root = source.database_root().map_err(|error| error.to_string())?;
     if !source.root.is_dir() {
         if database_root != source.root && database_root.is_dir() {
-            let connection = SourceDatabase::open_unavailable_source_metadata_connection(
+            let mut connection = SourceDatabase::open_unavailable_source_metadata_connection(
                 &database_root,
                 SourceDatabaseConnectionRole::JobWorker,
             )
             .map_err(|error| error.to_string())?;
-            if source_processing_schema_available(&connection)? {
-                mark_readiness_temporarily_unavailable(&connection, source.id.as_str(), now)?;
+            if source_processing_schema_available(&mut connection)? {
+                ReadinessStore::new(&mut connection)
+                    .mark_temporarily_unavailable(source.id.as_str(), now)
+                    .map_err(|error| error.to_string())?;
             }
         }
         return Ok(Cancellable::Completed((
@@ -2754,7 +2752,7 @@ fn discover_source_candidates_with_connection_and_progress(
         );
         return Ok(Cancellable::Completed((candidates, stats)));
     }
-    if !source_processing_schema_available(&connection)? {
+    if !source_processing_schema_available(connection)? {
         tracing::debug!(
             target: "wavecrate::source_processing",
             source_id,
@@ -2762,7 +2760,9 @@ fn discover_source_candidates_with_connection_and_progress(
         );
         return Ok(Cancellable::Completed((candidates, stats)));
     }
-    let pruned_legacy_jobs = prune_legacy_similarity_jobs(connection)?;
+    let pruned_legacy_jobs = ReadinessStore::new(connection)
+        .prune_legacy_similarity_jobs()
+        .map_err(|error| format!("Prune retired similarity jobs failed: {error}"))?;
     if pruned_legacy_jobs > 0 {
         tracing::info!(
             target: "wavecrate::source_processing",
@@ -2827,15 +2827,13 @@ fn discover_source_candidates_with_connection_and_progress(
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
     }
-    let readiness_source_exists: bool = connection
-        .query_row(
-            "SELECT EXISTS(SELECT 1 FROM source_readiness_sources WHERE source_id = ?1)",
-            [source_id],
-            |row| row.get(0),
-        )
+    let readiness_source_exists = ReadinessStore::new(connection)
+        .source_exists(source_id)
         .map_err(|error| error.to_string())?;
     if readiness_source_exists {
-        let reclassified = reclassify_known_unsupported_audio_failures(connection)?;
+        let reclassified = ReadinessStore::new(connection)
+            .reclassify_known_unsupported_failures(is_known_unsupported_audio_failure)
+            .map_err(|error| error.to_string())?;
         if reclassified > 0 {
             tracing::info!(
                 target: "wavecrate::source_processing",
@@ -2844,8 +2842,7 @@ fn discover_source_candidates_with_connection_and_progress(
                 "Reclassified deterministic audio decode failures as unsupported"
             );
         }
-        let snapshot = match reconcile_readiness_with_cancel_and_progress(
-            &connection,
+        let snapshot = match ReadinessStore::new(connection).reconcile_with_cancel_and_progress(
             source_id,
             now,
             cancel,
@@ -2871,8 +2868,7 @@ fn discover_source_candidates_with_connection_and_progress(
             })
             .cloned()
             .collect::<Vec<_>>();
-        match persist_readiness_deficits_with_cancel_and_progress(
-            connection,
+        match ReadinessStore::new(connection).persist_deficits_with_cancel_and_progress(
             &persistable_deficits,
             now,
             cancel,
@@ -2887,7 +2883,9 @@ fn discover_source_candidates_with_connection_and_progress(
             }
             Err(error) => return Err(error.to_string()),
         }
-        park_active_recording_jobs(connection, &active_recordings.scope_ids)?;
+        ReadinessStore::new(connection)
+            .defer_active_recordings(&active_recordings.scope_ids)
+            .map_err(|error| error.to_string())?;
         let schedulable_deficits = persistable_deficits
             .iter()
             .filter(|deficit| snapshot.prerequisites_are_current(&deficit.target))
@@ -2900,8 +2898,9 @@ fn discover_source_candidates_with_connection_and_progress(
             source: source.clone(),
             task: RuntimeTask::Readiness(deficit.target.clone()),
         }));
-        let work_stats =
-            readiness_work_stats(&connection, now).map_err(|error| error.to_string())?;
+        let work_stats = ReadinessStore::new(connection)
+            .work_stats(now)
+            .map_err(|error| error.to_string())?;
         stats.progress_total = work_stats.total;
         stats.progress_completed = work_stats
             .completed
@@ -2987,44 +2986,9 @@ fn active_recording_deferrals(
     Ok(deferrals)
 }
 
-fn park_active_recording_jobs(
-    connection: &rusqlite::Connection,
-    scope_ids: &BTreeSet<String>,
-) -> Result<(), String> {
-    for scope_id in scope_ids {
-        connection
-            .execute(
-                "DELETE FROM analysis_jobs
-                 WHERE readiness_managed = 1
-                   AND readiness_scope_id = ?1
-                   AND status != 'running'",
-                [scope_id],
-            )
-            .map_err(|error| error.to_string())?;
-    }
-    Ok(())
-}
-
-fn prune_legacy_similarity_jobs(connection: &rusqlite::Connection) -> Result<usize, String> {
-    let removed = connection
-        .execute(
-            "DELETE FROM analysis_jobs
-             WHERE readiness_managed = 0
-               AND job_type IN ('wav_metadata_v1', 'embedding_backfill_v1', 'rebuild_index_v1')",
-            [],
-        )
-        .map_err(|error| format!("Prune retired similarity jobs failed: {error}"))?;
-    connection
-        .execute(
-            "DELETE FROM analysis_job_progress_snapshots
-             WHERE job_type IN ('wav_metadata_v1', 'embedding_backfill_v1', 'rebuild_index_v1')",
-            [],
-        )
-        .map_err(|error| format!("Prune retired similarity progress failed: {error}"))?;
-    Ok(removed)
-}
-
-fn source_processing_schema_available(connection: &rusqlite::Connection) -> Result<bool, String> {
+fn source_processing_schema_available(
+    connection: &mut rusqlite::Connection,
+) -> Result<bool, String> {
     for (table, required_columns) in [
         (
             "wav_files",
@@ -3037,31 +3001,7 @@ fn source_processing_schema_available(connection: &rusqlite::Connection) -> Resu
                 "missing",
             ][..],
         ),
-        (
-            "analysis_jobs",
-            &[
-                "id",
-                "relative_path",
-                "job_type",
-                "created_at",
-                "status",
-                "readiness_managed",
-            ][..],
-        ),
         ("metadata", &["key", "value"][..]),
-        (
-            "source_readiness_artifacts",
-            &[
-                "source_id",
-                "scope_kind",
-                "scope_id",
-                "relative_path",
-                "stage",
-                "artifact_version",
-                "content_generation",
-                "artifact_ref",
-            ][..],
-        ),
     ] {
         let pragma = format!("PRAGMA table_info({table})");
         let mut statement = connection
@@ -3079,19 +3019,8 @@ fn source_processing_schema_available(connection: &rusqlite::Connection) -> Resu
             return Ok(false);
         }
     }
-    connection
-        .query_row(
-            "SELECT COUNT(*) = 3
-             FROM sqlite_master
-             WHERE type = 'table'
-               AND name IN (
-                   'source_readiness_sources',
-                   'source_readiness_targets',
-                   'source_readiness_artifacts'
-               )",
-            [],
-            |row| row.get(0),
-        )
+    ReadinessStore::new(connection)
+        .processing_schema_available()
         .map_err(|error| error.to_string())
 }
 
@@ -3128,75 +3057,19 @@ pub(super) fn retire_source_derived_state(
             database_path.display()
         ));
     }
-    let readiness_source_table_exists = connection
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM sqlite_master
-                WHERE type = 'table' AND name = 'source_readiness_sources'
-             )",
-            [],
-            |row| row.get::<_, bool>(0),
-        )
-        .map_err(|error| error.to_string())?;
-    if !readiness_source_table_exists {
+    if !ReadinessStore::new(&mut connection)
+        .schema_available()
+        .map_err(|error| error.to_string())?
+    {
         return Ok(SourceRetirementOutcome::Retired {
             retired_cache_refs: 0,
         });
     }
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
+    let cleanup = ReadinessStore::new(&mut connection)
+        .retire_source(source.id.as_str(), now_epoch_seconds())
         .map_err(|error| error.to_string())?;
-    let cache_refs = {
-        let mut statement = transaction
-            .prepare(
-                "SELECT artifact_ref
-                 FROM source_readiness_artifacts
-                 WHERE source_id = ?1
-                   AND stage = 'playback_summary'
-                   AND artifact_ref IS NOT NULL
-                   AND length(trim(artifact_ref)) > 0",
-            )
-            .map_err(|error| error.to_string())?;
-        statement
-            .query_map([source.id.as_str()], |row| row.get::<_, String>(0))
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?
-    };
-    transaction
-        .execute(
-            "UPDATE source_readiness_sources
-             SET availability = 'disabled',
-                 readiness_revision = readiness_revision + 1,
-                 updated_at = ?2
-             WHERE source_id = ?1 AND availability != 'disabled'",
-            params![source.id.as_str(), now_epoch_seconds()],
-        )
-        .map_err(|error| error.to_string())?;
-    transaction
-        .execute(
-            "DELETE FROM analysis_jobs
-             WHERE source_id = ?1 AND readiness_managed = 1",
-            [source.id.as_str()],
-        )
-        .map_err(|error| error.to_string())?;
-    transaction
-        .execute(
-            "DELETE FROM source_readiness_artifacts
-             WHERE source_id = ?1 AND stage = 'playback_summary'",
-            [source.id.as_str()],
-        )
-        .map_err(|error| error.to_string())?;
-    transaction
-        .execute(
-            "DELETE FROM source_readiness_targets
-             WHERE source_id = ?1 AND stage = 'playback_summary'",
-            [source.id.as_str()],
-        )
-        .map_err(|error| error.to_string())?;
-    transaction.commit().map_err(|error| error.to_string())?;
     let mut invalidated = 0;
-    for cache_ref in &cache_refs {
+    for cache_ref in &cleanup.retired_artifact_refs {
         match retained_waveform_cache_ref_is_owned(cache_ref) {
             Ok(false) => {
                 invalidate_persisted_waveform_cache_ref(std::path::Path::new(cache_ref));
@@ -3239,24 +3112,14 @@ fn retained_waveform_cache_ref_is_owned(cache_ref: &str) -> Result<bool, String>
                 database_path.display()
             ));
         }
-        let connection = rusqlite::Connection::open_with_flags(
+        let mut connection = rusqlite::Connection::open_with_flags(
             &database_path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .map_err(|error| error.to_string())?;
-        let owned = connection
-            .query_row(
-                "SELECT EXISTS(
-                    SELECT 1
-                    FROM source_readiness_artifacts
-                    WHERE stage = 'playback_summary' AND artifact_ref = ?1
-                 )",
-                [cache_ref],
-                |row| row.get::<_, bool>(0),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?
-            .unwrap_or(false);
+        let owned = ReadinessStore::new(&mut connection)
+            .legacy_playback_artifact_ref_is_owned(cache_ref)
+            .map_err(|error| error.to_string())?;
         if owned {
             return Ok(true);
         }
@@ -3282,37 +3145,13 @@ fn prune_unreferenced_waveform_cache() -> Result<usize, String> {
                 database_path.display()
             ));
         }
-        let connection = rusqlite::Connection::open_with_flags(
+        let mut connection = rusqlite::Connection::open_with_flags(
             &database_path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )
         .map_err(|error| format!("open retained cache manifest: {error}"))?;
-        let manifest_exists = connection
-            .query_row(
-                "SELECT EXISTS(
-                    SELECT 1 FROM sqlite_master
-                    WHERE type = 'table' AND name = 'source_readiness_artifacts'
-                 )",
-                [],
-                |row| row.get::<_, bool>(0),
-            )
-            .map_err(|error| error.to_string())?;
-        if !manifest_exists {
-            continue;
-        }
-        let mut statement = connection
-            .prepare(
-                "SELECT artifact_ref
-                 FROM source_readiness_artifacts
-                 WHERE stage = 'playback_summary'
-                   AND artifact_ref IS NOT NULL
-                   AND length(trim(artifact_ref)) > 0",
-            )
-            .map_err(|error| error.to_string())?;
-        let refs = statement
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
+        let refs = ReadinessStore::new(&mut connection)
+            .legacy_playback_artifact_refs()
             .map_err(|error| error.to_string())?;
         referenced.extend(refs.into_iter().map(PathBuf::from));
     }
@@ -3437,7 +3276,9 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         }
         rows
     };
-    let unsupported_generations = readiness_unsupported_content_generations(connection, source_id)?;
+    let unsupported_generations = ReadinessStore::new(connection)
+        .unsupported_content_generations(source_id)
+        .map_err(|error| error.to_string())?;
     let mut manifest = Vec::with_capacity(rows.len());
     for (path, identity, content_hash, file_size, modified_ns) in rows {
         checkpoint();
@@ -3448,7 +3289,9 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
             continue;
         }
         let Some(identity) = identity.filter(|value| !value.trim().is_empty()) else {
-            mark_readiness_temporarily_unavailable(connection, source_id, now)?;
+            ReadinessStore::new(connection)
+                .mark_temporarily_unavailable(source_id, now)
+                .map_err(|error| error.to_string())?;
             return Ok(Cancellable::Completed(false));
         };
         let content_hash = content_hash.filter(|value| !value.trim().is_empty());
@@ -3541,37 +3384,29 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    let current_source: Option<(i64, i64, String)> = connection
-        .query_row(
-            "SELECT source_generation, readiness_revision, availability
-             FROM source_readiness_sources WHERE source_id = ?1",
-            [source_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .optional()
+    let current_source = ReadinessStore::new(connection)
+        .source_state(source_id)
         .map_err(|error| error.to_string())?;
     if current_fingerprint.as_deref() == Some(target_fingerprint.as_str())
-        && current_source
-            .as_ref()
-            .is_some_and(|(generation, _, availability)| {
-                *generation == source_generation && availability == "active"
-            })
+        && current_source.as_ref().is_some_and(|state| {
+            state.source_generation == source_generation
+                && state.availability == SourceAvailability::Active
+        })
     {
         return Ok(Cancellable::Completed(false));
     }
     let readiness_revision = current_source
-        .map(|(_, revision, _)| revision.saturating_add(1))
+        .map(|state| state.readiness_revision.saturating_add(1))
         .unwrap_or(1);
-    match replace_readiness_targets_with_cancel(
-        connection,
+    let publication = ReadinessTargetPublication::new(
         source_id,
         source_generation,
         readiness_revision,
         SourceAvailability::Active,
         &targets,
         now,
-        cancel,
-    ) {
+    );
+    match ReadinessStore::new(connection).publish_targets_with_cancel(&publication, cancel) {
         Ok(()) => {}
         Err(wavecrate::sample_sources::readiness::ReadinessError::Cancelled) => {
             return Ok(Cancellable::Cancelled);
@@ -3622,83 +3457,12 @@ fn retire_legacy_playback_readiness_with_post_commit_hook(
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
     }
-    let has_legacy_rows = connection
-        .query_row(
-            "SELECT EXISTS (
-                 SELECT 1
-                 FROM source_readiness_targets
-                 WHERE source_id = ?1 AND stage = 'playback_summary'
-                 UNION ALL
-                 SELECT 1
-                 FROM source_readiness_artifacts
-                 WHERE source_id = ?1 AND stage = 'playback_summary'
-                 UNION ALL
-                 SELECT 1
-                 FROM analysis_jobs
-                 WHERE source_id = ?1
-                   AND readiness_managed = 1
-                   AND readiness_stage = 'playback_summary'
-             )",
-            [source.id.as_str()],
-            |row| row.get::<_, bool>(0),
-        )
+    let cleanup = ReadinessStore::new(connection)
+        .retire_legacy_playback(source.id.as_str())
         .map_err(|error| error.to_string())?;
-    if !has_legacy_rows {
-        return Ok(Cancellable::Completed(0));
-    }
-    let cache_refs = {
-        let mut statement = connection
-            .prepare(
-                "SELECT artifact_ref
-                 FROM source_readiness_artifacts
-                 WHERE source_id = ?1
-                   AND stage = 'playback_summary'
-                   AND artifact_ref IS NOT NULL
-                   AND length(trim(artifact_ref)) > 0",
-            )
-            .map_err(|error| error.to_string())?;
-        statement
-            .query_map([source.id.as_str()], |row| row.get::<_, String>(0))
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?
-    };
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|error| error.to_string())?;
-    let mut changed = transaction
-        .execute(
-            "DELETE FROM analysis_jobs
-             WHERE source_id = ?1
-               AND readiness_managed = 1
-               AND readiness_stage = 'playback_summary'",
-            [source.id.as_str()],
-        )
-        .map_err(|error| error.to_string())?;
-    changed = changed.saturating_add(
-        transaction
-            .execute(
-                "DELETE FROM source_readiness_artifacts
-             WHERE source_id = ?1
-               AND stage = 'playback_summary'",
-                [source.id.as_str()],
-            )
-            .map_err(|error| error.to_string())?,
-    );
-    changed = changed.saturating_add(
-        transaction
-            .execute(
-                "DELETE FROM source_readiness_targets
-             WHERE source_id = ?1
-               AND stage = 'playback_summary'",
-                [source.id.as_str()],
-            )
-            .map_err(|error| error.to_string())?,
-    );
-    transaction.commit().map_err(|error| error.to_string())?;
     post_commit();
 
-    for cache_ref in cache_refs {
+    for cache_ref in cleanup.retired_artifact_refs {
         match retained_waveform_cache_ref_is_owned(&cache_ref) {
             Ok(false) => invalidate_persisted_waveform_cache_ref(std::path::Path::new(&cache_ref)),
             Ok(true) => {}
@@ -3711,53 +3475,11 @@ fn retire_legacy_playback_readiness_with_post_commit_hook(
             ),
         }
     }
-    Ok(Cancellable::Completed(changed))
-}
-
-fn readiness_unsupported_content_generations(
-    connection: &rusqlite::Connection,
-    source_id: &str,
-) -> Result<BTreeSet<(String, String)>, String> {
-    let mut statement = connection
-        .prepare(
-            "SELECT DISTINCT readiness_scope_id, content_generation
-             FROM analysis_jobs
-             WHERE source_id = ?1
-               AND readiness_managed = 1
-               AND readiness_scope_kind = 'file'
-               AND status = 'failed'
-               AND failure_kind = 'unsupported'
-               AND readiness_scope_id IS NOT NULL
-               AND content_generation IS NOT NULL",
-        )
-        .map_err(|error| error.to_string())?;
-    statement
-        .query_map([source_id], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|error| error.to_string())?
-        .collect::<Result<BTreeSet<_>, _>>()
-        .map_err(|error| error.to_string())
+    Ok(Cancellable::Completed(cleanup.changed))
 }
 
 fn cancelled(cancel: &AtomicBool) -> bool {
     cancel.load(Ordering::Acquire)
-}
-
-fn mark_readiness_temporarily_unavailable(
-    connection: &rusqlite::Connection,
-    source_id: &str,
-    now: i64,
-) -> Result<(), String> {
-    connection
-        .execute(
-            "UPDATE source_readiness_sources
-             SET availability = 'offline',
-                 readiness_revision = readiness_revision + 1,
-                 updated_at = ?2
-             WHERE source_id = ?1 AND availability != 'offline'",
-            params![source_id, now],
-        )
-        .map_err(|error| error.to_string())?;
-    Ok(())
 }
 
 fn readiness_target_fingerprint_with_cancel(
@@ -3991,7 +3713,8 @@ fn execute_synthetic_candidate_for_profile(
         .get_mut(source_id)
         .expect("synthetic source connection was inserted");
     let now = now_epoch_seconds();
-    let Some(claim) = claim_readiness_target(connection, target, now, READINESS_LEASE_SECONDS)
+    let Some(claim) = ReadinessStore::new(connection)
+        .claim(target, now, READINESS_LEASE_SECONDS)
         .map_err(|error| error.to_string())?
     else {
         return Ok(ExecutionOutcome::NotClaimed);
@@ -3999,7 +3722,8 @@ fn execute_synthetic_candidate_for_profile(
     if cancel.load(Ordering::Acquire) {
         return cancel_claim(connection, &claim, "profile cancellation", now);
     }
-    match complete_readiness_work(connection, &claim, now_epoch_seconds())
+    match ReadinessStore::new(connection)
+        .complete(&claim, now_epoch_seconds())
         .map_err(|error| error.to_string())?
     {
         ArtifactPublishOutcome::Recorded => Ok(ExecutionOutcome::Completed),
@@ -4028,7 +3752,8 @@ fn execute_readiness_target(
     )
     .map_err(|error| error.to_string())?;
     let now = now_epoch_seconds();
-    let Some(claim) = claim_readiness_target(&mut connection, target, now, READINESS_LEASE_SECONDS)
+    let Some(claim) = ReadinessStore::new(&mut connection)
+        .claim(target, now, READINESS_LEASE_SECONDS)
         .map_err(|error| error.to_string())?
     else {
         return Ok(ExecutionOutcome::NotClaimed);
@@ -4045,8 +3770,7 @@ fn execute_readiness_target(
     ) {
         Ok(result) => result,
         Err(error) => {
-            let _ = cancel_readiness_work(
-                &mut connection,
+            let _ = ReadinessStore::new(&mut connection).cancel(
                 &claim,
                 "readiness lease heartbeat failure",
                 now_epoch_seconds(),
@@ -4070,13 +3794,13 @@ fn execute_readiness_target(
     match outcome {
         Ok(ReadinessExecutionOutcome::Complete(artifact_ref)) => {
             let completed = match artifact_ref.as_deref() {
-                Some(artifact_ref) => complete_readiness_work_with_artifact_ref(
-                    &mut connection,
-                    &claim,
-                    now_epoch_seconds(),
-                    &artifact_ref.to_string_lossy(),
-                ),
-                None => complete_readiness_work(&mut connection, &claim, now_epoch_seconds()),
+                Some(artifact_ref) => ReadinessStore::new(&mut connection)
+                    .complete_with_artifact_ref(
+                        &claim,
+                        now_epoch_seconds(),
+                        &artifact_ref.to_string_lossy(),
+                    ),
+                None => ReadinessStore::new(&mut connection).complete(&claim, now_epoch_seconds()),
             };
             let completed = match completed {
                 Ok(completed) => completed,
@@ -4100,58 +3824,52 @@ fn execute_readiness_target(
         Ok(ReadinessExecutionOutcome::Retry(reason)) => {
             let policy = ReadinessRetryPolicy::new(5, 5 * 60, READINESS_MAX_ATTEMPTS)
                 .expect("valid readiness retry policy");
-            let outcome = fail_readiness_work(
-                &mut connection,
-                &claim,
-                ReadinessFailureClassification::Retryable,
-                reason,
-                now_epoch_seconds(),
-                policy,
-            )
-            .map_err(|error| error.to_string())?;
+            let outcome = ReadinessStore::new(&mut connection)
+                .fail(
+                    &claim,
+                    ReadinessFailureClassification::Retryable,
+                    reason,
+                    now_epoch_seconds(),
+                    policy,
+                )
+                .map_err(|error| error.to_string())?;
             Ok(execution_outcome_for_failure(outcome))
         }
         Err(reason) => {
             let classification = readiness_failure_classification(&reason);
             let policy = ReadinessRetryPolicy::new(5, 5 * 60, READINESS_MAX_ATTEMPTS)
                 .expect("valid readiness retry policy");
-            let outcome = fail_readiness_work(
-                &mut connection,
-                &claim,
-                classification,
-                &reason,
-                now_epoch_seconds(),
-                policy,
-            )
-            .map_err(|error| error.to_string())?;
+            let outcome = ReadinessStore::new(&mut connection)
+                .fail(&claim, classification, &reason, now_epoch_seconds(), policy)
+                .map_err(|error| error.to_string())?;
             Ok(execution_outcome_for_failure(outcome))
         }
         Ok(ReadinessExecutionOutcome::Permanent(reason)) => {
             let policy =
                 ReadinessRetryPolicy::new(5, 5 * 60, 1).expect("valid readiness terminal policy");
-            let outcome = fail_readiness_work(
-                &mut connection,
-                &claim,
-                ReadinessFailureClassification::Permanent,
-                reason,
-                now_epoch_seconds(),
-                policy,
-            )
-            .map_err(|error| error.to_string())?;
+            let outcome = ReadinessStore::new(&mut connection)
+                .fail(
+                    &claim,
+                    ReadinessFailureClassification::Permanent,
+                    reason,
+                    now_epoch_seconds(),
+                    policy,
+                )
+                .map_err(|error| error.to_string())?;
             Ok(execution_outcome_for_failure(outcome))
         }
         Ok(ReadinessExecutionOutcome::Unsupported(reason)) => {
             let policy =
                 ReadinessRetryPolicy::new(5, 5 * 60, 1).expect("valid readiness terminal policy");
-            let outcome = fail_readiness_work(
-                &mut connection,
-                &claim,
-                ReadinessFailureClassification::Unsupported,
-                reason,
-                now_epoch_seconds(),
-                policy,
-            )
-            .map_err(|error| error.to_string())?;
+            let outcome = ReadinessStore::new(&mut connection)
+                .fail(
+                    &claim,
+                    ReadinessFailureClassification::Unsupported,
+                    reason,
+                    now_epoch_seconds(),
+                    policy,
+                )
+                .map_err(|error| error.to_string())?;
             Ok(execution_outcome_for_failure(outcome))
         }
         Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(reason)) => {
@@ -4161,15 +3879,15 @@ fn execute_readiness_target(
                 READINESS_MAX_ATTEMPTS,
             )
             .expect("valid prerequisite invalidation retry policy");
-            match fail_readiness_work(
-                &mut connection,
-                &claim,
-                ReadinessFailureClassification::Retryable,
-                reason,
-                now_epoch_seconds(),
-                policy,
-            )
-            .map_err(|error| error.to_string())?
+            match ReadinessStore::new(&mut connection)
+                .fail(
+                    &claim,
+                    ReadinessFailureClassification::Retryable,
+                    reason,
+                    now_epoch_seconds(),
+                    policy,
+                )
+                .map_err(|error| error.to_string())?
             {
                 ReadinessFailureOutcome::RetryScheduled { retry_at } => {
                     Ok(ExecutionOutcome::PrerequisiteInvalidated { retry_at, reason })
@@ -4206,91 +3924,14 @@ fn is_known_unsupported_audio_failure(reason: &str) -> bool {
         || reason.contains("no suitable format reader found")
 }
 
-fn reclassify_known_unsupported_audio_failures(
-    connection: &mut rusqlite::Connection,
-) -> Result<usize, String> {
-    let legacy_terminal_failures = {
-        let mut statement = connection
-            .prepare(
-                "SELECT id, COALESCE(last_error, '')
-                 FROM analysis_jobs
-                 WHERE readiness_managed = 1
-                   AND status = 'failed'
-                   AND failure_kind IN ('retryable', 'permanent')",
-            )
-            .map_err(|error| error.to_string())?;
-        statement
-            .query_map([], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
-            })
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?
-    };
-    let unsupported_ids = legacy_terminal_failures
-        .into_iter()
-        .filter_map(|(id, error)| is_known_unsupported_audio_failure(&error).then_some(id))
-        .collect::<Vec<_>>();
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|error| error.to_string())?;
-    let mut reclassified = 0_usize;
-    for id in unsupported_ids {
-        reclassified = reclassified.saturating_add(
-            transaction
-                .execute(
-                    "UPDATE analysis_jobs
-                     SET failure_kind = 'unsupported', retry_at = NULL
-                     WHERE id = ?1
-                       AND readiness_managed = 1
-                       AND status = 'failed'
-                       AND failure_kind IN ('retryable', 'permanent')",
-                    [id],
-                )
-                .map_err(|error| error.to_string())?,
-        );
-    }
-    reclassified = reclassified.saturating_add(
-        transaction
-            .execute(
-                "UPDATE analysis_jobs AS dependent
-                 SET failure_kind = 'unsupported', retry_at = NULL
-                 WHERE dependent.readiness_managed = 1
-                   AND dependent.status = 'failed'
-                   AND dependent.failure_kind IN ('retryable', 'permanent')
-                   AND dependent.readiness_stage = 'embedding_aspects'
-                   AND dependent.last_error =
-                       'embedding feature prerequisite is not durable yet'
-                   AND EXISTS(
-                       SELECT 1
-                       FROM analysis_jobs AS prerequisite
-                       WHERE prerequisite.readiness_managed = 1
-                         AND prerequisite.source_id = dependent.source_id
-                         AND prerequisite.readiness_scope_kind =
-                             dependent.readiness_scope_kind
-                         AND prerequisite.readiness_scope_id =
-                             dependent.readiness_scope_id
-                         AND prerequisite.readiness_stage = 'analysis_features'
-                         AND prerequisite.content_generation =
-                             dependent.content_generation
-                         AND prerequisite.status = 'failed'
-                         AND prerequisite.failure_kind = 'unsupported'
-                   )",
-                [],
-            )
-            .map_err(|error| error.to_string())?,
-    );
-    transaction.commit().map_err(|error| error.to_string())?;
-    Ok(reclassified)
-}
-
 fn cancel_claim(
     connection: &mut rusqlite::Connection,
     claim: &ClaimedReadinessWork,
     reason: &str,
     now: i64,
 ) -> Result<ExecutionOutcome, String> {
-    match cancel_readiness_work(connection, claim, reason, now)
+    match ReadinessStore::new(connection)
+        .cancel(claim, reason, now)
         .map_err(|error| error.to_string())?
     {
         ReadinessWorkMutationOutcome::Recorded => Ok(ExecutionOutcome::Cancelled),
@@ -4338,8 +3979,7 @@ fn run_with_readiness_lease_heartbeat<T>(
                     local_cancel.store(true, Ordering::Release);
                 }
                 if Instant::now() >= next_renewal {
-                    match renew_readiness_lease(
-                        &mut heartbeat_connection,
+                    match ReadinessStore::new(&mut heartbeat_connection).renew_lease(
                         claim,
                         now_epoch_seconds(),
                         lease_duration_seconds,
@@ -4530,7 +4170,8 @@ fn run_readiness_stage(
             analysis_target.stage = ReadinessStage::AnalysisFeatures;
             analysis_target.required_version = wavecrate_analysis::analysis_version().to_string();
             if !analysis_features_are_current(connection, &analysis_target)? {
-                if invalidate_readiness_artifact(connection, &analysis_target)
+                if ReadinessStore::new(connection)
+                    .invalidate_artifact(&analysis_target)
                     .map_err(|error| error.to_string())?
                 {
                     tracing::warn!(
@@ -4592,32 +4233,17 @@ fn run_readiness_stage(
 }
 
 fn readiness_stage_is_unsupported(
-    connection: &rusqlite::Connection,
+    connection: &mut rusqlite::Connection,
     target: &ReadinessTarget,
     stage: &str,
 ) -> Result<bool, String> {
-    connection
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1
-                FROM analysis_jobs
-                WHERE readiness_managed = 1
-                  AND source_id = ?1
-                  AND readiness_scope_kind = 'file'
-                  AND readiness_scope_id = ?2
-                  AND readiness_stage = ?3
-                  AND content_generation = ?4
-                  AND status = 'failed'
-                  AND failure_kind = 'unsupported'
-            )",
-            params![
-                target.source_id,
-                target.scope_id,
-                stage,
-                target.content_generation
-            ],
-            |row| row.get(0),
-        )
+    let stage = match stage {
+        "analysis_features" => ReadinessStage::AnalysisFeatures,
+        "embedding_aspects" => ReadinessStage::EmbeddingAspects,
+        _ => return Ok(false),
+    };
+    ReadinessStore::new(connection)
+        .stage_is_unsupported(target, stage)
         .map_err(|error| error.to_string())
 }
 
@@ -5071,9 +4697,8 @@ mod tests {
     use wavecrate::sample_sources::{
         SourceId,
         readiness::{
-            ReadinessArtifact, ReadinessEligibility, SourceAvailability,
-            persist_readiness_deficits, publish_readiness_artifact, readiness_work_stats,
-            reconcile_readiness, replace_readiness_targets,
+            ReadinessArtifact, ReadinessEligibility, ReadinessStore, ReadinessTargetPublication,
+            SourceAvailability,
         },
     };
 

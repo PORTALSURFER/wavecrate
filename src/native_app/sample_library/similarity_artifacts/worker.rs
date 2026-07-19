@@ -14,9 +14,7 @@ use std::{
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::META_WAV_PATHS_REVISION,
-    readiness::{
-        ReadinessScopeKind, ReadinessStage, ReadinessTarget, invalidate_readiness_artifact,
-    },
+    readiness::{ReadinessScopeKind, ReadinessStage, ReadinessStore, ReadinessTarget},
 };
 use wavecrate_analysis::{
     self as analysis,
@@ -484,9 +482,11 @@ fn invalidate_incomplete_embedding_artifacts(
             generation,
             content_generation,
         );
-        invalidate_readiness_artifact(connection, &target).map_err(|error| {
-            format!("Invalidate incomplete similarity artifact failed: {error}")
-        })?;
+        ReadinessStore::new(connection)
+            .invalidate_artifact(&target)
+            .map_err(|error| {
+                format!("Invalidate incomplete similarity artifact failed: {error}")
+            })?;
     }
     Ok(())
 }

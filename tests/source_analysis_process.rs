@@ -11,9 +11,8 @@ use serde_json::{Value, json};
 use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceId,
     readiness::{
-        ReadinessEligibility, ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome,
-        SourceAvailability, cancel_readiness_work, claim_readiness_target,
-        persist_readiness_deficits, reconcile_readiness, replace_readiness_targets,
+        ReadinessEligibility, ReadinessStage, ReadinessStore, ReadinessTarget,
+        ReadinessTargetPublication, ReadinessWorkMutationOutcome, SourceAvailability,
     },
 };
 
@@ -35,7 +34,8 @@ fn internal_feature_and_embedding_workers_complete_without_starting_the_gui() {
 fn long_running_feature_worker_is_killable_and_its_claim_is_reclaimable() {
     let mut fixture = SourceAnalysisFixture::new("process-analysis-cancel", "long.wav", 300, 8_000);
     let target = fixture.install_feature_readiness_target();
-    let claim = claim_readiness_target(&mut fixture.connection, &target, 10, 300)
+    let claim = ReadinessStore::new(&mut fixture.connection)
+        .claim(&target, 10, 300)
         .expect("claim long-running feature target")
         .expect("feature target should be pending");
 
@@ -69,17 +69,14 @@ fn long_running_feature_worker_is_killable_and_its_claim_is_reclaimable() {
     );
 
     assert_eq!(
-        cancel_readiness_work(
-            &mut fixture.connection,
-            &claim,
-            "test playback preemption",
-            11,
-        )
-        .expect("release cancelled readiness claim"),
+        ReadinessStore::new(&mut fixture.connection)
+            .cancel(&claim, "test playback preemption", 11,)
+            .expect("release cancelled readiness claim"),
         ReadinessWorkMutationOutcome::Recorded
     );
     assert!(
-        claim_readiness_target(&mut fixture.connection, &target, 12, 300)
+        ReadinessStore::new(&mut fixture.connection)
+            .claim(&target, 12, 300)
             .expect("reclaim cancelled feature target")
             .is_some(),
         "cancelled readiness work should be immediately reclaimable"
@@ -212,21 +209,23 @@ impl SourceAnalysisFixture {
             )
             .with_eligibility(ReadinessEligibility::Unsupported),
         );
-        replace_readiness_targets(
-            &mut self.connection,
-            self.source.id.as_str(),
-            SOURCE_GENERATION,
-            1,
-            SourceAvailability::Active,
-            &targets,
-            1,
-        )
-        .expect("install readiness targets");
-        let snapshot = reconcile_readiness(&self.connection, self.source.id.as_str(), 2)
+        ReadinessStore::new(&mut self.connection)
+            .publish_targets(&ReadinessTargetPublication::new(
+                self.source.id.as_str(),
+                SOURCE_GENERATION,
+                1,
+                SourceAvailability::Active,
+                &targets,
+                1,
+            ))
+            .expect("install readiness targets");
+        let snapshot = ReadinessStore::new(&mut self.connection)
+            .reconcile(self.source.id.as_str(), 2)
             .expect("reconcile feature readiness");
         assert_eq!(snapshot.deficits.len(), 1);
         assert_eq!(
-            persist_readiness_deficits(&mut self.connection, &snapshot.deficits, 2)
+            ReadinessStore::new(&mut self.connection)
+                .persist_deficits(&snapshot.deficits, 2)
                 .expect("persist feature readiness deficit"),
             1
         );

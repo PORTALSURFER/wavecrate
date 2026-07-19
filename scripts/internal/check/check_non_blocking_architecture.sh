@@ -53,4 +53,13 @@ run_step "Wavecrate app-facing blocking guardrail" \
 run_step "Wavecrate strict slow-handler diagnostics harness" \
   cargo test -p wavecrate --no-default-features rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
 
+run_step "Wavecrate readiness persistence boundary" \
+  bash -c '
+    production_source="$(sed -n \"1,/^#\[cfg(test)\]/p\" src/native_app/source_processing/supervisor.rs)"
+    if printf "%s\\n" "$production_source" | rg -n "source_readiness_(sources|targets|artifacts)|analysis_jobs|readiness_managed"; then
+      echo "[non_blocking_architecture] native source processing must use ReadinessStore for readiness persistence" >&2
+      exit 1
+    fi
+  '
+
 echo "[non_blocking_architecture] OK"

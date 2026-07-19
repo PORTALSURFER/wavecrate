@@ -14,7 +14,7 @@ use wavecrate::sample_sources::{
     db::{META_LAST_MANIFEST_AUDIT_AT, META_WAV_PATHS_REVISION},
     readiness::{
         ReadinessActivity, ReadinessClassification, ReadinessSnapshot, ReadinessStage,
-        SourceAvailability, reconcile_readiness,
+        ReadinessStore, SourceAvailability,
     },
     scanner::audit_source_and_record,
 };

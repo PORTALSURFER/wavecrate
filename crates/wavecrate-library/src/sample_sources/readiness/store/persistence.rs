@@ -14,6 +14,7 @@ use super::super::{
 use super::error::ReadinessError;
 
 /// Atomically replace the complete desired readiness set for one source generation.
+#[cfg(test)]
 pub fn replace_readiness_targets(
     connection: &mut Connection,
     source_id: &str,
@@ -37,6 +38,7 @@ pub fn replace_readiness_targets(
 
 /// Atomically replace desired readiness while honoring cancellation during large publications.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub fn replace_readiness_targets_with_cancel(
     connection: &mut Connection,
     source_id: &str,
@@ -60,7 +62,7 @@ pub fn replace_readiness_targets_with_cancel(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn replace_readiness_targets_inner(
+pub(super) fn replace_readiness_targets_inner(
     connection: &mut Connection,
     source_id: &str,
     source_generation: i64,
@@ -155,7 +157,7 @@ fn replace_readiness_targets_inner(
 }
 
 /// Publish a completion only when its version and generations still match the desired target.
-pub fn publish_readiness_artifact(
+pub(crate) fn publish_readiness_artifact(
     connection: &mut Connection,
     artifact: &ReadinessArtifact,
 ) -> Result<ArtifactPublishOutcome, ReadinessError> {
@@ -245,7 +247,7 @@ pub fn publish_readiness_artifact(
 ///
 /// The desired target must still match the supplied generation and version. This fence prevents
 /// a stale worker from invalidating a replacement artifact published for newer content.
-pub fn invalidate_readiness_artifact(
+pub(crate) fn invalidate_readiness_artifact(
     connection: &mut Connection,
     target: &ReadinessTarget,
 ) -> Result<bool, ReadinessError> {
@@ -291,6 +293,7 @@ pub fn invalidate_readiness_artifact(
 ///
 /// These rows are readiness-managed so the legacy analysis claimant ignores them. OPT-1178's
 /// supervisor can claim them through the unified readiness contract.
+#[cfg(test)]
 pub fn persist_readiness_deficits(
     connection: &mut Connection,
     deficits: &[ReadinessDeficit],
@@ -300,6 +303,7 @@ pub fn persist_readiness_deficits(
 }
 
 /// Persist deficits while honoring cancellation; cancellation rolls back the current batch.
+#[cfg(test)]
 pub fn persist_readiness_deficits_with_cancel(
     connection: &mut Connection,
     deficits: &[ReadinessDeficit],
@@ -310,6 +314,7 @@ pub fn persist_readiness_deficits_with_cancel(
 }
 
 /// Persist deficits while reporting each completed queue-reconciliation step.
+#[cfg(test)]
 pub fn persist_readiness_deficits_with_cancel_and_progress(
     connection: &mut Connection,
     deficits: &[ReadinessDeficit],
@@ -320,7 +325,7 @@ pub fn persist_readiness_deficits_with_cancel_and_progress(
     persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel), progress)
 }
 
-fn persist_readiness_deficits_inner(
+pub(super) fn persist_readiness_deficits_inner(
     connection: &mut Connection,
     deficits: &[ReadinessDeficit],
     created_at: i64,

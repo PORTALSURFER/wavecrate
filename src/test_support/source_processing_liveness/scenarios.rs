@@ -14,7 +14,8 @@ fn liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work()
     let mut connection = open_connection(&source).expect("open liveness oracle connection");
     publish_current_readiness_targets(&mut connection, source.id.as_str(), now_epoch_seconds())
         .expect("publish liveness oracle targets");
-    let snapshot = reconcile_readiness(&connection, source.id.as_str(), now_epoch_seconds())
+    let snapshot = ReadinessStore::new(&mut connection)
+        .reconcile(source.id.as_str(), now_epoch_seconds())
         .expect("reconcile liveness oracle");
     assert!(!snapshot.deficits.is_empty());
 
@@ -76,7 +77,8 @@ fn unrelated_source_queue_does_not_mask_silent_idle_source() {
     let mut connection = open_connection(&first).expect("open first connection");
     publish_current_readiness_targets(&mut connection, first.id.as_str(), now_epoch_seconds())
         .expect("publish first targets");
-    let snapshot = reconcile_readiness(&connection, first.id.as_str(), now_epoch_seconds())
+    let snapshot = ReadinessStore::new(&mut connection)
+        .reconcile(first.id.as_str(), now_epoch_seconds())
         .expect("reconcile first source");
     assert!(!snapshot.deficits.is_empty());
 

@@ -21,7 +21,12 @@ pub use snapshot::{
 #[cfg(test)]
 pub(crate) use store::reconcile_readiness_with_hook;
 pub use store::{
-    ReadinessError, cancel_readiness_work, claim_readiness_target, complete_readiness_work,
+    ReadinessCompatibilityCleanup, ReadinessError, ReadinessSourceState, ReadinessStore,
+    ReadinessTargetPublication,
+};
+#[cfg(test)]
+pub use store::{
+    cancel_readiness_work, claim_readiness_target, complete_readiness_work,
     complete_readiness_work_with_artifact_ref, fail_readiness_work, invalidate_readiness_artifact,
     persist_readiness_deficits, persist_readiness_deficits_with_cancel,
     persist_readiness_deficits_with_cancel_and_progress, publish_readiness_artifact,
