@@ -1,15 +1,26 @@
 use super::classification::{path_is_source_refresh_candidate, retain_source_refresh_candidates};
 use super::handle::{GuiSourceWatcherHandle, doubled_backoff};
-use super::roots::RootWatchUpdate;
+use super::roots::{RootIdentityRecovery, RootWatchUpdate, root_watch_status};
 use super::state::GuiSourceWatchState;
 use notify::{Event, EventKind, event::RemoveKind};
-use std::{path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
 use crate::native_app::app::GuiMessage;
 
 #[path = "tests/committed_mutations.rs"]
 mod committed_mutations;
+
+fn stable_root_identity(root: &Path) -> String {
+    let metadata = fs::metadata(root).expect("read root metadata");
+    wavecrate_library::filesystem_identity::stable_filesystem_identity(root, &metadata)
+        .expect("temporary root should expose stable identity")
+}
 
 #[test]
 fn removed_extension_named_folder_triggers_source_refresh() {
@@ -202,6 +213,10 @@ fn live_root_events_do_not_feed_database_writes_back_into_scans() {
         root.path().to_path_buf(),
     );
     let mut state = GuiSourceWatchState {
+        watched_roots: HashMap::from([(
+            root.path().to_path_buf(),
+            Some(stable_root_identity(root.path())),
+        )]),
         sources: vec![source],
         ..Default::default()
     };
@@ -216,6 +231,198 @@ fn live_root_events_do_not_feed_database_writes_back_into_scans() {
     );
 
     assert!(state.pending.is_empty());
+}
+
+#[test]
+fn destructive_root_event_invalidates_even_when_the_current_identity_matches() {
+    let root = tempfile::tempdir().expect("source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::destructive-root-event"),
+        root.path().to_path_buf(),
+    );
+    let mut state = GuiSourceWatchState {
+        watched_roots: HashMap::from([(
+            root.path().to_path_buf(),
+            Some(stable_root_identity(root.path())),
+        )]),
+        sources: vec![source],
+        ..Default::default()
+    };
+
+    let invalidated = state.collect_event(
+        &Event {
+            kind: EventKind::Remove(RemoveKind::Folder),
+            paths: vec![root.path().to_path_buf()],
+            attrs: Default::default(),
+        },
+        Instant::now(),
+    );
+
+    assert!(invalidated);
+    assert!(
+        state
+            .pending
+            .get("source_id::destructive-root-event")
+            .is_some_and(|pending| pending.overflowed)
+    );
+}
+
+#[test]
+fn unreadable_live_root_identity_suppresses_metadata_echoes_but_not_replacement_events() {
+    let root = tempfile::tempdir().expect("source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::uncertain-root-event"),
+        root.path().to_path_buf(),
+    );
+    let mut state = GuiSourceWatchState {
+        watched_roots: HashMap::from([(root.path().to_path_buf(), None)]),
+        sources: vec![source],
+        ..Default::default()
+    };
+    let started = Instant::now();
+
+    let metadata_invalidated = state.collect_event(
+        &Event {
+            kind: EventKind::Modify(notify::event::ModifyKind::Metadata(
+                notify::event::MetadataKind::Any,
+            )),
+            paths: vec![root.path().to_path_buf()],
+            attrs: Default::default(),
+        },
+        started,
+    );
+    assert!(!metadata_invalidated);
+    assert!(state.pending.is_empty());
+
+    let replacement_invalidated = state.collect_event(
+        &Event {
+            kind: EventKind::Create(notify::event::CreateKind::Folder),
+            paths: vec![root.path().to_path_buf()],
+            attrs: Default::default(),
+        },
+        started,
+    );
+    assert!(replacement_invalidated);
+    assert!(
+        state
+            .pending
+            .get("source_id::uncertain-root-event")
+            .is_some_and(|pending| pending.overflowed)
+    );
+}
+
+#[test]
+fn same_path_root_identity_replacement_invalidates_the_watcher() {
+    let parent = tempfile::tempdir().expect("source parent");
+    let root = parent.path().join("source");
+    let retired = parent.path().join("retired");
+    fs::create_dir(&root).expect("create source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::identity-replacement"),
+        root.clone(),
+    );
+    let mut state = GuiSourceWatchState {
+        watched_roots: HashMap::from([(root.clone(), Some(stable_root_identity(&root)))]),
+        sources: vec![source],
+        ..Default::default()
+    };
+
+    fs::rename(&root, &retired).expect("retire original source root");
+    fs::create_dir(&root).expect("create replacement source root");
+    let invalidated = state.collect_event(
+        &Event {
+            kind: EventKind::Any,
+            paths: vec![root],
+            attrs: Default::default(),
+        },
+        Instant::now(),
+    );
+
+    assert!(invalidated);
+    assert!(
+        state
+            .pending
+            .get("source_id::identity-replacement")
+            .is_some_and(|pending| pending.overflowed)
+    );
+}
+
+#[test]
+fn periodic_root_status_detects_atomic_same_path_replacement() {
+    let parent = tempfile::tempdir().expect("source parent");
+    let root = parent.path().join("source");
+    let replacement = parent.path().join("replacement");
+    let retired = parent.path().join("retired");
+    fs::create_dir(&root).expect("create source root");
+    fs::create_dir(&replacement).expect("create replacement root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::atomic-replacement"),
+        root.clone(),
+    );
+    let watched = HashMap::from([(root.clone(), Some(stable_root_identity(&root)))]);
+
+    fs::rename(&root, &retired).expect("retire source root");
+    fs::rename(&replacement, &root).expect("install replacement root");
+    let status = root_watch_status(&watched, &[source]);
+
+    assert_eq!(status.changed_roots, vec![root]);
+    assert!(status.uncertain_roots.is_empty());
+    assert!(!status.has_unavailable_roots);
+}
+
+#[test]
+fn periodic_root_status_detects_disappearance_and_reappearance() {
+    let parent = tempfile::tempdir().expect("source parent");
+    let root = parent.path().join("source");
+    let offline = parent.path().join("offline");
+    fs::create_dir(&root).expect("create source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::root-recovery"),
+        root.clone(),
+    );
+    let watched = HashMap::from([(root.clone(), Some(stable_root_identity(&root)))]);
+
+    fs::rename(&root, &offline).expect("make root unavailable");
+    let unavailable = root_watch_status(&watched, std::slice::from_ref(&source));
+    assert_eq!(unavailable.changed_roots, vec![root.clone()]);
+    assert!(unavailable.has_unavailable_roots);
+
+    fs::rename(&offline, &root).expect("restore root");
+    let reappeared = root_watch_status(&HashMap::new(), &[source]);
+    assert_eq!(reappeared.changed_roots, vec![root]);
+    assert!(!reappeared.has_unavailable_roots);
+}
+
+#[test]
+fn unreadable_root_identity_falls_back_to_bounded_full_reconciliation() {
+    let root = PathBuf::from("identity-unavailable");
+    let started = Instant::now();
+    let mut recovery = RootIdentityRecovery::default();
+
+    assert_eq!(
+        recovery.due_roots(std::slice::from_ref(&root), started),
+        vec![root.clone()]
+    );
+    assert!(
+        recovery
+            .due_roots(
+                std::slice::from_ref(&root),
+                started + super::ROOT_IDENTITY_RETRY_MIN / 2,
+            )
+            .is_empty()
+    );
+    assert_eq!(
+        recovery.due_roots(
+            std::slice::from_ref(&root),
+            started + super::ROOT_IDENTITY_RETRY_MIN,
+        ),
+        vec![root]
+    );
+    assert!(
+        recovery
+            .due_roots(&[], started + Duration::from_secs(1))
+            .is_empty()
+    );
 }
 
 #[test]
@@ -431,4 +638,53 @@ fn filesystem_event_after_initial_watcher_ready_is_not_suppressed() {
     assert_eq!(refresh.1, vec![PathBuf::from("recording.wav")]);
     assert!(!refresh.2);
     assert!(refresh.3);
+}
+
+#[test]
+fn watcher_restarts_and_overflows_when_a_live_root_is_replaced_at_the_same_path() {
+    let parent = tempfile::tempdir().expect("source parent");
+    let root = parent.path().join("source");
+    let retired = parent.path().join("retired");
+    fs::create_dir(&root).expect("create watched source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("source_id::same-path-restart"),
+        root.clone(),
+    );
+    let expected_source_id = source.id.as_str().to_string();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let watcher = GuiSourceWatcherHandle::spawn(vec![source], sender);
+    watcher.wait_until_ready_for_tests();
+    while !matches!(
+        receiver
+            .recv_timeout(super::WATCHER_START_TIMEOUT)
+            .expect("watcher-ready message"),
+        GuiMessage::SourceWatcherReady
+    ) {}
+
+    fs::rename(&root, &retired).expect("retire watched source root");
+    fs::create_dir(&root).expect("create replacement source root");
+    watcher.force_root_refresh_for_tests();
+
+    let deadline = Instant::now() + super::WATCHER_START_TIMEOUT + super::SOURCE_CHANGE_DEBOUNCE;
+    let refresh = loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        let message = receiver
+            .recv_timeout(remaining)
+            .expect("same-path replacement refresh");
+        if let GuiMessage::SourceFilesystemChanged {
+            source_id,
+            paths,
+            overflowed,
+            source_root_available,
+        } = message
+            && source_id == expected_source_id
+            && overflowed
+        {
+            break (paths, source_root_available);
+        }
+    };
+    watcher.wait_until_ready_for_tests();
+
+    assert!(refresh.0.is_empty());
+    assert!(refresh.1);
 }

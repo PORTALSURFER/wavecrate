@@ -50,5 +50,6 @@ enum WatcherStimulus {
     ClosedAppAudit,
     RootUnavailable,
     RootAvailable,
+    RootIdentityReplacement,
     InternalMutation,
 }

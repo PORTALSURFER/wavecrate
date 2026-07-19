@@ -2,7 +2,7 @@
 use notify::EventKind;
 use notify::{Config, Event, EventHandler, PollWatcher, Watcher};
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{
         Arc,
@@ -15,7 +15,10 @@ use std::{
 use wavecrate::sample_sources::SampleSource;
 
 use super::classification::retain_source_refresh_candidates;
-use super::roots::{RootWatchUpdate, update_watched_roots};
+use super::roots::{
+    RootIdentityRecovery, RootWatchUpdate, WatchedRootIdentities, root_watch_status,
+    update_watched_roots,
+};
 use super::state::GuiSourceWatchState;
 use super::{
     ROOT_REFRESH_AVAILABLE, ROOT_REFRESH_UNAVAILABLE, SOURCE_CHANGE_DEBOUNCE,
@@ -37,7 +40,8 @@ enum SourceWatcherBackend {
 }
 
 struct PendingSourceWatcher {
-    result_rx: Receiver<Result<(ActiveSourceWatcher, RootWatchUpdate, HashSet<PathBuf>), String>>,
+    result_rx:
+        Receiver<Result<(ActiveSourceWatcher, RootWatchUpdate, WatchedRootIdentities), String>>,
     ingress_enabled: Arc<AtomicBool>,
     started_at: Instant,
     backend: SourceWatcherBackend,
@@ -193,6 +197,7 @@ fn run_source_watcher(
     let mut next_restart = Instant::now();
     let mut restart_delay = WATCHER_RESTART_MIN;
     let mut next_root_refresh = Instant::now();
+    let mut root_identity_recovery = RootIdentityRecovery::default();
     let mut watcher_has_been_ready = false;
     #[cfg(test)]
     let mut readiness_waiters = Vec::<Sender<()>>::new();
@@ -402,20 +407,27 @@ fn run_source_watcher(
             }
         }
 
-        if now >= next_root_refresh
-            && watcher.is_some()
-            && pending_watcher.is_none()
-            && desired_watched_roots(&state.sources) != state.watched_roots
-        {
-            retire_source_watcher(&mut watcher);
-            cancel_pending_source_watcher(&mut pending_watcher);
-            state.reset_watches(now);
-            next_restart = now;
-            restart_delay = WATCHER_RESTART_MIN;
-        }
-        if now >= next_root_refresh {
+        if now >= next_root_refresh && watcher.is_some() && pending_watcher.is_none() {
+            let status = root_watch_status(&state.watched_roots, &state.sources);
+            let mut invalidated_roots = status.changed_roots;
+            invalidated_roots
+                .extend(root_identity_recovery.due_roots(&status.uncertain_roots, now));
+            invalidated_roots.sort();
+            invalidated_roots.dedup();
+            if !invalidated_roots.is_empty() {
+                tracing::warn!(
+                    roots = ?invalidated_roots,
+                    "Source root availability or filesystem identity changed; restarting watcher"
+                );
+                state.mark_roots_overflowed(&invalidated_roots, now);
+                retire_source_watcher(&mut watcher);
+                cancel_pending_source_watcher(&mut pending_watcher);
+                state.clear_watches();
+                next_restart = now;
+                restart_delay = WATCHER_RESTART_MIN;
+            }
             next_root_refresh = now
-                + if state.sources.iter().any(|source| !source.root.is_dir()) {
+                + if status.has_unavailable_roots {
                     ROOT_REFRESH_UNAVAILABLE
                 } else {
                     ROOT_REFRESH_AVAILABLE
@@ -428,10 +440,13 @@ fn run_source_watcher(
         }
 
         let mut watcher_failed = false;
+        let mut root_invalidated = false;
         while let Ok(event) = event_rx.try_recv() {
             let event: notify::Result<Event> = event;
             match event {
-                Ok(event) => state.collect_event(&event, Instant::now()),
+                Ok(event) => {
+                    root_invalidated |= state.collect_event(&event, Instant::now());
+                }
                 Err(error) => {
                     tracing::warn!("GUI source watcher error: {error}");
                     watcher_failed = true;
@@ -439,12 +454,18 @@ fn run_source_watcher(
             }
         }
 
-        if watcher_failed {
+        if watcher_failed || root_invalidated {
             retire_source_watcher(&mut watcher);
             cancel_pending_source_watcher(&mut pending_watcher);
-            state.reset_watches(now);
-            next_restart = now + restart_delay;
-            restart_delay = doubled_backoff(restart_delay);
+            if watcher_failed {
+                state.reset_watches(now);
+                next_restart = now + restart_delay;
+                restart_delay = doubled_backoff(restart_delay);
+            } else {
+                state.clear_watches();
+                next_restart = now;
+                restart_delay = WATCHER_RESTART_MIN;
+            }
         }
 
         for event in state.drain_ready_sources(now, SOURCE_CHANGE_DEBOUNCE) {
@@ -497,7 +518,7 @@ fn spawn_source_watcher(
                 .map_err(|error| error.to_string()),
             };
             let result = watcher.map(|mut watcher| {
-                let mut watched_roots = HashSet::new();
+                let mut watched_roots = HashMap::new();
                 let update = update_watched_roots(watcher.as_mut(), &mut watched_roots, &sources);
                 (
                     ActiveSourceWatcher {
@@ -552,5 +573,5 @@ fn retire_source_watcher_value(watcher: ActiveSourceWatcher) {
 }
 
 pub(super) fn doubled_backoff(current: Duration) -> Duration {
-    current.saturating_mul(2).min(WATCHER_RESTART_MAX)
+    super::doubled_duration(current, WATCHER_RESTART_MAX)
 }
