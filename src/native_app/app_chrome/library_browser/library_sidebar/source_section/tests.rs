@@ -149,7 +149,6 @@ fn source_row_routes_drop_to_source_root() {
         selected: false,
         scanning: false,
         processing: false,
-        processing_pulse: 0.0,
         missing: false,
         protected_source_error_flash: false,
         drag_active: true,
@@ -203,11 +202,10 @@ fn processing_source_row_keeps_actions_enabled_and_paints_activity_marker() {
     let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first_mut().expect("source row");
     row.processing = true;
-    row.processing_pulse = 0.5;
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
 
-    let pulse_fill = source_processing_fill_for_tests(row.processing_pulse);
+    let pulse_fill = source_processing_fill_for_tests();
     assert!(
         frame
             .paint_plan
@@ -227,40 +225,6 @@ fn processing_source_row_keeps_actions_enabled_and_paints_activity_marker() {
             FolderBrowserMessage::SelectSource(source.id.clone())
         )),
         "processing must never lock source interaction"
-    );
-}
-
-#[test]
-fn processing_source_idle_highlight_changes_with_progress_tick() {
-    let source = test_source("source-processing-pulse");
-    let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
-    let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
-    let row = model.rows.first_mut().expect("source row");
-    row.processing = true;
-
-    row.processing_pulse = 0.0;
-    let dim_frame = source_row(row)
-        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
-    row.processing_pulse = 0.5;
-    let bright_frame = source_row(row)
-        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
-
-    let dim = source_processing_fill_for_tests(0.0);
-    let bright = source_processing_fill_for_tests(0.5);
-    assert_ne!(dim, bright);
-    assert!(
-        dim_frame
-            .paint_plan
-            .fill_rects()
-            .any(|fill| fill.color == dim),
-        "idle processing row should paint the dim pulse frame"
-    );
-    assert!(
-        bright_frame
-            .paint_plan
-            .fill_rects()
-            .any(|fill| fill.color == bright),
-        "idle processing row should paint the bright pulse frame"
     );
 }
 

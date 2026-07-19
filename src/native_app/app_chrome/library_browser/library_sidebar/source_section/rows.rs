@@ -25,8 +25,7 @@ const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
 const SOURCE_ROW_OUTLINE_WIDTH: f32 = 1.0;
 const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
 const SOURCE_PROCESSING_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 151, 72, 230);
-const SOURCE_PROCESSING_FILL_MIN_ALPHA: u8 = 48;
-const SOURCE_PROCESSING_FILL_MAX_ALPHA: u8 = 112;
+const SOURCE_PROCESSING_FILL_ALPHA: u8 = 48;
 const SOURCE_PROCESSING_HOVER_ALPHA_BOOST: u8 = 24;
 const SOURCE_ADD_BUTTON_TOOLTIP: &str = "Add source";
 
@@ -61,7 +60,7 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let row = if source.protected_source_error_flash {
         row.dense_chrome_palette(source_protected_error_palette())
     } else if source.processing {
-        row.dense_chrome_palette(source_processing_palette(source.processing_pulse))
+        row.dense_chrome_palette(source_processing_palette())
     } else {
         row
     };
@@ -183,22 +182,15 @@ fn source_processing_marker() -> ui::DenseRowMarkerStyle {
     )
 }
 
-fn source_processing_palette(progress_tick: f32) -> ui::DenseRowPalette {
-    let fill =
-        SOURCE_PROCESSING_MARKER_COLOR.with_alpha(source_processing_fill_alpha(progress_tick));
+fn source_processing_palette() -> ui::DenseRowPalette {
+    // Keep the retained row stable. The cadence-independent pulse is painted by the
+    // app transient overlay from its monotonic animation time.
+    let fill = SOURCE_PROCESSING_MARKER_COLOR.with_alpha(SOURCE_PROCESSING_FILL_ALPHA);
     let hovered = fill.with_alpha(fill.a.saturating_add(SOURCE_PROCESSING_HOVER_ALPHA_BOOST));
     ui::DenseRowPalette::new()
         .selected(fill)
         .selected_hovered(hovered)
         .interaction_fills(hovered, hovered)
-}
-
-fn source_processing_fill_alpha(progress_tick: f32) -> u8 {
-    let phase = progress_tick.rem_euclid(1.0);
-    let triangle = 1.0 - (phase.mul_add(2.0, -1.0)).abs();
-    let alpha = f32::from(SOURCE_PROCESSING_FILL_MIN_ALPHA)
-        + triangle * f32::from(SOURCE_PROCESSING_FILL_MAX_ALPHA - SOURCE_PROCESSING_FILL_MIN_ALPHA);
-    alpha.round() as u8
 }
 
 fn source_protected_error_palette() -> ui::DenseRowPalette {
@@ -248,8 +240,8 @@ pub(super) fn source_processing_marker_color_for_tests() -> ui::Rgba8 {
 }
 
 #[cfg(test)]
-pub(super) fn source_processing_fill_for_tests(progress_tick: f32) -> ui::Rgba8 {
-    SOURCE_PROCESSING_MARKER_COLOR.with_alpha(source_processing_fill_alpha(progress_tick))
+pub(super) fn source_processing_fill_for_tests() -> ui::Rgba8 {
+    SOURCE_PROCESSING_MARKER_COLOR.with_alpha(SOURCE_PROCESSING_FILL_ALPHA)
 }
 
 #[cfg(test)]
