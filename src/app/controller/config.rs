@@ -27,7 +27,6 @@ impl AppController {
         self.apply_startup_audio_settings(&cfg.core);
         self.apply_startup_sources(&cfg.core, retained_sources);
         self.maybe_check_for_updates_on_startup();
-        self.start_analysis_runtime();
         self.persist_transient_source_cleanup(&removed_transient_roots);
         Ok(())
     }

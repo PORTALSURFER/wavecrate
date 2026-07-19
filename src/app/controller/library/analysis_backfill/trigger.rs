@@ -12,52 +12,52 @@ impl AppController {
         if live_remap_owns_source {
             self.cancel_pending_source_remap_for_mutation(&source_id);
         }
-        let enqueue_guard = self.runtime.analysis.begin_source_enqueue(source_id);
         let tx = self.runtime.jobs.message_sender();
         std::thread::spawn(move || {
-            let _enqueue_guard = enqueue_guard;
             let AnalysisTrigger::ChangedSamples {
                 source,
                 changed_samples,
                 announce,
             } = trigger;
-            enqueue_changed_samples(tx, source, changed_samples, announce);
+            reconcile_changed_samples(tx, source, changed_samples, announce);
         });
     }
 }
 
-fn enqueue_changed_samples(
+fn reconcile_changed_samples(
     tx: super::super::jobs::JobMessageSender,
     source: SampleSource,
     changed_samples: Vec<ChangedSampleInput>,
     announce: bool,
 ) {
-    let changed_samples: Vec<_> = changed_samples
-        .iter()
-        .map(ChangedSampleInput::to_changed_sample)
-        .collect();
-    let result = analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples);
-    send_changed_sample_enqueue_result(tx, result, announce);
-}
-
-fn send_changed_sample_enqueue_result(
-    tx: super::super::jobs::JobMessageSender,
-    result: Result<(usize, analysis_jobs::AnalysisProgress), String>,
-    announce: bool,
-) {
+    let paths = changed_samples
+        .into_iter()
+        .map(|sample| sample.relative_path)
+        .collect::<Vec<_>>();
+    let result = source
+        .open_db()
+        .map_err(|error| error.to_string())
+        .and_then(|database| {
+            crate::sample_sources::scanner::sync_paths(&database, &paths)
+                .map_err(|error| error.to_string())
+        });
     match result {
-        Ok((inserted, progress)) => {
+        Ok(stats) => {
             let _ = tx.send(super::super::jobs::JobMessage::Analysis(
-                analysis_jobs::AnalysisJobMessage::EnqueueFinished {
-                    inserted,
-                    progress,
+                analysis_jobs::AnalysisJobMessage::ReadinessReconciliationFinished {
+                    source_id: source.id,
+                    changed: stats
+                        .committed_delta
+                        .created
+                        .len()
+                        .saturating_add(stats.committed_delta.changed.len()),
                     announce,
                 },
             ));
         }
         Err(err) => {
             let _ = tx.send(super::super::jobs::JobMessage::Analysis(
-                analysis_jobs::AnalysisJobMessage::EnqueueFailed(err),
+                analysis_jobs::AnalysisJobMessage::ReadinessReconciliationFailed(err),
             ));
         }
     }

@@ -10,12 +10,7 @@ use std::{
 use crate::app::controller::library::analysis_jobs::{ReadinessStageError, db};
 use rusqlite::OptionalExtension;
 
-use super::{
-    analysis::AnalysisContext,
-    analysis_decode::{self, DecodeOutcome},
-    backfill,
-    support::now_epoch_seconds,
-};
+use super::{analysis_decode, backfill, support::now_epoch_seconds};
 
 const FEATURE_RMS_INDEX: usize = 2;
 
@@ -78,28 +73,7 @@ fn run_feature_stage_with_post_decode_hook(
             &cached,
         )?);
     }
-    let job = db::ClaimedJob {
-        id: -1,
-        sample_id: sample_id.clone(),
-        content_hash: Some(content_hash.to_string()),
-        job_type: db::ANALYZE_SAMPLE_JOB_TYPE.to_string(),
-        source_root: source_root.to_path_buf(),
-    };
-    let context = AnalysisContext {
-        use_cache: true,
-        max_analysis_duration_seconds: f32::INFINITY,
-        analysis_sample_rate: wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
-        analysis_version,
-        cancel: Some(cancel),
-    };
-    let decoded = match analysis_decode::decode_for_readiness(&job, &context)? {
-        DecodeOutcome::Decoded(decoded) => decoded,
-        DecodeOutcome::Skipped { .. } => {
-            return Err(ReadinessStageError::Other(String::from(
-                "feature analysis unexpectedly skipped an unbounded readiness target",
-            )));
-        }
-    };
+    let decoded = analysis_decode::decode_for_readiness(&absolute_path)?;
     post_decode_hook();
     checkpoint(cancel, "feature analysis cancelled before computation")?;
     let features = wavecrate_analysis::compute_feature_vector_v1_for_decoded_audio(&decoded)?;
@@ -316,21 +290,10 @@ pub(crate) fn run_embedding_stage(
     {
         return Ok(false);
     }
-    let job = db::ClaimedJob {
-        id: -1,
-        sample_id: sample_id.clone(),
-        content_hash: Some(
-            serde_json::to_string(&[sample_id.as_str()]).map_err(|error| {
-                format!("Failed to encode readiness embedding payload: {error}")
-            })?,
-        ),
-        job_type: db::EMBEDDING_BACKFILL_JOB_TYPE.to_string(),
-        source_root: source_root.to_path_buf(),
-    };
-    backfill::run_readiness_embedding_backfill_job_with_worker_limit(
+    backfill::run_readiness_embedding_backfill(
         conn,
-        &job,
-        true,
+        source_root,
+        &[sample_id.clone()],
         wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
         analysis_version,
         Some(cancel),

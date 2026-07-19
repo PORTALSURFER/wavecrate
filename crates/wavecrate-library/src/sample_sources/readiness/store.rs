@@ -270,6 +270,16 @@ impl<'connection> ReadinessStore<'connection> {
     ) -> Result<bool, ReadinessError> {
         persistence::invalidate_readiness_artifact(self.connection, target)
     }
+
+    /// Invalidate source-owned analysis outputs and requeue their exact current
+    /// readiness targets for an explicit asynchronous reanalysis request.
+    pub fn requeue_source_analysis(
+        &mut self,
+        source_id: &str,
+        requested_at: i64,
+    ) -> Result<usize, ReadinessError> {
+        persistence::requeue_source_analysis(self.connection, source_id, requested_at)
+    }
     /// Load queue and lease-recovery telemetry for the current durable work set.
     pub fn work_stats(&mut self, now: i64) -> Result<ReadinessWorkStats, ReadinessError> {
         work::readiness_work_stats(self.connection, now)
@@ -383,17 +393,6 @@ impl<'connection> ReadinessStore<'connection> {
             )?;
         }
         Ok(())
-    }
-
-    /// Remove obsolete jobs from the retired, non-readiness similarity pipeline.
-    pub fn prune_legacy_similarity_jobs(&mut self) -> Result<usize, ReadinessError> {
-        let removed = self.connection.execute(
-            "DELETE FROM analysis_jobs WHERE readiness_managed = 0 AND job_type IN ('wav_metadata_v1', 'embedding_backfill_v1', 'rebuild_index_v1')", [],
-        )?;
-        self.connection.execute(
-            "DELETE FROM analysis_job_progress_snapshots WHERE job_type IN ('wav_metadata_v1', 'embedding_backfill_v1', 'rebuild_index_v1')", [],
-        )?;
-        Ok(removed)
     }
 
     /// Return file content generations that have durably failed as unsupported.

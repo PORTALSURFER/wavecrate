@@ -1,7 +1,5 @@
-mod snapshots;
 mod task;
 
-pub use snapshots::{AnalysisProgressSnapshot, RunningJobSnapshot};
 pub use task::ProgressTaskKind;
 
 use std::collections::HashMap;
@@ -33,8 +31,6 @@ pub struct ProgressOverlayState {
     pub last_update_at: Option<Instant>,
     /// Last time progress advanced.
     pub last_progress_at: Option<Instant>,
-    /// Optional analysis progress snapshot.
-    pub analysis: Option<AnalysisProgressSnapshot>,
     /// Active footer-progress contenders across background task families.
     task_states: HashMap<ProgressTaskKind, ProgressTaskState>,
 }
@@ -147,19 +143,6 @@ impl ProgressOverlayState {
         }
     }
 
-    /// Update one task's analysis snapshot.
-    pub fn set_task_analysis_snapshot(
-        &mut self,
-        task: ProgressTaskKind,
-        snapshot: Option<AnalysisProgressSnapshot>,
-    ) {
-        if let Some(slot) = self.task_states.get_mut(&task) {
-            slot.analysis = snapshot;
-            slot.last_update_at = Some(Instant::now());
-            self.recompute_visible_task();
-        }
-    }
-
     /// Request cancellation for one task and recompute the visible footer owner.
     pub fn request_task_cancel(&mut self, task: ProgressTaskKind) {
         if let Some(slot) = self.task_states.get_mut(&task)
@@ -189,13 +172,6 @@ impl ProgressOverlayState {
     pub fn set_counts(&mut self, total: usize, completed: usize) {
         if let Some(task) = self.task {
             self.set_task_counts(task, total, completed);
-        }
-    }
-
-    /// Update the analysis progress snapshot.
-    pub fn set_analysis_snapshot(&mut self, snapshot: Option<AnalysisProgressSnapshot>) {
-        if let Some(task) = self.task {
-            self.set_task_analysis_snapshot(task, snapshot);
         }
     }
 
@@ -234,7 +210,6 @@ impl ProgressOverlayState {
         self.cancel_requested = false;
         self.last_update_at = None;
         self.last_progress_at = None;
-        self.analysis = None;
     }
 
     fn apply_visible_projection(&mut self, task: ProgressTaskKind, slot: &ProgressTaskState) {
@@ -249,7 +224,6 @@ impl ProgressOverlayState {
         self.cancel_requested = slot.cancel_requested;
         self.last_update_at = slot.last_update_at;
         self.last_progress_at = slot.last_progress_at;
-        self.analysis = slot.analysis.clone();
     }
 
     fn select_visible_task(&self, previous: Option<ProgressTaskKind>) -> Option<ProgressTaskKind> {

@@ -21,12 +21,23 @@ fn wait_for_analysis_message(
     panic!("timed out waiting for analysis message");
 }
 
-fn pending_job_count(source: &SampleSource, job_type: &str) -> i64 {
+fn non_readiness_job_count(source: &SampleSource) -> i64 {
     analysis_jobs::db::open_source_db(&source.root)
         .unwrap()
         .query_row(
-            "SELECT COUNT(*) FROM analysis_jobs WHERE job_type = ?1 AND status = 'pending'",
-            rusqlite::params![job_type],
+            "SELECT COUNT(*) FROM analysis_jobs WHERE readiness_managed = 0",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+fn current_manifest_count(source: &SampleSource, relative_path: &str) -> i64 {
+    analysis_jobs::db::open_source_db(&source.root)
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM wav_files WHERE path = ?1 AND missing = 0",
+            [relative_path],
             |row| row.get(0),
         )
         .unwrap()
@@ -101,7 +112,7 @@ fn trigger_policy_matrix_routes_committed_lifecycle_events_to_reconciliation() {
 }
 
 #[test]
-fn canceled_source_remap_allows_analysis_enqueue() {
+fn canceled_source_remap_allows_readiness_reconciliation() {
     let (mut controller, source, _config_dir, _guard) =
         prepare_manual_reanalysis_fixture(&["Pack/a.wav"]);
     controller.runtime.source_lane.pending_remap =
@@ -126,22 +137,20 @@ fn canceled_source_remap_allows_analysis_enqueue() {
     match wait_for_analysis_message(&mut controller, |message| {
         matches!(
             message,
-            analysis_jobs::AnalysisJobMessage::EnqueueFinished { .. }
+            analysis_jobs::AnalysisJobMessage::ReadinessReconciliationFinished { .. }
         )
     }) {
-        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, .. } => {
-            assert_eq!(inserted, 1);
+        analysis_jobs::AnalysisJobMessage::ReadinessReconciliationFinished { changed, .. } => {
+            assert_eq!(changed, 1);
         }
         other => panic!("unexpected analysis message: {other:?}"),
     }
-    assert_eq!(
-        pending_job_count(&source, analysis_jobs::db::ANALYZE_SAMPLE_JOB_TYPE),
-        1
-    );
+    assert_eq!(current_manifest_count(&source, "Pack/a.wav"), 1);
+    assert_eq!(non_readiness_job_count(&source), 0);
 }
 
 #[test]
-fn changed_sample_trigger_cancels_live_remap_and_enqueues_analysis() {
+fn changed_sample_trigger_cancels_live_remap_and_reconciles_readiness() {
     let (mut controller, source, _config_dir, _guard) =
         prepare_manual_reanalysis_fixture(&["Pack/a.wav"]);
     controller.runtime.source_lane.pending_remap =
@@ -174,16 +183,14 @@ fn changed_sample_trigger_cancels_live_remap_and_enqueues_analysis() {
     match wait_for_analysis_message(&mut controller, |message| {
         matches!(
             message,
-            analysis_jobs::AnalysisJobMessage::EnqueueFinished { .. }
+            analysis_jobs::AnalysisJobMessage::ReadinessReconciliationFinished { .. }
         )
     }) {
-        analysis_jobs::AnalysisJobMessage::EnqueueFinished { inserted, .. } => {
-            assert_eq!(inserted, 1);
+        analysis_jobs::AnalysisJobMessage::ReadinessReconciliationFinished { changed, .. } => {
+            assert_eq!(changed, 1);
         }
         other => panic!("unexpected analysis message: {other:?}"),
     }
-    assert_eq!(
-        pending_job_count(&source, analysis_jobs::db::ANALYZE_SAMPLE_JOB_TYPE),
-        1
-    );
+    assert_eq!(current_manifest_count(&source, "Pack/a.wav"), 1);
+    assert_eq!(non_readiness_job_count(&source), 0);
 }

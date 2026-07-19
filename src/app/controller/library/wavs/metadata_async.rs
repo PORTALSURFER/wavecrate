@@ -72,7 +72,6 @@ impl AppController {
                 ),
             );
             self.extend_selected_source_mutation_claim_grace(&source.id);
-            self.runtime.analysis.pause_claiming();
             self.handle_metadata_mutation_finished_message(result);
             return;
         }
@@ -105,7 +104,6 @@ impl AppController {
             ),
         );
         self.extend_selected_source_mutation_claim_grace(&source.id);
-        self.runtime.analysis.pause_claiming();
         let job = MetadataMutationJob {
             request_id,
             source_id: source.id.clone(),

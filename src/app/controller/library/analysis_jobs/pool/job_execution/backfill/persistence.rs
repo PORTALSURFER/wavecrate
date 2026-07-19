@@ -11,7 +11,7 @@ use super::model::EmbeddingResult;
 
 pub(super) fn write_backfill_results(
     conn: &mut rusqlite::Connection,
-    job: &db::ClaimedJob,
+    source_root: &Path,
     results: &[EmbeddingResult],
     analysis_version: &str,
     cancel: Option<&AtomicBool>,
@@ -22,7 +22,7 @@ pub(super) fn write_backfill_results(
             return Err("Embedding backfill cancelled before publication".to_string());
         }
         retry_backfill_write_with(
-            &job.source_root,
+            source_root,
             "embedding_backfill_write",
             || {
                 write_backfill_chunk(conn, chunk, analysis_version)?;
@@ -32,7 +32,7 @@ pub(super) fn write_backfill_results(
             Duration::from_millis(50),
         )?;
         crate::sample_sources::SourceDatabase::maybe_checkpoint_wal(
-            &job.source_root,
+            source_root,
             crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
         );
     }

@@ -15,7 +15,7 @@ pub(crate) use migrations::table_columns;
 /// A matching stamp means the file has already passed the full schema-assurance
 /// path once. Current-stamped opens still run low-cost additive table/column
 /// repairs, but they skip index rebuilds and deferred cleanup work.
-pub(super) const SOURCE_DB_SCHEMA_VERSION: i64 = 8;
+pub(super) const SOURCE_DB_SCHEMA_VERSION: i64 = 9;
 
 /// Apply the full source-database schema, including deferred cleanup work.
 pub(super) fn apply_schema(connection: &Connection) -> Result<SchemaApplyOutcome, SourceDbError> {
@@ -138,6 +138,112 @@ mod tests {
         assert!(index_exists(&connection, "idx_wav_files_missing"));
         assert_eq!(
             read_schema_version(&connection).unwrap(),
+            SOURCE_DB_SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn v9_upgrade_retires_only_known_non_readiness_jobs() {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_schema_fast(&connection).unwrap();
+        connection.pragma_update(None, "user_version", 8).unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO analysis_jobs (
+                    sample_id, source_id, relative_path, job_type, status, attempts, created_at,
+                    readiness_managed
+                 ) VALUES
+                    ('legacy::a.wav', 'legacy', 'a.wav', 'wav_metadata_v1',
+                     'running', 0, 1, 0),
+                    ('ready::a.wav', 'ready', 'a.wav', 'readiness_analysis_features_v1',
+                     'running', 0, 1, 1),
+                    ('unknown::a.wav', 'unknown', 'a.wav', 'third_party_analysis_v1',
+                     'pending', 0, 1, 0);",
+            )
+            .unwrap();
+
+        assert_eq!(
+            apply_schema_fast(&connection).unwrap(),
+            SchemaApplyOutcome::Assured
+        );
+
+        let retained = connection
+            .prepare(
+                "SELECT job_type, readiness_managed
+                 FROM analysis_jobs
+                 ORDER BY job_type",
+            )
+            .unwrap()
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            retained,
+            vec![
+                ("readiness_analysis_features_v1".to_string(), 1),
+                ("third_party_analysis_v1".to_string(), 0),
+            ]
+        );
+        assert_eq!(
+            read_schema_version(&connection).unwrap(),
+            SOURCE_DB_SCHEMA_VERSION
+        );
+    }
+
+    #[test]
+    fn v9_upgrade_waits_for_a_concurrent_legacy_writer_and_retires_its_commit() {
+        let directory = tempfile::tempdir().unwrap();
+        let database_path = directory.path().join("source.sqlite");
+        let bootstrap = Connection::open(&database_path).unwrap();
+        apply_schema_fast(&bootstrap).unwrap();
+        bootstrap.pragma_update(None, "user_version", 8).unwrap();
+        drop(bootstrap);
+
+        let writer = Connection::open(&database_path).unwrap();
+        writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+        writer
+            .execute(
+                "INSERT INTO analysis_jobs (
+                    sample_id, source_id, relative_path, job_type, status, attempts, created_at,
+                    readiness_managed
+                 ) VALUES (
+                    'legacy::late.wav', 'legacy', 'late.wav', 'embedding_backfill_v1',
+                    'running', 0, 1, 0
+                 )",
+                [],
+            )
+            .unwrap();
+
+        let migration_path = database_path.clone();
+        let migration = std::thread::spawn(move || {
+            let connection = Connection::open(migration_path).unwrap();
+            connection
+                .busy_timeout(std::time::Duration::from_secs(2))
+                .unwrap();
+            apply_schema_fast(&connection).unwrap();
+        });
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        writer.execute_batch("COMMIT").unwrap();
+        migration.join().unwrap();
+
+        let verification = Connection::open(database_path).unwrap();
+        assert_eq!(
+            verification
+                .query_row(
+                    "SELECT COUNT(*) FROM analysis_jobs
+                     WHERE readiness_managed = 0
+                       AND job_type = 'embedding_backfill_v1'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            read_schema_version(&verification).unwrap(),
             SOURCE_DB_SCHEMA_VERSION
         );
     }

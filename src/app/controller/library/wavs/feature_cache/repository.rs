@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use super::{normalize_relative_key, parse_job_status};
 
-const ANALYSIS_JOB_TYPE: &str = "wav_metadata_v1";
+const ANALYSIS_JOB_TYPE: &str = "readiness_analysis_features_v1";
 
 #[derive(Debug)]
 pub(super) enum FeatureCacheRepositoryError {
@@ -54,7 +54,10 @@ impl<'conn> FeatureCacheRepository<'conn> {
                  FROM samples s
                  LEFT JOIN features f ON f.sample_id = s.sample_id AND f.feat_version = 1
                  LEFT JOIN embeddings e ON e.sample_id = s.sample_id AND e.model_id = ?2
-                 LEFT JOIN analysis_jobs j ON j.sample_id = s.sample_id AND j.job_type = ?1
+                 LEFT JOIN analysis_jobs j
+                    ON j.sample_id = s.sample_id
+                   AND j.job_type = ?1
+                   AND j.readiness_managed = 1
                  WHERE s.sample_id >= ?3 AND s.sample_id < ?4",
             )
             .map_err(FeatureCacheRepositoryError::Prepare)?;

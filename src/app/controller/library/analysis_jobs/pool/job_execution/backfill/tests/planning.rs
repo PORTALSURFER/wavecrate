@@ -1,5 +1,5 @@
 use super::super::planning;
-use super::support::{conn_with_schema, insert_sample, make_job};
+use super::support::{conn_with_schema, insert_sample};
 use rusqlite::params;
 
 #[test]
@@ -25,9 +25,13 @@ fn plan_uses_cached_embedding_when_available() {
     insert_cached_aspects(&conn, "hash-a", "v1", 42);
 
     let temp = tempfile::TempDir::new().unwrap();
-    let job = make_job(&["s::a.wav"], temp.path());
-    let plan = planning::build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
-        .expect("plan");
+    let plan = planning::build_readiness_backfill_plan(
+        &conn,
+        temp.path(),
+        &["s::a.wav".to_string()],
+        "v1",
+    )
+    .expect("plan");
 
     assert!(plan.work.is_empty());
     assert_eq!(plan.ready.len(), 1);
@@ -43,9 +47,13 @@ fn plan_derives_missing_aspects_from_current_features_without_work() {
     insert_current_features(&conn, "s::a.wav");
 
     let temp = tempfile::TempDir::new().unwrap();
-    let job = make_job(&["s::a.wav"], temp.path());
-    let plan = planning::build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
-        .expect("plan");
+    let plan = planning::build_readiness_backfill_plan(
+        &conn,
+        temp.path(),
+        &["s::a.wav".to_string()],
+        "v1",
+    )
+    .expect("plan");
 
     assert!(plan.work.is_empty());
     assert_eq!(plan.ready.len(), 1);
@@ -65,10 +73,13 @@ fn readiness_plan_materializes_missing_cache_for_current_sample_outputs() {
     insert_current_features(&conn, "s::a.wav");
 
     let temp = tempfile::TempDir::new().unwrap();
-    let job = make_job(&["s::a.wav"], temp.path());
-    let plan =
-        planning::build_readiness_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
-            .expect("readiness plan");
+    let plan = planning::build_readiness_backfill_plan(
+        &conn,
+        temp.path(),
+        &["s::a.wav".to_string()],
+        "v1",
+    )
+    .expect("readiness plan");
 
     assert!(plan.work.is_empty());
     assert_eq!(plan.ready.len(), 1);
@@ -101,10 +112,13 @@ fn readiness_plan_republishes_current_outputs_when_cache_payload_differs() {
     insert_cached_aspects(&conn, "hash-a", "v1", 42);
 
     let temp = tempfile::TempDir::new().unwrap();
-    let job = make_job(&["s::a.wav"], temp.path());
-    let plan =
-        planning::build_readiness_backfill_plan(&conn, &job, &["s::a.wav".to_string()], true, "v1")
-            .expect("readiness plan");
+    let plan = planning::build_readiness_backfill_plan(
+        &conn,
+        temp.path(),
+        &["s::a.wav".to_string()],
+        "v1",
+    )
+    .expect("readiness plan");
 
     assert!(plan.work.is_empty());
     assert_eq!(plan.ready.len(), 1);
@@ -122,9 +136,13 @@ fn plan_builds_work_when_cache_misses() {
     insert_sample(&conn, "s::a.wav", "hash-a");
     let temp = tempfile::TempDir::new().unwrap();
     std::fs::write(temp.path().join("a.wav"), b"data").unwrap();
-    let job = make_job(&["s::a.wav"], temp.path());
-    let plan = planning::build_backfill_plan(&conn, &job, &["s::a.wav".to_string()], false, "v1")
-        .expect("plan");
+    let plan = planning::build_readiness_backfill_plan(
+        &conn,
+        temp.path(),
+        &["s::a.wav".to_string()],
+        "v1",
+    )
+    .expect("plan");
 
     assert!(plan.ready.is_empty());
     assert_eq!(plan.work.len(), 1);
@@ -139,12 +157,10 @@ fn plan_reuses_content_hash_for_work() {
     let temp = tempfile::TempDir::new().unwrap();
     std::fs::write(temp.path().join("a.wav"), b"data").unwrap();
     std::fs::write(temp.path().join("b.wav"), b"data").unwrap();
-    let job = make_job(&["s::a.wav", "s::b.wav"], temp.path());
-    let plan = planning::build_backfill_plan(
+    let plan = planning::build_readiness_backfill_plan(
         &conn,
-        &job,
+        temp.path(),
         &["s::a.wav".to_string(), "s::b.wav".to_string()],
-        false,
         "v1",
     )
     .expect("plan");

@@ -1,12 +1,6 @@
-use super::super::telemetry;
+use super::telemetry;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
-use std::collections::{HashMap, HashSet};
-
-/// Cached analysis state for a sample row.
-pub(crate) struct SampleAnalysisState {
-    pub(crate) content_hash: String,
-    pub(crate) analysis_version: Option<String>,
-}
+use std::collections::HashSet;
 
 pub(crate) fn sample_content_hash(
     conn: &Connection,
@@ -94,45 +88,6 @@ pub(crate) fn update_sample_bpms_in_tx(
         updated = updated.saturating_add(count);
     }
     Ok(updated)
-}
-
-/// Load content hashes and analysis versions for the requested sample ids.
-pub(crate) fn sample_analysis_states(
-    conn: &Connection,
-    sample_ids: &[String],
-) -> Result<HashMap<String, SampleAnalysisState>, String> {
-    if sample_ids.is_empty() {
-        return Ok(HashMap::new());
-    }
-    let placeholders = placeholders(sample_ids.len());
-    let sql = format!(
-        "SELECT sample_id, content_hash, analysis_version
-         FROM samples
-         WHERE sample_id IN ({placeholders})"
-    );
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|err| format!("Failed to prepare sample analysis lookup: {err}"))?;
-    let mut rows = stmt
-        .query(params_from_iter(sample_ids.iter()))
-        .map_err(|err| format!("Failed to query sample analysis metadata: {err}"))?;
-    let mut states = HashMap::new();
-    while let Some(row) = rows
-        .next()
-        .map_err(|err| format!("Failed to query sample analysis metadata: {err}"))?
-    {
-        let sample_id: String = row.get(0).map_err(|err| err.to_string())?;
-        let content_hash: String = row.get(1).map_err(|err| err.to_string())?;
-        let analysis_version: Option<String> = row.get(2).map_err(|err| err.to_string())?;
-        states.insert(
-            sample_id,
-            SampleAnalysisState {
-                content_hash,
-                analysis_version,
-            },
-        );
-    }
-    Ok(states)
 }
 
 /// Return the subset of sample ids that lack a stored duration.

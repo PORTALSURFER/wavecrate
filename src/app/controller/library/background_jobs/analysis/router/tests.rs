@@ -4,107 +4,67 @@ fn source_id(value: &str) -> SourceId {
     SourceId::from_string(value)
 }
 
-fn progress(pending: usize, running: usize, done: usize, failed: usize) -> AnalysisProgress {
-    AnalysisProgress {
-        pending,
-        running,
-        done,
-        failed,
-        samples_total: pending + running + done + failed,
-        samples_pending_or_running: pending + running,
-    }
-}
-
 #[test]
-fn global_progress_routes_to_analysis_overlay() {
-    let progress = progress(2, 1, 3, 0);
-
-    let actions = AnalysisProgressRouter::route_message(
-        &AnalysisProgressRouteContext::default(),
-        AnalysisJobMessage::Progress {
-            source_id: None,
-            progress,
-        },
-    );
-
-    assert_eq!(
-        actions,
-        vec![AnalysisProgressRouteAction::ShowAnalysisProgress(progress)]
-    );
-}
-
-#[test]
-fn selected_source_progress_caches_and_updates_overlay() {
-    let source_id = source_id("selected");
-    let progress = progress(2, 1, 3, 0);
-    let context = AnalysisProgressRouteContext {
-        selected_source_id: Some(source_id.clone()),
-        current_source_id: Some(source_id.clone()),
+fn reconciliation_refreshes_the_selected_source() {
+    let selected = source_id("selected");
+    let context = AnalysisRouteContext {
+        selected_source_id: Some(selected.clone()),
+        current_source_id: Some(selected.clone()),
     };
 
-    let actions = AnalysisProgressRouter::route_message(
+    let actions = route_message(
         &context,
-        AnalysisJobMessage::Progress {
-            source_id: Some(source_id.clone()),
-            progress,
+        AnalysisJobMessage::ReadinessReconciliationFinished {
+            source_id: selected,
+            changed: 2,
+            announce: true,
         },
     );
 
     assert_eq!(
         actions,
         vec![
-            AnalysisProgressRouteAction::CacheSelectedSourceProgress {
-                source_id,
-                progress,
+            AnalysisRouteAction::SetStatus {
+                text: "Queued readiness reconciliation for 2 samples".to_string(),
+                tone: StatusTone::Info,
             },
-            AnalysisProgressRouteAction::ShowAnalysisProgress(progress),
+            AnalysisRouteAction::ForceSelectedFeatureCacheRefresh,
         ]
     );
 }
 
 #[test]
-fn idle_selected_progress_finalizes_selected_source() {
-    let source_id = source_id("selected");
-    let progress = progress(0, 0, 4, 0);
-    let context = AnalysisProgressRouteContext {
-        selected_source_id: Some(source_id.clone()),
-        current_source_id: Some(source_id.clone()),
-    };
-
-    let actions = AnalysisProgressRouter::route_message(
-        &context,
-        AnalysisJobMessage::Progress {
-            source_id: Some(source_id.clone()),
-            progress,
-        },
+fn reconciliation_failure_reports_readiness_context() {
+    let actions = route_message(
+        &AnalysisRouteContext::default(),
+        AnalysisJobMessage::ReadinessReconciliationFailed("database locked".to_string()),
     );
 
     assert_eq!(
         actions,
-        vec![
-            AnalysisProgressRouteAction::CacheSelectedSourceProgress {
-                source_id,
-                progress,
-            },
-            AnalysisProgressRouteAction::QueueAnalysisFailuresRefresh,
-            AnalysisProgressRouteAction::ForceSelectedFeatureCacheRefresh,
-            AnalysisProgressRouteAction::ClearAnalysisProgress,
-        ]
-    );
-}
-
-#[test]
-fn failure_messages_route_to_status_actions() {
-    let actions = AnalysisProgressRouter::route_message(
-        &AnalysisProgressRouteContext::default(),
-        AnalysisJobMessage::EnqueueFailed("database locked".to_string()),
-    );
-
-    assert_eq!(
-        actions,
-        vec![AnalysisProgressRouteAction::SetStatus {
-            text: "Analysis enqueue failed: database locked".to_string(),
+        vec![AnalysisRouteAction::SetStatus {
+            text: "Readiness reconciliation failed: database locked".to_string(),
             tone: StatusTone::Error,
         }]
+    );
+}
+
+#[test]
+fn duration_updates_invalidate_the_source_cache() {
+    let source = source_id("other");
+    let actions = route_message(
+        &AnalysisRouteContext::default(),
+        AnalysisJobMessage::DurationsUpdated {
+            source_id: source.clone(),
+            updated: 1,
+        },
+    );
+
+    assert_eq!(
+        actions,
+        vec![
+            AnalysisRouteAction::RemoveFeatureCache(source.clone()),
+            AnalysisRouteAction::RemoveBrowserDurations(source),
+        ]
     );
 }

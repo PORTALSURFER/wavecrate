@@ -10,7 +10,6 @@ use std::path::Path;
 pub(super) enum CancelRequestAction {
     TrashMove,
     Scan,
-    Analysis,
     FileOps,
     None,
 }
@@ -20,7 +19,6 @@ pub(super) fn cancel_request_action(task: Option<ProgressTaskKind>) -> CancelReq
     match task {
         Some(ProgressTaskKind::TrashMove) => CancelRequestAction::TrashMove,
         Some(ProgressTaskKind::Scan) => CancelRequestAction::Scan,
-        Some(ProgressTaskKind::Analysis) => CancelRequestAction::Analysis,
         Some(ProgressTaskKind::FileOps) => CancelRequestAction::FileOps,
         _ => CancelRequestAction::None,
     }
@@ -63,10 +61,6 @@ mod tests {
         assert_eq!(
             cancel_request_action(Some(ProgressTaskKind::Scan)),
             CancelRequestAction::Scan
-        );
-        assert_eq!(
-            cancel_request_action(Some(ProgressTaskKind::Analysis)),
-            CancelRequestAction::Analysis
         );
         assert_eq!(
             cancel_request_action(Some(ProgressTaskKind::FileOps)),

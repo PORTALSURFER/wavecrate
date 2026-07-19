@@ -115,18 +115,6 @@ impl AppController {
         }
     }
 
-    pub(super) fn start_analysis_runtime(&mut self) {
-        self.runtime.analysis.set_max_analysis_duration_seconds(
-            self.settings.analysis.max_analysis_duration_seconds,
-        );
-        self.runtime
-            .analysis
-            .set_worker_count(self.settings.analysis.analysis_worker_count);
-        self.runtime
-            .analysis
-            .start(self.runtime.jobs.message_sender());
-    }
-
     pub(super) fn persist_transient_source_cleanup(&mut self, removed_transient_roots: &[PathBuf]) {
         let removed_count = removed_transient_roots.len();
         if removed_count == 0 {

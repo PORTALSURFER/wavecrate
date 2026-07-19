@@ -1,8 +1,7 @@
 //! Runtime state for browser selection, metadata deltas, and deferred browser work.
 
 use super::deferred::{
-    AnalysisProgressUiCache, BrowserSelectionTransition, PendingBrowserFeatureCacheRefresh,
-    PendingLoadedDurationMetadata,
+    BrowserSelectionTransition, PendingBrowserFeatureCacheRefresh, PendingLoadedDurationMetadata,
 };
 use crate::app::controller::state::audio::PendingAgeUpdate;
 use std::collections::BTreeSet;
@@ -18,8 +17,6 @@ pub(crate) struct BrowserRuntimeState {
     pub(crate) pending_age_update_commit_not_before: Option<Instant>,
     /// Browser-selection candidate lifecycle spanning preview, commit, loading, and handoff.
     pub(crate) selection_transition: Option<BrowserSelectionTransition>,
-    /// Cached selected-source analysis progress metadata for progress-overlay updates.
-    pub(crate) analysis_progress_ui: AnalysisProgressUiCache,
     /// Active async browser feature-cache refresh awaiting apply.
     pub(crate) pending_feature_cache_refresh: Option<PendingBrowserFeatureCacheRefresh>,
     /// Pending duration/long-mark metadata write moved out of waveform load hot path.

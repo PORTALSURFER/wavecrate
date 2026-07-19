@@ -567,28 +567,6 @@ fn remap_rejects_active_database_maintenance_for_same_source() {
 }
 
 #[test]
-fn remap_rejects_analysis_enqueue_for_same_source() {
-    let config_root = tempfile::tempdir().expect("config root");
-    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
-    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
-        "enqueueing.wav",
-        crate::sample_sources::Rating::NEUTRAL,
-    )]);
-    let destination = tempfile::tempdir().expect("destination");
-    let _enqueue_guard = controller
-        .runtime
-        .analysis
-        .begin_source_enqueue(source.id.clone());
-
-    let error = controller
-        .remap_source_to(0, destination.path().to_path_buf())
-        .expect_err("active analysis enqueue must block remap");
-
-    assert!(error.contains("being queued"));
-    assert_eq!(controller.library.sources[0].root, source.root);
-}
-
-#[test]
 fn remap_rejects_pending_analysis_jobs_for_same_source() {
     assert_remap_rejects_analysis_job_with_status("pending");
 }
@@ -646,13 +624,17 @@ fn assert_remap_rejects_analysis_job_with_status(status: &str) {
     connection
         .execute(
             "INSERT INTO analysis_jobs
-                 (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 0, 0)",
+                 (sample_id, source_id, relative_path, job_type, status, attempts, created_at,
+                  readiness_managed, readiness_scope_kind, readiness_scope_id, readiness_stage,
+                  artifact_version, source_generation, content_generation,
+                  readiness_claim_generation)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, 0, 1, 'file', ?3,
+                     'analysis_features', 'test-v1', 1, 'hash', 0)",
             rusqlite::params![
                 format!("{}::pending-analysis.wav", source.id.as_str()),
                 source.id.as_str(),
                 "pending-analysis.wav",
-                crate::app::controller::library::analysis_jobs::db::ANALYZE_SAMPLE_JOB_TYPE,
+                "readiness_analysis_features_v1",
                 status,
             ],
         )

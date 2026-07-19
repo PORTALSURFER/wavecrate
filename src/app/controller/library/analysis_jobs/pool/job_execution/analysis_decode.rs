@@ -1,63 +1,13 @@
 use crate::app::controller::library::analysis_jobs::ReadinessStageError;
-use crate::app::controller::library::analysis_jobs::db;
-
-use super::analysis::AnalysisContext;
-
-pub(crate) enum DecodeOutcome {
-    Decoded(wavecrate_analysis::AnalysisAudio),
-    Skipped {
-        duration_seconds: f32,
-        sample_rate: u32,
-    },
-}
-
-pub(crate) fn decode_for_analysis(
-    job: &db::ClaimedJob,
-    context: &AnalysisContext<'_>,
-) -> Result<DecodeOutcome, String> {
-    let (_source_id, relative_path) = db::parse_sample_id(&job.sample_id)?;
-    let absolute = job.source_root.join(&relative_path);
-    if context.max_analysis_duration_seconds.is_finite()
-        && context.max_analysis_duration_seconds > 0.0
-        && let Ok(probe) = wavecrate_analysis::probe_metadata(&absolute)
-        && let Some(duration_seconds) = probe.duration_seconds
-        && duration_seconds > context.max_analysis_duration_seconds
-    {
-        let sample_rate = probe
-            .sample_rate
-            .unwrap_or(wavecrate_analysis::ANALYSIS_SAMPLE_RATE);
-        return Ok(DecodeOutcome::Skipped {
-            duration_seconds,
-            sample_rate,
-        });
-    }
-    let decode_limit_seconds = if context.max_analysis_duration_seconds.is_finite()
-        && context.max_analysis_duration_seconds > 0.0
-    {
-        Some(context.max_analysis_duration_seconds)
-    } else {
-        None
-    };
-    let decoded = wavecrate_analysis::decode_for_analysis_with_rate_limit(
-        &absolute,
-        context.analysis_sample_rate,
-        decode_limit_seconds,
-    )?;
-    Ok(DecodeOutcome::Decoded(decoded))
-}
+use std::path::Path;
 
 pub(crate) fn decode_for_readiness(
-    job: &db::ClaimedJob,
-    context: &AnalysisContext<'_>,
-) -> Result<DecodeOutcome, ReadinessStageError> {
-    let (_source_id, relative_path) =
-        db::parse_sample_id(&job.sample_id).map_err(ReadinessStageError::Other)?;
-    let absolute = job.source_root.join(&relative_path);
-    let decoded = wavecrate_analysis::decode_for_analysis_with_rate_limit_typed(
-        &absolute,
-        context.analysis_sample_rate,
+    absolute_path: &Path,
+) -> Result<wavecrate_analysis::AnalysisAudio, ReadinessStageError> {
+    wavecrate_analysis::decode_for_analysis_with_rate_limit_typed(
+        absolute_path,
+        wavecrate_analysis::ANALYSIS_SAMPLE_RATE,
         None,
     )
-    .map_err(ReadinessStageError::Decode)?;
-    Ok(DecodeOutcome::Decoded(decoded))
+    .map_err(ReadinessStageError::Decode)
 }

@@ -123,22 +123,18 @@ fn projection_uses_shared_footer_progress_summary_for_busy_text() {
     controller.ui.browser.search.search_query = String::from("kick");
     controller.ui.browser.search.search_busy = true;
     controller.show_status_progress(
-        projection_fixtures::analysis_progress_task(),
-        "Analyzing samples",
+        projection_fixtures::normalization_progress_task(),
+        "Normalizing samples",
         7,
         true,
     );
     controller.update_progress_detail_for_task(
-        projection_fixtures::analysis_progress_task(),
-        "Jobs 3/7 • Samples 2/5",
+        projection_fixtures::normalization_progress_task(),
+        "Samples 3/7",
     );
 
     let status = project_status_model(&controller, 1);
 
-    assert!(
-        status
-            .center
-            .contains("Analyzing samples: Jobs 3/7 • Samples 2/5")
-    );
+    assert!(status.center.contains("Normalizing samples: Samples 3/7"));
     assert!(!status.center.contains("filtering…"));
 }

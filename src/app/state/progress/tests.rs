@@ -1,4 +1,4 @@
-use super::{ProgressOverlayState, ProgressTaskKind, RunningJobSnapshot};
+use super::{ProgressOverlayState, ProgressTaskKind};
 
 #[test]
 fn progress_fraction_handles_zero_total() {
@@ -19,20 +19,15 @@ fn progress_reset_clears_visibility() {
 }
 
 #[test]
-fn running_job_marks_stale_heartbeat() {
-    let snapshot =
-        RunningJobSnapshot::from_heartbeat("job".to_string(), Some(10), Some(5), Some(20));
-    assert!(snapshot.possibly_stalled);
-
-    let snapshot =
-        RunningJobSnapshot::from_heartbeat("job".to_string(), Some(18), Some(5), Some(20));
-    assert!(!snapshot.possibly_stalled);
-}
-
-#[test]
 fn higher_priority_background_task_wins_footer_lane() {
     let mut progress = ProgressOverlayState::default();
-    progress.show_task(ProgressTaskKind::Analysis, false, "Analyzing", 10, true);
+    progress.show_task(
+        ProgressTaskKind::Normalization,
+        false,
+        "Normalizing",
+        10,
+        true,
+    );
     progress.show_task(
         ProgressTaskKind::WavLoad,
         false,
@@ -41,14 +36,20 @@ fn higher_priority_background_task_wins_footer_lane() {
         false,
     );
 
-    assert_eq!(progress.task, Some(ProgressTaskKind::Analysis));
-    assert_eq!(progress.title, "Analyzing");
+    assert_eq!(progress.task, Some(ProgressTaskKind::Normalization));
+    assert_eq!(progress.title, "Normalizing");
 }
 
 #[test]
 fn clearing_visible_task_reveals_next_contender() {
     let mut progress = ProgressOverlayState::default();
-    progress.show_task(ProgressTaskKind::Analysis, false, "Analyzing", 10, true);
+    progress.show_task(
+        ProgressTaskKind::Normalization,
+        false,
+        "Normalizing",
+        10,
+        true,
+    );
     progress.show_task(
         ProgressTaskKind::WavLoad,
         false,
@@ -57,7 +58,7 @@ fn clearing_visible_task_reveals_next_contender() {
         false,
     );
 
-    progress.clear_task(ProgressTaskKind::Analysis);
+    progress.clear_task(ProgressTaskKind::Normalization);
 
     assert_eq!(progress.task, Some(ProgressTaskKind::WavLoad));
     assert_eq!(progress.title, "Loading samples");

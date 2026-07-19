@@ -1,6 +1,118 @@
 use super::*;
 
 #[test]
+fn legacy_analysis_runtime_migration_is_selective_and_idempotent() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE analysis_jobs (
+            id INTEGER PRIMARY KEY,
+            job_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            readiness_managed INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE analysis_job_progress_snapshots (
+            job_type TEXT PRIMARY KEY,
+            pending INTEGER NOT NULL DEFAULT 0,
+            running INTEGER NOT NULL DEFAULT 0,
+            done INTEGER NOT NULL DEFAULT 0,
+            failed INTEGER NOT NULL DEFAULT 0
+        ) WITHOUT ROWID;
+        INSERT INTO analysis_jobs VALUES
+            (1, 'wav_metadata_v1', 'pending', 0),
+            (2, 'wav_metadata_v1', 'running', 0),
+            (3, 'embedding_backfill_v1', 'failed', 0),
+            (4, 'rebuild_index_v1', 'done', 0),
+            (5, 'wav_metadata_v1', 'running', 1),
+            (6, 'third_party_analysis_v1', 'pending', 0);
+        INSERT INTO analysis_job_progress_snapshots
+            (job_type, pending, running, done, failed)
+        VALUES
+            ('wav_metadata_v1', 1, 2, 0, 0),
+            ('embedding_backfill_v1', 0, 0, 0, 1),
+            ('rebuild_index_v1', 0, 0, 1, 0),
+            ('third_party_analysis_v1', 1, 0, 0, 0);",
+    )
+    .unwrap();
+
+    retire_legacy_analysis_runtime_state(&conn).unwrap();
+    retire_legacy_analysis_runtime_state(&conn).unwrap();
+
+    let retained_jobs = conn
+        .prepare(
+            "SELECT job_type, readiness_managed
+             FROM analysis_jobs
+             ORDER BY id",
+        )
+        .unwrap()
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(
+        retained_jobs,
+        vec![
+            (String::from("wav_metadata_v1"), 1),
+            (String::from("third_party_analysis_v1"), 0),
+        ]
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*) FROM analysis_job_progress_snapshots",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn legacy_analysis_runtime_migration_rolls_back_and_retries_after_interruption() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE analysis_jobs (
+            id INTEGER PRIMARY KEY,
+            job_type TEXT NOT NULL,
+            readiness_managed INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE analysis_job_progress_snapshots (
+            job_type TEXT PRIMARY KEY
+        ) WITHOUT ROWID;
+        INSERT INTO analysis_jobs VALUES (1, 'wav_metadata_v1', 0);
+        INSERT INTO analysis_job_progress_snapshots VALUES ('wav_metadata_v1');
+        CREATE TRIGGER interrupt_legacy_cleanup
+        BEFORE DELETE ON analysis_job_progress_snapshots
+        BEGIN
+            SELECT RAISE(ABORT, 'synthetic migration interruption');
+        END;",
+    )
+    .unwrap();
+
+    assert!(retire_legacy_analysis_runtime_state(&conn).is_err());
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        1,
+        "the failed transaction must restore the earlier job deletion"
+    );
+
+    conn.execute("DROP TRIGGER interrupt_legacy_cleanup", [])
+        .unwrap();
+    retire_legacy_analysis_runtime_state(&conn).unwrap();
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        0
+    );
+}
+
+#[test]
 fn analysis_jobs_backfill_blank_identity_columns() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(

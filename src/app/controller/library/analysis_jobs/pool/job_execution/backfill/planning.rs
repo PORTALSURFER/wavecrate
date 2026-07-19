@@ -1,8 +1,7 @@
 //! Backfill planning and cache-reuse decisions.
 
+use super::super::support::{load_embedding_vec_optional, now_epoch_seconds};
 use crate::app::controller::library::analysis_jobs::db;
-use crate::app::controller::library::analysis_jobs::pool::job_execution::support::load_embedding_vec_optional;
-use crate::app::controller::library::analysis_jobs::pool::job_execution::support::now_epoch_seconds;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::warn;
@@ -13,45 +12,13 @@ use super::repository::{
     load_features_vec_optional, sample_has_current_aspect_descriptors,
 };
 
-pub(super) fn parse_backfill_payload(job: &db::ClaimedJob) -> Result<Vec<String>, String> {
-    let payload = job
-        .content_hash
-        .as_deref()
-        .ok_or_else(|| "Embedding backfill payload missing".to_string())?;
-    serde_json::from_str(payload)
-        .map_err(|err| format!("Invalid embedding backfill payload: {err}"))
-}
-
-pub(super) fn build_backfill_plan(
-    conn: &rusqlite::Connection,
-    job: &db::ClaimedJob,
-    sample_ids: &[String],
-    use_cache: bool,
-    analysis_version: &str,
-) -> Result<BackfillPlan, String> {
-    build_backfill_plan_inner(conn, job, sample_ids, use_cache, analysis_version, false)
-}
-
 pub(super) fn build_readiness_backfill_plan(
     conn: &rusqlite::Connection,
-    job: &db::ClaimedJob,
+    source_root: &std::path::Path,
     sample_ids: &[String],
-    use_cache: bool,
     analysis_version: &str,
-) -> Result<BackfillPlan, String> {
-    build_backfill_plan_inner(conn, job, sample_ids, use_cache, analysis_version, true)
-}
-
-fn build_backfill_plan_inner(
-    conn: &rusqlite::Connection,
-    job: &db::ClaimedJob,
-    sample_ids: &[String],
-    use_cache: bool,
-    analysis_version: &str,
-    require_cache_materialization: bool,
 ) -> Result<BackfillPlan, String> {
     let mut state = BackfillPlanState {
-        use_cache,
         analysis_version,
         ready: Vec::new(),
         work_by_hash: HashMap::new(),
@@ -67,10 +34,8 @@ fn build_backfill_plan_inner(
         )?
         .is_some();
         let has_aspects = sample_has_current_aspect_descriptors(conn, sample_id)?;
-        if has_embedding && has_aspects && !require_cache_materialization {
-            continue;
-        }
-        plan_sample(conn, job, sample_id, &mut state)?;
+        let _ = (has_embedding, has_aspects);
+        plan_sample(conn, source_root, sample_id, &mut state)?;
     }
 
     let work = state
@@ -90,7 +55,6 @@ fn build_backfill_plan_inner(
 }
 
 struct BackfillPlanState<'a> {
-    use_cache: bool,
     analysis_version: &'a str,
     ready: Vec<EmbeddingResult>,
     work_by_hash: HashMap<String, WorkEntry>,
@@ -99,7 +63,7 @@ struct BackfillPlanState<'a> {
 
 fn plan_sample(
     conn: &rusqlite::Connection,
-    job: &db::ClaimedJob,
+    source_root: &std::path::Path,
     sample_id: &str,
     state: &mut BackfillPlanState<'_>,
 ) -> Result<(), String> {
@@ -110,7 +74,6 @@ fn plan_sample(
         conn,
         sample_id,
         &content_hash,
-        state.use_cache,
         state.analysis_version,
         &mut state.embedding_cache,
     )? {
@@ -119,7 +82,12 @@ fn plan_sample(
             .push(materialize_result(sample_id, &content_hash, &data));
         return Ok(());
     }
-    queue_sample_work(job, sample_id, content_hash, &mut state.work_by_hash);
+    queue_sample_work(
+        source_root,
+        sample_id,
+        content_hash,
+        &mut state.work_by_hash,
+    );
     Ok(())
 }
 
@@ -127,16 +95,13 @@ fn resolve_ready_embedding(
     conn: &rusqlite::Connection,
     sample_id: &str,
     content_hash: &str,
-    use_cache: bool,
     analysis_version: &str,
     embedding_cache: &mut HashMap<String, EmbeddingData>,
 ) -> Result<Option<EmbeddingData>, String> {
     if let Some(data) = embedding_cache.get(content_hash) {
         return Ok(Some(data.clone()));
     }
-    if let Some(data) =
-        load_ready_embedding(conn, sample_id, content_hash, use_cache, analysis_version)?
-    {
+    if let Some(data) = load_ready_embedding(conn, sample_id, content_hash, analysis_version)? {
         embedding_cache.insert(content_hash.to_string(), data.clone());
         return Ok(Some(data));
     }
@@ -147,7 +112,6 @@ fn load_ready_embedding(
     conn: &rusqlite::Connection,
     sample_id: &str,
     content_hash: &str,
-    use_cache: bool,
     analysis_version: &str,
 ) -> Result<Option<EmbeddingData>, String> {
     if let Some(features) = load_features_vec_optional(conn, sample_id)?
@@ -155,22 +119,19 @@ fn load_ready_embedding(
     {
         return Ok(Some(data));
     }
-    if use_cache {
-        if let Some(data) = cached_feature_embedding_data(conn, content_hash, analysis_version)? {
-            return Ok(Some(data));
-        }
-        return cached_embedding_data(conn, content_hash, analysis_version);
+    if let Some(data) = cached_feature_embedding_data(conn, content_hash, analysis_version)? {
+        return Ok(Some(data));
     }
-    Ok(None)
+    cached_embedding_data(conn, content_hash, analysis_version)
 }
 
 fn queue_sample_work(
-    job: &db::ClaimedJob,
+    source_root: &std::path::Path,
     sample_id: &str,
     content_hash: String,
     work_by_hash: &mut HashMap<String, WorkEntry>,
 ) {
-    let Some(absolute_path) = resolve_backfill_path(job, sample_id) else {
+    let Some(absolute_path) = resolve_backfill_path(source_root, sample_id) else {
         return;
     };
     let entry = work_by_hash
@@ -179,7 +140,7 @@ fn queue_sample_work(
     entry.sample_ids.push(sample_id.to_string());
 }
 
-fn resolve_backfill_path(job: &db::ClaimedJob, sample_id: &str) -> Option<PathBuf> {
+fn resolve_backfill_path(source_root: &std::path::Path, sample_id: &str) -> Option<PathBuf> {
     let (_source_id, relative_path) = match db::parse_sample_id(sample_id) {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -187,7 +148,7 @@ fn resolve_backfill_path(job: &db::ClaimedJob, sample_id: &str) -> Option<PathBu
             return None;
         }
     };
-    let absolute_path = job.source_root.join(&relative_path);
+    let absolute_path = source_root.join(&relative_path);
     if absolute_path.exists() {
         return Some(absolute_path);
     }
