@@ -3610,6 +3610,15 @@ fn retire_legacy_playback_readiness(
     connection: &mut rusqlite::Connection,
     cancel: &AtomicBool,
 ) -> Result<Cancellable<usize>, String> {
+    retire_legacy_playback_readiness_with_post_commit_hook(source, connection, cancel, || {})
+}
+
+fn retire_legacy_playback_readiness_with_post_commit_hook(
+    source: &SampleSource,
+    connection: &mut rusqlite::Connection,
+    cancel: &AtomicBool,
+    post_commit: impl FnOnce(),
+) -> Result<Cancellable<usize>, String> {
     if cancelled(cancel) {
         return Ok(Cancellable::Cancelled);
     }
@@ -3687,11 +3696,9 @@ fn retire_legacy_playback_readiness(
             .map_err(|error| error.to_string())?,
     );
     transaction.commit().map_err(|error| error.to_string())?;
+    post_commit();
 
     for cache_ref in cache_refs {
-        if cancelled(cancel) {
-            break;
-        }
         match retained_waveform_cache_ref_is_owned(&cache_ref) {
             Ok(false) => invalidate_persisted_waveform_cache_ref(std::path::Path::new(&cache_ref)),
             Ok(true) => {}
@@ -7645,6 +7652,64 @@ mod tests {
     }
 
     #[test]
+    fn post_commit_cancellation_still_retires_every_legacy_cache_ref() {
+        let (_directory, source) = ready_analysis_source("legacy-playback-cancellation");
+        let database_root = source.database_root().expect("database root");
+        let (first_cache_ref, now) = seed_legacy_playback_artifact(&source);
+        let second_cache_ref = seed_managed_legacy_cache_ref(&source, "second", now);
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen source with multiple legacy playback rows");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 )
+                 SELECT source_id, scope_kind, 'legacy-second', 'legacy-second.wav', stage,
+                        required_version, source_generation, content_generation, eligibility,
+                        updated_at
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'playback_summary'",
+                [source.id.as_str()],
+            )
+            .expect("seed second legacy playback target");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_artifacts (
+                    source_id, scope_kind, scope_id, relative_path, stage, artifact_version,
+                    source_generation, content_generation, artifact_ref, completed_at
+                 )
+                 SELECT source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                        source_generation, content_generation, ?2, ?3
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1
+                   AND scope_id = 'legacy-second'
+                   AND stage = 'playback_summary'",
+                params![source.id.as_str(), second_cache_ref.to_string_lossy(), now],
+            )
+            .expect("seed second legacy playback artifact");
+
+        let cancel = AtomicBool::new(false);
+        assert!(matches!(
+            retire_legacy_playback_readiness_with_post_commit_hook(
+                &source,
+                &mut connection,
+                &cancel,
+                || cancel.store(true, Ordering::Release),
+            )
+            .expect("retire every captured legacy playback reference"),
+            Cancellable::Completed(4)
+        ));
+        assert!(cancelled(&cancel));
+        assert!(!first_cache_ref.exists());
+        assert!(!second_cache_ref.exists());
+    }
+
+    #[test]
     fn legacy_playback_cache_owner_is_retired_after_committed_delete() {
         let (_directory, source) = ready_analysis_source("playback-delete");
         let database_root = source.database_root().expect("database root");
@@ -8990,12 +9055,7 @@ mod tests {
         .expect("open legacy playback database");
         publish_current_readiness_targets(&mut connection, source.id.as_str(), now)
             .expect("publish current target matrix");
-        let cache_directory =
-            wavecrate::app_dirs::waveform_cache_dir().expect("resolve waveform cache directory");
-        std::fs::create_dir_all(&cache_directory).expect("create waveform cache directory");
-        let cache_ref =
-            cache_directory.join(format!("legacy-playback-{}-{now}.wfc", source.id.as_str()));
-        std::fs::write(&cache_ref, b"legacy playback cache").expect("seed legacy playback cache");
+        let cache_ref = seed_managed_legacy_cache_ref(source, "first", now);
         connection
             .execute(
                 "INSERT INTO source_readiness_targets (
@@ -9024,6 +9084,22 @@ mod tests {
             )
             .expect("seed legacy playback artifact");
         (cache_ref, now)
+    }
+
+    fn seed_managed_legacy_cache_ref(
+        source: &SampleSource,
+        label: &str,
+        now: i64,
+    ) -> std::path::PathBuf {
+        let cache_directory =
+            wavecrate::app_dirs::waveform_cache_dir().expect("resolve waveform cache directory");
+        std::fs::create_dir_all(&cache_directory).expect("create waveform cache directory");
+        let cache_ref = cache_directory.join(format!(
+            "legacy-playback-{}-{label}-{now}.wfc",
+            source.id.as_str()
+        ));
+        std::fs::write(&cache_ref, b"legacy playback cache").expect("seed legacy playback cache");
+        cache_ref
     }
 
     fn source_is_hashed(source: &SampleSource) -> bool {
