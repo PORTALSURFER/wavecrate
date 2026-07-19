@@ -80,7 +80,11 @@ pub(super) fn silently_idle(snapshot: &ReadinessSnapshot, runtime: &RuntimeObser
         || runtime.readiness_queue_depth > 0
         || runtime.in_flight > 0
         || runtime.active_budget
-        || runtime.retry_at.is_some_and(|retry_at| retry_at > now)
+        // Retry deadlines are tracked with second precision. Keep a deadline that is due in
+        // the current second observable until the coordinator gets a chance to dispatch its
+        // reconciliation sweep; otherwise the liveness oracle can report a false idle window
+        // between the timer expiring and the next coordinator pass.
+        || runtime.retry_at.is_some_and(|retry_at| retry_at >= now)
         || waiting_for_retry
         || waiting_for_prerequisite;
     !runtime.coordinator_running || !runtime.source_active || !observable_work

@@ -46,6 +46,15 @@ fn liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work()
     };
     assert!(silently_idle(&snapshot, &runtime));
 
+    let retry_due = RuntimeObservation {
+        retry_at: Some(now_epoch_seconds()),
+        ..runtime
+    };
+    assert!(
+        !silently_idle(&snapshot, &retry_due),
+        "a retry due in the current second remains observable until dispatch"
+    );
+
     let scheduled = RuntimeObservation {
         source_dirty: true,
         ..runtime

@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::{
-        Arc,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, Sender, SyncSender, TryRecvError, TrySendError},
     },
@@ -43,8 +43,158 @@ struct PendingSourceWatcher {
     result_rx:
         Receiver<Result<(ActiveSourceWatcher, RootWatchUpdate, WatchedRootIdentities), String>>,
     ingress_enabled: Arc<AtomicBool>,
+    join_handle: thread::JoinHandle<()>,
+    completed_result:
+        Option<Result<(ActiveSourceWatcher, RootWatchUpdate, WatchedRootIdentities), String>>,
     started_at: Instant,
     backend: SourceWatcherBackend,
+}
+
+/// At most one unresolved constructor is retained per backend.  Constructors cannot be cancelled
+/// safely, so a timed-out constructor keeps its slot until it exits and its join handle is reaped.
+const MAX_UNRESOLVED_INITIALIZERS: usize = 2;
+
+/// A notify backend may block forever in `Drop` on macOS.  This is the hard ceiling for the
+/// dedicated teardown workers; once it is reached the coordinator stays responsive but reports a
+/// degraded, fenced watcher instead of creating another thread.
+const MAX_UNRESOLVED_TEARDOWNS: usize = 3;
+
+/// Process-lifetime ownership for shutdown handoffs.  These workers only exist while bounded
+/// lifecycle work remains; completed handles are joined when the next handoff is registered.
+static SHUTDOWN_LIFECYCLE_WORKERS: OnceLock<Mutex<Vec<thread::JoinHandle<()>>>> = OnceLock::new();
+
+fn retain_shutdown_lifecycle_worker(worker: thread::JoinHandle<()>) {
+    let workers = SHUTDOWN_LIFECYCLE_WORKERS.get_or_init(|| Mutex::new(Vec::new()));
+    let mut workers = workers.lock().expect("shutdown lifecycle worker registry");
+    let mut index = 0;
+    while index < workers.len() {
+        if workers[index].is_finished() {
+            let finished = workers.swap_remove(index);
+            let _ = finished.join();
+        } else {
+            index += 1;
+        }
+    }
+    workers.push(worker);
+}
+
+struct SourceWatcherTeardown {
+    workers: Vec<thread::JoinHandle<()>>,
+}
+
+struct SourceWatcherLifecycle {
+    retired_initializers: Vec<PendingSourceWatcher>,
+    teardown: SourceWatcherTeardown,
+    retained_watcher: Option<ActiveSourceWatcher>,
+}
+
+impl SourceWatcherLifecycle {
+    fn reap_until_quiescent(mut self) {
+        while !self.is_quiescent() {
+            self.teardown.reap_finished();
+            reap_retired_initializers(&mut self.retired_initializers, &mut self.teardown);
+            self.retry_retained_watcher(false);
+            if !self.is_quiescent() {
+                thread::sleep(WATCHER_POLL_INTERVAL);
+            }
+        }
+    }
+
+    fn retry_retained_watcher(&mut self, allow_shutdown_reserve: bool) {
+        let Some(watcher) = self.retained_watcher.take() else {
+            return;
+        };
+        let result = if allow_shutdown_reserve {
+            self.teardown.retire_on_shutdown(watcher)
+        } else {
+            self.teardown.retire(watcher)
+        };
+        if let Err(watcher) = result {
+            self.retained_watcher = Some(watcher);
+        }
+    }
+
+    fn is_quiescent(&self) -> bool {
+        self.retired_initializers.is_empty()
+            && self.teardown.unresolved_count() == 0
+            && self.retained_watcher.is_none()
+    }
+}
+
+fn start_source_watcher_lifecycle_service() -> Result<Sender<SourceWatcherLifecycle>, String> {
+    let (lifecycle_tx, lifecycle_rx) = std::sync::mpsc::channel::<SourceWatcherLifecycle>();
+    let worker = thread::Builder::new()
+        .name("wavecrate-source-watcher-lifecycle".to_string())
+        .spawn(move || {
+            while let Ok(lifecycle) = lifecycle_rx.recv() {
+                lifecycle.reap_until_quiescent();
+            }
+        })
+        .map_err(|error| error.to_string())?;
+    retain_shutdown_lifecycle_worker(worker);
+    Ok(lifecycle_tx)
+}
+
+impl SourceWatcherTeardown {
+    fn reap_finished(&mut self) {
+        let mut index = 0;
+        while index < self.workers.len() {
+            if self.workers[index].is_finished() {
+                let worker = self.workers.swap_remove(index);
+                let _ = worker.join();
+            } else {
+                index += 1;
+            }
+        }
+    }
+
+    fn retire(&mut self, watcher: ActiveSourceWatcher) -> Result<(), ActiveSourceWatcher> {
+        self.retire_with_limit(watcher, MAX_UNRESOLVED_TEARDOWNS)
+    }
+
+    fn retire_on_shutdown(
+        &mut self,
+        watcher: ActiveSourceWatcher,
+    ) -> Result<(), ActiveSourceWatcher> {
+        // Normal recovery reserves one fixed slot for the coordinator's final active watcher, so
+        // shutdown can remain non-blocking even when all regular teardown workers are wedged.
+        self.retire_with_limit(watcher, MAX_UNRESOLVED_TEARDOWNS + 1)
+    }
+
+    fn retire_with_limit(
+        &mut self,
+        watcher: ActiveSourceWatcher,
+        limit: usize,
+    ) -> Result<(), ActiveSourceWatcher> {
+        watcher.ingress_enabled.store(false, Ordering::Release);
+        self.reap_finished();
+        if self.workers.len() >= limit {
+            return Err(watcher);
+        }
+        let pending = Arc::new(std::sync::Mutex::new(Some(watcher)));
+        let worker_value = Arc::clone(&pending);
+        match thread::Builder::new()
+            .name("wavecrate-source-watcher-teardown".to_string())
+            .spawn(move || drop(worker_value.lock().expect("teardown watcher lock").take()))
+        {
+            Ok(worker) => {
+                self.workers.push(worker);
+                Ok(())
+            }
+            Err(error) => {
+                tracing::warn!("Could not start GUI source watcher teardown worker: {error}");
+                Err(pending
+                    .lock()
+                    .expect("teardown watcher lock")
+                    .take()
+                    .expect("teardown worker must not take watcher when spawn fails"))
+            }
+        }
+    }
+
+    fn unresolved_count(&self) -> usize {
+        self.workers.len()
+    }
 }
 
 struct SourceWatcherIngress {
@@ -81,6 +231,7 @@ impl EventHandler for SourceWatcherIngress {
 pub(in crate::native_app) struct GuiSourceWatcherHandle {
     command_tx: Sender<GuiSourceWatchCommand>,
     join_handle: Option<thread::JoinHandle<()>>,
+    lifecycle_tx: Option<Sender<SourceWatcherLifecycle>>,
 }
 
 impl GuiSourceWatcherHandle {
@@ -89,10 +240,24 @@ impl GuiSourceWatcherHandle {
         message_tx: Sender<GuiMessage>,
     ) -> Self {
         let (command_tx, command_rx) = std::sync::mpsc::channel();
-        let handle = thread::spawn(move || run_source_watcher(command_rx, message_tx, sources));
+        let lifecycle_tx = match start_source_watcher_lifecycle_service() {
+            Ok(lifecycle_tx) => Some(lifecycle_tx),
+            Err(error) => {
+                tracing::error!(
+                    "Could not start GUI source watcher lifecycle service; watcher is disabled: {error}"
+                );
+                None
+            }
+        };
+        let coordinator_lifecycle_tx = lifecycle_tx.clone();
+        let handle = thread::spawn(move || match coordinator_lifecycle_tx {
+            Some(lifecycle_tx) => run_source_watcher(command_rx, message_tx, sources, lifecycle_tx),
+            None => run_source_watcher_without_lifecycle(command_rx),
+        });
         Self {
             command_tx,
             join_handle: Some(handle),
+            lifecycle_tx,
         }
     }
 
@@ -159,6 +324,7 @@ impl Drop for GuiSourceWatcherHandle {
         if let Some(handle) = self.join_handle.take() {
             let _ = handle.join();
         }
+        self.lifecycle_tx.take();
     }
 }
 
@@ -187,11 +353,16 @@ fn run_source_watcher(
     command_rx: Receiver<GuiSourceWatchCommand>,
     message_tx: Sender<GuiMessage>,
     initial_sources: Vec<SampleSource>,
+    lifecycle_tx: Sender<SourceWatcherLifecycle>,
 ) {
     let (event_tx, event_rx) = std::sync::mpsc::sync_channel(WATCHER_EVENT_QUEUE_CAPACITY);
     let ingress_overflowed = Arc::new(AtomicBool::new(false));
     let mut watcher = None;
     let mut pending_watcher = None;
+    let mut retired_initializers = Vec::with_capacity(MAX_UNRESOLVED_INITIALIZERS);
+    let mut teardown = SourceWatcherTeardown {
+        workers: Vec::new(),
+    };
     let mut state = GuiSourceWatchState::default();
     state.set_sources(initial_sources);
     let mut next_restart = Instant::now();
@@ -209,8 +380,8 @@ fn run_source_watcher(
                     desired_watched_roots(&sources) != desired_watched_roots(&state.sources);
                 state.set_sources(sources);
                 if roots_changed {
-                    retire_source_watcher(&mut watcher);
-                    cancel_pending_source_watcher(&mut pending_watcher);
+                    retire_source_watcher(&mut watcher, &mut teardown);
+                    cancel_pending_source_watcher(&mut pending_watcher, &mut retired_initializers);
                     state.reset_watches(Instant::now());
                     next_restart = Instant::now();
                     restart_delay = WATCHER_RESTART_MIN;
@@ -235,8 +406,8 @@ fn run_source_watcher(
             }
             #[cfg(test)]
             Ok(GuiSourceWatchCommand::ForceRestart) => {
-                retire_source_watcher(&mut watcher);
-                cancel_pending_source_watcher(&mut pending_watcher);
+                retire_source_watcher(&mut watcher, &mut teardown);
+                cancel_pending_source_watcher(&mut pending_watcher, &mut retired_initializers);
                 state.reset_watches(Instant::now());
                 next_restart = Instant::now();
                 restart_delay = WATCHER_RESTART_MIN;
@@ -263,45 +434,85 @@ fn run_source_watcher(
                 }
             }
             Ok(GuiSourceWatchCommand::Shutdown) => {
-                cancel_pending_source_watcher(&mut pending_watcher);
-                retire_source_watcher(&mut watcher);
+                cancel_pending_source_watcher(&mut pending_watcher, &mut retired_initializers);
+                retire_source_watcher_on_shutdown(&mut watcher, &mut teardown);
                 break;
             }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                cancel_pending_source_watcher(&mut pending_watcher, &mut retired_initializers);
+                retire_source_watcher_on_shutdown(&mut watcher, &mut teardown);
+                break;
+            }
         }
 
         let now = Instant::now();
+        teardown.reap_finished();
+        reap_retired_initializers(&mut retired_initializers, &mut teardown);
+        if watcher
+            .as_ref()
+            .is_some_and(|watcher| !watcher.ingress_enabled.load(Ordering::Acquire))
+        {
+            // A saturated teardown lane retains a fenced watcher in this slot.  Retry the
+            // handoff as capacity is reclaimed; it must never be mistaken for a live watcher.
+            retire_source_watcher(&mut watcher, &mut teardown);
+        }
         if watcher.is_none() && pending_watcher.is_none() && now >= next_restart {
-            pending_watcher = Some(spawn_source_watcher(
-                state.sources.clone(),
-                event_tx.clone(),
-                Arc::clone(&ingress_overflowed),
-                SourceWatcherBackend::Native,
-            ));
+            if let Some(backend) = next_available_backend(&pending_watcher, &retired_initializers) {
+                if !start_pending_source_watcher(
+                    &mut pending_watcher,
+                    &retired_initializers,
+                    state.sources.clone(),
+                    event_tx.clone(),
+                    Arc::clone(&ingress_overflowed),
+                    backend,
+                ) {
+                    next_restart = now + restart_delay;
+                    restart_delay = doubled_backoff(restart_delay);
+                }
+            } else {
+                tracing::warn!(
+                    unresolved_initializers = retired_initializers.len(),
+                    max_unresolved_initializers = MAX_UNRESOLVED_INITIALIZERS,
+                    "All GUI source watcher initializer slots are unresolved; backing off recovery"
+                );
+                next_restart = now + restart_delay;
+                restart_delay = doubled_backoff(restart_delay);
+            }
         }
         if let Some(pending) = pending_watcher.take() {
+            let backend = pending.backend;
             match pending.result_rx.try_recv() {
                 Ok(Ok((restarted, update, watched_roots))) => {
+                    let _ = pending.join_handle.join();
                     state.watched_roots = watched_roots;
                     let (unavailable, watch_failed) =
                         state.apply_root_watch_update(update, now, false);
                     if watch_failed {
-                        retire_source_watcher_value(restarted);
+                        if let Err(restarted) =
+                            retire_source_watcher_value(restarted, &mut teardown)
+                        {
+                            watcher = Some(restarted);
+                        }
                         if watcher_has_been_ready {
                             state.reset_watches(now);
                         }
-                        if pending.backend == SourceWatcherBackend::Native {
+                        if backend == SourceWatcherBackend::Native && watcher.is_none() {
                             tracing::warn!(
                                 "Native GUI source watcher could not register every root; \
                                  falling back to polling"
                             );
-                            pending_watcher = Some(spawn_source_watcher(
+                            if !start_pending_source_watcher(
+                                &mut pending_watcher,
+                                &retired_initializers,
                                 state.sources.clone(),
                                 event_tx.clone(),
                                 Arc::clone(&ingress_overflowed),
                                 SourceWatcherBackend::Polling,
-                            ));
+                            ) {
+                                next_restart = now + restart_delay;
+                                restart_delay = doubled_backoff(restart_delay);
+                            }
                         } else {
                             next_restart = now + restart_delay;
                             restart_delay = doubled_backoff(restart_delay);
@@ -328,21 +539,27 @@ fn run_source_watcher(
                     }
                 }
                 Ok(Err(error)) => {
+                    let _ = pending.join_handle.join();
                     tracing::warn!(
-                        backend = ?pending.backend,
+                        ?backend,
                         retry_ms = restart_delay.as_millis(),
                         "Failed to initialize GUI source watcher: {error}"
                     );
                     if watcher_has_been_ready {
                         state.mark_all_overflowed(now);
                     }
-                    if pending.backend == SourceWatcherBackend::Native {
-                        pending_watcher = Some(spawn_source_watcher(
+                    if backend == SourceWatcherBackend::Native {
+                        if !start_pending_source_watcher(
+                            &mut pending_watcher,
+                            &retired_initializers,
                             state.sources.clone(),
                             event_tx.clone(),
                             Arc::clone(&ingress_overflowed),
                             SourceWatcherBackend::Polling,
-                        ));
+                        ) {
+                            next_restart = now + restart_delay;
+                            restart_delay = doubled_backoff(restart_delay);
+                        }
                     } else {
                         next_restart = now + restart_delay;
                         restart_delay = doubled_backoff(restart_delay);
@@ -356,8 +573,15 @@ fn run_source_watcher(
                 }
                 Err(TryRecvError::Empty) => {
                     pending.ingress_enabled.store(false, Ordering::Release);
+                    debug_assert!(
+                        retired_initializers
+                            .iter()
+                            .all(|retired| retired.backend != pending.backend)
+                    );
+                    retired_initializers.push(pending);
+                    debug_assert!(retired_initializers.len() <= MAX_UNRESOLVED_INITIALIZERS);
                     tracing::warn!(
-                        backend = ?pending.backend,
+                        backend = ?retired_initializers.last().expect("timed-out initializer").backend,
                         timeout_ms = WATCHER_START_TIMEOUT.as_millis(),
                         retry_ms = restart_delay.as_millis(),
                         "Timed out initializing GUI source watcher"
@@ -365,34 +589,50 @@ fn run_source_watcher(
                     if watcher_has_been_ready {
                         state.mark_all_overflowed(now);
                     }
-                    if pending.backend == SourceWatcherBackend::Native {
-                        pending_watcher = Some(spawn_source_watcher(
+                    if retired_initializers
+                        .last()
+                        .expect("timed-out initializer")
+                        .backend
+                        == SourceWatcherBackend::Native
+                    {
+                        if !start_pending_source_watcher(
+                            &mut pending_watcher,
+                            &retired_initializers,
                             state.sources.clone(),
                             event_tx.clone(),
                             Arc::clone(&ingress_overflowed),
                             SourceWatcherBackend::Polling,
-                        ));
+                        ) {
+                            next_restart = now + restart_delay;
+                            restart_delay = doubled_backoff(restart_delay);
+                        }
                     } else {
                         next_restart = now + restart_delay;
                         restart_delay = doubled_backoff(restart_delay);
                     }
                 }
                 Err(TryRecvError::Disconnected) => {
+                    let _ = pending.join_handle.join();
                     tracing::warn!(
-                        backend = ?pending.backend,
+                        ?backend,
                         retry_ms = restart_delay.as_millis(),
                         "GUI source watcher initializer exited without a result"
                     );
                     if watcher_has_been_ready {
                         state.mark_all_overflowed(now);
                     }
-                    if pending.backend == SourceWatcherBackend::Native {
-                        pending_watcher = Some(spawn_source_watcher(
+                    if backend == SourceWatcherBackend::Native {
+                        if !start_pending_source_watcher(
+                            &mut pending_watcher,
+                            &retired_initializers,
                             state.sources.clone(),
                             event_tx.clone(),
                             Arc::clone(&ingress_overflowed),
                             SourceWatcherBackend::Polling,
-                        ));
+                        ) {
+                            next_restart = now + restart_delay;
+                            restart_delay = doubled_backoff(restart_delay);
+                        }
                     } else {
                         next_restart = now + restart_delay;
                         restart_delay = doubled_backoff(restart_delay);
@@ -420,8 +660,8 @@ fn run_source_watcher(
                     "Source root availability or filesystem identity changed; restarting watcher"
                 );
                 state.mark_roots_overflowed(&invalidated_roots, now);
-                retire_source_watcher(&mut watcher);
-                cancel_pending_source_watcher(&mut pending_watcher);
+                retire_source_watcher(&mut watcher, &mut teardown);
+                cancel_pending_source_watcher(&mut pending_watcher, &mut retired_initializers);
                 state.clear_watches();
                 next_restart = now;
                 restart_delay = WATCHER_RESTART_MIN;
@@ -455,8 +695,8 @@ fn run_source_watcher(
         }
 
         if watcher_failed || root_invalidated {
-            retire_source_watcher(&mut watcher);
-            cancel_pending_source_watcher(&mut pending_watcher);
+            retire_source_watcher(&mut watcher, &mut teardown);
+            cancel_pending_source_watcher(&mut pending_watcher, &mut retired_initializers);
             if watcher_failed {
                 state.reset_watches(now);
                 next_restart = now + restart_delay;
@@ -484,6 +724,33 @@ fn run_source_watcher(
             });
         }
     }
+
+    let mut lifecycle = SourceWatcherLifecycle {
+        retired_initializers,
+        teardown,
+        retained_watcher: watcher,
+    };
+    lifecycle.retry_retained_watcher(true);
+    if !lifecycle.is_quiescent() {
+        tracing::warn!(
+            unresolved_initializers = lifecycle.retired_initializers.len(),
+            unresolved_teardowns = lifecycle.teardown.unresolved_count(),
+            retained_watcher = lifecycle.retained_watcher.is_some(),
+            "GUI source watcher coordinator stopped with bounded lifecycle work still in flight"
+        );
+    }
+    if !lifecycle.is_quiescent() {
+        lifecycle_tx
+            .send(lifecycle)
+            .expect("source watcher lifecycle service must outlive its coordinator");
+    }
+}
+
+fn run_source_watcher_without_lifecycle(command_rx: Receiver<GuiSourceWatchCommand>) {
+    while !matches!(
+        command_rx.recv(),
+        Ok(GuiSourceWatchCommand::Shutdown) | Err(std::sync::mpsc::RecvError)
+    ) {}
 }
 
 fn spawn_source_watcher(
@@ -491,14 +758,14 @@ fn spawn_source_watcher(
     event_tx: SyncSender<notify::Result<Event>>,
     ingress_overflowed: Arc<AtomicBool>,
     backend: SourceWatcherBackend,
-) -> PendingSourceWatcher {
+) -> Result<PendingSourceWatcher, String> {
     let (result_tx, result_rx) = std::sync::mpsc::channel();
     // Native backends can emit callbacks while roots are being registered.
     // Fence those callbacks and open ingress only once the complete watcher is
     // installed; the watcher-ready audit covers the construction interval.
     let ingress_enabled = Arc::new(AtomicBool::new(false));
     let watcher_enabled = Arc::clone(&ingress_enabled);
-    let _ = thread::Builder::new()
+    let join_handle = thread::Builder::new()
         .name("wavecrate-source-watcher-start".to_string())
         .spawn(move || {
             let ingress = SourceWatcherIngress {
@@ -530,12 +797,121 @@ fn spawn_source_watcher(
                 )
             });
             let _ = result_tx.send(result);
-        });
-    PendingSourceWatcher {
+        })
+        .map_err(|error| error.to_string())?;
+    Ok(PendingSourceWatcher {
         result_rx,
         ingress_enabled,
+        join_handle,
+        completed_result: None,
         started_at: Instant::now(),
         backend,
+    })
+}
+
+fn has_initializer_for_backend(
+    pending: &Option<PendingSourceWatcher>,
+    retired_initializers: &[PendingSourceWatcher],
+    backend: SourceWatcherBackend,
+) -> bool {
+    pending
+        .as_ref()
+        .is_some_and(|pending| pending.backend == backend)
+        || retired_initializers
+            .iter()
+            .any(|pending| pending.backend == backend)
+}
+
+fn next_available_backend(
+    pending: &Option<PendingSourceWatcher>,
+    retired_initializers: &[PendingSourceWatcher],
+) -> Option<SourceWatcherBackend> {
+    [SourceWatcherBackend::Native, SourceWatcherBackend::Polling]
+        .into_iter()
+        .find(|backend| !has_initializer_for_backend(pending, retired_initializers, *backend))
+}
+
+fn start_pending_source_watcher(
+    pending: &mut Option<PendingSourceWatcher>,
+    retired_initializers: &[PendingSourceWatcher],
+    sources: Vec<SampleSource>,
+    event_tx: SyncSender<notify::Result<Event>>,
+    ingress_overflowed: Arc<AtomicBool>,
+    backend: SourceWatcherBackend,
+) -> bool {
+    if has_initializer_for_backend(pending, retired_initializers, backend) {
+        tracing::warn!(
+            ?backend,
+            unresolved_initializers = retired_initializers.len(),
+            max_unresolved_initializers = MAX_UNRESOLVED_INITIALIZERS,
+            "GUI source watcher initializer is still unresolved; keeping watcher recovery bounded"
+        );
+        return false;
+    }
+    match spawn_source_watcher(sources, event_tx, ingress_overflowed, backend) {
+        Ok(watcher) => {
+            *pending = Some(watcher);
+            true
+        }
+        Err(error) => {
+            tracing::warn!(
+                ?backend,
+                "Could not start GUI source watcher initializer: {error}"
+            );
+            false
+        }
+    }
+}
+
+fn reap_retired_initializers(
+    retired_initializers: &mut Vec<PendingSourceWatcher>,
+    teardown: &mut SourceWatcherTeardown,
+) {
+    let mut index = 0;
+    while index < retired_initializers.len() {
+        let result = match retired_initializers[index].completed_result.take() {
+            Some(result) => Some(result),
+            None => match retired_initializers[index].result_rx.try_recv() {
+                Ok(result) => Some(result),
+                Err(TryRecvError::Disconnected) => Some(Err(
+                    "GUI source watcher initializer exited without a result".to_string(),
+                )),
+                Err(TryRecvError::Empty) => None,
+            },
+        };
+        let Some(result) = result else {
+            index += 1;
+            continue;
+        };
+        match result {
+            Ok((watcher, update, watched_roots)) => match teardown.retire(watcher) {
+                Ok(()) => {
+                    let initializer = retired_initializers.swap_remove(index);
+                    let _ = initializer.join_handle.join();
+                }
+                Err(watcher) => {
+                    // Keep the initializer slot occupied until its stale watcher can be handed to
+                    // the bounded teardown lane.  This deliberately stops further recovery
+                    // attempts instead of dropping on the coordinator or making another reaper.
+                    retired_initializers[index]
+                        .ingress_enabled
+                        .store(false, Ordering::Release);
+                    retired_initializers[index].completed_result =
+                        Some(Ok((watcher, update, watched_roots)));
+                    tracing::warn!(
+                        unresolved_teardowns = teardown.unresolved_count(),
+                        max_unresolved_teardowns = MAX_UNRESOLVED_TEARDOWNS,
+                        "Stale GUI source watcher is waiting for bounded teardown capacity"
+                    );
+                    index += 1;
+                }
+            },
+            Err(error) => {
+                tracing::debug!("Retired GUI source watcher initializer completed: {error}");
+                let initializer = retired_initializers.swap_remove(index);
+                let _ = initializer.join_handle.join();
+            }
+        }
     }
 }
 
@@ -547,9 +923,19 @@ fn desired_watched_roots(sources: &[SampleSource]) -> HashSet<PathBuf> {
         .collect()
 }
 
-fn cancel_pending_source_watcher(watcher: &mut Option<PendingSourceWatcher>) {
+fn cancel_pending_source_watcher(
+    watcher: &mut Option<PendingSourceWatcher>,
+    retired_initializers: &mut Vec<PendingSourceWatcher>,
+) {
     if let Some(watcher) = watcher.take() {
         watcher.ingress_enabled.store(false, Ordering::Release);
+        debug_assert!(
+            retired_initializers
+                .iter()
+                .all(|retired| retired.backend != watcher.backend)
+        );
+        retired_initializers.push(watcher);
+        debug_assert!(retired_initializers.len() <= MAX_UNRESOLVED_INITIALIZERS);
     }
 }
 
@@ -559,19 +945,360 @@ fn cancel_pending_source_watcher(watcher: &mut Option<PendingSourceWatcher>) {
 /// keep that wait inside the watcher coordinator for an unbounded interval, preventing restart,
 /// recovery events, and shutdown. Fencing callback ingress makes the old stream quiescent while a
 /// short-lived reaper performs the backend-specific blocking teardown.
-fn retire_source_watcher(watcher: &mut Option<ActiveSourceWatcher>) {
-    if let Some(watcher) = watcher.take() {
-        retire_source_watcher_value(watcher);
+fn retire_source_watcher(
+    watcher_slot: &mut Option<ActiveSourceWatcher>,
+    teardown: &mut SourceWatcherTeardown,
+) {
+    if let Some(watcher) = watcher_slot.take() {
+        if let Err(watcher) = teardown.retire(watcher) {
+            tracing::warn!(
+                unresolved_teardowns = teardown.unresolved_count(),
+                max_unresolved_teardowns = MAX_UNRESOLVED_TEARDOWNS,
+                "GUI source watcher teardown is saturated; retaining the fenced watcher"
+            );
+            *watcher_slot = Some(watcher);
+        }
     }
 }
 
-fn retire_source_watcher_value(watcher: ActiveSourceWatcher) {
-    watcher.ingress_enabled.store(false, Ordering::Release);
-    let _ = thread::Builder::new()
-        .name("wavecrate-source-watcher-reaper".to_string())
-        .spawn(move || drop(watcher));
+fn retire_source_watcher_on_shutdown(
+    watcher_slot: &mut Option<ActiveSourceWatcher>,
+    teardown: &mut SourceWatcherTeardown,
+) {
+    if let Some(watcher) = watcher_slot.take() {
+        if let Err(watcher) = teardown.retire_on_shutdown(watcher) {
+            // This can only happen if a regular failure path already saturated every slot and a
+            // final reserved shutdown slot.  Retaining the fenced watcher is safer than blocking
+            // the coordinator; the diagnostic makes the bounded degradation visible.
+            tracing::error!(
+                unresolved_teardowns = teardown.unresolved_count(),
+                max_unresolved_teardowns = MAX_UNRESOLVED_TEARDOWNS + 1,
+                "GUI source watcher shutdown teardown capacity is saturated"
+            );
+            *watcher_slot = Some(watcher);
+        }
+    }
+}
+
+fn retire_source_watcher_value(
+    watcher: ActiveSourceWatcher,
+    teardown: &mut SourceWatcherTeardown,
+) -> Result<(), ActiveSourceWatcher> {
+    teardown.retire(watcher)
 }
 
 pub(super) fn doubled_backoff(current: Duration) -> Duration {
     super::doubled_duration(current, WATCHER_RESTART_MAX)
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use notify::{RecursiveMode, WatcherKind};
+    use std::{
+        collections::HashMap,
+        path::Path,
+        sync::{
+            Mutex, OnceLock,
+            mpsc::{Receiver, SyncSender},
+        },
+    };
+
+    static LIFECYCLE_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn lock_lifecycle_tests() -> std::sync::MutexGuard<'static, ()> {
+        LIFECYCLE_TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("lifecycle test lock")
+    }
+
+    fn blocking_initializer(
+        backend: SourceWatcherBackend,
+        release_rx: Receiver<()>,
+    ) -> PendingSourceWatcher {
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
+        let ingress_enabled = Arc::new(AtomicBool::new(true));
+        let join_handle = thread::spawn(move || {
+            release_rx.recv().expect("release blocking initializer");
+            let _ = result_tx.send(Err("test initializer released".to_string()));
+        });
+        PendingSourceWatcher {
+            result_rx,
+            ingress_enabled,
+            join_handle,
+            completed_result: None,
+            started_at: Instant::now(),
+            backend,
+        }
+    }
+
+    #[test]
+    fn blocking_initializers_keep_one_owned_slot_per_backend_across_recovery_cycles() {
+        let _guard = lock_lifecycle_tests();
+        let (native_release_tx, native_release_rx) = std::sync::mpsc::channel();
+        let (polling_release_tx, polling_release_rx) = std::sync::mpsc::channel();
+        let mut pending = Some(blocking_initializer(
+            SourceWatcherBackend::Native,
+            native_release_rx,
+        ));
+        let mut retired = Vec::with_capacity(MAX_UNRESOLVED_INITIALIZERS);
+        cancel_pending_source_watcher(&mut pending, &mut retired);
+
+        assert!(has_initializer_for_backend(
+            &pending,
+            &retired,
+            SourceWatcherBackend::Native
+        ));
+        assert!(!has_initializer_for_backend(
+            &pending,
+            &retired,
+            SourceWatcherBackend::Polling
+        ));
+
+        pending = Some(blocking_initializer(
+            SourceWatcherBackend::Polling,
+            polling_release_rx,
+        ));
+        cancel_pending_source_watcher(&mut pending, &mut retired);
+
+        assert_eq!(retired.len(), MAX_UNRESOLVED_INITIALIZERS);
+        assert!(has_initializer_for_backend(
+            &pending,
+            &retired,
+            SourceWatcherBackend::Native
+        ));
+        assert!(has_initializer_for_backend(
+            &pending,
+            &retired,
+            SourceWatcherBackend::Polling
+        ));
+        assert_eq!(next_available_backend(&pending, &retired), None);
+
+        let (event_tx, _event_rx) = std::sync::mpsc::sync_channel(1);
+        let overflowed = Arc::new(AtomicBool::new(false));
+        for _ in 0..8 {
+            assert!(
+                !start_pending_source_watcher(
+                    &mut pending,
+                    &retired,
+                    Vec::new(),
+                    event_tx.clone(),
+                    Arc::clone(&overflowed),
+                    SourceWatcherBackend::Native,
+                ),
+                "a blocked native initializer must keep its only slot across retries"
+            );
+            assert!(
+                !start_pending_source_watcher(
+                    &mut pending,
+                    &retired,
+                    Vec::new(),
+                    event_tx.clone(),
+                    Arc::clone(&overflowed),
+                    SourceWatcherBackend::Polling,
+                ),
+                "a blocked polling initializer must keep its only slot across retries"
+            );
+        }
+
+        native_release_tx
+            .send(())
+            .expect("release native initializer");
+        polling_release_tx
+            .send(())
+            .expect("release polling initializer");
+        let mut teardown = SourceWatcherTeardown {
+            workers: Vec::new(),
+        };
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !retired.is_empty() && Instant::now() < deadline {
+            reap_retired_initializers(&mut retired, &mut teardown);
+            thread::yield_now();
+        }
+        assert!(
+            retired.is_empty(),
+            "released initializer slots must be joined"
+        );
+    }
+
+    #[test]
+    fn polling_recovery_remains_available_while_native_initializer_is_unresolved() {
+        let _guard = lock_lifecycle_tests();
+        let (native_release_tx, native_release_rx) = std::sync::mpsc::channel();
+        let mut pending = Some(blocking_initializer(
+            SourceWatcherBackend::Native,
+            native_release_rx,
+        ));
+        let mut retired = Vec::with_capacity(MAX_UNRESOLVED_INITIALIZERS);
+        cancel_pending_source_watcher(&mut pending, &mut retired);
+
+        assert_eq!(
+            next_available_backend(&pending, &retired),
+            Some(SourceWatcherBackend::Polling),
+            "a failed polling watcher must restart through its free polling slot"
+        );
+
+        native_release_tx
+            .send(())
+            .expect("release native initializer");
+        let mut teardown = SourceWatcherTeardown {
+            workers: Vec::new(),
+        };
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !retired.is_empty() && Instant::now() < deadline {
+            reap_retired_initializers(&mut retired, &mut teardown);
+            thread::yield_now();
+        }
+        assert!(retired.is_empty());
+    }
+
+    struct BlockingDropWatcher {
+        release_rx: Receiver<()>,
+    }
+
+    impl Drop for BlockingDropWatcher {
+        fn drop(&mut self) {
+            self.release_rx
+                .recv()
+                .expect("release blocking watcher drop");
+        }
+    }
+
+    impl Watcher for BlockingDropWatcher {
+        fn new<F: EventHandler>(_event_handler: F, _config: Config) -> notify::Result<Self>
+        where
+            Self: Sized,
+        {
+            unreachable!("test watcher is constructed directly")
+        }
+
+        fn watch(&mut self, _path: &Path, _recursive_mode: RecursiveMode) -> notify::Result<()> {
+            Ok(())
+        }
+
+        fn unwatch(&mut self, _path: &Path) -> notify::Result<()> {
+            Ok(())
+        }
+
+        fn kind() -> WatcherKind
+        where
+            Self: Sized,
+        {
+            WatcherKind::NullWatcher
+        }
+    }
+
+    fn blocking_watcher(release_rx: Receiver<()>) -> ActiveSourceWatcher {
+        ActiveSourceWatcher {
+            _watcher: Box::new(BlockingDropWatcher { release_rx }),
+            ingress_enabled: Arc::new(AtomicBool::new(true)),
+        }
+    }
+
+    fn completed_initializer(watcher: ActiveSourceWatcher) -> PendingSourceWatcher {
+        let (_result_tx, result_rx) = std::sync::mpsc::channel();
+        let join_handle = thread::spawn(|| {});
+        while !join_handle.is_finished() {
+            thread::yield_now();
+        }
+        PendingSourceWatcher {
+            result_rx,
+            ingress_enabled: Arc::new(AtomicBool::new(false)),
+            join_handle,
+            completed_result: Some(Ok((
+                watcher,
+                RootWatchUpdate {
+                    changed_roots: Vec::new(),
+                    has_unavailable_roots: false,
+                    watch_failed: false,
+                },
+                HashMap::new(),
+            ))),
+            started_at: Instant::now(),
+            backend: SourceWatcherBackend::Native,
+        }
+    }
+
+    #[test]
+    fn blocking_watcher_drops_have_a_fixed_tracked_worker_ceiling() {
+        let _guard = lock_lifecycle_tests();
+        let mut teardown = SourceWatcherTeardown {
+            workers: Vec::new(),
+        };
+        let mut releases: Vec<SyncSender<()>> = Vec::new();
+        for _ in 0..MAX_UNRESOLVED_TEARDOWNS {
+            let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+            if teardown.retire(blocking_watcher(release_rx)).is_err() {
+                panic!("teardown slot should be available");
+            }
+            releases.push(release_tx);
+        }
+        let (extra_release_tx, extra_release_rx) = std::sync::mpsc::sync_channel(1);
+        let retained = match teardown.retire(blocking_watcher(extra_release_rx)) {
+            Err(watcher) => watcher,
+            Ok(()) => panic!("a blocking drop must not spawn an unbounded reaper"),
+        };
+        assert_eq!(teardown.unresolved_count(), MAX_UNRESOLVED_TEARDOWNS);
+
+        for release in releases {
+            release.send(()).expect("release teardown worker");
+        }
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while teardown.unresolved_count() != 0 && Instant::now() < deadline {
+            teardown.reap_finished();
+            thread::yield_now();
+        }
+        assert_eq!(teardown.unresolved_count(), 0);
+        extra_release_tx.send(()).expect("release retained watcher");
+        drop(retained);
+    }
+
+    #[test]
+    fn shutdown_hands_blocked_initializer_and_saturated_stale_drop_to_lifecycle_owner() {
+        let _guard = lock_lifecycle_tests();
+        let (initializer_release_tx, initializer_release_rx) = std::sync::mpsc::channel();
+        let (stale_drop_release_tx, stale_drop_release_rx) = std::sync::mpsc::sync_channel(1);
+        let mut teardown = SourceWatcherTeardown {
+            workers: Vec::new(),
+        };
+        let mut teardown_releases = Vec::new();
+        for _ in 0..MAX_UNRESOLVED_TEARDOWNS {
+            let (release_tx, release_rx) = std::sync::mpsc::sync_channel(1);
+            if teardown.retire(blocking_watcher(release_rx)).is_err() {
+                panic!("occupy teardown slot");
+            }
+            teardown_releases.push(release_tx);
+        }
+        let lifecycle = SourceWatcherLifecycle {
+            retired_initializers: vec![
+                blocking_initializer(SourceWatcherBackend::Polling, initializer_release_rx),
+                completed_initializer(blocking_watcher(stale_drop_release_rx)),
+            ],
+            teardown,
+            retained_watcher: None,
+        };
+        let lifecycle_tx = start_source_watcher_lifecycle_service()
+            .expect("start lifecycle service before shutdown handoff");
+        let (handoff_tx, handoff_rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            lifecycle_tx
+                .send(lifecycle)
+                .expect("lifecycle service must accept shutdown handoff");
+            let _ = handoff_tx.send(());
+        });
+        handoff_rx
+            .recv_timeout(Duration::from_millis(500))
+            .expect("shutdown must hand off blocking lifecycle work without dropping it");
+
+        initializer_release_tx
+            .send(())
+            .expect("release initializer after shutdown handoff");
+        stale_drop_release_tx
+            .send(())
+            .expect("release stale watcher after shutdown handoff");
+        for release in teardown_releases {
+            release.send(()).expect("release teardown worker");
+        }
+    }
 }
