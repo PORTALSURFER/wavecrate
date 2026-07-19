@@ -41,7 +41,6 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) scanning: bool,
     pub(in crate::native_app) processing: bool,
-    pub(in crate::native_app) processing_pulse: f32,
     pub(in crate::native_app) missing: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) drag_active: bool,
@@ -189,7 +188,6 @@ impl LibrarySidebarViewModel {
                     .as_ref()
                     .filter(|progress| progress.active && progress.source_row_active)
                     .map(|progress| progress.source_id.as_str()),
-                state.background.progress_tick,
                 state
                     .library
                     .folder_progress()
@@ -214,20 +212,13 @@ impl SourceSelectorViewModel {
         folder_browser: &FolderBrowserState,
         help_tooltips_enabled: bool,
     ) -> Self {
-        Self::from_folder_browser_with_processing(
-            folder_browser,
-            help_tooltips_enabled,
-            None,
-            0.0,
-            None,
-        )
+        Self::from_folder_browser_with_processing(folder_browser, help_tooltips_enabled, None, None)
     }
 
     fn from_folder_browser_with_processing(
         folder_browser: &FolderBrowserState,
         help_tooltips_enabled: bool,
         processing_source_id: Option<&str>,
-        processing_pulse: f32,
         scanning_source_id: Option<&str>,
     ) -> Self {
         let selected_source_id = folder_browser.selected_source_id();
@@ -240,7 +231,6 @@ impl SourceSelectorViewModel {
                     selected_source_id,
                     folder_browser,
                     processing_source_id,
-                    processing_pulse,
                     scanning_source_id,
                 )
             })
@@ -261,7 +251,6 @@ impl SourceRowViewModel {
         selected_source_id: &str,
         folder_browser: &FolderBrowserState,
         processing_source_id: Option<&str>,
-        processing_pulse: f32,
         scanning_source_id: Option<&str>,
     ) -> Self {
         Self {
@@ -271,7 +260,6 @@ impl SourceRowViewModel {
             selected: selected_source_id == source.id,
             scanning: scanning_source_id == Some(source.id.as_str()),
             processing: processing_source_id == Some(source.id.as_str()),
-            processing_pulse,
             missing: source.is_missing(),
             protected_source_error_flash: folder_browser
                 .source_protected_error_flash_active(&source.id),

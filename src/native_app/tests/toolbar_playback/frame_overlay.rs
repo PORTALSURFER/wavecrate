@@ -518,6 +518,68 @@ fn source_processing_activity_moves_in_transient_overlay_without_input() {
 }
 
 #[test]
+fn source_processing_source_pulse_uses_animation_time_not_frame_count() {
+    let (mut state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("processing-pulse.wav");
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id,
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: true,
+            completed: 3,
+            total: 10,
+            stage: String::from("Analyzing audio"),
+            detail: String::from("processing-pulse.wav"),
+        },
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    let pulse_alpha = |runtime: &mut NativeRuntimeForTests, animation_time| {
+        let mut primitives = Vec::new();
+        runtime
+            .bridge_mut()
+            .state_mut()
+            .paint_source_processing_source_pulse(
+                TransientOverlayContext::new(
+                    &frame.paint_plan,
+                    Vector2::new(900.0, 620.0),
+                    animation_time,
+                ),
+                &mut primitives,
+            );
+        primitives
+            .iter()
+            .filter_map(|primitive| primitive.fill_rect())
+            .next()
+            .expect("source processing pulse fill")
+            .color
+            .a
+    };
+
+    let initial = pulse_alpha(&mut runtime, Duration::ZERO);
+    runtime.bridge_mut().state_mut().background.progress_tick = 0.5;
+    let after_frame_count_change = pulse_alpha(&mut runtime, Duration::ZERO);
+    let later = pulse_alpha(&mut runtime, Duration::from_millis(250));
+
+    assert_eq!(
+        after_frame_count_change, initial,
+        "playback frame cadence must not change the pulse phase"
+    );
+    assert_ne!(
+        later, initial,
+        "the pulse must advance from monotonic animation time"
+    );
+}
+
+#[test]
 fn manifest_maintenance_does_not_paint_source_row_pulse_overlay() {
     let (mut state, _source_root, _selected_file) =
         native_app_state_with_temp_sample("maintenance.wav");
