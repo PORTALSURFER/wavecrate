@@ -240,6 +240,7 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
             &mut connection,
             &first,
             ReadinessFailureClassification::Retryable,
+            "sqlite_busy",
             "database busy",
             0,
             policy,
@@ -274,6 +275,7 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
             &mut connection,
             &second,
             ReadinessFailureClassification::Retryable,
+            "sqlite_busy",
             "database busy",
             5,
             policy,
@@ -291,6 +293,7 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
             &mut connection,
             &third,
             ReadinessFailureClassification::Retryable,
+            "sqlite_busy",
             "still busy",
             15,
             policy,
@@ -305,6 +308,14 @@ fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
     let stats = readiness_work_stats(&connection, 1_000).expect("terminal stats");
     assert_eq!(stats.permanent_failures, 1);
     assert_eq!(stats.retries_due, 0);
+    let stored_code: Option<String> = connection
+        .query_row(
+            "SELECT failure_code FROM analysis_jobs WHERE readiness_scope_id = 'retry'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("read stored failure code");
+    assert_eq!(stored_code.as_deref(), Some("sqlite_busy"));
 }
 
 #[test]
@@ -363,6 +374,7 @@ fn similarity_layout_waits_for_delayed_embeddings_without_hot_reclaiming() {
                     &mut connection,
                     &claim,
                     ReadinessFailureClassification::Retryable,
+                    "prerequisite_not_durable",
                     "embedding feature prerequisite is not durable yet",
                     NOW,
                     retry_policy,
@@ -498,6 +510,7 @@ fn explicit_failure_classifications_are_terminal_and_observable() {
                 &mut connection,
                 &claim,
                 classification,
+                "terminal_test_failure",
                 "terminal",
                 0,
                 policy,
@@ -595,6 +608,7 @@ fn benign_reclaims_do_not_consume_retry_backoff_attempts() {
                 &mut connection,
                 &claim,
                 ReadinessFailureClassification::Retryable,
+                "sqlite_busy",
                 "database busy",
                 now,
                 policy,

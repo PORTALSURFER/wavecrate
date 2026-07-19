@@ -54,6 +54,7 @@ pub(super) fn ensure_analysis_jobs_optional_columns(
         ("content_generation", "TEXT"),
         ("retry_at", "INTEGER"),
         ("failure_kind", "TEXT"),
+        ("failure_code", "TEXT"),
         ("lease_expires_at", "INTEGER"),
     ] {
         if !columns.contains(column) {

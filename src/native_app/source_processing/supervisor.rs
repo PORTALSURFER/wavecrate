@@ -34,6 +34,11 @@ use wavecrate::sample_sources::{
 use super::scheduler::{
     BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
 };
+#[cfg(test)]
+use super::worker::SourceProcessingFailureCode;
+use super::worker::{
+    SourceProcessingFailure, SourceProcessingFailureClass, source_database_failure,
+};
 use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
 use crate::native_app::sample_library::similarity_artifacts::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
@@ -2832,7 +2837,7 @@ fn discover_source_candidates_with_connection_and_progress(
         .map_err(|error| error.to_string())?;
     if readiness_source_exists {
         let reclassified = ReadinessStore::new(connection)
-            .reclassify_known_unsupported_failures(is_known_unsupported_audio_failure)
+            .reclassify_known_unsupported_failures(legacy_unsupported_decode_failure_text)
             .map_err(|error| error.to_string())?;
         if reclassified > 0 {
             tracing::info!(
@@ -3828,6 +3833,7 @@ fn execute_readiness_target(
                 .fail(
                     &claim,
                     ReadinessFailureClassification::Retryable,
+                    "readiness_retry",
                     reason,
                     now_epoch_seconds(),
                     policy,
@@ -3835,13 +3841,37 @@ fn execute_readiness_target(
                 .map_err(|error| error.to_string())?;
             Ok(execution_outcome_for_failure(outcome))
         }
-        Err(reason) => {
-            let classification = readiness_failure_classification(&reason);
+        Err(failure) => {
+            let classification = match failure.class {
+                SourceProcessingFailureClass::Retryable => {
+                    ReadinessFailureClassification::Retryable
+                }
+                SourceProcessingFailureClass::Permanent => {
+                    ReadinessFailureClassification::Permanent
+                }
+                SourceProcessingFailureClass::Unsupported => {
+                    ReadinessFailureClassification::Unsupported
+                }
+            };
             let policy = ReadinessRetryPolicy::new(5, 5 * 60, READINESS_MAX_ATTEMPTS)
                 .expect("valid readiness retry policy");
             let outcome = ReadinessStore::new(&mut connection)
-                .fail(&claim, classification, &reason, now_epoch_seconds(), policy)
+                .fail(
+                    &claim,
+                    classification,
+                    failure.code.as_str(),
+                    &failure.context,
+                    now_epoch_seconds(),
+                    policy,
+                )
                 .map_err(|error| error.to_string())?;
+            tracing::warn!(
+                target: "wavecrate::source_processing",
+                source_id = source.id.as_str(),
+                failure_code = failure.code.as_str(),
+                source_error = ?failure.source_error,
+                "Readiness execution failed"
+            );
             Ok(execution_outcome_for_failure(outcome))
         }
         Ok(ReadinessExecutionOutcome::Permanent(reason)) => {
@@ -3851,6 +3881,7 @@ fn execute_readiness_target(
                 .fail(
                     &claim,
                     ReadinessFailureClassification::Permanent,
+                    "readiness_permanent",
                     reason,
                     now_epoch_seconds(),
                     policy,
@@ -3865,6 +3896,7 @@ fn execute_readiness_target(
                 .fail(
                     &claim,
                     ReadinessFailureClassification::Unsupported,
+                    "readiness_unsupported",
                     reason,
                     now_epoch_seconds(),
                     policy,
@@ -3883,6 +3915,7 @@ fn execute_readiness_target(
                 .fail(
                     &claim,
                     ReadinessFailureClassification::Retryable,
+                    "prerequisite_invalidated",
                     reason,
                     now_epoch_seconds(),
                     policy,
@@ -3901,21 +3934,17 @@ fn execute_readiness_target(
     }
 }
 
-fn cleanup_unpublished_readiness_output(outcome: &Result<ReadinessExecutionOutcome, String>) {
+fn cleanup_unpublished_readiness_output(
+    outcome: &Result<ReadinessExecutionOutcome, SourceProcessingFailure>,
+) {
     if let Ok(ReadinessExecutionOutcome::Complete(Some(artifact_ref))) = outcome {
         invalidate_persisted_waveform_cache_ref(artifact_ref);
     }
 }
 
-fn readiness_failure_classification(reason: &str) -> ReadinessFailureClassification {
-    if is_known_unsupported_audio_failure(reason) {
-        ReadinessFailureClassification::Unsupported
-    } else {
-        ReadinessFailureClassification::Retryable
-    }
-}
-
-fn is_known_unsupported_audio_failure(reason: &str) -> bool {
+// Compatibility-only migration for rows persisted by versions that discarded the execution
+// failure type. Live execution always receives `SourceProcessingFailure` from its owner.
+fn legacy_unsupported_decode_failure_text(reason: &str) -> bool {
     let reason = reason.to_ascii_lowercase();
     reason.contains("failed to decode audio file:")
         || reason.contains("audio decode failed for")
@@ -4024,7 +4053,7 @@ fn run_readiness_stage(
     connection: &mut rusqlite::Connection,
     claim: &ClaimedReadinessWork,
     cancel: &AtomicBool,
-) -> Result<ReadinessExecutionOutcome, String> {
+) -> Result<ReadinessExecutionOutcome, SourceProcessingFailure> {
     let target = claim.target();
     match target.stage {
         ReadinessStage::IndexedIdentity => {
@@ -4042,7 +4071,7 @@ fn run_readiness_stage(
                     params![target.scope_id, relative_path],
                     |row| row.get(0),
                 )
-                .map_err(|error| error.to_string())?;
+                .map_err(SourceProcessingFailure::from)?;
             Ok(if current {
                 let has_content_hash: bool = connection
                     .query_row(
@@ -4054,7 +4083,7 @@ fn run_readiness_stage(
                         params![target.scope_id, relative_path],
                         |row| row.get(0),
                     )
-                    .map_err(|error| error.to_string())?;
+                    .map_err(SourceProcessingFailure::from)?;
                 if !has_content_hash {
                     let database_root =
                         source.database_root().map_err(|error| error.to_string())?;
@@ -4062,7 +4091,7 @@ fn run_readiness_stage(
                         &source.root,
                         database_root,
                     )
-                    .map_err(|error| error.to_string())?;
+                    .map_err(source_database_failure)?;
                     complete_pending_deep_hash_for_path(
                         &db,
                         std::path::Path::new(relative_path),
@@ -4078,7 +4107,7 @@ fn run_readiness_stage(
                         |row| row.get::<_, Option<String>>(0),
                     )
                     .optional()
-                    .map_err(|error| error.to_string())?
+                    .map_err(SourceProcessingFailure::from)?
                     .flatten()
                     .filter(|content_hash| !content_hash.is_empty());
                 if committed_content_hash.as_deref() == Some(target.content_generation.as_str()) {
@@ -4217,16 +4246,18 @@ fn run_readiness_stage(
                 ));
             }
             let publication_fence = SimilarityPublicationFence::for_readiness_target(target)?;
-            finalize_similarity_artifacts_if_ready(source, &publication_fence, cancel).map(
-                |finalized| {
-                    if finalized {
-                        ReadinessExecutionOutcome::Complete(None)
-                    } else {
-                        ReadinessExecutionOutcome::PrerequisiteInvalidated(
-                            "similarity prerequisites changed before publication",
-                        )
-                    }
-                },
+            Ok(
+                finalize_similarity_artifacts_if_ready(source, &publication_fence, cancel).map(
+                    |finalized| {
+                        if finalized {
+                            ReadinessExecutionOutcome::Complete(None)
+                        } else {
+                            ReadinessExecutionOutcome::PrerequisiteInvalidated(
+                                "similarity prerequisites changed before publication",
+                            )
+                        }
+                    },
+                )?,
             )
         }
     }
@@ -4787,7 +4818,7 @@ mod tests {
         connection: &mut rusqlite::Connection,
     ) -> Result<usize, String> {
         ReadinessStore::new(connection)
-            .reclassify_known_unsupported_failures(is_known_unsupported_audio_failure)
+            .reclassify_known_unsupported_failures(legacy_unsupported_decode_failure_text)
             .map_err(|error| error.to_string())
     }
 
@@ -8576,28 +8607,32 @@ mod tests {
     }
 
     #[test]
-    fn deterministic_audio_decode_failures_are_not_retried() {
-        for reason in [
-            "failed to decode audio file: Invalid wav: no RIFF tag found",
-            "Source analysis process failed: Audio decode failed for bad.wav",
-            "audio file contains no complete frames",
-            "source analysis process failed: unsupported codec",
-            "Symphonia probe failed: no suitable format reader found",
+    fn typed_execution_failures_keep_their_class_when_context_changes() {
+        for context in [
+            "unsupported codec",
+            "worker wrapped: no suitable format reader found",
+            "a future decoder changed this diagnostic entirely",
         ] {
-            assert_eq!(
-                readiness_failure_classification(reason),
-                ReadinessFailureClassification::Unsupported,
-                "{reason}"
-            );
+            let failure = SourceProcessingFailure {
+                class: SourceProcessingFailureClass::Unsupported,
+                code: SourceProcessingFailureCode::DecoderUnsupported,
+                context: context.to_string(),
+                source_error: Some("decoder detail".to_string()),
+            };
+            let classification = match failure.class {
+                SourceProcessingFailureClass::Retryable => {
+                    ReadinessFailureClassification::Retryable
+                }
+                SourceProcessingFailureClass::Permanent => {
+                    ReadinessFailureClassification::Permanent
+                }
+                SourceProcessingFailureClass::Unsupported => {
+                    ReadinessFailureClassification::Unsupported
+                }
+            };
+            assert_eq!(classification, ReadinessFailureClassification::Unsupported);
+            assert_eq!(failure.code.as_str(), "decoder_unsupported");
         }
-        assert_eq!(
-            readiness_failure_classification("database is locked"),
-            ReadinessFailureClassification::Retryable
-        );
-        assert_eq!(
-            readiness_failure_classification("failed to read audio file: permission denied"),
-            ReadinessFailureClassification::Retryable
-        );
     }
 
     #[test]
@@ -8616,27 +8651,28 @@ mod tests {
                     status TEXT NOT NULL,
                     attempts INTEGER NOT NULL,
                     failure_kind TEXT,
+                    failure_code TEXT,
                     retry_at INTEGER,
                     last_error TEXT
                 );
                 INSERT INTO analysis_jobs VALUES
                     (1, 'source', 1, 'file', 'bad-audio', 'analysis_features', 'hash',
-                        'failed', 3, 'retryable', 500,
+                        'failed', 3, 'retryable', NULL, 500,
                         'failed to decode audio file: Invalid wav'),
                     (2, 'source', 1, 'file', 'transient', 'analysis_features', 'hash',
-                        'failed', 3, 'retryable', 500, 'database is locked'),
+                        'failed', 3, 'retryable', NULL, 500, 'database is locked'),
                     (3, 'source', 1, 'file', 'pending', 'analysis_features', 'hash',
-                        'pending', 0, NULL, NULL, NULL),
+                        'pending', 0, NULL, NULL, NULL, NULL),
                     (4, 'source', 0, 'file', 'legacy', 'analysis_features', 'hash',
-                        'failed', 3, 'retryable', 500, 'unsupported codec'),
+                        'failed', 3, 'retryable', NULL, 500, 'unsupported codec'),
                     (5, 'source', 1, 'file', 'bad-audio', 'embedding_aspects', 'hash',
-                        'failed', 3, 'retryable', 500,
+                        'failed', 3, 'retryable', NULL, 500,
                         'embedding feature prerequisite is not durable yet'),
                     (6, 'source', 1, 'file', 'missing-payload', 'embedding_aspects', 'hash',
-                        'failed', 8, 'permanent', NULL,
+                        'failed', 8, 'permanent', NULL, NULL,
                         'embedding feature prerequisite is not durable yet'),
                     (7, 'source', 1, 'file', 'legacy-permanent', 'analysis_features', 'hash',
-                        'failed', 8, 'permanent', NULL,
+                        'failed', 8, 'permanent', NULL, NULL,
                         'Audio decode failed for empty.wav: no suitable format reader found');",
             )
             .expect("seed readiness failures");
@@ -8648,12 +8684,25 @@ mod tests {
         );
         let first = connection
             .query_row(
-                "SELECT failure_kind, retry_at FROM analysis_jobs WHERE id = 1",
+                "SELECT failure_kind, failure_code, retry_at FROM analysis_jobs WHERE id = 1",
                 [],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                },
             )
             .expect("read reclassified failure");
-        assert_eq!(first, (String::from("unsupported"), None));
+        assert_eq!(
+            first,
+            (
+                String::from("unsupported"),
+                Some(String::from("legacy_decoder_unsupported")),
+                None
+            )
+        );
         let second = connection
             .query_row(
                 "SELECT failure_kind, retry_at FROM analysis_jobs WHERE id = 2",
