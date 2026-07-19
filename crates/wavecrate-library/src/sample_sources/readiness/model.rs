@@ -265,6 +265,8 @@ pub struct ClaimedReadinessWork {
     pub failure_attempts: u32,
     /// Current lease deadline captured by the claim operation.
     pub lease_expires_at: i64,
+    /// Durable state transition that made this work claimable.
+    pub origin: ReadinessClaimOrigin,
 }
 
 impl ClaimedReadinessWork {
@@ -286,6 +288,36 @@ impl ClaimedReadinessWork {
     /// Current lease deadline captured by the claim operation.
     pub fn lease_expires_at(&self) -> i64 {
         self.lease_expires_at
+    }
+
+    /// Durable state transition that made this work claimable.
+    pub fn origin(&self) -> ReadinessClaimOrigin {
+        self.origin
+    }
+}
+
+/// Durable state transition that made one readiness job claimable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessClaimOrigin {
+    /// Newly persisted work, or work explicitly returned to the pending state.
+    Pending,
+    /// A retryable execution failure whose retry deadline is due.
+    Retry,
+    /// Running work whose durable lease has expired.
+    ExpiredLease,
+    /// Compatibility work written without a lease by an older Wavecrate version.
+    LegacyNullLease,
+}
+
+impl ReadinessClaimOrigin {
+    /// Stable diagnostic value for logs and telemetry.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Retry => "retry",
+            Self::ExpiredLease => "expired_lease",
+            Self::LegacyNullLease => "legacy_null_lease",
+        }
     }
 }
 
@@ -409,6 +441,8 @@ pub struct ReadinessWorkStats {
     pub retries_waiting: usize,
     /// Earliest persisted retry deadline that has not arrived yet.
     pub earliest_retry_at: Option<i64>,
+    /// Earliest running lease deadline that has not arrived yet.
+    pub earliest_lease_expiry_at: Option<i64>,
     /// Permanently failed rows.
     pub permanent_failures: usize,
     /// Unsupported rows.

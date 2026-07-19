@@ -64,6 +64,7 @@ fn expired_claim_is_recovered_after_restart_with_a_new_attempt() {
     let first = claim_readiness_target(&mut connection, &target, 10, 10)
         .expect("first claim")
         .expect("first claim available");
+    assert_eq!(first.origin, ReadinessClaimOrigin::Pending);
     drop(connection);
 
     let mut reopened = SourceDatabase::open_connection(root.path()).expect("reopen source db");
@@ -71,18 +72,103 @@ fn expired_claim_is_recovered_after_restart_with_a_new_attempt() {
         claim_readiness_target(&mut reopened, &target, 19, 10).expect("lease still active"),
         None
     );
+    assert_eq!(
+        readiness_work_stats(&reopened, 19)
+            .expect("active lease stats")
+            .earliest_lease_expiry_at,
+        Some(20)
+    );
     let expired = readiness_work_stats(&reopened, 20).expect("expired stats");
     assert_eq!(expired.expired_leases, 1);
+    assert_eq!(expired.earliest_lease_expiry_at, None);
     let recovered = claim_readiness_target(&mut reopened, &target, 20, 10)
         .expect("recover claim")
         .expect("expired claim available");
     assert_eq!(recovered.claim_generation, first.claim_generation + 1);
     assert_eq!(recovered.failure_attempts, 0);
     assert_eq!(recovered.lease_expires_at, 30);
+    assert_eq!(recovered.origin, ReadinessClaimOrigin::ExpiredLease);
     assert_eq!(
         complete_readiness_work(&mut reopened, &first, 21).expect("stale completion"),
         ArtifactPublishOutcome::RejectedStale
     );
+    let policy = ReadinessRetryPolicy::new(1, 10, 2).expect("retry policy");
+    assert_eq!(
+        fail_readiness_work(
+            &mut reopened,
+            &first,
+            ReadinessFailureClassification::Retryable,
+            "stale_worker",
+            "stale worker failed after recovery",
+            21,
+            policy,
+        )
+        .expect("stale failure"),
+        ReadinessFailureOutcome::RejectedStale
+    );
+}
+
+#[test]
+fn legacy_null_lease_is_recovered_and_generation_fenced() {
+    let (_root, mut connection) = open_fixture();
+    let target = file_target("legacy-null", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&target));
+    persist_target(&mut connection, &target, 10);
+    let original = claim_readiness_target(&mut connection, &target, 10, 100)
+        .expect("claim original")
+        .expect("original available");
+    connection
+        .execute(
+            "UPDATE analysis_jobs SET lease_expires_at = NULL
+             WHERE readiness_managed = 1 AND readiness_claim_generation = ?1",
+            [original.claim_generation],
+        )
+        .expect("simulate legacy null lease");
+
+    let recovered = claim_readiness_target(&mut connection, &target, 11, 100)
+        .expect("recover legacy claim")
+        .expect("legacy claim available");
+    assert_eq!(recovered.origin, ReadinessClaimOrigin::LegacyNullLease);
+    assert_eq!(recovered.claim_generation, original.claim_generation + 1);
+    assert_eq!(
+        complete_readiness_work(&mut connection, &original, 12).expect("stale completion"),
+        ArtifactPublishOutcome::RejectedStale
+    );
+}
+
+#[test]
+fn independent_connections_cannot_claim_one_generation_concurrently() {
+    let (root, mut connection) = open_fixture();
+    let target = file_target("concurrent", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&target));
+    persist_target(&mut connection, &target, 10);
+    drop(connection);
+
+    let start = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let root_path = root.path().to_path_buf();
+    let handles = (0..2)
+        .map(|_| {
+            let start = std::sync::Arc::clone(&start);
+            let root_path = root_path.clone();
+            let target = target.clone();
+            std::thread::spawn(move || {
+                let mut connection =
+                    SourceDatabase::open_connection(&root_path).expect("claimant connection");
+                start.wait();
+                claim_readiness_target(&mut connection, &target, 10, 100).expect("concurrent claim")
+            })
+        })
+        .collect::<Vec<_>>();
+    start.wait();
+    let claims = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("claimant joined"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(claims.iter().filter(|claim| claim.is_some()).count(), 1);
+    let claim = claims.into_iter().flatten().next().expect("one owner");
+    assert_eq!(claim.claim_generation, 1);
+    assert_eq!(claim.origin, ReadinessClaimOrigin::Pending);
 }
 
 #[test]

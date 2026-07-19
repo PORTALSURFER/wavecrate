@@ -533,11 +533,6 @@ impl<'connection> ReadinessStore<'connection> {
             [artifact_ref], |row| row.get(0),
         ).map_err(Into::into)
     }
-
-    /// Reset interrupted readiness claims so recovery can claim them again.
-    pub fn reset_interrupted_work(&mut self) -> Result<usize, ReadinessError> {
-        self.connection.execute("UPDATE analysis_jobs SET status = 'pending', running_at = NULL, lease_expires_at = NULL WHERE status = 'running' AND readiness_managed = 1", []).map_err(Into::into)
-    }
 }
 
 #[cfg(test)]

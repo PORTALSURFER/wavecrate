@@ -352,15 +352,6 @@ fn invalidate_incomplete_embedding_artifacts(
     Ok(())
 }
 
-pub(in crate::native_app) fn reset_interrupted_readiness_jobs(
-    source: &SampleSource,
-) -> Result<usize, String> {
-    let mut conn = open_source_db(source)?;
-    ReadinessStore::new(&mut conn)
-        .reset_interrupted_work()
-        .map_err(|error| format!("Reset interrupted readiness jobs failed: {error}"))
-}
-
 pub(super) fn open_source_db(source: &SampleSource) -> Result<rusqlite::Connection, String> {
     let database_root = source
         .database_root()

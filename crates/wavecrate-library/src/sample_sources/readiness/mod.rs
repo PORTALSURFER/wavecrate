@@ -9,10 +9,10 @@ mod snapshot;
 mod store;
 
 pub use model::{
-    ClaimedReadinessWork, ReadinessArtifact, ReadinessEligibility, ReadinessFailureClassification,
-    ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy,
-    ReadinessScopeKind, ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome,
-    ReadinessWorkStats, SourceAvailability,
+    ClaimedReadinessWork, ReadinessArtifact, ReadinessClaimOrigin, ReadinessEligibility,
+    ReadinessFailureClassification, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
+    ReadinessRetryPolicy, ReadinessScopeKind, ReadinessStage, ReadinessTarget,
+    ReadinessWorkMutationOutcome, ReadinessWorkStats, SourceAvailability,
 };
 pub use snapshot::{
     ArtifactPublishOutcome, ReadinessActivity, ReadinessClassification, ReadinessDeficit,

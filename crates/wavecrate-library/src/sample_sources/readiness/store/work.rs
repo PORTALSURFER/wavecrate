@@ -1,9 +1,9 @@
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
 use super::super::model::{
-    ClaimedReadinessWork, ReadinessArtifact, ReadinessEligibility, ReadinessFailureClassification,
-    ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessTarget,
-    ReadinessWorkMutationOutcome, ReadinessWorkStats,
+    ClaimedReadinessWork, ReadinessArtifact, ReadinessClaimOrigin, ReadinessEligibility,
+    ReadinessFailureClassification, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
+    ReadinessRetryPolicy, ReadinessTarget, ReadinessWorkMutationOutcome, ReadinessWorkStats,
 };
 use super::super::snapshot::ArtifactPublishOutcome;
 use super::error::ReadinessError;
@@ -24,6 +24,7 @@ pub(crate) fn claim_readiness_target(
     let candidate = tx
         .query_row(
             "SELECT job.id, job.readiness_claim_generation, job.attempts,
+                    job.status, job.lease_expires_at,
                     target.relative_path, target.source_generation, target.eligibility
              FROM source_readiness_targets AS target
              JOIN source_readiness_sources AS source
@@ -116,9 +117,11 @@ pub(crate) fn claim_readiness_target(
                     row.get::<_, i64>(0)?,
                     row.get::<_, i64>(1)?,
                     row.get::<_, i64>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, i64>(4)?,
-                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, String>(7)?,
                 ))
             },
         )
@@ -127,6 +130,8 @@ pub(crate) fn claim_readiness_target(
         job_id,
         stored_claim_generation,
         stored_failure_attempts,
+        stored_status,
+        stored_lease_expires_at,
         relative_path,
         source_generation,
         eligibility,
@@ -141,6 +146,7 @@ pub(crate) fn claim_readiness_target(
         .checked_add(1)
         .ok_or(ReadinessError::TimestampOverflow)?;
     let failure_attempts = decode_counter("attempts", stored_failure_attempts)?;
+    let origin = decode_claim_origin(&stored_status, stored_lease_expires_at)?;
     let changed = tx.execute(
         "UPDATE analysis_jobs
          SET status = 'running',
@@ -186,6 +192,7 @@ pub(crate) fn claim_readiness_target(
         claim_generation,
         failure_attempts,
         lease_expires_at,
+        origin,
     }))
 }
 
@@ -469,6 +476,8 @@ pub(crate) fn readiness_work_stats(
                 AND retry_at > ?1 THEN 1 ELSE 0 END),
             MIN(CASE WHEN status = 'failed' AND failure_kind = 'retryable'
                 AND retry_at > ?1 THEN retry_at ELSE NULL END),
+            MIN(CASE WHEN status = 'running' AND lease_expires_at > ?1
+                THEN lease_expires_at ELSE NULL END),
             SUM(CASE WHEN status = 'failed' AND failure_kind = 'permanent'
                 THEN 1 ELSE 0 END),
             SUM(CASE WHEN status = 'failed' AND failure_kind = 'unsupported'
@@ -504,10 +513,11 @@ pub(crate) fn readiness_work_stats(
                 row.get::<_, Option<i64>>(4)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(5)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(6)?,
-                row.get::<_, Option<i64>>(7)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(7)?,
                 row.get::<_, Option<i64>>(8)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(9)?.unwrap_or(0),
                 row.get::<_, Option<i64>>(10)?.unwrap_or(0),
+                row.get::<_, Option<i64>>(11)?.unwrap_or(0),
             ))
         },
     )?;
@@ -519,10 +529,11 @@ pub(crate) fn readiness_work_stats(
         retries_due: count(values.4),
         retries_waiting: count(values.5),
         earliest_retry_at: values.6,
-        permanent_failures: count(values.7),
-        unsupported: count(values.8),
-        cancelled: count(values.9),
-        completed: count(values.10),
+        earliest_lease_expiry_at: values.7,
+        permanent_failures: count(values.8),
+        unsupported: count(values.9),
+        cancelled: count(values.10),
+        completed: count(values.11),
     })
 }
 
@@ -632,6 +643,22 @@ fn decode_counter(field: &'static str, value: i64) -> Result<u32, ReadinessError
         field,
         value: value.to_string(),
     })
+}
+
+fn decode_claim_origin(
+    status: &str,
+    lease_expires_at: Option<i64>,
+) -> Result<ReadinessClaimOrigin, ReadinessError> {
+    match (status, lease_expires_at) {
+        ("pending", _) => Ok(ReadinessClaimOrigin::Pending),
+        ("failed", _) => Ok(ReadinessClaimOrigin::Retry),
+        ("running", Some(_)) => Ok(ReadinessClaimOrigin::ExpiredLease),
+        ("running", None) => Ok(ReadinessClaimOrigin::LegacyNullLease),
+        (unknown, _) => Err(ReadinessError::UnknownStoredValue {
+            field: "analysis_jobs.status",
+            value: unknown.to_string(),
+        }),
+    }
 }
 
 fn decode_eligibility(value: String) -> Result<ReadinessEligibility, ReadinessError> {

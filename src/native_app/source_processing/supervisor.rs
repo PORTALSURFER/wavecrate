@@ -38,7 +38,7 @@ use super::worker::{SourceProcessingFailure, source_database_failure};
 use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
 use crate::native_app::sample_library::similarity_artifacts::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
-    native_similarity_artifact_version, reset_interrupted_readiness_jobs,
+    native_similarity_artifact_version,
 };
 use crate::native_app::waveform::invalidate_persisted_waveform_cache_ref;
 
@@ -1354,7 +1354,6 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut next_retry_at = None;
     let mut next_safety_sweep_at = Instant::now() + SAFETY_SWEEP_INTERVAL;
     let mut scheduler = FairScheduler::default();
-    let mut reset_sources = BTreeMap::<String, bool>::new();
     let mut candidates = Vec::<RuntimeCandidate>::new();
     let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
     let mut active_progress_source = None::<String>;
@@ -1489,64 +1488,6 @@ fn run_coordinator(shared: Arc<Shared>) {
                 && !dirty_sources.contains(candidate.source.id.as_str())
         });
         source_stats.retain(|source_id, _| configured_source_ids.contains(source_id));
-        for source in &sources_to_discover {
-            let source_id = source.id.as_str().to_string();
-            if !reset_sources.contains_key(&source_id) {
-                let Some(permit) = shared
-                    .budgets()
-                    .try_acquire(&source_id, ProcessingLane::Cleanup)
-                else {
-                    continue;
-                };
-                let Some(source_cancel) = source_work_cancels.get(&source_id) else {
-                    shared.budgets().release(permit);
-                    shared.budget_wake.notify_all();
-                    continue;
-                };
-                let Some(in_flight_work) = shared.begin_in_flight_work(&source_id, source_cancel)
-                else {
-                    shared.budgets().release(permit);
-                    shared.budget_wake.notify_all();
-                    continue;
-                };
-                let recovery_started = Instant::now();
-                publish_source_recovery_progress(
-                    &shared,
-                    source,
-                    in_flight_work.lifecycle_generation,
-                );
-                progress_visible = true;
-                active_progress_source = Some(source_id.clone());
-                last_progress_publish_at = Some(recovery_started);
-                tracing::info!(
-                    target: "wavecrate::source_processing",
-                    event = "source_processing.recovery.started",
-                    source_id = source.id.as_str(),
-                    source_root = %source.root.display(),
-                    "Recovering interrupted source jobs"
-                );
-                match reset_interrupted_readiness_jobs(source) {
-                    Ok(reset) => {
-                        reset_sources.insert(source_id, true);
-                        tracing::info!(
-                            target: "wavecrate::source_processing",
-                            event = "source_processing.recovery.finished",
-                            source_id = source.id.as_str(),
-                            reset,
-                            elapsed_ms = recovery_started.elapsed().as_secs_f64() * 1_000.0,
-                            "Recovered interrupted source jobs"
-                        );
-                    }
-                    Err(error) => record_discovery_error(&shared, source, &error),
-                }
-                drop(in_flight_work);
-                shared.budgets().release(permit);
-                shared.budget_wake.notify_all();
-            }
-        }
-        reset_sources
-            .retain(|source_id, _| sources.iter().any(|source| source.id.as_str() == source_id));
-
         let sweep_started = Instant::now();
         for source in &sources_to_discover {
             source_stats.remove(source.id.as_str());
@@ -2322,6 +2263,7 @@ fn publish_source_processing_progress(
     ));
 }
 
+#[cfg(test)]
 fn publish_source_recovery_progress(
     shared: &Shared,
     source: &SampleSource,
@@ -2909,8 +2851,13 @@ fn discover_source_candidates_with_connection_and_progress(
             .saturating_add(work_stats.unsupported)
             .min(stats.progress_total);
         stats.retries_due = work_stats.retries_due;
-        stats.earliest_retry_at =
-            earliest_deadline(work_stats.earliest_retry_at, active_recordings.retry_at);
+        stats.earliest_retry_at = earliest_deadline(
+            earliest_deadline(
+                work_stats.earliest_retry_at,
+                work_stats.earliest_lease_expiry_at,
+            ),
+            active_recordings.retry_at,
+        );
         if !active_recordings.scope_ids.is_empty() {
             tracing::info!(
                 target: "wavecrate::source_processing",
@@ -3759,6 +3706,17 @@ fn execute_readiness_target(
     else {
         return Ok(ExecutionOutcome::NotClaimed);
     };
+    tracing::info!(
+        target: "wavecrate::source_processing",
+        event = "source_processing.readiness.claimed",
+        source_id = source.id.as_str(),
+        stage = ?target.stage,
+        scope_id = target.scope_id.as_str(),
+        claim_generation = claim.claim_generation(),
+        claim_origin = claim.origin().as_str(),
+        lease_expires_at = claim.lease_expires_at(),
+        "Readiness work claimed"
+    );
     if cancel.load(Ordering::Acquire) {
         return cancel_claim(&mut connection, &claim, "runtime cancellation", now);
     }
@@ -4823,7 +4781,7 @@ mod tests {
     }
 
     #[test]
-    fn retired_jobs_are_pruned_and_only_readiness_jobs_are_recovered() {
+    fn retired_jobs_are_pruned_without_mutating_readiness_jobs() {
         let directory = tempfile::tempdir().expect("source directory");
         let source = SampleSource::new_with_id(
             SourceId::from_string("current-only-jobs"),
@@ -4853,9 +4811,6 @@ mod tests {
             )
             .expect("seed current and retired jobs");
 
-        let reset =
-            reset_interrupted_readiness_jobs(&source).expect("reset interrupted current job");
-        assert_eq!(reset, 1);
         assert_eq!(
             connection
                 .query_row(
@@ -4874,7 +4829,7 @@ mod tests {
                     |row| row.get::<_, String>(0),
                 )
                 .expect("read readiness job"),
-            "pending"
+            "running"
         );
 
         assert_eq!(

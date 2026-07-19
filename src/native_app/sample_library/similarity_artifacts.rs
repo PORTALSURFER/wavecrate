@@ -9,8 +9,7 @@ mod worker;
 
 pub(in crate::native_app) use worker::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
-    native_similarity_artifact_version, reset_interrupted_readiness_jobs,
-    run_internal_similarity_finalizer_from_args,
+    native_similarity_artifact_version, run_internal_similarity_finalizer_from_args,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
