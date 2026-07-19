@@ -74,6 +74,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         content_generation TEXT,
         retry_at INTEGER,
         failure_kind TEXT,
+        failure_code TEXT,
         lease_expires_at INTEGER,
         UNIQUE(sample_id, job_type)
     );

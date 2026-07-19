@@ -15,7 +15,9 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceDatabaseConnectionRole};
+use wavecrate::sample_sources::{
+    SampleSource, SourceDatabase, SourceDatabaseConnectionRole, db::SourceDbError,
+};
 
 const INTERNAL_SOURCE_ANALYSIS_ARG: &str = "--wavecrate-internal-source-analysis-v1";
 
@@ -49,6 +51,156 @@ struct SourceAnalysisResult {
     terminal_offline: bool,
 }
 
+/// Stable, serializable classification of an execution failure.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum SourceProcessingFailureClass {
+    Retryable,
+    Permanent,
+    Unsupported,
+}
+
+/// Stable execution-failure code persisted independently from display text.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum SourceProcessingFailureCode {
+    DecoderUnsupported,
+    SqliteBusy,
+    WorkerProcessFailed,
+    WorkerProtocol,
+    ExecutionUnclassified,
+}
+
+impl SourceProcessingFailureCode {
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Self::DecoderUnsupported => "decoder_unsupported",
+            Self::SqliteBusy => "sqlite_busy",
+            Self::WorkerProcessFailed => "worker_process_failed",
+            Self::WorkerProtocol => "worker_protocol",
+            Self::ExecutionUnclassified => "execution_unclassified",
+        }
+    }
+}
+
+/// Typed execution failure crossing the worker/supervisor boundary.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(super) struct SourceProcessingFailure {
+    pub(super) class: SourceProcessingFailureClass,
+    pub(super) code: SourceProcessingFailureCode,
+    /// Sanitized context suitable for user-facing readiness diagnostics.
+    pub(super) context: String,
+    /// Original error context retained for logs without making it part of policy.
+    pub(super) source_error: Option<String>,
+}
+
+impl SourceProcessingFailure {
+    pub(super) const fn readiness_failure_classification(
+        &self,
+    ) -> wavecrate::sample_sources::readiness::ReadinessFailureClassification {
+        match self.class {
+            SourceProcessingFailureClass::Retryable => {
+                wavecrate::sample_sources::readiness::ReadinessFailureClassification::Retryable
+            }
+            SourceProcessingFailureClass::Permanent => {
+                wavecrate::sample_sources::readiness::ReadinessFailureClassification::Permanent
+            }
+            SourceProcessingFailureClass::Unsupported => {
+                wavecrate::sample_sources::readiness::ReadinessFailureClassification::Unsupported
+            }
+        }
+    }
+
+    fn retryable(code: SourceProcessingFailureCode, context: impl Into<String>) -> Self {
+        Self {
+            class: SourceProcessingFailureClass::Retryable,
+            code,
+            context: context.into(),
+            source_error: None,
+        }
+    }
+
+    fn permanent(
+        code: SourceProcessingFailureCode,
+        context: impl Into<String>,
+        source_error: Option<String>,
+    ) -> Self {
+        Self {
+            class: SourceProcessingFailureClass::Permanent,
+            code,
+            context: context.into(),
+            source_error,
+        }
+    }
+}
+
+impl From<String> for SourceProcessingFailure {
+    fn from(source_error: String) -> Self {
+        // Unknown failures fail closed: new text must never silently become retryable.
+        Self::permanent(
+            SourceProcessingFailureCode::ExecutionUnclassified,
+            "Source processing execution failed",
+            Some(source_error),
+        )
+    }
+}
+
+impl From<rusqlite::Error> for SourceProcessingFailure {
+    fn from(error: rusqlite::Error) -> Self {
+        if matches!(
+            error,
+            rusqlite::Error::SqliteFailure(
+                ref sqlite_error,
+                _
+            ) if matches!(
+                sqlite_error.code,
+                rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+            )
+        ) {
+            return Self::retryable(
+                SourceProcessingFailureCode::SqliteBusy,
+                "Source database is busy",
+            );
+        }
+        Self::permanent(
+            SourceProcessingFailureCode::ExecutionUnclassified,
+            "Source database operation failed",
+            Some(error.to_string()),
+        )
+    }
+}
+
+impl From<wavecrate::internal_analysis_jobs::ReadinessStageError> for SourceProcessingFailure {
+    fn from(error: wavecrate::internal_analysis_jobs::ReadinessStageError) -> Self {
+        match error {
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(
+                wavecrate_analysis::AnalysisDecodeError::Unsupported(detail),
+            ) => Self {
+                class: SourceProcessingFailureClass::Unsupported,
+                code: SourceProcessingFailureCode::DecoderUnsupported,
+                context: "Audio codec is unsupported".to_string(),
+                source_error: Some(detail),
+            },
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(error) => {
+                Self::permanent(
+                    SourceProcessingFailureCode::ExecutionUnclassified,
+                    "Audio decoding failed",
+                    Some(error.to_string()),
+                )
+            }
+            wavecrate::internal_analysis_jobs::ReadinessStageError::Other(error) => {
+                Self::from(error)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+enum SourceAnalysisResponse {
+    Completed(SourceAnalysisResult),
+    Failed(SourceProcessingFailure),
+}
+
 pub(super) fn run_source_retirement(
     source: &SampleSource,
     cancel: &AtomicBool,
@@ -66,17 +218,19 @@ pub(super) fn run_source_retirement(
             source: source.clone(),
             task: SourceAnalysisTask::RetireDerivedState,
         };
-        run_request_in_child(&request, cancel).map(|result| {
-            result.map(|result| {
-                if result.terminal_offline {
-                    super::supervisor::SourceRetirementOutcome::TerminalOffline
-                } else {
-                    super::supervisor::SourceRetirementOutcome::Retired {
-                        retired_cache_refs: result.retired_cache_refs,
+        run_request_in_child(&request, cancel)
+            .map(|result| {
+                result.map(|result| {
+                    if result.terminal_offline {
+                        super::supervisor::SourceRetirementOutcome::TerminalOffline
+                    } else {
+                        super::supervisor::SourceRetirementOutcome::Retired {
+                            retired_cache_refs: result.retired_cache_refs,
+                        }
                     }
-                }
+                })
             })
-        })
+            .map_err(|failure| failure.context)
     }
 }
 
@@ -87,7 +241,7 @@ pub(super) fn run_readiness_feature_stage(
     content_hash: &str,
     analysis_version: &str,
     cancel: &AtomicBool,
-) -> Result<bool, String> {
+) -> Result<bool, SourceProcessingFailure> {
     #[cfg(test)]
     {
         wavecrate::internal_analysis_jobs::run_readiness_feature_stage(
@@ -99,6 +253,7 @@ pub(super) fn run_readiness_feature_stage(
             analysis_version,
             cancel,
         )
+        .map_err(Into::into)
     }
     #[cfg(not(test))]
     {
@@ -123,7 +278,7 @@ pub(super) fn run_readiness_embedding_stage(
     content_hash: &str,
     analysis_version: &str,
     cancel: &AtomicBool,
-) -> Result<bool, String> {
+) -> Result<bool, SourceProcessingFailure> {
     #[cfg(test)]
     {
         wavecrate::internal_analysis_jobs::run_readiness_embedding_stage(
@@ -135,6 +290,7 @@ pub(super) fn run_readiness_embedding_stage(
             analysis_version,
             cancel,
         )
+        .map_err(Into::into)
     }
     #[cfg(not(test))]
     {
@@ -167,13 +323,18 @@ pub(in crate::native_app) fn run_internal_source_analysis_from_args()
     }
     let request = serde_json::from_str::<SourceAnalysisRequest>(&request_json)
         .map_err(|error| format!("Decode internal source analysis request failed: {error}"))?;
-    let result = execute_request(&request)?;
-    serde_json::to_string(&result)
+    let response = match execute_request(&request) {
+        Ok(result) => SourceAnalysisResponse::Completed(result),
+        Err(failure) => SourceAnalysisResponse::Failed(failure),
+    };
+    serde_json::to_string(&response)
         .map(Some)
         .map_err(|error| format!("Encode internal source analysis result failed: {error}"))
 }
 
-fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResult, String> {
+fn execute_request(
+    request: &SourceAnalysisRequest,
+) -> Result<SourceAnalysisResult, SourceProcessingFailure> {
     let cancel = AtomicBool::new(false);
     match &request.task {
         SourceAnalysisTask::ReadinessFeature {
@@ -190,7 +351,8 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
                 content_hash,
                 analysis_version,
                 &cancel,
-            )?;
+            )
+            .map_err(SourceProcessingFailure::from)?;
             Ok(SourceAnalysisResult {
                 produced,
                 processed: usize::from(produced),
@@ -213,7 +375,8 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
                 content_hash,
                 analysis_version,
                 &cancel,
-            )?;
+            )
+            .map_err(SourceProcessingFailure::from)?;
             Ok(SourceAnalysisResult {
                 produced,
                 processed: usize::from(produced),
@@ -223,7 +386,8 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
             })
         }
         SourceAnalysisTask::RetireDerivedState => {
-            let outcome = super::supervisor::retire_source_derived_state(&request.source)?;
+            let outcome = super::supervisor::retire_source_derived_state(&request.source)
+                .map_err(SourceProcessingFailure::from)?;
             let (retired_cache_refs, terminal_offline) = match outcome {
                 super::supervisor::SourceRetirementOutcome::Retired { retired_cache_refs } => {
                     (retired_cache_refs, false)
@@ -241,28 +405,60 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
     }
 }
 
-fn open_source_connection(source: &SampleSource) -> Result<rusqlite::Connection, String> {
-    let database_root = source.database_root().map_err(|error| error.to_string())?;
+fn open_source_connection(
+    source: &SampleSource,
+) -> Result<rusqlite::Connection, SourceProcessingFailure> {
+    let database_root = source.database_root().map_err(|error| {
+        SourceProcessingFailure::permanent(
+            SourceProcessingFailureCode::ExecutionUnclassified,
+            "Resolve source database root failed",
+            Some(error.to_string()),
+        )
+    })?;
     SourceDatabase::open_connection_with_role_and_database_root(
         &source.root,
         &database_root,
         SourceDatabaseConnectionRole::JobWorker,
     )
-    .map_err(|error| error.to_string())
+    .map_err(source_database_failure)
+}
+
+pub(super) fn source_database_failure(error: SourceDbError) -> SourceProcessingFailure {
+    match error {
+        SourceDbError::Busy => SourceProcessingFailure::retryable(
+            SourceProcessingFailureCode::SqliteBusy,
+            "Source database is busy",
+        ),
+        error => SourceProcessingFailure::permanent(
+            SourceProcessingFailureCode::ExecutionUnclassified,
+            "Open source database failed",
+            Some(error.to_string()),
+        ),
+    }
 }
 
 #[cfg(not(test))]
 fn run_request_in_child(
     request: &SourceAnalysisRequest,
     cancel: &AtomicBool,
-) -> Result<Option<SourceAnalysisResult>, String> {
+) -> Result<Option<SourceAnalysisResult>, SourceProcessingFailure> {
     if cancel.load(std::sync::atomic::Ordering::Acquire) {
         return Ok(None);
     }
-    let executable = std::env::current_exe()
-        .map_err(|error| format!("Resolve source analysis executable failed: {error}"))?;
-    let request_json = serde_json::to_string(request)
-        .map_err(|error| format!("Encode internal source analysis request failed: {error}"))?;
+    let executable = std::env::current_exe().map_err(|error| {
+        SourceProcessingFailure::permanent(
+            SourceProcessingFailureCode::WorkerProtocol,
+            "Resolve source analysis executable failed",
+            Some(error.to_string()),
+        )
+    })?;
+    let request_json = serde_json::to_string(request).map_err(|error| {
+        SourceProcessingFailure::permanent(
+            SourceProcessingFailureCode::WorkerProtocol,
+            "Encode source analysis request failed",
+            Some(error.to_string()),
+        )
+    })?;
     let child = Command::new(executable)
         .arg(INTERNAL_SOURCE_ANALYSIS_ARG)
         .arg(request_json)
@@ -270,32 +466,61 @@ fn run_request_in_child(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|error| format!("Start source analysis process failed: {error}"))?;
+        .map_err(|error| {
+            SourceProcessingFailure::retryable(
+                SourceProcessingFailureCode::WorkerProcessFailed,
+                format!("Start source analysis process failed: {error}"),
+            )
+        })?;
     let Some(mut child) =
-        child_process::wait_for_cancellable_child(child, cancel, "source analysis")?
+        child_process::wait_for_cancellable_child(child, cancel, "source analysis")
+            .map_err(SourceProcessingFailure::from)?
     else {
         return Ok(None);
     };
     let mut stdout = String::new();
     if let Some(mut pipe) = child.stdout.take() {
-        pipe.read_to_string(&mut stdout)
-            .map_err(|error| format!("Read source analysis result failed: {error}"))?;
+        pipe.read_to_string(&mut stdout).map_err(|error| {
+            SourceProcessingFailure::permanent(
+                SourceProcessingFailureCode::WorkerProtocol,
+                "Read source analysis result failed",
+                Some(error.to_string()),
+            )
+        })?;
     }
     let mut stderr = String::new();
     if let Some(mut pipe) = child.stderr.take() {
-        pipe.read_to_string(&mut stderr)
-            .map_err(|error| format!("Read source analysis error failed: {error}"))?;
+        pipe.read_to_string(&mut stderr).map_err(|error| {
+            SourceProcessingFailure::permanent(
+                SourceProcessingFailureCode::WorkerProtocol,
+                "Read source analysis error failed",
+                Some(error.to_string()),
+            )
+        })?;
     }
-    let status = child
-        .wait()
-        .map_err(|error| format!("Join source analysis process failed: {error}"))?;
+    let status = child.wait().map_err(|error| {
+        SourceProcessingFailure::retryable(
+            SourceProcessingFailureCode::WorkerProcessFailed,
+            format!("Join source analysis process failed: {error}"),
+        )
+    })?;
     if !status.success() {
-        return Err(format!(
-            "Source analysis process failed with {status}: {}",
-            stderr.trim()
+        return Err(SourceProcessingFailure::retryable(
+            SourceProcessingFailureCode::WorkerProcessFailed,
+            format!(
+                "Source analysis process failed with {status}: {}",
+                stderr.trim()
+            ),
         ));
     }
-    serde_json::from_str::<SourceAnalysisResult>(stdout.trim())
-        .map(Some)
-        .map_err(|error| format!("Decode source analysis result failed: {error}"))
+    match serde_json::from_str::<SourceAnalysisResponse>(stdout.trim()).map_err(|error| {
+        SourceProcessingFailure::permanent(
+            SourceProcessingFailureCode::WorkerProtocol,
+            "Decode source analysis result failed",
+            Some(error.to_string()),
+        )
+    })? {
+        SourceAnalysisResponse::Completed(result) => Ok(Some(result)),
+        SourceAnalysisResponse::Failed(failure) => Err(failure),
+    }
 }

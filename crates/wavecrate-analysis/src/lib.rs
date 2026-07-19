@@ -22,6 +22,8 @@ pub use analysis::{ann_index, aspects, hdbscan, similarity, vector};
 pub use analysis::audio::ANALYSIS_SAMPLE_RATE;
 /// Normalized mono analysis buffer and metadata.
 pub use analysis::audio::AnalysisAudio;
+/// Structured reason why analysis decoding could not produce audio.
+pub use analysis::audio::AnalysisDecodeError;
 /// Analysis audio metadata probed without a full decode.
 pub use analysis::audio::AudioProbe;
 /// Duplicate window metadata produced by exact-duplicate detection.
@@ -30,6 +32,8 @@ pub use analysis::audio::DetectedDuplicateWindow;
 pub use analysis::audio::decode_for_analysis_with_rate;
 /// Decode an audio path into the requested analysis sample rate with an optional duration cap.
 pub use analysis::audio::decode_for_analysis_with_rate_limit;
+/// Decode an audio path while retaining a structured decoder failure.
+pub use analysis::audio::decode_for_analysis_with_rate_limit_typed;
 /// Detect exact duplicate windows between two sample buffers.
 pub use analysis::audio::detect_exact_duplicate_window_ranges;
 /// Detect non-silent windows suitable for slice extraction.

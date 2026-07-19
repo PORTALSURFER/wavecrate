@@ -148,6 +148,7 @@ pub(crate) fn claim_readiness_target(
              running_at = ?2,
              retry_at = NULL,
              failure_kind = NULL,
+             failure_code = NULL,
              last_error = NULL,
              lease_expires_at = ?3,
              relative_path = ?4,
@@ -314,7 +315,7 @@ fn complete_readiness_work_inner(
         claim,
         completed_at,
         "status = 'done', running_at = NULL, retry_at = NULL, failure_kind = NULL, \
-         last_error = NULL, lease_expires_at = NULL",
+         failure_code = NULL, last_error = NULL, lease_expires_at = NULL",
         None,
         None,
     )?;
@@ -357,6 +358,7 @@ pub(crate) fn fail_readiness_work(
     connection: &mut Connection,
     claim: &ClaimedReadinessWork,
     classification: ReadinessFailureClassification,
+    code: &str,
     reason: &str,
     failed_at: i64,
     retry_policy: ReadinessRetryPolicy,
@@ -407,10 +409,11 @@ pub(crate) fn fail_readiness_work(
         claim,
         failed_at,
         "status = 'failed', running_at = NULL, failure_kind = ?10, retry_at = ?11, \
-         last_error = ?12, lease_expires_at = NULL",
+         failure_code = ?12, last_error = ?13, lease_expires_at = NULL",
         Some((
             stored_classification.as_str(),
             retry_at,
+            code,
             normalized_reason(reason),
         )),
         failure_attempt,
@@ -533,13 +536,13 @@ fn return_claim_to_pending(
     let (set_clause, extras) = if let Some(reason) = cancellation_reason {
         (
             "status = 'pending', running_at = NULL, retry_at = NULL, \
-             failure_kind = ?10, last_error = ?12, lease_expires_at = NULL",
-            Some(("cancelled", None, reason)),
+             failure_kind = ?10, failure_code = ?12, last_error = ?13, lease_expires_at = NULL",
+            Some(("cancelled", None, "cancelled", reason)),
         )
     } else {
         (
             "status = 'pending', running_at = NULL, retry_at = NULL, \
-             failure_kind = NULL, last_error = NULL, lease_expires_at = NULL",
+             failure_kind = NULL, failure_code = NULL, last_error = NULL, lease_expires_at = NULL",
             None,
         )
     };
@@ -557,13 +560,13 @@ fn finish_claim_update(
     claim: &ClaimedReadinessWork,
     now: i64,
     set_clause: &str,
-    extras: Option<(&str, Option<i64>, &str)>,
+    extras: Option<(&str, Option<i64>, &str, &str)>,
     failure_attempt: Option<u32>,
 ) -> Result<usize, rusqlite::Error> {
     let sql = format!(
         "UPDATE analysis_jobs
          SET {set_clause},
-             attempts = COALESCE(?13, attempts)
+             attempts = COALESCE(?14, attempts)
          WHERE status = 'running'
            AND lease_expires_at > ?1
            AND readiness_claim_generation = ?2
@@ -592,9 +595,9 @@ fn finish_claim_update(
                  AND source.availability = 'active'
            )"
     );
-    let (failure_kind, retry_at, reason) = extras
-        .map(|(kind, retry_at, reason)| (Some(kind), retry_at, Some(reason)))
-        .unwrap_or((None, None, None));
+    let (failure_kind, retry_at, failure_code, reason) = extras
+        .map(|(kind, retry_at, code, reason)| (Some(kind), retry_at, Some(code), Some(reason)))
+        .unwrap_or((None, None, None, None));
     tx.execute(
         &sql,
         params![
@@ -609,6 +612,7 @@ fn finish_claim_update(
             claim.target.source_generation,
             failure_kind,
             retry_at,
+            failure_code,
             reason,
             failure_attempt,
         ],

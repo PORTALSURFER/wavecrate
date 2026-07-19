@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::{ReadinessStageError, db};
 use rusqlite::OptionalExtension;
 
 use super::{
@@ -27,7 +27,7 @@ pub(crate) fn run_feature_stage(
     content_hash: &str,
     analysis_version: &str,
     cancel: &AtomicBool,
-) -> Result<bool, String> {
+) -> Result<bool, ReadinessStageError> {
     run_feature_stage_with_post_decode_hook(
         conn,
         source_root,
@@ -50,7 +50,7 @@ fn run_feature_stage_with_post_decode_hook(
     analysis_version: &str,
     cancel: &AtomicBool,
     post_decode_hook: impl FnOnce(),
-) -> Result<bool, String> {
+) -> Result<bool, ReadinessStageError> {
     checkpoint(cancel, "feature analysis cancelled")?;
     let absolute_path = source_root.join(relative_path);
     let sample_id = db::build_sample_id(source_id, relative_path);
@@ -69,14 +69,14 @@ fn run_feature_stage_with_post_decode_hook(
         analysis_version,
         wavecrate_analysis::vector::FEATURE_VERSION_V1,
     )? {
-        return materialize_cached_features(
+        return Ok(materialize_cached_features(
             conn,
             source_root,
             &sample_id,
             content_hash,
             analysis_version,
             &cached,
-        );
+        )?);
     }
     let job = db::ClaimedJob {
         id: -1,
@@ -92,12 +92,12 @@ fn run_feature_stage_with_post_decode_hook(
         analysis_version,
         cancel: Some(cancel),
     };
-    let decoded = match analysis_decode::decode_for_analysis(&job, &context)? {
+    let decoded = match analysis_decode::decode_for_readiness(&job, &context)? {
         DecodeOutcome::Decoded(decoded) => decoded,
         DecodeOutcome::Skipped { .. } => {
-            return Err(String::from(
+            return Err(ReadinessStageError::Other(String::from(
                 "feature analysis unexpectedly skipped an unbounded readiness target",
-            ));
+            )));
         }
     };
     post_decode_hook();
@@ -168,7 +168,7 @@ fn file_content_hash_matches(
     path: &Path,
     claimed_hash: &str,
     cancel: &AtomicBool,
-) -> Result<bool, String> {
+) -> Result<bool, ReadinessStageError> {
     let mut file = File::open(path)
         .map_err(|error| format!("Failed to open readiness input {}: {error}", path.display()))?;
     let mut hasher = blake3::Hasher::new();
