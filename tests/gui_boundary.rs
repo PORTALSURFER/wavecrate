@@ -83,6 +83,29 @@ fn target_docs_call_out_large_gui_import_lists() {
 }
 
 #[test]
+fn source_processing_supervisor_uses_backend_neutral_events() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!(
+        "{manifest_dir}/src/native_app/source_processing/supervisor.rs"
+    ))
+    .expect("source-processing supervisor should be readable");
+
+    assert!(
+        !source.contains("GuiMessage"),
+        "the source-processing supervisor must not depend on native GUI messages"
+    );
+    assert!(
+        !source.contains("SourceProcessingProgress {"),
+        "the source-processing supervisor must not construct native progress DTOs"
+    );
+    assert!(
+        source.contains("SourceProcessingEventSink")
+            && source.contains("SourceProcessingEvent::Progress"),
+        "the source-processing supervisor must publish through the typed event boundary"
+    );
+}
+
+#[test]
 fn agent_instructions_call_out_large_gui_import_lists() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let source = fs::read_to_string(format!("{manifest_dir}/AGENTS.md"))

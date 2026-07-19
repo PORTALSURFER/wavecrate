@@ -10,6 +10,8 @@ use std::{
 use radiant::{gui::frame as frame_ui, prelude as ui};
 use wavecrate::audio::AudioPlayer;
 
+#[cfg(not(test))]
+use crate::native_app::app::GuiSourceProcessingEventSink;
 use crate::native_app::app::{
     ExtractedFilePlaybackType, FileMoveProgress, GuiMessage, NormalizationProgress,
     NormalizationQueueItem, PendingWaveformDestructiveEdit, SourceProcessingProgress,
@@ -56,8 +58,10 @@ impl BackgroundTaskState {
         sources: Vec<wavecrate::sample_sources::SampleSource>,
     ) -> Self {
         #[cfg(not(test))]
-        let source_processing =
-            SourceProcessingSupervisor::start_with_worker_sender(sources, worker_sender.clone());
+        let source_processing = SourceProcessingSupervisor::start_with_event_sink(
+            sources,
+            GuiSourceProcessingEventSink::new(worker_sender.clone()),
+        );
         #[cfg(test)]
         let source_processing = {
             drop(sources);
