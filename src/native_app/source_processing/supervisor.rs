@@ -8747,7 +8747,10 @@ mod tests {
                         'embedding feature prerequisite is not durable yet'),
                     (7, 'source', 1, 'file', 'legacy-permanent', 'analysis_features', 'hash',
                         'failed', 8, 'permanent', NULL, NULL,
-                        'Audio decode failed for empty.wav: no suitable format reader found');",
+                        'Audio decode failed for empty.wav: no suitable format reader found'),
+                    (8, 'source', 1, 'file', 'current-coded', 'analysis_features', 'hash',
+                        'failed', 1, 'permanent', 'execution_unclassified', NULL,
+                        'Audio decode failed for current.wav: no suitable format reader found');",
             )
             .expect("seed readiness failures");
 
@@ -8801,6 +8804,27 @@ mod tests {
             )
             .expect("read legacy permanent failure");
         assert_eq!(legacy_permanent, (String::from("unsupported"), None));
+        let current_coded = connection
+            .query_row(
+                "SELECT failure_kind, failure_code, retry_at FROM analysis_jobs WHERE id = 8",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<i64>>(2)?,
+                    ))
+                },
+            )
+            .expect("read current coded failure");
+        assert_eq!(
+            current_coded,
+            (
+                String::from("permanent"),
+                Some(String::from("execution_unclassified")),
+                None,
+            )
+        );
         let exhausted = connection
             .query_row(
                 "SELECT failure_kind, attempts, retry_at FROM analysis_jobs WHERE id = 6",

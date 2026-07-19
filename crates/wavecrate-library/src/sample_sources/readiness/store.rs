@@ -426,7 +426,7 @@ impl<'connection> ReadinessStore<'connection> {
     ) -> Result<usize, ReadinessError> {
         let failures = {
             let mut statement = self.connection.prepare(
-                "SELECT id, COALESCE(last_error, '') FROM analysis_jobs WHERE readiness_managed = 1 AND status = 'failed' AND failure_kind IN ('retryable', 'permanent')",
+                "SELECT id, COALESCE(last_error, '') FROM analysis_jobs WHERE readiness_managed = 1 AND status = 'failed' AND failure_code IS NULL AND failure_kind IN ('retryable', 'permanent')",
             )?;
             statement
                 .query_map([], |row| {
@@ -443,11 +443,11 @@ impl<'connection> ReadinessStore<'connection> {
             .filter_map(|(id, error)| is_unsupported(&error).then_some(id))
         {
             changed += tx.execute(
-                "UPDATE analysis_jobs SET failure_kind = 'unsupported', failure_code = 'legacy_decoder_unsupported', retry_at = NULL WHERE id = ?1 AND readiness_managed = 1 AND status = 'failed' AND failure_kind IN ('retryable', 'permanent')", [id],
+                "UPDATE analysis_jobs SET failure_kind = 'unsupported', failure_code = 'legacy_decoder_unsupported', retry_at = NULL WHERE id = ?1 AND readiness_managed = 1 AND status = 'failed' AND failure_code IS NULL AND failure_kind IN ('retryable', 'permanent')", [id],
             )?;
         }
         changed += tx.execute(
-            "UPDATE analysis_jobs AS dependent SET failure_kind = 'unsupported', failure_code = 'legacy_prerequisite_unsupported', retry_at = NULL WHERE dependent.readiness_managed = 1 AND dependent.status = 'failed' AND dependent.failure_kind IN ('retryable', 'permanent') AND dependent.readiness_stage = 'embedding_aspects' AND dependent.last_error = 'embedding feature prerequisite is not durable yet' AND EXISTS (SELECT 1 FROM analysis_jobs AS prerequisite WHERE prerequisite.readiness_managed = 1 AND prerequisite.source_id = dependent.source_id AND prerequisite.readiness_scope_kind = dependent.readiness_scope_kind AND prerequisite.readiness_scope_id = dependent.readiness_scope_id AND prerequisite.readiness_stage = 'analysis_features' AND prerequisite.content_generation = dependent.content_generation AND prerequisite.status = 'failed' AND prerequisite.failure_kind = 'unsupported')", [],
+            "UPDATE analysis_jobs AS dependent SET failure_kind = 'unsupported', failure_code = 'legacy_prerequisite_unsupported', retry_at = NULL WHERE dependent.readiness_managed = 1 AND dependent.status = 'failed' AND dependent.failure_code IS NULL AND dependent.failure_kind IN ('retryable', 'permanent') AND dependent.readiness_stage = 'embedding_aspects' AND dependent.last_error = 'embedding feature prerequisite is not durable yet' AND EXISTS (SELECT 1 FROM analysis_jobs AS prerequisite WHERE prerequisite.readiness_managed = 1 AND prerequisite.source_id = dependent.source_id AND prerequisite.readiness_scope_kind = dependent.readiness_scope_kind AND prerequisite.readiness_scope_id = dependent.readiness_scope_id AND prerequisite.readiness_stage = 'analysis_features' AND prerequisite.content_generation = dependent.content_generation AND prerequisite.status = 'failed' AND prerequisite.failure_kind = 'unsupported')", [],
         )?;
         tx.commit()?;
         Ok(changed)
