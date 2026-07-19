@@ -1116,7 +1116,7 @@ impl Shared {
     }
 
     fn publish_event(&self, event: SourceProcessingEvent) -> bool {
-        if let Some(lifecycle) = event.lifecycle() {
+        let lifecycle_guard = if let Some(lifecycle) = event.lifecycle() {
             let control = self.control();
             if !control.source_is_active(&lifecycle.source_id)
                 || control
@@ -1126,10 +1126,16 @@ impl Shared {
             {
                 return false;
             }
-        }
-        self.event_sink
+            Some(control)
+        } else {
+            None
+        };
+        let published = self
+            .event_sink
             .as_ref()
-            .is_some_and(|sink| sink.try_publish(event))
+            .is_some_and(|sink| sink.try_publish(event));
+        drop(lifecycle_guard);
+        published
     }
 
     fn telemetry(&self) -> MutexGuard<'_, SupervisorTelemetry> {
@@ -7734,6 +7740,131 @@ mod tests {
         assert!(
             receiver.try_recv().is_err(),
             "an event from a retired lifecycle must be fenced before reaching the sink"
+        );
+    }
+
+    #[test]
+    fn lifecycle_fence_remains_held_until_event_delivery_finishes() {
+        #[derive(Default)]
+        struct BlockingSink {
+            state: Mutex<(bool, bool, Vec<SourceProcessingEvent>)>,
+            wake: Condvar,
+        }
+
+        impl SourceProcessingEventSink for BlockingSink {
+            fn try_publish(&self, event: SourceProcessingEvent) -> bool {
+                let mut state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner());
+                state.0 = true;
+                self.wake.notify_all();
+                while !state.1 {
+                    state = self
+                        .wake
+                        .wait(state)
+                        .unwrap_or_else(|poison| poison.into_inner());
+                }
+                state.2.push(event);
+                true
+            }
+        }
+
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("atomic-progress-source"),
+            directory.path().to_path_buf(),
+        );
+        let sink = Arc::new(BlockingSink::default());
+        let shared = Arc::new(Shared::new(
+            vec![source.clone()],
+            Some(Arc::clone(&sink) as Arc<dyn SourceProcessingEventSink>),
+        ));
+        let lifecycle_generation =
+            shared.control().source_lifecycle_generations[source.id.as_str()];
+        let publisher_shared = Arc::clone(&shared);
+        let publisher = thread::spawn(move || {
+            publisher_shared.publish_event(SourceProcessingEvent::Progress(
+                SourceProcessingProgressEvent {
+                    lifecycle: SourceProcessingLifecycle::new(
+                        "atomic-progress-source",
+                        lifecycle_generation,
+                    ),
+                    source_row_active: true,
+                    completed: 1,
+                    total: 2,
+                    activity: SourceProcessingActivity::Readiness {
+                        stage: ReadinessStage::AnalysisFeatures,
+                        relative_path: Some(String::from("drums/kick.wav")),
+                    },
+                },
+            ))
+        });
+
+        let mut sink_state = sink
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        while !sink_state.0 {
+            sink_state = sink
+                .wake
+                .wait(sink_state)
+                .unwrap_or_else(|poison| poison.into_inner());
+        }
+        drop(sink_state);
+
+        let replacement_supervisor = SourceProcessingSupervisor {
+            shared: Arc::clone(&shared),
+            coordinator: None,
+            retirement_worker: None,
+        };
+        let (replacement_started, replacement_started_rx) = std::sync::mpsc::channel();
+        let (replacement_finished, replacement_finished_rx) = std::sync::mpsc::channel();
+        let replacement = thread::spawn(move || {
+            replacement_started.send(()).expect("replacement start");
+            replacement_supervisor
+                .replace_sources(Vec::new())
+                .expect("remove source");
+            replacement_supervisor
+                .replace_sources(vec![source])
+                .expect("re-add source");
+            replacement_finished.send(()).expect("replacement finish");
+            replacement_supervisor
+        });
+        replacement_started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("replacement thread started");
+        assert!(
+            replacement_finished_rx
+                .recv_timeout(Duration::from_millis(50))
+                .is_err(),
+            "source replacement must wait until admitted event delivery finishes"
+        );
+
+        let mut sink_state = sink
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        sink_state.1 = true;
+        sink.wake.notify_all();
+        drop(sink_state);
+
+        assert!(publisher.join().expect("publisher joined"));
+        replacement_finished_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("replacement finished after event delivery");
+        let replacement_supervisor = replacement.join().expect("replacement joined");
+        assert_ne!(
+            replacement_supervisor.lifecycle_generations()["atomic-progress-source"],
+            lifecycle_generation
+        );
+        assert_eq!(
+            sink.state
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .2
+                .len(),
+            1
         );
     }
 

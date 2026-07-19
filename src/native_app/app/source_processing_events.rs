@@ -209,6 +209,19 @@ mod tests {
             blocked.detail,
             "Similarity finalization is waiting for durable prerequisites"
         );
+
+        let prerequisite_retry =
+            mapped_progress(SourceProcessingActivity::WaitingForPrerequisites {
+                retry_at: Some(now_epoch_seconds()),
+            });
+        assert_eq!(prerequisite_retry.stage, "Waiting for prerequisites");
+        assert_eq!(prerequisite_retry.detail, "Prerequisite retry is due");
+
+        let source_retry = mapped_progress(SourceProcessingActivity::WaitingForRetry {
+            retry_at: now_epoch_seconds(),
+        });
+        assert_eq!(source_retry.stage, "Waiting to retry source");
+        assert_eq!(source_retry.detail, "Retry is due");
     }
 
     #[test]
