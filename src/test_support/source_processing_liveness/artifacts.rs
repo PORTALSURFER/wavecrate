@@ -137,6 +137,7 @@ pub(super) fn seed_profile_manifest(connection: &mut Connection, file_count: usi
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ProcessResourceSnapshot {
     pub(super) memory_bytes: u64,
+    pub(super) heap_bytes_in_use: u64,
     pub(super) cpu_time_ms: u64,
     pub(super) disk_read_bytes: u64,
     pub(super) disk_written_bytes: u64,
@@ -152,8 +153,39 @@ pub(super) fn process_resource_snapshot() -> ProcessResourceSnapshot {
     let disk = process.disk_usage();
     ProcessResourceSnapshot {
         memory_bytes: process.memory(),
+        heap_bytes_in_use: heap_bytes_in_use(),
         cpu_time_ms: process.accumulated_cpu_time(),
         disk_read_bytes: disk.total_read_bytes,
         disk_written_bytes: disk.total_written_bytes,
     }
+}
+
+#[cfg(target_os = "macos")]
+fn heap_bytes_in_use() -> u64 {
+    #[repr(C)]
+    #[derive(Default)]
+    struct MallocStatistics {
+        blocks_in_use: usize,
+        size_in_use: usize,
+        max_size_in_use: usize,
+        size_allocated: usize,
+    }
+
+    unsafe extern "C" {
+        fn malloc_default_zone() -> *mut libc::c_void;
+        fn malloc_zone_statistics(zone: *mut libc::c_void, statistics: *mut MallocStatistics);
+    }
+
+    let mut statistics = MallocStatistics::default();
+    // SAFETY: Both functions are stable macOS malloc-zone APIs. The default zone is process-owned,
+    // and the out pointer remains valid for the duration of the synchronous call.
+    unsafe {
+        malloc_zone_statistics(malloc_default_zone(), &mut statistics);
+    }
+    u64::try_from(statistics.size_in_use).unwrap_or(u64::MAX)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn heap_bytes_in_use() -> u64 {
+    0
 }

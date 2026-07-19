@@ -16,7 +16,7 @@ use wavecrate::sample_sources::{
         ReadinessActivity, ReadinessClassification, ReadinessSnapshot, ReadinessStage,
         ReadinessStore, SourceAvailability,
     },
-    scanner::audit_source_and_record,
+    scanner::{CommittedSourceDelta, ManifestIdentityDelta, audit_source_and_record},
 };
 
 use super::*;

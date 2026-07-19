@@ -445,3 +445,285 @@ fn profile_source_processing_churn_under_playback_and_browser_priority() {
         .expect("serialize source-processing profile")
     );
 }
+
+#[test]
+#[ignore = "representative fully analyzed 10k-file readiness sweep and delta profile"]
+fn profile_revision_gated_readiness_sweeps_10k() {
+    const FILE_COUNT: usize = 10_000;
+    const SETTLE_BUDGET: Duration = Duration::from_secs(180);
+    const INITIAL_TARGET_TIMESTAMP: i64 = 100;
+
+    let directory = tempfile::tempdir().expect("revision-gated profile source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("revision-gated-readiness-profile"),
+        directory.path().to_path_buf(),
+    );
+    source
+        .open_db()
+        .expect("create revision-gated profile database");
+    let mut connection = open_connection(&source).expect("open revision-gated profile database");
+    seed_profile_manifest(&mut connection, FILE_COUNT);
+    assert!(
+        publish_current_readiness_targets(
+            &mut connection,
+            source.id.as_str(),
+            INITIAL_TARGET_TIMESTAMP,
+        )
+        .expect("publish revision-gated profile targets")
+    );
+    connection
+        .execute(
+            "INSERT INTO source_readiness_artifacts (
+                source_id, scope_kind, scope_id, relative_path, stage, artifact_version,
+                source_generation, content_generation, artifact_ref, completed_at
+             )
+             SELECT source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation,
+                    'profile-seed:' || scope_kind || ':' || scope_id || ':' || stage,
+                    ?1
+             FROM source_readiness_targets
+             WHERE source_id = ?2",
+            params![INITIAL_TARGET_TIMESTAMP, source.id.as_str()],
+        )
+        .expect("seed fully analyzed readiness artifacts");
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![META_LAST_MANIFEST_AUDIT_AT, now_epoch_seconds().to_string()],
+        )
+        .expect("mark profile manifest audit current");
+    assert!(
+        ReadinessStore::new(&mut connection)
+            .reconcile(source.id.as_str(), now_epoch_seconds())
+            .expect("reconcile seeded profile")
+            .is_fully_ready()
+    );
+    drop(connection);
+
+    let mut supervisor =
+        SourceProcessingSupervisor::start_synthetic_profile(vec![source.clone()], true);
+    let startup_deadline = Instant::now() + SETTLE_BUDGET;
+    loop {
+        let telemetry = supervisor.shared.telemetry();
+        let queue_empty = telemetry.queue_depth == 0;
+        drop(telemetry);
+        let settled = supervisor.shared.control().dirty_sources.is_empty();
+        let in_flight = !supervisor
+            .shared
+            .in_flight_work
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .is_empty();
+        if queue_empty && settled && !in_flight {
+            break;
+        }
+        assert!(
+            Instant::now() < startup_deadline,
+            "seeded 10k readiness source did not settle after startup"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+
+    let target_rows_before: i64 = open_connection(&source)
+        .expect("open profile target count")
+        .query_row(
+            "SELECT COUNT(*) FROM source_readiness_targets WHERE source_id = ?1",
+            [source.id.as_str()],
+            |row| row.get(0),
+        )
+        .expect("count seeded targets");
+    assert_eq!(target_rows_before, (FILE_COUNT * 3 + 1) as i64);
+    let full_audits_before = supervisor.shared.telemetry().full_audits;
+    let steady_resources_before = process_resource_snapshot();
+    let steady_started = Instant::now();
+    for interval in 0..10 {
+        supervisor.set_playback_active(interval >= 5);
+        let noops_before = supervisor.shared.telemetry().cheap_noop_sweeps;
+        supervisor
+            .shared
+            .control()
+            .mark_all_sources_for_safety_probe();
+        supervisor.shared.wake.notify_one();
+        let deadline = Instant::now() + SETTLE_BUDGET;
+        loop {
+            let telemetry = supervisor.shared.telemetry();
+            let nooped = telemetry.cheap_noop_sweeps > noops_before;
+            let queue_empty = telemetry.queue_depth == 0;
+            drop(telemetry);
+            let settled = supervisor.shared.control().dirty_sources.is_empty();
+            let in_flight = !supervisor
+                .shared
+                .in_flight_work
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .is_empty();
+            if nooped && queue_empty && settled && !in_flight {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "10k readiness safety probe did not settle"
+            );
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+    supervisor.set_playback_active(false);
+    let steady_elapsed = steady_started.elapsed();
+    let steady_resources_after = process_resource_snapshot();
+    let steady_target_updates: i64 = open_connection(&source)
+        .expect("open safety target verification")
+        .query_row(
+            "SELECT COUNT(*) FROM source_readiness_targets
+             WHERE source_id = ?1 AND updated_at != ?2",
+            params![source.id.as_str(), INITIAL_TARGET_TIMESTAMP],
+            |row| row.get(0),
+        )
+        .expect("count safety target updates");
+    assert_eq!(steady_target_updates, 0);
+    assert_eq!(
+        supervisor.shared.telemetry().full_audits,
+        full_audits_before
+    );
+
+    let one_file_resources_before = process_resource_snapshot();
+    let one_file_started = Instant::now();
+    let connection = open_connection(&source).expect("open one-file profile database");
+    connection
+        .execute(
+            "UPDATE wav_files
+             SET content_hash = 'profile-one-file-change',
+                 modified_ns = modified_ns + 1
+             WHERE file_identity = 'identity-00000'",
+            [],
+        )
+        .expect("commit one-file profile change");
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, '1')
+             ON CONFLICT(key) DO UPDATE
+             SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
+            [META_WAV_PATHS_REVISION],
+        )
+        .expect("advance one-file profile generation");
+    drop(connection);
+    let delta_reconciliations_before = supervisor.shared.telemetry().delta_reconciliations;
+    let completions_before = supervisor.shared.telemetry().completed;
+    supervisor.request_source_delta(
+        source.id.as_str(),
+        &CommittedSourceDelta {
+            revision: 1,
+            changed: vec![ManifestIdentityDelta {
+                identity: String::from("identity-00000"),
+                relative_path: std::path::PathBuf::from("profile/sample-00000.wav"),
+                content_generation: String::from("profile-one-file-change"),
+                source_metadata_changed: false,
+            }],
+            ..CommittedSourceDelta::default()
+        },
+        "profile_one_file_delta",
+    );
+    let deadline = Instant::now() + SETTLE_BUDGET;
+    loop {
+        let telemetry = supervisor.shared.telemetry();
+        let reconciled = telemetry.delta_reconciliations > delta_reconciliations_before;
+        let completed = telemetry.completed >= completions_before.saturating_add(4);
+        let queue_empty = telemetry.queue_depth == 0;
+        drop(telemetry);
+        let settled = supervisor.shared.control().dirty_sources.is_empty();
+        let in_flight = !supervisor
+            .shared
+            .in_flight_work
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .is_empty();
+        if reconciled && completed && queue_empty && settled && !in_flight {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "10k one-file readiness delta did not settle"
+        );
+        thread::sleep(Duration::from_millis(2));
+    }
+    let one_file_elapsed = one_file_started.elapsed();
+    let one_file_resources_after = process_resource_snapshot();
+    let mut connection = open_connection(&source).expect("open one-file profile verification");
+    let touched_targets: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM source_readiness_targets
+             WHERE source_id = ?1 AND updated_at != ?2",
+            params![source.id.as_str(), INITIAL_TARGET_TIMESTAMP],
+            |row| row.get(0),
+        )
+        .expect("count one-file target writes");
+    assert_eq!(touched_targets, 4);
+    assert!(
+        ReadinessStore::new(&mut connection)
+            .reconcile(source.id.as_str(), now_epoch_seconds())
+            .expect("reconcile completed one-file delta")
+            .is_fully_ready()
+    );
+    drop(connection);
+    let report = supervisor.shutdown();
+    assert_eq!(report["joined"], true);
+    assert_eq!(report["contention"], 0);
+
+    let metric_delta = |after: u64, before: u64| after.saturating_sub(before);
+    eprintln!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "file_count": FILE_COUNT,
+            "target_count": target_rows_before,
+            "steady_state": {
+                "sweep_count": 10,
+                "playback_off_sweeps": 5,
+                "playback_on_sweeps": 5,
+                "elapsed_ms": steady_elapsed.as_secs_f64() * 1_000.0,
+                "cpu_time_ms": metric_delta(
+                    steady_resources_after.cpu_time_ms,
+                    steady_resources_before.cpu_time_ms,
+                ),
+                "heap_growth_bytes": metric_delta(
+                    steady_resources_after.heap_bytes_in_use,
+                    steady_resources_before.heap_bytes_in_use,
+                ),
+                "disk_read_bytes": metric_delta(
+                    steady_resources_after.disk_read_bytes,
+                    steady_resources_before.disk_read_bytes,
+                ),
+                "disk_written_bytes": metric_delta(
+                    steady_resources_after.disk_written_bytes,
+                    steady_resources_before.disk_written_bytes,
+                ),
+                "target_rows_touched": steady_target_updates,
+                "full_audits": supervisor.shared.telemetry().full_audits - full_audits_before,
+            },
+            "one_file_delta": {
+                "identity_count": 1,
+                "elapsed_ms": one_file_elapsed.as_secs_f64() * 1_000.0,
+                "cpu_time_ms": metric_delta(
+                    one_file_resources_after.cpu_time_ms,
+                    one_file_resources_before.cpu_time_ms,
+                ),
+                "heap_growth_bytes": metric_delta(
+                    one_file_resources_after.heap_bytes_in_use,
+                    one_file_resources_before.heap_bytes_in_use,
+                ),
+                "disk_read_bytes": metric_delta(
+                    one_file_resources_after.disk_read_bytes,
+                    one_file_resources_before.disk_read_bytes,
+                ),
+                "disk_written_bytes": metric_delta(
+                    one_file_resources_after.disk_written_bytes,
+                    one_file_resources_before.disk_written_bytes,
+                ),
+                "target_rows_touched": touched_targets,
+                "readiness_jobs_completed": report["completed"].as_u64().unwrap_or_default()
+                    .saturating_sub(completions_before),
+            },
+            "supervisor": report,
+        }))
+        .expect("serialize revision-gated readiness profile")
+    );
+}

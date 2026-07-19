@@ -18,9 +18,9 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
 use super::{
     ClaimedReadinessWork, ReadinessArtifact, ReadinessDeficit, ReadinessFailureClassification,
-    ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessRetryPolicy, ReadinessSnapshot,
-    ReadinessStage, ReadinessTarget, ReadinessWorkMutationOutcome, ReadinessWorkStats,
-    SourceAvailability,
+    ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome, ReadinessMembership,
+    ReadinessRetryPolicy, ReadinessSnapshot, ReadinessStage, ReadinessTarget,
+    ReadinessWorkMutationOutcome, ReadinessWorkStats, SourceAvailability,
 };
 use crate::sample_sources::readiness::ArtifactPublishOutcome;
 
@@ -34,6 +34,7 @@ pub struct ReadinessTargetPublication<'a> {
     source_generation: i64,
     readiness_revision: i64,
     availability: SourceAvailability,
+    contract_version: &'a str,
     targets: &'a [ReadinessTarget],
     updated_at: i64,
 }
@@ -45,6 +46,7 @@ impl<'a> ReadinessTargetPublication<'a> {
         source_generation: i64,
         readiness_revision: i64,
         availability: SourceAvailability,
+        contract_version: &'a str,
         targets: &'a [ReadinessTarget],
         updated_at: i64,
     ) -> Self {
@@ -53,10 +55,67 @@ impl<'a> ReadinessTargetPublication<'a> {
             source_generation,
             readiness_revision,
             availability,
+            contract_version,
             targets,
             updated_at,
         }
     }
+}
+
+/// Typed request for atomically applying a bounded readiness target delta.
+#[derive(Debug)]
+pub struct ReadinessTargetDeltaPublication<'a> {
+    source_id: &'a str,
+    source_generation: i64,
+    readiness_revision: i64,
+    availability: SourceAvailability,
+    contract_version: &'a str,
+    upsert_targets: &'a [ReadinessTarget],
+    deleted_file_scope_ids: &'a [String],
+    similarity_artifact_version: &'a str,
+    updated_at: i64,
+}
+
+impl<'a> ReadinessTargetDeltaPublication<'a> {
+    /// Build one revision-fenced delta publication.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source_id: &'a str,
+        source_generation: i64,
+        readiness_revision: i64,
+        availability: SourceAvailability,
+        contract_version: &'a str,
+        upsert_targets: &'a [ReadinessTarget],
+        deleted_file_scope_ids: &'a [String],
+        similarity_artifact_version: &'a str,
+        updated_at: i64,
+    ) -> Self {
+        Self {
+            source_id,
+            source_generation,
+            readiness_revision,
+            availability,
+            contract_version,
+            upsert_targets,
+            deleted_file_scope_ids,
+            similarity_artifact_version,
+            updated_at,
+        }
+    }
+}
+
+/// Result of attempting a bounded target delta.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReadinessDeltaPublicationOutcome {
+    /// The delta committed atomically.
+    Applied {
+        /// Current source-scoped membership generation after the delta.
+        membership_generation: String,
+        /// Number of durable target, job, and source rows changed.
+        changed: usize,
+    },
+    /// Durable state was absent or incompatible, so a complete publication is required.
+    RequiresFullPublication,
 }
 
 /// The only production persistence boundary for durable source readiness.
@@ -77,7 +136,7 @@ pub struct ReadinessCompatibilityCleanup {
 }
 
 /// Durable readiness publication state for one configured source.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReadinessSourceState {
     /// Last accepted manifest generation.
     pub source_generation: i64,
@@ -85,6 +144,10 @@ pub struct ReadinessSourceState {
     pub readiness_revision: i64,
     /// Current processing availability.
     pub availability: SourceAvailability,
+    /// Artifact/readiness contract that owns the current target set.
+    pub contract_version: String,
+    /// Incremental source similarity membership checkpoint.
+    pub membership: ReadinessMembership,
 }
 
 impl<'connection> ReadinessStore<'connection> {
@@ -104,6 +167,7 @@ impl<'connection> ReadinessStore<'connection> {
             publication.source_generation,
             publication.readiness_revision,
             publication.availability,
+            publication.contract_version,
             publication.targets,
             publication.updated_at,
             None,
@@ -122,7 +186,29 @@ impl<'connection> ReadinessStore<'connection> {
             publication.source_generation,
             publication.readiness_revision,
             publication.availability,
+            publication.contract_version,
             publication.targets,
+            publication.updated_at,
+            Some(cancel),
+        )
+    }
+
+    /// Apply a bounded readiness target delta or request a complete fallback publication.
+    pub fn publish_target_delta_with_cancel(
+        &mut self,
+        publication: &ReadinessTargetDeltaPublication<'_>,
+        cancel: &AtomicBool,
+    ) -> Result<ReadinessDeltaPublicationOutcome, ReadinessError> {
+        persistence::apply_readiness_target_delta_inner(
+            self.connection,
+            publication.source_id,
+            publication.source_generation,
+            publication.readiness_revision,
+            publication.availability,
+            publication.contract_version,
+            publication.upsert_targets,
+            publication.deleted_file_scope_ids,
+            publication.similarity_artifact_version,
             publication.updated_at,
             Some(cancel),
         )
@@ -148,6 +234,29 @@ impl<'connection> ReadinessStore<'connection> {
         reconcile::reconcile_readiness_inner(
             self.connection,
             source_id,
+            now,
+            Some(cancel),
+            progress,
+        )
+    }
+
+    /// Reconcile only committed file identities plus the source-scoped similarity target.
+    ///
+    /// This is valid after an atomic readiness delta publication: unchanged file targets retain
+    /// their exact artifacts and work, while the source target is always included because its
+    /// membership generation changes with the affected identities.
+    pub fn reconcile_scopes_with_cancel_and_progress(
+        &mut self,
+        source_id: &str,
+        scope_ids: &BTreeSet<String>,
+        now: i64,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(),
+    ) -> Result<ReadinessSnapshot, ReadinessError> {
+        reconcile::reconcile_readiness_scopes_inner(
+            self.connection,
+            source_id,
+            scope_ids,
             now,
             Some(cancel),
             progress,
@@ -328,6 +437,18 @@ impl<'connection> ReadinessStore<'connection> {
                     "artifact_ref",
                 ][..],
             ),
+            (
+                "source_readiness_sources",
+                &[
+                    "source_id",
+                    "source_generation",
+                    "readiness_revision",
+                    "availability",
+                    "contract_version",
+                    "membership_digest",
+                    "membership_count",
+                ][..],
+            ),
         ] {
             let pragma = format!("PRAGMA table_info({table})");
             let mut statement = self.connection.prepare(&pragma)?;
@@ -352,20 +473,63 @@ impl<'connection> ReadinessStore<'connection> {
             .map_err(Into::into)
     }
 
+    /// Whether an exact file generation is already known to be permanently unsupported.
+    pub fn generation_is_known_unsupported(
+        &mut self,
+        source_id: &str,
+        scope_id: &str,
+        content_generation: &str,
+    ) -> Result<bool, ReadinessError> {
+        work::readiness_generation_is_known_unsupported(
+            self.connection,
+            source_id,
+            scope_id,
+            content_generation,
+        )
+    }
+
     /// Load the state required to decide whether a complete target publication is still current.
     pub fn source_state(
         &mut self,
         source_id: &str,
     ) -> Result<Option<ReadinessSourceState>, ReadinessError> {
-        self.connection.query_row(
-            "SELECT source_generation, readiness_revision, availability FROM source_readiness_sources WHERE source_id = ?1",
-            [source_id],
-            |row| {
-                let availability = row.get::<_, String>(2)?;
-                let availability = SourceAvailability::from_stored(&availability).ok_or_else(|| rusqlite::Error::InvalidQuery)?;
-                Ok(ReadinessSourceState { source_generation: row.get(0)?, readiness_revision: row.get(1)?, availability })
-            },
-        ).optional().map_err(Into::into)
+        self.connection
+            .query_row(
+                "SELECT source_generation, readiness_revision, availability, contract_version,
+                    membership_digest, membership_count
+             FROM source_readiness_sources
+             WHERE source_id = ?1",
+                [source_id],
+                |row| {
+                    let availability = row.get::<_, String>(2)?;
+                    let availability = SourceAvailability::from_stored(&availability)
+                        .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+                    let raw_digest = row.get::<_, Vec<u8>>(4)?;
+                    let raw_count = row.get::<_, i64>(5)?;
+                    let mut contract_version = row.get::<_, String>(3)?;
+                    let digest = match raw_digest.try_into() {
+                        Ok(digest) if raw_count >= 0 => digest,
+                        _ => {
+                            // A corrupt or legacy checkpoint must force the next probe through
+                            // complete publication instead of making the source unrecoverable.
+                            contract_version.clear();
+                            [0; 32]
+                        }
+                    };
+                    Ok(ReadinessSourceState {
+                        source_generation: row.get(0)?,
+                        readiness_revision: row.get(1)?,
+                        availability,
+                        contract_version,
+                        membership: ReadinessMembership::from_parts(
+                            digest,
+                            raw_count.max(0) as u64,
+                        ),
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
     }
 
     /// Mark a source offline without modifying its generation or target set.

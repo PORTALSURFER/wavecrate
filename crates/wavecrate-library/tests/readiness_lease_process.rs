@@ -78,8 +78,15 @@ fn seed_readiness_work(root: &Path) {
         )
         .with_eligibility(ReadinessEligibility::Unsupported),
     ];
-    let publication =
-        ReadinessTargetPublication::new(SOURCE_ID, 1, 1, SourceAvailability::Active, &targets, 10);
+    let publication = ReadinessTargetPublication::new(
+        SOURCE_ID,
+        1,
+        1,
+        SourceAvailability::Active,
+        "readiness-lease-process-test-v1",
+        &targets,
+        10,
+    );
     ReadinessStore::new(&mut connection)
         .publish_targets(&publication)
         .expect("publish readiness targets");

@@ -27,6 +27,43 @@ fn file_target(identity: &str, stage: ReadinessStage, generation: i64) -> Readin
     )
 }
 
+fn eligible_file_targets(
+    identity: &str,
+    path: &str,
+    generation: i64,
+    content_generation: &str,
+) -> [ReadinessTarget; 3] {
+    [
+        ReadinessTarget::file(
+            SOURCE_ID,
+            identity,
+            path,
+            ReadinessStage::IndexedIdentity,
+            "manifest-v1",
+            generation,
+            content_generation,
+        ),
+        ReadinessTarget::file(
+            SOURCE_ID,
+            identity,
+            path,
+            ReadinessStage::AnalysisFeatures,
+            "analysis-v1",
+            generation,
+            content_generation,
+        ),
+        ReadinessTarget::file(
+            SOURCE_ID,
+            identity,
+            path,
+            ReadinessStage::EmbeddingAspects,
+            "embedding-v1",
+            generation,
+            content_generation,
+        ),
+    ]
+}
+
 fn complete_targets(generation: i64, targets: &[ReadinessTarget]) -> Vec<ReadinessTarget> {
     let mut complete = targets.to_vec();
     let file_targets = targets

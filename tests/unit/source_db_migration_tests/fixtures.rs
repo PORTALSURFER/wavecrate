@@ -76,7 +76,11 @@ pub(super) const SOURCE_DB_SCHEMA_CONTRACT: &[TableContract] = &[
         columns: &[
             "source_id",
             "source_generation",
+            "readiness_revision",
             "availability",
+            "contract_version",
+            "membership_digest",
+            "membership_count",
             "updated_at",
         ],
     },

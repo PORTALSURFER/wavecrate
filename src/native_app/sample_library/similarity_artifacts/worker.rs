@@ -15,8 +15,9 @@ use wavecrate::sample_sources::{
     SampleSource, SourceDatabase, SourceDatabaseConnectionRole,
     db::META_WAV_PATHS_REVISION,
     readiness::{
-        ReadinessScopeKind, ReadinessSimilarityManifestRequest, ReadinessSimilarityPayloadContract,
-        ReadinessStage, ReadinessStore, ReadinessTarget, ReadinessView,
+        ReadinessMembership, ReadinessScopeKind, ReadinessSimilarityManifestRequest,
+        ReadinessSimilarityPayloadContract, ReadinessStage, ReadinessStore, ReadinessTarget,
+        ReadinessView,
     },
 };
 use wavecrate_analysis::{
@@ -282,14 +283,11 @@ fn exact_similarity_manifest(
             contract,
         ))
         .map_err(|error| format!("Query exact similarity manifest failed: {error}"))?;
-    let mut membership = blake3::Hasher::new();
+    let mut membership = ReadinessMembership::default();
     let mut manifest = Vec::new();
     let mut valid_identities = HashSet::new();
     for row in selection.rows {
-        membership.update(row.scope_id.as_bytes());
-        membership.update(&[0]);
-        membership.update(row.content_generation.as_bytes());
-        membership.update(&[0xff]);
+        membership.add(&row.scope_id, &row.content_generation);
         valid_identities.insert(row.scope_id);
         let embedding = analysis::decode_f32_le_blob(&row.embedding)?;
         if embedding.len() != usize::try_from(row.embedding_dim).unwrap_or_default()
@@ -314,7 +312,7 @@ fn exact_similarity_manifest(
         )?;
         return Ok(None);
     }
-    let actual_membership_generation = membership.finalize().to_hex().to_string();
+    let actual_membership_generation = membership.generation();
     if actual_membership_generation != expected_membership_generation {
         return Err("Similarity manifest generation changed before finalization".to_string());
     }

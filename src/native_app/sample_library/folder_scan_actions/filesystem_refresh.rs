@@ -115,6 +115,11 @@ impl NativeAppState {
                     renames_reconciled,
                     "Committed filesystem source delta"
                 );
+                self.background.source_processing.request_source_delta(
+                    &source_id,
+                    &delta,
+                    "filesystem_sync_committed_delta",
+                );
                 if !delta.is_empty() && incomplete_error.is_none() {
                     self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
                     self.queue_source_prep(
@@ -126,7 +131,10 @@ impl NativeAppState {
                 if result.cancelled || incomplete_error.is_some() {
                     self.background
                         .source_processing
-                        .wake_source(&source_id, "filesystem_sync_incomplete_after_commit");
+                        .wake_source_for_full_reconciliation(
+                            &source_id,
+                            "filesystem_sync_incomplete_after_commit",
+                        );
                 }
                 self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
             }
@@ -159,11 +167,13 @@ impl NativeAppState {
         {
             return;
         }
+        self.background.source_processing.request_source_delta(
+            &source_id,
+            &committed_delta,
+            "manifest_audit_committed_delta",
+        );
         match manifest_audit_followup(&committed_delta) {
             ManifestAuditFollowup::ReconcileImmediately => {
-                self.background
-                    .source_processing
-                    .request_source_processing(&source_id, "manifest_audit_committed");
                 tracing::debug!(
                     source_id = %source_id,
                     revision = committed_delta.revision,

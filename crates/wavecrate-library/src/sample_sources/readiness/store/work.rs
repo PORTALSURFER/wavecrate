@@ -3,10 +3,43 @@ use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, 
 use super::super::model::{
     ClaimedReadinessWork, ReadinessArtifact, ReadinessClaimOrigin, ReadinessEligibility,
     ReadinessFailureClassification, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
-    ReadinessRetryPolicy, ReadinessTarget, ReadinessWorkMutationOutcome, ReadinessWorkStats,
+    ReadinessMembership, ReadinessRetryPolicy, ReadinessScopeKind, ReadinessTarget,
+    ReadinessWorkMutationOutcome, ReadinessWorkStats,
 };
 use super::super::snapshot::ArtifactPublishOutcome;
 use super::error::ReadinessError;
+
+pub(crate) fn readiness_generation_is_known_unsupported(
+    connection: &Connection,
+    source_id: &str,
+    scope_id: &str,
+    content_generation: &str,
+) -> Result<bool, ReadinessError> {
+    connection
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1
+                FROM source_readiness_targets
+                WHERE source_id = ?1
+                  AND scope_kind = 'file'
+                  AND scope_id = ?2
+                  AND stage = 'embedding_aspects'
+                  AND content_generation = ?3
+                  AND eligibility = 'unsupported'
+                UNION ALL
+                SELECT 1
+                FROM analysis_jobs
+                WHERE source_id = ?1
+                  AND readiness_managed = 1
+                  AND readiness_scope_id = ?2
+                  AND content_generation = ?3
+                  AND failure_kind = 'unsupported'
+            )",
+            params![source_id, scope_id, content_generation],
+            |row| row.get(0),
+        )
+        .map_err(Into::into)
+}
 
 /// Claim one exact desired target with a durable lease.
 ///
@@ -29,7 +62,10 @@ pub(crate) fn claim_readiness_target(
              FROM source_readiness_targets AS target
              JOIN source_readiness_sources AS source
                ON source.source_id = target.source_id
-              AND source.source_generation = target.source_generation
+              AND (
+                  target.scope_kind = 'file'
+                  OR source.source_generation = target.source_generation
+              )
              JOIN analysis_jobs AS job
                ON job.source_id = target.source_id
               AND job.readiness_managed = 1
@@ -66,7 +102,6 @@ pub(crate) fn claim_readiness_target(
                         SELECT 1
                         FROM source_readiness_targets AS prerequisite
                         WHERE prerequisite.source_id = target.source_id
-                          AND prerequisite.source_generation = target.source_generation
                           AND prerequisite.scope_kind = 'file'
                           AND prerequisite.stage IN (
                               'indexed_identity',
@@ -224,7 +259,10 @@ pub(crate) fn renew_readiness_lease(
                FROM source_readiness_targets AS target
                JOIN source_readiness_sources AS source
                  ON source.source_id = target.source_id
-                AND source.source_generation = target.source_generation
+                AND (
+                    target.scope_kind = 'file'
+                    OR source.source_generation = target.source_generation
+                )
                WHERE target.source_id = analysis_jobs.source_id
                  AND target.scope_kind = analysis_jobs.readiness_scope_kind
                  AND target.scope_id = analysis_jobs.readiness_scope_id
@@ -429,8 +467,118 @@ pub(crate) fn fail_readiness_work(
         tx.rollback()?;
         return Ok(ReadinessFailureOutcome::RejectedStale);
     }
+    if stored_classification == ReadinessFailureClassification::Unsupported {
+        apply_unsupported_target_delta(&tx, claim, failed_at)?;
+    }
     tx.commit()?;
     Ok(outcome)
+}
+
+fn apply_unsupported_target_delta(
+    tx: &Transaction<'_>,
+    claim: &ClaimedReadinessWork,
+    updated_at: i64,
+) -> Result<(), rusqlite::Error> {
+    if claim.target.scope_kind != ReadinessScopeKind::File {
+        return Ok(());
+    }
+    let embedding = tx
+        .query_row(
+            "SELECT content_generation, eligibility
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_kind = 'file'
+               AND scope_id = ?2
+               AND stage = 'embedding_aspects'
+               AND content_generation = ?3",
+            params![
+                claim.target.source_id,
+                claim.target.scope_id,
+                claim.target.content_generation,
+            ],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    let Some((content_generation, eligibility)) = embedding else {
+        return Ok(());
+    };
+    if eligibility == "unsupported" {
+        return Ok(());
+    }
+    let (raw_digest, raw_count) = tx.query_row(
+        "SELECT membership_digest, membership_count
+         FROM source_readiness_sources
+         WHERE source_id = ?1",
+        [claim.target.source_id.as_str()],
+        |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?)),
+    )?;
+    let Ok(digest) = <Vec<u8> as TryInto<[u8; 32]>>::try_into(raw_digest) else {
+        tx.execute(
+            "UPDATE source_readiness_sources
+             SET contract_version = '', updated_at = ?2
+             WHERE source_id = ?1",
+            params![claim.target.source_id, updated_at],
+        )?;
+        return Ok(());
+    };
+    if raw_count <= 0 {
+        tx.execute(
+            "UPDATE source_readiness_sources
+             SET contract_version = '', updated_at = ?2
+             WHERE source_id = ?1",
+            params![claim.target.source_id, updated_at],
+        )?;
+        return Ok(());
+    }
+    let mut membership = ReadinessMembership::from_parts(digest, raw_count as u64);
+    membership.remove(&claim.target.scope_id, &content_generation);
+    let membership_generation = membership.generation();
+    tx.execute(
+        "UPDATE source_readiness_targets
+         SET eligibility = 'unsupported', updated_at = ?4
+         WHERE source_id = ?1
+           AND scope_kind = 'file'
+           AND scope_id = ?2
+           AND stage IN ('analysis_features', 'embedding_aspects')
+           AND content_generation = ?3",
+        params![
+            claim.target.source_id,
+            claim.target.scope_id,
+            claim.target.content_generation,
+            updated_at,
+        ],
+    )?;
+    tx.execute(
+        "UPDATE source_readiness_targets
+         SET content_generation = ?2, updated_at = ?3
+         WHERE source_id = ?1
+           AND scope_kind = 'source'
+           AND stage = 'similarity_layout'",
+        params![claim.target.source_id, membership_generation, updated_at,],
+    )?;
+    tx.execute(
+        "UPDATE source_readiness_sources
+         SET readiness_revision = readiness_revision + 1,
+             membership_digest = ?2,
+             membership_count = ?3,
+             updated_at = ?4
+         WHERE source_id = ?1",
+        params![
+            claim.target.source_id,
+            membership.digest.as_slice(),
+            i64::try_from(membership.count).unwrap_or(i64::MAX),
+            updated_at,
+        ],
+    )?;
+    tx.execute(
+        "DELETE FROM analysis_jobs
+         WHERE source_id = ?1
+           AND readiness_managed = 1
+           AND readiness_scope_kind = 'source'
+           AND readiness_stage = 'similarity_layout'",
+        [claim.target.source_id.as_str()],
+    )?;
+    Ok(())
 }
 
 /// Voluntarily release a current claim back to pending without deleting durable work.
@@ -495,9 +643,19 @@ pub(crate) fn readiness_work_stats(
           AND target.content_generation = job.content_generation
          JOIN source_readiness_sources AS source
            ON source.source_id = target.source_id
-          AND source.source_generation = target.source_generation
+          AND (
+              target.scope_kind = 'file'
+              OR source.source_generation = target.source_generation
+          )
          WHERE job.readiness_managed = 1
-           AND target.eligibility = 'eligible'
+           AND (
+               target.eligibility = 'eligible'
+               OR (
+                   target.eligibility = 'unsupported'
+                   AND job.status = 'failed'
+                   AND job.failure_kind = 'unsupported'
+               )
+           )
            AND source.availability = 'active'
            AND (
                target.scope_kind = 'file'
@@ -594,7 +752,10 @@ fn finish_claim_update(
                FROM source_readiness_targets AS target
                JOIN source_readiness_sources AS source
                  ON source.source_id = target.source_id
-                AND source.source_generation = target.source_generation
+                AND (
+                    target.scope_kind = 'file'
+                    OR source.source_generation = target.source_generation
+                )
                WHERE target.source_id = analysis_jobs.source_id
                  AND target.scope_kind = analysis_jobs.readiness_scope_kind
                  AND target.scope_id = analysis_jobs.readiness_scope_id

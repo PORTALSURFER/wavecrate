@@ -12,6 +12,7 @@ default = []
 sqlite-ext-unsafe = []
 
 [dependencies]
+blake3 = "1.6.1"
 directories = "6.0.0"
 rusqlite = { version = "0.37.0", features = ["backup", "bundled", "load_extension"] }
 serde = { version = "1.0.228", features = ["derive"] }

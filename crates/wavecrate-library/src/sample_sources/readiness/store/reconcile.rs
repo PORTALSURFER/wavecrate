@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, types::Value};
 
 use super::super::{
     model::{
@@ -40,6 +40,28 @@ pub(super) fn reconcile_readiness_inner(
     Ok(snapshot)
 }
 
+pub(super) fn reconcile_readiness_scopes_inner(
+    connection: &Connection,
+    source_id: &str,
+    scope_ids: &std::collections::BTreeSet<String>,
+    now: i64,
+    cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
+) -> Result<ReadinessSnapshot, ReadinessError> {
+    let tx = connection.unchecked_transaction()?;
+    let snapshot = reconcile_readiness_snapshot_for_scopes(
+        &tx,
+        source_id,
+        Some(scope_ids),
+        now,
+        || {},
+        cancel,
+        progress,
+    )?;
+    tx.commit()?;
+    Ok(snapshot)
+}
+
 #[cfg(test)]
 pub(crate) fn reconcile_readiness_with_hook(
     connection: &Connection,
@@ -57,6 +79,27 @@ pub(crate) fn reconcile_readiness_with_hook(
 fn reconcile_readiness_snapshot(
     connection: &Connection,
     source_id: &str,
+    now: i64,
+    after_source_state: impl FnOnce(),
+    cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
+) -> Result<ReadinessSnapshot, ReadinessError> {
+    reconcile_readiness_snapshot_for_scopes(
+        connection,
+        source_id,
+        None,
+        now,
+        after_source_state,
+        cancel,
+        progress,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reconcile_readiness_snapshot_for_scopes(
+    connection: &Connection,
+    source_id: &str,
+    scope_ids: Option<&std::collections::BTreeSet<String>>,
     now: i64,
     after_source_state: impl FnOnce(),
     cancel: Option<&AtomicBool>,
@@ -94,9 +137,9 @@ fn reconcile_readiness_snapshot(
         availability,
     };
     after_source_state();
-    let targets = load_targets(connection, source_id, cancel, progress)?;
-    let artifacts = load_artifacts(connection, source_id, cancel, progress)?;
-    let work = load_work(connection, source_id, cancel, progress)?;
+    let targets = load_targets(connection, source_id, scope_ids, cancel, progress)?;
+    let artifacts = load_artifacts(connection, source_id, scope_ids, cancel, progress)?;
+    let work = load_work(connection, source_id, scope_ids, cancel, progress)?;
     build_snapshot(
         source_id,
         source_state,
@@ -154,18 +197,23 @@ struct StoredWork {
 fn load_targets(
     connection: &Connection,
     source_id: &str,
+    scope_ids: Option<&std::collections::BTreeSet<String>>,
     cancel: Option<&AtomicBool>,
     progress: &mut dyn FnMut(),
 ) -> Result<Vec<ReadinessTarget>, ReadinessError> {
-    let mut statement = connection.prepare(
+    let filter = scoped_filter(scope_ids, "scope_kind", "scope_id");
+    let sql = format!(
         "SELECT scope_kind, scope_id, relative_path, stage, required_version,
                 source_generation, content_generation, eligibility
          FROM source_readiness_targets
          WHERE source_id = ?1
            AND stage != 'playback_summary'
-         ORDER BY scope_kind, scope_id, stage",
-    )?;
-    let mut rows = statement.query([source_id])?;
+           {filter}
+         ORDER BY scope_kind, scope_id, stage"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let values = scoped_params(source_id, scope_ids);
+    let mut rows = statement.query(rusqlite::params_from_iter(values.iter()))?;
     let mut targets = Vec::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
@@ -188,17 +236,22 @@ fn load_targets(
 fn load_artifacts(
     connection: &Connection,
     source_id: &str,
+    scope_ids: Option<&std::collections::BTreeSet<String>>,
     cancel: Option<&AtomicBool>,
     progress: &mut dyn FnMut(),
 ) -> Result<BTreeMap<ReadinessKey, StoredArtifact>, ReadinessError> {
-    let mut statement = connection.prepare(
+    let filter = scoped_filter(scope_ids, "scope_kind", "scope_id");
+    let sql = format!(
         "SELECT scope_kind, scope_id, stage, artifact_version,
                 source_generation, content_generation
          FROM source_readiness_artifacts
          WHERE source_id = ?1
-           AND stage != 'playback_summary'",
-    )?;
-    let mut rows = statement.query([source_id])?;
+           AND stage != 'playback_summary'
+           {filter}"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let values = scoped_params(source_id, scope_ids);
+    let mut rows = statement.query(rusqlite::params_from_iter(values.iter()))?;
     let mut artifacts = BTreeMap::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
@@ -224,10 +277,12 @@ fn load_artifacts(
 fn load_work(
     connection: &Connection,
     source_id: &str,
+    scope_ids: Option<&std::collections::BTreeSet<String>>,
     cancel: Option<&AtomicBool>,
     progress: &mut dyn FnMut(),
 ) -> Result<BTreeMap<ReadinessKey, StoredWork>, ReadinessError> {
-    let mut statement = connection.prepare(
+    let filter = scoped_filter(scope_ids, "readiness_scope_kind", "readiness_scope_id");
+    let sql = format!(
         "SELECT readiness_scope_kind, readiness_scope_id, readiness_stage, status,
                 artifact_version, source_generation, content_generation, retry_at,
                 failure_kind, last_error, lease_expires_at, created_at
@@ -235,9 +290,12 @@ fn load_work(
          WHERE source_id = ?1
            AND readiness_managed = 1
            AND readiness_stage != 'playback_summary'
-         ORDER BY id",
-    )?;
-    let mut rows = statement.query([source_id])?;
+           {filter}
+         ORDER BY id"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let values = scoped_params(source_id, scope_ids);
+    let mut rows = statement.query(rusqlite::params_from_iter(values.iter()))?;
     let mut work = BTreeMap::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
@@ -266,6 +324,37 @@ fn load_work(
     Ok(work)
 }
 
+fn scoped_filter(
+    scope_ids: Option<&std::collections::BTreeSet<String>>,
+    kind_column: &str,
+    id_column: &str,
+) -> String {
+    let Some(scope_ids) = scope_ids else {
+        return String::new();
+    };
+    let placeholders = (0..scope_ids.len())
+        .map(|index| format!("?{}", index + 2))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if placeholders.is_empty() {
+        format!("AND {kind_column} = 'source'")
+    } else {
+        format!("AND ({kind_column} = 'source' OR {id_column} IN ({placeholders}))")
+    }
+}
+
+fn scoped_params(
+    source_id: &str,
+    scope_ids: Option<&std::collections::BTreeSet<String>>,
+) -> Vec<Value> {
+    let mut values = Vec::with_capacity(1 + scope_ids.map_or(0, std::collections::BTreeSet::len));
+    values.push(Value::Text(source_id.to_string()));
+    if let Some(scope_ids) = scope_ids {
+        values.extend(scope_ids.iter().cloned().map(Value::Text));
+    }
+    values
+}
+
 fn cancellation_checkpoint(cancel: Option<&AtomicBool>) -> Result<(), ReadinessError> {
     if cancel.is_some_and(|cancel| cancel.load(Ordering::Acquire)) {
         Err(ReadinessError::Cancelled)
@@ -274,6 +363,7 @@ fn cancellation_checkpoint(cancel: Option<&AtomicBool>) -> Result<(), ReadinessE
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_snapshot(
     source_id: &str,
     source_state: StoredSourceState,

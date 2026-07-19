@@ -215,6 +215,7 @@ impl SourceAnalysisFixture {
                 SOURCE_GENERATION,
                 1,
                 SourceAvailability::Active,
+                "source-analysis-process-test-v1",
                 &targets,
                 1,
             ))

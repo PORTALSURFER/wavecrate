@@ -243,6 +243,8 @@ inherit a real-time soak:
   `cargo test -p wavecrate --bin wavecrate source_processing_liveness_harness_converges_restart_churn_and_root_recovery -- --ignored --nocapture`
 - 10,000-file / 30,001-target calibrated source-processing profile:
   `cargo test -p wavecrate --bin wavecrate profile_source_processing_churn_under_playback_and_browser_priority -- --ignored --nocapture`
+- fully analyzed 10,000-file periodic-sweep and one-file readiness-delta profile:
+  `cargo test -p wavecrate --bin wavecrate profile_revision_gated_readiness_sweeps_10k -- --ignored --nocapture`
 - full mutation and watcher family coverage:
   `cargo test -p wavecrate --bin wavecrate committed_file_mutations`
   and
@@ -280,10 +282,14 @@ profile enforces these source-processing budgets in debug test builds:
   reads/writes at or below 1 GiB each for candidate materialization; and
 - record zero supervisor database-contention events.
 
-The profile prints wall time, completion throughput, queue-priority latency,
-CPU time/core-equivalent, memory growth, disk I/O, database-contention events,
-and their exact budgets as JSON. Pair it with the maintained perf guard for the
-frame/input-latency budgets from
+The calibrated source-processing profile prints wall time, completion
+throughput, queue-priority latency, CPU time/core-equivalent, memory growth,
+disk I/O, and database-contention events. The fully analyzed readiness profile
+prints ten consecutive converged safety-probe costs and one-file
+readiness-delta costs as JSON. Its steady-state and one-file sections include
+wall time, CPU time, live heap growth, process disk reads/writes, and target-row
+writes so their cost can be compared directly with an exact pre-change run.
+Pair both with the maintained perf guard for the frame/input-latency budgets from
 `scripts/internal/data/validation_contract.json`.
 
 ### Script and golden checks
