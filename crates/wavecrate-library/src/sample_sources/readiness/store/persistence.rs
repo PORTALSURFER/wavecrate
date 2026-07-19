@@ -36,31 +36,6 @@ pub fn replace_readiness_targets(
     )
 }
 
-/// Atomically replace desired readiness while honoring cancellation during large publications.
-#[allow(clippy::too_many_arguments)]
-#[cfg(test)]
-pub fn replace_readiness_targets_with_cancel(
-    connection: &mut Connection,
-    source_id: &str,
-    source_generation: i64,
-    readiness_revision: i64,
-    availability: SourceAvailability,
-    targets: &[ReadinessTarget],
-    updated_at: i64,
-    cancel: &AtomicBool,
-) -> Result<(), ReadinessError> {
-    replace_readiness_targets_inner(
-        connection,
-        source_id,
-        source_generation,
-        readiness_revision,
-        availability,
-        targets,
-        updated_at,
-        Some(cancel),
-    )
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn replace_readiness_targets_inner(
     connection: &mut Connection,
@@ -300,29 +275,6 @@ pub fn persist_readiness_deficits(
     created_at: i64,
 ) -> Result<usize, ReadinessError> {
     persist_readiness_deficits_inner(connection, deficits, created_at, None, &mut || {})
-}
-
-/// Persist deficits while honoring cancellation; cancellation rolls back the current batch.
-#[cfg(test)]
-pub fn persist_readiness_deficits_with_cancel(
-    connection: &mut Connection,
-    deficits: &[ReadinessDeficit],
-    created_at: i64,
-    cancel: &AtomicBool,
-) -> Result<usize, ReadinessError> {
-    persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel), &mut || {})
-}
-
-/// Persist deficits while reporting each completed queue-reconciliation step.
-#[cfg(test)]
-pub fn persist_readiness_deficits_with_cancel_and_progress(
-    connection: &mut Connection,
-    deficits: &[ReadinessDeficit],
-    created_at: i64,
-    cancel: &AtomicBool,
-    progress: &mut dyn FnMut(),
-) -> Result<usize, ReadinessError> {
-    persist_readiness_deficits_inner(connection, deficits, created_at, Some(cancel), progress)
 }
 
 pub(super) fn persist_readiness_deficits_inner(

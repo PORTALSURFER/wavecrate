@@ -4697,12 +4697,114 @@ mod tests {
     use wavecrate::sample_sources::{
         SourceId,
         readiness::{
-            ReadinessArtifact, ReadinessEligibility, ReadinessStore, ReadinessTargetPublication,
-            SourceAvailability,
+            ArtifactPublishOutcome, ClaimedReadinessWork, ReadinessArtifact, ReadinessDeficit,
+            ReadinessEligibility, ReadinessError, ReadinessSnapshot, ReadinessStore,
+            ReadinessTargetPublication, ReadinessView, ReadinessWorkStats, SourceAvailability,
         },
     };
 
     use super::*;
+
+    fn reconcile_readiness(
+        connection: &rusqlite::Connection,
+        source_id: &str,
+        now: i64,
+    ) -> Result<ReadinessSnapshot, ReadinessError> {
+        ReadinessView::new(connection).reconcile(source_id, now)
+    }
+
+    fn reconcile_readiness_with_cancel_and_progress(
+        connection: &rusqlite::Connection,
+        source_id: &str,
+        now: i64,
+        cancel: &AtomicBool,
+        progress: &mut dyn FnMut(),
+    ) -> Result<ReadinessSnapshot, ReadinessError> {
+        ReadinessView::new(connection)
+            .reconcile_with_cancel_and_progress(source_id, now, cancel, progress)
+    }
+
+    fn persist_readiness_deficits(
+        connection: &mut rusqlite::Connection,
+        deficits: &[ReadinessDeficit],
+        created_at: i64,
+    ) -> Result<usize, ReadinessError> {
+        ReadinessStore::new(connection).persist_deficits(deficits, created_at)
+    }
+
+    fn publish_readiness_artifact(
+        connection: &mut rusqlite::Connection,
+        artifact: &ReadinessArtifact,
+    ) -> Result<ArtifactPublishOutcome, ReadinessError> {
+        ReadinessStore::new(connection).publish_artifact(artifact)
+    }
+
+    fn readiness_work_stats(
+        connection: &rusqlite::Connection,
+        now: i64,
+    ) -> Result<ReadinessWorkStats, ReadinessError> {
+        ReadinessView::new(connection).work_stats(now)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn replace_readiness_targets(
+        connection: &mut rusqlite::Connection,
+        source_id: &str,
+        source_generation: i64,
+        readiness_revision: i64,
+        availability: SourceAvailability,
+        targets: &[ReadinessTarget],
+        updated_at: i64,
+    ) -> Result<(), ReadinessError> {
+        ReadinessStore::new(connection).publish_targets(&ReadinessTargetPublication::new(
+            source_id,
+            source_generation,
+            readiness_revision,
+            availability,
+            targets,
+            updated_at,
+        ))
+    }
+
+    fn claim_readiness_target(
+        connection: &mut rusqlite::Connection,
+        target: &ReadinessTarget,
+        now: i64,
+        lease_duration_seconds: i64,
+    ) -> Result<Option<ClaimedReadinessWork>, ReadinessError> {
+        ReadinessStore::new(connection).claim(target, now, lease_duration_seconds)
+    }
+
+    fn complete_readiness_work(
+        connection: &mut rusqlite::Connection,
+        claim: &ClaimedReadinessWork,
+        completed_at: i64,
+    ) -> Result<ArtifactPublishOutcome, ReadinessError> {
+        ReadinessStore::new(connection).complete(claim, completed_at)
+    }
+
+    fn reclassify_known_unsupported_audio_failures(
+        connection: &mut rusqlite::Connection,
+    ) -> Result<usize, String> {
+        ReadinessStore::new(connection)
+            .reclassify_known_unsupported_failures(is_known_unsupported_audio_failure)
+            .map_err(|error| error.to_string())
+    }
+
+    fn readiness_stage_is_unsupported(
+        connection: &rusqlite::Connection,
+        target: &ReadinessTarget,
+        stage: &str,
+    ) -> Result<bool, String> {
+        let stage = match stage {
+            "analysis_features" => ReadinessStage::AnalysisFeatures,
+            "embedding_aspects" => ReadinessStage::EmbeddingAspects,
+            _ => return Ok(false),
+        };
+        ReadinessView::new(connection)
+            .stage_is_unsupported(target, stage)
+            .map_err(|error| error.to_string())
+    }
 
     #[test]
     fn retired_jobs_are_pruned_and_only_readiness_jobs_are_recovered() {
@@ -4713,7 +4815,7 @@ mod tests {
         );
         source.open_db().expect("create source database");
         let database_root = source.database_root().expect("database root");
-        let connection = SourceDatabase::open_connection_with_role_and_database_root(
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
             &database_root,
             SourceDatabaseConnectionRole::JobWorker,
@@ -4760,7 +4862,9 @@ mod tests {
         );
 
         assert_eq!(
-            prune_legacy_similarity_jobs(&connection).expect("prune retired jobs"),
+            ReadinessStore::new(&mut connection)
+                .prune_legacy_similarity_jobs()
+                .expect("prune retired jobs"),
             1
         );
         assert_eq!(
@@ -7559,7 +7663,7 @@ mod tests {
 
     #[test]
     fn legacy_source_schema_is_not_eligible_for_automatic_processing() {
-        let connection = rusqlite::Connection::open_in_memory().unwrap();
+        let mut connection = rusqlite::Connection::open_in_memory().unwrap();
         connection
             .execute_batch(
                 "CREATE TABLE wav_files (
@@ -7578,7 +7682,7 @@ mod tests {
             )
             .unwrap();
 
-        assert!(!source_processing_schema_available(&connection).unwrap());
+        assert!(!source_processing_schema_available(&mut connection).unwrap());
     }
 
     #[test]

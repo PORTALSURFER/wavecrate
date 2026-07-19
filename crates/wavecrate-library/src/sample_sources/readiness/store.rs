@@ -1,10 +1,18 @@
 mod error;
 mod persistence;
 mod reconcile;
+mod similarity;
+mod view;
 mod work;
 
 pub use error::ReadinessError;
+pub use similarity::{
+    ReadinessEmbeddingArtifactTarget, ReadinessSimilarityManifest,
+    ReadinessSimilarityManifestRequest, ReadinessSimilarityManifestRow,
+    ReadinessSimilarityPayloadContract,
+};
 use std::{collections::BTreeSet, sync::atomic::AtomicBool};
+pub use view::ReadinessView;
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 
@@ -264,6 +272,7 @@ impl<'connection> ReadinessStore<'connection> {
     pub fn work_stats(&mut self, now: i64) -> Result<ReadinessWorkStats, ReadinessError> {
         work::readiness_work_stats(self.connection, now)
     }
+
     /// Publish an independently produced artifact if its target is still current.
     pub fn publish_artifact(
         &mut self,
@@ -405,10 +414,7 @@ impl<'connection> ReadinessStore<'connection> {
         target: &ReadinessTarget,
         stage: ReadinessStage,
     ) -> Result<bool, ReadinessError> {
-        self.connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM analysis_jobs WHERE readiness_managed = 1 AND source_id = ?1 AND readiness_scope_kind = 'file' AND readiness_scope_id = ?2 AND readiness_stage = ?3 AND content_generation = ?4 AND status = 'failed' AND failure_kind = 'unsupported')",
-            params![target.source_id, target.scope_id, stage.as_str(), target.content_generation], |row| row.get(0),
-        ).map_err(Into::into)
+        ReadinessView::new(self.connection).stage_is_unsupported(target, stage)
     }
 
     /// Upgrade deterministic legacy decode failures to the terminal unsupported classification.
@@ -525,23 +531,24 @@ impl<'connection> ReadinessStore<'connection> {
             [artifact_ref], |row| row.get(0),
         ).map_err(Into::into)
     }
+
+    /// Reset interrupted readiness claims so recovery can claim them again.
+    pub fn reset_interrupted_work(&mut self) -> Result<usize, ReadinessError> {
+        self.connection.execute("UPDATE analysis_jobs SET status = 'pending', running_at = NULL, lease_expires_at = NULL WHERE status = 'running' AND readiness_managed = 1", []).map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
-pub use persistence::{
-    invalidate_readiness_artifact, persist_readiness_deficits,
-    persist_readiness_deficits_with_cancel, persist_readiness_deficits_with_cancel_and_progress,
-    publish_readiness_artifact, replace_readiness_targets, replace_readiness_targets_with_cancel,
+pub(crate) use persistence::{
+    invalidate_readiness_artifact, persist_readiness_deficits, publish_readiness_artifact,
+    replace_readiness_targets,
 };
+#[cfg(test)]
+pub(crate) use reconcile::reconcile_readiness;
 #[cfg(test)]
 pub(crate) use reconcile::reconcile_readiness_with_hook;
 #[cfg(test)]
-pub use reconcile::{
-    reconcile_readiness, reconcile_readiness_with_cancel,
-    reconcile_readiness_with_cancel_and_progress,
-};
-#[cfg(test)]
-pub use work::{
+pub(crate) use work::{
     cancel_readiness_work, claim_readiness_target, complete_readiness_work,
     complete_readiness_work_with_artifact_ref, fail_readiness_work, readiness_work_stats,
     release_readiness_work, renew_readiness_lease,
