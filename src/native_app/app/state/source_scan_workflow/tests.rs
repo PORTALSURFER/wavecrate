@@ -34,7 +34,11 @@ fn stale_progress_is_ignored() {
     assert!(!workflow.apply_progress(&browser, stale));
     assert_eq!(
         workflow.progress().expect("queued progress").phase,
-        "Queued"
+        "Waiting"
+    );
+    assert_eq!(
+        workflow.progress().expect("queued progress").detail,
+        "Waiting for source access"
     );
 }
 

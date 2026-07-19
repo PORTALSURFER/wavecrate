@@ -46,10 +46,13 @@ impl FolderScanMaintenanceResult {
 pub(super) fn persist_folder_scan_maintenance(
     request: FolderScanMaintenanceRequest,
 ) -> FolderScanMaintenanceResult {
-    let config_error = persist_config_revision(&request.config, &request.config_revision);
+    // Persist the browser snapshot first. Configuration and harvest reconciliation can touch large
+    // source databases; if shutdown interrupts that follow-up work, the next launch should still
+    // be able to restore the completed scan instead of scanning the same source again.
     let scan_cache_error =
         apply_folder_scan_cache_update(request.scan_cache_update, request.scan_cache_revision)
             .err();
+    let config_error = persist_config_revision(&request.config, &request.config_revision);
     let harvest_errors = persist_harvest_discoveries(&request.sources, &request.audio_file_paths);
     FolderScanMaintenanceResult {
         config_error,

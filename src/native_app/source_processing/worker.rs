@@ -31,6 +31,7 @@ enum SourceAnalysisTask {
         content_hash: String,
         analysis_version: String,
     },
+    RetireDerivedState,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -44,6 +45,39 @@ struct SourceAnalysisResult {
     produced: bool,
     processed: usize,
     failed: usize,
+    retired_cache_refs: usize,
+    terminal_offline: bool,
+}
+
+pub(super) fn run_source_retirement(
+    source: &SampleSource,
+    cancel: &AtomicBool,
+) -> Result<Option<super::supervisor::SourceRetirementOutcome>, String> {
+    #[cfg(test)]
+    {
+        if cancel.load(std::sync::atomic::Ordering::Acquire) {
+            return Ok(None);
+        }
+        super::supervisor::retire_source_derived_state(source).map(Some)
+    }
+    #[cfg(not(test))]
+    {
+        let request = SourceAnalysisRequest {
+            source: source.clone(),
+            task: SourceAnalysisTask::RetireDerivedState,
+        };
+        run_request_in_child(&request, cancel).map(|result| {
+            result.map(|result| {
+                if result.terminal_offline {
+                    super::supervisor::SourceRetirementOutcome::TerminalOffline
+                } else {
+                    super::supervisor::SourceRetirementOutcome::Retired {
+                        retired_cache_refs: result.retired_cache_refs,
+                    }
+                }
+            })
+        })
+    }
 }
 
 pub(super) fn run_readiness_feature_stage(
@@ -161,6 +195,8 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
                 produced,
                 processed: usize::from(produced),
                 failed: 0,
+                retired_cache_refs: 0,
+                terminal_offline: false,
             })
         }
         SourceAnalysisTask::ReadinessEmbedding {
@@ -182,6 +218,24 @@ fn execute_request(request: &SourceAnalysisRequest) -> Result<SourceAnalysisResu
                 produced,
                 processed: usize::from(produced),
                 failed: 0,
+                retired_cache_refs: 0,
+                terminal_offline: false,
+            })
+        }
+        SourceAnalysisTask::RetireDerivedState => {
+            let outcome = super::supervisor::retire_source_derived_state(&request.source)?;
+            let (retired_cache_refs, terminal_offline) = match outcome {
+                super::supervisor::SourceRetirementOutcome::Retired { retired_cache_refs } => {
+                    (retired_cache_refs, false)
+                }
+                super::supervisor::SourceRetirementOutcome::TerminalOffline => (0, true),
+            };
+            Ok(SourceAnalysisResult {
+                produced: false,
+                processed: 0,
+                failed: 0,
+                retired_cache_refs,
+                terminal_offline,
             })
         }
     }

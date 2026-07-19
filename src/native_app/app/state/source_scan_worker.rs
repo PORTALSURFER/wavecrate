@@ -63,6 +63,7 @@ fn run_folder_scan_worker_with_emit_and_cancel(
         scan,
         audio_file_paths,
         scan_cache_update,
+        lifecycle_generation: None,
     }
 }
 

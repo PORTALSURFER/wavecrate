@@ -31,19 +31,15 @@ fn waveform_cache_round_trips_summary_payload() {
     assert!(cached.playback_samples.is_none());
     assert!(cached.playback_cache_file.is_none());
     assert!(cached_waveform_file_exists(&path));
-    assert!(cached_waveform_file_playback_ready_exists(&path));
-    let playback_file =
-        load_cached_waveform_file_for_playback(path).expect("playback-ready cache hit");
+    assert!(!cached_waveform_file_playback_ready_exists(&path));
     assert!(
-        playback_file.audio_bytes.is_empty(),
-        "playback-ready cache hits should not reread the source WAV before playback"
+        load_cached_waveform_file_for_playback(path).is_none(),
+        "persistent waveform summaries must not contain decoded playback"
     );
-    assert!(playback_file.playback_samples.is_none());
-    assert!(playback_file.playback_cache_file.is_some());
 }
 
 #[test]
-fn playback_descriptor_sidecar_serves_audition_without_summary_cache_deserialize() {
+fn waveform_summary_store_retires_legacy_playback_companions() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("descriptor.wav");
@@ -58,20 +54,21 @@ fn playback_descriptor_sidecar_serves_audition_without_summary_cache_deserialize
     );
     file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
 
-    store_cached_waveform_file(&file);
     let identity = CacheIdentity::for_path(&path).expect("cache identity");
     let cache_path = cache_path_for_identity(&path, &identity).expect("cache path");
-    assert!(playback_descriptor_path(&cache_path).is_file());
+    let playback_path = playback_sidecar_path(&cache_path);
+    let descriptor_path = playback_descriptor_path(&cache_path);
+    let ready_path = playback_ready_marker_path(&cache_path);
+    fs::write(&playback_path, [0_u8; 16]).expect("seed legacy PCM");
+    fs::write(&descriptor_path, b"legacy").expect("seed legacy descriptor");
+    fs::write(&ready_path, []).expect("seed legacy ready marker");
 
-    fs::write(&cache_path, b"summary cache should not be read").expect("corrupt summary cache");
-    let descriptor = load_cached_waveform_playback_descriptor_sidecar(path.clone())
-        .expect("descriptor sidecar should not need the summary cache");
+    store_cached_waveform_file(&file);
 
-    assert_eq!(descriptor.path, path);
-    assert_eq!(descriptor.sample_rate, 48_000);
-    assert_eq!(descriptor.channels, 1);
-    assert_eq!(descriptor.frames, 4);
-    assert!(cached_waveform_file_playback_ready_exists(&descriptor.path));
+    assert!(cache_path.is_file());
+    assert!(!playback_path.exists());
+    assert!(!descriptor_path.exists());
+    assert!(!ready_path.exists());
 }
 
 #[test]
@@ -121,7 +118,7 @@ fn waveform_cache_without_playback_payload_is_not_playback_ready() {
 }
 
 #[test]
-fn waveform_cache_persists_large_playback_payloads_within_default_budget() {
+fn waveform_cache_does_not_persist_decoded_playback_payloads() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("large-but-cacheable.wav");
@@ -137,15 +134,17 @@ fn waveform_cache_persists_large_playback_payloads_within_default_budget() {
     file.playback_samples = Some(Arc::from(vec![0.0_f32; 64]));
 
     store_cached_waveform_file(&file);
-    assert!(cached_waveform_file_playback_ready_exists(&file.path));
+    assert!(!cached_waveform_file_playback_ready_exists(&file.path));
+    let identity = CacheIdentity::for_path(&file.path).expect("cache identity");
+    let cache_path = cache_path_for_identity(&file.path, &identity).expect("cache path");
+    assert!(!playback_sidecar_path(&cache_path).exists());
 }
 
 #[test]
-fn persisted_waveform_cache_budget_keeps_multiple_full_song_payloads() {
+fn persisted_waveform_summary_budget_is_bounded() {
     let _guard = waveform_cache_test_guard();
-    let stereo_ten_minute_payload = 48_000_u64 * 2 * 10 * 60 * std::mem::size_of::<f32>() as u64;
     assert!(
-        stereo_ten_minute_payload * 12 < MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
-        "persistent cache should retain a useful set of full-song playback payloads"
+        (64 * 1024 * 1024..=2 * 1024 * 1024 * 1024).contains(&MAX_PERSISTED_WAVEFORM_CACHE_BYTES),
+        "compact visual summaries should have a useful but deliberately bounded disk budget"
     );
 }

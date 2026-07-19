@@ -10,6 +10,8 @@ mod tests;
 
 use rows::{source_add_button, source_missing_color, source_row};
 
+pub(in crate::native_app) use identity::retained_source_row_input_id as source_row_widget_id;
+
 pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMessage> {
     ui::column([
         ui::row([

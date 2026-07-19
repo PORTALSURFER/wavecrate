@@ -52,7 +52,7 @@ fn waveform_cache_misses_after_file_identity_changes() {
 }
 
 #[test]
-fn invalidating_path_removes_current_persisted_playback_cache() {
+fn invalidating_path_removes_current_persisted_waveform_summary() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("invalidate.wav");
@@ -67,10 +67,12 @@ fn invalidating_path_removes_current_persisted_playback_cache() {
     file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
 
     store_cached_waveform_file(&file);
-    assert!(cached_waveform_file_playback_ready_exists(&path));
+    assert!(cached_waveform_file_exists(&path));
+    assert!(!cached_waveform_file_playback_ready_exists(&path));
 
     invalidate_persisted_waveform_cache_path(&path);
 
+    assert!(!cached_waveform_file_exists(&path));
     assert!(!cached_waveform_file_playback_ready_exists(&path));
     assert!(
         load_cached_waveform_file_for_playback(path).is_none(),
@@ -79,7 +81,7 @@ fn invalidating_path_removes_current_persisted_playback_cache() {
 }
 
 #[test]
-fn reverse_owned_invalidation_removes_cache_after_source_file_is_deleted() {
+fn reverse_owned_invalidation_removes_summary_after_source_file_is_deleted() {
     let _guard = waveform_cache_test_guard();
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("deleted.wav");
@@ -97,8 +99,8 @@ fn reverse_owned_invalidation_removes_cache_after_source_file_is_deleted() {
     let descriptor = playback_descriptor_path(&cache_ref);
     let sidecar = playback_sidecar_path(&cache_ref);
     assert!(cache_ref.is_file());
-    assert!(descriptor.is_file());
-    assert!(sidecar.is_file());
+    assert!(!descriptor.exists());
+    assert!(!sidecar.exists());
 
     fs::remove_file(&path).expect("delete source file");
     invalidate_persisted_waveform_cache_ref(&cache_ref);

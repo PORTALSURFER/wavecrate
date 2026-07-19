@@ -710,14 +710,20 @@ fn adding_source_publishes_no_runtime_state_when_config_save_fails() {
     let source_count_before = controller.library.sources.len();
     let db_cache_count_before = controller.cache.db.len();
     let ui_rows_before = controller.ui.sources.rows.len();
-    let config_blocker = tempfile::NamedTempFile::new().expect("create config blocker file");
-    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_blocker.path().to_path_buf());
+    let config_base = tempfile::tempdir().expect("create config base");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let config_path =
+        crate::sample_sources::config::config_path().expect("resolve isolated config path");
+    std::fs::create_dir(&config_path).expect("block config file with a directory");
 
     let error = controller
         .add_source_from_path(added_root.path().to_path_buf())
         .expect_err("config persistence must fail");
 
-    assert!(error.contains("Failed to save config after adding source"));
+    assert!(
+        error.contains("Failed to save config after adding source"),
+        "unexpected add-source failure: {error}"
+    );
     assert_eq!(controller.library.sources.len(), source_count_before);
     assert_eq!(controller.library.sources[0].id, original_source.id);
     assert_eq!(controller.selected_source_id(), selected_before);

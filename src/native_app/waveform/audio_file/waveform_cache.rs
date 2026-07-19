@@ -44,8 +44,9 @@ mod tests;
 mod write;
 
 const GIB: usize = 1024 * 1024 * 1024;
+#[cfg(test)]
 pub(super) const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 8 * GIB;
-pub(super) const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 64 * GIB as u64;
+pub(super) const MAX_PERSISTED_WAVEFORM_CACHE_BYTES: u64 = 2 * GIB as u64;
 pub(super) const BACKGROUND_STORE_SHUTDOWN_WAIT: Duration = Duration::from_secs(30);
 
 pub(in crate::native_app) fn persisted_waveform_cache_ref(

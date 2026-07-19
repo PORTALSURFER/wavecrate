@@ -91,7 +91,7 @@ fn target_replacement_is_failure_atomic() {
 
     let snapshot = reconcile_readiness(&connection, SOURCE_ID, 3).expect("rolled back snapshot");
     assert_eq!(snapshot.source_generation, 1);
-    assert_eq!(snapshot.entries.len(), 5);
+    assert_eq!(snapshot.entries.len(), 4);
     assert!(snapshot.entries.iter().all(|entry| {
         entry.target.scope_id == "original" || entry.target.scope_kind == ReadinessScopeKind::Source
     }));
@@ -525,8 +525,8 @@ fn desired_targets_must_match_authoritative_manifest_paths_one_to_one() {
     let mut inconsistent = targets;
     inconsistent
         .iter_mut()
-        .find(|target| target.stage == ReadinessStage::PlaybackSummary)
-        .expect("playback target")
+        .find(|target| target.stage == ReadinessStage::AnalysisFeatures)
+        .expect("analysis target")
         .relative_path = Some("Pack/another-name.wav".to_string());
     let error = replace_readiness_targets(
         &mut connection,
@@ -701,6 +701,30 @@ fn delayed_deficit_preserves_terminal_failure_and_future_retry() {
             ),
         ]
     );
+}
+
+#[test]
+fn target_replacement_prunes_removed_legacy_playback_work() {
+    let (_root, mut connection) = open_fixture();
+    let legacy = file_target("legacy-playback", ReadinessStage::PlaybackSummary, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&legacy));
+    let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("legacy snapshot");
+    persist_readiness_deficits(&mut connection, &pending.deficits, 10)
+        .expect("persist legacy playback work");
+
+    let current = file_target("legacy-playback", ReadinessStage::AnalysisFeatures, 2);
+    replace(&mut connection, 2, &[current]);
+
+    let playback_jobs: i64 = connection
+        .query_row(
+            "SELECT COUNT(*)
+             FROM analysis_jobs
+             WHERE readiness_managed = 1 AND readiness_stage = 'playback_summary'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count removed playback jobs");
+    assert_eq!(playback_jobs, 0);
 }
 
 #[test]

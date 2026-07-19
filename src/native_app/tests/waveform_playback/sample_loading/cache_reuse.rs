@@ -231,7 +231,7 @@ fn failed_sample_load_status_names_and_focuses_sample() {
 }
 
 #[test]
-fn foreground_sample_load_persists_waveform_cache() {
+fn foreground_sample_load_persists_compact_waveform_summary() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -251,13 +251,17 @@ fn foreground_sample_load_persists_waveform_cache() {
 
     assert_eq!(loaded.path(), sample_path);
     assert!(
-        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
-        "foreground audition should persist playback-ready cache for future selection"
+        crate::native_app::waveform::cached_waveform_file_exists(&sample_path),
+        "foreground audition should persist a compact visual summary"
+    );
+    assert!(
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "foreground audition must not persist decoded playback"
     );
 }
 
 #[test]
-fn foreground_sample_load_reuses_persisted_playback_cache() {
+fn foreground_sample_load_reuses_persisted_summary_with_original_file_playback() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -268,14 +272,13 @@ fn foreground_sample_load_reuses_persisted_playback_cache() {
     let cached =
         crate::native_app::test_support::state::WaveformState::load_path(sample_path.clone())
             .expect("cache seed loads");
-    assert!(
-        cached.playback_samples().is_some(),
-        "cache seed should retain decoded WAV playback samples"
-    );
+    assert!(cached.playback_samples().is_none());
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     let file = cached.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
-    wait_for_playback_ready_cache(&sample_path.display().to_string());
+    assert!(crate::native_app::waveform::cached_waveform_file_exists(
+        &sample_path
+    ));
 
     let loaded =
         crate::native_app::test_support::state::WaveformState::load_path_for_foreground_audition(
@@ -289,11 +292,15 @@ fn foreground_sample_load_reuses_persisted_playback_cache() {
     assert_eq!(loaded.path(), sample_path);
     assert!(
         loaded.audio_bytes().is_empty(),
-        "foreground audition should hydrate persisted playback cache without rereading source bytes"
+        "foreground audition should hydrate the compact summary without rereading source bytes"
     );
     assert!(
-        loaded.playback_cache_file().is_some(),
-        "foreground audition should use the persisted PCM sidecar"
+        loaded.playback_cache_file().is_none(),
+        "foreground audition must not use a persisted PCM sidecar"
+    );
+    assert_eq!(
+        loaded.playback_source_file().as_deref(),
+        Some(sample_path.as_path())
     );
 }
 
@@ -312,7 +319,9 @@ fn instant_audition_display_load_reuses_summary_without_decoded_playback() {
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     let file = cached.file();
     crate::native_app::waveform::store_cached_waveform_file_for_tests(&file);
-    wait_for_playback_ready_cache(&sample_path.display().to_string());
+    assert!(crate::native_app::waveform::cached_waveform_file_exists(
+        &sample_path
+    ));
 
     let displayed =
         crate::native_app::test_support::state::WaveformState::load_path_for_instant_audition_display(
@@ -402,7 +411,7 @@ fn large_wav_instant_audition_descriptor_reads_source_header() {
 }
 
 #[test]
-fn large_foreground_sample_load_prefers_file_backed_summary_over_legacy_playback_cache() {
+fn foreground_sample_load_stays_file_backed_after_loop_decode() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -422,8 +431,8 @@ fn large_foreground_sample_load_prefers_file_backed_summary_over_legacy_playback
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     assert!(decoded.playback_samples().is_some());
     assert!(
-        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
-        "test setup should seed an old playback-ready cache"
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "loop decoding must remain memory-only"
     );
 
     let reloaded =
@@ -495,7 +504,7 @@ fn large_navigation_sample_starts_source_file_audition_before_background_wavefor
 }
 
 #[test]
-fn large_navigation_sample_skips_sidecar_lookup_when_source_file_can_play() {
+fn navigation_sample_skips_persistent_sidecar_lookup_when_source_file_can_play() {
     let config_base = tempfile::tempdir().expect("config base");
     let (_config_lock, _base_guard) =
         set_waveform_test_config_base(config_base.path().to_path_buf());
@@ -514,8 +523,8 @@ fn large_navigation_sample_skips_sidecar_lookup_when_source_file_can_play() {
     crate::native_app::waveform::flush_background_waveform_cache_stores_for_shutdown();
     assert!(decoded.playback_samples().is_some());
     assert!(
-        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
-        "test setup should seed a legacy playback sidecar"
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "loop decoding must not seed a persistent playback sidecar"
     );
 
     let mut state = gui_state_for_span_tests();
@@ -545,7 +554,7 @@ fn large_navigation_sample_skips_sidecar_lookup_when_source_file_can_play() {
         assert_eq!(
             command.business_task_priority("gui-sample-load"),
             Some(ui::TaskPriority::Background),
-            "visual waveform loading should move behind source-file playback even when a sidecar exists"
+            "visual waveform loading should move behind source-file playback"
         );
         assert_eq!(
             state.audio.active_sample_playback_path(),
@@ -609,8 +618,8 @@ fn looped_foreground_sample_load_bypasses_file_backed_summary_cache() {
     assert!(loaded.playback_samples().is_some());
     assert_eq!(loaded.playback_source_file(), None);
     assert!(
-        crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
-        "decoded loop load should persist a playback-ready sidecar"
+        !crate::native_app::waveform::cached_waveform_file_playback_ready_exists(&sample_path),
+        "decoded loop playback must remain memory-only"
     );
 }
 

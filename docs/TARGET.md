@@ -306,29 +306,26 @@ The global `.wavecrate` folder should contain app-wide state such as:
 
 Caches, logs, handoff staging, and recovery files should not be scattered across arbitrary sample-library folders. They should live under the global `.wavecrate` root unless there is a specific source-local reason to store a compact reference or source-owned database record.
 
-Cache payloads should live under the global `.wavecrate` folder in the current target. Source-local `.wavecrate.db` files may store cache references, status, fingerprints, and invalidation state for files in that source, but waveform, playback-readiness, analysis, similarity, map, handoff, and other cache payloads should not be written next to the source database.
+Cache payloads should live under the global `.wavecrate` folder in the current target. Source-local `.wavecrate.db` files may store cache references, status, fingerprints, and invalidation state for files in that source, but waveform, analysis, similarity, map, handoff, and other cache payloads should not be written next to the source database.
 
-Browser row cache-ready indicators should mean a sample can be auditioned without fresh source decoding. Playback-ready sidecars qualify, and large WAV summary caches qualify when playback can stream from the original file, but source-prep markers alone must not reuse that visual state.
+Browser row cache indicators describe compact waveform or browser projections only. They must not imply that decoded playback is persisted or reuse source-readiness markers; supported WAV auditionability comes from the current source file and file-backed playback runtime.
 
 ### Durable Source Readiness and Convergence
 
 Every enabled, available source should converge automatically in background work after application startup, a committed source scan, a committed file-watch reconciliation, an internal file mutation, an artifact-contract version change, or a due retry. Normal correctness must not depend on selecting a source or folder, opening similarity, pressing Process/Refresh, or visiting a row. Explicit Process, Refresh, rebuild, and retry actions may remain as repair or priority controls, but they are not the source of truth for whether work is required.
 
-The source-local database is the authoritative durable coordination boundary. It should store desired versioned readiness targets, exact artifact completion generations, source availability, and readiness-owned work metadata. Readiness work must reuse the existing source-local persistent analysis/job storage rather than introducing an unrelated queue format. App-global cache payloads may remain app-global, but their source/file identity, artifact version, and completion generation must be projected into the source readiness contract.
-
-Playback-summary completions must also persist the current source-relative path and exact app-global cache reference beside those generations. That record is the reverse-ownership manifest: reconciliation uses it to retire a replaced or deleted identity after the old filesystem metadata is gone, remap reusable payloads on path-only moves, and invalidate readiness when disk-budget pruning removes a payload. Cache-backed readiness completion and its ownership reference publish under the same generation fence; a rejected, cancelled, or otherwise stale completion must remove its unpublished cache payload rather than repopulating an obsolete entry.
+The source-local database is the authoritative durable coordination boundary. It should store desired versioned readiness targets, exact artifact completion generations, source availability, and readiness-owned work metadata. Readiness work must reuse the existing source-local persistent analysis/job storage rather than introducing an unrelated queue format. App-global cache payloads remain rebuildable performance aids outside this readiness contract: compact waveform or browser caches may be missing, stale, or evicted without making an otherwise complete source unready.
 
 Configured source lifecycles also carry a runtime epoch distinct from the durable source identity. Removing or replacing a descriptor cancels that exact epoch, immediately closes new admission, purges its queued UI/readiness work, and lets the control-plane transition return without waiting for scans, hashing, finalization, or cleanup. Late work may not publish after its epoch is retired. A replacement that shares the same source database waits for the old epoch to drain before new processing admission; destructive retirement is suppressed when that database has already been re-added.
 
-Source retirement keeps the audio folder, authoritative source database, source manifest, reusable analysis/similarity artifacts, and safe content-addressed analysis caches. It releases source-owned in-memory playback/preview/browser state and asynchronously removes readiness-managed jobs, path-owned playback-summary rows, and unshared managed cache payloads. The source descriptor registry retains role, metadata-storage policy, and primary-import settings so protected/AppData sources rehydrate safely; corrupt present descriptor values fail closed. Cleanup is idempotent, retryable after unavailable/read-only storage, recovered from retained inactive descriptors at startup, and bounded so removal never waits for database maintenance or cache garbage collection.
+Source retirement keeps the audio folder, authoritative source database, source manifest, reusable analysis/similarity artifacts, and safe content-addressed analysis caches. It releases source-owned in-memory playback/preview/browser state and asynchronously removes readiness-managed jobs and unshared managed cache payloads. The source descriptor registry retains role, metadata-storage policy, and primary-import settings so protected/AppData sources rehydrate safely; corrupt present descriptor values fail closed. Cleanup is idempotent, retryable after unavailable/read-only storage, recovered from retained inactive descriptors at startup, and bounded so removal never waits for database maintenance or cache garbage collection.
 
 For every current eligible file, the readiness stages are:
 
 1. the committed source index contains the current file identity and content generation;
-2. a bounded playback descriptor plus compact waveform/summary artifact is current, without requiring decoded PCM to remain resident for every file;
-3. the required analysis feature version is current;
-4. the required embedding model and aspect-descriptor version are current; and
-5. the source-level similarity membership, ANN/index, layout, and cluster generation covers exactly the current eligible identities.
+2. the required analysis feature version is current;
+3. the required embedding model and aspect-descriptor version are current; and
+4. the source-level similarity membership, ANN/index, layout, and cluster generation covers exactly the current eligible identities.
 
 Each target and completion must carry the committed source generation, a non-empty file content generation or source-membership generation, and the stage's artifact-contract version. Desired-state publications also carry a per-source monotonic readiness revision; a writer whose revision is not newer than the persisted revision is stale even when its source generation is equal, so delayed lifecycle writers cannot reactivate an offline or disabled source. The source generation is a publication and diagnostic fence, not a blanket invalidation token for file-scoped artifacts: an unchanged stable file identity remains current across unrelated manifest changes when its stage version and stage-relevant content/path generation still match. Source-scoped similarity work must additionally match the current source generation and membership generation. A late completion may publish only when the values relevant to its scope still match the current desired target. Timestamps, total row counts, source-prep markers, or the existence of some artifacts are diagnostic inputs only; they must never make a source look ready when a current eligible identity lacks an exact artifact or when stale/deleted identities are still the only covered rows.
 
@@ -337,6 +334,21 @@ The readiness classifier must distinguish current, pending, running with a lease
 One revision-aware reconciler owns source completeness. It compares the complete desired target set with persisted artifacts and readiness-owned work, deduplicates deficits by source, scope identity, stage, version, and generation, and exposes per-source/per-stage counts, the accepted readiness revision, current work, retry/failure state, and diagnostic generations. It must not report idle while an actionable deficit exists. Source completeness is computed from the exact current eligible identity set plus the current source-level target, never from row counts or timestamps alone.
 
 Detection and execution stay off UI, render, and latency-sensitive read paths. UI and read paths may observe a side-effect-free readiness snapshot and request priority, repair, or retry, but they must not discover a missing artifact by directly enqueueing hidden work. Lifecycle writers publish committed desired generations and wake the background coordinator only after their authoritative transaction succeeds.
+
+The readiness contract must be protected by a deterministic native-runtime
+liveness oracle over real temporary sources. The oracle observes committed
+manifest/readiness generations and the supervisor's durable/runtime state
+directly rather than treating UI progress, queue length alone, or fixed sleeps
+as proof. While an active source has an actionable deficit, the source must be
+dirty or scheduled, queued, in flight, resource-paused, waiting for a retry
+deadline, or waiting for an exact prerequisite; a stable state outside those
+categories is silently idle and must fail with generation, stage, job,
+lease/retry, watcher-health, active-work, and resource diagnostics. Restart,
+external and internal churn, watcher overflow/loss, playback, source
+disappearance/reappearance, removal/re-add, stale completion, terminal inputs,
+and exact removal of obsolete similarity/playback membership belong in this
+proof. Large-library throughput and browser/frame responsiveness remain an
+explicit calibrated lane rather than an unbounded normal-CI soak.
 
 If a source database is missing, corrupt, locked, or unreadable, Wavecrate should keep the user's audio files untouched, report the source database problem clearly, and offer repair/rebuild/reindex options where safe.
 
@@ -847,7 +859,7 @@ Restoring a previous audio backend or device setting through a settings-local re
 
 Changing the configured trash folder should not invalidate later trash-move undo records. Each trash action should store the trash destination it actually used in its own undo transaction, so settings-local restore of the current trash-folder preference does not affect the recovery path for already committed trash moves.
 
-Source removal should be the explicit reversal path for an added source rather than relying on `Ctrl+Z` to undo source addition. Removing a source should remove Wavecrate's configured reference, stop file watching, stop or cancel in-progress scan/indexing/background jobs for that source, and ignore stale completions from those jobs. It must not delete the real folder, source database, audio files, reusable analysis/similarity data, or safe content-addressed caches. It should release volatile in-memory state and asynchronously retire path-owned playback/readiness state and unshared managed cache payloads. Source removal may happen immediately without confirmation and without waiting for cancellation or cleanup. Re-adding or relinking a source should restore the retained source descriptor and database path, reconcile retained artifact ownership/version state, then restart scanning, file watching, and readiness work after any old runtime epoch has drained.
+Source removal should be the explicit reversal path for an added source rather than relying on `Ctrl+Z` to undo source addition. Removing a source should remove Wavecrate's configured reference, stop file watching, stop or cancel in-progress scan/indexing/background jobs for that source, and ignore stale completions from those jobs. It must not delete the real folder, source database, audio files, reusable analysis/similarity data, or safe content-addressed caches. It should release volatile in-memory state and asynchronously retire readiness-managed jobs and unshared managed cache payloads. Source removal may happen immediately without confirmation and without waiting for cancellation or cleanup. Re-adding or relinking a source should restore the retained source descriptor and database path, reconcile retained artifact ownership/version state, then restart scanning, file watching, and readiness work after any old runtime epoch has drained.
 
 Play/edit selection and workflow-flag undo should be useful without becoming noisy. Wavecrate should coalesce rapid repeated selection adjustments and repeated flag toggles into meaningful undo steps where practical, so undo can return the user to a previous editing context without filling the history with every tiny pointer or key movement.
 
@@ -1203,7 +1215,7 @@ If a later Wavecrate version adds support for a format that was previously class
 
 Initial scan/indexing should queue the fingerprint work needed for exact duplicate grouping where practical. Duplicate fingerprinting should run in background work, stream status like other indexing work, and mark duplicate state incrementally as matching available files are found. It should not block source scanning completion, folder browsing, sample auditioning, editing, extraction, tagging, rating, or handoff. Users should also be able to trigger manual duplicate analysis for selected files, folders, sources, or the whole indexed library.
 
-Initial scan/indexing should also queue waveform and playback-readiness pre-cache work for supported audio files where practical. This pre-cache work should run as background loading work after or alongside discovery so newly scanned folders become fast to browse and audition. It should prioritize the active source, active folder, visible rows, and likely next selections first, then expand through the rest of the source in the background. It should stream progress like other indexing work, persist its cache outputs across application restarts, and avoid blocking file discovery, folder browsing, selection changes, foreground waveform loads, playback, editing, extraction, tagging, rating, or handoff.
+Initial scan/indexing may queue compact waveform-summary work for supported audio files where practical. Waveform preparation is a rebuildable browsing optimization, not durable source readiness, and its absence or eviction must not keep source processing active. Audition should read supported WAV files through the file-backed playback runtime on demand instead of precomputing decoded per-file playback payloads for the library.
 
 File watching should update source state when files are created, removed, renamed, moved, or modified outside Wavecrate. External changes should become visible in the folder tree, sample list, filters, and later starmap as close to immediately as practical without requiring a manual rescan.
 
@@ -1234,23 +1246,23 @@ When a file is changed outside Wavecrate, Wavecrate should invalidate stale wave
 
 Scan progress should expose queued, active, completed, skipped, failed, and cancelled counts. Users should be able to keep browsing while scanning continues in the background.
 
-Waveform and playback-readiness cache/pre-cache progress should be visible both globally and per item. The bottom status bar should include a compact background-job progress bar for scanning, indexing, and cache preparation work. The visible progress bar should represent one current job at a time rather than combining unrelated concurrent job types into a misleading aggregate. If several job types are active, the visible status-bar job should prefer foreground/current-selection work first, active-folder work second, and source-wide background work after that. The indicator should show successive job progress as queued jobs run, so a sequence of small background jobs can appear as repeated fills while broader queue counts live in the details popover.
+Waveform-summary progress may be visible globally and per item when it runs. The bottom status bar should include a compact background-job progress bar for scanning, indexing, and cache preparation work. The visible progress bar should represent one current job at a time rather than combining unrelated concurrent job types into a misleading aggregate. If several job types are active, the visible status-bar job should prefer foreground/current-selection work first, active-folder work second, and source-wide background work after that. The indicator should show successive job progress as queued jobs run, so a sequence of small background jobs can appear as repeated fills while broader queue counts live in the details popover.
 
-The status-bar background-job indicator should provide a direct way to pause and resume non-critical background work such as pre-caching. This may be a small pause/resume button on the indicator, a click target, or a right-click context menu. Pausing background work should not cancel the currently selected foreground file load, prevent selected-file loading from starting, or block urgent user-requested work. The pause is session-local, should not auto-resume because the user is idle, and should reset to enabled on the next application launch.
+The status-bar background-job indicator should provide a direct way to pause and resume non-critical background work such as waveform preparation. This may be a small pause/resume button on the indicator, a click target, or a right-click context menu. Pausing background work should not cancel the currently selected foreground file load, prevent selected-file loading from starting, or block urgent user-requested work. The pause is session-local, should not auto-resume because the user is idle, and should reset to enabled on the next application launch.
 
-Playback and foreground source loading may cooperatively cancel the current low-priority cache batch, but cancellation is a pause boundary rather than queue deletion. Every unprocessed path from planning, persisted-cache hydration, or source warming must return to the retained backlog and resume after foreground activity ends.
+Playback and foreground source loading may cooperatively cancel the current low-priority waveform-cache batch, but cancellation is a pause boundary rather than queue deletion. Every unprocessed path from planning must return to the retained backlog and resume after foreground activity ends.
 
-Background scan, indexing, and pre-cache jobs should continue while Wavecrate is minimized unless the user manually pauses them, the operating system suspends the process, or the app is shutting down.
+Background scan, indexing, and waveform-cache jobs should continue while Wavecrate is minimized unless the user manually pauses them, the operating system suspends the process, or the app is shutting down.
 
-On application shutdown, non-critical background scan, indexing, and pre-cache jobs should cancel quickly rather than making shutdown wait for long work to finish. Wavecrate should persist enough state to know what completed, what failed, and what remains stale or incomplete, then requeue needed work on the next launch for enabled and available sources. Broken, disabled, or missing sources should be skipped and marked instead of creating retry churn.
+On application shutdown, non-critical background scan, indexing, and waveform-cache jobs should cancel quickly rather than making shutdown wait for long work to finish. Wavecrate should persist enough state to know what completed, what failed, and what remains stale or incomplete, then requeue needed work on the next launch for enabled and available sources. Broken, disabled, or missing sources should be skipped and marked instead of creating retry churn.
 
 Clicking the status-bar job indicator should open a compact job-details popover or equivalent surface. It should show the active job type, current file or folder where useful, queued count, completed count, skipped count, failed count, cancelled count, and pause/resume controls. It should include compact actions for failed background work, such as retry failed jobs and open diagnostics. Retrying failed jobs from the normal job popover should retry failed work in the current source/folder context by default. A broader global retry-all-failed action may live in diagnostics or maintenance UI. The popover should be concise enough for normal use but provide enough context that users can understand why the progress bar is moving or stuck.
 
 Individual sample rows should show subtle readiness indicators for pending, active, ready, stale, failed, or unsupported cache state where practical, without making the list visually noisy.
 
-If a background waveform/playback-readiness pre-cache job fails for a file, Wavecrate may retry a small bounded number of times. After the retry limit, it should mark that file's cache/pre-cache state as failed and stop retrying until the file changes, the cache version/settings change, or the user explicitly triggers rescan, rebuild, or retry. A failed background pre-cache job should not make the file disappear or block other background work.
+If a background waveform-summary job fails for a file, Wavecrate may retry a small bounded number of times. After the retry limit, it should mark that file's cache state as failed and stop retrying until the file changes, the cache version/settings change, or the user explicitly triggers rescan, rebuild, or retry. A failed waveform cache job should not make the file disappear, block other background work, or make the source incomplete.
 
-Selecting a file should be treated as an explicit foreground request even if its background pre-cache state is failed. Wavecrate should attempt one fresh foreground load for the selected file before treating it as unavailable for waveform/playback use. If that foreground load fails, the UI should show a clear selected-file load failure with any available retry, reveal, rescan, or diagnostics actions.
+Selecting a file should be treated as an explicit foreground request even if its background waveform-cache state is failed. Wavecrate should attempt one fresh foreground load for the selected file before treating it as unavailable for waveform/playback use. If that foreground load fails, the UI should show a clear selected-file load failure with any available retry, reveal, rescan, or diagnostics actions.
 
 ## Selection, Search, and Filter Semantics
 
@@ -1974,15 +1986,13 @@ Database updates that touch both filesystem state and metadata state should be t
 
 ## Cache and Storage Lifecycle
 
-Wavecrate may create local caches for generated display names, waveform summaries, decoded audio aids, analysis outputs, similarity indexes, map projections, thumbnails or visual summaries, handoff staging, and undo/recovery. Cache payloads should be stored under the global `.wavecrate` root. Source-local `.wavecrate.db` files should only store cache references, cache status, fingerprints, and invalidation metadata where needed.
+Wavecrate may create local caches for generated display names, compact waveform summaries, analysis outputs, similarity indexes, map projections, thumbnails or visual summaries, handoff staging, and undo/recovery. Cache payloads should be stored under the global `.wavecrate` root. Source-local `.wavecrate.db` files should only store cache references, cache status, fingerprints, and invalidation metadata where needed.
 
-Caches should be treated as rebuildable unless explicitly documented otherwise. Generated display-name caches, waveform summaries, and decoded-audio aids should persist across restarts for speed, but they are still rebuildable projections of source files, metadata, and naming rules. User-authored metadata, ratings, tags, labels, naming-template inputs, source configuration, Sample IDs, and undo state for the current session are not disposable caches.
+Caches should be treated as rebuildable unless explicitly documented otherwise. Generated display-name caches and compact waveform summaries may persist across restarts for speed, but they are still rebuildable projections of source files, metadata, and naming rules. Decoded playback buffers are bounded process-local state, not a persistent per-file library cache. User-authored metadata, ratings, tags, labels, naming-template inputs, source configuration, Sample IDs, and undo state for the current session are not disposable caches.
 
-Waveform and playback-readiness caches should be aggressive enough that once a sample has been fully loaded, selecting it again can show the waveform and start playback instantly where the source file, cache version, audio settings, and relevant fingerprints still match. This speed gain should survive application restarts. If a cache entry is missing, stale, invalid, or incompatible with the current audio settings, Wavecrate should rebuild it through the normal full loading pipeline and progress overlay.
+Compact waveform caches should make repeated browsing immediate where the source identity and cache version still match. Missing, stale, invalid, or evicted waveform data should rebuild through the normal foreground or bounded background loading path without changing durable source readiness.
 
-Folder scanning and indexing should proactively build waveform and playback-readiness caches for supported files in the background. Foreground user actions have priority over this pre-cache work: selecting a file, changing folders, playback, editing, extraction, or handoff should not feel delayed because the scanner is preparing caches for other files. Loading the currently selected file should immediately jump ahead of background pre-cache jobs.
-
-When audio backend, playback sample-rate, write-format, resampling, or other cache-relevant audio settings change, Wavecrate should mark affected waveform/playback-readiness caches stale rather than forcing an immediate all-library rebuild. Stale caches should rebuild lazily and through the normal priority order: current selection first, active folder and visible rows next, then source-wide background pre-cache work.
+Supported WAV audition should start through the file-backed playback runtime without waiting for a persistent decoded playback artifact. Foreground selection and playback have priority over waveform preparation and other background cache work. The runtime may retain a bounded in-memory working set for current and recently used audio, but it must not precompute or persist an unbounded decoded copy of the library.
 
 Cache records should include enough version and input identity to decide whether they are valid:
 
@@ -2007,7 +2017,7 @@ Cache size limits should be global in the current target. Diagnostics may show p
 
 Cache reuse across copied or duplicated files should be based on exact audio identity, not on shared Wavecrate Sample ID. If two files have the same audio-content fingerprint and compatible cache versions/settings, Wavecrate may reuse cache payloads while keeping separate file identity and metadata records. If the audio differs, the copied/extracted/rendered file should build its own caches.
 
-The user should be able to clear rebuildable caches from settings or diagnostics without deleting audio files or durable metadata. Manual clear-cache actions should warn that Wavecrate will need to rebuild waveform, playback-readiness, display-name, analysis, similarity, and other rebuildable cache data later, which may make browsing or auditioning temporarily slower until background work catches up.
+The user should be able to clear rebuildable caches from settings or diagnostics without deleting audio files or durable metadata. Manual clear-cache actions should warn that Wavecrate will need to rebuild waveform, display-name, analysis, similarity, and other rebuildable cache data later, which may make browsing temporarily slower until background work catches up.
 
 ## File Operations and Recovery Target
 
@@ -2158,7 +2168,7 @@ The sample browser row should show enough information to make scanning fast:
 - Playback Type, Sound Type, Character tags, BPM, Tuning/Scale, Prefix, and label where space allows
 - keep/trash/accepted/rejected state
 - age/listen state
-- waveform/playback readiness cache state where useful
+- waveform cache state where useful
 - analysis pending/stale/failed indicators
 - exact duplicate indicator where the same audio-content fingerprint appears in more than one indexed file
 - missing, unavailable, unsupported, locked, edited, or unsaved indicators
@@ -2535,34 +2545,21 @@ If Wavecrate has to add playback, decoding, looping, warping, destructive render
 
 Durable runtime, automation, recovery, and data-format contracts belong in this target document with their owning code boundaries.
 
-### Instant Playback Limits for Cached Long WAVs
+### Instant Playback Limits for File-Backed WAVs
 
-Wavecrate should optimize cached WAV audition so it feels immediate whenever the selected audio is already memory-ready, but it must not define "instant after restart" as a zero-latency guarantee. A process restart discards decoded sample buffers, audio-device state, worker-thread state, and any operating-system file-cache warmth that Wavecrate does not control. Cached long WAV playback after restart is therefore a cold-to-warm readiness problem, not a pure transport-start problem.
+Wavecrate should make supported WAV audition feel immediate without requiring a persistent decoded copy of every file. Playback uses the source file through the file-backed runtime, while compact waveform summaries remain an independent rebuildable browsing cache. A process restart still discards decoded working buffers, audio-device state, worker-thread state, and operating-system file-cache warmth that Wavecrate does not control.
 
-For ordinary cached WAV files, Wavecrate can persist or precompute:
+Wavecrate may persist compact waveform summary data, GPU-friendly preview levels, source-format metadata, file length, modification timestamp, and content identity needed to reject stale preview data. It must not treat a decoded playback sidecar, a playback-summary row, or cache residency as durable source readiness. Cache-budget eviction therefore cannot make an otherwise complete source incomplete or requeue permanent source-processing work.
 
-* waveform summary data and GPU-friendly preview levels
-* decoded interleaved `f32` playback samples when the payload is below the persisted playback-sample cap
-* sample rate, channel count, frame count, duration, file length, modification timestamp, and content identity data used to reject stale caches
-* cache indicator state and warm-queue priority for visible or recently selected files
-
-Wavecrate cannot reliably persist or precompute:
-
-* the audio output stream across app restarts
-* decoded `Arc` buffers already resident in this process
-* operating-system page-cache state for source WAVs or cache files
-* thread scheduling, antivirus, storage, removable-drive, network-share, or platform audio-backend delays
-* source-file freshness without at least metadata validation, and in some cache formats content validation that may require reading source bytes
-
-The practical size envelope for a 5-6 minute stereo WAV is large enough that restart readiness has meaningful I/O and allocation cost even on a cache hit. A 5 minute 44.1 kHz stereo decoded `f32` buffer is about 101 MiB. A 6 minute 48 kHz stereo decoded `f32` buffer is about 132 MiB. The original WAV may add roughly 50-132 MiB depending on bit depth, and deserializing persisted playback samples can transiently require additional memory while buffers are constructed. The current memory and persisted-cache caps are intentionally finite, so a library with many long tracks should expect eviction, reprioritization, and background warming rather than unlimited always-ready playback.
+The playback runtime may keep a bounded in-memory working set for the current and recently auditioned files, use asynchronous file reads, and prefill enough audio to start safely. Foreground audition must outrank source scanning, analysis, similarity, and waveform-cache preparation. No startup lane should warm an unbounded library or serialize decoded PCM for every supported file.
 
 Latency targets should distinguish three states:
 
-* **memory-ready cached WAV**: once decoded samples are resident and the output path is open, transport start should remain perceptually immediate, with low-tens-of-milliseconds behavior as the target
-* **post-restart persisted-cache hit on local SSD**: after the source list is available, preparing a selected 5-6 minute cached WAV for full-track playback should target roughly 100-300 ms in normal warm-storage conditions, with sub-500 ms p95 as a practical near-instant goal
-* **cold storage, stale cache, missing decoded payload, network/removable media, HDD, antivirus interference, or busy platform audio backend**: readiness may take seconds and must be represented as loading or warming instead of pretending playback is instantly available
+* **memory-ready WAV**: once the required working buffer is resident and the output path is open, transport start should remain perceptually immediate, with low-tens-of-milliseconds behavior as the target
+* **file-backed WAV on responsive local storage**: opening, validating, and prefilling the selected file should remain near-instant without waiting for whole-file decoding
+* **cold, network, removable, busy, unavailable, or corrupt storage**: readiness may take longer and must be represented as foreground loading or a clear playback failure rather than hidden source-processing work
 
-Fallback behavior should keep the GUI responsive. If persisted decoded samples are unavailable, stale, over the size cap, or evicted, Wavecrate may still use valid waveform summary data for navigation while playback falls back to background decode, lazy decode, or a short prefill path. For uninterrupted full-track playback of long WAVs, the preferred behavior is to warm the selected file's decoded samples before the first transport action when possible, prioritize visible and recently selected files, and avoid warming an unbounded number of long files at startup.
+Fallback behavior should keep the GUI responsive. Valid compact waveform data may remain available while playback opens or prefills the source file, but waveform-cache state must not claim that audio is playable. Unsupported or inaccessible files should fail explicitly without holding the source-processing queue open.
 
 ### UI Bridge Projection Cache
 
@@ -2622,7 +2619,7 @@ Durability rules:
 
 `src/app/controller/library/analysis_backfill.rs` owns explicit controller analysis requests, while the durable source-readiness reconciler owns automatic lifecycle catch-up. Sample addition, destructive audio-content edits, user-requested reanalysis, and explicit similarity repair may still request analysis directly through the controller boundary.
 
-Committed scan completion, watcher/auto-sync reconciliation, internal rename/move/edit completion, deferred hash completion, periodic source audit, startup catch-up, and artifact-version changes must publish or refresh desired readiness and wake the coordinator. Discovery-side wakeups occur only after the source transaction publishes its committed revision and structured identity delta. A wakeup is not permission to recompute every artifact: the reconciler compares exact identity, version, and generation state and emits only real deficits. A path-only rename may require playback/cache ownership repair while leaving content-derived analysis current.
+Committed scan completion, watcher/auto-sync reconciliation, internal rename/move/edit completion, deferred hash completion, periodic source audit, startup catch-up, and artifact-version changes must publish or refresh desired readiness and wake the coordinator. Discovery-side wakeups occur only after the source transaction publishes its committed revision and structured identity delta. A wakeup is not permission to recompute every artifact: the reconciler compares exact identity, version, and generation state and emits only real deficits. A path-only rename may require best-effort waveform/cache ownership repair outside readiness while leaving content-derived analysis current.
 
 Every Wavecrate-owned file operation must finish through one committed-mutation contract after its filesystem work reaches a durable terminal state. Duplicate, extract/copy/harvest, import/drop, destructive edit, normalize, undo/redo, rename, move, trash, and delete outcomes carry one operation ID, the committed source revision, before/after paths, before/after content identities, and create/content-change/path-only/delete semantics. The contract reconciles the source manifest first, refreshes browser projection and metadata ownership from that committed state, acknowledges the matching watcher echo, and only then wakes readiness. Content changes invalidate file-derived stages, path-only moves retain content-derived readiness, and deletes invalidate source membership; the readiness reconciler still decides the exact deficits. Failed, partially failed, and rolled-back operations publish explicit terminal outcomes without asking the watcher to repair application-owned state. Delayed or duplicate completions are fenced by source revision and operation ID.
 
@@ -2767,7 +2764,7 @@ Duplication should be judged pragmatically. Small local duplication is acceptabl
 
 Public APIs should be designed as contracts, not incidental access points. A public function should have a clear caller, a clear reason to exist, and stable behavior. Avoid exposing internal state just to make a UI update easier. When UI code needs behavior, prefer a product command or view model that preserves domain rules rather than letting the UI mutate persistence, cache, or audio state directly.
 
-Background work should be modeled explicitly. Scans, pre-cache work, waveform loads, renders, duplicate analysis, similarity analysis, metadata writes, and cleanup jobs should have job IDs, progress state, cancellation/stale-result handling, failure reasons, and clear priority rules. The UI should observe job state instead of owning job execution details.
+Background work should be modeled explicitly. Scans, waveform-cache work, waveform loads, renders, duplicate analysis, similarity analysis, metadata writes, and cleanup jobs should have job IDs, progress state, cancellation/stale-result handling, failure reasons, and clear priority rules. The UI should observe job state instead of owning job execution details.
 
 Error paths are first-class product behavior. Code should be written so rollback, partial failure, retry, diagnostics, and user-facing status are handled deliberately rather than as afterthoughts. A failure in an edit, extraction, trash move, rename, source scan, cache rebuild, or handoff should leave the system in a state that is visible, explainable, and recoverable where practical.
 

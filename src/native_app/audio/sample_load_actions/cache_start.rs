@@ -19,11 +19,11 @@ use crate::native_app::{
         sample_load_actions::{log_sample_load_timing, types::SampleLoadStrategy},
     },
     starmap_audition_telemetry as starmap_telemetry,
+    waveform::should_use_file_backed_wav_decode,
     waveform::{
         PreviewAuditionClip, WaveformPlaybackReady, decode_wav_preview_clip,
         instant_waveform_head_preview_from_clip, load_cached_waveform_playback_descriptor_sidecar,
     },
-    waveform::{file_backed_wav_playback_descriptor, should_use_file_backed_wav_decode},
 };
 use wavecrate::audio::{
     PlaybackRuntimeGainNormalization, PlaybackRuntimeMode, PlaybackRuntimeReplacePolicy,
@@ -90,7 +90,7 @@ pub(super) struct FastAuditionOptions {
     pub(super) allow_sidecar_lookup: bool,
     pub(super) queue_preview_decode: bool,
     pub(super) prefer_preview_decode: bool,
-    pub(super) allow_file_backed_probe: bool,
+    pub(super) allow_file_backed_source: bool,
     pub(super) replace_policy: PlaybackRuntimeReplacePolicy,
 }
 
@@ -101,8 +101,8 @@ impl FastAuditionOptions {
             record_history: false,
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
-            prefer_preview_decode: true,
-            allow_file_backed_probe: false,
+            prefer_preview_decode: false,
+            allow_file_backed_source: true,
             replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         }
     }
@@ -113,8 +113,8 @@ impl FastAuditionOptions {
             record_history: true,
             allow_sidecar_lookup: false,
             queue_preview_decode: true,
-            prefer_preview_decode: true,
-            allow_file_backed_probe: false,
+            prefer_preview_decode: false,
+            allow_file_backed_source: true,
             replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         }
     }
@@ -126,7 +126,7 @@ impl FastAuditionOptions {
             allow_sidecar_lookup: false,
             queue_preview_decode: false,
             prefer_preview_decode: false,
-            allow_file_backed_probe: false,
+            allow_file_backed_source: false,
             replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
         }
     }
@@ -203,8 +203,8 @@ fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe
     } else {
         [
             FastAuditionProbe::PreviewCache,
-            FastAuditionProbe::PersistedCache,
             FastAuditionProbe::FileBackedWav,
+            FastAuditionProbe::PersistedCache,
             FastAuditionProbe::PreviewDecode,
         ]
     }

@@ -434,6 +434,7 @@ fn scene_source_processing_frame_uses_paint_only_repaint_scope() {
             source_id: String::from("source"),
             lifecycle_generation: 0,
             active: true,
+            source_row_active: true,
             completed: 3,
             total: 10,
             stage: String::from("Analyzing audio"),
@@ -472,6 +473,7 @@ fn source_processing_activity_moves_in_transient_overlay_without_input() {
             source_id: String::from("source"),
             lifecycle_generation: 0,
             active: true,
+            source_row_active: true,
             completed: 3,
             total: 10,
             stage: String::from("Analyzing audio"),
@@ -512,6 +514,61 @@ fn source_processing_activity_moves_in_transient_overlay_without_input() {
     assert!(
         later_x > first_x,
         "paint-only source activity must advance from animation time"
+    );
+}
+
+#[test]
+fn manifest_maintenance_does_not_paint_source_row_pulse_overlay() {
+    let (mut state, _source_root, _selected_file) =
+        native_app_state_with_temp_sample("maintenance.wav");
+    let source_id = state
+        .library
+        .folder_browser
+        .selected_source_id()
+        .to_string();
+    state.background.source_processing_progress = Some(
+        crate::native_app::test_support::state::SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: false,
+            completed: 1,
+            total: 1,
+            stage: String::from("Scanning source changes"),
+            detail: String::from("Checking the source manifest"),
+        },
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let row_widget_id =
+        crate::native_app::app_chrome::library_browser::library_sidebar::source_row_widget_id(
+            &source_id,
+        );
+    assert!(
+        frame
+            .paint_plan
+            .first_widget_rect_by_priority([row_widget_id])
+            .is_some(),
+        "the source row must be present so the overlay assertion is not vacuous"
+    );
+    let mut primitives = Vec::new();
+
+    runtime
+        .bridge_mut()
+        .state_mut()
+        .paint_source_processing_source_pulse(
+            TransientOverlayContext::new(
+                &frame.paint_plan,
+                Vector2::new(900.0, 620.0),
+                Duration::ZERO,
+            ),
+            &mut primitives,
+        );
+
+    assert!(
+        primitives.is_empty(),
+        "manifest maintenance must remain visible in job details without pulsing a source row"
     );
 }
 

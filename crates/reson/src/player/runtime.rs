@@ -96,6 +96,11 @@ pub enum PlaybackRuntimeSource {
         sample_rate: u32,
         channels: usize,
     },
+    /// WAV file path whose timing metadata is probed on the playback runtime thread.
+    ///
+    /// Hosts can submit this variant from latency-sensitive UI paths without
+    /// opening the file or decoding audio before the command is enqueued.
+    WavFile { path: PathBuf },
     /// Original encoded bytes plus pre-decoded interleaved f32 playback samples.
     DecodedSamples {
         audio_bytes: Arc<[u8]>,
@@ -115,46 +120,59 @@ pub enum PlaybackRuntimeSource {
 }
 
 impl PlaybackRuntimeSource {
-    fn apply_to_player(self, player: &mut AudioPlayer) {
+    fn apply_to_player(self, player: &mut AudioPlayer) -> Result<(), String> {
         match self {
             Self::AudioBytes {
                 data,
                 duration,
                 sample_rate,
                 channels,
-            } => player.set_audio_with_metadata(data, duration, sample_rate, channels),
+            } => {
+                player.set_audio_with_metadata(data, duration, sample_rate, channels);
+                Ok(())
+            }
             Self::AudioFile {
                 path,
                 duration,
                 sample_rate,
                 channels,
-            } => player.set_audio_file_with_metadata(path, duration, sample_rate, channels),
+            } => {
+                player.set_audio_file_with_metadata(path, duration, sample_rate, channels);
+                Ok(())
+            }
+            Self::WavFile { path } => player.set_wav_file(path),
             Self::DecodedSamples {
                 audio_bytes,
                 samples,
                 duration,
                 sample_rate,
                 channels,
-            } => player.set_audio_samples_with_metadata(
-                audio_bytes,
-                samples,
-                duration,
-                sample_rate,
-                channels,
-            ),
+            } => {
+                player.set_audio_samples_with_metadata(
+                    audio_bytes,
+                    samples,
+                    duration,
+                    sample_rate,
+                    channels,
+                );
+                Ok(())
+            }
             Self::InterleavedF32File {
                 path,
                 sample_count,
                 duration,
                 sample_rate,
                 channels,
-            } => player.set_interleaved_f32_file_with_metadata(
-                path,
-                sample_count,
-                duration,
-                sample_rate,
-                channels,
-            ),
+            } => {
+                player.set_interleaved_f32_file_with_metadata(
+                    path,
+                    sample_count,
+                    duration,
+                    sample_rate,
+                    channels,
+                );
+                Ok(())
+            }
         }
     }
 }
@@ -487,7 +505,7 @@ impl PlaybackRuntimeExecutor for AudioPlayerPlaybackExecutor {
                 &request.source,
             ));
         let output = self.player.output_details().clone();
-        request.source.apply_to_player(&mut self.player);
+        request.source.apply_to_player(&mut self.player)?;
         self.player.set_edit_fade_state(request.edit_fade);
         let playback_start = request.mode.start_player(
             &mut self.player,
@@ -984,7 +1002,9 @@ fn normalized_gain_for_runtime_source(
             normalization.start,
             normalization.end,
         ),
-        PlaybackRuntimeSource::AudioBytes { .. } | PlaybackRuntimeSource::AudioFile { .. } => None,
+        PlaybackRuntimeSource::AudioBytes { .. }
+        | PlaybackRuntimeSource::AudioFile { .. }
+        | PlaybackRuntimeSource::WavFile { .. } => None,
     }
 }
 

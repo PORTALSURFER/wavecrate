@@ -40,6 +40,8 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) role: SourceRole,
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) scanning: bool,
+    pub(in crate::native_app) processing: bool,
+    pub(in crate::native_app) processing_pulse: f32,
     pub(in crate::native_app) missing: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) drag_active: bool,
@@ -178,9 +180,21 @@ impl LibrarySidebarViewModel {
         Self {
             sidebar_width: state.ui.chrome.folder_panel.size(),
             metadata_panel_height: folder_browser.metadata_panel_height(),
-            source_selector: SourceSelectorViewModel::from_folder_browser(
+            source_selector: SourceSelectorViewModel::from_folder_browser_with_processing(
                 folder_browser,
                 state.ui.chrome.help_tooltips_enabled,
+                state
+                    .background
+                    .source_processing_progress
+                    .as_ref()
+                    .filter(|progress| progress.active && progress.source_row_active)
+                    .map(|progress| progress.source_id.as_str()),
+                state.background.progress_tick,
+                state
+                    .library
+                    .folder_progress()
+                    .filter(|progress| progress.phase != "Waiting")
+                    .map(|progress| progress.source_id.as_str()),
             ),
             folder_tree: FolderTreeViewModel::from_folder_browser(
                 folder_browser,
@@ -195,16 +209,40 @@ impl LibrarySidebarViewModel {
 }
 
 impl SourceSelectorViewModel {
+    #[cfg(test)]
     pub(in crate::native_app) fn from_folder_browser(
         folder_browser: &FolderBrowserState,
         help_tooltips_enabled: bool,
+    ) -> Self {
+        Self::from_folder_browser_with_processing(
+            folder_browser,
+            help_tooltips_enabled,
+            None,
+            0.0,
+            None,
+        )
+    }
+
+    fn from_folder_browser_with_processing(
+        folder_browser: &FolderBrowserState,
+        help_tooltips_enabled: bool,
+        processing_source_id: Option<&str>,
+        processing_pulse: f32,
+        scanning_source_id: Option<&str>,
     ) -> Self {
         let selected_source_id = folder_browser.selected_source_id();
         let rows: Vec<_> = folder_browser
             .sources()
             .iter()
             .map(|source| {
-                SourceRowViewModel::from_source(source, selected_source_id, folder_browser)
+                SourceRowViewModel::from_source(
+                    source,
+                    selected_source_id,
+                    folder_browser,
+                    processing_source_id,
+                    processing_pulse,
+                    scanning_source_id,
+                )
             })
             .collect();
         let missing_count = rows.iter().filter(|source| source.missing).count();
@@ -222,13 +260,18 @@ impl SourceRowViewModel {
         source: &SourceEntry,
         selected_source_id: &str,
         folder_browser: &FolderBrowserState,
+        processing_source_id: Option<&str>,
+        processing_pulse: f32,
+        scanning_source_id: Option<&str>,
     ) -> Self {
         Self {
             id: source.id.clone(),
             label: source.label.clone(),
             role: source.role,
             selected: selected_source_id == source.id,
-            scanning: source.loading_task.is_some(),
+            scanning: scanning_source_id == Some(source.id.as_str()),
+            processing: processing_source_id == Some(source.id.as_str()),
+            processing_pulse,
             missing: source.is_missing(),
             protected_source_error_flash: folder_browser
                 .source_protected_error_flash_active(&source.id),
@@ -434,7 +477,10 @@ mod tests {
     use std::fs;
 
     use super::LibrarySidebarViewModel;
-    use crate::native_app::test_support::state::{FolderBrowserState, NativeAppStateFixture};
+    use crate::native_app::test_support::state::{
+        FolderBrowserState, FolderScanProgress, NativeAppStateFixture, SourceProcessingProgress,
+    };
+    use wavecrate::sample_sources::{SampleSource, SourceId};
 
     #[test]
     fn closed_harvest_family_drawer_keeps_sidebar_projection_cheap() {
@@ -456,5 +502,129 @@ mod tests {
 
         assert!(model.harvest_family.is_none());
         assert!(model.filter.harvest.family_available);
+    }
+
+    #[test]
+    fn queued_scan_stays_visually_idle_behind_processing_source() {
+        let processing_root = tempfile::tempdir().expect("processing source root");
+        let queued_root = tempfile::tempdir().expect("queued scan root");
+        let processing_source = SampleSource::new_with_id(
+            SourceId::from_string("processing-source"),
+            processing_root.path().to_path_buf(),
+        );
+        let queued_source = SampleSource::new_with_id(
+            SourceId::from_string("queued-source"),
+            queued_root.path().to_path_buf(),
+        );
+        let mut state = NativeAppStateFixture::default()
+            .with_folder_browser(FolderBrowserState::from_sample_sources(&[
+                processing_source.clone(),
+                queued_source.clone(),
+            ]))
+            .build();
+        let request = state
+            .library
+            .begin_source_scan(queued_source.id.as_str().to_string(), 17)
+            .expect("queue source scan");
+        state.library.start_folder_scan(&request);
+        state.background.source_processing_progress = Some(SourceProcessingProgress {
+            source_id: processing_source.id.as_str().to_string(),
+            lifecycle_generation: 1,
+            active: true,
+            source_row_active: true,
+            completed: 2,
+            total: 10,
+            stage: String::from("Preparing analysis"),
+            detail: String::from("kick.wav"),
+        });
+
+        let waiting = LibrarySidebarViewModel::from_app_state(&state);
+        let processing_row = waiting
+            .source_selector
+            .rows
+            .iter()
+            .find(|row| row.id == processing_source.id.as_str())
+            .expect("processing row");
+        let queued_row = waiting
+            .source_selector
+            .rows
+            .iter()
+            .find(|row| row.id == queued_source.id.as_str())
+            .expect("queued row");
+        assert!(processing_row.processing);
+        assert!(!processing_row.scanning);
+        assert!(
+            !queued_row.scanning,
+            "a scan waiting for the single source lane must not claim to be scanning"
+        );
+
+        assert!(
+            state
+                .library
+                .apply_folder_scan_progress(FolderScanProgress {
+                    task_id: request.task_id,
+                    source_id: request.source_id.clone(),
+                    label: request.label,
+                    phase: String::from("Scanning"),
+                    completed: 1,
+                    total: 10,
+                    detail: String::from("snare.wav"),
+                })
+        );
+        let admitted = LibrarySidebarViewModel::from_app_state(&state);
+        let admitted_row = admitted
+            .source_selector
+            .rows
+            .iter()
+            .find(|row| row.id == queued_source.id.as_str())
+            .expect("admitted scan row");
+        assert!(
+            admitted_row.scanning,
+            "the scan label should appear only after worker progress proves admission"
+        );
+
+        state.background.source_processing_progress = Some(SourceProcessingProgress {
+            source_id: processing_source.id.as_str().to_string(),
+            lifecycle_generation: 1,
+            active: true,
+            source_row_active: false,
+            completed: 4,
+            total: 10,
+            stage: String::from("Scanning source changes"),
+            detail: String::from("Checking the source manifest"),
+        });
+        let maintenance = LibrarySidebarViewModel::from_app_state(&state);
+        let maintenance_row = maintenance
+            .source_selector
+            .rows
+            .iter()
+            .find(|row| row.id == processing_source.id.as_str())
+            .expect("maintenance row");
+        assert!(
+            !maintenance_row.processing,
+            "manifest maintenance must not flash the source-processing pulse"
+        );
+
+        state.background.source_processing_progress = Some(SourceProcessingProgress {
+            source_id: processing_source.id.as_str().to_string(),
+            lifecycle_generation: 1,
+            active: true,
+            source_row_active: true,
+            completed: 0,
+            total: 0,
+            stage: String::from("Checking pending work"),
+            detail: String::from("Queueing unfinished jobs | 256 reconciliation steps completed"),
+        });
+        let sustained_discovery = LibrarySidebarViewModel::from_app_state(&state);
+        let discovery_row = sustained_discovery
+            .source_selector
+            .rows
+            .iter()
+            .find(|row| row.id == processing_source.id.as_str())
+            .expect("sustained discovery row");
+        assert!(
+            discovery_row.processing,
+            "grace-surviving discovery must pulse its active source row"
+        );
     }
 }

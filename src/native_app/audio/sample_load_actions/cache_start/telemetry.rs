@@ -22,7 +22,7 @@ pub(super) fn record_fast_audition_decision(
         allow_sidecar_lookup = options.allow_sidecar_lookup,
         queue_preview_decode = options.queue_preview_decode,
         prefer_preview_decode = options.prefer_preview_decode,
-        allow_file_backed_probe = options.allow_file_backed_probe,
+        allow_file_backed_source = options.allow_file_backed_source,
         replace_policy = ?options.replace_policy,
         elapsed_ms = starmap_telemetry::elapsed_since(started_at)
             .map(|elapsed| elapsed.as_secs_f64() * 1000.0)

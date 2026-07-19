@@ -23,7 +23,7 @@ pub fn reconcile_readiness(
     source_id: &str,
     now: i64,
 ) -> Result<ReadinessSnapshot, ReadinessError> {
-    reconcile_readiness_inner(connection, source_id, now, None)
+    reconcile_readiness_inner(connection, source_id, now, None, &mut || {})
 }
 
 /// Compare desired readiness with persisted state while honoring cancellation during large scans.
@@ -33,7 +33,18 @@ pub fn reconcile_readiness_with_cancel(
     now: i64,
     cancel: &AtomicBool,
 ) -> Result<ReadinessSnapshot, ReadinessError> {
-    reconcile_readiness_inner(connection, source_id, now, Some(cancel))
+    reconcile_readiness_inner(connection, source_id, now, Some(cancel), &mut || {})
+}
+
+/// Compare desired readiness with persisted state while reporting completed reconciliation steps.
+pub fn reconcile_readiness_with_cancel_and_progress(
+    connection: &Connection,
+    source_id: &str,
+    now: i64,
+    cancel: &AtomicBool,
+    progress: &mut dyn FnMut(),
+) -> Result<ReadinessSnapshot, ReadinessError> {
+    reconcile_readiness_inner(connection, source_id, now, Some(cancel), progress)
 }
 
 fn reconcile_readiness_inner(
@@ -41,9 +52,10 @@ fn reconcile_readiness_inner(
     source_id: &str,
     now: i64,
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
-    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, || {}, cancel)?;
+    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, || {}, cancel, progress)?;
     tx.commit()?;
     Ok(snapshot)
 }
@@ -56,7 +68,8 @@ pub(crate) fn reconcile_readiness_with_hook(
     after_source_state: impl FnOnce(),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let tx = connection.unchecked_transaction()?;
-    let snapshot = reconcile_readiness_snapshot(&tx, source_id, now, after_source_state, None)?;
+    let snapshot =
+        reconcile_readiness_snapshot(&tx, source_id, now, after_source_state, None, &mut || {})?;
     tx.commit()?;
     Ok(snapshot)
 }
@@ -67,6 +80,7 @@ fn reconcile_readiness_snapshot(
     now: i64,
     after_source_state: impl FnOnce(),
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     cancellation_checkpoint(cancel)?;
     if !readiness_schema_available(connection)? {
@@ -100,9 +114,9 @@ fn reconcile_readiness_snapshot(
         availability,
     };
     after_source_state();
-    let targets = load_targets(connection, source_id, cancel)?;
-    let artifacts = load_artifacts(connection, source_id, cancel)?;
-    let work = load_work(connection, source_id, cancel)?;
+    let targets = load_targets(connection, source_id, cancel, progress)?;
+    let artifacts = load_artifacts(connection, source_id, cancel, progress)?;
+    let work = load_work(connection, source_id, cancel, progress)?;
     build_snapshot(
         source_id,
         source_state,
@@ -111,6 +125,7 @@ fn reconcile_readiness_snapshot(
         work,
         now,
         cancel,
+        progress,
     )
 }
 
@@ -160,6 +175,7 @@ fn load_targets(
     connection: &Connection,
     source_id: &str,
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<Vec<ReadinessTarget>, ReadinessError> {
     let mut statement = connection.prepare(
         "SELECT scope_kind, scope_id, relative_path, stage, required_version,
@@ -172,6 +188,7 @@ fn load_targets(
     let mut targets = Vec::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
+        progress();
         targets.push(ReadinessTarget {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -191,6 +208,7 @@ fn load_artifacts(
     connection: &Connection,
     source_id: &str,
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<BTreeMap<ReadinessKey, StoredArtifact>, ReadinessError> {
     let mut statement = connection.prepare(
         "SELECT scope_kind, scope_id, stage, artifact_version,
@@ -202,6 +220,7 @@ fn load_artifacts(
     let mut artifacts = BTreeMap::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
+        progress();
         let key = ReadinessKey {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -224,6 +243,7 @@ fn load_work(
     connection: &Connection,
     source_id: &str,
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<BTreeMap<ReadinessKey, StoredWork>, ReadinessError> {
     let mut statement = connection.prepare(
         "SELECT readiness_scope_kind, readiness_scope_id, readiness_stage, status,
@@ -237,6 +257,7 @@ fn load_work(
     let mut work = BTreeMap::new();
     while let Some(row) = rows.next()? {
         cancellation_checkpoint(cancel)?;
+        progress();
         let key = ReadinessKey {
             source_id: source_id.to_string(),
             scope_kind: decode_scope_kind(row.get(0)?)?,
@@ -277,12 +298,14 @@ fn build_snapshot(
     work: BTreeMap<ReadinessKey, StoredWork>,
     now: i64,
     cancel: Option<&AtomicBool>,
+    progress: &mut dyn FnMut(),
 ) -> Result<ReadinessSnapshot, ReadinessError> {
     let mut entries = Vec::with_capacity(targets.len());
     let mut deficits = Vec::new();
     let mut stage_counts = BTreeMap::new();
     for target in targets {
         cancellation_checkpoint(cancel)?;
+        progress();
         let key = target.key();
         let classification = classify_target(
             &target,

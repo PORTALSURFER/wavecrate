@@ -17,10 +17,6 @@ use crate::native_app::waveform::{
 };
 
 #[cfg(test)]
-pub(in crate::native_app) const FILE_BACKED_WAV_DECODE_MIN_BYTES: u64 = 1024;
-#[cfg(not(test))]
-pub(in crate::native_app) const FILE_BACKED_WAV_DECODE_MIN_BYTES: u64 = 16 * 1024 * 1024;
-
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct FileBackedWavPlaybackDescriptor {
     pub path: PathBuf,
@@ -341,18 +337,16 @@ fn summary_cache_can_attempt_wav_playback_ready(file: &WaveformFile, path: &Path
 
 pub(in crate::native_app) fn should_use_file_backed_wav_decode(path: &Path) -> bool {
     is_wav_path(path)
-        && path
-            .metadata()
-            .is_ok_and(|metadata| metadata.len() > FILE_BACKED_WAV_DECODE_MIN_BYTES)
 }
 
 pub(in crate::native_app) fn should_use_file_backed_wav_decode_for_entry(
     extension: &str,
-    size_bytes: u64,
+    _size_bytes: u64,
 ) -> bool {
-    extension.eq_ignore_ascii_case("wav") && size_bytes > FILE_BACKED_WAV_DECODE_MIN_BYTES
+    extension.eq_ignore_ascii_case("wav")
 }
 
+#[cfg(test)]
 pub(in crate::native_app) fn file_backed_wav_playback_descriptor(
     path: &Path,
 ) -> Option<FileBackedWavPlaybackDescriptor> {

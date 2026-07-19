@@ -259,6 +259,63 @@ pub(crate) fn publish_exact_index_with_transaction(
     Ok(true)
 }
 
+/// Build and publish an ANN generation from the benchmark fixture's embedding table.
+///
+/// This is intentionally feature-gated so production callers continue through the exact
+/// source-manifest similarity publication contract.
+#[cfg(feature = "benchmark")]
+#[doc(hidden)]
+pub fn rebuild_index_for_benchmark(conn: &mut Connection) -> Result<(), String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT sample_id, vec
+             FROM embeddings
+             WHERE model_id = ?1
+             ORDER BY sample_id",
+        )
+        .map_err(|error| format!("Prepare benchmark embedding load failed: {error}"))?;
+    let rows = statement
+        .query_map([similarity::SIMILARITY_MODEL_ID], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+        })
+        .map_err(|error| format!("Query benchmark embeddings failed: {error}"))?;
+    let mut embeddings = Vec::new();
+    for row in rows {
+        let (sample_id, blob) =
+            row.map_err(|error| format!("Read benchmark embedding failed: {error}"))?;
+        embeddings.push((sample_id, decode_f32_le_blob(&blob)?));
+    }
+    drop(statement);
+    let artifact_generation = "benchmark-generation";
+    let state = serde_json::json!({
+        "state": "current",
+        "artifact_generation": artifact_generation,
+        "model_id": similarity::SIMILARITY_MODEL_ID,
+    })
+    .to_string();
+    let published = publish_exact_index_with_transaction(
+        conn,
+        &embeddings,
+        artifact_generation,
+        &|_| Ok(true),
+        |transaction| {
+            transaction
+                .execute(
+                    "INSERT INTO metadata (key, value)
+                     VALUES ('similarity_artifact_state_v1', ?1)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    [&state],
+                )
+                .map_err(|error| format!("Publish benchmark ANN state failed: {error}"))?;
+            Ok(())
+        },
+    )?;
+    if !published {
+        return Err("Benchmark ANN publication fence unexpectedly rejected".to_string());
+    }
+    Ok(())
+}
+
 fn publish_exact_into_existing_state<F>(
     conn: &mut Connection,
     state: &mut Option<state::AnnIndexState>,

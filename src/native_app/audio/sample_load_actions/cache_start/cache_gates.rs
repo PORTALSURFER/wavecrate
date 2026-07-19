@@ -56,7 +56,7 @@ impl NativeAppState {
                     }
                 }
                 FastAuditionProbe::FileBackedWav => {
-                    if options.allow_file_backed_probe
+                    if options.allow_file_backed_source
                         && self.start_file_backed_wav_instant_audition_with_options(
                             path,
                             context,
@@ -423,9 +423,9 @@ impl NativeAppState {
             return false;
         }
         let lookup_started_at = Instant::now();
-        let Some(descriptor) = file_backed_wav_playback_descriptor(Path::new(path)) else {
+        if !should_use_file_backed_wav_decode(Path::new(path)) {
             return false;
-        };
+        }
         log_sample_load_timing(
             "browser.sample_load.file_backed_wav.lookup",
             path,
@@ -446,11 +446,8 @@ impl NativeAppState {
             return false;
         };
         let playback_started_at = Instant::now();
-        let source = PlaybackRuntimeSource::AudioFile {
-            path: descriptor.path,
-            duration: descriptor.duration,
-            sample_rate: descriptor.sample_rate,
-            channels: descriptor.channels,
+        let source = PlaybackRuntimeSource::WavFile {
+            path: PathBuf::from(path),
         };
         let request = PlaybackRuntimeRequest {
             source,

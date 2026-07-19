@@ -187,10 +187,10 @@ impl SourceScanWorkflow {
             task_id: request.task_id,
             source_id: request.source_id.clone(),
             label: request.label.clone(),
-            phase: String::from("Queued"),
+            phase: String::from("Waiting"),
             completed: 0,
             total: 0,
-            detail: request.root.display().to_string(),
+            detail: String::from("Waiting for source access"),
         });
     }
 

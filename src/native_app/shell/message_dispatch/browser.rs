@@ -103,6 +103,11 @@ impl NativeAppState {
                     context,
                 );
             }
+            GuiMessage::SourceWatcherReady => {
+                self.background
+                    .source_processing
+                    .request_manifest_audits("source_watcher_ready");
+            }
             GuiMessage::SourceFilesystemSyncFinished(result) => {
                 self.finish_source_filesystem_sync(result, context);
             }

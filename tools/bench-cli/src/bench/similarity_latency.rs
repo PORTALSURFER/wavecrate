@@ -22,6 +22,10 @@ pub(super) fn run(options: &BenchOptions) -> Result<SimilarityBenchResult, Strin
         "PRAGMA journal_mode=OFF;
          PRAGMA synchronous=OFF;
          PRAGMA foreign_keys=ON;
+         CREATE TABLE metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+         ) WITHOUT ROWID;
          CREATE TABLE embeddings (
             sample_id TEXT PRIMARY KEY,
             model_id TEXT NOT NULL,
@@ -42,7 +46,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<SimilarityBenchResult, Strin
     .map_err(|err| format!("Create schema failed: {err}"))?;
 
     seed_embeddings(&mut conn, options.similarity_rows, options.seed)?;
-    ann_index::rebuild_index(&conn)?;
+    ann_index::rebuild_index_for_benchmark(&mut conn)?;
     let target_id = "sample-000000";
     let similarity_query = stats::bench_action(options, || {
         ann_index::find_similar(&conn, target_id, 10)?;

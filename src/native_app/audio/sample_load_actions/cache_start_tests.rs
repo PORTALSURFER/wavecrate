@@ -132,27 +132,27 @@ fn write_sparse_wav_i16(path: &Path, channels: u16, frames: usize) {
 }
 
 #[test]
-fn starmap_drag_fast_audition_prefers_preview_decode_before_source_file_probe() {
+fn starmap_drag_fast_audition_prefers_original_wav_before_persistent_or_preview_cache() {
     assert_eq!(
         fast_audition_probe_order(FastAuditionOptions::starmap_drag()),
         [
             FastAuditionProbe::PreviewCache,
+            FastAuditionProbe::FileBackedWav,
             FastAuditionProbe::PersistedCache,
             FastAuditionProbe::PreviewDecode,
-            FastAuditionProbe::FileBackedWav,
         ]
     );
 }
 
 #[test]
-fn instant_navigation_fast_audition_prefers_preview_decode_before_source_file_probe() {
+fn instant_navigation_fast_audition_prefers_original_wav_before_persistent_or_preview_cache() {
     assert_eq!(
         fast_audition_probe_order(FastAuditionOptions::instant_navigation()),
         [
             FastAuditionProbe::PreviewCache,
+            FastAuditionProbe::FileBackedWav,
             FastAuditionProbe::PersistedCache,
             FastAuditionProbe::PreviewDecode,
-            FastAuditionProbe::FileBackedWav,
         ]
     );
 }
@@ -166,14 +166,14 @@ fn instant_navigation_fast_audition_avoids_ui_thread_sidecar_lookup() {
 }
 
 #[test]
-fn hot_fast_audition_options_avoid_ui_thread_source_file_probing() {
+fn hot_fast_audition_options_submit_unprobed_file_backed_sources() {
     assert!(
-        !FastAuditionOptions::instant_navigation().allow_file_backed_probe,
-        "list and keyboard navigation should not probe WAV headers on the UI path"
+        FastAuditionOptions::instant_navigation().allow_file_backed_source,
+        "list and keyboard navigation should enqueue the original WAV path"
     );
     assert!(
-        !FastAuditionOptions::starmap_drag().allow_file_backed_probe,
-        "starmap drag playback should not probe WAV headers on the UI path"
+        FastAuditionOptions::starmap_drag().allow_file_backed_source,
+        "starmap drag playback should enqueue the original WAV path"
     );
 }
 
@@ -192,7 +192,7 @@ fn hot_fast_audition_options_clear_previous_runtime_source() {
 }
 
 #[test]
-fn starmap_drag_long_wav_queues_preview_head_decode() {
+fn starmap_drag_queues_preview_decode_only_while_audio_runtime_is_starting() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample = source_root.path().join("long.wav");
     write_sparse_wav_i16(&sample, 1, 700);
@@ -216,7 +216,7 @@ fn starmap_drag_long_wav_queues_preview_head_decode() {
 
     assert!(
         crate::native_app::waveform::should_use_file_backed_wav_decode(&sample),
-        "fixture should exercise the long/file-backed WAV threshold"
+        "all WAV files should be eligible for file-backed playback"
     );
     let outcome = state.start_fast_path_audition(
         sample_id.as_str(),
@@ -228,7 +228,7 @@ fn starmap_drag_long_wav_queues_preview_head_decode() {
     assert_eq!(
         outcome,
         InstantAuditionOutcome::AudioPending,
-        "long WAVs should queue the tiny preview-head decode instead of falling through to full foreground loading"
+        "without an initialized audio runtime the fallback decode should remain pending"
     );
     assert!(
         state.background.preview_audition_task.active().is_some(),
@@ -236,7 +236,7 @@ fn starmap_drag_long_wav_queues_preview_head_decode() {
     );
     assert!(
         state.audio.sample_playback_session.is_none(),
-        "the long WAV path should not synchronously probe or submit file-backed playback on the UI path"
+        "the WAV path must not synchronously open the source on the UI path"
     );
 }
 
@@ -390,7 +390,7 @@ fn legacy_preview_preference_keeps_preview_decode_before_file_backed_wav() {
         allow_sidecar_lookup: false,
         queue_preview_decode: true,
         prefer_preview_decode: true,
-        allow_file_backed_probe: false,
+        allow_file_backed_source: false,
         replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
     };
 

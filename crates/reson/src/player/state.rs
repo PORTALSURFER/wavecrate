@@ -155,6 +155,18 @@ impl AudioPlayer {
         }
     }
 
+    /// Probe a WAV file and store it as a lazy file-backed playback source.
+    ///
+    /// Playback runtime callers execute this method on the dedicated runtime
+    /// thread, keeping file access and header parsing off latency-sensitive UI
+    /// paths.
+    pub fn set_wav_file(&mut self, path: impl Into<PathBuf>) -> Result<(), String> {
+        let path = path.into();
+        let (duration, sample_rate, channels) = wav_file_metadata(&path)?;
+        self.set_audio_file_with_metadata(path, duration, sample_rate, channels);
+        Ok(())
+    }
+
     /// Store a raw little-endian interleaved f32 sample file with caller-provided timing metadata.
     pub fn set_interleaved_f32_file_with_metadata(
         &mut self,
@@ -375,6 +387,22 @@ impl AudioPlayer {
     }
 }
 
+fn wav_file_metadata(path: &std::path::Path) -> Result<(f32, u32, usize), String> {
+    let reader = hound::WavReader::open(path)
+        .map_err(|err| format!("Failed to open WAV file {}: {err}", path.display()))?;
+    let spec = reader.spec();
+    let sample_rate = spec.sample_rate.max(1);
+    let channels = usize::from(spec.channels).max(1);
+    let frames = u64::from(reader.duration());
+    if frames == 0 {
+        return Err(format!(
+            "WAV file contains no audio frames: {}",
+            path.display()
+        ));
+    }
+    Ok((frames as f32 / sample_rate as f32, sample_rate, channels))
+}
+
 fn test_audio_output_enabled() -> bool {
     std::env::var("WAVECRATE_TEST_AUDIO_OUTPUT")
         .ok()
@@ -384,4 +412,34 @@ fn test_audio_output_enabled() -> bool {
                 "1" | "true" | "yes" | "on"
             )
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wav_file_metadata;
+
+    #[test]
+    fn wav_file_metadata_probes_original_file_without_decoding_samples() {
+        let root = tempfile::tempdir().expect("temp root");
+        let path = root.path().join("runtime.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).expect("create WAV");
+        for _ in 0..48_000 {
+            writer.write_sample(0_i16).expect("write left");
+            writer.write_sample(0_i16).expect("write right");
+        }
+        writer.finalize().expect("finalize WAV");
+
+        let (duration, sample_rate, channels) =
+            wav_file_metadata(&path).expect("probe WAV metadata");
+
+        assert!((duration - 1.0).abs() < f32::EPSILON);
+        assert_eq!(sample_rate, 48_000);
+        assert_eq!(channels, 2);
+    }
 }

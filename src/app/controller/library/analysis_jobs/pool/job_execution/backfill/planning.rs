@@ -67,15 +67,7 @@ fn build_backfill_plan_inner(
         )?
         .is_some();
         let has_aspects = sample_has_current_aspect_descriptors(conn, sample_id)?;
-        let cache_is_current = if require_cache_materialization {
-            let Some(content_hash) = db::sample_content_hash(conn, sample_id)? else {
-                continue;
-            };
-            cached_embedding_data(conn, &content_hash, analysis_version)?.is_some()
-        } else {
-            true
-        };
-        if has_embedding && has_aspects && cache_is_current {
+        if has_embedding && has_aspects && !require_cache_materialization {
             continue;
         }
         plan_sample(conn, job, sample_id, &mut state)?;
