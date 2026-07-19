@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn readiness_classifies_missing_pending_current_and_stale_generations() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("one", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("one", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&target));
 
     let missing = reconcile_readiness(&connection, SOURCE_ID, 100).expect("missing snapshot");
@@ -13,7 +13,7 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
     assert!(!missing.is_idle());
     assert_eq!(missing.deficits.len(), 1);
     assert_eq!(
-        entry_for(&missing, "one", ReadinessStage::PlaybackSummary).classification,
+        entry_for(&missing, "one", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::Pending
     );
 
@@ -27,17 +27,17 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
     );
     let current = reconcile_readiness(&connection, SOURCE_ID, 102).expect("current snapshot");
     assert_eq!(
-        entry_for(&current, "one", ReadinessStage::PlaybackSummary).classification,
+        entry_for(&current, "one", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::Current
     );
     assert!(current.is_idle());
     assert!(current.is_fully_ready());
 
-    let changed = file_target("one", ReadinessStage::PlaybackSummary, 2);
+    let changed = file_target("one", ReadinessStage::AnalysisFeatures, 2);
     replace(&mut connection, 2, std::slice::from_ref(&changed));
     let stale = reconcile_readiness(&connection, SOURCE_ID, 103).expect("stale snapshot");
     assert_eq!(
-        entry_for(&stale, "one", ReadinessStage::PlaybackSummary).classification,
+        entry_for(&stale, "one", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::StaleByGeneration
     );
     assert_eq!(stale.deficits.len(), 1);
@@ -47,10 +47,10 @@ fn readiness_classifies_missing_pending_current_and_stale_generations() {
 #[test]
 fn reconciliation_reads_one_snapshot_during_concurrent_publication() {
     let (root, mut connection) = open_fixture();
-    let generation_one = file_target("one", ReadinessStage::PlaybackSummary, 1);
+    let generation_one = file_target("one", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&generation_one));
     let mut writer = SourceDatabase::open_connection(root.path()).expect("writer connection");
-    let generation_two = file_target("two", ReadinessStage::PlaybackSummary, 2);
+    let generation_two = file_target("two", ReadinessStage::AnalysisFeatures, 2);
 
     let snapshot = reconcile_readiness_with_hook(&connection, SOURCE_ID, 10, || {
         replace(&mut writer, 2, std::slice::from_ref(&generation_two));
@@ -58,9 +58,9 @@ fn reconciliation_reads_one_snapshot_during_concurrent_publication() {
     .expect("consistent snapshot");
     assert_eq!(snapshot.source_generation, 1);
     assert_eq!(snapshot.readiness_revision, 101);
-    assert_eq!(snapshot.entries.len(), 5);
+    assert_eq!(snapshot.entries.len(), 4);
     assert_eq!(
-        entry_for(&snapshot, "one", ReadinessStage::PlaybackSummary)
+        entry_for(&snapshot, "one", ReadinessStage::AnalysisFeatures)
             .target
             .source_generation,
         1
@@ -69,9 +69,9 @@ fn reconciliation_reads_one_snapshot_during_concurrent_publication() {
     let current = reconcile_readiness(&connection, SOURCE_ID, 11).expect("current snapshot");
     assert_eq!(current.source_generation, 2);
     assert_eq!(current.readiness_revision, 102);
-    assert_eq!(current.entries.len(), 5);
+    assert_eq!(current.entries.len(), 4);
     assert_eq!(
-        entry_for(&current, "two", ReadinessStage::PlaybackSummary)
+        entry_for(&current, "two", ReadinessStage::AnalysisFeatures)
             .target
             .scope_id,
         "two"
@@ -236,7 +236,7 @@ fn persisted_work_deduplicates_and_survives_restart() {
 #[test]
 fn overlapping_manifest_snapshots_preserve_unchanged_file_lease() {
     let (_root, mut connection) = open_fixture();
-    let original = file_target("leased", ReadinessStage::PlaybackSummary, 1);
+    let original = file_target("leased", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&original));
     let original_snapshot =
         reconcile_readiness(&connection, SOURCE_ID, 10).expect("original snapshot");
@@ -279,11 +279,11 @@ fn overlapping_manifest_snapshots_preserve_unchanged_file_lease() {
 #[test]
 fn stale_content_deficit_cannot_reset_newer_running_work() {
     let (_root, mut connection) = open_fixture();
-    let original = file_target("changed", ReadinessStage::PlaybackSummary, 1);
+    let original = file_target("changed", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&original));
     let stale_snapshot = reconcile_readiness(&connection, SOURCE_ID, 10).expect("stale snapshot");
 
-    let current = file_target("changed", ReadinessStage::PlaybackSummary, 2);
+    let current = file_target("changed", ReadinessStage::AnalysisFeatures, 2);
     replace(&mut connection, 2, std::slice::from_ref(&current));
     let current_snapshot =
         reconcile_readiness(&connection, SOURCE_ID, 11).expect("current snapshot");
@@ -391,7 +391,7 @@ fn path_only_rename_refreshes_running_work_without_losing_lease() {
 #[test]
 fn running_lease_expiry_becomes_an_actionable_retry() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("leased", ReadinessStage::PlaybackSummary, 2);
+    let target = file_target("leased", ReadinessStage::AnalysisFeatures, 2);
     replace(&mut connection, 2, std::slice::from_ref(&target));
     let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("pending snapshot");
     persist_readiness_deficits(&mut connection, &pending.deficits, 10).expect("persist work");
@@ -407,7 +407,7 @@ fn running_lease_expiry_becomes_an_actionable_retry() {
     let running = reconcile_readiness(&connection, SOURCE_ID, 49).expect("running snapshot");
     assert_eq!(running.activity, ReadinessActivity::Running);
     assert_eq!(
-        entry_for(&running, "leased", ReadinessStage::PlaybackSummary).classification,
+        entry_for(&running, "leased", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::Running {
             lease_expires_at: 50
         }
@@ -418,7 +418,7 @@ fn running_lease_expiry_becomes_an_actionable_retry() {
     assert_eq!(expired.activity, ReadinessActivity::Actionable);
     assert_eq!(expired.deficits.len(), 1);
     assert_eq!(
-        entry_for(&expired, "leased", ReadinessStage::PlaybackSummary).classification,
+        entry_for(&expired, "leased", ReadinessStage::AnalysisFeatures).classification,
         ReadinessClassification::RetryableFailure {
             retry_at: 50,
             reason: "lease_expired".to_string(),
@@ -448,7 +448,7 @@ fn future_retry_waits_and_terminal_states_do_not_spin() {
         file_target("retry", ReadinessStage::AnalysisFeatures, 3),
         file_target("permanent", ReadinessStage::AnalysisFeatures, 3),
         file_target("unsupported", ReadinessStage::EmbeddingAspects, 3),
-        file_target("deleted", ReadinessStage::PlaybackSummary, 3)
+        file_target("deleted", ReadinessStage::AnalysisFeatures, 3)
             .with_eligibility(ReadinessEligibility::Deleted),
     ];
     replace(&mut connection, 3, &targets);

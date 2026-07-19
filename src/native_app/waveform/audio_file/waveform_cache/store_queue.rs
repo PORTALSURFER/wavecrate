@@ -6,11 +6,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(test)]
+use super::write::StoreWriteOutcome;
 use super::{
     BACKGROUND_STORE_SHUTDOWN_WAIT,
     identity::{CacheIdentity, cache_path_for_identity},
     invalidation::current_path_generation,
-    write::{StoreWriteOutcome, store_cached_waveform_file_now as write_cached_waveform_file_now},
+    write::store_cached_waveform_file_now as write_cached_waveform_file_now,
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
 use diagnostics::{log_slow_cache_shutdown_flush, log_store_completion};
@@ -27,6 +29,7 @@ pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file(fi
     let _ = persist_cached_waveform_file(file);
 }
 
+#[cfg(test)]
 pub(in crate::native_app::waveform::audio_file) fn persist_cached_waveform_file(
     file: &WaveformFile,
 ) -> Result<(), String> {

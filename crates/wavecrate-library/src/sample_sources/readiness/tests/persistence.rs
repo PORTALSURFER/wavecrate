@@ -100,7 +100,7 @@ fn target_replacement_is_failure_atomic() {
 #[test]
 fn stale_same_generation_publication_cannot_reactivate_disabled_source() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("guarded", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("guarded", ReadinessStage::AnalysisFeatures, 1);
     let complete = complete_targets(1, std::slice::from_ref(&target));
     sync_manifest(&connection, &complete);
     replace_readiness_targets(
@@ -294,7 +294,7 @@ fn invalid_stage_scope_pairings_are_rejected() {
 
     let invalid_source = ReadinessTarget::source(
         SOURCE_ID,
-        ReadinessStage::PlaybackSummary,
+        ReadinessStage::AnalysisFeatures,
         "v1",
         1,
         "membership-v1",
@@ -547,7 +547,7 @@ fn desired_targets_must_match_authoritative_manifest_paths_one_to_one() {
 #[test]
 fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("inactive", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("inactive", ReadinessStage::AnalysisFeatures, 1);
     let complete = complete_targets(1, std::slice::from_ref(&target));
     sync_manifest(&connection, &complete);
     replace_readiness_targets(
@@ -609,7 +609,7 @@ fn delayed_deficit_cannot_enqueue_after_disable_or_delete() {
 #[test]
 fn delayed_deficit_cannot_recreate_completed_work() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("completed", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("completed", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&target));
     let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("pending snapshot");
     publish_readiness_artifact(&mut connection, &ReadinessArtifact::for_target(&target, 11))
@@ -706,32 +706,94 @@ fn delayed_deficit_preserves_terminal_failure_and_future_retry() {
 #[test]
 fn target_replacement_prunes_removed_legacy_playback_work() {
     let (_root, mut connection) = open_fixture();
-    let legacy = file_target("legacy-playback", ReadinessStage::PlaybackSummary, 1);
-    replace(&mut connection, 1, std::slice::from_ref(&legacy));
-    let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("legacy snapshot");
+    let current = file_target("legacy-playback", ReadinessStage::AnalysisFeatures, 1);
+    replace(&mut connection, 1, std::slice::from_ref(&current));
+    let pending = reconcile_readiness(&connection, SOURCE_ID, 10).expect("current snapshot");
     persist_readiness_deficits(&mut connection, &pending.deficits, 10)
-        .expect("persist legacy playback work");
+        .expect("persist current work");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_targets (
+                source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                source_generation, content_generation, eligibility, updated_at
+             )
+             SELECT source_id, scope_kind, scope_id, relative_path, 'playback_summary',
+                    'legacy-playback-v1', source_generation, content_generation,
+                    eligibility, updated_at
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_id = 'legacy-playback'
+               AND stage = 'analysis_features'",
+            [SOURCE_ID],
+        )
+        .expect("seed legacy playback target");
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET job_type = 'readiness_playback_summary_v1',
+                 readiness_stage = 'playback_summary'
+             WHERE source_id = ?1
+               AND readiness_scope_id = 'legacy-playback'
+               AND readiness_stage = 'analysis_features'",
+            [SOURCE_ID],
+        )
+        .expect("seed legacy playback work");
 
-    let current = file_target("legacy-playback", ReadinessStage::AnalysisFeatures, 2);
-    replace(&mut connection, 2, &[current]);
+    let replacement = file_target("legacy-playback", ReadinessStage::AnalysisFeatures, 2);
+    replace(&mut connection, 2, &[replacement]);
 
-    let playback_jobs: i64 = connection
+    let playback_rows: i64 = connection
         .query_row(
-            "SELECT COUNT(*)
-             FROM analysis_jobs
-             WHERE readiness_managed = 1 AND readiness_stage = 'playback_summary'",
-            [],
+            "SELECT
+                (SELECT COUNT(*) FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'playback_summary')
+              + (SELECT COUNT(*) FROM analysis_jobs
+                 WHERE source_id = ?1
+                   AND readiness_managed = 1
+                   AND readiness_stage = 'playback_summary')",
+            [SOURCE_ID],
             |row| row.get(0),
         )
-        .expect("count removed playback jobs");
-    assert_eq!(playback_jobs, 0);
+        .expect("count removed legacy playback rows");
+    assert_eq!(playback_rows, 0);
 }
 
 #[test]
-fn read_only_reconciliation_never_enqueues_work() {
+fn read_only_reconciliation_ignores_legacy_playback_rows_without_enqueuing() {
     let (root, mut connection) = open_fixture();
-    let target = file_target("read-only", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("read-only", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, &[target]);
+    connection
+        .execute(
+            "INSERT INTO source_readiness_targets (
+                source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                source_generation, content_generation, eligibility, updated_at
+             )
+             SELECT source_id, scope_kind, scope_id, relative_path, 'playback_summary',
+                    'legacy-playback-v1', source_generation, content_generation,
+                    eligibility, updated_at
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_id = 'read-only'
+               AND stage = 'analysis_features'",
+            [SOURCE_ID],
+        )
+        .expect("seed legacy read-only target");
+    connection
+        .execute(
+            "INSERT INTO source_readiness_artifacts (
+                source_id, scope_kind, scope_id, relative_path, stage, artifact_version,
+                source_generation, content_generation, completed_at
+             )
+             SELECT source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, updated_at
+             FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND scope_id = 'read-only'
+               AND stage = 'playback_summary'",
+            [SOURCE_ID],
+        )
+        .expect("seed legacy read-only artifact");
     drop(connection);
     let read_only = SourceDatabase::open_connection_with_role(
         root.path(),
@@ -741,6 +803,7 @@ fn read_only_reconciliation_never_enqueues_work() {
 
     let snapshot = reconcile_readiness(&read_only, SOURCE_ID, 2).expect("read snapshot");
     assert_eq!(snapshot.deficits.len(), 1);
+    assert_eq!(snapshot.entries.len(), 4);
     let jobs: i64 = read_only
         .query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| row.get(0))
         .expect("count jobs");

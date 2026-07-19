@@ -64,7 +64,7 @@ fn create_commits_revision_and_invalidates_file_readiness() {
     assert!(
         event
             .invalidated_stages
-            .contains(&ReadinessStage::PlaybackSummary)
+            .contains(&ReadinessStage::IndexedIdentity)
     );
     assert!(event.changes[0].before_content_identity.is_none());
     assert!(event.changes[0].after_content_identity.is_some());

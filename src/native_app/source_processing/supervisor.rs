@@ -43,11 +43,7 @@ use crate::native_app::sample_library::similarity_artifacts::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
     native_similarity_artifact_version, reset_interrupted_readiness_jobs,
 };
-use crate::native_app::waveform::{
-    ensure_persisted_playback_summary, invalidate_persisted_waveform_cache_path,
-    invalidate_persisted_waveform_cache_ref, persisted_waveform_cache_ref_is_current,
-    remap_persisted_waveform_cache_ref_after_move,
-};
+use crate::native_app::waveform::invalidate_persisted_waveform_cache_ref;
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
 const PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
@@ -2512,7 +2508,6 @@ fn runtime_task_progress_detail(task: &RuntimeTask) -> (&'static str, String) {
 fn readiness_progress_detail(target: &ReadinessTarget) -> (&'static str, String) {
     let stage = match target.stage {
         ReadinessStage::IndexedIdentity => "Indexing files",
-        ReadinessStage::PlaybackSummary => "Preparing playback",
         ReadinessStage::AnalysisFeatures => "Analyzing audio",
         ReadinessStage::EmbeddingAspects => "Preparing similarity",
         ReadinessStage::SimilarityLayout => "Building similarity layout",
@@ -2809,6 +2804,13 @@ fn discover_source_candidates_with_connection_and_progress(
             task: RuntimeTask::ManifestAudit,
         });
     }
+    progress("Retiring legacy playback readiness", work_units);
+    if matches!(
+        retire_legacy_playback_readiness(source, connection, cancel)?,
+        Cancellable::Cancelled
+    ) {
+        return Ok(Cancellable::Cancelled);
+    }
     let target_publication = publish_current_readiness_targets_with_cancel_and_checkpoint(
         connection,
         source_id,
@@ -2820,13 +2822,6 @@ fn discover_source_candidates_with_connection_and_progress(
         },
     )?;
     if matches!(target_publication, Cancellable::Cancelled) {
-        return Ok(Cancellable::Cancelled);
-    }
-    progress("Checking playback-cache ownership", work_units);
-    if matches!(
-        reconcile_playback_cache_ownership(source, connection, cancel)?,
-        Cancellable::Cancelled
-    ) {
         return Ok(Cancellable::Cancelled);
     }
     if cancelled(cancel) {
@@ -3604,256 +3599,119 @@ fn publish_current_readiness_targets_with_cancel_and_checkpoint(
     Ok(Cancellable::Completed(true))
 }
 
-#[derive(Debug)]
-struct PlaybackCacheOwnershipRow {
-    scope_id: String,
-    artifact_relative_path: Option<String>,
-    artifact_version: String,
-    artifact_content_generation: String,
-    artifact_ref: Option<String>,
-    target_relative_path: Option<String>,
-    target_version: Option<String>,
-    target_content_generation: Option<String>,
-    target_eligibility: Option<String>,
-}
-
-/// Reconcile source-owned playback artifact rows with their app-global cache payloads.
+/// Retire rows written by the removed durable playback-summary readiness stage.
 ///
-/// The source database is the durable reverse index. This pass runs on startup and every committed
-/// source wake, so changed/deleted identities can retire their old cache keys even after the old
-/// filesystem metadata is gone. Path-only moves remap reusable payloads without decoding again.
-///
-/// Cache residency is deliberately not a readiness invariant: the app-global waveform cache is
-/// bounded and may evict a successfully prepared payload. In that case the durable artifact remains
-/// current, its stale cache reference is cleared, and playback may repopulate the cache on demand.
-/// Treating budget eviction as a readiness deficit would make source processing loop forever once
-/// the cache reaches its limit.
-fn reconcile_playback_cache_ownership(
+/// Current waveform and playback caches are managed by the independent cache lifecycle. This
+/// compatibility pass exists only so writable source databases from older builds cannot keep stale
+/// readiness work or reverse-ownership rows alive. Read-only reconciliation filters the same legacy
+/// stage without mutating it.
+fn retire_legacy_playback_readiness(
     source: &SampleSource,
     connection: &mut rusqlite::Connection,
     cancel: &AtomicBool,
 ) -> Result<Cancellable<usize>, String> {
-    let rows = {
+    retire_legacy_playback_readiness_with_post_commit_hook(source, connection, cancel, || {})
+}
+
+fn retire_legacy_playback_readiness_with_post_commit_hook(
+    source: &SampleSource,
+    connection: &mut rusqlite::Connection,
+    cancel: &AtomicBool,
+    post_commit: impl FnOnce(),
+) -> Result<Cancellable<usize>, String> {
+    if cancelled(cancel) {
+        return Ok(Cancellable::Cancelled);
+    }
+    let has_legacy_rows = connection
+        .query_row(
+            "SELECT EXISTS (
+                 SELECT 1
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'playback_summary'
+                 UNION ALL
+                 SELECT 1
+                 FROM source_readiness_artifacts
+                 WHERE source_id = ?1 AND stage = 'playback_summary'
+                 UNION ALL
+                 SELECT 1
+                 FROM analysis_jobs
+                 WHERE source_id = ?1
+                   AND readiness_managed = 1
+                   AND readiness_stage = 'playback_summary'
+             )",
+            [source.id.as_str()],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if !has_legacy_rows {
+        return Ok(Cancellable::Completed(0));
+    }
+    let cache_refs = {
         let mut statement = connection
             .prepare(
-                "SELECT artifact.scope_id,
-                        artifact.relative_path,
-                        artifact.artifact_version,
-                        artifact.content_generation,
-                        artifact.artifact_ref,
-                        target.relative_path,
-                        target.required_version,
-                        target.content_generation,
-                        target.eligibility
-                 FROM source_readiness_artifacts AS artifact
-                 LEFT JOIN source_readiness_targets AS target
-                   ON target.source_id = artifact.source_id
-                  AND target.scope_kind = artifact.scope_kind
-                  AND target.scope_id = artifact.scope_id
-                  AND target.stage = artifact.stage
-                 WHERE artifact.source_id = ?1
-                   AND artifact.scope_kind = 'file'
-                   AND artifact.stage = 'playback_summary'
-                 ORDER BY artifact.scope_id",
+                "SELECT artifact_ref
+                 FROM source_readiness_artifacts
+                 WHERE source_id = ?1
+                   AND stage = 'playback_summary'
+                   AND artifact_ref IS NOT NULL
+                   AND length(trim(artifact_ref)) > 0",
             )
             .map_err(|error| error.to_string())?;
         statement
-            .query_map([source.id.as_str()], |row| {
-                Ok(PlaybackCacheOwnershipRow {
-                    scope_id: row.get(0)?,
-                    artifact_relative_path: row.get(1)?,
-                    artifact_version: row.get(2)?,
-                    artifact_content_generation: row.get(3)?,
-                    artifact_ref: row.get(4)?,
-                    target_relative_path: row.get(5)?,
-                    target_version: row.get(6)?,
-                    target_content_generation: row.get(7)?,
-                    target_eligibility: row.get(8)?,
-                })
-            })
+            .query_map([source.id.as_str()], |row| row.get::<_, String>(0))
             .map_err(|error| error.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|error| error.to_string())?
     };
-    let mut changed = 0_usize;
-    for row in rows {
-        if cancelled(cancel) {
-            return Ok(Cancellable::Cancelled);
-        }
-        let target_matches = row.target_version.as_deref() == Some(row.artifact_version.as_str())
-            && row.target_content_generation.as_deref()
-                == Some(row.artifact_content_generation.as_str())
-            && row.target_eligibility.as_deref() == Some("eligible");
-        if !target_matches {
-            invalidate_playback_cache_owner(source, &row);
-            changed = changed.saturating_add(delete_playback_cache_ownership_row(
-                connection,
-                source.id.as_str(),
-                &row,
-            )?);
-            continue;
-        }
-        let Some(target_relative_path) = row.target_relative_path.as_deref() else {
-            invalidate_playback_cache_owner(source, &row);
-            changed = changed.saturating_add(delete_playback_cache_ownership_row(
-                connection,
-                source.id.as_str(),
-                &row,
-            )?);
-            continue;
-        };
-        let target_path = source.root.join(target_relative_path);
-        let Some(cache_ref) = row.artifact_ref.as_deref().map(std::path::Path::new) else {
-            if row.artifact_relative_path.as_deref() == Some(target_relative_path) {
-                continue;
-            }
-            changed = changed.saturating_add(update_playback_cache_ownership_row(
-                connection,
-                source.id.as_str(),
-                &row,
-                target_relative_path,
-                None,
-            )?);
-            continue;
-        };
-        if row.artifact_relative_path.as_deref() == Some(target_relative_path) {
-            if persisted_waveform_cache_ref_is_current(&target_path, cache_ref) {
-                continue;
-            }
-            invalidate_persisted_waveform_cache_ref(cache_ref);
-            changed = changed.saturating_add(update_playback_cache_ownership_row(
-                connection,
-                source.id.as_str(),
-                &row,
-                target_relative_path,
-                None,
-            )?);
-            continue;
-        }
-        if let Some(artifact_relative_path) = row.artifact_relative_path.as_deref() {
-            let artifact_path = source.root.join(artifact_relative_path);
-            invalidate_persisted_waveform_cache_path(&artifact_path);
-            if let Some(remapped_ref) = remap_persisted_waveform_cache_ref_after_move(
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| error.to_string())?;
+    let mut changed = transaction
+        .execute(
+            "DELETE FROM analysis_jobs
+             WHERE source_id = ?1
+               AND readiness_managed = 1
+               AND readiness_stage = 'playback_summary'",
+            [source.id.as_str()],
+        )
+        .map_err(|error| error.to_string())?;
+    changed = changed.saturating_add(
+        transaction
+            .execute(
+                "DELETE FROM source_readiness_artifacts
+             WHERE source_id = ?1
+               AND stage = 'playback_summary'",
+                [source.id.as_str()],
+            )
+            .map_err(|error| error.to_string())?,
+    );
+    changed = changed.saturating_add(
+        transaction
+            .execute(
+                "DELETE FROM source_readiness_targets
+             WHERE source_id = ?1
+               AND stage = 'playback_summary'",
+                [source.id.as_str()],
+            )
+            .map_err(|error| error.to_string())?,
+    );
+    transaction.commit().map_err(|error| error.to_string())?;
+    post_commit();
+
+    for cache_ref in cache_refs {
+        match retained_waveform_cache_ref_is_owned(&cache_ref) {
+            Ok(false) => invalidate_persisted_waveform_cache_ref(std::path::Path::new(&cache_ref)),
+            Ok(true) => {}
+            Err(error) => tracing::warn!(
+                target: "wavecrate::source_processing",
+                source_id = source.id.as_str(),
                 cache_ref,
-                &artifact_path,
-                &target_path,
-            ) {
-                let updated = connection
-                    .execute(
-                        "UPDATE source_readiness_artifacts AS artifact
-                         SET relative_path = ?1, artifact_ref = ?2
-                         WHERE artifact.source_id = ?3
-                           AND artifact.scope_kind = 'file'
-                           AND artifact.scope_id = ?4
-                           AND artifact.stage = 'playback_summary'
-                           AND artifact.artifact_version = ?5
-                           AND artifact.content_generation = ?6
-                           AND artifact.artifact_ref IS ?7
-                           AND EXISTS (
-                               SELECT 1 FROM source_readiness_targets AS target
-                               WHERE target.source_id = artifact.source_id
-                                 AND target.scope_kind = artifact.scope_kind
-                                 AND target.scope_id = artifact.scope_id
-                                 AND target.stage = artifact.stage
-                                 AND target.relative_path = ?1
-                                 AND target.required_version = artifact.artifact_version
-                                 AND target.content_generation = artifact.content_generation
-                                 AND target.eligibility = 'eligible'
-                           )",
-                        params![
-                            target_relative_path,
-                            remapped_ref.to_string_lossy(),
-                            source.id.as_str(),
-                            row.scope_id,
-                            row.artifact_version,
-                            row.artifact_content_generation,
-                            row.artifact_ref,
-                        ],
-                    )
-                    .map_err(|error| error.to_string())?;
-                if updated == 1 {
-                    changed = changed.saturating_add(1);
-                    continue;
-                }
-                invalidate_persisted_waveform_cache_ref(&remapped_ref);
-            }
+                error,
+                "Legacy playback cache ownership could not be proven; payload was preserved"
+            ),
         }
-        invalidate_persisted_waveform_cache_ref(cache_ref);
-        changed = changed.saturating_add(update_playback_cache_ownership_row(
-            connection,
-            source.id.as_str(),
-            &row,
-            target_relative_path,
-            None,
-        )?);
     }
     Ok(Cancellable::Completed(changed))
-}
-
-fn update_playback_cache_ownership_row(
-    connection: &rusqlite::Connection,
-    source_id: &str,
-    row: &PlaybackCacheOwnershipRow,
-    relative_path: &str,
-    artifact_ref: Option<&std::path::Path>,
-) -> Result<usize, String> {
-    connection
-        .execute(
-            "UPDATE source_readiness_artifacts
-             SET relative_path = ?1, artifact_ref = ?2
-             WHERE source_id = ?3
-               AND scope_kind = 'file'
-               AND scope_id = ?4
-               AND stage = 'playback_summary'
-               AND artifact_version = ?5
-               AND content_generation = ?6
-               AND artifact_ref IS ?7",
-            params![
-                relative_path,
-                artifact_ref.map(|path| path.to_string_lossy().into_owned()),
-                source_id,
-                row.scope_id,
-                row.artifact_version,
-                row.artifact_content_generation,
-                row.artifact_ref,
-            ],
-        )
-        .map_err(|error| error.to_string())
-}
-
-fn invalidate_playback_cache_owner(source: &SampleSource, row: &PlaybackCacheOwnershipRow) {
-    if let Some(relative_path) = row.artifact_relative_path.as_deref() {
-        invalidate_persisted_waveform_cache_path(&source.root.join(relative_path));
-    }
-    if let Some(cache_ref) = row.artifact_ref.as_deref() {
-        invalidate_persisted_waveform_cache_ref(std::path::Path::new(cache_ref));
-    }
-}
-
-fn delete_playback_cache_ownership_row(
-    connection: &rusqlite::Connection,
-    source_id: &str,
-    row: &PlaybackCacheOwnershipRow,
-) -> Result<usize, String> {
-    connection
-        .execute(
-            "DELETE FROM source_readiness_artifacts
-             WHERE source_id = ?1
-               AND scope_kind = 'file'
-               AND scope_id = ?2
-               AND stage = 'playback_summary'
-               AND artifact_version = ?3
-               AND content_generation = ?4
-               AND artifact_ref IS ?5",
-            params![
-                source_id,
-                row.scope_id,
-                row.artifact_version,
-                row.artifact_content_generation,
-                row.artifact_ref,
-            ],
-        )
-        .map_err(|error| error.to_string())
 }
 
 fn readiness_unsupported_content_generations(
@@ -4598,29 +4456,6 @@ fn run_readiness_stage(
                 ReadinessExecutionOutcome::Retry("indexed identity is not committed yet")
             })
         }
-        ReadinessStage::PlaybackSummary => {
-            if target.content_generation.starts_with("pending-") {
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
-                    "playback target is waiting for a committed content generation",
-                ));
-            }
-            let Some(relative_path) = target.relative_path.as_deref() else {
-                return Ok(ReadinessExecutionOutcome::Permanent(
-                    "playback summary target has no relative path",
-                ));
-            };
-            let absolute_path = source.root.join(relative_path);
-            // A claimed deficit has no exact current cache owner. Do not hydrate an unowned v4
-            // payload using only size/mtime; erase that key first so this generation produces a
-            // cache that can be committed atomically with its durable v5 ownership reference.
-            if !prepare_playback_cache_generation(connection, target, &absolute_path)? {
-                return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
-                    "playback source fingerprint changed before cache publication",
-                ));
-            }
-            let cache_ref = ensure_persisted_playback_summary(absolute_path, cancel)?;
-            Ok(ReadinessExecutionOutcome::Complete(Some(cache_ref)))
-        }
         ReadinessStage::AnalysisFeatures => {
             if target.content_generation.starts_with("pending-") {
                 return Ok(ReadinessExecutionOutcome::PrerequisiteInvalidated(
@@ -4754,51 +4589,6 @@ fn run_readiness_stage(
             )
         }
     }
-}
-
-fn prepare_playback_cache_generation(
-    connection: &mut rusqlite::Connection,
-    target: &ReadinessTarget,
-    absolute_path: &std::path::Path,
-) -> Result<bool, String> {
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|error| error.to_string())?;
-    let current = transaction
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1
-                FROM source_readiness_sources AS source
-                JOIN source_readiness_targets AS target
-                  ON target.source_id = source.source_id
-                 AND target.source_generation = source.source_generation
-                WHERE target.source_id = ?1
-                  AND target.scope_kind = 'file'
-                  AND target.scope_id = ?2
-                  AND target.relative_path = ?3
-                  AND target.stage = 'playback_summary'
-                  AND target.required_version = ?4
-                  AND target.content_generation = ?5
-                  AND target.eligibility = 'eligible'
-                  AND source.availability = 'active'
-            )",
-            params![
-                target.source_id,
-                target.scope_id,
-                target.relative_path,
-                target.required_version,
-                target.content_generation,
-            ],
-            |row| row.get::<_, bool>(0),
-        )
-        .map_err(|error| error.to_string())?;
-    if !current {
-        transaction.rollback().map_err(|error| error.to_string())?;
-        return Ok(false);
-    }
-    invalidate_persisted_waveform_cache_path(absolute_path);
-    transaction.commit().map_err(|error| error.to_string())?;
-    Ok(true)
 }
 
 fn readiness_stage_is_unsupported(
@@ -6569,10 +6359,11 @@ mod tests {
         };
         let elapsed = started_at.elapsed();
 
-        assert_eq!(candidates.len(), FILE_COUNT * 4);
-        assert_eq!(stats.readiness_queue_depth, FILE_COUNT * 4);
+        assert_eq!(candidates.len(), FILE_COUNT * 3);
+        assert_eq!(stats.readiness_queue_depth, FILE_COUNT * 3);
         assert_eq!(
-            stats.prerequisites_blocked, 1,
+            stats.prerequisites_blocked,
+            FILE_COUNT * 3,
             "the source-wide similarity layout must remain parked until file embeddings converge"
         );
         eprintln!(
@@ -7347,10 +7138,14 @@ mod tests {
                     },
                 },
                 wavecrate::sample_sources::readiness::ReadinessEntry {
-                    target: file_target(ReadinessStage::PlaybackSummary),
+                    target: {
+                        let mut target = file_target(ReadinessStage::AnalysisFeatures);
+                        target.source_id = String::from("unrelated-source");
+                        target
+                    },
                     classification: ReadinessClassification::RetryableFailure {
                         retry_at: 200,
-                        reason: String::from("unrelated playback retry"),
+                        reason: String::from("unrelated source retry"),
                     },
                 },
                 wavecrate::sample_sources::readiness::ReadinessEntry {
@@ -7805,45 +7600,17 @@ mod tests {
     }
 
     #[test]
-    fn budget_evicted_playback_cache_does_not_requeue_completed_source_work() {
-        let (_directory, source) = ready_analysis_source("playback-budget-eviction");
+    fn legacy_playback_readiness_is_retired_without_requeueing_source_work() {
+        let (_directory, source) = ready_analysis_source("legacy-playback-retirement");
         let database_root = source.database_root().expect("database root");
-        let (cache_ref, completed_at) = seed_legacy_playback_artifact(&source);
-
-        invalidate_persisted_waveform_cache_ref(&cache_ref);
-        assert!(
-            !cache_ref.exists(),
-            "fixture should model bounded-cache eviction"
-        );
+        let (cache_ref, _) = seed_legacy_playback_artifact(&source);
 
         let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
             &source.root,
             &database_root,
             SourceDatabaseConnectionRole::JobWorker,
         )
-        .expect("reopen source after cache eviction");
-        assert!(matches!(
-            reconcile_playback_cache_ownership(&source, &mut connection, &AtomicBool::new(false))
-                .expect("reconcile evicted cache ownership"),
-            Cancellable::Completed(1)
-        ));
-
-        let (artifact_ref, persisted_completed_at) = connection
-            .query_row(
-                "SELECT artifact_ref, completed_at
-                 FROM source_readiness_artifacts
-                 WHERE source_id = ?1 AND stage = 'playback_summary'",
-                [source.id.as_str()],
-                |row| Ok((row.get::<_, Option<String>>(0)?, row.get::<_, i64>(1)?)),
-            )
-            .expect("read preserved playback artifact");
-        assert_eq!(artifact_ref, None);
-        assert_eq!(persisted_completed_at, completed_at);
-        assert!(matches!(
-            reconcile_playback_cache_ownership(&source, &mut connection, &AtomicBool::new(false))
-                .expect("repeat cache-ownership reconciliation"),
-            Cancellable::Completed(0)
-        ));
+        .expect("reopen source with legacy playback rows");
 
         let snapshot = reconcile_readiness_with_cancel_and_progress(
             &connection,
@@ -7852,24 +7619,98 @@ mod tests {
             &AtomicBool::new(false),
             &mut || {},
         )
-        .expect("reconcile source readiness after cache eviction");
-        let playback = snapshot
-            .entries
-            .iter()
-            .find(|entry| entry.target.stage == ReadinessStage::PlaybackSummary)
-            .expect("playback readiness entry");
-        assert_eq!(playback.classification, ReadinessClassification::Current);
-        assert!(
-            snapshot
-                .deficits
-                .iter()
-                .all(|deficit| deficit.target.stage != ReadinessStage::PlaybackSummary),
-            "bounded-cache eviction must not recreate completed playback work"
-        );
+        .expect("ignore legacy playback rows during reconciliation");
+        assert_eq!(snapshot.entries.len(), 4);
+
+        assert!(matches!(
+            retire_legacy_playback_readiness(&source, &mut connection, &AtomicBool::new(false))
+                .expect("retire legacy playback readiness"),
+            Cancellable::Completed(2)
+        ));
+        let playback_rows = connection
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM source_readiness_targets
+                     WHERE source_id = ?1 AND stage = 'playback_summary')
+                  + (SELECT COUNT(*) FROM source_readiness_artifacts
+                     WHERE source_id = ?1 AND stage = 'playback_summary')
+                  + (SELECT COUNT(*) FROM analysis_jobs
+                     WHERE source_id = ?1
+                       AND readiness_managed = 1
+                       AND readiness_stage = 'playback_summary')",
+                [source.id.as_str()],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count retired playback rows");
+        assert_eq!(playback_rows, 0);
+        assert!(!cache_ref.exists());
+        assert!(matches!(
+            retire_legacy_playback_readiness(&source, &mut connection, &AtomicBool::new(false))
+                .expect("repeat legacy retirement"),
+            Cancellable::Completed(0)
+        ));
     }
 
     #[test]
-    fn committed_delete_retires_exact_owned_playback_cache_without_old_file_metadata() {
+    fn post_commit_cancellation_still_retires_every_legacy_cache_ref() {
+        let (_directory, source) = ready_analysis_source("legacy-playback-cancellation");
+        let database_root = source.database_root().expect("database root");
+        let (first_cache_ref, now) = seed_legacy_playback_artifact(&source);
+        let second_cache_ref = seed_managed_legacy_cache_ref(&source, "second", now);
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .expect("reopen source with multiple legacy playback rows");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_targets (
+                    source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                    source_generation, content_generation, eligibility, updated_at
+                 )
+                 SELECT source_id, scope_kind, 'legacy-second', 'legacy-second.wav', stage,
+                        required_version, source_generation, content_generation, eligibility,
+                        updated_at
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1 AND stage = 'playback_summary'",
+                [source.id.as_str()],
+            )
+            .expect("seed second legacy playback target");
+        connection
+            .execute(
+                "INSERT INTO source_readiness_artifacts (
+                    source_id, scope_kind, scope_id, relative_path, stage, artifact_version,
+                    source_generation, content_generation, artifact_ref, completed_at
+                 )
+                 SELECT source_id, scope_kind, scope_id, relative_path, stage, required_version,
+                        source_generation, content_generation, ?2, ?3
+                 FROM source_readiness_targets
+                 WHERE source_id = ?1
+                   AND scope_id = 'legacy-second'
+                   AND stage = 'playback_summary'",
+                params![source.id.as_str(), second_cache_ref.to_string_lossy(), now],
+            )
+            .expect("seed second legacy playback artifact");
+
+        let cancel = AtomicBool::new(false);
+        assert!(matches!(
+            retire_legacy_playback_readiness_with_post_commit_hook(
+                &source,
+                &mut connection,
+                &cancel,
+                || cancel.store(true, Ordering::Release),
+            )
+            .expect("retire every captured legacy playback reference"),
+            Cancellable::Completed(4)
+        ));
+        assert!(cancelled(&cancel));
+        assert!(!first_cache_ref.exists());
+        assert!(!second_cache_ref.exists());
+    }
+
+    #[test]
+    fn legacy_playback_cache_owner_is_retired_after_committed_delete() {
         let (_directory, source) = ready_analysis_source("playback-delete");
         let database_root = source.database_root().expect("database root");
         let (owned_cache_ref, _) = seed_legacy_playback_artifact(&source);
@@ -8623,7 +8464,6 @@ mod tests {
         );
         let mut targets = vec![target.clone()];
         for stage in [
-            ReadinessStage::PlaybackSummary,
             ReadinessStage::AnalysisFeatures,
             ReadinessStage::EmbeddingAspects,
         ] {
@@ -8711,11 +8551,11 @@ mod tests {
             1,
             "pending-identity",
         ));
-        let mut playback_task = indexed.clone();
-        let RuntimeTask::Readiness(playback_target) = &mut playback_task else {
+        let mut analysis_task = indexed.clone();
+        let RuntimeTask::Readiness(analysis_target) = &mut analysis_task else {
             unreachable!();
         };
-        playback_target.stage = ReadinessStage::PlaybackSummary;
+        analysis_target.stage = ReadinessStage::AnalysisFeatures;
 
         assert_eq!(
             candidate_invalidation_scope(&indexed, Some(ExecutionOutcome::Retried { retry_at: 5 })),
@@ -8737,7 +8577,7 @@ mod tests {
             "recording an already exact indexed identity must preserve same-generation dependents"
         );
         assert_eq!(
-            candidate_invalidation_scope(&playback_task, Some(ExecutionOutcome::Completed)),
+            candidate_invalidation_scope(&analysis_task, Some(ExecutionOutcome::Completed)),
             CandidateInvalidationScope::None
         );
         assert_eq!(
@@ -9215,11 +9055,7 @@ mod tests {
         .expect("open legacy playback database");
         publish_current_readiness_targets(&mut connection, source.id.as_str(), now)
             .expect("publish current target matrix");
-        let cache_ref = ensure_persisted_playback_summary(
-            source.root.join("ready.wav"),
-            &AtomicBool::new(false),
-        )
-        .expect("seed legacy playback cache");
+        let cache_ref = seed_managed_legacy_cache_ref(source, "first", now);
         connection
             .execute(
                 "INSERT INTO source_readiness_targets (
@@ -9248,6 +9084,22 @@ mod tests {
             )
             .expect("seed legacy playback artifact");
         (cache_ref, now)
+    }
+
+    fn seed_managed_legacy_cache_ref(
+        source: &SampleSource,
+        label: &str,
+        now: i64,
+    ) -> std::path::PathBuf {
+        let cache_directory =
+            wavecrate::app_dirs::waveform_cache_dir().expect("resolve waveform cache directory");
+        std::fs::create_dir_all(&cache_directory).expect("create waveform cache directory");
+        let cache_ref = cache_directory.join(format!(
+            "legacy-playback-{}-{label}-{now}.wfc",
+            source.id.as_str()
+        ));
+        std::fs::write(&cache_ref, b"legacy playback cache").expect("seed legacy playback cache");
+        cache_ref
     }
 
     fn source_is_hashed(source: &SampleSource) -> bool {

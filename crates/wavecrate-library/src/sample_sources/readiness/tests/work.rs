@@ -58,7 +58,7 @@ fn work_stats_exclude_jobs_for_identities_no_longer_in_the_current_manifest() {
 #[test]
 fn expired_claim_is_recovered_after_restart_with_a_new_attempt() {
     let (root, mut connection) = open_fixture();
-    let target = file_target("restart", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("restart", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&target));
     persist_target(&mut connection, &target, 10);
     let first = claim_readiness_target(&mut connection, &target, 10, 10)
@@ -118,9 +118,9 @@ fn stale_completion_cannot_publish_over_a_changed_exact_target() {
 }
 
 #[test]
-fn cache_backed_completion_persists_exact_reverse_ownership_atomically() {
+fn completion_persists_an_exact_artifact_reference_atomically() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("owned", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("owned", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&target));
     persist_target(&mut connection, &target, 10);
     let claim = claim_readiness_target(&mut connection, &target, 10, 100)
@@ -141,7 +141,7 @@ fn cache_backed_completion_persists_exact_reverse_ownership_atomically() {
         .query_row(
             "SELECT relative_path, artifact_ref, content_generation
              FROM source_readiness_artifacts
-             WHERE source_id = ?1 AND scope_id = ?2 AND stage = 'playback_summary'",
+             WHERE source_id = ?1 AND scope_id = ?2 AND stage = 'analysis_features'",
             rusqlite::params![SOURCE_ID, target.scope_id],
             |row| {
                 Ok((
@@ -158,16 +158,16 @@ fn cache_backed_completion_persists_exact_reverse_ownership_atomically() {
 }
 
 #[test]
-fn stale_cache_backed_completion_cannot_replace_current_ownership() {
+fn stale_completion_cannot_replace_a_current_artifact_reference() {
     let (_root, mut connection) = open_fixture();
-    let original = file_target("owned-stale", ReadinessStage::PlaybackSummary, 1);
+    let original = file_target("owned-stale", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&original));
     persist_target(&mut connection, &original, 10);
     let stale_claim = claim_readiness_target(&mut connection, &original, 10, 100)
         .expect("claim original target")
         .expect("original target available");
 
-    let current = file_target("owned-stale", ReadinessStage::PlaybackSummary, 2);
+    let current = file_target("owned-stale", ReadinessStage::AnalysisFeatures, 2);
     replace(&mut connection, 2, std::slice::from_ref(&current));
     assert_eq!(
         complete_readiness_work_with_artifact_ref(
@@ -183,7 +183,7 @@ fn stale_cache_backed_completion_cannot_replace_current_ownership() {
         connection
             .query_row(
                 "SELECT COUNT(*) FROM source_readiness_artifacts
-                 WHERE source_id = ?1 AND scope_id = ?2 AND stage = 'playback_summary'",
+                 WHERE source_id = ?1 AND scope_id = ?2 AND stage = 'analysis_features'",
                 rusqlite::params![SOURCE_ID, original.scope_id],
                 |row| row.get::<_, i64>(0),
             )
@@ -224,7 +224,7 @@ fn file_completion_survives_unrelated_source_generation_changes() {
 #[test]
 fn retry_backoff_is_bounded_and_exhaustion_becomes_terminal() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("retry", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("retry", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&target));
     persist_target(&mut connection, &target, 0);
     let policy = ReadinessRetryPolicy::new(5, 20, 3).expect("valid retry policy");
@@ -315,12 +315,11 @@ fn similarity_layout_waits_for_delayed_embeddings_without_hot_reclaiming() {
     const RETRY_AT: i64 = 180;
 
     let (_root, mut connection) = open_fixture();
-    let mut targets = Vec::with_capacity(FILE_COUNT * 4 + 1);
+    let mut targets = Vec::with_capacity(FILE_COUNT * 3 + 1);
     for index in 0..FILE_COUNT {
         let identity = format!("sample-{index:02}");
         for stage in [
             ReadinessStage::IndexedIdentity,
-            ReadinessStage::PlaybackSummary,
             ReadinessStage::AnalysisFeatures,
             ReadinessStage::EmbeddingAspects,
         ] {
@@ -338,7 +337,7 @@ fn similarity_layout_waits_for_delayed_embeddings_without_hot_reclaiming() {
     replace(&mut connection, 1, &targets);
 
     let initial = reconcile_readiness(&connection, SOURCE_ID, NOW).expect("initial snapshot");
-    assert_eq!(initial.deficits.len(), FILE_COUNT * 4 + 1);
+    assert_eq!(initial.deficits.len(), FILE_COUNT * 3 + 1);
     persist_readiness_deficits(&mut connection, &initial.deficits, NOW)
         .expect("persist exact readiness queue");
 
@@ -387,9 +386,9 @@ fn similarity_layout_waits_for_delayed_embeddings_without_hot_reclaiming() {
     assert_eq!(waiting.deficits.len(), 1);
     assert_eq!(waiting.deficits[0].target, layout);
     assert!(!waiting.prerequisites_are_current(&layout));
-    let stats = readiness_work_stats(&connection, NOW + 1).expect("72 of 77 stats");
-    assert_eq!(stats.completed, 72);
-    assert_eq!(stats.total, 77);
+    let stats = readiness_work_stats(&connection, NOW + 1).expect("53 of 58 stats");
+    assert_eq!(stats.completed, 53);
+    assert_eq!(stats.total, 58);
     assert_eq!(stats.pending, 1);
     assert_eq!(stats.retries_waiting, DELAYED_EMBEDDINGS);
     assert_eq!(stats.earliest_retry_at, Some(RETRY_AT));
@@ -609,7 +608,7 @@ fn benign_reclaims_do_not_consume_retry_backoff_attempts() {
 #[test]
 fn lease_renewal_extends_only_the_current_unexpired_claim() {
     let (_root, mut connection) = open_fixture();
-    let target = file_target("renew", ReadinessStage::PlaybackSummary, 1);
+    let target = file_target("renew", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&target));
     persist_target(&mut connection, &target, 0);
     let claim = claim_readiness_target(&mut connection, &target, 0, 10)

@@ -305,8 +305,11 @@ fn portal_changelog_assembler_preserves_legacy_nightly_sections_after_current_st
         .expect("serialize existing changelog"),
     )
     .expect("write existing changelog");
-    fs::write(&release_log, "# Wavecrate 19.1.0\n\n- Repaired stable body\n")
-        .expect("write current log");
+    fs::write(
+        &release_log,
+        "# Wavecrate 19.1.0\n\n- Repaired stable body\n",
+    )
+    .expect("write current log");
 
     run_success(
         Command::new("python3")
