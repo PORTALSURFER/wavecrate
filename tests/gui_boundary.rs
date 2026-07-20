@@ -900,6 +900,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "owned source processing supervisor worker boundary",
         ),
         (
+            "src/native_app/source_processing/supervisor/",
+            "owned source processing supervisor service workers",
+        ),
+        (
             "src/native_app/source_processing/worker",
             "owned source analysis worker process boundary",
         ),

@@ -9,3 +9,6 @@
 # Prefer shrinking or splitting these files over time and delete entries once
 # they fall back under the budget.
 
+# Legacy guardrail registry updated by OPT-1207 to recognize the extracted
+# source-processing worker directory.
+tests/gui_boundary.rs

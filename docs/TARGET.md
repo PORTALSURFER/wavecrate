@@ -328,6 +328,17 @@ Configured source lifecycles also carry a runtime epoch distinct from the durabl
 
 The source-processing supervisor publishes progress, readiness advancement, manifest-audit handoff, retry/block state, and completion through one typed backend-neutral event sink. Every source-scoped event carries its configured lifecycle epoch and is rejected before delivery when that epoch is no longer current. The supervisor owns ordering and bounded progress throttling; native-app adapters own `GuiMessage` construction and user-facing stage/detail wording. Telemetry and non-GUI observers consume the semantic event model without depending on native presentation types.
 
+The native source-processing implementation has one public supervisor facade and one
+coordinator thread. Internally, the facade owns lifecycle and admission calls, while the
+coordinator delegates through focused discovery/reconciliation, work-execution,
+retirement/cleanup, progress-event, and telemetry services. Shared coordinator state,
+runtime task models, source-registry identity, and cache-ownership queries are explicit
+lower-level contracts. Dependencies point from the facade to the coordinator, from the
+coordinator to services, and from services to those contracts; a service must not import
+the facade or coordinator, reach through another service, or start a second coordinator
+or persistence queue. The existing joined retirement cleanup worker remains an
+implementation detail of the retirement service.
+
 Source retirement keeps the audio folder, authoritative source database, source manifest, reusable analysis/similarity artifacts, and safe content-addressed analysis caches. It releases source-owned in-memory playback/preview/browser state and asynchronously removes readiness-managed jobs and unshared managed cache payloads. The source descriptor registry retains role, metadata-storage policy, and primary-import settings so protected/AppData sources rehydrate safely; corrupt present descriptor values fail closed. Cleanup is idempotent, retryable after unavailable/read-only storage, recovered from retained inactive descriptors at startup, and bounded so removal never waits for database maintenance or cache garbage collection.
 
 For every current eligible file, the readiness stages are:

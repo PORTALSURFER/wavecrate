@@ -56,12 +56,37 @@ run_step "Wavecrate strict slow-handler diagnostics harness" \
 run_step "Wavecrate readiness persistence boundary" \
   bash -c '
     set -euo pipefail
-    supervisor_source="$(sed "/^mod tests {/q" src/native_app/source_processing/supervisor.rs)"
+    supervisor_source="$(
+      cat src/native_app/source_processing/supervisor.rs
+      find src/native_app/source_processing/supervisor -maxdepth 1 -type f -name "*.rs" \
+        -exec cat {} +
+    )"
     similarity_source="$(cat src/native_app/sample_library/similarity_artifacts/worker.rs)"
     production_source="${supervisor_source}
 ${similarity_source}"
     if printf "%s\\n" "$production_source" | rg -n "source_readiness_(sources|targets|artifacts)|(^|[^[:alnum:]_])analysis_jobs([^[:alnum:]_]|$)|readiness_managed"; then
       echo "[non_blocking_architecture] native source processing must use ReadinessStore for readiness persistence" >&2
+      exit 1
+    fi
+  '
+
+run_step "Wavecrate source-processing service boundary" \
+  bash -c '
+    set -euo pipefail
+    service_dir="src/native_app/source_processing/supervisor"
+    if rg -n "^use super::\\*;" "$service_dir" \
+      --glob "*.rs" --glob "!**/tests/**"; then
+      echo "[non_blocking_architecture] source-processing production modules must declare explicit contracts" >&2
+      exit 1
+    fi
+    if rg -n \
+      "SourceProcessingSupervisor|run_coordinator|CoordinatorExecutionState|execute_candidates" \
+      "$service_dir"/discovery*.rs \
+      "$service_dir"/execution*.rs \
+      "$service_dir"/retirement*.rs \
+      "$service_dir"/progress.rs \
+      "$service_dir"/telemetry.rs; then
+      echo "[non_blocking_architecture] source-processing services must not reach into the facade or coordinator" >&2
       exit 1
     fi
   '

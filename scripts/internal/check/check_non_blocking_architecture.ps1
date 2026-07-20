@@ -62,6 +62,40 @@ try {
     Invoke-WavecrateCargo test --package wavecrate --no-default-features rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
   }
 
+  Invoke-NativeStep -Label "Wavecrate readiness persistence boundary" -Command {
+    $supervisorFiles = @(
+      (Join-Path $rootDir "src/native_app/source_processing/supervisor.rs")
+    ) + @(
+      Get-ChildItem (Join-Path $rootDir "src/native_app/source_processing/supervisor") -File -Filter "*.rs" |
+        ForEach-Object { $_.FullName }
+    )
+    $productionSource = (($supervisorFiles | ForEach-Object {
+      Get-Content $_ -Raw
+    }) -join "`n") + "`n" + (
+      Get-Content (Join-Path $rootDir "src/native_app/sample_library/similarity_artifacts/worker.rs") -Raw
+    )
+    if ($productionSource | Select-String -Pattern "source_readiness_(sources|targets|artifacts)|(^|[^A-Za-z0-9_])analysis_jobs([^A-Za-z0-9_]|$)|readiness_managed") {
+      throw "Native source processing must use ReadinessStore for readiness persistence."
+    }
+  }
+
+  Invoke-NativeStep -Label "Wavecrate source-processing service boundary" -Command {
+    $serviceDir = Join-Path $rootDir "src/native_app/source_processing/supervisor"
+    $serviceFiles = Get-ChildItem $serviceDir -File -Filter "*.rs"
+    $wildcardImports = $serviceFiles | Select-String -Pattern "^use super::\*;"
+    if ($wildcardImports) {
+      throw "Source-processing production modules must declare explicit contracts."
+    }
+    $ownedServices = $serviceFiles | Where-Object {
+      $_.Name -match "^(discovery|execution|retirement)" -or
+      $_.Name -in @("progress.rs", "telemetry.rs")
+    }
+    $facadeCrossings = $ownedServices | Select-String -Pattern "SourceProcessingSupervisor|run_coordinator|CoordinatorExecutionState|execute_candidates"
+    if ($facadeCrossings) {
+      throw "Source-processing services must not reach into the facade or coordinator."
+    }
+  }
+
   Write-Host "[non_blocking_architecture] OK"
   exit 0
 } finally {
