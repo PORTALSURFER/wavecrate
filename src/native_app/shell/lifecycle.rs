@@ -19,6 +19,17 @@ const UI_FRAME_CADENCE: frame_ui::FrameCadenceConfig =
 
 impl NativeAppState {
     pub(in crate::native_app) fn load_default() -> Result<Self, String> {
+        Self::load_default_with_runtime_background(cfg!(not(test)))
+    }
+
+    #[cfg(any(test, feature = "legacy-controller"))]
+    pub(in crate::native_app) fn load_for_automation() -> Result<Self, String> {
+        Self::load_default_with_runtime_background(true)
+    }
+
+    fn load_default_with_runtime_background(
+        start_runtime_background: bool,
+    ) -> Result<Self, String> {
         let started_at = Instant::now();
         let config = wavecrate::sample_sources::config::load_or_default()
             .map_err(|err| format!("load app configuration: {err}"))?;
@@ -38,8 +49,21 @@ impl NativeAppState {
                 worker_sender.clone(),
             )
         });
-        let background =
-            BackgroundTaskState::new(worker_sender, Some(worker_receiver), config.sources.clone());
+        #[cfg(any(test, feature = "legacy-controller"))]
+        let background = if start_runtime_background {
+            BackgroundTaskState::new_runtime(
+                worker_sender,
+                Some(worker_receiver),
+                config.sources.clone(),
+            )
+        } else {
+            BackgroundTaskState::new(worker_sender, Some(worker_receiver), config.sources.clone())
+        };
+        #[cfg(not(any(test, feature = "legacy-controller")))]
+        let background = {
+            let _ = start_runtime_background;
+            BackgroundTaskState::new(worker_sender, Some(worker_receiver), config.sources.clone())
+        };
         let audio = AudioAppState::from_settings(&config.core);
         let startup = StartupState::new(
             startup_source_scan_pending,
@@ -78,6 +102,28 @@ impl NativeAppState {
             None,
         );
         Ok(state)
+    }
+
+    #[cfg(any(test, feature = "legacy-controller"))]
+    pub(in crate::native_app) fn automation_runtime_composition(
+        &self,
+    ) -> crate::native_app::automation::NativeRuntimeComposition {
+        crate::native_app::automation::NativeRuntimeComposition {
+            source_watcher_count: usize::from(self.library.source_watcher.is_some()),
+            readiness_supervisor_count: usize::from(self.background.source_processing.is_running()),
+            legacy_analysis_pool_count: 0,
+        }
+    }
+
+    #[cfg(any(test, feature = "legacy-controller"))]
+    pub(in crate::native_app) fn wait_for_source_watcher_ready(
+        &self,
+        timeout: Duration,
+    ) -> Result<(), String> {
+        match self.library.source_watcher.as_ref() {
+            Some(watcher) => watcher.wait_until_ready(timeout),
+            None => Ok(()),
+        }
     }
 
     pub(in crate::native_app) fn sync_source_watcher(&mut self) {

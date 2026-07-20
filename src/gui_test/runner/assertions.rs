@@ -1,13 +1,14 @@
 //! Semantic assertion helpers for the in-process GUI scenario runner.
 
 use crate::{
-    app_core::actions::{NativeGuiAutomationSnapshot, action_catalog_entry_by_id},
+    app_core::actions::action_catalog_entry_by_id,
     gui_test::{GuiActionTraceEvent, GuiAssertion, find_automation_node},
 };
+use radiant::gui::automation::GuiAutomationSnapshot;
 
 /// Evaluate one semantic GUI assertion against the latest snapshot and action trace.
 pub(super) fn assert_scenario_state(
-    snapshot: &NativeGuiAutomationSnapshot,
+    snapshot: &GuiAutomationSnapshot,
     trace: &[GuiActionTraceEvent],
     assertion: &GuiAssertion,
 ) -> Result<(), String> {

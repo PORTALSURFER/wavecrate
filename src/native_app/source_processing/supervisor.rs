@@ -412,6 +412,11 @@ impl Drop for SourceProcessingBudgetPermit {
     }
 }
 
+fn install_worker_app_root(app_root: PathBuf) -> wavecrate::app_dirs::AppRootGuard {
+    wavecrate::app_dirs::AppRootGuard::set(app_root)
+        .expect("source-processing worker should inherit the resolved persistence root")
+}
+
 impl SourceProcessingSupervisor {
     #[cfg(test)]
     pub(in crate::native_app) fn start(sources: Vec<SampleSource>) -> Self {
@@ -445,20 +450,30 @@ impl SourceProcessingSupervisor {
         event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
         synthetic_test_execution: bool,
     ) -> Self {
+        let app_root = wavecrate::app_dirs::app_root_dir()
+            .expect("source-processing supervisor should resolve its persistence root");
         let shared = Arc::new(Shared::new(sources, event_sink));
         shared.control().playback_active = playback_active;
         shared
             .synthetic_test_execution
             .store(synthetic_test_execution, Ordering::Release);
         let thread_shared = Arc::clone(&shared);
+        let coordinator_app_root = app_root.clone();
         let coordinator = thread::Builder::new()
             .name(String::from("wavecrate-source-supervisor"))
-            .spawn(move || run_coordinator(thread_shared))
+            .spawn(move || {
+                let _app_root_guard = install_worker_app_root(coordinator_app_root);
+                run_coordinator(thread_shared);
+            })
             .expect("spawn source processing supervisor");
         let retirement_shared = Arc::clone(&shared);
+        let retirement_app_root = app_root;
         let retirement_worker = thread::Builder::new()
             .name(String::from("wavecrate-source-retirement"))
-            .spawn(move || run_retirement_worker(retirement_shared))
+            .spawn(move || {
+                let _app_root_guard = install_worker_app_root(retirement_app_root);
+                run_retirement_worker(retirement_shared);
+            })
             .expect("spawn source retirement worker");
         Self {
             shared,
@@ -474,6 +489,11 @@ impl SourceProcessingSupervisor {
             coordinator: None,
             retirement_worker: None,
         }
+    }
+
+    #[cfg(any(test, feature = "legacy-controller"))]
+    pub(in crate::native_app) fn is_running(&self) -> bool {
+        self.coordinator.is_some() && self.retirement_worker.is_some()
     }
 
     #[cfg(test)]

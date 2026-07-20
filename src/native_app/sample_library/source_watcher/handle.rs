@@ -306,14 +306,20 @@ impl GuiSourceWatcherHandle {
             .send(GuiSourceWatchCommand::InjectPaths(paths));
     }
 
-    #[cfg(test)]
-    pub(in crate::native_app) fn wait_until_ready_for_tests(&self) {
+    #[cfg(any(test, feature = "legacy-controller"))]
+    pub(in crate::native_app) fn wait_until_ready(&self, timeout: Duration) -> Result<(), String> {
         let (ready_tx, ready_rx) = std::sync::mpsc::channel();
         self.command_tx
             .send(GuiSourceWatchCommand::AwaitReady(ready_tx))
-            .expect("request source watcher readiness");
+            .map_err(|_| String::from("request source watcher readiness"))?;
         ready_rx
-            .recv_timeout(Duration::from_secs(30))
+            .recv_timeout(timeout)
+            .map_err(|_| String::from("source watcher did not become ready"))
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn wait_until_ready_for_tests(&self) {
+        self.wait_until_ready(Duration::from_secs(30))
             .expect("source watcher should become ready");
     }
 }
@@ -342,7 +348,7 @@ enum GuiSourceWatchCommand {
     ForceRestart,
     #[cfg(test)]
     ForceRootRefresh,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "legacy-controller"))]
     AwaitReady(Sender<()>),
     #[cfg(test)]
     InjectPaths(Vec<std::path::PathBuf>),
@@ -370,7 +376,7 @@ fn run_source_watcher(
     let mut next_root_refresh = Instant::now();
     let mut root_identity_recovery = RootIdentityRecovery::default();
     let mut watcher_has_been_ready = false;
-    #[cfg(test)]
+    #[cfg(any(test, feature = "legacy-controller"))]
     let mut readiness_waiters = Vec::<Sender<()>>::new();
 
     loop {
@@ -416,7 +422,7 @@ fn run_source_watcher(
             Ok(GuiSourceWatchCommand::ForceRootRefresh) => {
                 next_root_refresh = Instant::now();
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "legacy-controller"))]
             Ok(GuiSourceWatchCommand::AwaitReady(ready_tx)) => {
                 readiness_waiters.push(ready_tx);
             }
@@ -640,7 +646,7 @@ fn run_source_watcher(
                 }
             }
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "legacy-controller"))]
         if watcher.is_some() {
             for ready in readiness_waiters.drain(..) {
                 let _ = ready.send(());

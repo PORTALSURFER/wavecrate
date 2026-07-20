@@ -7,9 +7,8 @@ use crate::{
             NativeSegmentRevisions, NativeUiAction,
         },
         gui_fixtures::build_named_gui_fixture_controller,
-        ui_bridge::{WavecrateUiBridge, new_ui_bridge, new_ui_bridge_with_controller},
+        ui_bridge::{WavecrateUiBridge, new_ui_bridge_with_controller},
     },
-    app_dirs::PersistenceProfileGuard,
     gui_test::{
         GuiTestModeConfig, canonical_gui_test_fixture_tag, gui_test_fixture_uses_isolated_startup,
         gui_test_fixture_uses_live_profile,
@@ -27,7 +26,6 @@ use tempfile::TempDir;
 /// delegating all bridge behavior to `WavecrateUiBridge`.
 pub struct GuiFixtureBridge {
     bridge: WavecrateUiBridge,
-    _profile_guard: Option<PersistenceProfileGuard>,
     _sandbox_guards: Vec<TempDir>,
     shutdown_emitted: bool,
 }
@@ -35,36 +33,16 @@ pub struct GuiFixtureBridge {
 impl GuiFixtureBridge {
     /// Build one bridge for the requested fixture tag and viewport.
     ///
-    /// The `live` fixture uses the normal persisted startup path. The canonical
-    /// `isolated-startup` fixture exercises persisted startup against the
-    /// dedicated automated-validation profile. The legacy `default` tag remains a
-    /// compatibility alias for `isolated-startup`. Named controller fixtures
-    /// use deterministic seeded controllers without touching user data.
+    /// Product-native `live` and `isolated-startup` fixtures are owned by the
+    /// native runner. This compatibility bridge accepts only named seeded
+    /// fixtures and never certifies product startup.
     pub fn new_with_viewport(fixture_tag: &str, viewport: [u32; 2]) -> Result<Self, String> {
-        if gui_test_fixture_uses_live_profile(fixture_tag) {
-            let bridge = new_ui_bridge(
-                WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
-                None,
-            )?;
-            return Ok(Self {
-                bridge,
-                _profile_guard: None,
-                _sandbox_guards: Vec::new(),
-                shutdown_emitted: false,
-            });
-        }
-        if gui_test_fixture_uses_isolated_startup(fixture_tag) {
-            let profile_guard = PersistenceProfileGuard::automated();
-            let bridge = new_ui_bridge(
-                WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
-                None,
-            )?;
-            return Ok(Self {
-                bridge,
-                _profile_guard: Some(profile_guard),
-                _sandbox_guards: Vec::new(),
-                shutdown_emitted: false,
-            });
+        if gui_test_fixture_uses_live_profile(fixture_tag)
+            || gui_test_fixture_uses_isolated_startup(fixture_tag)
+        {
+            return Err(format!(
+                "fixture {fixture_tag} is owned by the product-native GUI harness"
+            ));
         }
         let bundle = build_named_gui_fixture_controller(
             WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
@@ -72,7 +50,6 @@ impl GuiFixtureBridge {
         )?;
         Ok(Self {
             bridge: new_ui_bridge_with_controller(bundle.controller),
-            _profile_guard: None,
             _sandbox_guards: bundle.sandbox_guards,
             shutdown_emitted: false,
         })
@@ -199,23 +176,21 @@ mod tests {
 
     #[test]
     #[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
-    fn default_fixture_alias_matches_isolated_startup_behavior() {
-        let default_bridge = GuiFixtureBridge::new("default").expect("default fixture bridge");
-        let isolated_bridge = GuiFixtureBridge::new(GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG)
-            .expect("isolated startup bridge");
-        assert_eq!(
-            default_bridge._profile_guard.is_some(),
-            isolated_bridge._profile_guard.is_some()
-        );
-        assert!(default_bridge._sandbox_guards.is_empty());
-        assert!(isolated_bridge._sandbox_guards.is_empty());
+    fn product_startup_fixtures_are_rejected_by_legacy_bridge() {
+        let default_error = GuiFixtureBridge::new("default")
+            .err()
+            .expect("default is native");
+        let isolated_error = GuiFixtureBridge::new(GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG)
+            .err()
+            .expect("isolated startup is native");
+        assert!(default_error.contains("product-native"));
+        assert!(isolated_error.contains("product-native"));
     }
 
     #[test]
     #[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
     fn named_fixtures_stay_controller_backed() {
         let bridge = GuiFixtureBridge::new("browser").expect("browser fixture bridge");
-        assert!(bridge._profile_guard.is_none());
         assert!(!bridge._sandbox_guards.is_empty());
     }
 }

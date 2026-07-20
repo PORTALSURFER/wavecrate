@@ -14,7 +14,7 @@ mod resolution;
 mod state;
 
 pub use error::AppDirError;
-pub use overrides::ConfigBaseGuard;
+pub use overrides::{AppRootGuard, ConfigBaseGuard};
 pub use paths::{
     clear_rebuildable_cache_payloads, handoff_staging_dir, logs_dir, rebuildable_cache_root_dir,
     waveform_cache_dir,

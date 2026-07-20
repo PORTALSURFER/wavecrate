@@ -441,10 +441,12 @@ Enables deterministic GUI test mode for the main app binary.
 
 - `WAVECRATE_GUI_TEST_FIXTURE`
 Selects the GUI fixture used in GUI test mode. The default is
-`isolated-startup`, which keeps automated runs on a dedicated non-live
-profile. Use `live` only when you explicitly want GUI validation to exercise
-the real persisted startup profile. The legacy `default` tag is accepted only
- as an alias for `isolated-startup`.
+`isolated-startup`, which captures the production native app composition on a
+temporary config base using the dedicated non-live `automated-tests` profile.
+Use `live` only when you explicitly want GUI validation to exercise the real
+persisted startup profile. The legacy `default` tag is accepted only as an alias
+for `isolated-startup`. Named deterministic fixtures remain retained-controller
+compatibility tools and are not product-startup certification.
 
 ## Logging
 

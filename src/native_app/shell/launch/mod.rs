@@ -18,9 +18,11 @@ pub(in crate::native_app) use args::{
 pub(in crate::native_app) use logging::emit_gui_action;
 #[cfg(test)]
 pub(in crate::native_app) use options::default_window_title;
+#[cfg(any(test, feature = "legacy-controller"))]
+pub(in crate::native_app) use radiant_runtime::native_app_runtime_bridge;
 
 /// Run the default Radiant GUI application shell.
-pub(crate) fn run() -> Result<(), String> {
+pub fn run() -> Result<(), String> {
     if let Some(result_json) =
         crate::native_app::source_processing::run_internal_source_analysis_from_args()?
     {

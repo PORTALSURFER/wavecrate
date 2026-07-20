@@ -1,8 +1,11 @@
 //! Machine-readable GUI test artifacts shared by the CLI, bridge, and docs.
 
 use crate::app_core::actions::{
-    GUI_ACTION_CATALOG, GuiActionCatalogEntry, NativeAppModel, NativeGuiAutomationSnapshot,
-    NativeUiAction, action_catalog_entry,
+    GUI_ACTION_CATALOG, GuiActionCatalogEntry, NativeAppModel, NativeAutomationNodeSnapshot,
+    NativeAutomationRole, NativeGuiAutomationSnapshot, NativeUiAction, action_catalog_entry,
+};
+use radiant::gui::automation::{
+    AutomationNodeSemantics, AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot,
 };
 use serde::Serialize;
 use std::{
@@ -56,6 +59,27 @@ pub struct GuiModelSummary {
     pub update_status: String,
 }
 
+/// Runtime family that produced one GUI test artifact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GuiFixtureRuntime {
+    /// Production `NativeAppState` lowered through the Radiant host boundary.
+    NativeApp,
+    /// Retained `AppController` compatibility fixture.
+    LegacyController,
+}
+
+/// Observable worker ownership for one GUI fixture runtime.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct GuiRuntimeComposition {
+    /// Number of native filesystem watcher coordinators.
+    pub native_source_watchers: usize,
+    /// Number of native readiness supervisors.
+    pub native_readiness_supervisors: usize,
+    /// Number of retained controller analysis pools.
+    pub legacy_analysis_pools: usize,
+}
+
 /// Timing sample for one named GUI scenario step.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct GuiStepTimingSample {
@@ -78,8 +102,14 @@ pub struct GuiTestArtifactBundle {
     pub run_id: Option<String>,
     /// Runtime manifest path associated with the bundle, when any.
     pub run_manifest_path: Option<String>,
+    /// Runtime family that produced the artifact.
+    pub fixture_runtime: GuiFixtureRuntime,
+    /// Observable background-worker ownership, when the runtime exposes it.
+    pub runtime_composition: Option<GuiRuntimeComposition>,
+    /// Artifact returned by the fixture runtime's shutdown hook.
+    pub shutdown_artifact: Option<serde_json::Value>,
     /// Latest semantic automation snapshot.
-    pub automation_snapshot: NativeGuiAutomationSnapshot,
+    pub automation_snapshot: GuiAutomationSnapshot,
     /// Recorded action trace.
     pub action_trace: Vec<GuiActionTraceEvent>,
     /// Compact projected-model summary.
@@ -111,6 +141,114 @@ pub fn build_model_summary(model: &NativeAppModel) -> GuiModelSummary {
         progress_visible: model.progress_overlay.visible,
         update_status: format!("{:?}", model.update.status),
     }
+}
+
+/// Build a compact summary from the production native automation tree.
+pub(crate) fn build_native_model_summary(snapshot: &GuiAutomationSnapshot) -> GuiModelSummary {
+    let mut nodes = Vec::new();
+    collect_nodes(&snapshot.root, &mut nodes);
+    let selected_rows = nodes
+        .iter()
+        .filter(|node| node.role == AutomationRole::Row && node.selected)
+        .count();
+    let visible_rows = nodes
+        .iter()
+        .filter(|node| node.role == AutomationRole::Row)
+        .count();
+    let waveform_loaded_label = nodes
+        .iter()
+        .find(|node| node.role == AutomationRole::TimelineRegion)
+        .and_then(|node| node.label.clone().or_else(|| node.value.clone()));
+
+    GuiModelSummary {
+        title: String::from("Wavecrate"),
+        focus_context: String::from("NativeApp"),
+        browser_visible_count: visible_rows,
+        browser_selected_count: selected_rows,
+        browser_view_start_row: 0,
+        browser_autoscroll: false,
+        waveform_loaded_label,
+        prompt_visible: nodes.iter().any(|node| node.role == AutomationRole::Dialog),
+        options_visible: nodes.iter().any(|node| {
+            node.role == AutomationRole::Panel
+                && node
+                    .label
+                    .as_deref()
+                    .is_some_and(|label| label.contains("Settings"))
+        }),
+        progress_visible: nodes.iter().any(|node| {
+            node.role == AutomationRole::Readout
+                && node
+                    .label
+                    .as_deref()
+                    .is_some_and(|label| label.contains("progress"))
+        }),
+        update_status: String::from("Native"),
+    }
+}
+
+fn collect_nodes<'a>(
+    node: &'a AutomationNodeSnapshot,
+    nodes: &mut Vec<&'a AutomationNodeSnapshot>,
+) {
+    nodes.push(node);
+    for child in &node.children {
+        collect_nodes(child, nodes);
+    }
+}
+
+pub(crate) fn legacy_automation_snapshot_to_radiant(
+    snapshot: NativeGuiAutomationSnapshot,
+) -> GuiAutomationSnapshot {
+    GuiAutomationSnapshot {
+        schema_version: snapshot.schema_version,
+        viewport_width: snapshot.viewport_width,
+        viewport_height: snapshot.viewport_height,
+        root: legacy_automation_node_to_radiant(snapshot.root),
+    }
+}
+
+fn legacy_automation_node_to_radiant(node: NativeAutomationNodeSnapshot) -> AutomationNodeSnapshot {
+    let semantics = AutomationNodeSemantics::new(match node.role {
+        NativeAutomationRole::Root => AutomationRole::Root,
+        NativeAutomationRole::Group => AutomationRole::Group,
+        NativeAutomationRole::Panel => AutomationRole::Panel,
+        NativeAutomationRole::Toolbar => AutomationRole::Toolbar,
+        NativeAutomationRole::TabList => AutomationRole::TabList,
+        NativeAutomationRole::Tab => AutomationRole::Tab,
+        NativeAutomationRole::Button => AutomationRole::Button,
+        NativeAutomationRole::SearchField => AutomationRole::SearchField,
+        NativeAutomationRole::Slider => AutomationRole::Slider,
+        NativeAutomationRole::Row => AutomationRole::Row,
+        NativeAutomationRole::Table => AutomationRole::Table,
+        NativeAutomationRole::WaveformRegion => AutomationRole::TimelineRegion,
+        NativeAutomationRole::MapCanvas => AutomationRole::SpatialCanvas,
+        NativeAutomationRole::MapPoint => AutomationRole::SpatialPoint,
+        NativeAutomationRole::Readout => AutomationRole::Readout,
+        NativeAutomationRole::Dialog => AutomationRole::Dialog,
+    });
+    let semantics = match node.label.as_ref() {
+        Some(label) => semantics.with_label(label),
+        None => semantics,
+    };
+    let mut semantics = match node.value.as_ref() {
+        Some(value) => semantics.with_value_text(value),
+        None => semantics,
+    };
+    semantics.disabled = !node.enabled;
+    semantics.selected = node.selected;
+    semantics.metadata = node.metadata.clone();
+    let mut converted = AutomationNodeSnapshot::from_semantics(node.id, node.bounds, semantics);
+    converted.enabled = node.enabled;
+    converted.selected = node.selected;
+    converted.available_actions = node.available_actions;
+    converted.metadata = node.metadata;
+    converted.children = node
+        .children
+        .into_iter()
+        .map(legacy_automation_node_to_radiant)
+        .collect();
+    converted
 }
 
 /// Write one artifact bundle as pretty JSON, creating parent directories as needed.

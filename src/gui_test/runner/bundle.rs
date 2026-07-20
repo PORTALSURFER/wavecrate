@@ -1,12 +1,10 @@
 //! Bundle capture helpers for the in-process GUI scenario runner.
 
 use crate::{
-    app_core::actions::{
-        GUI_ACTION_CATALOG, NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot,
-    },
+    app_core::actions::{GUI_ACTION_CATALOG, NativeAppBridge, NativeAppModel},
     gui_test::{
-        GuiActionTraceEvent, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
-        build_model_summary,
+        GuiActionTraceEvent, GuiFixtureRuntime, GuiStepTimingSample, GuiTestArtifactBundle,
+        GuiTestModeConfig, build_model_summary, legacy_automation_snapshot_to_radiant,
     },
     native_runtime::capture_gui_automation_snapshot,
 };
@@ -22,7 +20,7 @@ pub(super) fn snapshot_bundle(
     let projected_model = bridge.project_model();
     let model = NativeAppModel::from(projected_model.as_ref().clone());
     GuiTestArtifactBundle {
-        schema_version: 1,
+        schema_version: 2,
         scenario_name: config.scenario_name.clone(),
         fixture_tag: config.fixture_tag.clone(),
         run_id: config.run_id.clone(),
@@ -30,7 +28,12 @@ pub(super) fn snapshot_bundle(
             .run_manifest_path
             .as_ref()
             .map(|path| path.to_string_lossy().into_owned()),
-        automation_snapshot: capture_gui_automation_snapshot(config.viewport_f32(), &model),
+        fixture_runtime: GuiFixtureRuntime::LegacyController,
+        runtime_composition: None,
+        shutdown_artifact: None,
+        automation_snapshot: legacy_automation_snapshot_to_radiant(
+            capture_gui_automation_snapshot(config.viewport_f32(), &model),
+        ),
         action_trace: trace,
         model_summary: build_model_summary(&model),
         action_catalog: GUI_ACTION_CATALOG.to_vec(),
@@ -45,8 +48,11 @@ pub(super) fn snapshot_bundle(
 pub(super) fn current_snapshot(
     config: &GuiTestModeConfig,
     bridge: &mut impl NativeAppBridge,
-) -> NativeGuiAutomationSnapshot {
+) -> radiant::gui::automation::GuiAutomationSnapshot {
     let projected_model = bridge.project_model();
     let model = NativeAppModel::from(projected_model.as_ref().clone());
-    capture_gui_automation_snapshot(config.viewport_f32(), &model)
+    legacy_automation_snapshot_to_radiant(capture_gui_automation_snapshot(
+        config.viewport_f32(),
+        &model,
+    ))
 }

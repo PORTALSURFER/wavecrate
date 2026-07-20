@@ -4,8 +4,9 @@ use crate::app_core::actions::NativeUiAction;
 use crate::{
     app_core::actions::NativeAppModel,
     gui_test::{
-        GuiTestArtifactBundle, GuiTestModeConfig, build_model_summary, catalog_report,
-        trace_event_for_action, write_artifact_bundle,
+        GuiFixtureRuntime, GuiTestArtifactBundle, GuiTestModeConfig, build_model_summary,
+        catalog_report, legacy_automation_snapshot_to_radiant, trace_event_for_action,
+        write_artifact_bundle,
     },
     native_runtime::capture_gui_automation_snapshot,
 };
@@ -52,7 +53,7 @@ impl BridgeGuiTestRecorder {
 
     fn write_bundle(&self, model: &NativeAppModel, failure_summary: Option<String>) {
         let bundle = GuiTestArtifactBundle {
-            schema_version: 1,
+            schema_version: 2,
             scenario_name: self.config.scenario_name.clone(),
             fixture_tag: self.config.fixture_tag.clone(),
             run_id: self.config.run_id.clone(),
@@ -61,7 +62,12 @@ impl BridgeGuiTestRecorder {
                 .run_manifest_path
                 .as_ref()
                 .map(|path| path.to_string_lossy().into_owned()),
-            automation_snapshot: capture_gui_automation_snapshot(self.config.viewport_f32(), model),
+            fixture_runtime: GuiFixtureRuntime::LegacyController,
+            runtime_composition: None,
+            shutdown_artifact: None,
+            automation_snapshot: legacy_automation_snapshot_to_radiant(
+                capture_gui_automation_snapshot(self.config.viewport_f32(), model),
+            ),
             action_trace: self.action_trace.clone(),
             model_summary: build_model_summary(model),
             action_catalog: catalog_report(),

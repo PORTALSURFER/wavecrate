@@ -11,8 +11,8 @@ mod scenario;
 mod shell_automation;
 
 pub use self::artifacts::{
-    GuiActionTraceEvent, GuiModelSummary, GuiStepTimingSample, GuiTestArtifactBundle,
-    build_model_summary, write_artifact_bundle,
+    GuiActionTraceEvent, GuiFixtureRuntime, GuiModelSummary, GuiRuntimeComposition,
+    GuiStepTimingSample, GuiTestArtifactBundle, build_model_summary, write_artifact_bundle,
 };
 pub use self::automation::{
     GuiAutomationTarget, read_automation_snapshot_from_artifact, resolve_automation_target,
@@ -27,7 +27,10 @@ pub use self::packs::{GuiScenarioPack, gui_scenario_pack};
 pub use self::runner::{capture_default_bundle, dispatch_action_bundle, run_scenario};
 pub use self::scenario::{GuiAssertion, GuiScenario, GuiScenarioStep};
 
-pub(crate) use self::artifacts::{catalog_report, trace_event_for_action};
+pub(crate) use self::artifacts::{
+    build_native_model_summary, catalog_report, legacy_automation_snapshot_to_radiant,
+    trace_event_for_action,
+};
 pub(crate) use self::automation::find_automation_node;
 #[cfg(test)]
 pub(crate) use self::runner::run_scenario_batch;

@@ -1,6 +1,6 @@
 //! Shared automation-snapshot lookup helpers for scenario assertions.
 
-use crate::app_core::actions::{NativeAutomationNodeSnapshot, NativeGuiAutomationSnapshot};
+use radiant::gui::automation::{AutomationNodeSnapshot, GuiAutomationSnapshot};
 use serde::Serialize;
 use std::{fs, path::Path};
 
@@ -33,15 +33,15 @@ pub struct GuiAutomationTarget {
 
 /// Find one semantic automation node by stable id.
 pub(crate) fn find_automation_node<'a>(
-    snapshot: &'a NativeGuiAutomationSnapshot,
+    snapshot: &'a GuiAutomationSnapshot,
     node_id: &str,
-) -> Option<&'a NativeAutomationNodeSnapshot> {
+) -> Option<&'a AutomationNodeSnapshot> {
     find_node_recursive(&snapshot.root, node_id)
 }
 
 /// Resolve one semantic automation target from a full snapshot.
 pub fn resolve_automation_target(
-    snapshot: &NativeGuiAutomationSnapshot,
+    snapshot: &GuiAutomationSnapshot,
     node_id: &str,
 ) -> Result<GuiAutomationTarget, String> {
     let node = find_automation_node(snapshot, node_id)
@@ -68,7 +68,7 @@ pub fn resolve_automation_target(
 /// Read a full automation snapshot from one GUI artifact bundle file.
 pub fn read_automation_snapshot_from_artifact(
     artifact_path: &Path,
-) -> Result<NativeGuiAutomationSnapshot, String> {
+) -> Result<GuiAutomationSnapshot, String> {
     let json = fs::read_to_string(artifact_path)
         .map_err(|err| format!("read GUI artifact {}: {err}", artifact_path.display()))?;
     let value: serde_json::Value = serde_json::from_str(&json)
@@ -88,9 +88,9 @@ pub fn read_automation_snapshot_from_artifact(
 }
 
 fn find_node_recursive<'a>(
-    node: &'a NativeAutomationNodeSnapshot,
+    node: &'a AutomationNodeSnapshot,
     node_id: &str,
-) -> Option<&'a NativeAutomationNodeSnapshot> {
+) -> Option<&'a AutomationNodeSnapshot> {
     if node.id.0 == node_id {
         return Some(node);
     }
@@ -102,49 +102,89 @@ fn find_node_recursive<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_core::actions::NativeAutomationBounds as AutomationBounds;
-    use crate::app_core::actions::{
-        NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
-        NativeGuiAutomationSnapshot,
+    use crate::{
+        app_dirs::{ConfigBaseGuard, PersistenceProfileGuard},
+        gui_test::{GuiFixtureRuntime, GuiTestModeConfig, capture_default_bundle},
+        sample_sources::config::{AppConfig, AppSettingsCore, config_path, save},
     };
-    use crate::gui_test::capture_default_bundle;
-    use std::collections::BTreeMap;
+    use radiant::gui::automation::{
+        AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
+        AutomationRole, GuiAutomationSnapshot,
+    };
     use tempfile::tempdir;
 
-    fn sample_snapshot() -> NativeGuiAutomationSnapshot {
-        NativeGuiAutomationSnapshot {
+    fn sample_snapshot() -> GuiAutomationSnapshot {
+        GuiAutomationSnapshot {
             schema_version: 1,
             viewport_width: 400,
             viewport_height: 200,
-            root: NativeAutomationNodeSnapshot {
-                id: NativeAutomationNodeId::new("shell.root"),
-                role: NativeAutomationRole::Root,
-                label: Some(String::from("Root")),
-                bounds: AutomationBounds {
+            root: AutomationNodeSnapshot::from_semantics(
+                AutomationNodeId::new("shell.root"),
+                AutomationBounds {
                     x: 0.0,
                     y: 0.0,
                     width: 400.0,
                     height: 200.0,
                 },
-                value: None,
-                enabled: true,
-                selected: false,
-                available_actions: Vec::new(),
-                metadata: BTreeMap::new(),
-                children: Vec::new(),
-            },
+                AutomationNodeSemantics::new(AutomationRole::Root).with_label("Root"),
+            ),
         }
     }
 
     #[test]
     fn resolve_target_uses_window_relative_center() {
-        let bundle =
-            capture_default_bundle(&crate::gui_test::GuiTestModeConfig::default()).expect("bundle");
-        let target = resolve_automation_target(&bundle.automation_snapshot, "shell.root")
-            .expect("root target");
+        let live_base = tempdir().expect("live config base");
+        let _base_guard = ConfigBaseGuard::set(live_base.path().to_path_buf());
+        let _live_guard = PersistenceProfileGuard::live();
+        save(&AppConfig {
+            sources: Vec::new(),
+            core: AppSettingsCore {
+                volume: 0.314,
+                ..AppSettingsCore::default()
+            },
+        })
+        .expect("seed live sentinel config");
+        let live_config_path = config_path().expect("live config path");
+        let live_before = std::fs::read(&live_config_path).expect("read live config");
+
+        let bundle = capture_default_bundle(&GuiTestModeConfig::default()).expect("bundle");
+
+        assert_eq!(bundle.fixture_runtime, GuiFixtureRuntime::NativeApp);
+        assert_eq!(
+            bundle
+                .runtime_composition
+                .expect("native runtime composition"),
+            crate::gui_test::GuiRuntimeComposition {
+                native_source_watchers: 1,
+                native_readiness_supervisors: 1,
+                legacy_analysis_pools: 0,
+            }
+        );
+        assert_eq!(
+            bundle
+                .shutdown_artifact
+                .as_ref()
+                .and_then(|artifact| artifact["source_processing"]["joined"].as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            std::fs::read(live_config_path).expect("re-read live config"),
+            live_before,
+            "isolated native automation must not mutate the live profile"
+        );
+        let target_id = bundle
+            .automation_snapshot
+            .root
+            .automation_targets()
+            .into_iter()
+            .find(|target| !target.bounds.is_empty())
+            .map(|target| target.id.0)
+            .expect("visible native automation target");
+        let target = resolve_automation_target(&bundle.automation_snapshot, &target_id)
+            .expect("visible target");
         assert!(target.center_x > 0.0);
         assert!(target.center_y > 0.0);
-        assert_eq!(target.node_id, "shell.root");
+        assert_eq!(target.node_id, target_id);
     }
 
     #[test]

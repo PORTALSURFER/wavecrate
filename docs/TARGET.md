@@ -2599,18 +2599,34 @@ Behavioral coverage anchor: `src/app_core/ui_bridge/tests.rs`.
 
 ### GUI Test Platform
 
-The GUI test platform has four layers:
+The GUI test platform has two explicitly separated runtime families:
 
-1. host action catalog in `src/app_core/actions/**`
-2. semantic automation snapshots emitted by runtime/test projection helpers
-3. deterministic GUI test mode and artifact emission
-4. in-process scenario runner and `tools/gui-test-cli`
+1. product certification for `live`, `isolated-startup`, and the legacy
+   `default` alias lowers `NativeAppState` through the same Radiant runtime
+   bridge, subscriptions, message reducer, and shutdown hook as the desktop
+   executable;
+2. named deterministic fixtures remain retained-controller compatibility
+   coverage until equivalent native fixture builders exist.
+
+The product-native path owns startup and persistence certification. Named
+controller fixtures must never be treated as proof of production startup or
+background-worker composition. Architecture guardrails reject attempts to
+route live/startup fixtures back through `new_ui_bridge` or controller startup.
 
 The important contract is semantic stability:
 
 * target controls by stable node IDs and action IDs
 * prefer semantic automation over screenshot matching when possible
-* correlate GUI artifacts through the existing runtime/test projection helpers instead of inventing a separate reporting format
+* emit both native and compatibility snapshots through Radiant's backend-neutral
+  automation schema
+* record the fixture runtime and observable worker composition in artifacts so
+  product certification proves one native watcher/readiness supervisor and no
+  legacy analysis pool
+* keep automated startup on an isolated temporary config base using the
+  `automated-tests` profile; only the explicit `live` tag may resolve the live
+  profile
+* complete native captures through the real shutdown hook and retain its
+  machine-readable artifact
 
 Current development loops:
 

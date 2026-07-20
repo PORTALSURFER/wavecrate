@@ -34,6 +34,8 @@ done
 violations=()
 domain_roots=(audio metadata sample_library waveform workflows)
 ambiguous_modules=(browser context_menu library_browser widgets)
+native_gui_fixture_file="src/gui_test/fixtures.rs"
+native_gui_runner_file="src/gui_test/runner/mod.rs"
 
 is_domain_native_app_path() {
   local path="$1"
@@ -78,10 +80,26 @@ for module_name in "${ambiguous_modules[@]}"; do
   fi
 done
 
+if [[ -f "$native_gui_fixture_file" ]]; then
+  while IFS=: read -r line_number line_text; do
+    violations+=("$native_gui_fixture_file:$line_number: product startup fixtures must not construct the legacy UI bridge: ${line_text#"${line_text%%[![:space:]]*}"}")
+  done < <(grep -nE '\b(new_ui_bridge|build_ui_app_controller|start_analysis_runtime)[[:space:]]*\(' "$native_gui_fixture_file" || true)
+fi
+
+if [[ -f "$native_gui_runner_file" ]]; then
+  if ! grep -q 'capture_native_startup_bundle' "$native_gui_runner_file"; then
+    violations+=("$native_gui_runner_file: live and isolated-startup capture must route through the product-native harness")
+  fi
+  if ! grep -q 'crate::native_app::automation::capture_startup' "$native_gui_runner_file"; then
+    violations+=("$native_gui_runner_file: product startup certification must use NativeAppState automation")
+  fi
+fi
+
 if (( ${#violations[@]} > 0 )); then
   echo "[native_app_boundary] Native app boundary violations detected:"
   echo "[native_app_boundary] app_chrome is the view-composition layer; product/domain modules must depend on messages, view models, or domain APIs instead."
   echo "[native_app_boundary] Root native-app module names must describe durable ownership, not generic widgets. See docs/TARGET.md native app module map."
+  echo "[native_app_boundary] Live and isolated-startup GUI certification must use the production native app composition."
   printf '%s\n' "${violations[@]}" | sort | sed 's/^/ - /'
   exit 1
 fi
