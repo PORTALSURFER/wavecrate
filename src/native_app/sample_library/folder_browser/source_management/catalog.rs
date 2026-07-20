@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
 
-use super::super::{
-    FolderBrowserState, SourceEntry, scan::FolderTreeRefreshRequest,
-    source_scan_cache::save_source_scan_cache,
+use super::{
+    super::{
+        FolderBrowserState, SourceEntry, scan::FolderTreeRefreshRequest,
+        source_scan_cache::save_source_scan_cache,
+    },
+    reorder::SourceReorderDrag,
 };
 use wavecrate::sample_sources::{SampleSource, SourceRole};
 
@@ -11,6 +14,8 @@ pub(in crate::native_app::sample_library::folder_browser) struct BrowserSourceSt
     pub(in crate::native_app::sample_library::folder_browser) selected_source: String,
     pub(in crate::native_app::sample_library::folder_browser) selected_tree_loaded: bool,
     pub(in crate::native_app::sample_library::folder_browser) sources: Vec<SourceEntry>,
+    pub(in crate::native_app::sample_library::folder_browser) reorder_drag:
+        Option<SourceReorderDrag>,
 }
 
 impl BrowserSourceState {
@@ -23,6 +28,7 @@ impl BrowserSourceState {
             selected_source,
             selected_tree_loaded,
             sources,
+            reorder_drag: None,
         }
     }
 }

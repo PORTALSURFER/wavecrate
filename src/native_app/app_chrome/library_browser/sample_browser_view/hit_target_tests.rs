@@ -419,7 +419,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
         message_from(&first, output),
         GuiMessage::DragSampleFile {
             path: String::from("sample.wav"),
-            drag: DragHandleMessage::started(Point::new(16.0, 7.0)),
+            drag: DragHandleMessage::started_from(Point::new(6.0, 6.0), Point::new(16.0, 7.0),),
         }
     );
 

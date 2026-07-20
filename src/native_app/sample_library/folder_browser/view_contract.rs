@@ -11,6 +11,8 @@ pub(in crate::native_app) const FOLDER_TREE_SELECTION_CONTEXT_ROWS: usize =
 pub(in crate::native_app) const FOLDER_TREE_OVERSCAN_ROWS: usize = super::FOLDER_TREE_OVERSCAN_ROWS;
 pub(in crate::native_app) const FOLDER_TREE_PROJECTED_VIEWPORT_ROWS: usize =
     super::FOLDER_TREE_PROJECTED_VIEWPORT_ROWS;
+pub(in crate::native_app) const SOURCE_ROW_HEIGHT: f32 = super::SOURCE_ROW_HEIGHT;
+pub(in crate::native_app) const SOURCE_ROW_SPACING: f32 = super::SOURCE_ROW_SPACING;
 pub(in crate::native_app) const TREE_ROW_HEIGHT: f32 = super::TREE_ROW_HEIGHT;
 pub(in crate::native_app) const TREE_DEPTH_INDENT: f32 = super::TREE_DEPTH_INDENT;
 pub(in crate::native_app) const SIDEBAR_PANEL_HEADER_HEIGHT: f32 =

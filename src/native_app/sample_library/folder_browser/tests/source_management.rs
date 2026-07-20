@@ -1,5 +1,135 @@
 use super::*;
 
+fn deferred_source(
+    id: &str,
+    role: wavecrate::sample_sources::SourceRole,
+) -> wavecrate::sample_sources::SampleSource {
+    let mut source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(id),
+        PathBuf::from(format!("test-sources/{id}")),
+    );
+    source.role = role;
+    source
+}
+
+#[test]
+fn source_reorder_drag_commits_stable_source_order_without_changing_selection_or_roles() {
+    let sources = vec![
+        deferred_source("source-a", wavecrate::sample_sources::SourceRole::Primary),
+        deferred_source("source-b", wavecrate::sample_sources::SourceRole::Normal),
+        deferred_source("source-c", wavecrate::sample_sources::SourceRole::Protected),
+    ];
+    let mut browser = FolderBrowserState::from_sample_sources_deferred(&sources);
+
+    assert!(!browser.apply_source_reorder_drag(
+        String::from("source-a"),
+        radiant::widgets::DragHandleMessage::started(radiant::prelude::Point::new(20.0, 100.0)),
+    ));
+    assert!(!browser.apply_source_reorder_drag(
+        String::from("source-a"),
+        radiant::widgets::DragHandleMessage::moved(radiant::prelude::Point::new(20.0, 148.0)),
+    ));
+    assert_eq!(browser.source_reorder_drag_source_id(), Some("source-a"));
+    assert_eq!(browser.source_reorder_target_source_id(), Some("source-c"));
+    assert_eq!(
+        browser.source_reorder_drop_marker_after("source-c"),
+        Some(true)
+    );
+    assert_eq!(browser.source_reorder_drop_marker_after("source-b"), None);
+    assert_eq!(
+        browser
+            .configured_sample_sources()
+            .into_iter()
+            .map(|source| source.id.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        vec!["source-a", "source-b", "source-c"],
+        "moving the pointer should preview without mutating source order"
+    );
+
+    assert!(browser.apply_source_reorder_drag(
+        String::from("source-a"),
+        radiant::widgets::DragHandleMessage::ended(radiant::prelude::Point::new(20.0, 148.0)),
+    ));
+
+    let reordered = browser.configured_sample_sources();
+    assert_eq!(
+        reordered
+            .iter()
+            .map(|source| source.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["source-b", "source-c", "source-a"]
+    );
+    assert_eq!(
+        reordered
+            .iter()
+            .map(|source| source.role)
+            .collect::<Vec<_>>(),
+        vec![
+            wavecrate::sample_sources::SourceRole::Normal,
+            wavecrate::sample_sources::SourceRole::Protected,
+            wavecrate::sample_sources::SourceRole::Primary,
+        ]
+    );
+    assert_eq!(browser.selected_source_id(), "source-a");
+    assert!(!browser.source_reorder_drag_active());
+}
+
+#[test]
+fn cancelling_source_reorder_keeps_original_order() {
+    let sources = vec![
+        deferred_source("source-a", wavecrate::sample_sources::SourceRole::Normal),
+        deferred_source("source-b", wavecrate::sample_sources::SourceRole::Normal),
+    ];
+    let mut browser = FolderBrowserState::from_sample_sources_deferred(&sources);
+
+    browser.apply_source_reorder_drag(
+        String::from("source-a"),
+        radiant::widgets::DragHandleMessage::started(radiant::prelude::Point::new(20.0, 100.0)),
+    );
+    browser.apply_source_reorder_drag(
+        String::from("source-a"),
+        radiant::widgets::DragHandleMessage::moved(radiant::prelude::Point::new(20.0, 124.0)),
+    );
+    assert!(!browser.apply_source_reorder_drag(
+        String::from("source-a"),
+        radiant::widgets::DragHandleMessage::cancelled(radiant::prelude::Point::new(20.0, 124.0)),
+    ));
+
+    assert_eq!(
+        browser
+            .configured_sample_sources()
+            .into_iter()
+            .map(|source| source.id.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        vec!["source-a", "source-b"]
+    );
+    assert!(!browser.source_reorder_drag_active());
+}
+
+#[test]
+fn legacy_default_source_is_not_reorderable() {
+    let configured = deferred_source("source-a", wavecrate::sample_sources::SourceRole::Normal);
+    let default_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("assets"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
+    );
+    let entries = [default_source, configured]
+        .iter()
+        .map(
+            crate::native_app::sample_library::folder_browser::model::SourceEntry::from_sample_source,
+        )
+        .collect();
+    let mut browser = FolderBrowserState::from_sources_deferred(entries, String::from("source-a"));
+
+    assert!(!browser.source_reorder_enabled("assets"));
+    assert!(!browser.source_reorder_enabled("source-a"));
+    assert!(!browser.apply_source_reorder_drag(
+        String::from("assets"),
+        radiant::widgets::DragHandleMessage::started(radiant::prelude::Point::new(20.0, 100.0)),
+    ));
+    assert!(!browser.source_reorder_drag_active());
+}
+
 #[test]
 fn removing_selected_user_source_falls_back_to_next_source() {
     let first = temp_source_root("wavecrate-gui-remove-source-first");

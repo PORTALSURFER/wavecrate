@@ -17,7 +17,7 @@ pub(in crate::native_app) use source::{
 
 use radiant::prelude as ui;
 
-use crate::native_app::app::{GuiMessage, NativeAppState};
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
@@ -33,6 +33,23 @@ impl NativeAppState {
             FolderBrowserMessage::AddSource => self.add_source_from_dialog(context),
             FolderBrowserMessage::SelectSource(id) => {
                 self.select_folder_browser_source(id, context)
+            }
+            FolderBrowserMessage::DragSource(source_id, message) => {
+                let started_at = std::time::Instant::now();
+                if self.drag_source_row(source_id.clone(), message, context) {
+                    self.persist_user_configuration(
+                        "folder_browser.source.reorder.persist",
+                        started_at,
+                    );
+                    emit_gui_action(
+                        "folder_browser.source.reorder",
+                        Some("folder_browser"),
+                        Some(source_id.as_str()),
+                        "applied",
+                        started_at,
+                        None,
+                    );
+                }
             }
             FolderBrowserMessage::OpenSourceContextMenu(source_id, position) => {
                 self.open_source_context_menu(source_id, position);

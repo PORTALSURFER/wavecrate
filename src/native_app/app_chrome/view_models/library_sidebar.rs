@@ -39,6 +39,11 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) role: SourceRole,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) reorder_enabled: bool,
+    pub(in crate::native_app) reorder_drag_active: bool,
+    pub(in crate::native_app) reorder_drag_source: bool,
+    pub(in crate::native_app) reorder_drop_target: bool,
+    pub(in crate::native_app) reorder_drop_after: bool,
     pub(in crate::native_app) scanning: bool,
     pub(in crate::native_app) processing: bool,
     pub(in crate::native_app) missing: bool,
@@ -253,11 +258,19 @@ impl SourceRowViewModel {
         processing_source_id: Option<&str>,
         scanning_source_id: Option<&str>,
     ) -> Self {
+        let reorder_drag_source =
+            folder_browser.source_reorder_drag_source_id() == Some(source.id.as_str());
+        let reorder_drop_after = folder_browser.source_reorder_drop_marker_after(&source.id);
         Self {
             id: source.id.clone(),
             label: source.label.clone(),
             role: source.role,
             selected: selected_source_id == source.id,
+            reorder_enabled: folder_browser.source_reorder_enabled(&source.id),
+            reorder_drag_active: folder_browser.source_reorder_drag_active(),
+            reorder_drag_source,
+            reorder_drop_target: reorder_drop_after.is_some(),
+            reorder_drop_after: reorder_drop_after.unwrap_or(false),
             scanning: scanning_source_id == Some(source.id.as_str()),
             processing: processing_source_id == Some(source.id.as_str()),
             missing: source.is_missing(),
