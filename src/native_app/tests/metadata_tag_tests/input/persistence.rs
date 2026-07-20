@@ -102,7 +102,8 @@ fn source_prep_loads_persisted_metadata_tags_in_background() {
     let mut context = ui::UiUpdateContext::default();
 
     state.queue_selected_source_prep(
-        crate::native_app::sample_library::source_prep::SourcePrepTrigger::SourceSelected,
+        crate::native_app::sample_library::folder_browser_actions::SOURCE_SELECTION_PREP_INTENTS,
+        crate::native_app::sample_library::folder_browser_actions::SOURCE_SELECTION_PREP_REASON,
         &mut context,
     );
 

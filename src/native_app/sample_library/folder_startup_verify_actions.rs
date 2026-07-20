@@ -3,7 +3,21 @@ use std::time::Instant;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 use crate::native_app::sample_library::folder_browser::scan;
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::sample_library::source_prep::{
+    CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+    SourcePrepIntents, SourcePriorityIntent,
+};
+
+pub(in crate::native_app) const VERIFIED_FOLDER_MUTATION_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::InvalidateAndRequestConvergence,
+        priority: SourcePriorityIntent::PromoteIfSelected,
+        metadata_refresh: MetadataRefreshIntent::Force,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::Preserve,
+        feedback: SourceFeedbackIntent::Preserve,
+    };
+pub(in crate::native_app) const VERIFIED_FOLDER_MUTATION_PREP_REASON: &str = "filesystem_changed";
 
 impl NativeAppState {
     pub(in crate::native_app) fn maybe_startup_visible_folder_verify(
@@ -99,7 +113,8 @@ impl NativeAppState {
         if changed {
             self.queue_source_prep(
                 source_id.clone(),
-                SourcePrepTrigger::FilesystemChanged,
+                VERIFIED_FOLDER_MUTATION_PREP_INTENTS,
+                VERIFIED_FOLDER_MUTATION_PREP_REASON,
                 context,
             );
             self.persist_user_configuration(action, started_at);

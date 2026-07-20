@@ -7,8 +7,22 @@ use crate::native_app::app::{
     SourceRefreshRequest, emit_gui_action,
 };
 use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths;
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::sample_library::source_prep::{
+    CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+    SourcePrepIntents, SourcePriorityIntent,
+};
 use crate::native_app::source_processing::manifest_delta_requires_browser_refresh;
+
+pub(in crate::native_app) const FILESYSTEM_SYNC_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::InvalidateAndRequestConvergence,
+        priority: SourcePriorityIntent::PromoteIfSelected,
+        metadata_refresh: MetadataRefreshIntent::Force,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::Preserve,
+        feedback: SourceFeedbackIntent::Preserve,
+    };
+pub(in crate::native_app) const FILESYSTEM_SYNC_PREP_REASON: &str = "filesystem_changed";
 
 impl NativeAppState {
     pub(in crate::native_app) fn refresh_source_after_filesystem_change(
@@ -124,7 +138,8 @@ impl NativeAppState {
                     self.ui.status.sample = format!("Synced {changed_count} filesystem change(s)");
                     self.queue_source_prep(
                         source_id.clone(),
-                        SourcePrepTrigger::FilesystemChanged,
+                        FILESYSTEM_SYNC_PREP_INTENTS,
+                        FILESYSTEM_SYNC_PREP_REASON,
                         context,
                     );
                 }

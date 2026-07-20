@@ -612,7 +612,8 @@ fn source_selection_ui_path_does_not_directly_enqueue_heavy_readiness_work() {
     let mut context = radiant::prelude::UiUpdateContext::default();
 
     state.queue_selected_source_prep(
-        crate::native_app::sample_library::source_prep::SourcePrepTrigger::SourceSelected,
+        crate::native_app::sample_library::folder_browser_actions::SOURCE_SELECTION_PREP_INTENTS,
+        crate::native_app::sample_library::folder_browser_actions::SOURCE_SELECTION_PREP_REASON,
         &mut context,
     );
 
