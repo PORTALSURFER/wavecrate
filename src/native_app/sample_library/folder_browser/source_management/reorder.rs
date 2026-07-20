@@ -6,17 +6,17 @@ use super::super::{FolderBrowserState, SOURCE_ROW_STEP};
 pub(in crate::native_app::sample_library::folder_browser) struct SourceReorderDrag {
     source_id: String,
     start_y: f32,
-    source_index: usize,
-    target_index: usize,
+    source_slot: usize,
+    target_slot: usize,
 }
 
 impl SourceReorderDrag {
-    fn new(source_id: String, start_y: f32, target_index: usize) -> Self {
+    fn new(source_id: String, start_y: f32, target_slot: usize) -> Self {
         Self {
             source_id,
             start_y,
-            source_index: target_index,
-            target_index,
+            source_slot: target_slot,
+            target_slot,
         }
     }
 }
@@ -29,14 +29,14 @@ impl FolderBrowserState {
     ) -> bool {
         match message {
             DragHandleMessage::Started { position } => {
-                let Some(source_index) = self.source_index(&source_id) else {
+                let Some(source_slot) = self.configured_source_slot(&source_id) else {
                     return false;
                 };
-                if self.source.sources.len() < 2 {
+                if self.configured_source_count() < 2 {
                     return false;
                 }
                 self.source.reorder_drag =
-                    Some(SourceReorderDrag::new(source_id, position.y, source_index));
+                    Some(SourceReorderDrag::new(source_id, position.y, source_slot));
                 false
             }
             DragHandleMessage::Moved { position } => {
@@ -66,12 +66,18 @@ impl FolderBrowserState {
             .map(|drag| drag.source_id.as_str())
     }
 
+    pub(in crate::native_app) fn source_reorder_enabled(&self, source_id: &str) -> bool {
+        self.configured_source_count() > 1 && self.configured_source_slot(source_id).is_some()
+    }
+
     #[cfg(test)]
     pub(in crate::native_app) fn source_reorder_target_source_id(&self) -> Option<&str> {
         let drag = self.source.reorder_drag.as_ref()?;
         self.source
             .sources
-            .get(drag.target_index)
+            .iter()
+            .filter(|source| !source.is_default_assets_source())
+            .nth(drag.target_slot)
             .map(|source| source.id.as_str())
     }
 
@@ -80,48 +86,59 @@ impl FolderBrowserState {
         source_id: &str,
     ) -> Option<bool> {
         let drag = self.source.reorder_drag.as_ref()?;
-        if drag.target_index == drag.source_index
+        if drag.target_slot == drag.source_slot
             || self
                 .source
                 .sources
-                .get(drag.target_index)
+                .iter()
+                .filter(|source| !source.is_default_assets_source())
+                .nth(drag.target_slot)
                 .is_none_or(|source| source.id != source_id)
         {
             return None;
         }
-        Some(drag.target_index > drag.source_index)
+        Some(drag.target_slot > drag.source_slot)
     }
 
     pub(in crate::native_app) fn clear_source_reorder_drag(&mut self) {
         self.source.reorder_drag = None;
     }
 
-    fn source_index(&self, source_id: &str) -> Option<usize> {
+    fn configured_source_slot(&self, source_id: &str) -> Option<usize> {
         self.source
             .sources
             .iter()
+            .filter(|source| !source.is_default_assets_source())
             .position(|source| source.id == source_id)
     }
 
+    fn configured_source_count(&self) -> usize {
+        self.source
+            .sources
+            .iter()
+            .filter(|source| !source.is_default_assets_source())
+            .count()
+    }
+
     fn update_source_reorder_target(&mut self, source_id: &str, pointer_y: f32) {
-        let Some(drag) = self.source.reorder_drag.as_mut() else {
+        let Some(drag) = self.source.reorder_drag.as_ref() else {
             return;
         };
         if drag.source_id != source_id || !pointer_y.is_finite() {
             return;
         }
-        let Some(source_index) = self
-            .source
-            .sources
-            .iter()
-            .position(|source| source.id == source_id)
-        else {
+        let start_y = drag.start_y;
+        let source_slot = drag.source_slot;
+        if self.configured_source_slot(source_id).is_none() {
             self.source.reorder_drag = None;
             return;
-        };
-        let row_delta = ((pointer_y - drag.start_y) / SOURCE_ROW_STEP).round() as isize;
-        let last_index = self.source.sources.len().saturating_sub(1) as isize;
-        drag.target_index = (source_index as isize + row_delta).clamp(0, last_index) as usize;
+        }
+        let row_delta = ((pointer_y - start_y) / SOURCE_ROW_STEP).round() as isize;
+        let last_slot = self.configured_source_count().saturating_sub(1) as isize;
+        let target_slot = (source_slot as isize + row_delta).clamp(0, last_slot) as usize;
+        if let Some(drag) = self.source.reorder_drag.as_mut() {
+            drag.target_slot = target_slot;
+        }
     }
 
     fn commit_source_reorder(&mut self, source_id: &str) -> bool {
@@ -131,15 +148,38 @@ impl FolderBrowserState {
         if drag.source_id != source_id {
             return false;
         }
-        let Some(source_index) = self.source_index(source_id) else {
+        let configured_indices = self
+            .source
+            .sources
+            .iter()
+            .enumerate()
+            .filter_map(|(index, source)| (!source.is_default_assets_source()).then_some(index))
+            .collect::<Vec<_>>();
+        let Some(source_slot) = configured_indices
+            .iter()
+            .position(|index| self.source.sources[*index].id == source_id)
+        else {
             return false;
         };
-        if source_index == drag.target_index {
+        let target_slot = drag
+            .target_slot
+            .min(configured_indices.len().saturating_sub(1));
+        if source_slot == target_slot {
             return false;
         }
-        let source = self.source.sources.remove(source_index);
-        let target_index = drag.target_index.min(self.source.sources.len());
-        self.source.sources.insert(target_index, source);
+        if source_slot < target_slot {
+            for slot in source_slot..target_slot {
+                self.source
+                    .sources
+                    .swap(configured_indices[slot], configured_indices[slot + 1]);
+            }
+        } else {
+            for slot in (target_slot..source_slot).rev() {
+                self.source
+                    .sources
+                    .swap(configured_indices[slot], configured_indices[slot + 1]);
+            }
+        }
         true
     }
 }

@@ -227,7 +227,6 @@ impl SourceSelectorViewModel {
         scanning_source_id: Option<&str>,
     ) -> Self {
         let selected_source_id = folder_browser.selected_source_id();
-        let reorder_enabled = folder_browser.sources().len() > 1;
         let rows: Vec<_> = folder_browser
             .sources()
             .iter()
@@ -238,7 +237,6 @@ impl SourceSelectorViewModel {
                     folder_browser,
                     processing_source_id,
                     scanning_source_id,
-                    reorder_enabled,
                 )
             })
             .collect();
@@ -259,7 +257,6 @@ impl SourceRowViewModel {
         folder_browser: &FolderBrowserState,
         processing_source_id: Option<&str>,
         scanning_source_id: Option<&str>,
-        reorder_enabled: bool,
     ) -> Self {
         let reorder_drag_source =
             folder_browser.source_reorder_drag_source_id() == Some(source.id.as_str());
@@ -269,7 +266,7 @@ impl SourceRowViewModel {
             label: source.label.clone(),
             role: source.role,
             selected: selected_source_id == source.id,
-            reorder_enabled,
+            reorder_enabled: folder_browser.source_reorder_enabled(&source.id),
             reorder_drag_active: folder_browser.source_reorder_drag_active(),
             reorder_drag_source,
             reorder_drop_target: reorder_drop_after.is_some(),

@@ -86,7 +86,6 @@ fn source_reorder_drag_persists_order_across_reload() {
     let roots = [
         tempfile::tempdir().expect("first source"),
         tempfile::tempdir().expect("second source"),
-        tempfile::tempdir().expect("third source"),
     ];
     let sources = roots
         .iter()
@@ -104,6 +103,21 @@ fn source_reorder_drag_persists_order_across_reload() {
     })
     .expect("seed config");
     let mut state = NativeAppState::load_default().expect("load seeded sources");
+    let default_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("assets"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
+    );
+    let entries = [sources[0].clone(), default_source, sources[1].clone()]
+        .iter()
+        .map(
+            crate::native_app::sample_library::folder_browser::model::SourceEntry::from_sample_source,
+        )
+        .collect();
+    state.library.folder_browser =
+        crate::native_app::sample_library::folder_browser::FolderBrowserState::from_sources_deferred(
+            entries,
+            String::from("source-0"),
+        );
     let source_id = sources[0].id.as_str().to_owned();
     let mut context = ui::UiUpdateContext::default();
 
@@ -117,11 +131,22 @@ fn source_reorder_drag_persists_order_across_reload() {
     state.apply_folder_browser_message(
         crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragSource(
             source_id,
-            DragHandleMessage::ended(Point::new(20.0, 148.0)),
+            DragHandleMessage::ended(Point::new(20.0, 124.0)),
         ),
         &mut context,
     );
 
+    assert_eq!(
+        state
+            .library
+            .folder_browser
+            .sources()
+            .iter()
+            .map(|source| source.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["source-1", "assets", "source-0"],
+        "configured entries should reorder without moving the legacy default slot"
+    );
     let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
     assert_eq!(
         loaded
@@ -129,7 +154,18 @@ fn source_reorder_drag_persists_order_across_reload() {
             .iter()
             .map(|source| source.id.as_str())
             .collect::<Vec<_>>(),
-        vec!["source-1", "source-2", "source-0"]
+        vec!["source-1", "source-0"]
+    );
+    let reloaded = NativeAppState::load_default().expect("reload persisted source order");
+    assert_eq!(
+        reloaded
+            .library
+            .folder_browser
+            .sources()
+            .iter()
+            .map(|source| source.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["source-1", "source-0"]
     );
     assert_eq!(
         state.library.folder_browser.selected_source_id(),

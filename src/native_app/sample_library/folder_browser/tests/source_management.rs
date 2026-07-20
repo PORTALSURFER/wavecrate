@@ -107,6 +107,30 @@ fn cancelling_source_reorder_keeps_original_order() {
 }
 
 #[test]
+fn legacy_default_source_is_not_reorderable() {
+    let configured = deferred_source("source-a", wavecrate::sample_sources::SourceRole::Normal);
+    let default_source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("assets"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
+    );
+    let entries = [default_source, configured]
+        .iter()
+        .map(
+            crate::native_app::sample_library::folder_browser::model::SourceEntry::from_sample_source,
+        )
+        .collect();
+    let mut browser = FolderBrowserState::from_sources_deferred(entries, String::from("source-a"));
+
+    assert!(!browser.source_reorder_enabled("assets"));
+    assert!(!browser.source_reorder_enabled("source-a"));
+    assert!(!browser.apply_source_reorder_drag(
+        String::from("assets"),
+        radiant::widgets::DragHandleMessage::started(radiant::prelude::Point::new(20.0, 100.0)),
+    ));
+    assert!(!browser.source_reorder_drag_active());
+}
+
+#[test]
 fn removing_selected_user_source_falls_back_to_next_source() {
     let first = temp_source_root("wavecrate-gui-remove-source-first");
     let second = temp_source_root("wavecrate-gui-remove-source-second");
