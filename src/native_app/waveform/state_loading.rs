@@ -141,6 +141,8 @@ impl WaveformState {
             zero_crossing_snap_enabled: false,
             marked_play_ranges: Vec::new(),
             extracted_ranges: Vec::new(),
+            played_ranges: Vec::new(),
+            played_progress_anchor: None,
             similar_sections: Default::default(),
             play_selection_flash_frames: 0,
             edit_selection_flash_frames: 0,

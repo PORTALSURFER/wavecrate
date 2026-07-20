@@ -497,6 +497,11 @@ A region is a marked time range inside an audio file.
 
 Regions may be used for auditioning, looping, extraction, editing, markers, or visual history. Regions should be visually clear in the waveform view and should support precise boundary adjustment.
 
+While a sample remains loaded, the waveform should accumulate the portions that
+were actually auditioned and show them as a subtle thick rail along the bottom
+edge. This played-range history is session-local to that loaded waveform, resets
+when another sample is loaded, and is not persisted as sample metadata.
+
 ### Play Selection
 
 A play selection is a waveform range used for auditioning and looping.

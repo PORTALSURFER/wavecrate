@@ -203,6 +203,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     hovered_edit_gain_handle: bool,
     hovered_similar_section: Option<wavecrate::selection::SelectionRange>,
     extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
+    played_ranges: Vec<wavecrate::selection::SelectionRange>,
     similar_section_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     edit_selection_flash_frames: u8,
@@ -257,6 +258,7 @@ impl WaveformWidgetProps {
             } else {
                 Vec::new()
             },
+            played_ranges: state.played_ranges().to_vec(),
             similar_section_ranges: if similar_section_overlays_visible(active_drag_kind) {
                 state.similar_section_ranges().to_vec()
             } else {
@@ -314,6 +316,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) hovered_edit_gain_handle: bool,
     pub(super) hovered_similar_section: Option<wavecrate::selection::SelectionRange>,
     pub(super) extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
+    pub(super) played_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) similar_section_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) play_selection_flash_frames: u8,
     pub(super) edit_selection_flash_frames: u8,
@@ -350,6 +353,7 @@ impl WaveformWidget {
             hovered_edit_gain_handle,
             hovered_similar_section,
             extracted_ranges,
+            played_ranges,
             similar_section_ranges,
             play_selection_flash_frames,
             edit_selection_flash_frames,
@@ -383,6 +387,7 @@ impl WaveformWidget {
             hovered_edit_gain_handle,
             hovered_similar_section,
             extracted_ranges,
+            played_ranges,
             similar_section_ranges,
             play_selection_flash_frames,
             edit_selection_flash_frames,

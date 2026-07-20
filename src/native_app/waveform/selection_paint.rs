@@ -1,5 +1,5 @@
 use radiant::{
-    gui::feedback::horizontal_value_cursor_rect,
+    gui::feedback::{horizontal_value_cursor_rect, horizontal_value_range_rect},
     gui::types::{Point, Rect, Rgba8},
     gui::visualization::{
         CanvasSelectionAffordancePaintParts, CanvasSelectionAffordanceStyle,
@@ -32,6 +32,7 @@ const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
     b: 219,
     a: 225,
 };
+const PLAYED_RANGE_RAIL: Rgba8 = Rgba8::new(103, 196, 207, 158);
 const SIMILAR_SECTION_FILL: Rgba8 = Rgba8::new(114, 235, 184, 54);
 const SIMILAR_SECTION_RAIL: Rgba8 = Rgba8::new(155, 255, 218, 210);
 const SIMILAR_SECTION_HOVER_FILL: Rgba8 = Rgba8::new(156, 255, 218, 92);
@@ -49,6 +50,7 @@ const HANDLE_HOVER_ALPHA: u8 = 255;
 const EDIT_RESIZE_HANDLE_ALPHA: u8 = 190;
 const EDIT_GAIN_HANDLE_ALPHA: u8 = 225;
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
+const PLAYED_RANGE_RAIL_HEIGHT: f32 = 4.0;
 const BEAT_GUIDE_WIDTH: f32 = 1.0;
 const BEAT_GUIDE_HEIGHT_FRACTION: f32 = 0.72;
 const IMPLICIT_SAMPLE_START_RATIO: f32 = 0.000_1;
@@ -79,6 +81,7 @@ impl WaveformWidget {
             {
                 self.append_edit_selection_paint(&mut paint, &mut handle_paint, bounds, geometry);
             }
+            self.append_played_range_paint(&mut paint, bounds);
         }
         self.append_marker_paint(&mut paint, bounds);
         paint.primitives_mut().extend(handle_primitives);
@@ -143,6 +146,26 @@ impl WaveformWidget {
             EXTRACTED_RANGE_RAIL_HEIGHT,
             EXTRACTED_RANGE_RAIL,
         );
+    }
+
+    fn append_played_range_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
+        for range in &self.played_ranges {
+            let Some(range) = self.visible_normalized_range_for_selection(Some(*range)) else {
+                continue;
+            };
+            let Some(range_rect) = horizontal_value_range_rect(
+                bounds,
+                range.start_fraction(),
+                range.end_fraction(),
+                1.0,
+            ) else {
+                continue;
+            };
+            paint.push_visible_fill_rect(
+                range_rect.bottom_edge_strip(PLAYED_RANGE_RAIL_HEIGHT),
+                PLAYED_RANGE_RAIL,
+            );
+        }
     }
 
     fn append_similar_section_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {

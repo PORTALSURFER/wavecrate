@@ -41,6 +41,7 @@ mod state_loading;
 mod state_marked_ranges;
 mod state_playback;
 mod state_preserved_marks;
+mod state_range_history;
 pub(in crate::native_app) use state_preserved_marks::WaveformPreservedMarks;
 mod state_selection;
 mod state_transient;

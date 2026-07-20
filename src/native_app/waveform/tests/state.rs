@@ -24,6 +24,73 @@ fn playback_state_starts_at_head_and_clears_on_stop() {
 }
 
 #[test]
+fn played_ranges_accumulate_and_merge_forward_playback_progress() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback(0.2);
+
+    state.set_playhead_ratio_from_playback(0.35, Some((0.2, 0.8)), false);
+    state.set_playhead_ratio_from_playback(0.5, Some((0.2, 0.8)), false);
+
+    assert_eq!(
+        state.played_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.2, 0.5)]
+    );
+}
+
+#[test]
+fn played_ranges_split_loop_wraps_at_the_audible_span_boundaries() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback(0.7);
+
+    state.set_playhead_ratio_from_playback(0.79, Some((0.2, 0.8)), true);
+    state.set_playhead_ratio_from_playback(0.25, Some((0.2, 0.8)), true);
+
+    assert_eq!(
+        state.played_ranges(),
+        &[
+            wavecrate::selection::SelectionRange::new(0.2, 0.25),
+            wavecrate::selection::SelectionRange::new(0.7, 0.8),
+        ]
+    );
+}
+
+#[test]
+fn played_ranges_do_not_fill_a_non_looping_backward_seek_gap() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback(0.7);
+    state.set_playhead_ratio_from_playback(0.8, Some((0.0, 1.0)), false);
+
+    state.set_playhead_ratio_from_playback(0.2, Some((0.0, 1.0)), false);
+    state.set_playhead_ratio_from_playback(0.3, Some((0.0, 1.0)), false);
+
+    assert_eq!(
+        state.played_ranges(),
+        &[
+            wavecrate::selection::SelectionRange::new(0.2, 0.3),
+            wavecrate::selection::SelectionRange::new(0.7, 0.8),
+        ]
+    );
+}
+
+#[test]
+fn played_ranges_survive_same_sample_refresh_but_reset_for_a_new_load() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback(0.1);
+    state.set_playhead_ratio_from_playback(0.4, Some((0.0, 1.0)), false);
+    let marks = state.preserved_marks_unchanged();
+
+    let mut refreshed = WaveformState::synthetic_for_tests();
+    refreshed.restore_preserved_marks(marks);
+    assert_eq!(
+        refreshed.played_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.1, 0.4)]
+    );
+
+    let new_load = WaveformState::synthetic_for_tests();
+    assert!(new_load.played_ranges().is_empty());
+}
+
+#[test]
 fn visible_ratio_maps_to_absolute_audio_position_inside_viewport() {
     let mut state = WaveformState::synthetic_for_tests();
     state.viewport = super::WaveformViewport {

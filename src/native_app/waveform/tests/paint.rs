@@ -833,6 +833,28 @@ fn extracted_ranges_paint_as_gray_waveform_overlays() {
 }
 
 #[test]
+fn played_ranges_paint_as_a_subtle_thick_bottom_rail() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state
+        .played_ranges
+        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    let fills = fill_rects(&plan);
+    let rail = fills
+        .iter()
+        .find(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (103, 196, 207, 158)
+        })
+        .expect("played range rail");
+    assert!((rail.rect.min.x - 40.0).abs() < 0.001);
+    assert!((rail.rect.max.x - 120.0).abs() < 0.001);
+    assert!((rail.rect.min.y - 76.0).abs() < 0.001);
+    assert!((rail.rect.max.y - 80.0).abs() < 0.001);
+}
+
+#[test]
 fn extracted_ranges_paint_while_playmark_selection_drag_is_active() {
     let mut state = WaveformState::synthetic_for_tests();
     state

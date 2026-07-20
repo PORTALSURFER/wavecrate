@@ -51,9 +51,12 @@ impl NativeAppState {
 
         if active || within_start_grace || (should_be_looping && player_looping) {
             if let Some(progress) = progress {
-                self.waveform.current.set_playhead_ratio(progress);
+                self.record_waveform_playback_progress(progress, player_looping);
             }
         } else if self.waveform.current.is_playing() {
+            if let Some(progress) = progress {
+                self.record_waveform_playback_progress(progress, player_looping);
+            }
             self.finish_playback_progress();
         }
     }
@@ -101,11 +104,22 @@ impl NativeAppState {
 
         if active || within_start_grace || (should_be_looping && player_looping) {
             if let Some(progress) = progress {
-                self.waveform.current.set_playhead_ratio(progress);
+                self.record_waveform_playback_progress(progress, player_looping);
             }
         } else if self.waveform.current.is_playing() {
+            if let Some(progress) = progress {
+                self.record_waveform_playback_progress(progress, player_looping);
+            }
             self.finish_playback_progress();
         }
+    }
+
+    fn record_waveform_playback_progress(&mut self, progress: f32, looping: bool) {
+        self.waveform.current.set_playhead_ratio_from_playback(
+            progress,
+            self.audio.current_playback_span,
+            looping,
+        );
     }
 
     fn finish_inactive_transient_sample_playback(

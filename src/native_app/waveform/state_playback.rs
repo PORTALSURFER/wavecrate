@@ -2,6 +2,9 @@ use super::{
     WaveformState,
     state::{NormalizedAuditionGainCacheKey, NormalizedAuditionGainSourceKey},
 };
+use wavecrate::selection::SelectionRange;
+
+const PLAYED_PROGRESS_EPSILON: f32 = 1.0e-6;
 
 impl WaveformState {
     pub(in crate::native_app) fn normalized_audition_gain_for_span(
@@ -149,6 +152,7 @@ impl WaveformState {
         self.playback_visual_generation = self.playback_visual_generation.wrapping_add(1);
         self.play_mark_ratio = show_marker.then_some(ratio);
         self.playhead_ratio = Some(ratio);
+        self.played_progress_anchor = Some(ratio);
         self.zoom_anchor_ratio = ratio;
     }
 
@@ -158,11 +162,76 @@ impl WaveformState {
         self.zoom_anchor_ratio = ratio;
     }
 
+    pub(in crate::native_app) fn set_playhead_ratio_from_playback(
+        &mut self,
+        ratio: f32,
+        span: Option<(f32, f32)>,
+        looping: bool,
+    ) {
+        let ratio = ratio.clamp(0.0, 1.0);
+        self.playhead_ratio = Some(ratio);
+        self.zoom_anchor_ratio = ratio;
+        if !self.playing {
+            self.played_progress_anchor = None;
+            return;
+        }
+
+        let Some((span_start, span_end)) = normalized_played_span(span) else {
+            self.played_progress_anchor = Some(ratio);
+            return;
+        };
+        let current = ratio.clamp(span_start, span_end);
+        let Some(previous) = self.played_progress_anchor.replace(current) else {
+            return;
+        };
+        if previous < span_start - PLAYED_PROGRESS_EPSILON
+            || previous > span_end + PLAYED_PROGRESS_EPSILON
+        {
+            return;
+        }
+        let previous = previous.clamp(span_start, span_end);
+        if current + PLAYED_PROGRESS_EPSILON < previous {
+            if looping {
+                self.mark_played_range(previous, span_end);
+                self.mark_played_range(span_start, current);
+            }
+            return;
+        }
+        self.mark_played_range(previous, current);
+    }
+
+    fn mark_played_range(&mut self, start: f32, end: f32) {
+        super::state_range_history::insert_merged_range(
+            &mut self.played_ranges,
+            SelectionRange::new(start, end),
+        );
+    }
+
+    pub(in crate::native_app) fn played_ranges(&self) -> &[SelectionRange] {
+        &self.played_ranges
+    }
+
     pub(in crate::native_app) fn stop_playback(&mut self) {
         if self.playing || self.playhead_ratio.is_some() {
             self.playback_visual_generation = self.playback_visual_generation.wrapping_add(1);
         }
         self.playing = false;
         self.playhead_ratio = None;
+        self.played_progress_anchor = None;
     }
+}
+
+fn normalized_played_span(span: Option<(f32, f32)>) -> Option<(f32, f32)> {
+    let (start, end) = span.unwrap_or((0.0, 1.0));
+    if !start.is_finite() || !end.is_finite() {
+        return None;
+    }
+    let start = start.clamp(0.0, 1.0);
+    let end = end.clamp(0.0, 1.0);
+    let (start, end) = if start <= end {
+        (start, end)
+    } else {
+        (end, start)
+    };
+    (end - start > PLAYED_PROGRESS_EPSILON).then_some((start, end))
 }
