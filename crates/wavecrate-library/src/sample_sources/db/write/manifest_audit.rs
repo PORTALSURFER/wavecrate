@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn interrupted_manifest_audit_recovers_only_durable_checked_paths() {
         let directory = tempfile::tempdir().expect("source");
-        let database = SourceDatabase::open(directory.path()).expect("database");
+        let database = SourceDatabase::open_for_source_write(directory.path()).expect("database");
 
         assert!(
             database

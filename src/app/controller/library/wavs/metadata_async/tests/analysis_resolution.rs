@@ -30,7 +30,8 @@ fn analysis_metadata_rename_resolution_reuses_one_source_db_open() {
     std::fs::write(&old_absolute, b"metadata-fixture").expect("write fixture");
     std::fs::write(&other_old_absolute, b"other-metadata-fixture").expect("write fixture");
 
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     let (old_size, old_modified_ns) =
         crate::app::controller::library::wav_io::file_metadata(&old_absolute)
             .expect("old metadata");

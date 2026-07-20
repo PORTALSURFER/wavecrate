@@ -397,7 +397,7 @@ fn history_column_uses_last_played_metadata_display_and_sort() {
     for path in [&old, &fresh, &never] {
         fs::write(path, []).expect("write sample");
     }
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("old.wav"), 0, 30)
         .expect("upsert old");
     db.set_last_played_at(Path::new("old.wav"), 1_000_000)

@@ -14,7 +14,7 @@ fn samples_migration_adds_optional_analysis_columns() {
         VALUES ('source-a::one.wav', 'hash-a', 10, 5);",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let columns = column_names(&db.connection, "samples");
     assert!(columns.iter().any(|column| column == "duration_seconds"));
     assert!(columns.iter().any(|column| column == "sr_used"));

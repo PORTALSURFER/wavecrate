@@ -15,7 +15,7 @@ fn scan_detects_rename_and_preserves_tag() {
     let second_path = dir.path().join("two.wav");
     std::fs::write(&first_path, b"one").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
     db.set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Kick))
@@ -83,7 +83,7 @@ fn scan_detected_rename_preserves_unset_curation_timestamp() {
     let new_path = dir.path().join("new.wav");
     std::fs::write(&old_path, b"same sample").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
     db.clear_last_curated_at(Path::new("old.wav")).unwrap();
@@ -107,7 +107,7 @@ fn rename_apply_refreshes_metadata_changed_during_discovery() {
     let first_path = dir.path().join("one.wav");
     let second_path = dir.path().join("two.wav");
     std::fs::write(&first_path, b"one").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     std::fs::rename(&first_path, &second_path).unwrap();
     let mut edited = false;
@@ -135,7 +135,7 @@ fn pending_rename_staging_refreshes_metadata_changed_during_discovery() {
     let removed_path = dir.path().join("removed.wav");
     std::fs::write(&removed_path, b"removed").unwrap();
     std::fs::write(dir.path().join("live.wav"), b"live").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     std::fs::remove_file(&removed_path).unwrap();
     let mut edited = false;
@@ -163,7 +163,7 @@ fn quick_scan_defers_hash_for_large_file() {
     let file_path = dir.path().join("large.wav");
     std::fs::write(&file_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.hashes_pending, 1);
     assert_eq!(stats.hashes_computed, 0);
@@ -189,7 +189,7 @@ fn owned_deferred_hash_publishes_a_new_committed_content_generation() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("large.wav");
     std::fs::write(&file_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let initial = scan_once(&db).unwrap();
 
     let completed = complete_pending_deep_hash_for_path(&db, Path::new("large.wav"), None)
@@ -208,7 +208,7 @@ fn canceled_deferred_hashing_reports_cancellation_after_quick_scan_commit() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("large.wav");
     std::fs::write(&file_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     let cancel = std::sync::atomic::AtomicBool::new(true);
 
@@ -224,7 +224,7 @@ fn canceled_rename_reconciliation_can_be_safely_requeued() {
     let old_path = dir.path().join("old.wav");
     let new_path = dir.path().join("new.wav");
     std::fs::write(&old_path, vec![3_u8; 9 * 1024 * 1024]).unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
     std::fs::rename(&old_path, &new_path).unwrap();
@@ -260,7 +260,7 @@ fn canceled_rename_reconciliation_can_be_safely_requeued() {
 fn candidate_completion_keeps_cold_large_import_hashing_deferred() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("large.wav"), vec![0_u8; 9 * 1024 * 1024]).unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.hashes_pending, 1);
 
@@ -284,7 +284,7 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
     let second_path = dir.path().join("two.wav");
     std::fs::write(&first_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
     db.set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Texture))
@@ -336,7 +336,7 @@ fn large_rename_defers_identity_until_deep_hash_and_survives_restart() {
     );
     drop(db);
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let deep_stats = crate::sample_sources::scanner::scan_hash::deep_hash_scan(
         &db,
         None,
@@ -382,7 +382,7 @@ fn large_rename_before_initial_hash_uses_stable_file_identity() {
     let second_path = dir.path().join("two.wav");
     std::fs::write(&first_path, vec![3u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let initial = scan_once(&db).unwrap();
     assert_eq!(initial.hashes_pending, 1);
     assert_eq!(
@@ -416,7 +416,7 @@ fn copy_delete_before_initial_hash_does_not_transfer_identity() {
     let second_path = dir.path().join("two.wav");
     std::fs::write(&first_path, vec![4u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
 
@@ -448,7 +448,7 @@ fn owned_deep_hash_uses_persisted_quick_scan_destinations() {
     let new = dir.path().join("new.wav");
     std::fs::write(&old, vec![5_u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
     std::fs::rename(&old, &new).unwrap();
@@ -486,7 +486,7 @@ fn large_rename_reconciles_when_unchanged_duplicate_remains() {
     std::fs::write(&original, &payload).unwrap();
     std::fs::write(&duplicate, &payload).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("a.wav"), Rating::KEEP_1).unwrap();
     db.set_user_tag(Path::new("a.wav"), Some("Original metadata"))
@@ -523,7 +523,7 @@ fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
     let timestamp = 1_700_000_000;
     std::fs::write(&old_path, vec![0_u8; file_size]).unwrap();
     set_file_times(&old_path, timestamp, 0);
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
     db.set_user_tag(Path::new("old.wav"), Some("Must stay pending"))
@@ -551,7 +551,7 @@ fn size_and_mtime_coincidence_never_transfers_identity_or_metadata() {
     );
     drop(db);
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let deep = crate::sample_sources::scanner::scan_hash::deep_hash_scan(
         &db,
         None,
@@ -589,7 +589,7 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
     let new_path = dir.path().join("two.wav");
     std::fs::write(&old_path, vec![0u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
     db.set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Fx))
@@ -659,7 +659,7 @@ fn deep_hash_scan_uses_matching_facts_to_disambiguate_backfilled_duplicates() {
     std::fs::write(&original, &payload).unwrap();
     set_file_times(&original, 1_700_000_000, 0);
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("a.wav"), Rating::KEEP_1).unwrap();
 
@@ -703,7 +703,7 @@ fn deferred_completion_reconciles_unique_hash_even_when_mtime_changes() {
     std::fs::write(&old, vec![7_u8; 9 * 1024 * 1024]).unwrap();
     set_file_times(&old, 1_700_000_000, 0);
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
 
@@ -743,7 +743,7 @@ fn targeted_split_batches_preserve_large_rename_destination() {
     let new = dir.path().join("new.wav");
     std::fs::write(&old, vec![7_u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
 
@@ -785,7 +785,7 @@ fn targeted_destination_expires_after_two_full_quick_scans() {
     let new = dir.path().join("new.wav");
     std::fs::write(&old, b"same-content").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     std::fs::copy(&old, &new).unwrap();
     let added = sync_paths(&db, &[PathBuf::from("new.wav")]).unwrap();
@@ -808,7 +808,7 @@ fn retained_destination_is_revalidated_before_identity_transfer() {
     let new = dir.path().join("new.wav");
     std::fs::write(&old, b"original-content").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
     std::fs::copy(&old, &new).unwrap();
@@ -840,7 +840,7 @@ fn retained_destination_stays_ambiguous_when_duplicate_live_path_exists() {
     std::fs::write(&old, &payload).unwrap();
     std::fs::write(&duplicate, &payload).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
     std::fs::remove_file(&old).unwrap();
@@ -876,7 +876,7 @@ fn rename_candidate_completion_does_not_backfill_unrelated_large_files() {
     std::fs::write(&old, b"same-content").unwrap();
     std::fs::write(&unrelated, vec![9_u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     let unrelated_entry = db
         .entry_for_path(Path::new("unrelated-large.wav"))
@@ -918,7 +918,7 @@ fn targeted_destination_expires_after_an_unrelated_batch() {
     let unrelated = dir.path().join("unrelated.wav");
     std::fs::write(&old, b"same-content").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
 
@@ -954,7 +954,7 @@ fn deferred_completion_does_not_treat_plain_delete_as_duplicate_rename() {
     std::fs::write(&duplicate, b"same-content").unwrap();
     std::fs::write(&unrelated_large, vec![9_u8; 9 * 1024 * 1024]).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     let large = db
         .entry_for_path(Path::new("unrelated-large.wav"))
@@ -1012,7 +1012,7 @@ fn quick_scan_avoids_ambiguous_large_rename() {
     set_file_times(&first_path, timestamp, 0);
     set_file_times(&second_path, timestamp, 0);
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     hard_rescan(&db).unwrap();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
 
@@ -1038,7 +1038,7 @@ fn quick_scan_avoids_ambiguous_large_rename() {
 }
 
 fn insert_analysis_artifacts(root: &Path, sample_id: &str, relative_path: &str) {
-    let conn = SourceDatabase::open_connection(root).unwrap();
+    let conn = SourceDatabase::open_connection_for_background_job(root).unwrap();
     conn.execute(
         "INSERT INTO samples (
              sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version
@@ -1068,7 +1068,7 @@ fn insert_analysis_artifacts(root: &Path, sample_id: &str, relative_path: &str) 
 }
 
 fn sample_id_count(root: &Path, table: &str, sample_id: &str) -> i64 {
-    let conn = SourceDatabase::open_connection(root).unwrap();
+    let conn = SourceDatabase::open_connection_for_background_job(root).unwrap();
     conn.query_row(
         &format!("SELECT COUNT(*) FROM {table} WHERE sample_id = ?1"),
         [sample_id],
@@ -1078,7 +1078,7 @@ fn sample_id_count(root: &Path, table: &str, sample_id: &str) -> i64 {
 }
 
 fn analysis_job_relative_path(root: &Path, sample_id: &str) -> String {
-    let conn = SourceDatabase::open_connection(root).unwrap();
+    let conn = SourceDatabase::open_connection_for_background_job(root).unwrap();
     conn.query_row(
         "SELECT relative_path FROM analysis_jobs WHERE sample_id = ?1",
         [sample_id],

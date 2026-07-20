@@ -49,7 +49,8 @@ fn reconciliation_reads_one_snapshot_during_concurrent_publication() {
     let (root, mut connection) = open_fixture();
     let generation_one = file_target("one", ReadinessStage::AnalysisFeatures, 1);
     replace(&mut connection, 1, std::slice::from_ref(&generation_one));
-    let mut writer = SourceDatabase::open_connection(root.path()).expect("writer connection");
+    let mut writer =
+        SourceDatabase::open_connection_for_background_job(root.path()).expect("writer connection");
     let generation_two = file_target("two", ReadinessStage::AnalysisFeatures, 2);
 
     let snapshot = reconcile_readiness_with_hook(&connection, SOURCE_ID, 10, || {
@@ -220,7 +221,8 @@ fn persisted_work_deduplicates_and_survives_restart() {
     assert_eq!(count, 2);
     drop(connection);
 
-    let reopened = SourceDatabase::open_connection(root.path()).expect("reopen source db");
+    let reopened =
+        SourceDatabase::open_connection_for_background_job(root.path()).expect("reopen source db");
     let restarted = reconcile_readiness(&reopened, SOURCE_ID, 21).expect("restart snapshot");
     assert_eq!(restarted.source_generation, 7);
     assert_eq!(restarted.deficits.len(), 2);

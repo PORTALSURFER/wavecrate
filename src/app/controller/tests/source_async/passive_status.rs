@@ -30,7 +30,9 @@ fn cached_source_hydration_does_not_launch_passive_background_scan() {
 
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    let db = crate::sample_sources::SourceDatabase::open(&sources[1].root).unwrap();
+    let db =
+        crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(&sources[1].root)
+            .unwrap();
     assert_eq!(db.count_files().unwrap(), 0);
 }
 

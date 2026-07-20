@@ -705,7 +705,9 @@ fn similarity_state_with_embeddings() -> (
 }
 
 fn seed_source_scan_row(source_root: &std::path::Path, relative_path: &str) {
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root).expect("source db");
+    let db =
+        wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(source_root)
+            .expect("source db");
     let size = fs::metadata(source_root.join(relative_path))
         .expect("source sample metadata")
         .len();
@@ -769,7 +771,9 @@ fn source_artifact_rows(source_root: &std::path::Path, table: &str) -> i64 {
 }
 
 fn seed_similarity_embedding(source_root: &std::path::Path, relative_path: &str, values: &[f32]) {
-    let _db = wavecrate::sample_sources::SourceDatabase::open(source_root).expect("source db");
+    let _db =
+        wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(source_root)
+            .expect("source db");
     let conn = wavecrate::sample_sources::SourceDatabase::open_connection_with_role(
         source_root,
         wavecrate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
@@ -792,7 +796,9 @@ fn seed_similarity_embedding(source_root: &std::path::Path, relative_path: &str,
 }
 
 fn seed_similarity_aspects(source_root: &std::path::Path, relative_path: &str) {
-    let _db = wavecrate::sample_sources::SourceDatabase::open(source_root).expect("source db");
+    let _db =
+        wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(source_root)
+            .expect("source db");
     let conn = wavecrate::sample_sources::SourceDatabase::open_connection_with_role(
         source_root,
         wavecrate::sample_sources::SourceDatabaseConnectionRole::JobWorker,

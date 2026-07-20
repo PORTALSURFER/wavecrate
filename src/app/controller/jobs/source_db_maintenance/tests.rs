@@ -63,7 +63,9 @@ fn source_db_maintenance_defers_quietly_during_same_source_file_op() {
     let temp = tempdir().expect("create temp dir");
     let source = SampleSource::new(temp.path().join("source"));
     std::fs::create_dir_all(&source.root).expect("create source root");
-    let _db = crate::sample_sources::SourceDatabase::open(&source.root).expect("open db");
+    let _db =
+        crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(&source.root)
+            .expect("open db");
     let _guard = FileOpWritePriorityGuard::new(&source.id);
 
     let outcome = run_source_db_maintenance_job(SourceDbMaintenanceJob {

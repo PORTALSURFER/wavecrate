@@ -122,8 +122,14 @@ impl SourceDatabase {
         )
     }
 
-    /// Open (or create) the database that lives inside the source folder.
-    pub fn open(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+    /// Open a fully migrated writable database while arranging test fixture state.
+    ///
+    /// This API is intentionally unavailable in normal builds. Runtime callers
+    /// must select the narrow role-specific open that owns their operation.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn open_for_test_fixture_source_write(
+        root: impl AsRef<Path>,
+    ) -> Result<Self, SourceDbError> {
         Self::open_for_source_write(root)
     }
 
@@ -232,7 +238,8 @@ impl SourceDatabase {
     ///
     /// `root` remains the audio root used for relative paths and scans, while
     /// `database_root` owns the `.wavecrate.db` file.
-    pub fn open_with_database_root(
+    /// Open a writable external source database for general source-owned mutations.
+    pub fn open_for_source_write_with_database_root(
         root: impl AsRef<Path>,
         database_root: impl AsRef<Path>,
     ) -> Result<Self, SourceDbError> {
@@ -242,14 +249,6 @@ impl SourceDatabase {
             open::should_open_source_db_read_only(),
             open::SourceDatabaseOpenMode::Full,
         )
-    }
-
-    /// Open a writable external source database for general source-owned mutations.
-    pub fn open_for_source_write_with_database_root(
-        root: impl AsRef<Path>,
-        database_root: impl AsRef<Path>,
-    ) -> Result<Self, SourceDbError> {
-        Self::open_with_database_root(root, database_root)
     }
 
     /// Open a startup-friendly database for a background job.
@@ -302,35 +301,6 @@ impl SourceDatabase {
     /// Open a source database for deferred schema and cleanup maintenance.
     pub fn open_for_maintenance(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         Self::open_with_role(root, SourceDatabaseConnectionRole::Maintenance)
-    }
-
-    /// Open (or create) the database using startup-friendly schema work only.
-    ///
-    /// This preserves required table/index compatibility while deferring expensive
-    /// path validation/cleanup to a background maintenance job.
-    pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
-        Self::open_for_background_job(root)
-    }
-
-    /// Open a startup-friendly source database stored outside the source root.
-    pub fn open_fast_with_database_root(
-        root: impl AsRef<Path>,
-        database_root: impl AsRef<Path>,
-    ) -> Result<Self, SourceDbError> {
-        Self::open_for_background_job_with_database_root(root, database_root)
-    }
-
-    /// Open an existing database in read-only mode without applying schema migrations.
-    pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
-        Self::open_for_ui_read(root)
-    }
-
-    /// Open an external source database in read-only mode.
-    pub fn open_read_only_with_database_root(
-        root: impl AsRef<Path>,
-        database_root: impl AsRef<Path>,
-    ) -> Result<Self, SourceDbError> {
-        Self::open_for_ui_read_with_database_root(root, database_root)
     }
 
     /// Open a source database using one explicit runtime role profile.
@@ -397,10 +367,11 @@ impl SourceDatabase {
         )
     }
 
-    /// Open a database connection for the given root without wrapping in SourceDatabase.
-    pub fn open_connection(root: impl AsRef<Path>) -> Result<Connection, SourceDbError> {
-        let db = Self::open(root)?;
-        Ok(db.into_connection())
+    /// Open a raw startup-friendly connection for a background job.
+    pub fn open_connection_for_background_job(
+        root: impl AsRef<Path>,
+    ) -> Result<Connection, SourceDbError> {
+        Self::open_connection_with_role(root, SourceDatabaseConnectionRole::JobWorker)
     }
 
     /// Open a raw SQLite connection using one explicit runtime role profile.

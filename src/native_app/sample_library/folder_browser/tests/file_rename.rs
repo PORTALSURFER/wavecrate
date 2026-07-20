@@ -121,7 +121,8 @@ fn file_rename_keeps_active_collection_item_visible_and_persisted() {
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
     let collection = SampleCollection::new(1).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(&root).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(&root)
+        .expect("db");
     db.upsert_file(std::path::Path::new("drums/kick.wav"), 8, 5)
         .expect("upsert file");
     let mut batch = db.write_batch().expect("write batch");

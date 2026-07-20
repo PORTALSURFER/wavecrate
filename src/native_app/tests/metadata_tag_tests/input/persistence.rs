@@ -45,8 +45,10 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
     )
     .expect("persist tags");
 
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path())
-        .expect("open source db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("open source db");
     assert_eq!(
         db.tag_labels_for_path(std::path::Path::new("persistent-tag.wav"))
             .expect("tag labels"),
@@ -159,8 +161,10 @@ fn metadata_tag_persistence_replaces_conflicting_playback_type_tags() {
     )
     .expect("persist loop tag");
 
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path())
-        .expect("open source db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("open source db");
     assert_eq!(
         db.tag_labels_for_path(relative_path.as_path())
             .expect("loop labels"),

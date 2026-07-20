@@ -19,7 +19,7 @@ fn scan_tolerates_vanishing_nested_directories() {
         }
     });
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     assert!(stats.total_files >= 1);
 
@@ -45,7 +45,7 @@ fn scan_skips_symlink_directories() {
     let link = dir.path().join("nested_link");
     unix_fs::symlink(&nested, &link).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.total_files, 2);
     assert_eq!(stats.added, 2);
@@ -61,7 +61,7 @@ fn scan_skips_symlink_files() {
     let link = dir.path().join("one_link.wav");
     unix_fs::symlink(&target, &link).unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     assert_eq!(stats.total_files, 1);
     assert_eq!(stats.added, 1);
@@ -77,7 +77,7 @@ fn scan_skips_appledouble_sidecar_files() {
     std::fs::write(nested.join("snare.wav"), b"snare").unwrap();
     std::fs::write(nested.join("._snare.wav"), b"sidecar").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let stats = scan_once(&db).unwrap();
     let paths = db
         .list_files()

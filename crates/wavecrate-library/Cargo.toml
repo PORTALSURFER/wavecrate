@@ -10,6 +10,7 @@ missing_docs = "deny"
 [features]
 default = []
 sqlite-ext-unsafe = []
+test-support = []
 
 [dependencies]
 blake3 = "1.6.1"

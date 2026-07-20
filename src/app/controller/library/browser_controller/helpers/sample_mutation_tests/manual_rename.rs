@@ -30,7 +30,8 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
     assert!(old_absolute.is_file());
     assert!(!new_absolute.exists());
 
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert_eq!(
         db.tag_for_path(old_relative).expect("old tag"),
         Some(Rating::KEEP_3)
@@ -104,7 +105,8 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
     assert!(!old_absolute.exists());
     assert!(new_absolute.is_file());
 
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert!(db.tag_for_path(old_relative).expect("old tag").is_none());
     assert_eq!(
         db.tag_for_path(new_relative).expect("new tag"),

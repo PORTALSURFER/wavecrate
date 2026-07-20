@@ -65,8 +65,9 @@ fn assert_sample_rating(
         .folder_browser
         .source_database_relative_file_path(path)
         .expect("rated file should belong to a source");
-    let db = SourceDatabase::open_read_only_with_database_root(source_root, &source_database_root)
-        .expect("source database should open");
+    let db =
+        SourceDatabase::open_for_ui_read_with_database_root(source_root, &source_database_root)
+            .expect("source database should open");
     let persisted = db
         .list_files()
         .expect("source database files should list")
@@ -100,7 +101,7 @@ fn assert_sample_not_keep_rated(
         return;
     };
     let Ok(db) =
-        SourceDatabase::open_read_only_with_database_root(source_root, &source_database_root)
+        SourceDatabase::open_for_ui_read_with_database_root(source_root, &source_database_root)
     else {
         return;
     };
@@ -830,7 +831,8 @@ fn cut_paste_selected_files_moves_audio_into_selected_folder() {
     for file in [&kick, &snare, &hat] {
         write_test_wav_i16(file, &[0, 256, -256, 512]);
     }
-    let db = SourceDatabase::open(source_root.path()).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(source_root.path())
+        .expect("open source db");
     let kick_relative = Path::new("drums/kick.wav");
     let snare_relative = Path::new("drums/snare.wav");
     db.upsert_file(kick_relative, 8, 1)
@@ -1451,7 +1453,8 @@ fn folder_move_remaps_nested_metadata_tags_in_live_cache() {
     let kick = kicks.join("kick.wav");
     write_test_wav_i16(&kick, &[0, 256, -256, 512]);
 
-    let db = SourceDatabase::open(source_root.path()).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(source_root.path())
+        .expect("open source db");
     let kick_relative = Path::new("drums/kicks/kick.wav");
     db.upsert_file(kick_relative, 8, 1)
         .expect("register kick metadata row");
@@ -2801,7 +2804,10 @@ fn rating_adjustment_survives_selected_file_rename() {
     assert_eq!(rows[0].rating, Rating::KEEP_1);
     assert!(!std::path::Path::new(&selected_file).exists());
     assert!(renamed.exists());
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     assert_eq!(
         db.tag_for_path(std::path::Path::new("snare.wav"))
             .expect("rating"),
@@ -2859,7 +2865,10 @@ fn rating_adjustment_survives_selected_file_move() {
     assert_eq!(rows[0].rating, Rating::KEEP_1);
     assert!(!kick.exists());
     assert!(moved.exists());
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     assert_eq!(
         db.tag_for_path(std::path::Path::new("loops/kick.wav"))
             .expect("rating"),
@@ -2918,7 +2927,10 @@ fn rating_adjustment_survives_selected_file_move_and_source_refresh() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].id, moved.display().to_string());
     assert_eq!(rows[0].rating, Rating::KEEP_1);
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     assert_eq!(
         db.tag_for_path(std::path::Path::new("loops/kick.wav"))
             .expect("rating"),

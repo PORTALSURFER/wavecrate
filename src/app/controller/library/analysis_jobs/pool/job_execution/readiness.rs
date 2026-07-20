@@ -341,7 +341,8 @@ mod tests {
         let original_bytes = std::fs::read(&absolute_path).expect("read original wav");
         let original_hash = blake3::hash(&original_bytes).to_hex().to_string();
         let metadata = std::fs::metadata(&absolute_path).expect("read original metadata");
-        let mut connection = SourceDatabase::open_connection(&source.root).expect("open source db");
+        let mut connection = SourceDatabase::open_connection_for_background_job(&source.root)
+            .expect("open source db");
         connection
             .execute(
                 "INSERT INTO wav_files (

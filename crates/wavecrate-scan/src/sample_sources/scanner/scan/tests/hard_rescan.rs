@@ -5,7 +5,7 @@ fn hard_rescan_prunes_missing_rows() {
     let dir = tempdir().unwrap();
     let file_path = dir.path().join("one.wav");
     std::fs::write(&file_path, b"one").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::remove_file(&file_path).unwrap();
@@ -25,7 +25,7 @@ fn hard_rescan_prunes_missing_files_with_tags() {
     let file_path = dir.path().join("one.wav");
     std::fs::write(&file_path, b"one").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
 
@@ -47,7 +47,7 @@ fn hard_rescan_prunes_missing_without_touching_existing() {
     std::fs::write(&keep_path, b"keep").unwrap();
     std::fs::write(&remove_path, b"remove").unwrap();
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::remove_file(&remove_path).unwrap();

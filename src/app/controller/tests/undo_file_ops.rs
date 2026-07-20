@@ -159,7 +159,8 @@ fn remove_sample_job_treats_missing_file_as_idempotent_when_db_cleanup_succeeds(
         "missing file should be an idempotent success: {:?}",
         result.result
     );
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert!(
         db.tag_for_path(&relative_path)
             .expect("lookup removed row")
@@ -192,7 +193,8 @@ fn remove_sample_job_fails_when_filesystem_delete_fails() {
         absolute_path.is_dir(),
         "failed delete must leave path in place"
     );
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert_eq!(
         db.tag_for_path(&relative_path)
             .expect("db row should remain"),
@@ -229,7 +231,8 @@ fn remove_sample_job_fails_without_deleting_when_db_is_unavailable() {
         absolute_path.exists(),
         "db unavailability must not remove the sample file"
     );
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert_eq!(
         db.tag_for_path(&relative_path)
             .expect("db row should remain"),
@@ -247,7 +250,8 @@ fn remove_sample_fixture(sample_name: &str) -> (tempfile::TempDir, SampleSource,
     let absolute_path = source.root.join(&relative_path);
     write_test_wav(&absolute_path, &[0.0, 0.1, -0.1]);
     let metadata = std::fs::metadata(&absolute_path).expect("read sample metadata");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     db.upsert_file(&relative_path, metadata.len(), 0)
         .expect("insert db row");
     db.set_tag(&relative_path, crate::sample_sources::Rating::NEUTRAL)
@@ -303,7 +307,8 @@ fn restore_sample_job_reapplies_looped_and_playback_metadata() {
         result.result
     );
 
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert_eq!(
         db.tag_for_path(&relative_path)
             .expect("lookup restored tag"),

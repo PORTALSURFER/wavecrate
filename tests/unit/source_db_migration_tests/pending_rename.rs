@@ -21,7 +21,7 @@ fn pending_rename_migration_adds_metadata_columns_and_keeps_legacy_rows_readable
         );",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let columns = column_names(&db.connection, "pending_wav_renames");
     assert!(columns.iter().any(|column| column == "sound_type"));
     assert!(columns.iter().any(|column| column == "user_tag"));
@@ -63,7 +63,7 @@ fn current_stamped_pending_rename_table_repairs_missing_metadata_columns() {
         schema::SOURCE_DB_SCHEMA_VERSION
     ));
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let columns = column_names(&db.connection, "pending_wav_renames");
     assert!(columns.iter().any(|column| column == "sound_type"));
     assert!(columns.iter().any(|column| column == "user_tag"));
@@ -112,7 +112,7 @@ fn legacy_single_collection_pending_row_restores_membership() {
         );",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let columns = column_names(&db.connection, "pending_wav_renames");
     assert!(columns.iter().any(|column| column == "collections"));
     let pending = db.list_pending_renames().unwrap();

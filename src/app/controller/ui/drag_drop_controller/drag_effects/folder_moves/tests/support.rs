@@ -57,7 +57,7 @@ pub(super) fn setup_folder_move_fixture() -> (tempfile::TempDir, SampleSource, P
     let wav_path = old_dir.join("one.wav");
     write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
     let (file_size, modified_ns) = read_file_metadata(&wav_path);
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     let mut batch = db.write_batch().must();
     batch
         .upsert_file(Path::new("old/one.wav"), file_size, modified_ns)

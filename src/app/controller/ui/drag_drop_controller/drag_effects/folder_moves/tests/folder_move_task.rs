@@ -30,7 +30,7 @@ fn folder_move_updates_db_entries() {
     assert_eq!(moved.collection, Some(SampleCollection::new(1).must()));
     assert!(source_root.join("dest/old/one.wav").is_file());
 
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert!(db.tag_for_path(Path::new("old/one.wav")).must().is_none());
     assert_eq!(
         db.tag_for_path(Path::new("dest/old/one.wav")).must(),
@@ -77,7 +77,7 @@ fn folder_tree_move_supports_undo_and_redo() {
 
     assert!(source_root.join("dest/old/one.wav").is_file());
     assert!(!source_root.join("old").exists());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert!(db.tag_for_path(Path::new("old/one.wav")).must().is_none());
     assert_eq!(
         db.tag_for_path(Path::new("dest/old/one.wav")).must(),
@@ -124,7 +124,7 @@ fn folder_move_cancelled_before_processing_keeps_source_unchanged() {
     assert!(result.errors.is_empty());
     assert!(source_root.join("old/one.wav").is_file());
     assert!(!source_root.join("dest/old").exists());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert_eq!(
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
@@ -176,7 +176,7 @@ fn folder_move_rejects_existing_destination_folder() {
     );
     assert!(source_root.join("old/one.wav").is_file());
     assert!(source_root.join("dest/old").is_dir());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert_eq!(
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)
@@ -237,7 +237,7 @@ fn folder_move_db_write_failure_rolls_back_source_and_db_state() {
     }));
     assert!(source_root.join("old/one.wav").is_file());
     assert!(!source_root.join("dest/old").exists());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert_eq!(
         db.tag_for_path(Path::new("old/one.wav")).must(),
         Some(Rating::KEEP_1)

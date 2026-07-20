@@ -163,7 +163,10 @@ fn recording_sample_last_played_updates_row_and_persists_source_history() {
     let sample_path = source_root.path().join("played.wav");
     fs::write(&sample_path, []).expect("write sample");
     let sample_path_string = sample_path.display().to_string();
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     db.upsert_file(std::path::Path::new("played.wav"), 0, 1)
         .expect("upsert sample");
 

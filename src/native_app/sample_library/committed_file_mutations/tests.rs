@@ -80,7 +80,8 @@ fn path_only_move_retains_content_identity_and_readiness_artifacts() {
     let old_path = root.path().join("old.wav");
     let new_path = root.path().join("new.wav");
     fs::write(&old_path, b"same content").expect("create old");
-    let database = SourceDatabase::open(root.path()).expect("source db");
+    let database =
+        SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
     scanner::hard_rescan(&database).expect("initial scan");
     fs::rename(&old_path, &new_path).expect("move path");
 
@@ -107,7 +108,8 @@ fn destructive_edit_carries_previous_and_current_content_identity() {
     let root = tempfile::tempdir().expect("source root");
     let path = root.path().join("edited.wav");
     fs::write(&path, b"before").expect("create file");
-    let database = SourceDatabase::open(root.path()).expect("source db");
+    let database =
+        SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
     scanner::hard_rescan(&database).expect("initial scan");
     fs::write(&path, b"after and different").expect("edit file");
 
@@ -138,7 +140,8 @@ fn delete_retires_manifest_identity_and_only_invalidates_membership() {
     let root = tempfile::tempdir().expect("source root");
     let path = root.path().join("deleted.wav");
     fs::write(&path, b"deleted").expect("create file");
-    let database = SourceDatabase::open(root.path()).expect("source db");
+    let database =
+        SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
     scanner::hard_rescan(&database).expect("initial scan");
     fs::remove_file(&path).expect("delete file");
 
@@ -223,7 +226,8 @@ fn cross_source_database_root_failure_keeps_valid_commit_and_explicit_failure() 
     let before = first.path().join("sample.wav");
     let after = second.path().join("sample.wav");
     fs::write(&before, b"same content").expect("create source file");
-    let first_database = SourceDatabase::open(first.path()).expect("first source db");
+    let first_database =
+        SourceDatabase::open_for_test_fixture_source_write(first.path()).expect("first source db");
     scanner::hard_rescan(&first_database).expect("initial first source scan");
     fs::rename(&before, &after).expect("move across sources");
 

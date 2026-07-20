@@ -23,7 +23,7 @@ pub(super) fn loaded_search_cache_for_tests(
     let temp = tempdir().expect("tempdir");
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).expect("create source root");
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("one.wav"), 1, 1)
         .expect("insert one");
     db.upsert_file(Path::new("two.wav"), 1, 2)

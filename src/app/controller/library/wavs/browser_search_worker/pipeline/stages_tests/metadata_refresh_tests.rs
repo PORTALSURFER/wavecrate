@@ -14,7 +14,7 @@ fn metadata_only_refresh_reuses_cached_paths_and_scores() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).expect("create source root");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
         .expect("insert kick");
     db.upsert_file(Path::new("drums/snare.wav"), 1, 2)
@@ -101,7 +101,7 @@ fn metadata_delta_refresh_updates_only_targeted_rows() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).expect("create source root");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
         .expect("insert kick");
     db.upsert_file(Path::new("drums/snare.wav"), 1, 2)
@@ -165,7 +165,7 @@ fn metadata_delta_refresh_reuses_same_source_db_connection_after_db_write() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).expect("create source root");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
         .expect("insert kick");
     db.upsert_file(Path::new("drums/snare.wav"), 1, 2)
@@ -233,7 +233,7 @@ fn metadata_delta_revision_gap_refreshes_all_provided_paths() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).expect("create source root");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("one.wav"), 1, 1)
         .expect("insert one");
     db.upsert_file(Path::new("two.wav"), 1, 2)

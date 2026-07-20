@@ -137,7 +137,7 @@ fn pruning_missing_browser_sample_keeps_remaining_rows_visible() -> Result<(), S
     controller.cache_db(&source).unwrap();
 
     write_test_wav(&source.root.join("alive.wav"), &[0.0, 0.1, -0.1]);
-    let db = SourceDatabase::open(&source.root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source.root).unwrap();
     let mut batch = db.write_batch().unwrap();
     batch
         .upsert_file_with_hash_and_tag(

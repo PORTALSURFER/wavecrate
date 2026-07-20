@@ -44,9 +44,9 @@ low-cost and idempotent.
 
 For non-additive or destructive changes, bump the source DB schema version and
 add a fixture-style migration test that starts from the old shape, opens the
-database through the real `SourceDatabase` entrypoint, and verifies both schema
-shape and data preservation. Prefer additive expansion plus backfill over table
-rebuilds unless the old shape cannot remain valid.
+database through `SourceDatabase::open_for_test_fixture_source_write`, and
+verifies both schema shape and data preservation. Prefer additive expansion
+plus backfill over table rebuilds unless the old shape cannot remain valid.
 
 The global library database currently runs idempotent base DDL and additive
 migrations on open. Future non-additive library changes should introduce an
@@ -54,7 +54,8 @@ explicit versioned migration before shipping.
 
 ## Read-Only Source Compatibility
 
-`SourceDatabase::open_read_only` must not apply migrations. Any query reachable
+`SourceDatabase::open_for_ui_read` and the `UiRead`/`BackgroundRead` roles must
+not apply migrations. Any query reachable
 from a read-only UI or worker path must either:
 
 - project safe defaults for optional columns that may not exist yet, or

@@ -76,7 +76,7 @@ fn renaming_folder_rolls_back_disk_move_when_db_rewrite_fails() -> Result<(), St
         PathBuf::from("old/clip.wav")
     );
     assert_db_contention_status(&controller.ui.status.text);
-    let db = SourceDatabase::open(&source.root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source.root).unwrap();
     assert_eq!(db.count_files().unwrap(), 1);
     assert_eq!(
         db.tag_for_path(Path::new("old/clip.wav")).unwrap(),
@@ -123,7 +123,7 @@ fn renaming_folder_preserves_row_metadata_and_analysis_identity() -> Result<(), 
     assert_eq!(renamed.last_played_at, Some(42));
     assert_eq!(renamed.sound_type, Some(SampleSoundType::Fx));
     assert_eq!(renamed.user_tag.as_deref(), Some("Vintage FX"));
-    let db = SourceDatabase::open(&source.root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source.root).unwrap();
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     let row = &rows[0];

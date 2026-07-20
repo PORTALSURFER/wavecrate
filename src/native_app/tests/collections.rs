@@ -7,7 +7,10 @@ use std::path::Path;
 fn collection_shortcut_toggles_selected_sample_membership() {
     let (mut state, source_root, selected_file) = native_app_state_with_temp_sample("toggle.wav");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
@@ -57,7 +60,10 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
     let (mut state, source_root, selected_file) =
         native_app_state_with_temp_sample("undo-collection.wav");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
@@ -105,7 +111,10 @@ fn collection_assignment_transaction_undoes_and_redoes_membership() {
 fn sample_context_menu_removes_item_from_active_collection_view() {
     let (mut state, source_root, selected_file) = native_app_state_with_temp_sample("remove.wav");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
 
     state.apply_message(
         GuiMessage::AssignSelectedCollection(collection),
@@ -160,7 +169,10 @@ fn sample_context_menu_cleans_missing_collection_member() {
     let present = source_root.path().join("present.wav");
     std::fs::write(&present, []).expect("write present sample");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     seed_file_collections(&db, "missing/lost.wav", &[collection]);
     seed_file_collections(&db, "present.wav", &[collection]);
     let mut state = super::gui_state_for_span_tests();
@@ -229,7 +241,10 @@ fn sample_context_menu_cleans_all_missing_members_in_collection() {
     let present = source_root.path().join("present.wav");
     std::fs::write(&present, []).expect("write present sample");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     seed_file_collections(&db, "missing/one.wav", &[collection]);
     seed_file_collections(&db, "missing/two.wav", &[collection]);
     seed_file_collections(&db, "present.wav", &[collection]);
@@ -296,7 +311,10 @@ fn collection_context_menu_cleans_all_missing_members_without_sample_context() {
     let present = source_root.path().join("present.wav");
     std::fs::write(&present, []).expect("write present sample");
     let collection = wavecrate::sample_sources::SampleCollection::new(0).expect("collection");
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     seed_file_collections(&db, "missing/one.wav", &[collection]);
     seed_file_collections(&db, "missing/two.wav", &[collection]);
     seed_file_collections(&db, "present.wav", &[collection]);

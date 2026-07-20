@@ -8,7 +8,7 @@ use super::helpers::{revision_value, wav_paths_revision_value};
 #[test]
 fn metadata_only_mutations_do_not_bump_wav_paths_revision() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
 
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     assert_eq!(wav_paths_revision_value(&db), 1);
@@ -29,7 +29,7 @@ fn metadata_only_mutations_do_not_bump_wav_paths_revision() {
 #[test]
 fn curation_timestamp_tracks_user_metadata_decisions_not_playback() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let path = Path::new("one.wav");
     db.upsert_file(path, 10, 5).unwrap();
 
@@ -49,7 +49,7 @@ fn curation_timestamp_tracks_user_metadata_decisions_not_playback() {
 #[test]
 fn single_write_wrappers_match_batch_results_and_revision_behavior() {
     let single_dir = tempdir().unwrap();
-    let single = SourceDatabase::open(single_dir.path()).unwrap();
+    let single = SourceDatabase::open_for_source_write(single_dir.path()).unwrap();
     single.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     assert_eq!(revision_value(&single), 1);
     single
@@ -70,7 +70,7 @@ fn single_write_wrappers_match_batch_results_and_revision_behavior() {
     assert_eq!(revision_value(&single), 7);
 
     let batch_dir = tempdir().unwrap();
-    let batch_db = SourceDatabase::open(batch_dir.path()).unwrap();
+    let batch_db = SourceDatabase::open_for_source_write(batch_dir.path()).unwrap();
     batch_db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     assert_eq!(revision_value(&batch_db), 1);
     let mut batch = batch_db.write_batch().unwrap();
@@ -113,7 +113,7 @@ fn single_write_wrappers_match_batch_results_and_revision_behavior() {
 #[test]
 fn empty_tag_batch_is_a_noop() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
 
     db.set_tags_batch(&[]).unwrap();
 
@@ -124,7 +124,7 @@ fn empty_tag_batch_is_a_noop() {
 #[test]
 fn metadata_wrapper_uses_batch_revision_policy_without_wav_path_churn() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
 
     db.set_metadata("custom_key", "custom_value").unwrap();
 

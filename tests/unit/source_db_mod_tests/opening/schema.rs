@@ -21,7 +21,7 @@ fn missing_columns_are_added_on_open() {
         )
         .unwrap();
     }
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].tag, Rating::NEUTRAL);
@@ -31,7 +31,7 @@ fn missing_columns_are_added_on_open() {
 #[test]
 fn applies_workload_pragmas_and_indices() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let conn = &db.connection;
 
     let journal_mode: String = conn
@@ -87,7 +87,7 @@ fn stale_schema_stamp_reassures_legacy_files_on_open() {
     .unwrap();
     drop(conn);
 
-    let reopened = SourceDatabase::open(dir.path()).unwrap();
+    let reopened = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     assert_eq!(
         schema_version(&reopened.connection),
         current_schema_version()
@@ -97,7 +97,7 @@ fn stale_schema_stamp_reassures_legacy_files_on_open() {
 #[test]
 fn ui_read_queries_remain_available_while_job_worker_holds_write_transaction() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     drop(db);
 
@@ -126,7 +126,7 @@ fn ui_read_queries_remain_available_while_job_worker_holds_write_transaction() {
 #[test]
 fn ui_read_role_uses_short_busy_timeout() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     drop(db);
 
     let ui_read =

@@ -88,7 +88,8 @@ fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
     let temp = tempdir().expect("create temp dir");
     let source = SampleSource::new(temp.path().join("source"));
     std::fs::create_dir_all(&source.root).expect("create source root");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     for name in names {
         let relative = Path::new(name);
         let absolute = source.root.join(relative);

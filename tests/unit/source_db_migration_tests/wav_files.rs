@@ -13,7 +13,7 @@ fn wav_files_migration_adds_optional_columns_and_backfills_extension() {
         VALUES ('nested/One.WAV', 10, 5);",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let columns = column_names(&db.connection, "wav_files");
     assert!(columns.iter().any(|column| column == "tag"));
     assert!(columns.iter().any(|column| column == "looped"));
@@ -67,7 +67,7 @@ fn wav_files_migration_backfills_sound_type_and_user_tag_into_normal_tags() {
             ('loop.wav', 10, 5, NULL, '', 1);",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let tag_columns = column_names(&db.connection, "source_tags");
     let assignment_columns = column_names(&db.connection, "wav_file_tags");
     assert!(tag_columns.iter().any(|column| column == "normalized_text"));

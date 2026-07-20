@@ -7,7 +7,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 use tempfile::tempdir;
 
 fn make_test_db(dir: &Path, filename: &str) -> SourceDatabase {
-    let db = SourceDatabase::open(dir).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir).unwrap();
     db.upsert_file(Path::new(filename), 123, 456).unwrap();
     db.set_tag(Path::new(filename), Rating::TRASH_3).unwrap();
     db
@@ -88,8 +88,8 @@ fn post_move_remove_failure_refreshes_source_and_keeps_missing_row() {
         |_| {},
         |source, entry, root| {
             move_to_trash(source, entry, root)?;
-            let conn =
-                SourceDatabase::open_connection(&source.root).map_err(|err| err.to_string())?;
+            let conn = SourceDatabase::open_connection_for_background_job(&source.root)
+                .map_err(|err| err.to_string())?;
             conn.execute_batch("BEGIN IMMEDIATE")
                 .map_err(|err| err.to_string())?;
             write_lock = Some(conn);

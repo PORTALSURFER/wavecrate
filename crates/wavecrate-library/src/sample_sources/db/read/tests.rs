@@ -8,7 +8,7 @@ use super::super::{DB_FILE_NAME, Rating, SampleCollection, SampleSoundType, Sour
 #[test]
 fn list_files_page_orders_supported_audio_and_applies_offsets() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     for name in [
         "delta.wav",
         "alpha.wav",
@@ -36,7 +36,7 @@ fn list_files_page_orders_supported_audio_and_applies_offsets() {
 #[test]
 fn pending_hash_query_is_bounded_and_excludes_missing_or_hashed_rows() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     for name in ["delta.wav", "alpha.wav", "charlie.wav", "bravo.wav"] {
         db.upsert_file(Path::new(name), 10, 5).unwrap();
     }
@@ -61,7 +61,7 @@ fn pending_hash_query_is_bounded_and_excludes_missing_or_hashed_rows() {
 #[test]
 fn audio_queries_ignore_appledouble_sidecars() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     for name in [
         "._alpha.wav",
         "alpha.wav",
@@ -97,7 +97,7 @@ fn audio_queries_ignore_appledouble_sidecars() {
 #[test]
 fn list_queries_skip_invalid_relative_paths() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("valid.wav"), 10, 5).unwrap();
     db.set_missing(Path::new("valid.wav"), true).unwrap();
     db.connection
@@ -126,7 +126,7 @@ fn list_queries_skip_invalid_relative_paths() {
 #[test]
 fn bpm_queries_return_only_present_rows_and_preserve_null_values() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.connection
         .execute(
             "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, bpm)
@@ -166,7 +166,7 @@ fn bpm_queries_return_only_present_rows_and_preserve_null_values() {
 #[test]
 fn search_entry_metadata_matches_row_order_and_values() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("drums/snare.wav"), 10, 5).unwrap();
     db.upsert_file(Path::new("drums/kick.wav"), 10, 6).unwrap();
     db.set_tag(Path::new("drums/kick.wav"), Rating::KEEP_1)
@@ -188,7 +188,7 @@ fn search_entry_metadata_matches_row_order_and_values() {
 #[test]
 fn sound_type_round_trips_for_path_queries() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("drums/kick.wav"), 10, 5).unwrap();
     db.set_sound_type(Path::new("drums/kick.wav"), Some(SampleSoundType::Kick))
         .unwrap();
@@ -202,7 +202,7 @@ fn sound_type_round_trips_for_path_queries() {
 #[test]
 fn collection_reads_use_canonical_membership_rows() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     db.upsert_file(Path::new("two.wav"), 10, 5).unwrap();
     db.connection
@@ -247,7 +247,7 @@ fn legacy_read_only_collection_query_falls_back_to_wav_files_column() {
         .unwrap();
     drop(connection);
 
-    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
     let expected = SampleCollection::new(3).unwrap();
     assert_eq!(
         db.collections_for_path(Path::new("one.wav")).unwrap(),
@@ -274,7 +274,7 @@ fn legacy_read_only_database_without_pending_renames_returns_empty_list() {
         .unwrap();
     drop(connection);
 
-    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
     assert_eq!(db.list_pending_renames().unwrap(), Vec::new());
 }
 
@@ -305,7 +305,7 @@ fn legacy_read_only_pending_renames_project_optional_defaults() {
         .unwrap();
     drop(connection);
 
-    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
     let pending = db.list_pending_renames().unwrap();
     assert_eq!(pending.len(), 1);
     let entry = &pending[0];
@@ -396,7 +396,7 @@ fn legacy_read_only_database_without_last_curated_at_preserves_saved_metadata() 
         .unwrap();
     drop(connection);
 
-    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     let row = &rows[0];
@@ -458,7 +458,7 @@ fn legacy_read_only_minimal_wav_files_schema_reads_with_defaults() {
         .unwrap();
     drop(connection);
 
-    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
     let rows = db.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     let row = &rows[0];

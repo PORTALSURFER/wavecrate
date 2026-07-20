@@ -37,7 +37,8 @@ fn analysis_target() -> ReadinessTarget {
 }
 
 fn seed_readiness_work(root: &Path) {
-    let mut connection = SourceDatabase::open_connection(root).expect("create source database");
+    let mut connection =
+        SourceDatabase::open_connection_for_background_job(root).expect("create source database");
     connection
         .execute(
             "INSERT INTO wav_files (
@@ -188,7 +189,8 @@ fn crashed_process_lease_is_protected_until_expiry_and_recovered_once() {
         lease_expires_at: 20,
         origin: ReadinessClaimOrigin::Pending,
     };
-    let mut connection = SourceDatabase::open_connection(root.path()).expect("reopen source db");
+    let mut connection =
+        SourceDatabase::open_connection_for_background_job(root.path()).expect("reopen source db");
     assert_eq!(
         ReadinessStore::new(&mut connection)
             .complete(&original, 21)
@@ -230,7 +232,8 @@ fn readiness_claim_process_helper() {
             thread::sleep(Duration::from_millis(5));
         }
     }
-    let mut connection = SourceDatabase::open_connection(&root).expect("open claimant database");
+    let mut connection =
+        SourceDatabase::open_connection_for_background_job(&root).expect("open claimant database");
     let result = ReadinessStore::new(&mut connection)
         .claim(&analysis_target(), now, 10)
         .expect("claim readiness work")

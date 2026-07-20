@@ -2335,7 +2335,7 @@ fn assert_extracted_file_keep_1_rating(
         .folder_browser
         .source_database_relative_file_path(extracted)
         .expect("extracted file should belong to a source");
-    let db = wavecrate::sample_sources::SourceDatabase::open_read_only_with_database_root(
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_ui_read_with_database_root(
         source_root,
         &source_database_root,
     )

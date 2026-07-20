@@ -7,7 +7,7 @@ use super::super::super::{Rating, SampleCollection, SourceDatabase};
 #[test]
 fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let old = Path::new("old.wav");
     let new = Path::new("renamed.wav");
     let old_sample_id = "source::old.wav";
@@ -42,7 +42,7 @@ fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
 #[test]
 fn rename_identity_remap_replaces_stale_destination_analysis_artifacts() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let old = Path::new("old.wav");
     let new = Path::new("renamed.wav");
     let old_sample_id = "source::old.wav";
@@ -78,7 +78,7 @@ fn rename_identity_remap_replaces_stale_destination_analysis_artifacts() {
 #[test]
 fn wav_path_remap_preserves_user_metadata_and_collection_memberships() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let old = Path::new("old.wav");
     let new = Path::new("renamed.wav");
     let first = SampleCollection::new(0).unwrap();

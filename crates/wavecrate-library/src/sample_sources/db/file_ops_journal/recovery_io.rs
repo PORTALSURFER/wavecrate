@@ -42,7 +42,7 @@ pub(super) struct SourceDatabaseRecoveryAccess;
 
 impl RecoverySourceDatabases for SourceDatabaseRecoveryAccess {
     fn open(&self, root: &Path) -> Result<SourceDatabase, String> {
-        SourceDatabase::open(root)
+        SourceDatabase::open_for_source_write(root)
             .map_err(|error| format!("Failed to open source DB for recovery: {error}"))
     }
 }

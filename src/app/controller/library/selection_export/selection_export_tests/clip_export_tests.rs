@@ -199,7 +199,7 @@ fn background_clip_export_pipeline_writes_and_registers_entry() {
         PathBuf::from("clip_selection_001.wav")
     );
     assert!(source_root.join("clip_selection_001.wav").is_file());
-    let db = SourceDatabase::open(&source_root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
     assert!(
         db.tag_for_path(Path::new("clip_selection_001.wav"))
             .unwrap()

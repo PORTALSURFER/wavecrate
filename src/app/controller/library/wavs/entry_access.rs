@@ -130,7 +130,11 @@ impl AppController {
         self.ui_cache.browser.search.invalidate();
         self.ui_cache.browser.pipeline.invalidate();
         if let Some(source) = self.current_source() {
-            if let Ok(conn) = crate::sample_sources::SourceDatabase::open_connection(&source.root) {
+            if let Ok(conn) =
+                crate::sample_sources::SourceDatabase::open_connection_for_background_job(
+                    &source.root,
+                )
+            {
                 let _ = conn.execute("DELETE FROM wav_files", []);
             }
             if let Ok(db) = self.database_for(&source)

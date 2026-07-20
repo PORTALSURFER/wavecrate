@@ -87,7 +87,8 @@ mod tests {
         let root = tempfile::tempdir().expect("source");
         std::fs::write(root.path().join("large.wav"), vec![1_u8; 9 * 1024 * 1024])
             .expect("large wav");
-        let db = SourceDatabase::open(root.path()).expect("source db");
+        let db =
+            SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
         let stats = scanner::scan_once(&db).expect("quick scan");
         let cancel = AtomicBool::new(true);
 

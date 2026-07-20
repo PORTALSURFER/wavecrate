@@ -8,7 +8,7 @@ use super::helpers::{revision_value, row_snapshot};
 #[test]
 fn failed_write_wrappers_leave_rows_and_revision_unchanged() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     let before_rows = row_snapshot(&db);
     let before_revision = revision_value(&db);
@@ -24,7 +24,7 @@ fn failed_write_wrappers_leave_rows_and_revision_unchanged() {
 #[test]
 fn batch_errors_roll_back_prior_mutations() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     let before = row_snapshot(&db);
     let before_revision = revision_value(&db);

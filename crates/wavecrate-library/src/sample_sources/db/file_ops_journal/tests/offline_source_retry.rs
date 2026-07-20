@@ -13,7 +13,7 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
     std::fs::create_dir_all(&target_root).unwrap();
 
     {
-        let source_db = SourceDatabase::open(&source_root).unwrap();
+        let source_db = SourceDatabase::open_for_source_write(&source_root).unwrap();
         let source_relative = PathBuf::from("one.wav");
         let source_absolute = source_root.join(&source_relative);
         write_wav(&source_absolute);
@@ -24,7 +24,7 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
         source_db.set_last_played_at(&source_relative, 123).unwrap();
     }
 
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
     let source_relative = PathBuf::from("one.wav");
     let target_relative = PathBuf::from("moved.wav");
     let entry = FileOpJournalEntry::new_move(
@@ -72,7 +72,7 @@ fn reconcile_target_db_stage_defers_until_source_root_returns() {
     );
 
     std::fs::rename(&parked_root, &source_root).unwrap();
-    let source_db = SourceDatabase::open(&source_root).unwrap();
+    let source_db = SourceDatabase::open_for_source_write(&source_root).unwrap();
     assert_eq!(
         source_db.tag_for_path(&source_relative).unwrap(),
         Some(Rating::KEEP_1)

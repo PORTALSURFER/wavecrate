@@ -55,7 +55,7 @@ fn source_scan_installs_finished_tree_after_placeholder_selection() {
         |event| discovery_events.push(event),
     );
     assert_eq!(result.source_db_error, None);
-    let db = SourceDatabase::open(&root).expect("source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("source db");
     let entries = db.list_files().expect("source db files");
     assert!(
         entries
@@ -110,7 +110,7 @@ fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
         .saturating_sub(8 * 7 * 24 * 60 * 60 + 1) as i64;
     let unlocked_relative = std::path::Path::new("unlocked.wav");
     let locked_relative = std::path::Path::new("locked.wav");
-    let db = SourceDatabase::open(&root).expect("source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("source db");
     db.set_tag(unlocked_relative, Rating::KEEP_3)
         .expect("seed unlocked rating");
     db.set_last_curated_at(unlocked_relative, stale_curated_at)
@@ -176,7 +176,7 @@ fn source_scan_publishes_restored_rating_after_large_rename() {
         |_| {}
     )));
 
-    let db = SourceDatabase::open(&root).expect("source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("source db");
     db.set_tag(std::path::Path::new("old.wav"), Rating::KEEP_1)
         .expect("rate original file");
     fs::rename(&old_path, &new_path).expect("rename large wav");

@@ -190,7 +190,7 @@ fn selected_file_refresh_preserves_source_database_rating_metadata() {
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::write(&snare, [0_u8; 8]).expect("write snare");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(std::path::Path::new("drums/snare.wav"), 8, 1)
         .expect("upsert snare");
     db.set_tag(std::path::Path::new("drums/snare.wav"), Rating::new(2))

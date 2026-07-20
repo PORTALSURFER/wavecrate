@@ -311,7 +311,10 @@ fn source_filesystem_change_syncs_removed_file_to_source_database() {
         |_| {},
     );
     state.finish_folder_scan(result, &mut ui::UiUpdateContext::default());
-    let db = wavecrate::sample_sources::SourceDatabase::open(source_root.path()).expect("db");
+    let db = wavecrate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        source_root.path(),
+    )
+    .expect("db");
     assert_eq!(db.list_files().expect("seeded rows").len(), 2);
     fs::remove_file(source_root.path().join("stale.wav")).expect("remove stale sample");
     let mut context = ui::UiUpdateContext::default();

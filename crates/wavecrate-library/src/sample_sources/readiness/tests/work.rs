@@ -67,7 +67,8 @@ fn expired_claim_is_recovered_after_restart_with_a_new_attempt() {
     assert_eq!(first.origin, ReadinessClaimOrigin::Pending);
     drop(connection);
 
-    let mut reopened = SourceDatabase::open_connection(root.path()).expect("reopen source db");
+    let mut reopened =
+        SourceDatabase::open_connection_for_background_job(root.path()).expect("reopen source db");
     assert_eq!(
         claim_readiness_target(&mut reopened, &target, 19, 10).expect("lease still active"),
         None
@@ -152,8 +153,8 @@ fn independent_connections_cannot_claim_one_generation_concurrently() {
             let root_path = root_path.clone();
             let target = target.clone();
             std::thread::spawn(move || {
-                let mut connection =
-                    SourceDatabase::open_connection(&root_path).expect("claimant connection");
+                let mut connection = SourceDatabase::open_connection_for_background_job(&root_path)
+                    .expect("claimant connection");
                 start.wait();
                 claim_readiness_target(&mut connection, &target, 10, 100).expect("concurrent claim")
             })
