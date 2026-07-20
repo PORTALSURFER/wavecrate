@@ -141,6 +141,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn clear_drag(&mut self) {
+        self.clear_source_reorder_drag();
         self.drag_drop.drag = None;
         self.drag_drop.drag_pointer = None;
         self.drag_drop.drop_target.close();

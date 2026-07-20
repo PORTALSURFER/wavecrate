@@ -8,6 +8,7 @@ mod rows;
 #[cfg(test)]
 mod tests;
 
+use crate::native_app::sample_library::folder_browser::view_contract::SOURCE_ROW_SPACING;
 use rows::{source_add_button, source_missing_color, source_row};
 
 pub(in crate::native_app) use identity::retained_source_row_input_id as source_row_widget_id;
@@ -22,7 +23,7 @@ pub(super) fn source_selector(model: &SourceSelectorViewModel) -> ui::View<GuiMe
         .fill_width()
         .height(24.0),
         ui::column(model.rows.iter().map(source_row).collect::<Vec<_>>())
-            .spacing(2.0)
+            .spacing(SOURCE_ROW_SPACING)
             .fill_width(),
     ])
     .spacing(3.0)

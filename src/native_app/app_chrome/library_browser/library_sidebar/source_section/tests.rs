@@ -147,6 +147,11 @@ fn source_row_routes_drop_to_source_root() {
         label: String::from("Drop Source"),
         role: SourceRole::Normal,
         selected: false,
+        reorder_enabled: true,
+        reorder_drag_active: false,
+        reorder_drag_source: false,
+        reorder_drop_target: false,
+        reorder_drop_after: false,
         scanning: false,
         processing: false,
         missing: false,
@@ -165,6 +170,28 @@ fn source_row_routes_drop_to_source_root() {
         Some(GuiMessage::FolderBrowser(
             FolderBrowserMessage::DropOnSource(source.id.clone())
         ))
+    );
+}
+
+#[test]
+fn source_row_routes_drag_lifecycle_by_stable_source_id() {
+    let first = test_source("source-drag-a");
+    let second = test_source("source-drag-b");
+    let state =
+        FolderBrowserState::from_sources_deferred(vec![first.clone(), second], first.id.clone());
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let row = model.rows.first().expect("source row");
+    let drag = ui::DragHandleMessage::started(ui::Point::new(12.0, 32.0));
+
+    assert_eq!(
+        source_row(row).view_dispatch_widget_output(
+            retained_source_row_input_id(first.id.as_str()),
+            ui::WidgetOutput::typed(ui::InteractiveRowMessage::Drag(drag.clone())),
+        ),
+        Some(GuiMessage::FolderBrowser(FolderBrowserMessage::DragSource(
+            first.id.clone(),
+            drag
+        )))
     );
 }
 

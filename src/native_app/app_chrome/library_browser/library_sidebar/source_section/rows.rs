@@ -8,12 +8,12 @@ use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row
 use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
 use crate::native_app::app_chrome::view_models::library_sidebar::SourceRowViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
+pub(super) use crate::native_app::sample_library::folder_browser::view_contract::SOURCE_ROW_HEIGHT;
 use wavecrate::sample_sources::SourceRole;
 
 pub(super) const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
 pub(super) const SOURCE_ADD_BUTTON_WIDTH: f32 = 28.0;
 pub(super) const SOURCE_ADD_BUTTON_HEIGHT: f32 = 24.0;
-pub(super) const SOURCE_ROW_HEIGHT: f32 = 22.0;
 const SOURCE_ROLE_ICON_WIDTH: f32 = 32.0;
 const SOURCE_MISSING_BADGE_WIDTH: f32 = 56.0;
 const SOURCE_MISSING_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
@@ -27,6 +27,8 @@ const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
 const SOURCE_PROCESSING_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 151, 72, 230);
 const SOURCE_PROCESSING_FILL_ALPHA: u8 = 48;
 const SOURCE_PROCESSING_HOVER_ALPHA_BOOST: u8 = 24;
+const SOURCE_REORDER_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
+const SOURCE_REORDER_MARKER_WIDTH: f32 = 2.0;
 const SOURCE_ADD_BUTTON_TOOLTIP: &str = "Add source";
 
 pub(super) fn source_add_button(help_tooltips_enabled: bool) -> ui::View<GuiMessage> {
@@ -57,6 +59,14 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
         .selected(source.selected || source.processing || source.protected_source_error_flash)
         .leading_marker_if(source.processing, source_processing_marker())
         .outline(source_row_outline());
+    let row = if source.reorder_enabled {
+        row.tracked_drag_source_with_motion(
+            source.drag_active || source.reorder_drag_active,
+            source.reorder_drag_source,
+        )
+    } else {
+        row
+    };
     let row = if source.protected_source_error_flash {
         row.dense_chrome_palette(source_protected_error_palette())
     } else if source.processing {
@@ -64,38 +74,66 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     } else {
         row
     };
-    row.actions(
-        ui::row_actions()
-            .primary_secondary_key(
-                source.id.clone(),
-                |source_id| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
-                },
-                |source_id, position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                        source_id, position,
-                    ))
-                },
-            )
-            .tracked_drop_candidate_key(
-                source.id.clone(),
-                |source_id| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnSource(source_id))
-                },
-                |source_id, position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverSourceDropTarget(
-                        source_id, position,
-                    ))
-                },
-                |source_id, position| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::ClearSourceDropTargetUnless(
-                        source_id, position,
-                    ))
-                },
-            ),
-    )
-    .fill_width()
-    .height(SOURCE_ROW_HEIGHT)
+    let row = row
+        .actions(
+            ui::row_actions()
+                .primary_secondary_key(
+                    source.id.clone(),
+                    |source_id| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(source_id))
+                    },
+                    |source_id, position| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                            source_id, position,
+                        ))
+                    },
+                )
+                .drag_key(source.id.clone(), |source_id, message| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::DragSource(source_id, message))
+                })
+                .tracked_drop_candidate_key(
+                    source.id.clone(),
+                    |source_id| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnSource(source_id))
+                    },
+                    |source_id, position| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::HoverSourceDropTarget(
+                            source_id, position,
+                        ))
+                    },
+                    |source_id, position| {
+                        GuiMessage::FolderBrowser(
+                            FolderBrowserMessage::ClearSourceDropTargetUnless(source_id, position),
+                        )
+                    },
+                ),
+        )
+        .fill_width()
+        .height(SOURCE_ROW_HEIGHT);
+    if source.reorder_drop_target {
+        ui::stack([row, source_reorder_marker(source.reorder_drop_after)])
+            .fill_width()
+            .height(SOURCE_ROW_HEIGHT)
+    } else {
+        row
+    }
+}
+
+fn source_reorder_marker(after: bool) -> ui::View<GuiMessage> {
+    ui::feedback_overlay()
+        .edge(
+            SOURCE_REORDER_MARKER_COLOR,
+            SOURCE_REORDER_MARKER_WIDTH,
+            ui::BorderSides {
+                top: !after,
+                bottom: after,
+                left: false,
+                right: false,
+            },
+        )
+        .view()
+        .fill_width()
+        .height(SOURCE_ROW_HEIGHT)
 }
 
 fn source_row_label(source: &SourceRowViewModel) -> String {

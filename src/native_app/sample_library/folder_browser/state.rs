@@ -334,6 +334,7 @@ impl FolderBrowserState {
         match message {
             FolderBrowserMessage::AddSource
             | FolderBrowserMessage::SelectSource(_)
+            | FolderBrowserMessage::DragSource(_, _)
             | FolderBrowserMessage::OpenSourceContextMenu(_, _)
             | FolderBrowserMessage::OpenCollectionContextMenu(_, _)
             | FolderBrowserMessage::BeginRenameSelected

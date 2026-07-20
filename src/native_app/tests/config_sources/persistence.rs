@@ -80,6 +80,126 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
 }
 
 #[test]
+fn source_reorder_drag_persists_order_across_reload() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let roots = [
+        tempfile::tempdir().expect("first source"),
+        tempfile::tempdir().expect("second source"),
+        tempfile::tempdir().expect("third source"),
+    ];
+    let sources = roots
+        .iter()
+        .enumerate()
+        .map(|(index, root)| {
+            wavecrate::sample_sources::SampleSource::new_with_id(
+                wavecrate::sample_sources::SourceId::from_string(format!("source-{index}")),
+                root.path().to_path_buf(),
+            )
+        })
+        .collect::<Vec<_>>();
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::config::AppConfig {
+        sources: sources.clone(),
+        core: crate::native_app::test_support::config::AppSettingsCore::default(),
+    })
+    .expect("seed config");
+    let mut state = NativeAppState::load_default().expect("load seeded sources");
+    let source_id = sources[0].id.as_str().to_owned();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_folder_browser_message(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragSource(
+            source_id.clone(),
+            DragHandleMessage::started(Point::new(20.0, 100.0)),
+        ),
+        &mut context,
+    );
+    state.apply_folder_browser_message(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragSource(
+            source_id,
+            DragHandleMessage::ended(Point::new(20.0, 148.0)),
+        ),
+        &mut context,
+    );
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert_eq!(
+        loaded
+            .sources
+            .iter()
+            .map(|source| source.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["source-1", "source-2", "source-0"]
+    );
+    assert_eq!(
+        state.library.folder_browser.selected_source_id(),
+        "source-0"
+    );
+}
+
+#[test]
+fn source_reorder_drag_paints_pointer_ghost_and_insertion_line() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_base = tempfile::tempdir().expect("source base");
+    let first_root = source_base.path().join("Alpha");
+    let second_root = source_base.path().join("Beta");
+    fs::create_dir_all(&first_root).expect("first source root");
+    fs::create_dir_all(&second_root).expect("second source root");
+    let sources = vec![
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string("source-alpha"),
+            first_root,
+        ),
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string("source-beta"),
+            second_root,
+        ),
+    ];
+    wavecrate::sample_sources::config::save(&crate::native_app::test_support::config::AppConfig {
+        sources,
+        core: crate::native_app::test_support::config::AppSettingsCore::default(),
+    })
+    .expect("seed config");
+    let state = NativeAppState::load_default().expect("load seeded sources");
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragSource(
+            String::from("source-alpha"),
+            DragHandleMessage::started(Point::new(600.0, 320.0)),
+        ),
+    ));
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragSource(
+            String::from("source-alpha"),
+            DragHandleMessage::moved(Point::new(600.0, 344.0)),
+        ),
+    ));
+
+    let dragging_frame = runtime.frame_with_default_theme();
+    assert!(dragging_frame.paint_plan.text_runs().any(|text| {
+        text.text == "Alpha" && text.rect.min.x >= 600.0 && text.rect.min.y >= 320.0
+    }));
+    assert!(dragging_frame.paint_plan.fill_rects().any(|fill| {
+        fill.color == radiant::prelude::Rgba8::new(255, 160, 82, 230)
+            && fill.rect.width() >= 150.0
+            && fill.rect.height() <= 2.5
+    }));
+
+    runtime.dispatch_message(crate::native_app::test_support::state::GuiMessage::FolderBrowser(
+        crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage::DragSource(
+            String::from("source-alpha"),
+            DragHandleMessage::ended(Point::new(600.0, 344.0)),
+        ),
+    ));
+    let dropped_frame = runtime.frame_with_default_theme();
+    assert!(!dropped_frame.paint_plan.text_runs().any(|text| {
+        text.text == "Alpha" && text.rect.min.x >= 600.0 && text.rect.min.y >= 320.0
+    }));
+}
+
+#[test]
 fn default_gui_removes_context_source_from_app_config() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
