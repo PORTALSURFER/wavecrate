@@ -123,6 +123,69 @@ fn playhead_cursor_paints_for_static_small_playmark_selection() {
 }
 
 #[test]
+fn playmark_label_formats_duration_and_paints_at_selection_bottom() {
+    let mut subsecond = WaveformState::synthetic_for_tests();
+    subsecond.play_selection = Some(wavecrate::selection::SelectionRange::new(0.125, 0.875));
+    let subsecond_plan = waveform_widget_for_state(&subsecond)
+        .paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+    let subsecond_label = subsecond_plan
+        .first_text_run("750 ms")
+        .expect("subsecond playmark duration label");
+    assert!((subsecond_label.rect.center().x - 200.0).abs() < 0.01);
+    assert_eq!(subsecond_label.rect.max.y, 78.0);
+
+    let mut seconds = waveform_state_with_duration_seconds(2);
+    seconds.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 1.0));
+    let seconds_plan =
+        waveform_widget_for_state(&seconds).paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+    assert!(seconds_plan.contains_text("1.50 s"));
+
+    let mut minutes = waveform_state_with_duration_seconds(125);
+    minutes.play_selection = Some(wavecrate::selection::SelectionRange::new(0.0, 1.0));
+    let minutes_plan =
+        waveform_widget_for_state(&minutes).paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+    assert!(minutes_plan.contains_text("2m 05.00s"));
+}
+
+#[test]
+fn beat_guides_replace_playmark_duration_with_derived_bpm() {
+    let mut state = waveform_state_with_duration_seconds(2);
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.0, 1.0));
+    let plan = waveform_widget_for_state_with_beat_guides(&state, true, 4)
+        .paint_plan_with_defaults(Rect::from_size(400.0, 80.0));
+
+    assert!(plan.contains_text("120 BPM"));
+    assert!(!plan.contains_text("2.00 s"));
+}
+
+#[test]
+fn live_playmark_preview_paints_current_duration_label() {
+    let state = WaveformState::synthetic_for_tests();
+    let mut widget = waveform_widget_for_state(&state);
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.7),
+    });
+
+    let plan = runtime_overlay_plan(&widget, Rect::from_size(400.0, 80.0));
+
+    assert!(plan.contains_text("500 ms"));
+}
+
+fn waveform_state_with_duration_seconds(seconds: usize) -> WaveformState {
+    WaveformState::from_file(Arc::new(waveform_file_from_mono_samples(
+        std::path::PathBuf::from(format!("duration-{seconds}.wav")),
+        Arc::from([0_u8]),
+        1,
+        1,
+        vec![0.0; seconds],
+    )))
+}
+
+#[test]
 fn playhead_cursor_paints_around_occlusion_rect() {
     let mut state = WaveformState::synthetic_for_tests();
     state.set_playhead_ratio(0.25);

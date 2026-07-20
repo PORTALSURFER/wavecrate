@@ -51,6 +51,8 @@ pub mod release_metadata;
 pub mod sample_sources;
 /// Selection math utilities.
 pub mod selection;
+/// Shared display formatting used across Wavecrate UI runtimes.
+mod ui_formatting;
 /// Optional SQLite extension loader.
 pub use wavecrate_library::sqlite_ext;
 /// Update check and updater helper utilities.
