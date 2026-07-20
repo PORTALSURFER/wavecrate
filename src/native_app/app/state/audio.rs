@@ -51,6 +51,8 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
     pub(in crate::native_app) playback_visual_progress: Option<PlaybackVisualProgress>,
     pub(in crate::native_app) pending_playback_progress_polls: HashSet<u64>,
+    pub(in crate::native_app) completed_transient_playback:
+        Option<CompletedTransientSamplePlayback>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -229,6 +231,13 @@ pub(in crate::native_app) struct SamplePlaybackSession {
     span_retarget: PlaybackSpanRetargetState,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct CompletedTransientSamplePlayback {
+    pub(in crate::native_app) path: String,
+    pub(in crate::native_app) source_kind: &'static str,
+    pub(in crate::native_app) progress: f32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) struct PendingPlaybackStart {
     pub(in crate::native_app) intent: PlaybackIntent,
@@ -281,6 +290,7 @@ impl AudioAppState {
             playback_progress: PlaybackRuntimeProgress::default(),
             playback_visual_progress: None,
             pending_playback_progress_polls: HashSet::new(),
+            completed_transient_playback: None,
         }
     }
 
@@ -296,6 +306,7 @@ impl AudioAppState {
         source_kind: &'static str,
     ) -> u64 {
         self.clear_playback_progress();
+        self.completed_transient_playback = None;
         let generation = self.next_sample_playback_generation;
         self.next_sample_playback_generation = self
             .next_sample_playback_generation
@@ -322,6 +333,7 @@ impl AudioAppState {
         source_kind: &'static str,
     ) -> u64 {
         self.clear_playback_progress();
+        self.completed_transient_playback = None;
         let generation = self.next_sample_playback_generation;
         self.next_sample_playback_generation = self
             .next_sample_playback_generation
@@ -343,6 +355,25 @@ impl AudioAppState {
 
     pub(in crate::native_app) fn clear_sample_playback_session(&mut self) {
         self.sample_playback_session = None;
+        self.completed_transient_playback = None;
+    }
+
+    pub(in crate::native_app) fn take_completed_streamable_sample_playback(
+        &mut self,
+        path: &str,
+    ) -> Option<f32> {
+        let matches = self
+            .completed_transient_playback
+            .as_ref()
+            .is_some_and(|completed| {
+                completed.path == path && completed.source_kind != "preview_samples"
+            });
+        matches.then(|| {
+            self.completed_transient_playback
+                .take()
+                .expect("matching completed transient playback")
+                .progress
+        })
     }
 
     pub(in crate::native_app) fn active_sample_playback_path(&self) -> Option<&str> {

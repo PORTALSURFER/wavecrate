@@ -210,6 +210,82 @@ fn display_after_preview_waits_for_settled_full_playback_promotion() {
 }
 
 #[test]
+fn completed_streamed_navigation_does_not_restart_when_waveform_load_finishes() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("completed-stream.wav");
+    write_test_wav_i16(&sample_path, &[0, 1024, -2048, 4096, -1024, 512]);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_path_string.clone(),
+        "audio_file",
+    );
+    state
+        .audio
+        .sample_playback_session
+        .as_mut()
+        .expect("streamed navigation session")
+        .state = crate::native_app::app::SamplePlaybackSessionState::AudibleTransient;
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_navigation_sample_validated(
+        sample_path_string.clone(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+    let ticket = active_sample_load_ticket(&state).expect("waveform load queued");
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: false,
+        elapsed: Some(std::time::Duration::from_secs(1)),
+        looping: false,
+        progress: Some(1.0),
+        error: None,
+    };
+    state.refresh_runtime_playback_progress();
+
+    assert!(
+        state.audio.sample_playback_session.is_none(),
+        "terminal transient playback should leave no active session"
+    );
+
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                sample_path_string,
+                crate::native_app::test_support::state::WaveformState::load_path(
+                    sample_path.clone(),
+                ),
+                true,
+            ),
+        ),
+        &mut context,
+    );
+
+    assert!(
+        state.audio.pending_playback_start.is_none(),
+        "completed streamed playback must not queue a second start from frame zero"
+    );
+    assert!(state.audio.sample_playback_session.is_none());
+    assert_eq!(state.audio.current_playback_span, None);
+    assert!(!state.waveform.current.is_playing());
+    assert_eq!(
+        state.waveform.current.played_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.0, 1.0)]
+    );
+}
+
+#[test]
 fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("settled-full.wav");

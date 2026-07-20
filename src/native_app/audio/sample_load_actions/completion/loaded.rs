@@ -73,6 +73,9 @@ impl NativeAppState {
         if self.start_pending_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
+        if self.finish_completed_streamable_sample_playback_load(&path, &file_name, started_at) {
+            return;
+        }
         if !autoplay {
             self.ui.status.sample = format!("Loaded {file_name}");
             emit_gui_action(
@@ -98,6 +101,33 @@ impl NativeAppState {
             started_at,
             context,
         );
+    }
+
+    fn finish_completed_streamable_sample_playback_load(
+        &mut self,
+        path: &str,
+        file_name: &str,
+        started_at: Instant,
+    ) -> bool {
+        let Some(progress) = self.audio.take_completed_streamable_sample_playback(path) else {
+            return false;
+        };
+        self.waveform
+            .current
+            .record_already_auditioned_span(0.0, progress);
+        self.waveform.current.stop_playback();
+        self.audio.current_playback_span = None;
+        self.record_current_playback_history(0.0, 1.0);
+        self.ui.status.sample = format!("Loaded {file_name}");
+        emit_gui_action(
+            "browser.sample_load.finish",
+            Some("browser"),
+            Some(file_name),
+            "waveform_ready_after_completed_streamed_playback",
+            started_at,
+            None,
+        );
+        true
     }
 
     fn continue_streamable_sample_playback(

@@ -1,7 +1,9 @@
 use std::time::Instant;
 
 use super::super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
-use crate::native_app::app::{NativeAppState, SamplePlaybackSessionState, emit_gui_action};
+use crate::native_app::app::{
+    CompletedTransientSamplePlayback, NativeAppState, SamplePlaybackSessionState, emit_gui_action,
+};
 
 const AUDIO_OUTPUT_STREAM_ERROR_PREFIX: &str = "Audio output stream error:";
 const AUDIO_OUTPUT_UNAVAILABLE_ERROR: &str = "Audio output stream is unavailable";
@@ -74,7 +76,7 @@ impl NativeAppState {
         }
     }
 
-    pub(super) fn refresh_runtime_playback_progress(&mut self) {
+    pub(in crate::native_app) fn refresh_runtime_playback_progress(&mut self) {
         if let Some(error) = self.audio.playback_progress.error.take() {
             self.stop_playback_after_progress_error(error);
             return;
@@ -152,7 +154,18 @@ impl NativeAppState {
         if !matches!(session.state, SamplePlaybackSessionState::AudibleTransient) {
             return false;
         }
+        let completed = CompletedTransientSamplePlayback {
+            path: session.request.path.clone(),
+            source_kind: session.source_kind,
+            progress: self
+                .audio
+                .playback_progress
+                .progress
+                .unwrap_or(1.0)
+                .clamp(0.0, 1.0),
+        };
         self.audio.clear_sample_playback_session();
+        self.audio.completed_transient_playback = Some(completed);
         self.audio.current_playback_span = None;
         self.audio.clear_playback_progress();
         true

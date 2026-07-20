@@ -37,19 +37,20 @@ pub(in crate::native_app) use state::DEFAULT_VOLUME;
 pub(in crate::native_app) use state::ReleaseUpdateStatus;
 pub(in crate::native_app) use state::{
     AudioAppState, AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,
-    ChromeUiState, ClipboardHandoffTarget, CutFileClipboard, ExtractedFilePlaybackType,
-    FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT, MIN_BEAT_GUIDE_COUNT,
-    MetadataAppState, NativeAppState, PendingFolderDelete, PendingPlaySelectionRetargetCycle,
-    PendingPlaybackStart, PendingProtectedExtractionAction, PendingProtectedExtractionTargetSource,
-    PendingWaveformDestructiveEdit, PlaybackSpanRetargetRejection, SampleBrowserDisplayMode,
-    SamplePlaybackHistory, SamplePlaybackIntent, SamplePlaybackNormalization,
-    SamplePlaybackRequest, SamplePlaybackSession, SamplePlaybackSessionState,
-    SamplePlaybackSourceProbe, SamplePlaybackVisibility, SettingsAppState,
-    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceSelectionRequest,
-    StarmapAuditionDragState, StarmapViewport, StarmapViewportChange, StartupState, StatusState,
-    UiAppState, WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
-    WaveformDestructiveEditTarget, WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot,
-    WaveformPlaySelectionSnapshot, WaveformVisualSnapshot, run_folder_scan_worker,
+    ChromeUiState, ClipboardHandoffTarget, CompletedTransientSamplePlayback, CutFileClipboard,
+    ExtractedFilePlaybackType, FolderScanWorkerEvent, LibraryAppState, MAX_BEAT_GUIDE_COUNT,
+    MIN_BEAT_GUIDE_COUNT, MetadataAppState, NativeAppState, PendingFolderDelete,
+    PendingPlaySelectionRetargetCycle, PendingPlaybackStart, PendingProtectedExtractionAction,
+    PendingProtectedExtractionTargetSource, PendingWaveformDestructiveEdit,
+    PlaybackSpanRetargetRejection, SampleBrowserDisplayMode, SamplePlaybackHistory,
+    SamplePlaybackIntent, SamplePlaybackNormalization, SamplePlaybackRequest,
+    SamplePlaybackSession, SamplePlaybackSessionState, SamplePlaybackSourceProbe,
+    SamplePlaybackVisibility, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
+    SourceScanFinish, SourceSelectionRequest, StarmapAuditionDragState, StarmapViewport,
+    StarmapViewportChange, StartupState, StatusState, UiAppState, WaveformAppState,
+    WaveformDestructiveEditKind, WaveformDestructiveEditPrompt, WaveformDestructiveEditTarget,
+    WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot,
+    WaveformVisualSnapshot, run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;
