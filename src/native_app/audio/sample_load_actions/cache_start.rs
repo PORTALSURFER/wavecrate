@@ -39,6 +39,7 @@ struct CachedPlaybackOutcomes {
 #[derive(Clone, Copy)]
 struct FullSamplePlaybackOptions {
     start_ratio: f32,
+    auditioned_start_ratio: Option<f32>,
     replace_policy: PlaybackRuntimeReplacePolicy,
     origin: &'static str,
     history: SamplePlaybackHistory,
@@ -103,7 +104,7 @@ impl FastAuditionOptions {
             queue_preview_decode: true,
             prefer_preview_decode: false,
             allow_file_backed_source: true,
-            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
         }
     }
 
@@ -115,7 +116,7 @@ impl FastAuditionOptions {
             queue_preview_decode: true,
             prefer_preview_decode: false,
             allow_file_backed_source: true,
-            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
         }
     }
 
@@ -126,8 +127,8 @@ impl FastAuditionOptions {
             allow_sidecar_lookup: false,
             queue_preview_decode: false,
             prefer_preview_decode: false,
-            allow_file_backed_source: false,
-            replace_policy: PlaybackRuntimeReplacePolicy::ClearPrevious,
+            allow_file_backed_source: true,
+            replace_policy: PlaybackRuntimeReplacePolicy::FadeOutPrevious,
         }
     }
 }
@@ -202,9 +203,9 @@ fn fast_audition_probe_order(options: FastAuditionOptions) -> [FastAuditionProbe
         ]
     } else {
         [
-            FastAuditionProbe::PreviewCache,
             FastAuditionProbe::FileBackedWav,
             FastAuditionProbe::PersistedCache,
+            FastAuditionProbe::PreviewCache,
             FastAuditionProbe::PreviewDecode,
         ]
     }

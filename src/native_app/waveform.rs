@@ -41,6 +41,7 @@ mod state_loading;
 mod state_marked_ranges;
 mod state_playback;
 mod state_preserved_marks;
+mod state_range_history;
 pub(in crate::native_app) use state_preserved_marks::WaveformPreservedMarks;
 mod state_selection;
 mod state_transient;
@@ -107,6 +108,7 @@ mod widget_input;
 mod edit_fade_curve_paint;
 mod edit_fade_geometry;
 mod edit_fade_paint;
+mod played_range_paint;
 mod playmark_label;
 mod selection_paint;
 

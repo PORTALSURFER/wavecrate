@@ -37,6 +37,7 @@ pub(in crate::native_app) struct PlayheadFrameMessageDiagnostics {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum PlayheadProgressSource {
     InterpolatedVisualProgress,
+    PreviewAuditionProgress,
     WaveformPlayheadFallback,
 }
 
@@ -44,6 +45,7 @@ impl PlayheadProgressSource {
     pub(in crate::native_app) fn label(self) -> &'static str {
         match self {
             Self::InterpolatedVisualProgress => "interpolated_visual_progress",
+            Self::PreviewAuditionProgress => "preview_audition_progress",
             Self::WaveformPlayheadFallback => "waveform_playhead_fallback",
         }
     }

@@ -65,11 +65,15 @@ impl NativeAppState {
             );
             return;
         }
+        let replacing_preview = self.audio.active_sample_playback_is_preview(&path);
         let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(&path);
         if self.continue_streamable_sample_playback(&path, &file_name, started_at, context) {
             return;
         }
         if self.start_pending_sample_playback(&path, &file_name, started_at, context) {
+            return;
+        }
+        if self.finish_completed_streamable_sample_playback_load(&path, &file_name, started_at) {
             return;
         }
         if !autoplay {
@@ -88,7 +92,8 @@ impl NativeAppState {
             &path,
             &file_name,
             preview_handoff_start_ratio.unwrap_or(0.0),
-            if preview_handoff_start_ratio.is_some() {
+            preview_handoff_start_ratio.map(|_| 0.0),
+            if replacing_preview && preview_handoff_start_ratio.is_none() {
                 PlaybackRuntimeReplacePolicy::ClearPrevious
             } else {
                 PlaybackRuntimeReplacePolicy::FadeOutPrevious
@@ -96,6 +101,33 @@ impl NativeAppState {
             started_at,
             context,
         );
+    }
+
+    fn finish_completed_streamable_sample_playback_load(
+        &mut self,
+        path: &str,
+        file_name: &str,
+        started_at: Instant,
+    ) -> bool {
+        let Some(progress) = self.audio.take_completed_streamable_sample_playback(path) else {
+            return false;
+        };
+        self.waveform
+            .current
+            .record_already_auditioned_span(0.0, progress);
+        self.waveform.current.stop_playback();
+        self.audio.current_playback_span = None;
+        self.record_current_playback_history(0.0, 1.0);
+        self.ui.status.sample = format!("Loaded {file_name}");
+        emit_gui_action(
+            "browser.sample_load.finish",
+            Some("browser"),
+            Some(file_name),
+            "waveform_ready_after_completed_streamed_playback",
+            started_at,
+            None,
+        );
+        true
     }
 
     fn continue_streamable_sample_playback(
@@ -108,9 +140,24 @@ impl NativeAppState {
         if !self.audio.active_sample_playback_is_streamable(path) {
             return false;
         }
-        let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
-        self.waveform.current.start_playback(progress);
-        self.audio.current_playback_span = Some((0.0, 1.0));
+        let pending_runtime = self.audio.active_sample_playback_pending_runtime();
+        let progress = self
+            .audio
+            .active_sample_playback_progress(path)
+            .filter(|progress| progress.active)
+            .and_then(|progress| progress.progress);
+        if progress.is_none() && !pending_runtime {
+            return false;
+        }
+        if !self.audio.promote_sample_playback_session_to_waveform(path) {
+            return false;
+        }
+        if let Some(progress) = progress {
+            self.waveform
+                .current
+                .start_playback_after_audition_handoff(progress, 0.0, true);
+            self.audio.current_playback_span = Some((0.0, 1.0));
+        }
         self.record_current_playback_history(0.0, 1.0);
         self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
@@ -118,7 +165,11 @@ impl NativeAppState {
             "browser.sample_load.finish",
             Some("browser"),
             Some(file_name),
-            "waveform_ready_playback_continued",
+            if pending_runtime {
+                "waveform_ready_playback_pending_start"
+            } else {
+                "waveform_ready_playback_continued"
+            },
             started_at,
             None,
         );

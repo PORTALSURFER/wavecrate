@@ -42,6 +42,7 @@ impl AudioAppState {
     pub(in crate::native_app) fn clear_playback_progress(&mut self) {
         self.playback_progress = PlaybackRuntimeProgress::default();
         self.playback_visual_progress = None;
+        self.pending_playback_progress_polls.clear();
     }
 
     pub(in crate::native_app) fn reset_playback_visual_progress(

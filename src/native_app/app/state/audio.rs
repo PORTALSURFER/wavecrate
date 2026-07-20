@@ -1,4 +1,8 @@
-use std::{sync::mpsc::Receiver, time::Instant};
+use std::{
+    collections::HashSet,
+    sync::mpsc::Receiver,
+    time::{Duration, Instant},
+};
 
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, PlaybackRequestId,
@@ -46,6 +50,9 @@ pub(in crate::native_app) struct AudioAppState {
     pub(in crate::native_app) playback_events: Option<Receiver<PlaybackRuntimeEvent>>,
     pub(in crate::native_app) playback_progress: PlaybackRuntimeProgress,
     pub(in crate::native_app) playback_visual_progress: Option<PlaybackVisualProgress>,
+    pub(in crate::native_app) pending_playback_progress_polls: HashSet<u64>,
+    pub(in crate::native_app) completed_transient_playback:
+        Option<CompletedTransientSamplePlayback>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -219,8 +226,16 @@ pub(in crate::native_app) struct SamplePlaybackSession {
     pub(in crate::native_app) runtime_request_id: Option<u64>,
     pub(in crate::native_app) source_kind: &'static str,
     pub(in crate::native_app) submitted_at: Instant,
+    pub(in crate::native_app) audible_started_at: Option<Instant>,
     pub(in crate::native_app) state: SamplePlaybackSessionState,
     span_retarget: PlaybackSpanRetargetState,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::native_app) struct CompletedTransientSamplePlayback {
+    pub(in crate::native_app) path: String,
+    pub(in crate::native_app) source_kind: &'static str,
+    pub(in crate::native_app) progress: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -274,6 +289,8 @@ impl AudioAppState {
             playback_events: None,
             playback_progress: PlaybackRuntimeProgress::default(),
             playback_visual_progress: None,
+            pending_playback_progress_polls: HashSet::new(),
+            completed_transient_playback: None,
         }
     }
 
@@ -288,6 +305,8 @@ impl AudioAppState {
         runtime_request_id: PlaybackRequestId,
         source_kind: &'static str,
     ) -> u64 {
+        self.clear_playback_progress();
+        self.completed_transient_playback = None;
         let generation = self.next_sample_playback_generation;
         self.next_sample_playback_generation = self
             .next_sample_playback_generation
@@ -300,6 +319,7 @@ impl AudioAppState {
             runtime_request_id: Some(runtime_request_id.get()),
             source_kind,
             submitted_at: Instant::now(),
+            audible_started_at: None,
             state: SamplePlaybackSessionState::RuntimePending,
             span_retarget: PlaybackSpanRetargetState::new(confirmed_span),
         });
@@ -312,6 +332,8 @@ impl AudioAppState {
         request: SamplePlaybackRequest,
         source_kind: &'static str,
     ) -> u64 {
+        self.clear_playback_progress();
+        self.completed_transient_playback = None;
         let generation = self.next_sample_playback_generation;
         self.next_sample_playback_generation = self
             .next_sample_playback_generation
@@ -324,6 +346,7 @@ impl AudioAppState {
             runtime_request_id: None,
             source_kind,
             submitted_at: Instant::now(),
+            audible_started_at: None,
             state: SamplePlaybackSessionState::ResolvingSource,
             span_retarget: PlaybackSpanRetargetState::new(confirmed_span),
         });
@@ -332,6 +355,25 @@ impl AudioAppState {
 
     pub(in crate::native_app) fn clear_sample_playback_session(&mut self) {
         self.sample_playback_session = None;
+        self.completed_transient_playback = None;
+    }
+
+    pub(in crate::native_app) fn take_completed_streamable_sample_playback(
+        &mut self,
+        path: &str,
+    ) -> Option<f32> {
+        let matches = self
+            .completed_transient_playback
+            .as_ref()
+            .is_some_and(|completed| {
+                completed.path == path && completed.source_kind != "preview_samples"
+            });
+        matches.then(|| {
+            self.completed_transient_playback
+                .take()
+                .expect("matching completed transient playback")
+                .progress
+        })
     }
 
     pub(in crate::native_app) fn active_sample_playback_path(&self) -> Option<&str> {
@@ -358,6 +400,41 @@ impl AudioAppState {
             .is_some_and(|session| {
                 session.request.path == path && session.source_kind != "preview_samples"
             })
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_progress(
+        &self,
+        path: &str,
+    ) -> Option<&PlaybackRuntimeProgress> {
+        self.sample_playback_session
+            .as_ref()
+            .filter(|session| {
+                session.request.path == path
+                    && matches!(
+                        session.state,
+                        SamplePlaybackSessionState::AudibleTransient
+                            | SamplePlaybackSessionState::WaveformVisible
+                    )
+            })
+            .map(|_| &self.playback_progress)
+    }
+
+    pub(in crate::native_app) fn active_sample_playback_audible_elapsed(
+        &self,
+        path: &str,
+    ) -> Option<Duration> {
+        self.sample_playback_session
+            .as_ref()
+            .filter(|session| {
+                session.request.path == path
+                    && matches!(
+                        session.state,
+                        SamplePlaybackSessionState::AudibleTransient
+                            | SamplePlaybackSessionState::WaveformVisible
+                    )
+            })
+            .and_then(|session| session.audible_started_at)
+            .map(|started_at| started_at.elapsed())
     }
 
     pub(in crate::native_app) fn active_sample_playback_updates_waveform(

@@ -990,6 +990,101 @@ fn playback_cursor_overlay_progresses_smoothly_across_timed_frames() {
 }
 
 #[test]
+fn played_range_rail_grows_on_paint_only_playback_frames() {
+    let base_time = Duration::from_secs(30);
+    let mut state = state_with_runtime_playback(0.10, (0.0, 1.0), false);
+    state
+        .audio
+        .playback_visual_progress
+        .as_mut()
+        .expect("visual progress")
+        .anchor_animation_time = Some(base_time);
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    let first_right = played_range_rail_right_x_for_frame(
+        &mut runtime,
+        &frame.paint_plan,
+        base_time + Duration::from_millis(16),
+    )
+    .expect("played rail on first paint-only frame");
+    let later_right = played_range_rail_right_x_for_frame(
+        &mut runtime,
+        &frame.paint_plan,
+        base_time + Duration::from_millis(64),
+    )
+    .expect("played rail on later paint-only frame");
+
+    assert!(
+        later_right > first_right,
+        "played rail should advance with the interpolated playhead without a retained surface rebuild"
+    );
+}
+
+#[test]
+fn preview_audition_cursor_and_rail_grow_before_full_source_handoff() {
+    let mut state = gui_state_for_span_tests();
+    let path = state.waveform.current.path().display().to_string();
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        path,
+        "preview_samples",
+    );
+    let session = state
+        .audio
+        .sample_playback_session
+        .as_mut()
+        .expect("preview session");
+    session.state = crate::native_app::app::SamplePlaybackSessionState::AudibleTransient;
+    session.audible_started_at = Some(std::time::Instant::now() - Duration::from_millis(20));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(Duration::ZERO),
+        looping: false,
+        progress: Some(0.0),
+        error: None,
+    };
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    let first_right =
+        played_range_rail_right_x_for_frame(&mut runtime, &frame.paint_plan, Duration::ZERO)
+            .expect("preview rail on first frame");
+    runtime
+        .bridge_mut()
+        .state_mut()
+        .audio
+        .sample_playback_session
+        .as_mut()
+        .expect("preview session")
+        .audible_started_at = Some(std::time::Instant::now() - Duration::from_millis(80));
+    let later_right = played_range_rail_right_x_for_frame(
+        &mut runtime,
+        &frame.paint_plan,
+        Duration::from_millis(16),
+    )
+    .expect("preview rail on later frame");
+
+    assert!(
+        later_right > first_right,
+        "preview audition should paint the same growing rail before the full source is ready"
+    );
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .waveform
+            .current
+            .played_ranges()
+            .first()
+            .map(wavecrate::selection::SelectionRange::start),
+        Some(0.0)
+    );
+}
+
+#[test]
 fn fallback_player_cursor_overlay_uses_seeded_visual_clock() {
     let base_time = Duration::from_secs(30);
     let mut state = gui_state_for_span_tests();
@@ -1242,6 +1337,27 @@ fn playback_cursor_x_for_frame(
         .filter_map(|primitive| primitive.fill_rect())
         .find(|fill| is_playback_cursor_fill(fill))
         .map(|fill| fill.rect.center().x)
+}
+
+fn played_range_rail_right_x_for_frame(
+    runtime: &mut NativeRuntimeForTests,
+    paint_plan: &radiant::runtime::SurfacePaintPlan,
+    animation_time: Duration,
+) -> Option<f32> {
+    let mut primitives = Vec::new();
+    runtime.bridge_mut().state_mut().paint_playback_overlay(
+        TransientOverlayContext::new(paint_plan, Vector2::new(900.0, 620.0), animation_time),
+        &mut primitives,
+    );
+    primitives
+        .iter()
+        .filter_map(|primitive| primitive.fill_rect())
+        .filter(|fill| {
+            fill.widget_id == crate::native_app::test_support::waveform::WAVEFORM_WIDGET_ID
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (98, 102, 106, 255)
+        })
+        .map(|fill| fill.rect.max.x)
+        .max_by(f32::total_cmp)
 }
 
 fn waveform_cursor_x_from_ratio(

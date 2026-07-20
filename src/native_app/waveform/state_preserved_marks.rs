@@ -9,6 +9,7 @@ pub(in crate::native_app) struct WaveformPreservedMarks {
     edit_selection: Option<SelectionRange>,
     marked_play_ranges: Vec<SelectionRange>,
     extracted_ranges: Vec<SelectionRange>,
+    played_ranges: Vec<SelectionRange>,
     similar_sections: SimilarSectionsState,
     play_selection_flash_frames: u8,
     edit_selection_flash_frames: u8,
@@ -42,6 +43,8 @@ impl WaveformState {
         self.edit_selection = marks.edit_selection;
         self.marked_play_ranges = marks.marked_play_ranges;
         self.extracted_ranges = marks.extracted_ranges;
+        self.played_ranges = marks.played_ranges;
+        self.played_progress_anchor = None;
         self.similar_sections = marks.similar_sections;
         self.play_selection_flash_frames = marks.play_selection_flash_frames;
         self.edit_selection_flash_frames = marks.edit_selection_flash_frames;
@@ -87,6 +90,11 @@ impl WaveformState {
                 .collect(),
             extracted_ranges: self
                 .extracted_ranges
+                .iter()
+                .filter_map(|range| transform.map_range(*range))
+                .collect(),
+            played_ranges: self
+                .played_ranges
                 .iter()
                 .filter_map(|range| transform.map_range(*range))
                 .collect(),

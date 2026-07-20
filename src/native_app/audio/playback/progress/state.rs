@@ -1,10 +1,13 @@
 use std::time::Instant;
 
 use super::super::PLAYBACK_START_ACTIVE_SOURCE_GRACE;
-use crate::native_app::app::{NativeAppState, SamplePlaybackSessionState, emit_gui_action};
+use crate::native_app::app::{
+    CompletedTransientSamplePlayback, NativeAppState, SamplePlaybackSessionState, emit_gui_action,
+};
 
 const AUDIO_OUTPUT_STREAM_ERROR_PREFIX: &str = "Audio output stream error:";
 const AUDIO_OUTPUT_UNAVAILABLE_ERROR: &str = "Audio output stream is unavailable";
+const MAX_PENDING_PROGRESS_POLLS: usize = 256;
 
 impl NativeAppState {
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
@@ -16,8 +19,20 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn refresh_playback_progress(&mut self) {
-        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
-            let _ = runtime.try_poll_progress();
+        if let Some(poll_id) = self
+            .audio
+            .playback_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.try_poll_progress().ok())
+        {
+            let poll_id = poll_id.get();
+            self.audio.pending_playback_progress_polls.insert(poll_id);
+            if self.audio.pending_playback_progress_polls.len() > MAX_PENDING_PROGRESS_POLLS {
+                let oldest_retained = poll_id.saturating_sub(MAX_PENDING_PROGRESS_POLLS as u64 - 1);
+                self.audio
+                    .pending_playback_progress_polls
+                    .retain(|pending| *pending >= oldest_retained);
+            }
         }
         if self.audio.playback_runtime.is_some() {
             self.refresh_runtime_playback_progress();
@@ -51,14 +66,17 @@ impl NativeAppState {
 
         if active || within_start_grace || (should_be_looping && player_looping) {
             if let Some(progress) = progress {
-                self.waveform.current.set_playhead_ratio(progress);
+                self.record_waveform_playback_progress(progress, player_looping);
             }
         } else if self.waveform.current.is_playing() {
+            if let Some(progress) = progress {
+                self.record_waveform_playback_progress(progress, player_looping);
+            }
             self.finish_playback_progress();
         }
     }
 
-    pub(super) fn refresh_runtime_playback_progress(&mut self) {
+    pub(in crate::native_app) fn refresh_runtime_playback_progress(&mut self) {
         if let Some(error) = self.audio.playback_progress.error.take() {
             self.stop_playback_after_progress_error(error);
             return;
@@ -101,11 +119,22 @@ impl NativeAppState {
 
         if active || within_start_grace || (should_be_looping && player_looping) {
             if let Some(progress) = progress {
-                self.waveform.current.set_playhead_ratio(progress);
+                self.record_waveform_playback_progress(progress, player_looping);
             }
         } else if self.waveform.current.is_playing() {
+            if let Some(progress) = progress {
+                self.record_waveform_playback_progress(progress, player_looping);
+            }
             self.finish_playback_progress();
         }
+    }
+
+    fn record_waveform_playback_progress(&mut self, progress: f32, looping: bool) {
+        self.waveform.current.set_playhead_ratio_from_playback(
+            progress,
+            self.audio.current_playback_span,
+            looping,
+        );
     }
 
     fn finish_inactive_transient_sample_playback(
@@ -125,7 +154,18 @@ impl NativeAppState {
         if !matches!(session.state, SamplePlaybackSessionState::AudibleTransient) {
             return false;
         }
+        let completed = CompletedTransientSamplePlayback {
+            path: session.request.path.clone(),
+            source_kind: session.source_kind,
+            progress: self
+                .audio
+                .playback_progress
+                .progress
+                .unwrap_or(1.0)
+                .clamp(0.0, 1.0),
+        };
         self.audio.clear_sample_playback_session();
+        self.audio.completed_transient_playback = Some(completed);
         self.audio.current_playback_span = None;
         self.audio.clear_playback_progress();
         true

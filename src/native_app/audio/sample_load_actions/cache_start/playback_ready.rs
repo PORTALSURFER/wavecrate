@@ -107,8 +107,9 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let replacing_preview = self.audio.active_sample_playback_is_preview(path);
         let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(path);
-        let replace_policy = if preview_handoff_start_ratio.is_some() {
+        let replace_policy = if replacing_preview && preview_handoff_start_ratio.is_none() {
             PlaybackRuntimeReplacePolicy::ClearPrevious
         } else {
             PlaybackRuntimeReplacePolicy::FadeOutPrevious
@@ -117,6 +118,7 @@ impl NativeAppState {
             path,
             file_name,
             preview_handoff_start_ratio.unwrap_or(0.0),
+            preview_handoff_start_ratio.map(|_| 0.0),
             replace_policy,
             started_at,
             context,
@@ -128,6 +130,7 @@ impl NativeAppState {
         path: &str,
         file_name: &str,
         start_ratio: f32,
+        auditioned_start_ratio: Option<f32>,
         replace_policy: PlaybackRuntimeReplacePolicy,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
@@ -160,6 +163,7 @@ impl NativeAppState {
             &file_name,
             SAMPLE_AUTOPLAY_OUTCOMES,
             start_ratio,
+            auditioned_start_ratio,
             replace_policy,
             started_at,
             context,
@@ -172,12 +176,17 @@ impl NativeAppState {
         file_name: &str,
         outcomes: CachedPlaybackOutcomes,
         start_ratio: f32,
+        auditioned_start_ratio: Option<f32>,
         replace_policy: PlaybackRuntimeReplacePolicy,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let playback_started_at = Instant::now();
-        match self.start_current_full_sample_runtime_playback(start_ratio, replace_policy) {
+        match self.start_current_full_sample_runtime_playback(
+            start_ratio,
+            auditioned_start_ratio,
+            replace_policy,
+        ) {
             Ok(()) => {
                 self.record_selected_sample_last_played(context);
                 log_sample_load_timing(
@@ -225,12 +234,14 @@ impl NativeAppState {
     fn start_current_full_sample_runtime_playback(
         &mut self,
         start_ratio: f32,
+        auditioned_start_ratio: Option<f32>,
         replace_policy: PlaybackRuntimeReplacePolicy,
     ) -> Result<(), String> {
         let current_path = self.waveform.current.path().display().to_string();
         let origin = self.runtime_playback_origin_for_path(current_path.as_str());
         self.submit_current_full_sample_runtime_playback(FullSamplePlaybackOptions {
             start_ratio,
+            auditioned_start_ratio,
             replace_policy,
             origin,
             history: SamplePlaybackHistory::Record,
@@ -256,6 +267,7 @@ impl NativeAppState {
             } else {
                 PendingPlaybackStart::skip_history(intent)
             });
+            self.start_waveform_playback_for_full_sample(options, start_ratio);
             if self.background.audio_open.active().is_some() {
                 return Ok(());
             }
@@ -335,13 +347,7 @@ impl NativeAppState {
         let request_id = runtime
             .try_play(request)
             .map_err(|err| format!("submit playback request: {err:?}"))?;
-        if options.show_start_marker {
-            self.waveform.current.start_playback(start_ratio);
-        } else {
-            self.waveform
-                .current
-                .start_playback_without_marker(start_ratio);
-        }
+        self.start_waveform_playback_for_full_sample(options, start_ratio);
         self.audio.current_playback_span = Some((0.0, 1.0));
         let source_kind = self.current_waveform_runtime_source_kind();
         let session_request = SamplePlaybackRequest::waveform(
@@ -360,6 +366,26 @@ impl NativeAppState {
         Ok(())
     }
 
+    fn start_waveform_playback_for_full_sample(
+        &mut self,
+        options: FullSamplePlaybackOptions,
+        start_ratio: f32,
+    ) {
+        if let Some(audition_start_ratio) = options.auditioned_start_ratio {
+            self.waveform.current.start_playback_after_audition_handoff(
+                start_ratio,
+                audition_start_ratio,
+                options.show_start_marker,
+            );
+        } else if options.show_start_marker {
+            self.waveform.current.start_playback(start_ratio);
+        } else {
+            self.waveform
+                .current
+                .start_playback_without_marker(start_ratio);
+        }
+    }
+
     pub(in crate::native_app::audio) fn preview_slice_full_sample_handoff_ratio(
         &self,
         path: &str,
@@ -370,11 +396,24 @@ impl NativeAppState {
         {
             return None;
         }
+        let progress = self.audio.active_sample_playback_progress(path)?;
+        let audible_elapsed = self
+            .audio
+            .active_sample_playback_audible_elapsed(path)
+            .map(|elapsed| elapsed.min(PREVIEW_AUDITION_DURATION));
         preview_slice_full_sample_handoff_ratio(
             self.waveform.current.duration_seconds(),
-            self.audio.playback_progress.elapsed,
-            self.audio.playback_progress.progress,
+            latest_duration(progress.elapsed, audible_elapsed),
+            progress.progress,
         )
+    }
+}
+
+fn latest_duration(left: Option<Duration>, right: Option<Duration>) -> Option<Duration> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(duration), None) | (None, Some(duration)) => Some(duration),
+        (None, None) => None,
     }
 }
 

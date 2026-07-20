@@ -13,10 +13,10 @@ mod waveform;
 pub(in crate::native_app) const DEFAULT_VOLUME: f32 = 1.0;
 
 pub(in crate::native_app) use audio::{
-    AudioAppState, PendingPlaybackStart, PlaybackSpanRetargetRejection, SamplePlaybackHistory,
-    SamplePlaybackIntent, SamplePlaybackNormalization, SamplePlaybackRequest,
-    SamplePlaybackSession, SamplePlaybackSessionState, SamplePlaybackSourceProbe,
-    SamplePlaybackVisibility,
+    AudioAppState, CompletedTransientSamplePlayback, PendingPlaybackStart,
+    PlaybackSpanRetargetRejection, SamplePlaybackHistory, SamplePlaybackIntent,
+    SamplePlaybackNormalization, SamplePlaybackRequest, SamplePlaybackSession,
+    SamplePlaybackSessionState, SamplePlaybackSourceProbe, SamplePlaybackVisibility,
 };
 pub(in crate::native_app) use background::{
     AudioOpenCompletion, AudioOpenTaskCompletion, BackgroundTaskState,

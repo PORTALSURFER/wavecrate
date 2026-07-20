@@ -274,7 +274,12 @@ impl NativeAppState {
         active_target: Option<&str>,
     ) {
         let active_playback_path = self.audio.active_sample_playback_path().map(str::to_owned);
-        let playback_progress = self.audio.playback_progress.progress.unwrap_or(0.0);
+        let playback_progress = active_playback_path
+            .as_deref()
+            .and_then(|path| self.audio.active_sample_playback_progress(path))
+            .filter(|progress| progress.active)
+            .and_then(|progress| progress.progress)
+            .unwrap_or(0.0);
         let mut playback_span = (0.0, 1.0);
         let last_played_session = self
             .ui
@@ -287,9 +292,11 @@ impl NativeAppState {
             session.request.origin = "starmap_release";
         }
         if loaded_path.is_some_and(|path| active_playback_path.as_deref() == Some(path)) {
-            self.waveform
-                .current
-                .start_playback_without_marker(playback_progress);
+            self.waveform.current.start_playback_after_audition_handoff(
+                playback_progress,
+                playback_span.0,
+                false,
+            );
             self.audio.current_playback_span = Some(playback_span);
         } else if loaded_path.is_some_and(|path| active_playback_path.as_deref() != Some(path))
             && active_playback_path.is_some()

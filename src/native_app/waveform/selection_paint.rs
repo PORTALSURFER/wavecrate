@@ -11,6 +11,7 @@ use radiant::{
 use super::{
     DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WaveformActiveDragKind,
     WaveformSelectionKind, WaveformWidget,
+    played_range_paint::append_played_range_rail,
     widget_geometry::{
         EDIT_GAIN_HANDLE_HEIGHT, EDIT_GAIN_HANDLE_WIDTH, SELECTION_RESIZE_HANDLE_STRIP_HEIGHT,
         edit_gain_handle_rect_for_geometry, edit_selection_resize_edge_bounds,
@@ -79,6 +80,7 @@ impl WaveformWidget {
             {
                 self.append_edit_selection_paint(&mut paint, &mut handle_paint, bounds, geometry);
             }
+            self.append_played_range_paint(&mut paint, bounds);
         }
         self.append_marker_paint(&mut paint, bounds);
         paint.primitives_mut().extend(handle_primitives);
@@ -143,6 +145,15 @@ impl WaveformWidget {
             EXTRACTED_RANGE_RAIL_HEIGHT,
             EXTRACTED_RANGE_RAIL,
         );
+    }
+
+    fn append_played_range_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {
+        for range in &self.played_ranges {
+            let Some(range) = self.visible_normalized_range_for_selection(Some(*range)) else {
+                continue;
+            };
+            append_played_range_rail(paint, bounds, range.start_fraction(), range.end_fraction());
+        }
     }
 
     fn append_similar_section_paint(&self, paint: &mut WidgetPaint<'_>, bounds: Rect) {

@@ -252,30 +252,7 @@ impl WaveformState {
     }
 
     fn mark_extracted_range(&mut self, selection: SelectionRange) {
-        if selection.width() <= 0.0 {
-            return;
-        }
-        self.extracted_ranges
-            .push(SelectionRange::new(selection.start(), selection.end()));
-        self.extracted_ranges
-            .sort_by(|a, b| a.start_f64().total_cmp(&b.start_f64()));
-
-        let mut merged = Vec::with_capacity(self.extracted_ranges.len());
-        for range in self.extracted_ranges.drain(..) {
-            let Some(previous) = merged.last_mut() else {
-                merged.push(range);
-                continue;
-            };
-            if range.start_f64() <= previous.end_f64() + 1.0e-6 {
-                *previous = SelectionRange::new_precise(
-                    previous.start_f64(),
-                    previous.end_f64().max(range.end_f64()),
-                );
-            } else {
-                merged.push(range);
-            }
-        }
-        self.extracted_ranges = merged;
+        super::state_range_history::insert_merged_range(&mut self.extracted_ranges, selection);
     }
 
     fn extractable_play_selection(&self) -> Result<SelectionRange, String> {

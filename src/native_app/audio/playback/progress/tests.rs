@@ -47,6 +47,45 @@ fn preview_slice_runtime_progress_does_not_move_full_waveform_playhead() {
     );
     assert_eq!(state.audio.current_playback_span, None);
     assert_eq!(state.audio.playback_progress.progress, Some(0.5));
+    assert!(state.waveform.current.played_ranges().is_empty());
+}
+
+#[test]
+fn runtime_progress_records_the_audible_waveform_span_through_completion() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.start_playback(0.2);
+    state.audio.current_playback_span = Some((0.2, 0.8));
+    state.audio.playback_progress = PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(Duration::from_millis(250)),
+        looping: false,
+        progress: Some(0.55),
+        error: None,
+    };
+
+    state.refresh_runtime_playback_progress();
+
+    assert_eq!(
+        state.waveform.current.played_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.2, 0.55)]
+    );
+
+    state.audio.playback_progress = PlaybackRuntimeProgress {
+        active: false,
+        elapsed: Some(Duration::from_millis(500)),
+        looping: false,
+        progress: Some(0.8),
+        error: None,
+    };
+    state.refresh_runtime_playback_progress();
+
+    assert_eq!(
+        state.waveform.current.played_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.2, 0.8)]
+    );
+    assert!(!state.waveform.current.is_playing());
 }
 
 #[test]

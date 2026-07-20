@@ -91,8 +91,9 @@ impl NativeAppState {
             self.runtime_playback_origin_for_path(result.path.as_str()),
             !self.ui.chrome.starmap_audition_drag.is_some(),
         );
-        let started = self.start_preview_clip_instant_audition(clip, context, started_at, options);
-        if started
+        let outcome =
+            self.start_fast_path_audition(result.path.as_str(), context, started_at, options);
+        if outcome == InstantAuditionOutcome::Started
             && self.ui.chrome.starmap_audition_drag.is_some()
             && !self
                 .ui

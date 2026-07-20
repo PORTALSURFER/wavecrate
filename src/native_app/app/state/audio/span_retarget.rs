@@ -54,14 +54,7 @@ impl SamplePlaybackSession {
         self.span_retarget.confirmed_span
     }
 
-    pub(in crate::native_app) fn confirm_span_retarget(
-        &mut self,
-        request_id: PlaybackRequestId,
-    ) -> bool {
-        self.confirm_span_retarget_id(request_id.get())
-    }
-
-    pub(super) fn confirm_span_retarget_id(&mut self, request_id: u64) -> bool {
+    pub(in crate::native_app) fn confirm_span_retarget_id(&mut self, request_id: u64) -> bool {
         let Some(index) = self
             .span_retarget
             .pending
@@ -116,11 +109,21 @@ impl AudioAppState {
         let Some(session) = self.sample_playback_session.as_mut() else {
             return false;
         };
-        if session.request.path != path || session.source_kind == "preview_samples" {
+        if session.request.path != path
+            || session.source_kind == "preview_samples"
+            || !matches!(
+                session.state,
+                SamplePlaybackSessionState::RuntimePending
+                    | SamplePlaybackSessionState::AudibleTransient
+                    | SamplePlaybackSessionState::WaveformVisible
+            )
+        {
             return false;
         }
         session.request.visibility = SamplePlaybackVisibility::Waveform;
-        session.state = SamplePlaybackSessionState::WaveformVisible;
+        if !matches!(session.state, SamplePlaybackSessionState::RuntimePending) {
+            session.state = SamplePlaybackSessionState::WaveformVisible;
+        }
         true
     }
 
@@ -171,6 +174,7 @@ mod tests {
             runtime_request_id: None,
             source_kind: "decoded_samples",
             submitted_at: Instant::now(),
+            audible_started_at: None,
             state: SamplePlaybackSessionState::RuntimePending,
             span_retarget: PlaybackSpanRetargetState::new(span),
         }
