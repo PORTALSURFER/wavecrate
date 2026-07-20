@@ -148,6 +148,9 @@ impl NativeAppState {
         else {
             return false;
         };
+        if !self.audio.promote_sample_playback_session_to_waveform(path) {
+            return false;
+        }
         self.waveform
             .current
             .start_playback_after_audition_handoff(progress, 0.0, true);
