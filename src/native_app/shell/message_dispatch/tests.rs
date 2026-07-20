@@ -275,6 +275,40 @@ fn idle_map_frame_reuses_prepared_sample_browser_projection() {
 }
 
 #[test]
+fn playback_frame_starts_pending_starmap_layout_load() {
+    let root = tempfile::tempdir().expect("source root");
+    let sample = root.path().join("playing-map-load.wav");
+    fs::write(&sample, [0_u8; 8]).expect("write sample");
+    let sample_id = sample.to_string_lossy().into_owned();
+    let mut state = NativeAppStateFixture::default()
+        .with_folder_browser(FolderBrowserState::from_root(root.path().to_path_buf()))
+        .build();
+    state.ui.chrome.sample_browser_display = crate::native_app::app::SampleBrowserDisplayMode::Map;
+    prepare_sample_browser_view(&mut state);
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_id,
+        "loaded_sample",
+    );
+    assert!(state.playback_visual_activity_active());
+    let mut context = ui::UiUpdateContext::default();
+
+    state.handle_message(GuiMessage::Frame, &mut context);
+
+    assert!(
+        state.playback_visual_activity_active(),
+        "loading the starmap must not interrupt active playback"
+    );
+    assert_eq!(
+        context
+            .into_command()
+            .business_task_priority("gui-starmap-layout-load"),
+        Some(ui::TaskPriority::Idle),
+        "opening the starmap during playback must not defer its layout until transport stops"
+    );
+}
+
+#[test]
 fn map_frame_rebuilds_projection_when_copy_flash_expires() {
     let (_root, mut state, sample_id) = prepared_map_state("copy-flash-map-frame.wav");
     state
