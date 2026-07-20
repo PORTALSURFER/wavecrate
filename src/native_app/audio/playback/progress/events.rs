@@ -135,7 +135,7 @@ impl NativeAppState {
         );
     }
 
-    fn finish_runtime_playback_started_parts(
+    pub(in crate::native_app) fn finish_runtime_playback_started_parts(
         &mut self,
         request_id: u64,
         output: ResolvedOutput,

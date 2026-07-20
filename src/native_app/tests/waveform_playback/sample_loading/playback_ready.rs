@@ -373,6 +373,91 @@ fn continued_streamed_navigation_stops_the_attached_waveform_at_terminal_progres
 }
 
 #[test]
+fn pending_streamed_navigation_is_retained_when_waveform_load_finishes_first() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("pending-stream.wav");
+    write_sparse_test_wav_i16(&sample_path, 1, 48_000);
+    let sample_path_string = sample_path.display().to_string();
+
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .select_file(sample_path_string.clone());
+    crate::native_app::test_support::state::seed_sample_playback_session(
+        &mut state,
+        sample_path_string.clone(),
+        "audio_file",
+    );
+    let session = state
+        .audio
+        .sample_playback_session
+        .as_mut()
+        .expect("streamed navigation session");
+    session.runtime_request_id = Some(77);
+    session.state = crate::native_app::app::SamplePlaybackSessionState::RuntimePending;
+
+    let mut context = ui::UiUpdateContext::default();
+    state.load_navigation_sample_validated(
+        sample_path_string.clone(),
+        &mut context,
+        std::time::Instant::now(),
+    );
+    let ticket = active_sample_load_ticket(&state).expect("waveform load queued");
+    state.apply_message(
+        crate::native_app::test_support::state::GuiMessage::SampleLoadFinished(
+            sample_load_completion(
+                ticket,
+                sample_path_string,
+                crate::native_app::test_support::state::WaveformState::load_path(sample_path),
+                true,
+            ),
+        ),
+        &mut context,
+    );
+
+    let retained = state
+        .audio
+        .sample_playback_session
+        .as_ref()
+        .expect("original pending stream should be retained");
+    assert_eq!(retained.runtime_request_id, Some(77));
+    assert_eq!(
+        retained.request.visibility,
+        crate::native_app::app::SamplePlaybackVisibility::Waveform
+    );
+    assert_eq!(
+        retained.state,
+        crate::native_app::app::SamplePlaybackSessionState::RuntimePending
+    );
+    assert!(state.audio.pending_playback_start.is_none());
+    assert!(!state.waveform.current.is_playing());
+
+    state.finish_runtime_playback_started_parts(
+        77,
+        wavecrate::audio::ResolvedOutput::default(),
+        0.0,
+    );
+
+    let started = state
+        .audio
+        .sample_playback_session
+        .as_ref()
+        .expect("retained stream should become visible");
+    assert_eq!(started.runtime_request_id, Some(77));
+    assert_eq!(
+        started.state,
+        crate::native_app::app::SamplePlaybackSessionState::WaveformVisible
+    );
+    assert!(state.waveform.current.is_playing());
+    assert_eq!(state.audio.current_playback_span, Some((0.0, 1.0)));
+}
+
+#[test]
 fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("settled-full.wav");

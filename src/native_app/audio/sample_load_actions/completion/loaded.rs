@@ -140,21 +140,24 @@ impl NativeAppState {
         if !self.audio.active_sample_playback_is_streamable(path) {
             return false;
         }
-        let Some(progress) = self
+        let pending_runtime = self.audio.active_sample_playback_pending_runtime();
+        let progress = self
             .audio
             .active_sample_playback_progress(path)
             .filter(|progress| progress.active)
-            .and_then(|progress| progress.progress)
-        else {
+            .and_then(|progress| progress.progress);
+        if progress.is_none() && !pending_runtime {
             return false;
-        };
+        }
         if !self.audio.promote_sample_playback_session_to_waveform(path) {
             return false;
         }
-        self.waveform
-            .current
-            .start_playback_after_audition_handoff(progress, 0.0, true);
-        self.audio.current_playback_span = Some((0.0, 1.0));
+        if let Some(progress) = progress {
+            self.waveform
+                .current
+                .start_playback_after_audition_handoff(progress, 0.0, true);
+            self.audio.current_playback_span = Some((0.0, 1.0));
+        }
         self.record_current_playback_history(0.0, 1.0);
         self.record_sample_last_played(path.to_owned(), context);
         self.ui.status.sample = format!("Playing {file_name}");
@@ -162,7 +165,11 @@ impl NativeAppState {
             "browser.sample_load.finish",
             Some("browser"),
             Some(file_name),
-            "waveform_ready_playback_continued",
+            if pending_runtime {
+                "waveform_ready_playback_pending_start"
+            } else {
+                "waveform_ready_playback_continued"
+            },
             started_at,
             None,
         );

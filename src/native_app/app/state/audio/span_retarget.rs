@@ -113,14 +113,17 @@ impl AudioAppState {
             || session.source_kind == "preview_samples"
             || !matches!(
                 session.state,
-                SamplePlaybackSessionState::AudibleTransient
+                SamplePlaybackSessionState::RuntimePending
+                    | SamplePlaybackSessionState::AudibleTransient
                     | SamplePlaybackSessionState::WaveformVisible
             )
         {
             return false;
         }
         session.request.visibility = SamplePlaybackVisibility::Waveform;
-        session.state = SamplePlaybackSessionState::WaveformVisible;
+        if !matches!(session.state, SamplePlaybackSessionState::RuntimePending) {
+            session.state = SamplePlaybackSessionState::WaveformVisible;
+        }
         true
     }
 
