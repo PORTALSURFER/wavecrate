@@ -26,6 +26,7 @@ impl NativeAppState {
         let revision_guard = self.begin_frame_surface_revision_tracking();
         if self.playback_visual_activity_active() {
             self.pause_background_work_for_playback_frame();
+            self.maybe_start_starmap_layout_load(context);
             self.flush_pending_play_selection_playback_retarget();
             self.advance_frame(context);
             self.finish_frame_surface_revision_tracking(revision_guard);
