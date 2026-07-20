@@ -362,12 +362,20 @@ runtime dependency.
 Use for semantic GUI contracts and CLI scenarios.
 
 - Automated GUI runs default to the isolated `isolated-startup` fixture, which
-  exercises persisted startup against the dedicated `automated-tests`
-  persistence profile.
+  exercises the production `NativeAppState`/Radiant composition against a
+  temporary config base using the dedicated `automated-tests` persistence
+  profile.
 - Use the `live` GUI fixture only for deliberate manual validation against the
-  real persisted startup profile.
+  real persisted startup profile. It uses the same native composition as the
+  product executable and is the only GUI fixture allowed to resolve live state.
 - Treat `default` only as a legacy alias for `isolated-startup`; it is not a
   separate live-profile mode.
+- Named fixtures such as `browser`, `waveform`, and `map` remain explicitly
+  legacy-controller compatibility coverage. They do not certify native startup
+  or background-worker ownership.
+- Native startup artifacts identify `fixture_runtime: native-app`, report native
+  watcher/readiness-supervisor counts, report zero legacy analysis pools, and
+  include the native shutdown artifact.
 
 - Browser preview/commit flicker regressions:
   - targeted controller checks: `cargo test browser_focus_transition`
@@ -396,10 +404,12 @@ sample-source persistence, or GUI fixture profile selection.
 - regression anchors:
   - `cargo test app_core::controller::tests::persistence_boundary::`
   - `cargo test gui_test::`
+  - `cargo test native_app::automation::tests::startup_capture_uses_native_workers_and_shutdown_hook`
 - wrapper coverage:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`
-    now includes the persistence-boundary regression that snapshots the live
-    `library.db` bytes before and after an isolated controller run
+    includes the native-startup regression that snapshots live configuration
+    bytes before and after an isolated native-runtime run, plus the retained
+    controller `library.db` boundary checks
   - `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
     still covers the same regression through `cargo test -p wavecrate --lib`
 

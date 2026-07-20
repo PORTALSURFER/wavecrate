@@ -10,7 +10,6 @@ use std::{
 use radiant::{gui::frame as frame_ui, prelude as ui};
 use wavecrate::audio::AudioPlayer;
 
-#[cfg(not(test))]
 use crate::native_app::app::GuiSourceProcessingEventSink;
 use crate::native_app::app::{
     ExtractedFilePlaybackType, FileMoveProgress, GuiMessage, NormalizationProgress,
@@ -58,15 +57,40 @@ impl BackgroundTaskState {
         sources: Vec<wavecrate::sample_sources::SampleSource>,
     ) -> Self {
         #[cfg(not(test))]
-        let source_processing = SourceProcessingSupervisor::start_with_event_sink(
-            sources,
-            GuiSourceProcessingEventSink::new(worker_sender.clone()),
-        );
+        let source_processing = Self::start_source_processing(&worker_sender, sources);
         #[cfg(test)]
         let source_processing = {
             drop(sources);
             SourceProcessingSupervisor::dormant()
         };
+        Self::with_source_processing(worker_sender, worker_receiver, source_processing)
+    }
+
+    #[cfg(any(test, feature = "legacy-controller"))]
+    pub(in crate::native_app) fn new_runtime(
+        worker_sender: Sender<GuiMessage>,
+        worker_receiver: Option<Receiver<GuiMessage>>,
+        sources: Vec<wavecrate::sample_sources::SampleSource>,
+    ) -> Self {
+        let source_processing = Self::start_source_processing(&worker_sender, sources);
+        Self::with_source_processing(worker_sender, worker_receiver, source_processing)
+    }
+
+    fn start_source_processing(
+        worker_sender: &Sender<GuiMessage>,
+        sources: Vec<wavecrate::sample_sources::SampleSource>,
+    ) -> SourceProcessingSupervisor {
+        SourceProcessingSupervisor::start_with_event_sink(
+            sources,
+            GuiSourceProcessingEventSink::new(worker_sender.clone()),
+        )
+    }
+
+    fn with_source_processing(
+        worker_sender: Sender<GuiMessage>,
+        worker_receiver: Option<Receiver<GuiMessage>>,
+        source_processing: SourceProcessingSupervisor,
+    ) -> Self {
         let source_lifecycle_generations = source_processing.lifecycle_generations();
         Self {
             worker_sender,

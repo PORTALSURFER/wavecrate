@@ -63,6 +63,8 @@ Push-Location $rootDir
 try {
   $violations = New-Object System.Collections.Generic.List[string]
   $ambiguousModules = @("browser", "context_menu", "library_browser", "widgets")
+  $nativeGuiFixturePath = Join-Path $rootDir "src/gui_test/fixtures.rs"
+  $nativeGuiRunnerPath = Join-Path $rootDir "src/gui_test/runner/mod.rs"
 
   foreach ($file in Get-ChildItem -LiteralPath (Join-Path $rootDir "src/native_app") -Recurse -File -Filter "*.rs") {
     $repoPath = Convert-ToRepoPath -Path $file.FullName
@@ -98,10 +100,31 @@ try {
     }
   }
 
+  if (Test-Path -LiteralPath $nativeGuiFixturePath) {
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $nativeGuiFixturePath) {
+      $lineNumber++
+      if ($line -match '\b(?:new_ui_bridge|build_ui_app_controller|start_analysis_runtime)\s*\(') {
+        $violations.Add(("src/gui_test/fixtures.rs:{0}: product startup fixtures must not construct the legacy UI bridge: {1}" -f $lineNumber, $line.Trim()))
+      }
+    }
+  }
+
+  if (Test-Path -LiteralPath $nativeGuiRunnerPath) {
+    $nativeGuiRunner = Get-Content -LiteralPath $nativeGuiRunnerPath -Raw
+    if (-not $nativeGuiRunner.Contains("capture_native_startup_bundle")) {
+      $violations.Add("src/gui_test/runner/mod.rs: live and isolated-startup capture must route through the product-native harness")
+    }
+    if (-not $nativeGuiRunner.Contains("crate::native_app::automation::capture_startup")) {
+      $violations.Add("src/gui_test/runner/mod.rs: product startup certification must use NativeAppState automation")
+    }
+  }
+
   if ($violations.Count -gt 0) {
     Write-Host "[native_app_boundary] Native app boundary violations detected:"
     Write-Host "[native_app_boundary] app_chrome is the view-composition layer; product/domain modules must depend on messages, view models, or domain APIs instead."
     Write-Host "[native_app_boundary] Root native-app module names must describe durable ownership, not generic widgets. See docs/TARGET.md native app module map."
+    Write-Host "[native_app_boundary] Live and isolated-startup GUI certification must use the production native app composition."
     foreach ($violation in ($violations | Sort-Object)) {
       Write-Host (" - {0}" -f $violation)
     }

@@ -1,12 +1,11 @@
 use super::assertions::assert_scenario_state;
 use super::*;
-use crate::app_core::actions::NativeAutomationBounds as AutomationBounds;
-use crate::app_core::actions::{
-    GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
-    NativeGuiAutomationSnapshot,
-};
+use crate::app_core::actions::GUI_ACTION_CATALOG;
 use crate::gui_test::{GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep};
-use std::collections::BTreeMap;
+use radiant::gui::automation::{
+    AutomationBounds, AutomationNodeId, AutomationNodeSemantics, AutomationNodeSnapshot,
+    AutomationRole, GuiAutomationSnapshot,
+};
 
 mod action_parity;
 
@@ -17,47 +16,40 @@ fn deterministic_test_config(fixture_tag: &str) -> GuiTestModeConfig {
     }
 }
 
-fn snapshot_with_child() -> NativeGuiAutomationSnapshot {
-    NativeGuiAutomationSnapshot {
+fn snapshot_with_child() -> GuiAutomationSnapshot {
+    let mut child_semantics = AutomationNodeSemantics::new(AutomationRole::SearchField)
+        .with_label("Search")
+        .with_value_text("kick search");
+    child_semantics.selected = true;
+    child_semantics
+        .metadata
+        .insert(String::from("placeholder"), String::from("Search samples"));
+    let mut child = AutomationNodeSnapshot::from_semantics(
+        AutomationNodeId::new("browser.search"),
+        AutomationBounds {
+            x: 20.0,
+            y: 30.0,
+            width: 200.0,
+            height: 30.0,
+        },
+        child_semantics,
+    );
+    child.available_actions = vec![String::from("browser.search.commit")];
+    GuiAutomationSnapshot {
         schema_version: 1,
         viewport_width: 800,
         viewport_height: 600,
-        root: NativeAutomationNodeSnapshot {
-            id: NativeAutomationNodeId::new("shell.root"),
-            role: NativeAutomationRole::Root,
-            label: Some(String::from("Root")),
-            bounds: AutomationBounds {
+        root: AutomationNodeSnapshot::from_semantics(
+            AutomationNodeId::new("shell.root"),
+            AutomationBounds {
                 x: 0.0,
                 y: 0.0,
                 width: 800.0,
                 height: 600.0,
             },
-            value: None,
-            enabled: true,
-            selected: false,
-            available_actions: Vec::new(),
-            metadata: BTreeMap::new(),
-            children: vec![NativeAutomationNodeSnapshot {
-                id: NativeAutomationNodeId::new("browser.search"),
-                role: NativeAutomationRole::SearchField,
-                label: Some(String::from("Search")),
-                bounds: AutomationBounds {
-                    x: 20.0,
-                    y: 30.0,
-                    width: 200.0,
-                    height: 30.0,
-                },
-                value: Some(String::from("kick search")),
-                enabled: true,
-                selected: true,
-                available_actions: vec![String::from("browser.search.commit")],
-                metadata: BTreeMap::from([(
-                    String::from("placeholder"),
-                    String::from("Search samples"),
-                )]),
-                children: Vec::new(),
-            }],
-        },
+            AutomationNodeSemantics::new(AutomationRole::Root).with_label("Root"),
+        )
+        .with_children(vec![child]),
     }
 }
 
@@ -71,7 +63,7 @@ fn trace_with_action(action_id: &str, handled: bool) -> Vec<GuiActionTraceEvent>
 }
 
 fn collect_advertised_actions<'a>(
-    node: &'a NativeAutomationNodeSnapshot,
+    node: &'a AutomationNodeSnapshot,
     actions: &mut Vec<(&'a str, &'a str)>,
 ) {
     for action_id in &node.available_actions {

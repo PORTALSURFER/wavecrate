@@ -3,6 +3,8 @@
 mod app;
 mod app_chrome;
 mod audio;
+#[cfg(any(test, feature = "legacy-controller"))]
+pub(crate) mod automation;
 mod metadata;
 mod protected_source_feedback;
 mod release_update;
@@ -20,7 +22,7 @@ mod waveform_edit_effects;
 mod waveform_edits;
 mod workflows;
 
-pub(crate) use shell::run;
+pub use shell::run;
 
 #[cfg(test)]
 mod tests;

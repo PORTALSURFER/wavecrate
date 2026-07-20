@@ -3,6 +3,7 @@
 
 //! Library exports for reuse in benchmarks and tests.
 extern crate alloc;
+extern crate self as wavecrate;
 /// Retained controller internals used only by compatibility tests and tools.
 #[cfg(any(test, feature = "legacy-controller"))]
 #[allow(dead_code)]
@@ -34,6 +35,8 @@ mod http_client;
 pub mod issue_gateway;
 /// Logging setup helpers.
 pub mod logging;
+/// Production Radiant application composition and native GUI behavior.
+pub mod native_app;
 /// Shared runtime host glue that starts native `radiant` hosts.
 ///
 /// The runtime boundary only adapts launch options and forwards lifecycle/error

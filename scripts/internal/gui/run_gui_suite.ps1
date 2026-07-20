@@ -21,6 +21,22 @@ if ($artifactDir) {
 Write-Host "[gui-suite] cargo run -p gui-test-cli -- snapshot $ArtifactPath"
 cargo run -p gui-test-cli -- snapshot $ArtifactPath
 if ($LASTEXITCODE -ne 0) { throw "gui snapshot export failed" }
+$nativeArtifact = Get-Content -LiteralPath $ArtifactPath -Raw | ConvertFrom-Json
+if ($nativeArtifact.fixture_runtime -ne "native-app") {
+    throw "gui snapshot export did not use the native app runtime"
+}
+if ($nativeArtifact.runtime_composition.native_source_watchers -ne 1) {
+    throw "gui snapshot export did not start exactly one native source watcher"
+}
+if ($nativeArtifact.runtime_composition.native_readiness_supervisors -ne 1) {
+    throw "gui snapshot export did not start exactly one native readiness supervisor"
+}
+if ($nativeArtifact.runtime_composition.legacy_analysis_pools -ne 0) {
+    throw "gui snapshot export started a legacy analysis pool"
+}
+if ($nativeArtifact.shutdown_artifact.source_processing.joined -ne $true) {
+    throw "gui snapshot export did not complete native source-processing shutdown"
+}
 
 Write-Host "[gui-suite] cargo run -p gui-test-cli -- run-scenario-pack contract-smoke $ScenarioPackOutputDir"
 cargo run -p gui-test-cli -- run-scenario-pack contract-smoke $ScenarioPackOutputDir

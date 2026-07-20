@@ -128,6 +128,23 @@ fn automated_profile_guard_uses_canonical_mode() {
 }
 
 #[test]
+fn app_root_guard_pins_child_thread_to_resolved_runtime_root() {
+    let _lock = app_dirs_test_lock();
+    let parent = tempdir().unwrap();
+    let runtime_root = parent.path().join("native-runtime-root");
+    let expected = runtime_root.clone();
+
+    let observed = std::thread::spawn(move || {
+        let _guard = AppRootGuard::set(runtime_root).expect("pin worker app root");
+        app_root_dir().expect("resolve worker app root")
+    })
+    .join()
+    .expect("join app-root worker");
+
+    assert_eq!(observed, expected);
+}
+
+#[test]
 fn rejects_invalid_profile_names() {
     let _lock = app_dirs_test_lock();
     let base = tempdir().unwrap();
