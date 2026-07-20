@@ -74,6 +74,11 @@ try {
     Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features
   }
 
+  Write-Host "[ci_agent] cargo test -p wavecrate --test controller_browser_integration --features legacy-controller"
+  Invoke-NativeStep -Label "cargo test -p wavecrate --test controller_browser_integration --features legacy-controller" -Command {
+    Invoke-WavecrateCargo test -p wavecrate --test controller_browser_integration --features legacy-controller
+  }
+
   Write-Host "[ci_agent] cargo test -p wavecrate --lib -- --skip known isolated legacy failures"
   Invoke-NativeStep -Label "cargo test -p wavecrate --lib -- --skip known isolated legacy failures" -Command {
     $wavecrateLibArgs = @(

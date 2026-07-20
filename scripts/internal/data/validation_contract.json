@@ -103,6 +103,16 @@
         "fragment": "./scripts/check.sh readiness-executor-boundary"
       },
       {
+        "label": "PowerShell ci agent preserves legacy controller integration coverage",
+        "path": "scripts/internal/ci/ci_agent.ps1",
+        "fragment": "--test controller_browser_integration --features legacy-controller"
+      },
+      {
+        "label": "Bash ci agent preserves legacy controller integration coverage",
+        "path": "scripts/internal/ci/ci_agent.sh",
+        "fragment": "--test controller_browser_integration --features legacy-controller"
+      },
+      {
         "label": "PowerShell perf guard uses shared report evaluator",
         "path": "scripts/internal/perf/run_perf_guard.ps1",
         "fragment": "scripts/internal/perf/evaluate_perf_guard_report.py"

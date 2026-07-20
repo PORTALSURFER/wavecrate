@@ -56,6 +56,9 @@ cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features
 echo "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features"
 cargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features
 
+echo "[ci_agent] cargo test -p wavecrate --test controller_browser_integration --features legacy-controller"
+cargo test -p wavecrate --test controller_browser_integration --features legacy-controller
+
 echo "[ci_agent] cargo test -p wavecrate --lib -- --skip known isolated legacy failures"
 cargo test -p wavecrate --lib -- \
   --skip prepare_auto_rename_requests_logs_looped_provenance \
