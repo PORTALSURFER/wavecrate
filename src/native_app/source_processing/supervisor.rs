@@ -7,7 +7,6 @@ use std::{
     sync::{
         Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
-        mpsc::Sender,
     },
     thread::{self, JoinHandle},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -32,11 +31,15 @@ use wavecrate::sample_sources::{
     },
 };
 
-use super::scheduler::{
-    BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane, WorkCandidate,
-};
 use super::worker::{SourceProcessingFailure, source_database_failure};
-use crate::native_app::app::{GuiMessage, SourceProcessingProgress};
+use super::{
+    SourceProcessingActivity, SourceProcessingEvent, SourceProcessingEventSink,
+    SourceProcessingLifecycle, SourceProcessingProgressEvent,
+    scheduler::{
+        BudgetTracker, FairScheduler, PriorityContext, ProcessingBudgets, ProcessingLane,
+        WorkCandidate,
+    },
+};
 use crate::native_app::sample_library::similarity_artifacts::{
     SimilarityPublicationFence, finalize_similarity_artifacts_if_ready,
     native_similarity_artifact_version,
@@ -45,7 +48,7 @@ use crate::native_app::waveform::invalidate_persisted_waveform_cache_ref;
 
 const SAFETY_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
 const PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
-const DISCOVERY_PROGRESS_UI_GRACE_INTERVAL: Duration = Duration::from_millis(250);
+const DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL: Duration = Duration::from_millis(250);
 const DISCOVERY_PROGRESS_REFRESH_INTERVAL: Duration = Duration::from_millis(250);
 const DISCOVERY_PROGRESS_LOG_INTERVAL: Duration = Duration::from_secs(2);
 const SIMILARITY_SCORE_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
@@ -415,34 +418,34 @@ impl SourceProcessingSupervisor {
         Self::start_with_playback_state(sources, false)
     }
 
-    pub(in crate::native_app) fn start_with_worker_sender(
+    pub(in crate::native_app) fn start_with_event_sink(
         sources: Vec<SampleSource>,
-        worker_sender: Sender<GuiMessage>,
+        event_sink: impl SourceProcessingEventSink + 'static,
     ) -> Self {
-        Self::start_with_options(sources, false, Some(worker_sender), false)
+        Self::start_with_options(sources, false, Some(Arc::new(event_sink)), false)
     }
 
     #[cfg(test)]
     fn start_with_playback_state(sources: Vec<SampleSource>, playback_active: bool) -> Self {
-        Self::start_with_playback_state_and_sender(sources, playback_active, None)
+        Self::start_with_playback_state_and_event_sink(sources, playback_active, None)
     }
 
     #[cfg(test)]
-    fn start_with_playback_state_and_sender(
+    fn start_with_playback_state_and_event_sink(
         sources: Vec<SampleSource>,
         playback_active: bool,
-        worker_sender: Option<Sender<GuiMessage>>,
+        event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
     ) -> Self {
-        Self::start_with_options(sources, playback_active, worker_sender, false)
+        Self::start_with_options(sources, playback_active, event_sink, false)
     }
 
     fn start_with_options(
         sources: Vec<SampleSource>,
         playback_active: bool,
-        worker_sender: Option<Sender<GuiMessage>>,
+        event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
         synthetic_test_execution: bool,
     ) -> Self {
-        let shared = Arc::new(Shared::new(sources, worker_sender));
+        let shared = Arc::new(Shared::new(sources, event_sink));
         shared.control().playback_active = playback_active;
         shared
             .synthetic_test_execution
@@ -1019,7 +1022,7 @@ struct Shared {
     next_external_scan_id: AtomicU64,
     in_flight_work: Mutex<BTreeMap<(String, u64), usize>>,
     synthetic_test_execution: AtomicBool,
-    worker_sender: Option<Sender<GuiMessage>>,
+    event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
     #[cfg(test)]
     retirement_cleanup_blocked: AtomicBool,
     #[cfg(test)]
@@ -1027,7 +1030,10 @@ struct Shared {
 }
 
 impl Shared {
-    fn new(sources: Vec<SampleSource>, worker_sender: Option<Sender<GuiMessage>>) -> Self {
+    fn new(
+        sources: Vec<SampleSource>,
+        event_sink: Option<Arc<dyn SourceProcessingEventSink>>,
+    ) -> Self {
         let sources = sources_by_id(sources);
         let source_work_cancels = sources
             .keys()
@@ -1095,7 +1101,7 @@ impl Shared {
             next_external_scan_id: AtomicU64::new(1),
             in_flight_work: Mutex::new(BTreeMap::new()),
             synthetic_test_execution: AtomicBool::new(false),
-            worker_sender,
+            event_sink,
             #[cfg(test)]
             retirement_cleanup_blocked: AtomicBool::new(false),
             #[cfg(test)]
@@ -1107,6 +1113,29 @@ impl Shared {
         self.state
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    fn publish_event(&self, event: SourceProcessingEvent) -> bool {
+        let lifecycle_guard = if let Some(lifecycle) = event.lifecycle() {
+            let control = self.control();
+            if !control.source_is_active(&lifecycle.source_id)
+                || control
+                    .source_lifecycle_generations
+                    .get(&lifecycle.source_id)
+                    != Some(&lifecycle.generation)
+            {
+                return false;
+            }
+            Some(control)
+        } else {
+            None
+        };
+        let published = self
+            .event_sink
+            .as_ref()
+            .is_some_and(|sink| sink.try_publish(event));
+        drop(lifecycle_guard);
+        published
     }
 
     fn telemetry(&self) -> MutexGuard<'_, SupervisorTelemetry> {
@@ -1393,42 +1422,36 @@ struct DiscoveryProgressPublisher<'a> {
     lifecycle_generation: u64,
     started_at: Instant,
     last_phase: Option<&'static str>,
-    last_ui_publish_at: Option<Instant>,
+    last_event_publish_at: Option<Instant>,
     last_log_publish_at: Option<Instant>,
-    ui_published: bool,
+    event_published: bool,
 }
 
 impl DiscoveryProgressPublisher<'_> {
     fn advance(&mut self, phase: &'static str, work_units: usize) {
         let phase_changed = self.last_phase != Some(phase);
-        let ui_due = self.started_at.elapsed() >= DISCOVERY_PROGRESS_UI_GRACE_INTERVAL
+        let event_due = self.started_at.elapsed() >= DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL
             && (phase_changed
-                || self.last_ui_publish_at.is_none_or(|published_at| {
+                || self.last_event_publish_at.is_none_or(|published_at| {
                     published_at.elapsed() >= DISCOVERY_PROGRESS_REFRESH_INTERVAL
                 }));
-        if ui_due {
-            let current_epoch = {
-                let control = self.shared.control();
-                control.source_is_active(self.source_id)
-                    && control.source_lifecycle_generations.get(self.source_id)
-                        == Some(&self.lifecycle_generation)
-            };
-            if current_epoch && let Some(worker_sender) = self.shared.worker_sender.as_ref() {
-                let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-                    SourceProcessingProgress {
-                        source_id: self.source_id.to_string(),
-                        lifecycle_generation: self.lifecycle_generation,
-                        active: true,
-                        source_row_active: true,
-                        completed: 0,
-                        total: 0,
-                        stage: String::from("Checking pending work"),
-                        detail: format!("{phase} | {work_units} reconciliation steps completed"),
+        if event_due {
+            self.event_published |= self.shared.publish_event(SourceProcessingEvent::Progress(
+                SourceProcessingProgressEvent {
+                    lifecycle: SourceProcessingLifecycle::new(
+                        self.source_id,
+                        self.lifecycle_generation,
+                    ),
+                    source_row_active: true,
+                    completed: 0,
+                    total: 0,
+                    activity: SourceProcessingActivity::Discovering {
+                        phase: phase.to_string(),
+                        completed_steps: work_units,
                     },
-                ));
-                self.ui_published = true;
-            }
-            self.last_ui_publish_at = Some(Instant::now());
+                },
+            ));
+            self.last_event_publish_at = Some(Instant::now());
         }
         let log_due = phase_changed
             || self.last_log_publish_at.is_none_or(|published_at| {
@@ -1487,7 +1510,7 @@ fn run_coordinator(shared: Arc<Shared>) {
     let mut source_stats = BTreeMap::<String, SourceDiscoveryStats>::new();
     let mut active_progress_source = None::<String>;
     let mut last_progress_publish_at = None::<Instant>;
-    let mut pending_similarity_refresh_sources = BTreeSet::<String>::new();
+    let mut pending_similarity_refresh_lifecycles = BTreeSet::<SourceProcessingLifecycle>::new();
     let mut pending_discovery_sources = BTreeSet::<String>::new();
     let mut pending_safety_probe_sources = BTreeSet::<String>::new();
     let mut last_similarity_refresh_publish_at = None::<Instant>;
@@ -1854,14 +1877,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                 progress_visible = true;
             }
             let candidate_started = Instant::now();
-            let (candidate_stage, candidate_detail) = runtime_task_progress_detail(&candidate.task);
             tracing::info!(
                 target: "wavecrate::source_processing",
                 event = "source_processing.candidate.started",
                 source_id = candidate.source.id.as_str(),
                 lifecycle_generation,
-                stage = candidate_stage,
-                detail = candidate_detail.as_str(),
+                task = ?candidate.task,
                 lane = ?candidate.schedule.lane,
                 remaining_for_source = candidates
                     .iter()
@@ -1891,7 +1912,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                     &candidate,
                     lifecycle_generation,
                     candidate_cancel.as_ref(),
-                    shared.worker_sender.as_ref(),
+                    &mut |event| shared.publish_event(event),
                 )
             };
             if matches!(
@@ -1909,8 +1930,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 event = "source_processing.candidate.finished",
                 source_id = candidate.source.id.as_str(),
                 lifecycle_generation,
-                stage = candidate_stage,
-                detail = candidate_detail.as_str(),
+                task = ?candidate.task,
                 outcome = ?result,
                 elapsed_ms = candidate_started.elapsed().as_secs_f64() * 1_000.0,
                 "Source processing candidate finished"
@@ -1938,7 +1958,12 @@ fn run_coordinator(shared: Arc<Shared>) {
                         && let RuntimeTask::Readiness(target) = &candidate.task
                         && target.stage == ReadinessStage::EmbeddingAspects
                     {
-                        pending_similarity_refresh_sources.insert(target.source_id.clone());
+                        pending_similarity_refresh_lifecycles.insert(
+                            SourceProcessingLifecycle::new(
+                                target.source_id.clone(),
+                                lifecycle_generation,
+                            ),
+                        );
                     }
                     if outcome.was_claimed() {
                         telemetry.claimed = telemetry.claimed.saturating_add(1);
@@ -2050,7 +2075,7 @@ fn run_coordinator(shared: Arc<Shared>) {
                 published_at.elapsed() >= SIMILARITY_SCORE_REFRESH_INTERVAL
             }) && publish_similarity_readiness_refreshes(
                 &shared,
-                &mut pending_similarity_refresh_sources,
+                &mut pending_similarity_refresh_lifecycles,
             ) {
                 last_similarity_refresh_publish_at = Some(Instant::now());
             }
@@ -2123,8 +2148,10 @@ fn run_coordinator(shared: Arc<Shared>) {
                 .mark_source_dirty(source_id, "source_stage_progress");
             break;
         }
-        if publish_similarity_readiness_refreshes(&shared, &mut pending_similarity_refresh_sources)
-        {
+        if publish_similarity_readiness_refreshes(
+            &shared,
+            &mut pending_similarity_refresh_lifecycles,
+        ) {
             last_similarity_refresh_publish_at = Some(Instant::now());
         }
         let active_source_has_runnable_work = scheduler.active_source().is_some_and(|source_id| {
@@ -2455,23 +2482,22 @@ fn progress_refresh_due(last_publish_at: Option<Instant>) -> bool {
 }
 
 fn manifest_audit_source_row_active(started_at: Instant) -> bool {
-    started_at.elapsed() >= DISCOVERY_PROGRESS_UI_GRACE_INTERVAL
+    started_at.elapsed() >= DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL
 }
 
 fn publish_similarity_readiness_refreshes(
     shared: &Shared,
-    pending_source_ids: &mut BTreeSet<String>,
+    pending_lifecycles: &mut BTreeSet<SourceProcessingLifecycle>,
 ) -> bool {
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return false;
-    };
-    if pending_source_ids.is_empty() {
+    if pending_lifecycles.is_empty() {
         return false;
     }
-    for source_id in std::mem::take(pending_source_ids) {
-        let _ = worker_sender.send(GuiMessage::SimilarityReadinessAdvanced { source_id });
+    let mut published = false;
+    for lifecycle in std::mem::take(pending_lifecycles) {
+        published |=
+            shared.publish_event(SourceProcessingEvent::SimilarityReadinessAdvanced { lifecycle });
     }
-    true
+    published
 }
 
 fn publish_source_processing_progress(
@@ -2480,10 +2506,6 @@ fn publish_source_processing_progress(
     lifecycle_generation: u64,
     stats: SourceDiscoveryStats,
 ) {
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
-    };
-    let (stage, detail) = runtime_task_progress_detail(&candidate.task);
     let (completed, total) = match &candidate.task {
         RuntimeTask::Readiness(_) => (stats.progress_completed, stats.progress_total),
         RuntimeTask::ManifestAudit => (0, 0),
@@ -2496,59 +2518,32 @@ fn publish_source_processing_progress(
         // publishing a false completion while the candidate is still executing.
         (0, 0)
     };
-    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-        SourceProcessingProgress {
-            source_id: candidate.source.id.as_str().to_string(),
-            lifecycle_generation,
-            active: true,
+    let activity = match &candidate.task {
+        RuntimeTask::Readiness(target) => SourceProcessingActivity::Readiness {
+            stage: target.stage,
+            relative_path: target.relative_path.clone(),
+        },
+        RuntimeTask::ManifestAudit => SourceProcessingActivity::ManifestAudit {
+            checked: None,
+            relative_path: None,
+        },
+    };
+    shared.publish_event(SourceProcessingEvent::Progress(
+        SourceProcessingProgressEvent {
+            lifecycle: SourceProcessingLifecycle::new(
+                candidate.source.id.as_str(),
+                lifecycle_generation,
+            ),
             source_row_active: !matches!(candidate.task, RuntimeTask::ManifestAudit),
             completed,
             total,
-            stage: stage.to_string(),
-            detail,
-        },
-    ));
-}
-
-#[cfg(test)]
-fn publish_source_recovery_progress(
-    shared: &Shared,
-    source: &SampleSource,
-    lifecycle_generation: u64,
-) {
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
-    };
-    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-        SourceProcessingProgress {
-            source_id: source.id.as_str().to_string(),
-            lifecycle_generation,
-            active: true,
-            source_row_active: true,
-            completed: 0,
-            total: 0,
-            stage: String::from("Opening source database"),
-            detail: format!("Recovering interrupted jobs in {}", source.root.display()),
+            activity,
         },
     ));
 }
 
 fn publish_source_processing_finished(shared: &Shared) {
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return;
-    };
-    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-        SourceProcessingProgress {
-            source_id: String::new(),
-            lifecycle_generation: 0,
-            active: false,
-            source_row_active: false,
-            completed: 0,
-            total: 0,
-            stage: String::new(),
-            detail: String::new(),
-        },
-    ));
+    shared.publish_event(SourceProcessingEvent::Completed);
 }
 
 #[cfg(test)]
@@ -2617,56 +2612,25 @@ fn publish_source_processing_wait_for_source(
         return false;
     }
     drop(control);
-    let Some(worker_sender) = shared.worker_sender.as_ref() else {
-        return false;
-    };
     let retry_at = if prerequisite_wait {
         stats.prerequisite_retry_at
     } else {
         stats.earliest_retry_at
     };
-    let (stage, detail) = match (prerequisite_wait, retry_at) {
-        (true, Some(retry_at)) => {
-            let retry_in = retry_at.saturating_sub(now_epoch_seconds());
-            (
-                String::from("Waiting for prerequisites"),
-                if retry_in <= 1 {
-                    String::from("Prerequisite retry is due")
-                } else {
-                    format!("Retrying prerequisites in {retry_in}s")
-                },
-            )
-        }
-        (true, None) => (
-            String::from("Blocked by prerequisites"),
-            String::from("Similarity finalization is waiting for durable prerequisites"),
-        ),
-        (false, Some(retry_at)) => {
-            let retry_in = retry_at.saturating_sub(now_epoch_seconds());
-            (
-                String::from("Waiting to retry source"),
-                if retry_in <= 1 {
-                    String::from("Retry is due")
-                } else {
-                    format!("A changing or temporarily unavailable file will retry in {retry_in}s")
-                },
-            )
-        }
+    let activity = match (prerequisite_wait, retry_at) {
+        (true, retry_at) => SourceProcessingActivity::WaitingForPrerequisites { retry_at },
+        (false, Some(retry_at)) => SourceProcessingActivity::WaitingForRetry { retry_at },
         (false, None) => return false,
     };
-    let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-        SourceProcessingProgress {
-            source_id: source_id.to_string(),
-            lifecycle_generation,
-            active: true,
+    shared.publish_event(SourceProcessingEvent::Progress(
+        SourceProcessingProgressEvent {
+            lifecycle: SourceProcessingLifecycle::new(source_id, lifecycle_generation),
             source_row_active: true,
             completed: stats.progress_completed,
             total: stats.progress_total,
-            stage,
-            detail,
+            activity,
         },
-    ));
-    true
+    ))
 }
 
 fn advance_source_progress(
@@ -2680,31 +2644,6 @@ fn advance_source_progress(
         .saturating_add(1)
         .min(stats.progress_total);
     Some(*stats)
-}
-
-fn runtime_task_progress_detail(task: &RuntimeTask) -> (&'static str, String) {
-    match task {
-        RuntimeTask::Readiness(target) => readiness_progress_detail(target),
-        RuntimeTask::ManifestAudit => (
-            "Scanning source changes",
-            String::from("Checking the source manifest"),
-        ),
-    }
-}
-
-fn readiness_progress_detail(target: &ReadinessTarget) -> (&'static str, String) {
-    let stage = match target.stage {
-        ReadinessStage::IndexedIdentity => "Indexing files",
-        ReadinessStage::AnalysisFeatures => "Analyzing audio",
-        ReadinessStage::EmbeddingAspects => "Preparing similarity",
-        ReadinessStage::SimilarityLayout => "Building similarity layout",
-    };
-    let detail = target
-        .relative_path
-        .as_deref()
-        .map(str::to_string)
-        .unwrap_or_else(|| String::from("Finalizing source"));
-    (stage, detail)
 }
 
 fn similarity_prerequisite_blocker_stats(snapshot: &ReadinessSnapshot) -> (usize, Option<i64>) {
@@ -2807,9 +2746,9 @@ fn discover_candidates(
             lifecycle_generation: in_flight_work.lifecycle_generation,
             started_at: Instant::now(),
             last_phase: None,
-            last_ui_publish_at: None,
+            last_event_publish_at: None,
             last_log_publish_at: None,
-            ui_published: false,
+            event_published: false,
         };
         match discover_source_candidates_with_progress(
             source,
@@ -2859,7 +2798,7 @@ fn discover_candidates(
                 );
             }
         }
-        progress_published |= progress.ui_published;
+        progress_published |= progress.event_published;
         drop(in_flight_work);
         shared.budgets().release(permit);
         shared.budget_wake.notify_all();
@@ -4089,7 +4028,7 @@ fn execute_candidate(
     candidate: &RuntimeCandidate,
     lifecycle_generation: u64,
     cancel: &AtomicBool,
-    worker_sender: Option<&Sender<GuiMessage>>,
+    publish_event: &mut dyn FnMut(SourceProcessingEvent) -> bool,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
         RuntimeTask::ManifestAudit => {
@@ -4127,26 +4066,21 @@ fn execute_candidate(
                 if !publish_due {
                     return;
                 }
-                let Some(worker_sender) = worker_sender else {
-                    return;
-                };
                 let relative = path.strip_prefix(&source_root).unwrap_or(path);
-                let source_detail = if relative.as_os_str().is_empty() {
-                    format!("Resumed after {checked} checked files")
-                } else {
-                    format!("Checked {checked} files | {}", relative.display())
-                };
                 let total = expected_files.max(checked);
-                let _ = worker_sender.send(GuiMessage::SourceProcessingProgress(
-                    SourceProcessingProgress {
-                        source_id: source_id.clone(),
-                        lifecycle_generation,
-                        active: true,
+                publish_event(SourceProcessingEvent::Progress(
+                    SourceProcessingProgressEvent {
+                        lifecycle: SourceProcessingLifecycle::new(
+                            source_id.clone(),
+                            lifecycle_generation,
+                        ),
                         source_row_active: manifest_audit_source_row_active(audit_started_at),
                         completed: checked.min(total),
                         total,
-                        stage: String::from("Scanning source changes"),
-                        detail: source_detail,
+                        activity: SourceProcessingActivity::ManifestAudit {
+                            checked: Some(checked),
+                            relative_path: Some(relative.to_path_buf()),
+                        },
                     },
                 ));
                 last_progress_publish_at = Some(Instant::now());
@@ -4184,29 +4118,20 @@ fn execute_candidate(
                     .collect::<Vec<_>>(),
                 "Periodic source manifest audit committed"
             );
-            let foreground_refresh_owns_reconciliation = !outcome.committed_delta.is_empty()
+            let browser_refresh_required = !outcome.committed_delta.is_empty()
                 && crate::native_app::source_processing::manifest_delta_requires_browser_refresh(
                     &outcome.committed_delta,
-                )
-                && worker_sender.is_some_and(|worker_sender| {
-                    worker_sender
-                        .send(GuiMessage::SourceManifestAuditCommitted {
-                            source_id: candidate.source.id.as_str().to_string(),
-                            lifecycle_generation,
-                            committed_delta: outcome.committed_delta.clone(),
-                        })
-                        .is_ok()
-                });
-            if !foreground_refresh_owns_reconciliation
-                && !outcome.committed_delta.is_empty()
-                && let Some(worker_sender) = worker_sender
-            {
-                let _ = worker_sender.send(GuiMessage::SourceManifestAuditCommitted {
-                    source_id: candidate.source.id.as_str().to_string(),
-                    lifecycle_generation,
+                );
+            let audit_published = !outcome.committed_delta.is_empty()
+                && publish_event(SourceProcessingEvent::ManifestAuditCommitted {
+                    lifecycle: SourceProcessingLifecycle::new(
+                        candidate.source.id.as_str(),
+                        lifecycle_generation,
+                    ),
                     committed_delta: outcome.committed_delta,
                 });
-            }
+            let foreground_refresh_owns_reconciliation =
+                browser_refresh_required && audit_published;
             let incomplete = incomplete_error.is_some();
             if let Some(error) = incomplete_error {
                 tracing::warn!(
@@ -5419,18 +5344,18 @@ mod tests {
     fn playback_and_foreground_activity_do_not_publish_pause_feedback() {
         let (_directory, source) = unhashed_source("activity-feedback");
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_sender(
+        let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_event_sink(
             vec![source.clone()],
             true,
-            Some(sender),
+            Some(Arc::new(sender)),
         );
 
         supervisor.set_foreground_activity(true);
         wait_until(Duration::from_secs(10), || source_is_hashed(&source));
         let progress = receiver
             .try_iter()
-            .filter_map(|message| {
-                let GuiMessage::SourceProcessingProgress(progress) = message else {
+            .filter_map(|event| {
+                let SourceProcessingEvent::Progress(progress) = event else {
                     return None;
                 };
                 Some(progress)
@@ -5439,13 +5364,8 @@ mod tests {
         assert!(
             progress
                 .iter()
-                .any(|progress| progress.active && progress.source_id == source.id.as_str()),
+                .any(|progress| progress.lifecycle.source_id == source.id.as_str()),
             "processing activity must remain visible while playback and foreground loading are active"
-        );
-        assert!(
-            progress
-                .iter()
-                .all(|progress| progress.stage != "Pausing source processing")
         );
         assert_eq!(supervisor.shutdown()["joined"], true);
     }
@@ -5457,7 +5377,7 @@ mod tests {
             PathBuf::from("/library/samples"),
         );
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Shared::new(vec![source.clone()], Some(sender));
+        let shared = Shared::new(vec![source.clone()], Some(Arc::new(sender)));
         let control = shared.control();
         let lifecycle_generation = control.source_lifecycle_generations[source.id.as_str()];
         drop(control);
@@ -5467,9 +5387,9 @@ mod tests {
             lifecycle_generation,
             started_at: Instant::now(),
             last_phase: None,
-            last_ui_publish_at: None,
+            last_event_publish_at: None,
             last_log_publish_at: None,
-            ui_published: false,
+            event_published: false,
         };
 
         publisher.advance("Reading manifest and readiness targets", 1);
@@ -5478,22 +5398,28 @@ mod tests {
             receiver.try_recv().is_err(),
             "a brief converged-source check must not flash active processing feedback"
         );
-        assert!(!publisher.ui_published);
+        assert!(!publisher.event_published);
 
-        publisher.started_at = Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL;
+        publisher.started_at = Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL;
         publisher.advance("Queueing unfinished jobs", 3);
-        let GuiMessage::SourceProcessingProgress(progress) = receiver
+        let SourceProcessingEvent::Progress(progress) = receiver
             .recv_timeout(Duration::from_secs(1))
             .expect("sustained discovery feedback")
         else {
-            panic!("unexpected supervisor GUI message");
+            panic!("unexpected source-processing event");
         };
-        assert_eq!(progress.stage, "Checking pending work");
+        assert_eq!(
+            progress.activity,
+            SourceProcessingActivity::Discovering {
+                phase: String::from("Queueing unfinished jobs"),
+                completed_steps: 3,
+            }
+        );
         assert!(
             progress.source_row_active,
             "grace-surviving discovery must identify its active source row"
         );
-        assert!(publisher.ui_published);
+        assert!(publisher.event_published);
     }
 
     #[test]
@@ -5504,7 +5430,7 @@ mod tests {
             directory.path().to_path_buf(),
         );
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(Arc::new(sender))));
         let supervisor = SourceProcessingSupervisor {
             shared: Arc::clone(&shared),
             coordinator: None,
@@ -5523,14 +5449,14 @@ mod tests {
             shared: shared.as_ref(),
             source_id: source.id.as_str(),
             lifecycle_generation: old_generation,
-            started_at: Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL,
+            started_at: Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL,
             last_phase: None,
-            last_ui_publish_at: None,
+            last_event_publish_at: None,
             last_log_publish_at: None,
-            ui_published: false,
+            event_published: false,
         };
         publisher.advance("Comparing durable readiness", 1);
-        assert!(!publisher.ui_published);
+        assert!(!publisher.event_published);
         assert!(receiver.try_recv().is_err());
     }
 
@@ -6986,43 +6912,48 @@ mod tests {
             directory.path().to_path_buf(),
         );
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Shared::new(vec![source], Some(sender));
+        let shared = Shared::new(vec![source], Some(Arc::new(sender)));
         let lifecycle_generation =
             shared.control().source_lifecycle_generations["progress-publisher"];
         let mut publisher = DiscoveryProgressPublisher {
             shared: &shared,
             source_id: "progress-publisher",
             lifecycle_generation,
-            started_at: Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL,
+            started_at: Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL,
             last_phase: None,
-            last_ui_publish_at: None,
+            last_event_publish_at: None,
             last_log_publish_at: None,
-            ui_published: false,
+            event_published: false,
         };
 
         publisher.advance("Comparing durable readiness", 128);
-        publisher.last_ui_publish_at = Some(Instant::now() - DISCOVERY_PROGRESS_REFRESH_INTERVAL);
+        publisher.last_event_publish_at =
+            Some(Instant::now() - DISCOVERY_PROGRESS_REFRESH_INTERVAL);
         publisher.advance("Comparing durable readiness", 256);
 
         let updates = receiver
             .try_iter()
-            .filter_map(|message| match message {
-                GuiMessage::SourceProcessingProgress(progress) => Some(progress),
+            .filter_map(|event| match event {
+                SourceProcessingEvent::Progress(progress) => Some(progress),
                 _ => None,
             })
             .collect::<Vec<_>>();
         assert_eq!(updates.len(), 2);
-        assert_eq!(updates[0].source_id, "progress-publisher");
-        assert_eq!(updates[0].lifecycle_generation, lifecycle_generation);
-        assert!(
-            updates[0]
-                .detail
-                .contains("128 reconciliation steps completed")
+        assert_eq!(updates[0].lifecycle.source_id, "progress-publisher");
+        assert_eq!(updates[0].lifecycle.generation, lifecycle_generation);
+        assert_eq!(
+            updates[0].activity,
+            SourceProcessingActivity::Discovering {
+                phase: String::from("Comparing durable readiness"),
+                completed_steps: 128,
+            }
         );
-        assert!(
-            updates[1]
-                .detail
-                .contains("256 reconciliation steps completed")
+        assert_eq!(
+            updates[1].activity,
+            SourceProcessingActivity::Discovering {
+                phase: String::from("Comparing durable readiness"),
+                completed_steps: 256,
+            }
         );
     }
 
@@ -7472,7 +7403,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("remove source after scheduling");
 
         assert_eq!(
-            execute_candidate(&candidate, 0, &AtomicBool::new(false), None)
+            execute_candidate(&candidate, 0, &AtomicBool::new(false), &mut |_| false,)
                 .expect("unavailable audit is parked"),
             ExecutionOutcome::Parked
         );
@@ -7508,7 +7439,7 @@ mod tests {
             task: RuntimeTask::Readiness(target),
         };
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Shared::new(vec![source], Some(sender));
+        let shared = Shared::new(vec![source], Some(Arc::new(sender)));
         let lifecycle_generation = shared.control().source_lifecycle_generations["progress-source"];
 
         publish_source_processing_progress(
@@ -7522,49 +7453,21 @@ mod tests {
             },
         );
 
-        let message = receiver
+        let event = receiver
             .recv_timeout(Duration::from_secs(1))
-            .expect("progress message");
-        let GuiMessage::SourceProcessingProgress(progress) = message else {
-            panic!("unexpected supervisor GUI message: {message:?}");
+            .expect("progress event");
+        let SourceProcessingEvent::Progress(progress) = event else {
+            panic!("unexpected source-processing event: {event:?}");
         };
-        assert_eq!(progress.source_id, "progress-source");
-        assert!(progress.active);
+        assert_eq!(progress.lifecycle.source_id, "progress-source");
         assert_eq!(progress.completed, 313);
         assert_eq!(progress.total, 9_985);
-        assert_eq!(progress.stage, "Preparing similarity");
-        assert_eq!(progress.detail, "drums/kick.wav");
-    }
-
-    #[test]
-    fn source_database_recovery_is_visible_before_storage_io_starts() {
-        let directory = tempfile::tempdir().expect("recovery source");
-        let source = SampleSource::new_with_id(
-            SourceId::from_string("recovery-progress-source"),
-            directory.path().to_path_buf(),
-        );
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Shared::new(vec![source.clone()], Some(sender));
-        let lifecycle_generation =
-            shared.control().source_lifecycle_generations["recovery-progress-source"];
-
-        publish_source_recovery_progress(&shared, &source, lifecycle_generation);
-
-        let GuiMessage::SourceProcessingProgress(progress) = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("recovery progress")
-        else {
-            panic!("unexpected supervisor GUI message");
-        };
-        assert!(progress.active);
-        assert!(progress.source_row_active);
-        assert_eq!(progress.source_id, "recovery-progress-source");
-        assert_eq!(progress.lifecycle_generation, lifecycle_generation);
-        assert_eq!(progress.stage, "Opening source database");
-        assert!(
-            progress
-                .detail
-                .contains(directory.path().to_string_lossy().as_ref())
+        assert_eq!(
+            progress.activity,
+            SourceProcessingActivity::Readiness {
+                stage: ReadinessStage::EmbeddingAspects,
+                relative_path: Some(String::from("drums/kick.wav")),
+            }
         );
     }
 
@@ -7576,7 +7479,7 @@ mod tests {
             directory.path().to_path_buf(),
         );
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Shared::new(vec![source.clone()], Some(sender));
+        let shared = Shared::new(vec![source.clone()], Some(Arc::new(sender)));
         let lifecycle_generation = shared.control().source_lifecycle_generations["waiting-source"];
         let lifecycle_generations =
             BTreeMap::from([(String::from("waiting-source"), lifecycle_generation)]);
@@ -7597,21 +7500,19 @@ mod tests {
             &source_stats,
         ));
 
-        let GuiMessage::SourceProcessingProgress(progress) = receiver
+        let SourceProcessingEvent::Progress(progress) = receiver
             .recv_timeout(Duration::from_secs(1))
             .expect("blocked prerequisite message")
         else {
-            panic!("unexpected supervisor GUI message");
+            panic!("unexpected source-processing event");
         };
-        assert!(progress.active);
-        assert_eq!(progress.source_id, "waiting-source");
-        assert_eq!(progress.lifecycle_generation, lifecycle_generation);
+        assert_eq!(progress.lifecycle.source_id, "waiting-source");
+        assert_eq!(progress.lifecycle.generation, lifecycle_generation);
         assert_eq!(progress.completed, 72);
         assert_eq!(progress.total, 77);
-        assert_eq!(progress.stage, "Blocked by prerequisites");
         assert_eq!(
-            progress.detail,
-            "Similarity finalization is waiting for durable prerequisites"
+            progress.activity,
+            SourceProcessingActivity::WaitingForPrerequisites { retry_at: None }
         );
 
         source_stats
@@ -7623,14 +7524,16 @@ mod tests {
             &lifecycle_generations,
             &source_stats,
         ));
-        let GuiMessage::SourceProcessingProgress(progress) = receiver
+        let SourceProcessingEvent::Progress(progress) = receiver
             .recv_timeout(Duration::from_secs(1))
             .expect("retrying prerequisite message")
         else {
-            panic!("unexpected supervisor GUI message");
+            panic!("unexpected source-processing event");
         };
-        assert_eq!(progress.stage, "Waiting for prerequisites");
-        assert!(progress.detail.starts_with("Retrying prerequisites in "));
+        assert!(matches!(
+            progress.activity,
+            SourceProcessingActivity::WaitingForPrerequisites { retry_at: Some(_) }
+        ));
     }
 
     #[test]
@@ -7753,7 +7656,7 @@ mod tests {
             task: RuntimeTask::Readiness(target),
         };
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Shared::new(vec![source], Some(sender));
+        let shared = Shared::new(vec![source], Some(Arc::new(sender)));
         let lifecycle_generation = shared.control().source_lifecycle_generations["boundary-source"];
 
         publish_source_processing_progress(
@@ -7767,20 +7670,25 @@ mod tests {
             },
         );
 
-        let GuiMessage::SourceProcessingProgress(progress) = receiver
+        let SourceProcessingEvent::Progress(progress) = receiver
             .recv_timeout(Duration::from_secs(1))
-            .expect("progress message")
+            .expect("progress event")
         else {
-            panic!("unexpected supervisor GUI message");
+            panic!("unexpected source-processing event");
         };
-        assert!(progress.active);
         assert_eq!(progress.completed, 0);
         assert_eq!(progress.total, 0);
-        assert_eq!(progress.stage, "Analyzing audio");
+        assert!(matches!(
+            progress.activity,
+            SourceProcessingActivity::Readiness {
+                stage: ReadinessStage::AnalysisFeatures,
+                ..
+            }
+        ));
     }
 
     #[test]
-    fn late_progress_preserves_executing_generation_across_remove_and_readd() {
+    fn late_progress_is_rejected_across_remove_and_readd() {
         let directory = tempfile::tempdir().expect("progress source");
         let source = SampleSource::new_with_id(
             SourceId::from_string("readded-progress-source"),
@@ -7801,7 +7709,7 @@ mod tests {
             task: RuntimeTask::Readiness(target),
         };
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(Arc::new(sender))));
         let supervisor = SourceProcessingSupervisor {
             shared: Arc::clone(&shared),
             coordinator: None,
@@ -7829,14 +7737,135 @@ mod tests {
             },
         );
 
-        let GuiMessage::SourceProcessingProgress(progress) = receiver
-            .recv_timeout(Duration::from_secs(1))
-            .expect("late progress message")
-        else {
-            panic!("unexpected supervisor GUI message");
+        assert!(
+            receiver.try_recv().is_err(),
+            "an event from a retired lifecycle must be fenced before reaching the sink"
+        );
+    }
+
+    #[test]
+    fn lifecycle_fence_remains_held_until_event_delivery_finishes() {
+        #[derive(Default)]
+        struct BlockingSink {
+            state: Mutex<(bool, bool, Vec<SourceProcessingEvent>)>,
+            wake: Condvar,
+        }
+
+        impl SourceProcessingEventSink for BlockingSink {
+            fn try_publish(&self, event: SourceProcessingEvent) -> bool {
+                let mut state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poison| poison.into_inner());
+                state.0 = true;
+                self.wake.notify_all();
+                while !state.1 {
+                    state = self
+                        .wake
+                        .wait(state)
+                        .unwrap_or_else(|poison| poison.into_inner());
+                }
+                state.2.push(event);
+                true
+            }
+        }
+
+        let directory = tempfile::tempdir().expect("progress source");
+        let source = SampleSource::new_with_id(
+            SourceId::from_string("atomic-progress-source"),
+            directory.path().to_path_buf(),
+        );
+        let sink = Arc::new(BlockingSink::default());
+        let shared = Arc::new(Shared::new(
+            vec![source.clone()],
+            Some(Arc::clone(&sink) as Arc<dyn SourceProcessingEventSink>),
+        ));
+        let lifecycle_generation =
+            shared.control().source_lifecycle_generations[source.id.as_str()];
+        let publisher_shared = Arc::clone(&shared);
+        let publisher = thread::spawn(move || {
+            publisher_shared.publish_event(SourceProcessingEvent::Progress(
+                SourceProcessingProgressEvent {
+                    lifecycle: SourceProcessingLifecycle::new(
+                        "atomic-progress-source",
+                        lifecycle_generation,
+                    ),
+                    source_row_active: true,
+                    completed: 1,
+                    total: 2,
+                    activity: SourceProcessingActivity::Readiness {
+                        stage: ReadinessStage::AnalysisFeatures,
+                        relative_path: Some(String::from("drums/kick.wav")),
+                    },
+                },
+            ))
+        });
+
+        let mut sink_state = sink
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        while !sink_state.0 {
+            sink_state = sink
+                .wake
+                .wait(sink_state)
+                .unwrap_or_else(|poison| poison.into_inner());
+        }
+        drop(sink_state);
+
+        let replacement_supervisor = SourceProcessingSupervisor {
+            shared: Arc::clone(&shared),
+            coordinator: None,
+            retirement_worker: None,
         };
-        assert_eq!(progress.lifecycle_generation, executing_generation);
-        assert_ne!(progress.lifecycle_generation, readded_generation);
+        let (replacement_started, replacement_started_rx) = std::sync::mpsc::channel();
+        let (replacement_finished, replacement_finished_rx) = std::sync::mpsc::channel();
+        let replacement = thread::spawn(move || {
+            replacement_started.send(()).expect("replacement start");
+            replacement_supervisor
+                .replace_sources(Vec::new())
+                .expect("remove source");
+            replacement_supervisor
+                .replace_sources(vec![source])
+                .expect("re-add source");
+            replacement_finished.send(()).expect("replacement finish");
+            replacement_supervisor
+        });
+        replacement_started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("replacement thread started");
+        assert!(
+            replacement_finished_rx
+                .recv_timeout(Duration::from_millis(50))
+                .is_err(),
+            "source replacement must wait until admitted event delivery finishes"
+        );
+
+        let mut sink_state = sink
+            .state
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        sink_state.1 = true;
+        sink.wake.notify_all();
+        drop(sink_state);
+
+        assert!(publisher.join().expect("publisher joined"));
+        replacement_finished_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("replacement finished after event delivery");
+        let replacement_supervisor = replacement.join().expect("replacement joined");
+        assert_ne!(
+            replacement_supervisor.lifecycle_generations()["atomic-progress-source"],
+            lifecycle_generation
+        );
+        assert_eq!(
+            sink.state
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner())
+                .2
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -7894,41 +7923,47 @@ mod tests {
             task: RuntimeTask::ManifestAudit,
         };
         assert_eq!(
-            execute_candidate(&candidate, 0, &AtomicBool::new(false), Some(&sender))
-                .expect("execute manifest audit"),
+            execute_candidate(&candidate, 0, &AtomicBool::new(false), &mut |event| sender
+                .send(event)
+                .is_ok(),)
+            .expect("execute manifest audit"),
             ExecutionOutcome::CompletedAwaitingForegroundRefresh
         );
-        let messages = receiver.try_iter().collect::<Vec<_>>();
-        let progress = messages
+        let events = receiver.try_iter().collect::<Vec<_>>();
+        let progress = events
             .iter()
-            .find_map(|message| match message {
-                GuiMessage::SourceProcessingProgress(progress) => Some(progress),
+            .find_map(|event| match event {
+                SourceProcessingEvent::Progress(progress) => Some(progress),
                 _ => None,
             })
             .expect("audit should publish checked-file progress");
-        let (source_id, lifecycle_generation, committed_delta) = messages
+        let (lifecycle, committed_delta) = events
             .iter()
-            .find_map(|message| match message {
-                GuiMessage::SourceManifestAuditCommitted {
-                    source_id,
-                    lifecycle_generation,
+            .find_map(|event| match event {
+                SourceProcessingEvent::ManifestAuditCommitted {
+                    lifecycle,
                     committed_delta,
-                } => Some((source_id, lifecycle_generation, committed_delta)),
+                } => Some((lifecycle, committed_delta)),
                 _ => None,
             })
             .expect("audit should publish a browser projection wake");
 
-        assert_eq!(source_id, "audit-browser-wake");
-        assert_eq!(*lifecycle_generation, 0);
-        assert_eq!(progress.source_id, "audit-browser-wake");
+        assert_eq!(lifecycle.source_id, "audit-browser-wake");
+        assert_eq!(lifecycle.generation, 0);
+        assert_eq!(progress.lifecycle.source_id, "audit-browser-wake");
         assert_eq!(progress.completed, 1);
         assert_eq!(progress.total, 1);
-        assert_eq!(progress.stage, "Scanning source changes");
         assert!(
             !progress.source_row_active,
             "manifest maintenance remains visible without claiming the active source pulse"
         );
-        assert!(progress.detail.contains("Checked 1 files"));
+        assert_eq!(
+            progress.activity,
+            SourceProcessingActivity::ManifestAudit {
+                checked: Some(1),
+                relative_path: Some(PathBuf::from("missed.wav")),
+            }
+        );
         assert_eq!(committed_delta.created.len(), 1);
         assert_eq!(
             committed_delta.created[0].relative_path,
@@ -7963,27 +7998,26 @@ mod tests {
         std::fs::write(directory.path().join("missed.wav"), [7_u8; 32])
             .expect("write missed watcher file");
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_sender(
+        let mut supervisor = SourceProcessingSupervisor::start_with_playback_state_and_event_sink(
             vec![source.clone()],
             false,
-            Some(sender),
+            Some(Arc::new(sender)),
         );
 
         let deadline = Instant::now() + Duration::from_secs(10);
         let lifecycle_generation = loop {
             let remaining = deadline.saturating_duration_since(Instant::now());
-            let message = receiver
+            let event = receiver
                 .recv_timeout(remaining)
                 .expect("manifest audit should publish its committed delta");
-            if let GuiMessage::SourceManifestAuditCommitted {
-                source_id,
-                lifecycle_generation,
+            if let SourceProcessingEvent::ManifestAuditCommitted {
+                lifecycle,
                 committed_delta,
-            } = message
-                && source_id == source.id.as_str()
+            } = event
+                && lifecycle.source_id == source.id.as_str()
                 && !committed_delta.created.is_empty()
             {
-                break lifecycle_generation;
+                break lifecycle.generation;
             }
         };
         let permit = supervisor
@@ -8053,7 +8087,9 @@ mod tests {
             "brief manifest maintenance must not flash the source row"
         );
         assert!(
-            manifest_audit_source_row_active(Instant::now() - DISCOVERY_PROGRESS_UI_GRACE_INTERVAL),
+            manifest_audit_source_row_active(
+                Instant::now() - DISCOVERY_PROGRESS_EVENT_GRACE_INTERVAL
+            ),
             "a sustained manifest audit must identify its active source row"
         );
     }
@@ -8503,7 +8539,7 @@ mod tests {
     fn real_hash_execution_waits_for_shared_scan_database_budget() {
         let (_directory, source) = unhashed_source("shared-budget");
         let (sender, receiver) = std::sync::mpsc::channel();
-        let shared = Arc::new(Shared::new(vec![source.clone()], Some(sender)));
+        let shared = Arc::new(Shared::new(vec![source.clone()], Some(Arc::new(sender))));
         let permit = SourceProcessingBudgetHandle {
             shared: Arc::clone(&shared),
         }
@@ -8526,13 +8562,9 @@ mod tests {
             "a source blocked by an external scan must park instead of rediscovering in a tight loop"
         );
         assert!(
-            receiver.try_iter().all(|message| matches!(
-                message,
-                GuiMessage::SourceProcessingProgress(SourceProcessingProgress {
-                    active: false,
-                    ..
-                })
-            )),
+            receiver
+                .try_iter()
+                .all(|event| matches!(event, SourceProcessingEvent::Completed)),
             "queued work must not publish active progress while foreground admission owns the lane"
         );
 

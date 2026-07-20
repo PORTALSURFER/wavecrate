@@ -4,6 +4,7 @@ mod loading;
 mod message;
 mod progress;
 mod settings;
+mod source_processing_events;
 mod state;
 
 pub(in crate::native_app) use cache::{
@@ -29,6 +30,8 @@ pub(in crate::native_app) use progress::{
 pub(in crate::native_app) use settings::{
     AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,
 };
+#[cfg(not(test))]
+pub(in crate::native_app) use source_processing_events::GuiSourceProcessingEventSink;
 #[cfg(test)]
 pub(in crate::native_app) use state::DEFAULT_VOLUME;
 #[cfg(test)]

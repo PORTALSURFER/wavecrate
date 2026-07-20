@@ -41,7 +41,15 @@ impl NativeAppState {
             GuiMessage::SimilarityScoresResolved(result) => {
                 self.finish_similarity_scores(result, context);
             }
-            GuiMessage::SimilarityReadinessAdvanced { source_id } => {
+            GuiMessage::SimilarityReadinessAdvanced {
+                source_id,
+                lifecycle_generation,
+            } => {
+                if self.background.source_lifecycle_generations.get(&source_id)
+                    != Some(&lifecycle_generation)
+                {
+                    return;
+                }
                 self.finish_similarity_readiness_advanced(source_id, context);
             }
             GuiMessage::SourceProcessingProgress(progress) => {

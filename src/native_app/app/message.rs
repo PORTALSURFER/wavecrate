@@ -185,6 +185,7 @@ pub(in crate::native_app) enum GuiMessage {
     SimilarityScoresResolved(SimilarityScoresResult),
     SimilarityReadinessAdvanced {
         source_id: String,
+        lifecycle_generation: u64,
     },
     SourceProcessingProgress(SourceProcessingProgress),
     Settings(SettingsMessage),
