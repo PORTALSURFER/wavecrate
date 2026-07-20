@@ -4,7 +4,8 @@ fn sample_auto_rename_logs_looped_metadata_provenance() {
     let (_temp, source) = setup_fixture(&["old.wav"]);
     let old_relative = Path::new("old.wav");
     let new_relative = Path::new("renamed.wav");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     db.set_looped(old_relative, false)
         .expect("override old looped");
     let request = SampleAutoRenameRequest {
@@ -90,7 +91,8 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
     assert!(!source.root.join("alpha_renamed.wav").exists());
     assert!(!source.root.join("beta_renamed.wav").exists());
 
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     for relative in [Path::new("alpha.wav"), Path::new("beta.wav")] {
         assert_eq!(
             db.tag_for_path(relative).expect("tag"),
@@ -145,7 +147,8 @@ fn sample_auto_rename_retries_until_multi_attempt_db_lock_clears() {
     assert!(!source.root.join("alpha.wav").exists());
     assert!(source.root.join("alpha_renamed.wav").is_file());
 
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert!(
         db.tag_for_path(Path::new("alpha.wav"))
             .expect("old tag")

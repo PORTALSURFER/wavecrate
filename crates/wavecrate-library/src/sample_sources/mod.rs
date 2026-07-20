@@ -215,7 +215,7 @@ impl SampleSource {
                     path: self.root.clone(),
                     source,
                 })?;
-        SourceDatabase::open_with_database_root(&self.root, database_root)
+        SourceDatabase::open_for_source_write_with_database_root(&self.root, database_root)
     }
 }
 

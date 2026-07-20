@@ -10,7 +10,7 @@ const SAMPLE_COUNT: usize = 1_000;
 
 fn setup_db() -> SourceDatabase {
     let dir = tempdir().expect("tempdir");
-    let db = SourceDatabase::open(dir.path()).expect("db open");
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).expect("db open");
     let mut batch = db.write_batch().expect("write batch");
     for i in 0..SAMPLE_COUNT {
         let path = PathBuf::from(format!("{i}.wav"));

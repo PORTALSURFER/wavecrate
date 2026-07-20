@@ -126,7 +126,8 @@ mod tests {
         let old = root.path().join("old.wav");
         let new = root.path().join("new.wav");
         std::fs::write(&old, vec![5_u8; 9 * 1024 * 1024]).expect("large wav");
-        let db = SourceDatabase::open(root.path()).expect("source db");
+        let db =
+            SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
         scanner::hard_rescan(&db).expect("initial scan");
         db.set_tag(Path::new("old.wav"), Rating::KEEP_1)
             .expect("tag old path");
@@ -171,7 +172,8 @@ mod tests {
         let success = result.result.expect("sync result");
         assert_eq!(success.renames_reconciled, 0);
         assert_eq!(success.committed_delta.created.len(), 1);
-        let db = SourceDatabase::open(root.path()).expect("source db");
+        let db =
+            SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
         assert!(
             db.entry_for_path(Path::new("fresh.wav"))
                 .expect("read entry")
@@ -200,7 +202,8 @@ mod tests {
 
         assert!(result.cancelled);
         assert!(result.result.is_err());
-        let db = SourceDatabase::open(root.path()).expect("source db");
+        let db =
+            SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
         assert!(
             db.entry_for_path(Path::new("fresh.wav"))
                 .expect("read entry")

@@ -7,7 +7,7 @@ use super::super::SourceDatabase;
 #[test]
 fn normalization_prevents_case_and_spacing_duplicates() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     db.upsert_file(Path::new("two.wav"), 10, 5).unwrap();
 
@@ -27,7 +27,7 @@ fn normalization_prevents_case_and_spacing_duplicates() {
 #[test]
 fn most_used_tags_order_by_persisted_usage_then_label() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
     for path in ["one.wav", "two.wav", "three.wav", "four.wav"] {
         db.upsert_file(Path::new(path), 10, 5).unwrap();
     }
@@ -61,7 +61,7 @@ fn most_used_tags_order_by_persisted_usage_then_label() {
 #[test]
 fn assignment_api_creates_then_resolves_existing_tag() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     db.upsert_file(Path::new("two.wav"), 10, 5).unwrap();
 
@@ -87,7 +87,7 @@ fn assignment_api_creates_then_resolves_existing_tag() {
 #[test]
 fn search_tags_orders_exact_match_before_usage_matches() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
     for path in ["one.wav", "two.wav", "three.wav"] {
         db.upsert_file(Path::new(path), 10, 5).unwrap();
     }
@@ -110,7 +110,7 @@ fn search_tags_orders_exact_match_before_usage_matches() {
 #[test]
 fn search_tags_finds_less_common_fuzzy_matches() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
     for path in ["one.wav", "two.wav", "three.wav"] {
         db.upsert_file(Path::new(path), 10, 5).unwrap();
     }

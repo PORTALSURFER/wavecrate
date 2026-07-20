@@ -8,11 +8,11 @@ use super::helpers::revision_value;
 #[test]
 fn upsert_wrapper_matches_batch_insert_contract() {
     let single_dir = tempdir().unwrap();
-    let single = SourceDatabase::open(single_dir.path()).unwrap();
+    let single = SourceDatabase::open_for_source_write(single_dir.path()).unwrap();
     single.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
 
     let batch_dir = tempdir().unwrap();
-    let batch_db = SourceDatabase::open(batch_dir.path()).unwrap();
+    let batch_db = SourceDatabase::open_for_source_write(batch_dir.path()).unwrap();
     let mut batch = batch_db.write_batch().unwrap();
     batch.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     batch.commit().unwrap();
@@ -37,7 +37,7 @@ fn upsert_wrapper_matches_batch_insert_contract() {
 #[test]
 fn wav_upsert_variants_preserve_hash_tag_and_missing_contracts() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
 
     let mut batch = db.write_batch().unwrap();
     batch
@@ -66,7 +66,7 @@ fn wav_upsert_variants_preserve_hash_tag_and_missing_contracts() {
 #[test]
 fn scan_candidate_queries_ignore_unsupported_and_apple_double_rows() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let mut batch = db.write_batch().unwrap();
     for path in ["one.wav", "legacy.flac", "._sidecar.wav"] {
         batch
@@ -87,7 +87,7 @@ fn scan_candidate_queries_ignore_unsupported_and_apple_double_rows() {
 #[test]
 fn collections_can_accumulate_multiple_memberships() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     let first = SampleCollection::new(0).unwrap();
     let second = SampleCollection::new(1).unwrap();
@@ -111,7 +111,7 @@ fn collections_can_accumulate_multiple_memberships() {
 #[test]
 fn set_collection_replaces_all_collection_memberships() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     let first = SampleCollection::new(0).unwrap();
     let second = SampleCollection::new(1).unwrap();
@@ -133,7 +133,7 @@ fn set_collection_replaces_all_collection_memberships() {
 #[test]
 fn remove_collection_removes_one_membership_and_preserves_remaining_slots() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     let first = SampleCollection::new(0).unwrap();
     let second = SampleCollection::new(1).unwrap();
@@ -171,7 +171,7 @@ fn remove_collection_removes_one_membership_and_preserves_remaining_slots() {
 #[test]
 fn metadata_written_inside_batch_commits_with_other_changes() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
 
     let mut batch = db.write_batch().unwrap();
     batch.upsert_file(Path::new("one.wav"), 10, 5).unwrap();

@@ -34,7 +34,7 @@ fn reconcile_same_source_move_from_staged_file() {
     let temp = TempDir::new().unwrap();
     let source_root = temp.path().join("source");
     std::fs::create_dir_all(&source_root).unwrap();
-    let db = SourceDatabase::open(&source_root).unwrap();
+    let db = SourceDatabase::open_for_source_write(&source_root).unwrap();
     let source_relative = PathBuf::from("one.wav");
     let source_absolute = source_root.join(&source_relative);
     write_wav(&source_absolute);

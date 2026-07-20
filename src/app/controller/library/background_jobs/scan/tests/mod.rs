@@ -53,8 +53,9 @@ fn assert_no_analysis_message(controller: &mut AppController) {
 }
 
 fn assert_no_analysis_jobs_inserted(source: &SampleSource) {
-    let conn = crate::sample_sources::SourceDatabase::open_connection(&source.root)
-        .expect("open source db");
+    let conn =
+        crate::sample_sources::SourceDatabase::open_connection_for_background_job(&source.root)
+            .expect("open source db");
     let count: i64 = conn
         .query_row(
             "SELECT COUNT(*)

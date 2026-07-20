@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn writable_open_uses_current_source_database_filename() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
 
     assert_eq!(db.db_path, dir.path().join(DB_FILE_NAME));
     assert!(dir.path().join(DB_FILE_NAME).is_file());
@@ -32,7 +32,7 @@ fn writable_open_migrates_legacy_source_database_filename() {
         .unwrap();
     }
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let rows = db.list_files().unwrap();
 
     assert_eq!(db.db_path, dir.path().join(DB_FILE_NAME));
@@ -59,7 +59,7 @@ fn read_only_open_keeps_legacy_source_database_filename() {
         .unwrap();
     }
 
-    let db = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
 
     assert_eq!(db.db_path, legacy_db);
     assert!(dir.path().join(LEGACY_DB_FILE_NAME).is_file());
@@ -76,7 +76,7 @@ fn writable_open_rejects_symlinked_current_source_database_before_sqlite_open() 
     let db_path = dir.path().join(DB_FILE_NAME);
     std::os::unix::fs::symlink(&outside_db, &db_path).unwrap();
 
-    expect_unsafe_source_db_path(SourceDatabase::open(dir.path()), &db_path);
+    expect_unsafe_source_db_path(SourceDatabase::open_for_source_write(dir.path()), &db_path);
 
     assert!(
         !sqlite_table_exists(&outside_db, "metadata"),
@@ -94,7 +94,7 @@ fn read_only_open_rejects_symlinked_current_source_database_explicitly() {
     let db_path = dir.path().join(DB_FILE_NAME);
     std::os::unix::fs::symlink(&outside_db, &db_path).unwrap();
 
-    expect_unsafe_source_db_path(SourceDatabase::open_read_only(dir.path()), &db_path);
+    expect_unsafe_source_db_path(SourceDatabase::open_for_ui_read(dir.path()), &db_path);
 }
 
 #[cfg(unix)]
@@ -107,7 +107,10 @@ fn writable_open_rejects_symlinked_legacy_source_database_before_migration() {
     let legacy_db = dir.path().join(LEGACY_DB_FILE_NAME);
     std::os::unix::fs::symlink(&outside_db, &legacy_db).unwrap();
 
-    expect_unsafe_source_db_path(SourceDatabase::open(dir.path()), &legacy_db);
+    expect_unsafe_source_db_path(
+        SourceDatabase::open_for_source_write(dir.path()),
+        &legacy_db,
+    );
 
     assert!(!dir.path().join(DB_FILE_NAME).exists());
     assert!(
@@ -121,14 +124,14 @@ fn writable_open_rejects_symlinked_legacy_source_database_before_migration() {
 fn writable_open_rejects_symlinked_current_wal_and_shm_sidecars_before_sqlite_open() {
     for suffix in ["-wal", "-shm"] {
         let dir = tempdir().unwrap();
-        SourceDatabase::open(dir.path()).unwrap();
+        SourceDatabase::open_for_source_write(dir.path()).unwrap();
         let sidecar = sqlite_sidecar_path(&dir.path().join(DB_FILE_NAME), suffix);
         let outside = tempdir().unwrap();
         let outside_sidecar = outside.path().join("outside-sidecar");
         std::fs::write(&outside_sidecar, b"outside").unwrap();
         std::os::unix::fs::symlink(&outside_sidecar, &sidecar).unwrap();
 
-        expect_unsafe_source_db_path(SourceDatabase::open(dir.path()), &sidecar);
+        expect_unsafe_source_db_path(SourceDatabase::open_for_source_write(dir.path()), &sidecar);
 
         assert_eq!(std::fs::read(&outside_sidecar).unwrap(), b"outside");
     }
@@ -158,7 +161,7 @@ fn writable_open_rejects_symlinked_legacy_wal_and_shm_sidecars_before_rename() {
         std::fs::write(&outside_sidecar, b"outside").unwrap();
         std::os::unix::fs::symlink(&outside_sidecar, &sidecar).unwrap();
 
-        expect_unsafe_source_db_path(SourceDatabase::open(dir.path()), &sidecar);
+        expect_unsafe_source_db_path(SourceDatabase::open_for_source_write(dir.path()), &sidecar);
 
         assert!(
             legacy_db.exists(),

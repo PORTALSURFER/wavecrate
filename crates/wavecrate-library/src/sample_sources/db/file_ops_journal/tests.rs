@@ -29,8 +29,8 @@ impl MoveRecoveryFixture {
         let target_root = temp.path().join("target");
         std::fs::create_dir_all(&source_root).unwrap();
         std::fs::create_dir_all(&target_root).unwrap();
-        let source_db = SourceDatabase::open(&source_root).unwrap();
-        let target_db = SourceDatabase::open(&target_root).unwrap();
+        let source_db = SourceDatabase::open_for_source_write(&source_root).unwrap();
+        let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
         let source_relative = PathBuf::from("one.wav");
         let source_absolute = source_root.join(&source_relative);
         write_wav(&source_absolute);

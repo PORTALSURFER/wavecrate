@@ -127,8 +127,10 @@ fn remapping_source_snapshots_wal_resident_metadata() {
         .remap_source_to(0, destination.path().to_path_buf())
         .expect("remap source");
 
-    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
-        .expect("open destination snapshot");
+    let destination_db = crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        destination.path(),
+    )
+    .expect("open destination snapshot");
     let entry = destination_db
         .entry_for_path(std::path::Path::new("wal.wav"))
         .expect("query snapshot")
@@ -170,8 +172,10 @@ fn remapping_source_preserves_and_migrates_legacy_destination_database() {
     let legacy = destination
         .path()
         .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
-    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
-        .expect("destination database");
+    let destination_db = crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        destination.path(),
+    )
+    .expect("destination database");
     destination_db
         .upsert_file(std::path::Path::new("legacy.wav"), 10, 5)
         .expect("legacy row");
@@ -186,8 +190,10 @@ fn remapping_source_preserves_and_migrates_legacy_destination_database() {
         .remap_source_to(0, destination.path().to_path_buf())
         .expect("remap source");
 
-    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
-        .expect("migrated destination database");
+    let destination_db = crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        destination.path(),
+    )
+    .expect("migrated destination database");
     assert!(
         destination_db
             .entry_for_path(std::path::Path::new("legacy.wav"))
@@ -207,8 +213,10 @@ fn remapping_source_restores_legacy_destination_when_config_save_fails() {
     let legacy = destination
         .path()
         .join(crate::sample_sources::db::LEGACY_DB_FILE_NAME);
-    let destination_db = crate::sample_sources::SourceDatabase::open(destination.path())
-        .expect("destination database");
+    let destination_db = crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(
+        destination.path(),
+    )
+    .expect("destination database");
     destination_db
         .upsert_file(std::path::Path::new("legacy.wav"), 10, 5)
         .expect("legacy row");

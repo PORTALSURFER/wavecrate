@@ -21,7 +21,7 @@ fn analysis_jobs_migration_backfills_running_rows_and_sample_parts() {
         VALUES ('source-a::folder/one.wav', 'backfill', 'hash-a', 'running', 1, 10, NULL);",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let columns = column_names(&db.connection, "analysis_jobs");
     assert!(columns.iter().any(|column| column == "running_at"));
     assert!(columns.iter().any(|column| column == "source_id"));
@@ -68,7 +68,7 @@ fn analysis_jobs_migration_preserves_rows_without_source_separator() {
         VALUES ('orphan-id', 'backfill', 'hash-a', 'pending', 0, 10, NULL);",
     );
 
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(dir.path()).unwrap();
     let row = db
         .connection
         .query_row(

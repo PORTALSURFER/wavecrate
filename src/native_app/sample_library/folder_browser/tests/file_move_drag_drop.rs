@@ -193,7 +193,8 @@ fn collection_file_drag_drop_moves_file_to_folder_and_preserves_collection_membe
     fs::write(&snare, [0_u8; 8]).expect("write snare");
     let first = SampleCollection::new(0).expect("first collection");
     let second = SampleCollection::new(1).expect("second collection");
-    let db = SourceDatabase::open(&root).expect("open source database");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source database");
     seed_file_collections(&db, "drums/kick.wav", &[first, second]);
     seed_file_collections(&db, "drums/snare.wav", &[first]);
 
@@ -248,7 +249,8 @@ fn collection_multi_file_move_replaces_stale_missing_rows_with_new_paths() {
         fs::write(file, [0_u8; 8]).expect("write wav");
     }
     let collection = SampleCollection::new(0).expect("collection");
-    let db = SourceDatabase::open(&root).expect("open source database");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source database");
     seed_file_collections(&db, "drums/kick.wav", &[collection]);
     seed_file_collections(&db, "drums/snare.wav", &[collection]);
     seed_file_collections(&db, "drums/hat.wav", &[collection]);
@@ -348,7 +350,8 @@ fn collection_file_move_conflict_rename_preserves_collection_on_moved_destinatio
     fs::write(&kick, b"source").expect("write kick");
     fs::write(&existing, b"existing").expect("write existing");
     let collection = SampleCollection::new(0).expect("collection");
-    let db = SourceDatabase::open(&root).expect("open source database");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source database");
     seed_file_collections(&db, "drums/kick.wav", &[collection]);
     db.upsert_file(Path::new("loops/kick.wav"), 8, 1)
         .expect("upsert existing destination");
@@ -618,7 +621,7 @@ fn file_drag_drop_preserves_rating_metadata_after_move() {
     let kick = drums.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(std::path::Path::new("drums/kick.wav"), 8, 1)
         .expect("upsert kick");
     db.set_tag(std::path::Path::new("drums/kick.wav"), Rating::new(2))
@@ -663,7 +666,8 @@ fn duplicate_same_preserves_source_metadata_without_removing_original() {
 
     let first_collection = SampleCollection::new(0).expect("first collection");
     let second_collection = SampleCollection::new(1).expect("second collection");
-    let source_db = SourceDatabase::open(&root).expect("open source db");
+    let source_db =
+        SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     let source_relative = Path::new("drums/kick.wav");
     let duplicate_relative = Path::new("drums/kick_copy001.wav");
     let mut batch = source_db.write_batch().expect("open metadata batch");
@@ -773,7 +777,8 @@ fn cut_paste_moves_files_between_sources_and_preserves_metadata() {
 
     let first_collection = SampleCollection::new(0).expect("first collection");
     let second_collection = SampleCollection::new(1).expect("second collection");
-    let source_db = SourceDatabase::open(&source_root).expect("open source db");
+    let source_db =
+        SourceDatabase::open_for_test_fixture_source_write(&source_root).expect("open source db");
     let source_relative = Path::new("drums/kick.wav");
     let mut batch = source_db.write_batch().expect("open metadata batch");
     batch
@@ -855,7 +860,8 @@ fn cut_paste_moves_files_between_sources_and_preserves_metadata() {
         vec![(moved_id.as_str(), Rating::new(2), true)]
     );
 
-    let target_db = SourceDatabase::open(&target_root).expect("open target db");
+    let target_db =
+        SourceDatabase::open_for_test_fixture_source_write(&target_root).expect("open target db");
     let target_relative = Path::new("loops/kick.wav");
     assert_eq!(
         source_db
@@ -974,7 +980,8 @@ fn cut_paste_from_protected_source_copies_to_writable_target_and_keeps_source_me
         Some(Rating::new(3))
     );
 
-    let target_db = SourceDatabase::open(&target_root).expect("open target db");
+    let target_db =
+        SourceDatabase::open_for_test_fixture_source_write(&target_root).expect("open target db");
     let target_relative = Path::new("_Wavecrate Inbox/kick.wav");
     let target_entry = target_db
         .entry_for_path(target_relative)

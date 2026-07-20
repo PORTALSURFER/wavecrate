@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn tags_default_and_persist() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
 
     let first = db.list_files().unwrap();
@@ -22,7 +22,7 @@ fn tags_default_and_persist() {
     assert_eq!(third[0].tag, Rating::KEEP_1);
     assert!(!third[0].missing);
 
-    let reopened = SourceDatabase::open(dir.path()).unwrap();
+    let reopened = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let fourth = reopened.list_files().unwrap();
     assert_eq!(fourth[0].tag, Rating::KEEP_1);
     assert!(!fourth[0].looped);
@@ -32,7 +32,7 @@ fn tags_default_and_persist() {
 #[test]
 fn loop_markers_default_and_persist() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("loop.wav"), 10, 5).unwrap();
 
     let first = db.list_files().unwrap();
@@ -46,7 +46,7 @@ fn loop_markers_default_and_persist() {
     let third = db.list_files().unwrap();
     assert!(third[0].looped);
 
-    let reopened = SourceDatabase::open(dir.path()).unwrap();
+    let reopened = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let fourth = reopened.list_files().unwrap();
     assert!(fourth[0].looped);
 }
@@ -54,7 +54,7 @@ fn loop_markers_default_and_persist() {
 #[test]
 fn lock_markers_default_and_persist() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("lock.wav"), 10, 5).unwrap();
 
     let first = db.list_files().unwrap();
@@ -68,7 +68,7 @@ fn lock_markers_default_and_persist() {
     let third = db.list_files().unwrap();
     assert!(third[0].locked);
 
-    let reopened = SourceDatabase::open(dir.path()).unwrap();
+    let reopened = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     let fourth = reopened.list_files().unwrap();
     assert!(fourth[0].locked);
 }
@@ -76,7 +76,7 @@ fn lock_markers_default_and_persist() {
 #[test]
 fn batch_tag_updates_coalesce_to_latest_value() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
 
     db.set_tags_batch(&[
@@ -92,7 +92,7 @@ fn batch_tag_updates_coalesce_to_latest_value() {
 #[test]
 fn missing_flag_round_trips() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     db.set_missing(Path::new("one.wav"), true).unwrap();
     let rows = db.list_files().unwrap();
@@ -105,7 +105,7 @@ fn missing_flag_round_trips() {
 #[test]
 fn list_and_count_only_show_supported_audio() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
     db.upsert_file(Path::new("notes.txt"), 1, 1).unwrap();
 
@@ -119,7 +119,7 @@ fn list_and_count_only_show_supported_audio() {
 #[test]
 fn batch_bpm_lookup_returns_requested_sample_rows() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.connection
         .execute(
             "INSERT INTO samples (sample_id, content_hash, size, mtime_ns, bpm)

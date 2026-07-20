@@ -34,7 +34,7 @@ fn default_public_open_allows_configured_user_library_roots() {
         panic!("create fake user library dir failed: {err}");
     }
     with_home_env_override(&user_home, || {
-        let db = SourceDatabase::open(&user_documents);
+        let db = SourceDatabase::open_for_test_fixture_source_write(&user_documents);
         assert!(db.is_ok());
         let opened = match db {
             Ok(opened) => opened,

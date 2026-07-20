@@ -21,7 +21,7 @@ fn source_move_task_uses_unique_target_name_on_collision() {
     let source = SampleSource::new(source_root.clone());
     write_test_wav(&source_root.join("one.wav"), &[0.0, 0.1, -0.1]);
     write_test_wav(&target_root.join("one.wav"), &[0.0, 0.2, -0.2]);
-    let source_db = SourceDatabase::open(&source_root).unwrap();
+    let source_db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
     source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
     source_db
         .set_tag(Path::new("one.wav"), crate::sample_sources::Rating::KEEP_1)
@@ -56,7 +56,7 @@ fn source_move_task_uses_unique_target_name_on_collision() {
     assert_eq!(result.moved[0].last_played_at, Some(42));
     assert!(target_root.join("one_move001.wav").is_file());
     assert!(!source_root.join("one.wav").exists());
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_test_fixture_source_write(&target_root).unwrap();
     assert_eq!(
         target_db
             .tag_for_path(Path::new("one_move001.wav"))
@@ -90,7 +90,7 @@ fn source_move_task_rolls_back_when_target_db_stage_fails() {
     std::fs::create_dir_all(&target_root).unwrap();
     let source = SampleSource::new(source_root.clone());
     write_test_wav(&source_root.join("one.wav"), &[0.0, 0.1, -0.1]);
-    let source_db = SourceDatabase::open(&source_root).unwrap();
+    let source_db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
     source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
     set_before_source_move_target_db_stage_hook(Some(Box::new(|| {
         Err("Simulated target DB failure".into())
@@ -132,7 +132,7 @@ fn source_move_task_finalize_failure_rolls_back_dbs_file_and_journal() {
     std::fs::create_dir_all(&target_root).unwrap();
     let source = SampleSource::new(source_root.clone());
     write_test_wav(&source_root.join("one.wav"), &[0.0, 0.1, -0.1]);
-    let source_db = SourceDatabase::open(&source_root).unwrap();
+    let source_db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
     source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
     source_db
         .set_tag(Path::new("one.wav"), crate::sample_sources::Rating::KEEP_1)
@@ -172,7 +172,7 @@ fn source_move_task_finalize_failure_rolls_back_dbs_file_and_journal() {
     assert!(source_root.join("one.wav").is_file());
     assert!(target_root.join("one.wav").is_dir());
 
-    let source_db = SourceDatabase::open(&source_root).unwrap();
+    let source_db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
     assert_eq!(
         source_db.tag_for_path(Path::new("one.wav")).unwrap(),
         Some(crate::sample_sources::Rating::KEEP_1)
@@ -192,7 +192,7 @@ fn source_move_task_finalize_failure_rolls_back_dbs_file_and_journal() {
         Some(42)
     );
 
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_test_fixture_source_write(&target_root).unwrap();
     assert!(
         target_db
             .tag_for_path(Path::new("one.wav"))
@@ -257,7 +257,7 @@ fn source_move_task_cancels_after_first_completed_request() {
     for name in ["one.wav", "two.wav"] {
         write_test_wav(&source_root.join(name), &[0.0, 0.1, -0.1]);
     }
-    let source_db = SourceDatabase::open(&source_root).unwrap();
+    let source_db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
     source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
     source_db.upsert_file(Path::new("two.wav"), 3, 1).unwrap();
     let cancel = Arc::new(AtomicBool::new(false));

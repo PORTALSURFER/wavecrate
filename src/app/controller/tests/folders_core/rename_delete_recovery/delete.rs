@@ -186,7 +186,9 @@ fn deleting_folder_rolls_back_on_db_failure() -> Result<(), String> {
             .iter()
             .any(|row| row.path == PathBuf::from("gone"))
     );
-    let db = crate::sample_sources::SourceDatabase::open(&source.root).unwrap();
+    let db =
+        crate::sample_sources::SourceDatabase::open_for_test_fixture_source_write(&source.root)
+            .unwrap();
     assert_eq!(db.count_files().unwrap(), 1);
     Ok(())
 }

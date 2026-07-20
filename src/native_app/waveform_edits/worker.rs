@@ -507,7 +507,7 @@ fn mark_source_entry_missing_at(
     relative_path: &Path,
     missing: bool,
 ) -> Result<(), String> {
-    SourceDatabase::open_with_database_root(source_root, database_root)
+    SourceDatabase::open_for_source_write_with_database_root(source_root, database_root)
         .map_err(|err| format!("Database unavailable: {err}"))?
         .set_missing(relative_path, missing)
         .map_err(|err| format!("Failed to sync database entry: {err}"))

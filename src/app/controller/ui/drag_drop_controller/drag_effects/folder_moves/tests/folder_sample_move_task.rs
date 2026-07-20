@@ -26,7 +26,7 @@ fn folder_sample_move_updates_db_entry() {
     let wav_path = source_root.join("one.wav");
     write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
     let (file_size, modified_ns) = read_file_metadata(&wav_path);
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     let mut batch = db.write_batch().must();
     batch
         .upsert_file(Path::new("one.wav"), file_size, modified_ns)
@@ -54,7 +54,7 @@ fn folder_sample_move_updates_db_entry() {
     assert_eq!(result.moved.len(), 1);
     assert!(source_root.join("folder/one.wav").is_file());
 
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert!(db.tag_for_path(Path::new("one.wav")).must().is_none());
     assert_eq!(
         db.tag_for_path(Path::new("folder/one.wav")).must(),
@@ -92,7 +92,7 @@ fn folder_sample_move_cancelled_before_processing_keeps_source_unchanged() {
     let wav_path = source_root.join("one.wav");
     write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
     let (file_size, modified_ns) = read_file_metadata(&wav_path);
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     db.upsert_file(Path::new("one.wav"), file_size, modified_ns)
         .must();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).must();
@@ -116,7 +116,7 @@ fn folder_sample_move_cancelled_before_processing_keeps_source_unchanged() {
     assert!(result.errors.is_empty());
     assert!(source_root.join("one.wav").is_file());
     assert!(!source_root.join("folder/one.wav").exists());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert_eq!(
         db.tag_for_path(Path::new("one.wav")).must(),
         Some(Rating::KEEP_1)
@@ -141,7 +141,7 @@ fn folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_r
     let wav_path = source_root.join("one.wav");
     write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
     let (file_size, modified_ns) = read_file_metadata(&wav_path);
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     db.upsert_file(Path::new("one.wav"), file_size, modified_ns)
         .must();
     db.set_tag(Path::new("one.wav"), Rating::KEEP_1).must();
@@ -201,7 +201,7 @@ fn folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_r
     }));
     assert!(source_root.join("one.wav").is_file());
     assert!(!source_root.join("folder/one.wav").exists());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert_eq!(
         db.tag_for_path(Path::new("one.wav")).must(),
         Some(Rating::KEEP_1)
@@ -235,7 +235,7 @@ fn folder_sample_move_finalize_failure_rolls_back_db_file_and_journal() {
     let wav_path = source_root.join("one.wav");
     write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
     let (file_size, modified_ns) = read_file_metadata(&wav_path);
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     let mut batch = db.write_batch().must();
     batch
         .upsert_file(Path::new("one.wav"), file_size, modified_ns)
@@ -273,7 +273,7 @@ fn folder_sample_move_finalize_failure_rolls_back_db_file_and_journal() {
     );
     assert!(source_root.join("one.wav").is_file());
     assert!(source_root.join("folder/one.wav").is_dir());
-    let db = SourceDatabase::open(&source_root).must();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source_root).must();
     assert_eq!(
         db.tag_for_path(Path::new("one.wav")).must(),
         Some(Rating::KEEP_1)

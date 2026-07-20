@@ -22,7 +22,7 @@ fn upsert(path: &Path) -> SourceWriteCommand<'_> {
 #[test]
 fn typed_commands_share_one_off_and_batch_semantics() {
     let direct_dir = tempdir().unwrap();
-    let direct = SourceDatabase::open(direct_dir.path()).unwrap();
+    let direct = SourceDatabase::open_for_source_write(direct_dir.path()).unwrap();
     direct.execute_write(upsert(Path::new("one.wav"))).unwrap();
     direct
         .execute_write(SourceWriteCommand::SetTag {
@@ -32,7 +32,7 @@ fn typed_commands_share_one_off_and_batch_semantics() {
         .unwrap();
 
     let batch_dir = tempdir().unwrap();
-    let batched = SourceDatabase::open(batch_dir.path()).unwrap();
+    let batched = SourceDatabase::open_for_source_write(batch_dir.path()).unwrap();
     let mut batch = batched.write_batch().unwrap();
     batch.execute_write(upsert(Path::new("one.wav"))).unwrap();
     batch
@@ -53,7 +53,7 @@ fn typed_commands_share_one_off_and_batch_semantics() {
 #[test]
 fn metadata_commands_do_not_dirty_the_wav_path_revision() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.execute_write(upsert(Path::new("one.wav"))).unwrap();
 
     let mut batch = db.write_batch().unwrap();

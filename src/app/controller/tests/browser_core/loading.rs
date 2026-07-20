@@ -25,7 +25,7 @@ fn cached_wav_apply_does_not_launch_passive_background_scan() {
 
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    let db = SourceDatabase::open(&source.root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&source.root).unwrap();
     assert_eq!(db.count_files().unwrap(), 0);
 }
 

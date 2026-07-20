@@ -134,7 +134,7 @@ fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
     controller.selection_state.ctx.selected_source = Some(other.id.clone());
     controller.cache_db(&source).unwrap();
 
-    let db = SourceDatabase::open(&root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).unwrap();
     let mut batch = db.write_batch().unwrap();
     batch
         .upsert_file_with_hash_and_tag(
@@ -230,7 +230,7 @@ fn prune_missing_sample_removes_db_entry_without_cache() {
     controller.selection_state.ctx.selected_source = Some(other.id.clone());
     controller.cache_db(&source).unwrap();
 
-    let db = SourceDatabase::open(&root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).unwrap();
     let mut batch = db.write_batch().unwrap();
     batch
         .upsert_file_with_hash_and_tag(
@@ -265,7 +265,7 @@ fn prune_missing_sample_cancels_pending_remap_before_db_write() {
     let source = SampleSource::new(root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
-    let db = SourceDatabase::open(&root).unwrap();
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).unwrap();
     db.upsert_file(Path::new("gone.wav"), 1, 1).unwrap();
     let write_fence =
         std::sync::Arc::new(crate::app::controller::jobs::SourceRemapWriteFence::default());

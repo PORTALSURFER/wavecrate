@@ -9,7 +9,8 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
     let absolute = source.root.join(relative);
     write_test_wav(&absolute, &[0.0, 0.1, -0.1]);
     let metadata = std::fs::metadata(&absolute).expect("read file metadata");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     db.upsert_file(relative, metadata.len(), 0)
         .expect("insert db row");
     db.set_tag(relative, Rating::KEEP_3).expect("set tag");
@@ -37,7 +38,8 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
     assert!(result.errors.is_empty());
     assert_eq!(result.renamed.len(), 1);
     let renamed = Path::new("portal_SS_kick.wav");
-    let db = SourceDatabase::open(&source.root).expect("reopen source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("reopen source db");
     assert_eq!(
         db.sound_type_for_path(renamed).expect("renamed sound type"),
         Some(SampleSoundType::Kick)
@@ -48,7 +50,8 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
 fn sample_auto_rename_marks_already_matching_tag_named_path() {
     let (_temp, source) = setup_fixture(&["portal_SS_kick.wav"]);
     let relative = Path::new("portal_SS_kick.wav");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     assert_eq!(
         db.tag_named_for_path(relative).expect("initial marker"),
         Some(false)
@@ -81,7 +84,8 @@ fn sample_auto_rename_marks_already_matching_tag_named_path() {
         result.renamed[0].new_relative
     );
     assert!(result.renamed[0].entry.tag_named);
-    let db = SourceDatabase::open(&source.root).expect("reopen source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("reopen source db");
     assert_eq!(
         db.tag_named_for_path(relative).expect("updated marker"),
         Some(true)

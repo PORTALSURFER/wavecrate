@@ -394,7 +394,7 @@ mod tests {
     #[test]
     fn rename_candidate_cache_reuses_hash_lookup_within_batch() {
         let root = tempfile::tempdir().unwrap();
-        let db = SourceDatabase::open(root.path()).unwrap();
+        let db = SourceDatabase::open_for_scan(root.path()).unwrap();
         let mut batch = db.write_batch().unwrap();
         batch
             .upsert_file_with_hash(Path::new("one.wav"), 4, 1, "same")

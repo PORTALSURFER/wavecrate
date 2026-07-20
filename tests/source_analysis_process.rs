@@ -125,7 +125,8 @@ impl SourceAnalysisFixture {
             blake3::hash(&std::fs::read(&absolute_path).expect("read wav for content hash"))
                 .to_hex()
                 .to_string();
-        let connection = SourceDatabase::open_connection(directory.path()).expect("open source db");
+        let connection = SourceDatabase::open_connection_for_background_job(directory.path())
+            .expect("open source db");
         connection
             .execute(
                 "INSERT INTO wav_files (

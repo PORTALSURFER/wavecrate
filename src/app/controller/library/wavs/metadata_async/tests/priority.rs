@@ -41,7 +41,8 @@ fn metadata_mutation_waits_behind_same_source_file_op_priority() {
     let source = SampleSource::new(temp.path().join("source"));
     std::fs::create_dir_all(&source.root).expect("create source root");
     let relative_path = PathBuf::from("alpha.wav");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     db.upsert_file(&relative_path, 1, 1)
         .expect("insert source row");
     source_write_priority::begin_file_op_write_priority(&source.id);

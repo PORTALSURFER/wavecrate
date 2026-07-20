@@ -5,7 +5,7 @@ fn reconcile_copy_from_staged_file() {
     let temp = TempDir::new().unwrap();
     let target_root = temp.path().join("target");
     std::fs::create_dir_all(&target_root).unwrap();
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
     let source_path = temp.path().join("external.wav");
     write_wav(&source_path);
     let target_relative = PathBuf::from("copied.wav");
@@ -63,7 +63,7 @@ fn reconcile_copy_clears_stale_target_metadata_when_journal_defaults_are_empty()
     let temp = TempDir::new().unwrap();
     let target_root = temp.path().join("target");
     std::fs::create_dir_all(&target_root).unwrap();
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
     let source_path = temp.path().join("external.wav");
     write_wav(&source_path);
     let target_relative = PathBuf::from("copied.wav");
@@ -120,7 +120,7 @@ fn reconcile_copy_preserves_staged_file_when_target_path_was_reused() {
     let temp = TempDir::new().unwrap();
     let target_root = temp.path().join("target");
     std::fs::create_dir_all(&target_root).unwrap();
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
     let source_path = temp.path().join("external.wav");
     write_wav(&source_path);
     let target_relative = PathBuf::from("copied.wav");
@@ -199,7 +199,7 @@ fn reconcile_copy_defers_when_target_exists_and_journal_identity_is_incomplete()
     let temp = TempDir::new().unwrap();
     let target_root = temp.path().join("target");
     std::fs::create_dir_all(&target_root).unwrap();
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
     let source_path = temp.path().join("external.wav");
     write_wav(&source_path);
     let target_relative = PathBuf::from("copied.wav");

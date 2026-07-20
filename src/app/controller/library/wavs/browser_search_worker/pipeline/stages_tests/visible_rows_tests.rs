@@ -15,7 +15,7 @@ fn path_set_refresh_rebuilds_entries_and_clears_query_scores() {
     let root = temp.path().join("source");
     std::fs::create_dir_all(&root).expect("create source root");
 
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
         .expect("insert kick");
     db.upsert_file(Path::new("drums/snare.wav"), 1, 2)

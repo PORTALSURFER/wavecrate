@@ -395,7 +395,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("one.wav");
         std::fs::write(&file_path, b"one").unwrap();
-        let db = SourceDatabase::open(dir.path()).unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
         scan_once(&db).unwrap();
         db.set_missing(Path::new("one.wav"), true).unwrap();
         let prepared = PreparedFile {
@@ -421,7 +421,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("one.wav");
         std::fs::write(&file_path, b"one").unwrap();
-        let db = SourceDatabase::open(dir.path()).unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
         scan_once(&db).unwrap();
         let entry = db.entry_for_path(Path::new("one.wav")).unwrap().unwrap();
         let mut context = ScanContext::from_existing(
@@ -450,7 +450,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("one.wav");
         std::fs::write(&file_path, [1_u8; 32]).unwrap();
-        let db = SourceDatabase::open(dir.path()).unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
         db.upsert_file(Path::new("one.wav"), 32, 1).unwrap();
         let prepared = PreparedFile {
             facts: read_facts(dir.path(), &file_path).unwrap(),

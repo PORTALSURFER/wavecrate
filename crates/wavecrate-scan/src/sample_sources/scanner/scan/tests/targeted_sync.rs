@@ -8,7 +8,7 @@ fn targeted_sync_updates_only_requested_file() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("one.wav"), b"one").unwrap();
     std::fs::write(dir.path().join("two.wav"), b"two").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::write(dir.path().join("one.wav"), b"changed").unwrap();
@@ -28,7 +28,7 @@ fn targeted_sync_detects_same_size_edit_with_restored_mtime() {
     let path = dir.path().join("same.wav");
     std::fs::write(&path, b"one").unwrap();
     let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     let original_hash = db
         .entry_for_path(Path::new("same.wav"))
@@ -61,7 +61,7 @@ fn targeted_sync_exactly_hashes_an_existing_large_file_edit() {
     let path = dir.path().join("large.wav");
     std::fs::write(&path, vec![1_u8; 9 * 1024 * 1024]).unwrap();
     let original_modified = std::fs::metadata(&path).unwrap().modified().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     complete_pending_deep_hash_for_path(&db, Path::new("large.wav"), None).unwrap();
     let original_hash = db
@@ -93,7 +93,7 @@ fn targeted_sync_hides_confirmed_missing_file() {
     let dir = tempdir().unwrap();
     std::fs::write(dir.path().join("one.wav"), b"one").unwrap();
     std::fs::write(dir.path().join("two.wav"), b"two").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::remove_file(dir.path().join("one.wav")).unwrap();
@@ -115,7 +115,7 @@ fn targeted_sync_prunes_removed_folder_prefix() {
     std::fs::write(drums.join("one.wav"), b"one").unwrap();
     std::fs::write(drums.join("two.wav"), b"two").unwrap();
     std::fs::write(dir.path().join("keep.wav"), b"keep").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::remove_dir_all(&drums).unwrap();
@@ -133,7 +133,7 @@ fn targeted_sync_adds_new_file_inside_requested_folder() {
     let dir = tempdir().unwrap();
     let drums = dir.path().join("drums");
     std::fs::create_dir_all(&drums).unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::write(drums.join("kick.wav"), b"kick").unwrap();
@@ -152,7 +152,7 @@ fn targeted_sync_does_not_claim_unrelated_missing_rename_source() {
     let dir = tempdir().unwrap();
     let unrelated = dir.path().join("unrelated.wav");
     std::fs::write(&unrelated, b"same").unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
     db.set_tag(Path::new("unrelated.wav"), Rating::KEEP_1)
         .unwrap();
@@ -182,7 +182,7 @@ fn targeted_sync_ignores_appledouble_sidecars() {
     let dir = tempdir().unwrap();
     let drums = dir.path().join("drums");
     std::fs::create_dir_all(&drums).unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     scan_once(&db).unwrap();
 
     std::fs::write(drums.join("kick.wav"), b"kick").unwrap();
@@ -204,7 +204,7 @@ fn targeted_sync_cancels_after_a_committed_batch_and_resumes_safely() {
     for index in 0..70 {
         std::fs::write(drums.join(format!("sample-{index:03}.wav")), b"x").unwrap();
     }
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
     let cancel = AtomicBool::new(false);
     let targets = [PathBuf::from("drums")];
 

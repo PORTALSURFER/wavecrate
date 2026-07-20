@@ -36,7 +36,8 @@ fn loaded_duration_metadata_job_reports_missing_file_without_rename_mapping() {
     let source = SampleSource::new(temp.path().join("source"));
     std::fs::create_dir_all(&source.root).expect("create source root");
     let relative_path = PathBuf::from("missing.wav");
-    let db = SourceDatabase::open(&source.root).expect("open source db");
+    let db =
+        SourceDatabase::open_for_test_fixture_source_write(&source.root).expect("open source db");
     db.upsert_file(&relative_path, 1, 1)
         .expect("insert source row");
 

@@ -204,7 +204,8 @@ mod tests {
     #[test]
     fn commit_snapshot_stays_bound_to_its_own_revision() {
         let directory = tempfile::tempdir().expect("source root");
-        let database = SourceDatabase::open(directory.path()).expect("source database");
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("source database");
         let mut first = database.write_batch().expect("first batch");
         first
             .upsert_file_with_hash(Path::new("first.wav"), 5, 10, "first-hash")
@@ -227,7 +228,8 @@ mod tests {
     #[test]
     fn commit_manifest_changes_reports_only_touched_live_rows() {
         let directory = tempfile::tempdir().expect("source root");
-        let database = SourceDatabase::open(directory.path()).expect("source database");
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("source database");
         database
             .upsert_file(Path::new("removed.wav"), 5, 10)
             .expect("insert removed file");
@@ -269,7 +271,8 @@ mod tests {
     #[test]
     fn commit_manifest_changes_normalizes_windows_separator_paths() {
         let directory = tempfile::tempdir().expect("source root");
-        let database = SourceDatabase::open(directory.path()).expect("source database");
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("source database");
         let expected_previous_revision = database.get_revision().expect("previous revision");
         let mut batch = database.write_batch().expect("manifest batch");
         batch

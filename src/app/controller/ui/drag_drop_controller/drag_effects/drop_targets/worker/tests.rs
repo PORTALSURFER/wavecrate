@@ -28,8 +28,8 @@ impl DropTargetRecoveryFixture {
         let target_root = temp.path().join("target");
         std::fs::create_dir_all(&source_root).unwrap();
         std::fs::create_dir_all(&target_root).unwrap();
-        let source_db = SourceDatabase::open(&source_root).unwrap();
-        let target_db = SourceDatabase::open(&target_root).unwrap();
+        let source_db = SourceDatabase::open_for_test_fixture_source_write(&source_root).unwrap();
+        let target_db = SourceDatabase::open_for_test_fixture_source_write(&target_root).unwrap();
         let source_relative = PathBuf::from("one.wav");
         let source_absolute = source_root.join(&source_relative);
         std::fs::write(&source_absolute, [0u8; 16]).unwrap();

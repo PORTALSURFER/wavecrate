@@ -148,7 +148,7 @@ fn activating_collection_includes_missing_members_from_source_db() {
     let present = root.join("present.wav");
     fs::write(&present, []).expect("write present sample");
     let collection = SampleCollection::new(0).expect("collection");
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     seed_file_collections(&db, "missing/lost.wav", &[collection]);
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.set_file_collection_state(&present, collection);

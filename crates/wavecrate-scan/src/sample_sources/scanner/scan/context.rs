@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn interleaved_manifest_writer_forces_exact_committed_resnapshot() {
         let directory = tempfile::tempdir().expect("source root");
-        let database = SourceDatabase::open(directory.path()).expect("source database");
+        let database = SourceDatabase::open_for_scan(directory.path()).expect("source database");
         let mut initial_batch = database.write_batch().expect("initial batch");
         initial_batch
             .upsert_file_with_hash(Path::new("initial.wav"), 1, 1, "initial")

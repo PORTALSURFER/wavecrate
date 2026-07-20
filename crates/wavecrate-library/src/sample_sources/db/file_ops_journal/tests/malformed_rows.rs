@@ -5,7 +5,7 @@ fn reconcile_reports_and_drops_malformed_journal_rows() {
     let temp = TempDir::new().unwrap();
     let target_root = temp.path().join("target");
     std::fs::create_dir_all(&target_root).unwrap();
-    let target_db = SourceDatabase::open(&target_root).unwrap();
+    let target_db = SourceDatabase::open_for_source_write(&target_root).unwrap();
     target_db
         .connection
         .execute(

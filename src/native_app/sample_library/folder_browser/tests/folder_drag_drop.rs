@@ -110,7 +110,7 @@ fn folder_drag_drop_preserves_nested_file_rating_after_reload() {
     fs::create_dir_all(&loops).expect("create loops folder");
     let kick = kicks.join("kick.wav");
     fs::write(&kick, [0_u8; 8]).expect("write wav");
-    let db = SourceDatabase::open(&root).expect("open source db");
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("open source db");
     db.upsert_file(std::path::Path::new("drums/kicks/kick.wav"), 8, 1)
         .expect("upsert kick");
     db.set_tag(std::path::Path::new("drums/kicks/kick.wav"), Rating::new(2))

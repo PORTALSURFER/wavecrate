@@ -1,12 +1,12 @@
 use super::*;
 
 #[test]
-fn read_only_open_reads_existing_entries() {
+fn ui_read_open_reads_existing_entries() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
 
-    let read_only = SourceDatabase::open_read_only(dir.path()).unwrap();
+    let read_only = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
     let rows = read_only.list_files().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].relative_path, PathBuf::from("one.wav"));
@@ -15,7 +15,7 @@ fn read_only_open_reads_existing_entries() {
 #[test]
 fn ui_read_role_reads_existing_entries() {
     let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
     db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
 
     let ui_read =
@@ -26,7 +26,7 @@ fn ui_read_role_reads_existing_entries() {
 }
 
 #[test]
-fn open_defaults_to_read_only_when_enabled() {
+fn source_write_open_honors_read_only_environment_override() {
     let dir = match tempdir() {
         Ok(dir) => dir,
         Err(err) => panic!("tempdir failed: {err}"),

@@ -46,6 +46,7 @@ case "$command" in
   report-size-hotspots) exec "$script_dir/report_size_hotspots.sh" "$@" ;;
   rust-no-todos) exec "$script_dir/check_rust_no_todos.sh" "$@" ;;
   script-guardrails) exec "$script_dir/check_script_guardrails.sh" "$@" ;;
+  source-db-open-roles) exec "$script_dir/check_source_db_open_roles.sh" "$@" ;;
   taste) exec "$script_dir/check_rust_taste_invariants.sh" "$@" ;;
   workflow-toolchain) exec "$script_dir/check_workflow_toolchain_pinning.sh" "$@" ;;
   wavecrate-facades) exec "$script_dir/check_wavecrate_facades.sh" "$@" ;;
