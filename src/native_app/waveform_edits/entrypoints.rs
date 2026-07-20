@@ -161,6 +161,9 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        if self.reject_protected_trim_request(kind, target) {
+            return;
+        }
         if let Some(harvest_operation) = harvest_whole_file_copy_operation(kind) {
             match self.queue_harvest_whole_file_copy_edit_request(
                 kind,
@@ -223,6 +226,36 @@ impl NativeAppState {
         self.ui
             .browser_interaction
             .pending_waveform_destructive_edit = Some(request);
+    }
+
+    fn reject_protected_trim_request(
+        &mut self,
+        kind: WaveformDestructiveEditKind,
+        target: WaveformDestructiveEditTarget,
+    ) -> bool {
+        if kind != WaveformDestructiveEditKind::TrimSelection {
+            return false;
+        }
+        let Ok((path, _)) = self.destructive_edit_target_for_kind(kind, target) else {
+            return false;
+        };
+        if !self
+            .library
+            .folder_browser
+            .path_is_in_protected_source(&path)
+        {
+            return false;
+        }
+        let Some(error) = self
+            .library
+            .folder_browser
+            .file_change_lock_error(&path, kind.action_label())
+        else {
+            return false;
+        };
+        self.flash_denied_destructive_selection_for_error(&error, kind, target);
+        self.ui.status.sample = self.denied_destructive_edit_status(&error, kind, target);
+        true
     }
 
     pub(super) fn destructive_edit_target_for_kind(

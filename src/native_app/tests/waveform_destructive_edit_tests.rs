@@ -1007,9 +1007,7 @@ fn normal_harvest_mode_reverse_selection_renders_reverse_copy_to_primary_without
 }
 
 #[test]
-fn protected_trim_selection_renders_trim_copy_to_primary_without_mutating_origin() {
-    let config_base = tempfile::tempdir().expect("config base");
-    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+fn protected_trim_selection_is_denied_with_red_feedback_even_with_primary_source() {
     let (mut state, source_root, selected_file) =
         native_app_state_with_temp_sample("protected-trim.wav");
     let primary_root = tempfile::tempdir().expect("primary source root");
@@ -1045,7 +1043,10 @@ fn protected_trim_selection_renders_trim_copy_to_primary_without_mutating_origin
     let mut context = ui::UiUpdateContext::default();
 
     state.apply_message(GuiMessage::RequestTrimWaveformSelection, &mut context);
-    run_command_for_tests(&mut state, context.into_command());
+    assert!(
+        context.into_command().is_empty(),
+        "denied trim must not queue background file work"
+    );
 
     assert_samples_close(
         &read_test_wav_f32(&path),
@@ -1053,39 +1054,36 @@ fn protected_trim_selection_renders_trim_copy_to_primary_without_mutating_origin
             0.0, 1_000.0, 2_000.0, 3_000.0, 4_000.0, 5_000.0, 6_000.0, 7_000.0,
         ],
     );
-    assert_samples_close(
-        &read_test_wav_f32(&trim_copy),
-        &[0.0, 1_000.0, 6_000.0, 7_000.0],
-    );
+    assert!(!trim_copy.exists(), "denied trim must not create a copy");
     assert_eq!(
         state.library.folder_browser.selected_file_id(),
-        Some(trim_copy.to_string_lossy().as_ref())
+        Some(selected_file.as_str())
     );
-    let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
-        protected_source.id.clone(),
-        PathBuf::from("protected-trim.wav"),
+    assert!(
+        state
+            .ui
+            .browser_interaction
+            .pending_waveform_destructive_edit
+            .is_none()
     );
-    let parent = wavecrate::sample_sources::library::harvest_file(&parent_key)
-        .expect("load harvest parent")
-        .expect("harvest parent");
     assert_eq!(
-        parent.state,
-        wavecrate::sample_sources::HarvestState::Touched
+        state.ui.status.sample,
+        "Protected source cannot be modified"
     );
-    let edges = wavecrate::sample_sources::library::harvest_derivations_for_parent(&parent_key)
-        .expect("load harvest derivations");
-    assert_eq!(edges.len(), 1);
-    assert_eq!(
-        edges[0].operation,
-        wavecrate::sample_sources::HarvestDerivationOperation::TrimCopy
+    assert!(
+        state.waveform.current.play_selection_denied_flash_frames() > 0,
+        "the denied play selection should start its red pulse"
     );
-    assert_eq!(edges[0].child.key.source_id, primary_source.id);
-    assert_eq!(
-        edges[0].child.key.relative_path,
-        PathBuf::from("_Harvests")
-            .join(harvest_source_folder)
-            .join("protected-trim_trim.wav")
+    assert!(
+        state
+            .library
+            .folder_browser
+            .protected_source_error_flash_frames()
+            > 0,
+        "the protected source and file rows should start their red pulse"
     );
+    assert!(state.waveform.current.protected_source_error_flash_frames() > 0);
+    assert_protected_source_error_projected(&state, &selected_file, &protected_source.id);
 }
 
 #[test]
