@@ -1,0 +1,323 @@
+#[test]
+fn fast_readd_waits_for_old_epoch_then_preserves_shared_source_storage() {
+    let (_directory, source) = unhashed_source("fast-readd-retains-storage");
+    let database_root = source.database_root().expect("database root");
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("open source database");
+    publish_current_readiness_targets(&mut connection, source.id.as_str(), 1)
+        .expect("publish readiness targets");
+    drop(connection);
+
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    let old_cancel =
+        Arc::clone(&supervisor.shared.control().source_work_cancels[source.id.as_str()]);
+    let old_work = supervisor
+        .shared
+        .begin_in_flight_work(source.id.as_str(), &old_cancel)
+        .expect("register old epoch work");
+
+    supervisor
+        .replace_sources(Vec::new())
+        .expect("remove source immediately");
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("re-add source immediately");
+    for retirement in supervisor.shared.control().pending_retirements.values_mut() {
+        retirement.retry_at = now_epoch_seconds().saturating_add(60);
+    }
+    let waiting_handle = supervisor.budget_handle();
+    let waiting_source_id = source.id.as_str().to_string();
+    let (waiting_sender, waiting_receiver) = std::sync::mpsc::channel();
+    let waiting = thread::spawn(move || {
+        let permit = waiting_handle.acquire_scan(&waiting_source_id);
+        waiting_sender
+            .send(permit)
+            .expect("report re-added source admission");
+    });
+    assert!(
+        waiting_receiver
+            .recv_timeout(Duration::from_millis(50))
+            .is_err(),
+        "same-storage admission must wait while the retired epoch is still active"
+    );
+    process_ready_source_retirements(&supervisor.shared);
+    assert_eq!(supervisor.shared.control().pending_retirements.len(), 1);
+
+    drop(old_work);
+    process_ready_source_retirements(&supervisor.shared);
+    assert!(supervisor.shared.control().pending_retirements.is_empty());
+    let permit = waiting_receiver
+        .recv_timeout(Duration::from_secs(1))
+        .expect("re-added source admission should resume after the old epoch drains")
+        .expect("re-added source receives its current-generation permit");
+    assert_eq!(
+        permit.lifecycle_generation(),
+        supervisor.lifecycle_generations()[source.id.as_str()]
+    );
+    drop(permit);
+    waiting.join().expect("join re-added source admission");
+    let availability: String = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("reopen retained source database")
+    .query_row(
+        "SELECT availability FROM source_readiness_sources WHERE source_id = ?1",
+        [source.id.as_str()],
+        |row| row.get(0),
+    )
+    .expect("read retained source readiness");
+    assert_eq!(availability, "active");
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn startup_recovery_enqueues_retained_sources_missing_from_configuration() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("retained source root");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("startup-retirement"),
+        source_root.path().to_path_buf(),
+    );
+    wavecrate::sample_sources::library::save(&wavecrate::sample_sources::library::LibraryState {
+        sources: vec![source.clone()],
+    })
+    .expect("remember retained source");
+    wavecrate::sample_sources::library::save(
+        &wavecrate::sample_sources::library::LibraryState::default(),
+    )
+    .expect("remove active configuration while retaining descriptor");
+
+    let mut next_generation = 1;
+    let (pending, next_retirement_id) =
+        recovered_source_retirements(&BTreeMap::new(), &mut next_generation)
+            .expect("recover inactive retained source");
+
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[&1].source.id, source.id);
+    assert_eq!(next_retirement_id, 2);
+    assert_eq!(next_generation, 2);
+}
+
+#[test]
+fn converged_periodic_safety_probes_do_not_rematerialize_targets() {
+    let (_directory, source) = unhashed_source("revision-gated-safety-probe");
+    let database_root = source.database_root().expect("database root");
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("open source database");
+    publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+        .expect("publish initial readiness");
+    let durable_before = discovery_durable_counts(&connection);
+    let source_before = ReadinessStore::new(&mut connection)
+        .source_state(source.id.as_str())
+        .expect("read source state")
+        .expect("source state exists");
+    drop(connection);
+    let cancel = AtomicBool::new(false);
+
+    for interval in 0..10 {
+        let Cancellable::Completed((candidates, stats)) = discover_source_candidates_with_progress(
+            &source,
+            101 + interval,
+            false,
+            false,
+            None,
+            true,
+            &cancel,
+            &mut |_, _| panic!("cheap safety probe must not materialize target work"),
+        )
+        .expect("run revision-gated safety probe") else {
+            panic!("safety probe unexpectedly cancelled");
+        };
+        assert!(candidates.is_empty());
+        assert!(stats.cheap_noop_sweep);
+    }
+
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("reopen source database");
+    assert_eq!(discovery_durable_counts(&connection), durable_before);
+    assert_eq!(
+        ReadinessStore::new(&mut connection)
+            .source_state(source.id.as_str())
+            .expect("read final source state")
+            .expect("source state exists"),
+        source_before
+    );
+}
+
+#[test]
+fn safety_probe_recovers_manifest_commit_without_delta_publication() {
+    let (_directory, source) = unhashed_source("revision-gap-recovery");
+    let database_root = source.database_root().expect("database root");
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("open source database");
+    publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+        .expect("publish initial readiness");
+    let previous_generation = ReadinessStore::new(&mut connection)
+        .source_state(source.id.as_str())
+        .expect("read source state")
+        .expect("source state exists")
+        .source_generation;
+    connection
+        .execute(
+            "UPDATE wav_files SET content_hash = 'changed-after-crash'
+                 WHERE path = 'pending.wav'",
+            [],
+        )
+        .expect("commit manifest content change");
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, '1')
+                 ON CONFLICT(key) DO UPDATE
+                 SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
+            [META_WAV_PATHS_REVISION],
+        )
+        .expect("advance manifest generation");
+
+    let Cancellable::Completed((_candidates, stats)) =
+        discover_source_candidates_with_connection_and_progress(
+            &source,
+            &mut connection,
+            101,
+            false,
+            false,
+            None,
+            true,
+            &AtomicBool::new(false),
+            &mut |_, _| {},
+        )
+        .expect("recover readiness publication")
+    else {
+        panic!("recovery unexpectedly cancelled");
+    };
+    assert!(!stats.cheap_noop_sweep);
+    let recovered = ReadinessStore::new(&mut connection)
+        .source_state(source.id.as_str())
+        .expect("read recovered source state")
+        .expect("source state exists");
+    assert_eq!(
+        recovered.source_generation,
+        previous_generation.saturating_add(1)
+    );
+}
+
+#[test]
+fn committed_one_file_delta_updates_only_that_identity_targets() {
+    let (_directory, source) = unhashed_source("one-file-readiness-delta");
+    let database_root = source.database_root().expect("database root");
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("open source database");
+    publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+        .expect("publish initial readiness");
+    let identity: String = connection
+        .query_row(
+            "SELECT file_identity FROM wav_files WHERE path = 'pending.wav'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("read file identity");
+    let state_before = ReadinessStore::new(&mut connection)
+        .source_state(source.id.as_str())
+        .expect("read source state")
+        .expect("source state exists");
+    connection
+        .execute(
+            "UPDATE wav_files
+                 SET content_hash = 'one-file-new-hash',
+                     file_size = file_size + 1,
+                     modified_ns = modified_ns + 1
+                 WHERE path = 'pending.wav'",
+            [],
+        )
+        .expect("commit one-file manifest change");
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, '1')
+                 ON CONFLICT(key) DO UPDATE
+                 SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
+            [META_WAV_PATHS_REVISION],
+        )
+        .expect("advance manifest generation");
+    let delta = PendingReadinessDelta {
+        scope_ids: [identity.clone()].into_iter().collect(),
+    };
+
+    let Cancellable::Completed((_candidates, stats)) =
+        discover_source_candidates_with_connection_and_progress(
+            &source,
+            &mut connection,
+            101,
+            false,
+            false,
+            Some(&delta),
+            false,
+            &AtomicBool::new(false),
+            &mut |_, _| {},
+        )
+        .expect("reconcile committed delta")
+    else {
+        panic!("delta reconciliation unexpectedly cancelled");
+    };
+    assert!(stats.delta_reconciled);
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM source_readiness_targets
+                     WHERE source_id = ?1 AND scope_kind = 'file'",
+                [source.id.as_str()],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count file targets"),
+        3
+    );
+    assert_eq!(
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM source_readiness_targets
+                     WHERE source_id = ?1
+                       AND scope_id = ?2
+                       AND content_generation = 'one-file-new-hash'",
+                params![source.id.as_str(), identity],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count changed identity targets"),
+        3
+    );
+    let state_after = ReadinessStore::new(&mut connection)
+        .source_state(source.id.as_str())
+        .expect("read source state")
+        .expect("source state exists");
+    assert_eq!(
+        state_after.source_generation,
+        state_before.source_generation.saturating_add(1)
+    );
+    assert_eq!(
+        state_after.readiness_revision,
+        state_before.readiness_revision.saturating_add(1)
+    );
+}

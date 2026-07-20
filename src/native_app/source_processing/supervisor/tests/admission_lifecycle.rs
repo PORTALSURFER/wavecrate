@@ -1,0 +1,371 @@
+#[test]
+fn bounded_manifest_delta_preserves_unaffected_in_flight_generation() {
+    let (_directory, source) = unhashed_source("bounded-delta-generation");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    let retained_generation = {
+        let mut control = supervisor.shared.control();
+        control.dirty_sources.clear();
+        Arc::clone(&control.source_work_cancels[source.id.as_str()])
+    };
+    supervisor.request_source_delta(
+        source.id.as_str(),
+        &CommittedSourceDelta {
+            revision: 1,
+            changed: vec![wavecrate::sample_sources::scanner::ManifestIdentityDelta {
+                identity: String::from("changed"),
+                relative_path: PathBuf::from("changed.wav"),
+                content_generation: String::from("changed-generation"),
+                source_metadata_changed: false,
+            }],
+            ..CommittedSourceDelta::default()
+        },
+        "test_bounded_delta",
+    );
+
+    supervisor.wake_source(source.id.as_str(), "filesystem_changed");
+
+    assert!(!retained_generation.load(Ordering::Acquire));
+    let control = supervisor.shared.control();
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    assert!(
+        control
+            .pending_readiness_deltas
+            .contains_key(source.id.as_str())
+    );
+    assert!(Arc::ptr_eq(
+        &retained_generation,
+        &control.source_work_cancels[source.id.as_str()]
+    ));
+    drop(control);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn non_mutating_source_requests_preserve_in_flight_generation() {
+    let (_directory, source) = unhashed_source("non-mutating-source-request");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    let retained_generation = {
+        let mut control = supervisor.shared.control();
+        control.dirty_sources.clear();
+        Arc::clone(&control.source_work_cancels[source.id.as_str()])
+    };
+
+    supervisor.request_source_processing(source.id.as_str(), "source_scan_finished");
+
+    assert!(!retained_generation.load(Ordering::Acquire));
+    let control = supervisor.shared.control();
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    assert!(Arc::ptr_eq(
+        &retained_generation,
+        &control.source_work_cancels[source.id.as_str()]
+    ));
+    drop(control);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn explicit_reanalysis_cancels_current_work_without_implicit_priority() {
+    let (_directory, source) = unhashed_source("explicit-reanalysis-request");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    let retained_generation = {
+        let mut control = supervisor.shared.control();
+        control.dirty_sources.clear();
+        Arc::clone(&control.source_work_cancels[source.id.as_str()])
+    };
+    let scan = supervisor
+        .budget_handle()
+        .acquire_scan(source.id.as_str())
+        .expect("admit source scan");
+    let scan_cancel = scan.cancel_token();
+
+    supervisor.request_source_reanalysis(source.id.as_str(), "user_process_source");
+
+    assert!(retained_generation.load(Ordering::Acquire));
+    assert!(scan_cancel.load(Ordering::Acquire));
+    let control = supervisor.shared.control();
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    assert!(
+        control
+            .force_reanalysis_sources
+            .contains(source.id.as_str())
+    );
+    assert_eq!(control.priority.selected_source, None);
+    assert!(
+        !control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire),
+        "the replacement generation must be available for the reanalysis run"
+    );
+    drop(control);
+    drop(scan);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn external_scan_release_invalidates_retained_source_generation() {
+    let (_directory, source) = unhashed_source("external-commit-generation");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    let retained_generation = {
+        let mut control = supervisor.shared.control();
+        control.dirty_sources.clear();
+        Arc::clone(&control.source_work_cancels[source.id.as_str()])
+    };
+    let permit = supervisor
+        .budget_handle()
+        .acquire_scan(source.id.as_str())
+        .expect("admit external source work");
+
+    drop(permit);
+
+    assert!(retained_generation.load(Ordering::Acquire));
+    let control = supervisor.shared.control();
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    assert!(!control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire));
+    assert!(!Arc::ptr_eq(
+        &retained_generation,
+        &control.source_work_cancels[source.id.as_str()]
+    ));
+    drop(control);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn scan_registration_only_adds_absent_matching_sources() {
+    let (_directory, source) = unhashed_source("scan-registration");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+
+    supervisor
+        .register_source_for_scan(source.clone())
+        .expect("register source before first scan");
+    supervisor
+        .register_source_for_scan(source.clone())
+        .expect("matching registration is idempotent");
+    let permit = supervisor
+        .budget_handle()
+        .acquire_scan(source.id.as_str())
+        .expect("newly registered source admits scan work");
+
+    let replacement_directory = tempfile::tempdir().expect("replacement source root");
+    let replacement = SampleSource::new_with_id(
+        source.id.clone(),
+        replacement_directory.path().to_path_buf(),
+    );
+    assert!(
+        supervisor.register_source_for_scan(replacement).is_err(),
+        "scan registration must not replace an authoritative descriptor"
+    );
+    let control = supervisor.shared.control();
+    assert!(source_descriptors_match(
+        &control.sources[source.id.as_str()],
+        &source
+    ));
+    drop(control);
+    drop(permit);
+
+    let replacement = supervisor
+        .shared
+        .source_replacement
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    assert_eq!(
+        supervisor
+            .register_source_for_scan(source.clone())
+            .expect_err("scan registration must not wait for source replacement"),
+        "Configured sources are currently being replaced"
+    );
+    drop(replacement);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn background_scan_registration_waits_for_source_replacement_fence() {
+    let (_directory, source) = unhashed_source("scan-registration-waiting");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure authoritative source");
+    let replacement = supervisor
+        .shared
+        .source_replacement
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let budget = supervisor.budget_handle();
+    let source_for_worker = source.clone();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let result = budget.register_source_for_scan_waiting(source_for_worker);
+        sender.send(result).expect("publish registration result");
+    });
+
+    assert!(
+        receiver.recv_timeout(Duration::from_millis(25)).is_err(),
+        "background admission should wait while source replacement owns the fence"
+    );
+    drop(replacement);
+    let generation = receiver
+        .recv_timeout(Duration::from_secs(1))
+        .expect("registration should resume after replacement")
+        .expect("register matching source");
+    worker.join().expect("join registration worker");
+
+    assert_eq!(
+        supervisor.lifecycle_generations()[source.id.as_str()],
+        generation
+    );
+    let permit = supervisor
+        .budget_handle()
+        .acquire_scan_for_generation(source.id.as_str(), generation)
+        .expect("deferred registration must admit the external scan");
+    drop(permit);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn background_scan_registration_cannot_readd_source_removed_behind_fence() {
+    let (_directory, source) = unhashed_source("scan-registration-removed");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    let replacement = supervisor
+        .shared
+        .source_replacement
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    let budget = supervisor.budget_handle();
+    let source_for_worker = source.clone();
+    let worker =
+        std::thread::spawn(move || budget.register_source_for_scan_waiting(source_for_worker));
+
+    thread::sleep(Duration::from_millis(25));
+    drop(replacement);
+    let error = worker
+        .join()
+        .expect("join deferred scan registration")
+        .expect_err("removed source must not be registered by a stale scan");
+
+    assert!(error.contains("no longer present"));
+    assert!(
+        !supervisor
+            .lifecycle_generations()
+            .contains_key(source.id.as_str()),
+        "stale scan admission must not resurrect a removed source"
+    );
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn watcher_ready_rearms_authoritative_manifest_audits() {
+    let (_directory, source) = unhashed_source("watcher-ready-audit");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    {
+        let mut control = supervisor.shared.control();
+        control.force_manifest_audit_sources.clear();
+        control.dirty_sources.clear();
+    }
+
+    supervisor.request_manifest_audits("source_watcher_ready");
+
+    let control = supervisor.shared.control();
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    drop(control);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn watcher_ready_request_survives_older_in_flight_audit_completion() {
+    let (_directory, source) = unhashed_source("watcher-ready-in-flight-audit");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    {
+        let mut control = supervisor.shared.control();
+        // Model the coordinator having already captured the original
+        // startup audit request and started its candidate.
+        control.dirty_sources.clear();
+        assert!(
+            control
+                .force_manifest_audit_sources
+                .contains(source.id.as_str())
+        );
+    }
+
+    supervisor.request_manifest_audits("source_watcher_ready");
+    clear_satisfied_manifest_audit_request(&supervisor.shared, source.id.as_str());
+
+    {
+        let mut control = supervisor.shared.control();
+        assert!(control.dirty_sources.contains(source.id.as_str()));
+        assert!(
+            control
+                .force_manifest_audit_sources
+                .contains(source.id.as_str()),
+            "the older audit must not erase the watcher-ready closing audit"
+        );
+        // Once the coordinator captures that newer dirty request, its own
+        // successful audit may satisfy and clear the force flag.
+        control.dirty_sources.remove(source.id.as_str());
+    }
+    clear_satisfied_manifest_audit_request(&supervisor.shared, source.id.as_str());
+    assert!(
+        !supervisor
+            .shared
+            .control()
+            .force_manifest_audit_sources
+            .contains(source.id.as_str())
+    );
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
+fn external_admission_rejects_generation_captured_before_descriptor_replacement() {
+    let old_directory = tempfile::tempdir().expect("old source root");
+    let replacement_directory = tempfile::tempdir().expect("replacement source root");
+    let source_id = SourceId::from_string("replaced-external-admission");
+    let old_source =
+        SampleSource::new_with_id(source_id.clone(), old_directory.path().to_path_buf());
+    let replacement =
+        SampleSource::new_with_id(source_id, replacement_directory.path().to_path_buf());
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![old_source.clone()])
+        .expect("configure old descriptor");
+    let handle = supervisor.budget_handle();
+    let old_generation = handle
+        .lifecycle_generation(old_source.id.as_str())
+        .expect("capture queued request generation");
+
+    supervisor
+        .replace_sources(vec![replacement])
+        .expect("replace source descriptor before admission");
+
+    assert!(
+        handle
+            .acquire_scan_for_generation(old_source.id.as_str(), old_generation)
+            .is_none(),
+        "a queued request must not adopt the replacement descriptor generation"
+    );
+    assert_ne!(
+        handle
+            .lifecycle_generation(old_source.id.as_str())
+            .expect("replacement generation"),
+        old_generation
+    );
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}

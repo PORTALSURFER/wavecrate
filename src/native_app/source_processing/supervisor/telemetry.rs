@@ -1,0 +1,27 @@
+use std::collections::BTreeMap;
+
+#[derive(Default)]
+pub(super) struct SupervisorTelemetry {
+    pub(super) sweeps: u64,
+    pub(super) claimed: u64,
+    pub(super) completed: u64,
+    pub(super) failed: u64,
+    pub(super) retried: u64,
+    pub(super) stale: u64,
+    pub(super) cancelled: u64,
+    pub(super) contention: u64,
+    pub(super) max_queue_depth: usize,
+    pub(super) queue_depth: usize,
+    pub(super) oldest_job_age_seconds: u64,
+    pub(super) retries_due: usize,
+    pub(super) readiness_queue_depth: usize,
+    pub(super) queue_depth_by_source: BTreeMap<String, usize>,
+    pub(super) readiness_queue_depth_by_source: BTreeMap<String, usize>,
+    pub(super) retries_due_by_source: BTreeMap<String, usize>,
+    pub(super) retry_at_by_source: BTreeMap<String, i64>,
+    pub(super) source_discoveries: u64,
+    pub(super) cheap_noop_sweeps: u64,
+    pub(super) delta_reconciliations: u64,
+    pub(super) full_audits: u64,
+    pub(super) settled_wake_generation: u64,
+}
