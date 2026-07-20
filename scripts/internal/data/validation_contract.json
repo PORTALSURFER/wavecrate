@@ -93,6 +93,36 @@
         "fragment": "./scripts/check.sh non-blocking-architecture"
       },
       {
+        "label": "PowerShell architecture guardrail targets the Radiant library fixture",
+        "path": "scripts/internal/check/check_non_blocking_architecture.ps1",
+        "fragment": "test --manifest-path vendor/radiant/Cargo.toml --lib guardrail_reports_file_line_and_guidance_for_blocking_tokens"
+      },
+      {
+        "label": "Bash architecture guardrail targets the Radiant library fixture",
+        "path": "scripts/internal/check/check_non_blocking_architecture.sh",
+        "fragment": "test --manifest-path vendor/radiant/Cargo.toml --lib guardrail_reports_file_line_and_guidance_for_blocking_tokens"
+      },
+      {
+        "label": "PowerShell architecture guardrail targets the GUI boundary test",
+        "path": "scripts/internal/check/check_non_blocking_architecture.ps1",
+        "fragment": "test --package wavecrate --no-default-features --test gui_boundary native_app_ui_update_paths_do_not_call_blocking_business_apis"
+      },
+      {
+        "label": "Bash architecture guardrail targets the GUI boundary test",
+        "path": "scripts/internal/check/check_non_blocking_architecture.sh",
+        "fragment": "test -p wavecrate --no-default-features --test gui_boundary native_app_ui_update_paths_do_not_call_blocking_business_apis"
+      },
+      {
+        "label": "PowerShell architecture guardrail targets the Wavecrate library harness",
+        "path": "scripts/internal/check/check_non_blocking_architecture.ps1",
+        "fragment": "test --package wavecrate --no-default-features --lib rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow"
+      },
+      {
+        "label": "Bash architecture guardrail targets the Wavecrate library harness",
+        "path": "scripts/internal/check/check_non_blocking_architecture.sh",
+        "fragment": "test -p wavecrate --no-default-features --lib rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow"
+      },
+      {
         "label": "PowerShell ci agent requires readiness executor boundary guardrails",
         "path": "scripts/internal/ci/ci_agent.ps1",
         "fragment": "scripts/check.ps1\") readiness-executor-boundary"

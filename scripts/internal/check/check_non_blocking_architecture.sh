@@ -42,16 +42,16 @@ run_step() {
 }
 
 run_step "Radiant synthetic blocking-token fixture" \
-  cargo test --manifest-path vendor/radiant/Cargo.toml guardrail_reports_file_line_and_guidance_for_blocking_tokens
+  cargo test --manifest-path vendor/radiant/Cargo.toml --lib guardrail_reports_file_line_and_guidance_for_blocking_tokens
 
 run_step "Radiant app/runtime/example guardrails" \
   cargo test --manifest-path vendor/radiant/Cargo.toml --test generic_surface_guardrails source_quality::runtime::commands_and_app
 
 run_step "Wavecrate app-facing blocking guardrail" \
-  cargo test -p wavecrate --no-default-features native_app_ui_update_paths_do_not_call_blocking_business_apis
+  cargo test -p wavecrate --no-default-features --test gui_boundary native_app_ui_update_paths_do_not_call_blocking_business_apis
 
 run_step "Wavecrate strict slow-handler diagnostics harness" \
-  cargo test -p wavecrate --no-default-features rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
+  cargo test -p wavecrate --no-default-features --lib rapid_navigation_harness_keeps_ui_responsive_while_business_work_is_slow
 
 run_step "Wavecrate readiness persistence boundary" \
   bash -c '
