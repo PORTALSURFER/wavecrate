@@ -28,15 +28,19 @@ impl FolderBrowserState {
         message: DragHandleMessage,
     ) -> bool {
         match message {
-            DragHandleMessage::Started { position } => {
+            DragHandleMessage::Started { origin, position } => {
                 let Some(source_slot) = self.configured_source_slot(&source_id) else {
                     return false;
                 };
                 if self.configured_source_count() < 2 {
                     return false;
                 }
-                self.source.reorder_drag =
-                    Some(SourceReorderDrag::new(source_id, position.y, source_slot));
+                self.source.reorder_drag = Some(SourceReorderDrag::new(
+                    source_id.clone(),
+                    origin.y,
+                    source_slot,
+                ));
+                self.update_source_reorder_target(&source_id, position.y);
                 false
             }
             DragHandleMessage::Moved { position } => {
