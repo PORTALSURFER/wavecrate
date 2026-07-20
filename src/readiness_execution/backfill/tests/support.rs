@@ -1,3 +1,5 @@
+//! Shared executor-test storage fixtures.
+
 use rusqlite::{Connection, params};
 use std::path::PathBuf;
 

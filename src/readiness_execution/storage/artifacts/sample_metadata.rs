@@ -38,6 +38,7 @@ pub(crate) fn update_analysis_metadata(
 
 /// Update duration/sample rate metadata without changing analysis version.
 /// Returns true when the duration was updated.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub(crate) fn update_sample_duration(
     conn: &Connection,
     sample_id: &str,
@@ -57,6 +58,7 @@ pub(crate) fn update_sample_duration(
 }
 
 /// Persist the long-sample marker for a sample row.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub(crate) fn update_sample_long_mark(
     conn: &Connection,
     sample_id: &str,

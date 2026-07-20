@@ -1,3 +1,5 @@
+//! Cache reuse and work-planning coverage.
+
 use super::super::planning;
 use super::support::{conn_with_schema, insert_sample};
 use rusqlite::params;

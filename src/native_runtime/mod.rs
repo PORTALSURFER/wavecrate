@@ -5,10 +5,12 @@ pub use radiant::gui_runtime::{
 };
 
 mod artifacts;
+#[cfg(any(test, feature = "legacy-controller"))]
 mod automation_snapshot;
 mod config;
 
 pub use artifacts::{NativeRunReport, NativeRuntimeArtifacts, NativeShutdownTimingArtifact};
+#[cfg(any(test, feature = "legacy-controller"))]
 pub use automation_snapshot::capture_gui_automation_snapshot;
 pub use config::{
     NativeRunOptions, WAVECRATE_UI_FONT_ASSET, WAVECRATE_UI_FONT_BYTES, WindowIconRgba,

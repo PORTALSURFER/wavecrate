@@ -40,6 +40,7 @@ case "$command" in
   private-docs) exec "$script_dir/check_rust_private_docs.sh" "$@" ;;
   prune-file-budget) exec "$script_dir/prune_file_size_budget_allowlist.sh" "$@" ;;
   public-docs) exec "$script_dir/check_rust_public_docs.sh" "$@" ;;
+  readiness-executor-boundary) exec "$script_dir/check_readiness_executor_boundary.sh" "$@" ;;
   report-env-vars) exec "$script_dir/report_env_vars_drift.sh" "$@" ;;
   report-file-budget) exec "$script_dir/report_file_size_budget_allowlist.sh" "$@" ;;
   report-markdown-links) exec "$script_dir/report_markdown_links_all.sh" "$@" ;;

@@ -254,6 +254,10 @@
           "target": "check_rust_public_docs.ps1"
         },
         {
+          "name": "readiness-executor-boundary",
+          "target": "check_readiness_executor_boundary.ps1"
+        },
+        {
           "name": "report-env-vars",
           "target": "report_env_vars_drift.sh",
           "windows_supported": false,

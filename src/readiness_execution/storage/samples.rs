@@ -1,9 +1,12 @@
+#[cfg(test)]
 use super::telemetry;
 use super::types::SampleMetadata;
+#[cfg(test)]
 use rusqlite::Connection;
 use rusqlite::params_from_iter;
 use rusqlite::types::Value;
 
+#[cfg(test)]
 pub(crate) fn upsert_samples(
     conn: &mut Connection,
     samples: &[SampleMetadata],

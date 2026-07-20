@@ -3,11 +3,12 @@
 
 //! Library exports for reuse in benchmarks and tests.
 extern crate alloc;
-/// Keep app internals compiled for the binary/runtime while the library target
-/// intentionally reuses only a subset of that surface.
+/// Retained controller internals used only by compatibility tests and tools.
+#[cfg(any(test, feature = "legacy-controller"))]
 #[allow(dead_code)]
 mod app;
-/// Backend-neutral app-core projection and action helpers used during GUI migration.
+/// Backend-neutral app-core projection and action helpers used by legacy GUI tooling.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub mod app_core;
 /// Application directory helpers.
 pub use wavecrate_library::app_dirs;
@@ -23,13 +24,12 @@ mod env_flags;
 pub mod external_clipboard;
 /// Platform helpers for external drag-and-drop.
 pub mod external_drag;
-/// GUI test contracts, scenario types, and artifact helpers.
+/// Legacy-controller GUI test contracts, scenario types, and artifact helpers.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub mod gui_test;
 /// Shared helpers for low-overhead hot-path telemetry instrumentation.
 mod hotpath_telemetry;
 mod http_client;
-#[doc(hidden)]
-pub mod internal_analysis_jobs;
 /// GitHub issue reporting via the Wavecrate gateway.
 pub mod issue_gateway;
 /// Logging setup helpers.
@@ -40,6 +40,8 @@ pub mod logging;
 /// events; it does not define UI widgets, input handling policies, or layout
 /// logic.
 pub mod native_runtime;
+/// Readiness-owned feature and embedding stage execution.
+pub mod readiness_execution;
 /// Build-time release metadata.
 pub mod release_metadata;
 /// Sample source management.

@@ -247,7 +247,12 @@ fn run_internal_analysis(request: &Value) -> Value {
         "internal source analysis failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    serde_json::from_slice(&output.stdout).expect("decode internal source analysis result")
+    let mut response: Value =
+        serde_json::from_slice(&output.stdout).expect("decode internal source analysis response");
+    if let Some(result) = response.get_mut("Completed") {
+        return result.take();
+    }
+    panic!("internal source analysis returned failure: {response}");
 }
 
 fn write_test_wav(path: &std::path::Path, duration_seconds: usize, sample_rate: u32) {

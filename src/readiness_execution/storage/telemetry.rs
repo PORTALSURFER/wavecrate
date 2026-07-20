@@ -10,10 +10,11 @@ use std::time::{Duration, Instant};
 
 use crate::logging::{DbDebugEvent, emit_db_debug_event};
 
-const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(15);
 const SLOW_TRANSACTION_BEGIN_THRESHOLD: Duration = Duration::from_millis(10);
 const SLOW_TRANSACTION_COMMIT_THRESHOLD: Duration = Duration::from_millis(10);
 const SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD: Duration = Duration::from_millis(250);
+#[cfg(test)]
+const TEST_SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(15);
 
 fn success_debug_outcome(elapsed: Duration, threshold: Duration) -> Option<&'static str> {
     (elapsed >= threshold).then_some("slow")
@@ -124,47 +125,6 @@ pub(crate) fn commit_transaction(
     }
 }
 
-/// Time one hot query and log only slow or failing executions.
-pub(crate) fn finish_query<T>(
-    operation: &'static str,
-    source_root: &Path,
-    started_at: Instant,
-    result: Result<T, String>,
-) -> Result<T, String> {
-    let elapsed = started_at.elapsed();
-    let source = source_root.display().to_string();
-    let debug_operation = format!("{operation}.query");
-    match result {
-        Ok(value) => {
-            emit_db_debug_success_if_slow(
-                &debug_operation,
-                Some(&source),
-                elapsed,
-                SLOW_QUERY_THRESHOLD,
-            );
-            record_slow_success(
-                "query",
-                operation,
-                Some(source_root),
-                elapsed,
-                SLOW_QUERY_THRESHOLD,
-            );
-            Ok(value)
-        }
-        Err(err) => {
-            emit_db_debug_event(DbDebugEvent {
-                operation: &debug_operation,
-                source: Some(&source),
-                outcome: "error",
-                elapsed,
-                error: Some(&err),
-            });
-            record_failure("query", operation, Some(source_root), elapsed, &err);
-            Err(err)
-        }
-    }
-}
-
 /// Emit one retry event for a source-db open or status-update retry loop.
 pub(crate) fn record_retry(
     operation: &'static str,
@@ -195,32 +155,6 @@ pub(crate) fn record_retry(
         elapsed: delay,
         error: Some(err),
     });
-}
-
-/// Emit one targeted event when progress snapshot reads must fall back or repair fails.
-pub(crate) fn record_progress_snapshot_repair(
-    source_root: &Path,
-    outcome: &'static str,
-    error: Option<&str>,
-) {
-    let source = source_root.display().to_string();
-    emit_db_debug_event(DbDebugEvent {
-        operation: "analysis_progress_snapshot.reconcile",
-        source: Some(&source),
-        outcome,
-        elapsed: Duration::default(),
-        error,
-    });
-    if let Some(error) = error {
-        tracing::warn!(
-            target: "perf::source_db",
-            action = "progress_snapshot_reconcile",
-            outcome,
-            error,
-            source_root = %source_root.display(),
-            "Analysis progress snapshot reconciliation failed"
-        );
-    }
 }
 
 fn record_slow_success(
@@ -274,8 +208,8 @@ fn is_busy_error(err: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        SLOW_QUERY_THRESHOLD, SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD,
-        SLOW_TRANSACTION_BEGIN_THRESHOLD, is_busy_error, slow_transaction_begin_threshold,
+        SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD, SLOW_TRANSACTION_BEGIN_THRESHOLD,
+        TEST_SLOW_QUERY_THRESHOLD, is_busy_error, slow_transaction_begin_threshold,
         success_debug_outcome,
     };
     use std::time::Duration;
@@ -291,8 +225,8 @@ mod tests {
     fn fast_success_debug_outcome_is_suppressed() {
         assert_eq!(
             success_debug_outcome(
-                SLOW_QUERY_THRESHOLD.saturating_sub(Duration::from_millis(1)),
-                SLOW_QUERY_THRESHOLD,
+                TEST_SLOW_QUERY_THRESHOLD.saturating_sub(Duration::from_millis(1)),
+                TEST_SLOW_QUERY_THRESHOLD,
             ),
             None
         );
@@ -301,7 +235,7 @@ mod tests {
     #[test]
     fn slow_success_debug_outcome_is_marked_slow() {
         assert_eq!(
-            success_debug_outcome(SLOW_QUERY_THRESHOLD, SLOW_QUERY_THRESHOLD,),
+            success_debug_outcome(TEST_SLOW_QUERY_THRESHOLD, TEST_SLOW_QUERY_THRESHOLD,),
             Some("slow")
         );
     }

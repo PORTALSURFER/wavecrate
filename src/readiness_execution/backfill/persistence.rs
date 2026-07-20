@@ -1,7 +1,7 @@
 //! Persistence and retry helpers for embedding backfill results.
 
-use crate::app::controller::library::analysis_jobs::db;
-use crate::app::controller::library::analysis_jobs::db::telemetry;
+use super::super::storage as db;
+use super::super::storage::telemetry;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;

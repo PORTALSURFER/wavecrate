@@ -170,10 +170,10 @@ impl From<rusqlite::Error> for SourceProcessingFailure {
     }
 }
 
-impl From<wavecrate::internal_analysis_jobs::ReadinessStageError> for SourceProcessingFailure {
-    fn from(error: wavecrate::internal_analysis_jobs::ReadinessStageError) -> Self {
+impl From<wavecrate::readiness_execution::ReadinessStageError> for SourceProcessingFailure {
+    fn from(error: wavecrate::readiness_execution::ReadinessStageError) -> Self {
         match error {
-            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(
+            wavecrate::readiness_execution::ReadinessStageError::Decode(
                 wavecrate_analysis::AnalysisDecodeError::Unsupported(detail),
             ) => Self {
                 class: SourceProcessingFailureClass::Unsupported,
@@ -181,16 +181,12 @@ impl From<wavecrate::internal_analysis_jobs::ReadinessStageError> for SourceProc
                 context: "Audio codec is unsupported".to_string(),
                 source_error: Some(detail),
             },
-            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(error) => {
-                Self::permanent(
-                    SourceProcessingFailureCode::ExecutionUnclassified,
-                    "Audio decoding failed",
-                    Some(error.to_string()),
-                )
-            }
-            wavecrate::internal_analysis_jobs::ReadinessStageError::Other(error) => {
-                Self::from(error)
-            }
+            wavecrate::readiness_execution::ReadinessStageError::Decode(error) => Self::permanent(
+                SourceProcessingFailureCode::ExecutionUnclassified,
+                "Audio decoding failed",
+                Some(error.to_string()),
+            ),
+            wavecrate::readiness_execution::ReadinessStageError::Other(error) => Self::from(error),
         }
     }
 }
@@ -244,7 +240,7 @@ pub(super) fn run_readiness_feature_stage(
 ) -> Result<bool, SourceProcessingFailure> {
     #[cfg(test)]
     {
-        wavecrate::internal_analysis_jobs::run_readiness_feature_stage(
+        wavecrate::readiness_execution::run_feature_stage(
             connection,
             &source.root,
             source.id.as_str(),
@@ -281,7 +277,7 @@ pub(super) fn run_readiness_embedding_stage(
 ) -> Result<bool, SourceProcessingFailure> {
     #[cfg(test)]
     {
-        wavecrate::internal_analysis_jobs::run_readiness_embedding_stage(
+        wavecrate::readiness_execution::run_embedding_stage(
             connection,
             &source.root,
             source.id.as_str(),
@@ -343,7 +339,7 @@ fn execute_request(
             analysis_version,
         } => {
             let mut connection = open_source_connection(&request.source)?;
-            let produced = wavecrate::internal_analysis_jobs::run_readiness_feature_stage(
+            let produced = wavecrate::readiness_execution::run_feature_stage(
                 &mut connection,
                 &request.source.root,
                 request.source.id.as_str(),
@@ -367,7 +363,7 @@ fn execute_request(
             analysis_version,
         } => {
             let mut connection = open_source_connection(&request.source)?;
-            let produced = wavecrate::internal_analysis_jobs::run_readiness_embedding_stage(
+            let produced = wavecrate::readiness_execution::run_embedding_stage(
                 &mut connection,
                 &request.source.root,
                 request.source.id.as_str(),

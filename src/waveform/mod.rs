@@ -8,6 +8,7 @@ mod model;
 pub(crate) mod peak_analysis;
 mod render;
 mod sampling;
+#[cfg(any(test, feature = "legacy-controller"))]
 pub(crate) mod transients;
 mod zoom_cache;
 

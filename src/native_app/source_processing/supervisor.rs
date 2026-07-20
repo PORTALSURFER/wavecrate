@@ -9493,7 +9493,7 @@ mod tests {
             .expect("target claimed");
 
         let failure = SourceProcessingFailure::from(
-            wavecrate::internal_analysis_jobs::ReadinessStageError::Decode(
+            wavecrate::readiness_execution::ReadinessStageError::Decode(
                 wavecrate_analysis::AnalysisDecodeError::Unsupported(
                     "wrapped decoder wording must not affect policy".to_string(),
                 ),

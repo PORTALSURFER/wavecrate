@@ -27,6 +27,7 @@ missing_docs = "deny"
 [features]
 default = []
 gui-performance = []
+legacy-controller = []
 native-bridge-metrics = []
 sqlite-ext-unsafe = ["wavecrate-library/sqlite-ext-unsafe"]
 
@@ -147,6 +148,11 @@ path = "src/main.rs"
 [[bench]]
 name = "tagging"
 harness = false
+
+[[test]]
+name = "controller_browser_integration"
+path = "tests/controller_browser_integration.rs"
+required-features = ["legacy-controller"]
 
 [profile.release-local]
 inherits = "release"

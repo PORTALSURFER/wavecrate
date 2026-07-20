@@ -77,6 +77,7 @@ try {
   Invoke-Check -Label "manual docs scope guard" -ScriptPath (Join-Path $checkDir "check_manual_docs_scope.ps1")
   Invoke-Check -Label "legacy app coupling guardrail" -ScriptPath (Join-Path $checkDir "check_legacy_app_coupling.ps1")
   Invoke-Check -Label "native app boundary guardrail" -ScriptPath (Join-Path $checkDir "check_native_app_boundary.ps1")
+  Invoke-Check -Label "readiness executor boundary guardrail" -ScriptPath (Join-Path $checkDir "check_readiness_executor_boundary.ps1")
   Invoke-Check -Label "source database open-role guardrail" -ScriptPath (Join-Path $checkDir "check_source_db_open_roles.ps1")
   Invoke-Check -Label "non-blocking architecture guardrails" -ScriptPath (Join-Path $checkDir "check_non_blocking_architecture.ps1")
   Invoke-Check -Label "Wavecrate facade guardrail" -ScriptPath (Join-Path $checkDir "check_wavecrate_facades.ps1")

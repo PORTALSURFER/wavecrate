@@ -1,6 +1,9 @@
 //! Pure peak-span and viewport sampling helpers for waveform model types.
 
-use super::{DecodedWaveform, WaveformChannelView, WaveformColumnView, WaveformPeaks};
+#[cfg(any(test, feature = "legacy-controller"))]
+use super::DecodedWaveform;
+use super::{WaveformChannelView, WaveformColumnView, WaveformPeaks};
+#[cfg(any(test, feature = "legacy-controller"))]
 impl DecodedWaveform {
     pub(crate) fn max_abs_in_span(&self, start: f32, end: f32) -> Option<f32> {
         if !start.is_finite() || !end.is_finite() {
@@ -22,6 +25,7 @@ impl DecodedWaveform {
     }
 }
 
+#[cfg(any(test, feature = "legacy-controller"))]
 fn max_abs_from_samples(samples: &[f32], channels: usize, start: f32, end: f32) -> Option<f32> {
     if samples.is_empty() {
         return None;
@@ -47,6 +51,7 @@ fn max_abs_from_samples(samples: &[f32], channels: usize, start: f32, end: f32) 
     Some(peak)
 }
 
+#[cfg(any(test, feature = "legacy-controller"))]
 fn max_abs_from_peaks(peaks: &WaveformPeaks, start: f32, end: f32) -> Option<f32> {
     let total_frames = peaks.total_frames.max(1);
     let bucket_size = peaks.bucket_size_frames.max(1);

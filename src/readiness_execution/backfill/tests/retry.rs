@@ -1,3 +1,5 @@
+//! Bounded persistence-retry coverage.
+
 use super::super::persistence;
 use std::path::Path;
 use std::time::Duration;

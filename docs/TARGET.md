@@ -108,8 +108,14 @@ The current codebase has one Wavecrate desktop UI surface and several supporting
 runtime/test surfaces:
 
 - `src/native_app.rs` is the Wavecrate desktop UI entrypoint and should be treated as the place for new Wavecrate desktop UI behavior.
+- `src/readiness_execution/**` owns feature and embedding readiness execution used by native source processing. It is part of the default library graph and must remain independent of `src/app/**`.
 - `src/app_core/**` contains host-facing projections, action catalog state, and controller integration used by tests and companion runtime surfaces.
 - `src/app/controller/**` contains older controller workflow logic that may still be the best evidence for mature behavior such as rating, filtering, trash configuration, similarity, recording experiments, and recovery flows, but it should not be used to re-expand the legacy UI path by default.
+
+The retained `src/app/**`, `src/app_core/**`, and `src/gui_test/**` compatibility
+surfaces are opt-in through the `legacy-controller` Cargo feature for tools that
+still require them. They must not be compiled by the default Wavecrate library
+or native application path.
 
 Current implementation details are evidence, not automatic product requirements.
 If current code uses a temporary cap, simplified file operation, developer

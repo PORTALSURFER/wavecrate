@@ -59,6 +59,10 @@ try {
   Invoke-NativeStep -Label "scripts/check.ps1 non-blocking-architecture" -Command {
     & (Join-Path $rootDir "scripts/check.ps1") non-blocking-architecture
   }
+  Write-Host "[ci_agent] scripts/check.ps1 readiness-executor-boundary"
+  Invoke-NativeStep -Label "scripts/check.ps1 readiness-executor-boundary" -Command {
+    & (Join-Path $rootDir "scripts/check.ps1") readiness-executor-boundary
+  }
 
   Write-Host "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features"
   Invoke-NativeStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features" -Command {
@@ -68,6 +72,11 @@ try {
   Write-Host "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features"
   Invoke-NativeStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features" -Command {
     Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml --test app_runtime_api --no-default-features
+  }
+
+  Write-Host "[ci_agent] cargo test -p wavecrate --test controller_browser_integration --features legacy-controller"
+  Invoke-NativeStep -Label "cargo test -p wavecrate --test controller_browser_integration --features legacy-controller" -Command {
+    Invoke-WavecrateCargo test -p wavecrate --test controller_browser_integration --features legacy-controller
   }
 
   Write-Host "[ci_agent] cargo test -p wavecrate --lib -- --skip known isolated legacy failures"

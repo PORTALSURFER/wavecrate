@@ -1,3 +1,5 @@
+//! Embedding-backfill executor regression coverage.
+
 mod batching;
 mod persistence_rollback;
 mod planning;

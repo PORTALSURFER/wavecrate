@@ -1,3 +1,5 @@
+//! Worker fan-out and batching coverage.
+
 use super::super::{model, workers};
 use super::support::make_work;
 use std::collections::VecDeque;
