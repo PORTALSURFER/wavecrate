@@ -3,7 +3,21 @@ use std::time::Instant;
 use radiant::prelude as ui;
 
 use crate::native_app::app::{GuiMessage, NativeAppState, SourceSelectionRequest, emit_gui_action};
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::sample_library::source_prep::{
+    CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+    SourcePrepIntents, SourcePriorityIntent,
+};
+
+pub(in crate::native_app) const PROCESS_SOURCE_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::Reanalyze,
+        priority: SourcePriorityIntent::PromoteSource,
+        metadata_refresh: MetadataRefreshIntent::Force,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::SelectedFolderOrSource,
+        feedback: SourceFeedbackIntent::QueuedIfCacheWarmNotScheduled,
+    };
+pub(in crate::native_app) const PROCESS_SOURCE_PREP_REASON: &str = "user_requested";
 
 impl NativeAppState {
     pub(in crate::native_app) fn select_source(
@@ -183,7 +197,12 @@ impl NativeAppState {
             );
             return;
         }
-        self.queue_source_prep(source_id.clone(), SourcePrepTrigger::UserRequested, context);
+        self.queue_source_prep(
+            source_id.clone(),
+            PROCESS_SOURCE_PREP_INTENTS,
+            PROCESS_SOURCE_PREP_REASON,
+            context,
+        );
         emit_gui_action(
             "folder_browser.source.process",
             Some("sources"),

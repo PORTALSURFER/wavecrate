@@ -3,8 +3,25 @@ use std::time::Instant;
 
 use crate::native_app::{
     app::{GuiMessage, NativeAppState, emit_gui_action},
-    sample_library::{folder_browser::scan, source_prep::SourcePrepTrigger},
+    sample_library::{
+        folder_browser::scan,
+        source_prep::{
+            CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+            SourcePrepIntents, SourcePriorityIntent,
+        },
+    },
 };
+
+pub(in crate::native_app) const VERIFIED_SOURCE_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::RequestConvergence,
+        priority: SourcePriorityIntent::PromoteIfSelected,
+        metadata_refresh: MetadataRefreshIntent::IfNotLoaded,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::Preserve,
+        feedback: SourceFeedbackIntent::Preserve,
+    };
+pub(in crate::native_app) const VERIFIED_SOURCE_PREP_REASON: &str = "source_verified";
 
 impl NativeAppState {
     pub(in crate::native_app) fn queue_selected_source_folder_tree_refresh(
@@ -64,7 +81,8 @@ impl NativeAppState {
         }
         self.queue_source_prep(
             source_id.clone(),
-            SourcePrepTrigger::SourceVerified,
+            VERIFIED_SOURCE_PREP_INTENTS,
+            VERIFIED_SOURCE_PREP_REASON,
             context,
         );
         emit_gui_action(

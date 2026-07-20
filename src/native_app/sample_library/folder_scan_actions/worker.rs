@@ -10,13 +10,27 @@ use crate::native_app::{
     sample_library::folder_browser::scan::{
         FolderScanRequest, PreparedFolderScanResult, reserve_source_scan_cache_revision,
     },
-    sample_library::source_prep::SourcePrepTrigger,
+    sample_library::source_prep::{
+        CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+        SourcePrepIntents, SourcePriorityIntent,
+    },
 };
 use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
 
 use super::maintenance::{
     FolderScanMaintenanceRequest, FolderScanMaintenanceResult, persist_folder_scan_maintenance,
 };
+
+pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::RequestConvergence,
+        priority: SourcePriorityIntent::PromoteIfSelected,
+        metadata_refresh: MetadataRefreshIntent::Force,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::Preserve,
+        feedback: SourceFeedbackIntent::Preserve,
+    };
+pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_REASON: &str = "source_scan_finished";
 
 impl NativeAppState {
     pub(in crate::native_app) fn launch_folder_scan(
@@ -313,7 +327,8 @@ impl NativeAppState {
             );
             self.queue_source_prep(
                 scan.source_id.clone(),
-                SourcePrepTrigger::SourceScanFinished,
+                SOURCE_SCAN_COMPLETION_PREP_INTENTS,
+                SOURCE_SCAN_COMPLETION_PREP_REASON,
                 context,
             );
         }

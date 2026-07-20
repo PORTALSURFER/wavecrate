@@ -5,7 +5,15 @@ mod layout;
 mod navigation;
 mod source;
 
+#[cfg(test)]
+pub(in crate::native_app) use folder_tree::{
+    FOLDER_ACTIVATION_PREP_INTENTS, FOLDER_ACTIVATION_PREP_REASON,
+};
 pub(in crate::native_app) use navigation::file_navigation_reveal_direction;
+#[cfg(test)]
+pub(in crate::native_app) use source::{
+    SOURCE_SELECTION_PREP_INTENTS, SOURCE_SELECTION_PREP_REASON,
+};
 
 use radiant::prelude as ui;
 

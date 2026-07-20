@@ -351,6 +351,8 @@ Reconciliation compares desired targets with persisted artifacts and readiness-o
 
 Detection and execution stay off UI, render, and latency-sensitive read paths. UI and read paths may observe a side-effect-free readiness snapshot and request priority, repair, or retry, but they must not discover a missing artifact by directly enqueueing hidden work. Lifecycle writers publish committed desired generations and wake the background coordinator only after their authoritative transaction succeeds.
 
+Native source-preparation callers declare orthogonal intents for readiness wake or reanalysis, source priority, persisted-metadata projection, waveform-cache projection, cache warming, and user feedback. Source selection, folder activation, verified startup, scan completion, committed filesystem mutation, watcher reconciliation, and explicit `Process Source` each request only their required effects; descriptive telemetry reasons never select policy. The source-processing supervisor remains the sole owner of readiness convergence.
+
 The readiness contract must be protected by a deterministic native-runtime
 liveness oracle over real temporary sources. The oracle observes committed
 manifest/readiness generations and the supervisor's durable/runtime state

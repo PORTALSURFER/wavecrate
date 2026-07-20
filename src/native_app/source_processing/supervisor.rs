@@ -851,7 +851,6 @@ impl SourceProcessingSupervisor {
         control
             .force_reanalysis_sources
             .insert(source_id.to_string());
-        control.priority.selected_source = Some(source_id.to_string());
         control.mark_source_dirty(source_id, reason);
         drop(control);
         self.shared
@@ -885,6 +884,11 @@ impl SourceProcessingSupervisor {
             control.notify("selected_source_changed");
             self.shared.wake.notify_one();
         }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn selected_source_priority_for_tests(&self) -> Option<String> {
+        self.shared.control().priority.selected_source.clone()
     }
 
     pub(in crate::native_app) fn prioritize_path(
@@ -5807,7 +5811,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_reanalysis_cancels_current_work_and_prioritizes_the_source() {
+    fn explicit_reanalysis_cancels_current_work_without_implicit_priority() {
         let (_directory, source) = unhashed_source("explicit-reanalysis-request");
         let mut supervisor = SourceProcessingSupervisor::dormant();
         supervisor
@@ -5835,10 +5839,7 @@ mod tests {
                 .force_reanalysis_sources
                 .contains(source.id.as_str())
         );
-        assert_eq!(
-            control.priority.selected_source.as_deref(),
-            Some(source.id.as_str())
-        );
+        assert_eq!(control.priority.selected_source, None);
         assert!(
             !control.source_work_cancels[source.id.as_str()].load(Ordering::Acquire),
             "the replacement generation must be available for the reanalysis run"

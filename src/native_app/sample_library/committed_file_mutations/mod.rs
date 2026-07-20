@@ -15,7 +15,10 @@ use crate::native_app::sample_library::folder_browser::BrowserListingRevealReaso
 use crate::native_app::sample_library::folder_browser::commands::{
     FileMoveConflictCompletion, FolderMoveRequest, FolderMoveSuccess, RenameCommitCompletion,
 };
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::sample_library::source_prep::{
+    CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+    SourcePrepIntents, SourcePriorityIntent,
+};
 
 #[cfg(test)]
 mod tests;
@@ -29,6 +32,17 @@ use worker::{
     build_source_requests, capture_expected_filesystem_state, merge_file_mutation_failures,
     mutation_completion_is_stale_or_duplicate, reconcile_file_mutation_requests,
 };
+
+pub(in crate::native_app) const COMMITTED_MUTATION_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::InvalidateAndRequestConvergence,
+        priority: SourcePriorityIntent::PromoteIfSelected,
+        metadata_refresh: MetadataRefreshIntent::Force,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::Preserve,
+        feedback: SourceFeedbackIntent::Preserve,
+    };
+pub(in crate::native_app) const COMMITTED_MUTATION_PREP_REASON: &str = "filesystem_changed";
 
 #[cfg(test)]
 pub(in crate::native_app) fn reconcile_file_mutation_for_liveness_test(
@@ -543,7 +557,8 @@ impl NativeAppState {
             // reconciler. It deliberately happens after the source DB and browser projection.
             self.queue_source_prep(
                 event.source_id,
-                SourcePrepTrigger::FilesystemChanged,
+                COMMITTED_MUTATION_PREP_INTENTS,
+                COMMITTED_MUTATION_PREP_REASON,
                 context,
             );
         }

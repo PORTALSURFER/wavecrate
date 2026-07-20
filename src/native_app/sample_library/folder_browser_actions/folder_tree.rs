@@ -7,7 +7,21 @@ use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMe
 use crate::native_app::sample_library::folder_browser::view_contract::{
     FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_OVERSCAN_ROWS, FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
 };
-use crate::native_app::sample_library::source_prep::SourcePrepTrigger;
+use crate::native_app::sample_library::source_prep::{
+    CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
+    SourcePrepIntents, SourcePriorityIntent,
+};
+
+pub(in crate::native_app) const FOLDER_ACTIVATION_PREP_INTENTS: SourcePrepIntents =
+    SourcePrepIntents {
+        readiness: ReadinessIntent::RequestConvergence,
+        priority: SourcePriorityIntent::PromoteIfSelected,
+        metadata_refresh: MetadataRefreshIntent::IfNotLoaded,
+        refresh_waveform_cache_projection_if_selected: true,
+        cache_warm: CacheWarmIntent::Preserve,
+        feedback: SourceFeedbackIntent::Preserve,
+    };
+pub(in crate::native_app) const FOLDER_ACTIVATION_PREP_REASON: &str = "folder_activated";
 
 impl NativeAppState {
     pub(super) fn activate_folder_browser_folder(
@@ -31,7 +45,11 @@ impl NativeAppState {
             .folder_browser
             .apply_message(FolderBrowserMessage::ActivateFolder(folder_id, modifiers));
         self.queue_selected_folder_verify_after_activation(context);
-        self.queue_selected_source_prep(SourcePrepTrigger::FolderActivated, context);
+        self.queue_selected_source_prep(
+            FOLDER_ACTIVATION_PREP_INTENTS,
+            FOLDER_ACTIVATION_PREP_REASON,
+            context,
+        );
         emit_gui_action(
             "folder_browser.activate_folder",
             Some("folder_browser"),

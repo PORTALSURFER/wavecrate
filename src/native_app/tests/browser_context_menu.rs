@@ -937,6 +937,15 @@ fn source_context_menu_processes_context_source_without_selecting_it() {
         first_source_id
     );
     assert_eq!(
+        state
+            .background
+            .source_processing
+            .selected_source_priority_for_tests()
+            .as_deref(),
+        Some(second_source_id.as_str()),
+        "explicit Process Source must promote its context source without changing UI selection"
+    );
+    assert_eq!(
         state.waveform.cache.active_folder_warm_folder_id.as_deref(),
         Some(second_root.path().to_string_lossy().as_ref())
     );
