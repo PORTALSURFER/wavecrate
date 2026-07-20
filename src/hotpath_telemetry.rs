@@ -24,6 +24,7 @@ pub(crate) fn add_duration_ns(counter: &AtomicU64, duration: Duration) {
 }
 
 /// Add a byte count to a `u64` counter with saturating `usize` conversion.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub(crate) fn add_bytes(counter: &AtomicU64, bytes: usize) {
     counter.fetch_add(bytes.min(u64::MAX as usize) as u64, Ordering::Relaxed);
 }

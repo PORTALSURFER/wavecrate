@@ -3,24 +3,7 @@
 pub(crate) mod db;
 mod enqueue;
 mod failures;
-#[path = "pool/job_execution/mod.rs"]
-mod job_execution;
 mod types;
-
-/// Typed failure emitted while producing one readiness stage.
-#[derive(Debug)]
-pub enum ReadinessStageError {
-    /// The decoder identified a media-specific failure.
-    Decode(wavecrate_analysis::AnalysisDecodeError),
-    /// A non-decoder stage failure whose owner has no narrower type yet.
-    Other(String),
-}
-
-impl From<String> for ReadinessStageError {
-    fn from(error: String) -> Self {
-        Self::Other(error)
-    }
-}
 
 #[cfg(test)]
 pub(crate) use db::sample_bpm;
@@ -62,44 +45,4 @@ fn database_path_entry_present(path: &std::path::Path) -> Result<bool, String> {
             path.display()
         )),
     }
-}
-
-pub(crate) fn run_readiness_feature_stage(
-    conn: &mut rusqlite::Connection,
-    source_root: &std::path::Path,
-    source_id: &str,
-    relative_path: &std::path::Path,
-    content_hash: &str,
-    analysis_version: &str,
-    cancel: &std::sync::atomic::AtomicBool,
-) -> Result<bool, ReadinessStageError> {
-    job_execution::run_feature_stage(
-        conn,
-        source_root,
-        source_id,
-        relative_path,
-        content_hash,
-        analysis_version,
-        cancel,
-    )
-}
-
-pub(crate) fn run_readiness_embedding_stage(
-    conn: &mut rusqlite::Connection,
-    source_root: &std::path::Path,
-    source_id: &str,
-    relative_path: &std::path::Path,
-    content_hash: &str,
-    analysis_version: &str,
-    cancel: &std::sync::atomic::AtomicBool,
-) -> Result<bool, String> {
-    job_execution::run_embedding_stage(
-        conn,
-        source_root,
-        source_id,
-        relative_path,
-        content_hash,
-        analysis_version,
-        cancel,
-    )
 }

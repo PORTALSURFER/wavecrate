@@ -71,11 +71,13 @@ impl PeakAnalysisAccumulator {
     }
 
     /// Return the current bucket/analysis layout.
+    #[cfg(any(test, feature = "legacy-controller"))]
     pub(crate) fn layout(&self) -> PeakAnalysisLayout {
         self.layout
     }
 
     /// Return the number of frames accumulated so far.
+    #[cfg(any(test, feature = "legacy-controller"))]
     pub(crate) fn total_frames(&self) -> usize {
         self.total_frames
     }

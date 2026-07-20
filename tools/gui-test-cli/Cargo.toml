@@ -8,5 +8,5 @@ warnings = "deny"
 missing_docs = "deny"
 
 [dependencies]
-wavecrate = { path = "../.." }
+wavecrate = { path = "../..", features = ["legacy-controller"] }
 serde_json = "1.0.145"

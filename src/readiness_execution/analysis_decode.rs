@@ -1,5 +1,6 @@
-use crate::app::controller::library::analysis_jobs::ReadinessStageError;
 use std::path::Path;
+
+use super::ReadinessStageError;
 
 pub(crate) fn decode_for_readiness(
     absolute_path: &Path,

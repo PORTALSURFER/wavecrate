@@ -487,7 +487,19 @@ mod tests {
         };
         let mut chosen = Vec::new();
         while !candidates.is_empty() {
-            let index = scheduler.choose(&candidates, &priority, &budgets).unwrap();
+            let Some(index) = scheduler.choose(&candidates, &priority, &budgets) else {
+                let active_source = scheduler
+                    .active_source()
+                    .expect("a blocked choice retains source ownership");
+                assert!(
+                    candidates
+                        .iter()
+                        .all(|candidate| candidate.source_id != active_source),
+                    "the active source must be drained before ownership is released"
+                );
+                scheduler.release_active_source();
+                continue;
+            };
             let candidate = candidates.remove(index);
             chosen.push((candidate.source_id, candidate.scope_id));
         }

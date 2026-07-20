@@ -1,6 +1,6 @@
 //! Cache and repository helpers for embedding backfill planning.
 
-use crate::app::controller::library::analysis_jobs::db;
+use super::super::storage as db;
 use rusqlite::{OptionalExtension, params};
 
 use super::model::{AspectDescriptorData, EmbeddingData};

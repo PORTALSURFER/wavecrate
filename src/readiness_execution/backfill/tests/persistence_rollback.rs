@@ -1,3 +1,5 @@
+//! Transaction rollback coverage.
+
 use super::super::{model, persistence};
 use super::support::{conn_with_schema, count_rows, insert_sample};
 

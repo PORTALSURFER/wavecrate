@@ -47,6 +47,8 @@ echo "[ci_agent] ./scripts/ci.sh smoke"
 
 echo "[ci_agent] ./scripts/check.sh non-blocking-architecture"
 ./scripts/check.sh non-blocking-architecture
+echo "[ci_agent] ./scripts/check.sh readiness-executor-boundary"
+./scripts/check.sh readiness-executor-boundary
 
 echo "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features"
 cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features

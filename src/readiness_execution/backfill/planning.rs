@@ -1,7 +1,7 @@
 //! Backfill planning and cache-reuse decisions.
 
+use super::super::storage as db;
 use super::super::support::{load_embedding_vec_optional, now_epoch_seconds};
-use crate::app::controller::library::analysis_jobs::db;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::warn;

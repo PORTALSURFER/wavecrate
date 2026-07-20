@@ -59,6 +59,10 @@ try {
   Invoke-NativeStep -Label "scripts/check.ps1 non-blocking-architecture" -Command {
     & (Join-Path $rootDir "scripts/check.ps1") non-blocking-architecture
   }
+  Write-Host "[ci_agent] scripts/check.ps1 readiness-executor-boundary"
+  Invoke-NativeStep -Label "scripts/check.ps1 readiness-executor-boundary" -Command {
+    & (Join-Path $rootDir "scripts/check.ps1") readiness-executor-boundary
+  }
 
   Write-Host "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features"
   Invoke-NativeStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml --lib --no-default-features" -Command {

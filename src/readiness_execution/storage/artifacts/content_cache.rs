@@ -11,22 +11,16 @@ pub(crate) struct CachedFeatures {
 }
 
 pub(crate) struct CachedEmbedding {
-    pub(crate) model_id: String,
-    pub(crate) dim: i64,
-    pub(crate) dtype: String,
-    pub(crate) l2_normed: bool,
     pub(crate) vec_blob: Vec<u8>,
     pub(crate) created_at: i64,
 }
 
 pub(crate) struct CachedAspectDescriptors {
-    pub(crate) model_id: String,
     pub(crate) dim: i64,
     pub(crate) dtype: String,
     pub(crate) l2_normed: bool,
     pub(crate) valid_mask: u32,
     pub(crate) vec_blob: Vec<u8>,
-    pub(crate) created_at: i64,
 }
 
 /// Typed inputs for caching reusable feature vectors by content hash.
@@ -101,18 +95,14 @@ pub(crate) fn cached_embedding_by_hash(
     model_id: &str,
 ) -> Result<Option<CachedEmbedding>, String> {
     conn.query_row(
-        "SELECT model_id, dim, dtype, l2_normed, vec, created_at
+        "SELECT vec, created_at
          FROM analysis_cache_embeddings
          WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?3",
         params![content_hash, analysis_version, model_id],
         |row| {
             Ok(CachedEmbedding {
-                model_id: row.get(0)?,
-                dim: row.get(1)?,
-                dtype: row.get(2)?,
-                l2_normed: row.get::<_, i64>(3)? != 0,
-                vec_blob: row.get(4)?,
-                created_at: row.get(5)?,
+                vec_blob: row.get(0)?,
+                created_at: row.get(1)?,
             })
         },
     )
@@ -127,19 +117,17 @@ pub(crate) fn cached_aspect_descriptors_by_hash(
     model_id: &str,
 ) -> Result<Option<CachedAspectDescriptors>, String> {
     conn.query_row(
-        "SELECT model_id, dim, dtype, l2_normed, valid_mask, vec, created_at
+        "SELECT dim, dtype, l2_normed, valid_mask, vec
          FROM analysis_cache_aspect_descriptors
          WHERE content_hash = ?1 AND analysis_version = ?2 AND model_id = ?3",
         params![content_hash, analysis_version, model_id],
         |row| {
             Ok(CachedAspectDescriptors {
-                model_id: row.get(0)?,
-                dim: row.get(1)?,
-                dtype: row.get(2)?,
-                l2_normed: row.get::<_, i64>(3)? != 0,
-                valid_mask: row.get::<_, i64>(4)? as u32,
-                vec_blob: row.get(5)?,
-                created_at: row.get(6)?,
+                dim: row.get(0)?,
+                dtype: row.get(1)?,
+                l2_normed: row.get::<_, i64>(2)? != 0,
+                valid_mask: row.get::<_, i64>(3)? as u32,
+                vec_blob: row.get(4)?,
             })
         },
     )

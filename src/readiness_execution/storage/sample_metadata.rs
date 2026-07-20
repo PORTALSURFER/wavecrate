@@ -1,5 +1,9 @@
+#[cfg(test)]
 use super::telemetry;
-use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
+#[cfg(any(test, feature = "legacy-controller"))]
+use rusqlite::params_from_iter;
+use rusqlite::{Connection, OptionalExtension, params};
+#[cfg(any(test, feature = "legacy-controller"))]
 use std::collections::HashSet;
 
 pub(crate) fn sample_content_hash(
@@ -16,6 +20,7 @@ pub(crate) fn sample_content_hash(
 }
 
 /// Load the stored BPM for a sample, if present.
+#[cfg(test)]
 pub(crate) fn sample_bpm(conn: &Connection, sample_id: &str) -> Result<Option<f32>, String> {
     let bpm: Option<f64> = conn
         .query_row(
@@ -52,6 +57,7 @@ pub(crate) fn update_sample_bpm(
 }
 
 /// Update the stored BPM for multiple sample rows, clearing it if the value is invalid.
+#[cfg(test)]
 pub(crate) fn update_sample_bpms(
     conn: &mut Connection,
     sample_ids: &[String],
@@ -69,6 +75,7 @@ pub(crate) fn update_sample_bpms(
 }
 
 /// Update stored BPM values for multiple samples inside an existing write transaction.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub(crate) fn update_sample_bpms_in_tx(
     conn: &rusqlite::Transaction<'_>,
     sample_ids: &[String],
@@ -91,6 +98,7 @@ pub(crate) fn update_sample_bpms_in_tx(
 }
 
 /// Return the subset of sample ids that lack a stored duration.
+#[cfg(any(test, feature = "legacy-controller"))]
 pub(crate) fn sample_ids_missing_duration(
     conn: &Connection,
     sample_ids: &[String],
@@ -122,11 +130,13 @@ pub(crate) fn sample_ids_missing_duration(
     Ok(missing)
 }
 
+#[cfg(test)]
 fn normalized_bpm(bpm: Option<f32>) -> Option<f64> {
     bpm.filter(|value| value.is_finite() && *value > 0.0)
         .map(|value| value as f64)
 }
 
+#[cfg(any(test, feature = "legacy-controller"))]
 fn placeholders(count: usize) -> String {
     std::iter::repeat_n("?", count)
         .collect::<Vec<_>>()

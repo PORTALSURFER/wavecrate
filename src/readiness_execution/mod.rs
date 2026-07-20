@@ -1,4 +1,4 @@
-//! Stage-specific execution reused by the native readiness supervisor.
+//! Analysis and persistence execution for supervisor-owned readiness stages.
 
 use std::{
     fs::File,
@@ -7,14 +7,35 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::app::controller::library::analysis_jobs::{ReadinessStageError, db};
 use rusqlite::OptionalExtension;
 
-use super::{analysis_decode, backfill, support::now_epoch_seconds};
+mod analysis_decode;
+mod backfill;
+mod errors;
+pub(crate) mod storage;
+mod support;
 
 const FEATURE_RMS_INDEX: usize = 2;
 
-pub(crate) fn run_feature_stage(
+use self::{storage as db, support::now_epoch_seconds};
+
+/// Typed failure emitted while producing one readiness stage.
+#[derive(Debug)]
+pub enum ReadinessStageError {
+    /// The decoder identified a media-specific failure.
+    Decode(wavecrate_analysis::AnalysisDecodeError),
+    /// A non-decoder stage failure whose owner has no narrower type yet.
+    Other(String),
+}
+
+impl From<String> for ReadinessStageError {
+    fn from(error: String) -> Self {
+        Self::Other(error)
+    }
+}
+
+/// Produce current feature artifacts for one readiness-owned file target.
+pub fn run_feature_stage(
     conn: &mut rusqlite::Connection,
     source_root: &Path,
     source_id: &str,
@@ -266,7 +287,8 @@ fn ensure_current_sample_row(
     Ok(true)
 }
 
-pub(crate) fn run_embedding_stage(
+/// Produce current embedding and aspect artifacts for one readiness-owned file target.
+pub fn run_embedding_stage(
     conn: &mut rusqlite::Connection,
     source_root: &Path,
     source_id: &str,

@@ -41,6 +41,7 @@ $commands = @{
   "private-docs" = "check_rust_private_docs.ps1"
   "prune-file-budget" = "prune_file_size_budget_allowlist.ps1"
   "public-docs" = "check_rust_public_docs.ps1"
+  "readiness-executor-boundary" = "check_readiness_executor_boundary.ps1"
   "report-env-vars" = "report_env_vars_drift.sh"
   "report-file-budget" = "report_file_size_budget_allowlist.ps1"
   "report-markdown-links" = "report_markdown_links_all.sh"
