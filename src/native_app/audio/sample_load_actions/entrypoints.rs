@@ -513,10 +513,15 @@ impl NativeAppState {
             if self.waveform.current.has_loaded_sample()
                 && self.waveform.current.path() == Path::new(path.as_str())
             {
-                let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
+                let progress = self
+                    .audio
+                    .active_sample_playback_progress(path.as_str())
+                    .filter(|progress| progress.active)
+                    .and_then(|progress| progress.progress)
+                    .unwrap_or(0.0);
                 self.waveform
                     .current
-                    .start_playback_without_marker(progress);
+                    .start_playback_after_audition_handoff(progress, 0.0, false);
             }
             emit_gui_action(
                 "browser.select_sample.settled_promotion",

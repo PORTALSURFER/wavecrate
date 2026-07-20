@@ -239,7 +239,17 @@ impl NativeAppState {
             PlaybackMode::Looped { offset_ratio } => offset_ratio,
             PlaybackMode::OneShot => command.resolved.start_ratio,
         };
-        if command.intent.show_start_marker {
+        let preserves_existing_marker = self.waveform.current.is_playing()
+            && self
+                .waveform
+                .current
+                .playhead_ratio()
+                .is_some_and(|ratio| (ratio - playback_start).abs() <= 0.000_1);
+        if preserves_existing_marker {
+            self.waveform
+                .current
+                .restart_playback_preserving_marker(playback_start);
+        } else if command.intent.show_start_marker {
             self.waveform.current.start_playback(playback_start);
         } else {
             self.waveform

@@ -69,18 +69,48 @@ impl NativeAppState {
             }
             PlaybackRuntimeEvent::Stopped { .. } => {}
             PlaybackRuntimeEvent::Progress { id, progress } => {
-                let confirmed_retarget = self
-                    .audio
-                    .sample_playback_session
-                    .as_mut()
-                    .is_some_and(|session| session.confirm_span_retarget(id));
-                if confirmed_retarget {
-                    self.apply_authoritative_runtime_playback_progress(progress);
-                } else {
-                    self.apply_runtime_playback_progress(progress);
-                }
+                self.apply_runtime_playback_progress_for_request(id.get(), progress);
             }
         }
+    }
+
+    fn apply_runtime_playback_progress_for_request(
+        &mut self,
+        request_id: u64,
+        progress: PlaybackRuntimeProgress,
+    ) {
+        if self
+            .audio
+            .pending_playback_progress_polls
+            .remove(&request_id)
+        {
+            self.apply_runtime_playback_progress(progress);
+            return;
+        }
+        let confirmed_retarget =
+            self.audio
+                .sample_playback_session
+                .as_mut()
+                .is_some_and(|session| {
+                    if !session.confirm_span_retarget_id(request_id) {
+                        return false;
+                    }
+                    session.runtime_request_id = Some(request_id);
+                    true
+                });
+        if confirmed_retarget {
+            self.apply_authoritative_runtime_playback_progress(progress);
+            return;
+        }
+        if self
+            .audio
+            .sample_playback_session
+            .as_ref()
+            .is_some_and(|session| session.runtime_request_id != Some(request_id))
+        {
+            return;
+        }
+        self.apply_runtime_playback_progress(progress);
     }
 
     pub(super) fn apply_runtime_playback_progress(&mut self, progress: PlaybackRuntimeProgress) {
@@ -140,6 +170,7 @@ impl NativeAppState {
         } else {
             SamplePlaybackSessionState::AudibleTransient
         };
+        session.audible_started_at = Some(std::time::Instant::now());
         let path = session.request.path.clone();
         let span = session.request.span;
         let show_start_marker = session.request.show_start_marker;
@@ -165,7 +196,17 @@ impl NativeAppState {
             && !preserves_live_retarget
             && self.waveform.current.path() == Path::new(&path)
         {
-            if show_start_marker {
+            let preserves_existing_marker = self.waveform.current.is_playing()
+                && self
+                    .waveform
+                    .current
+                    .playhead_ratio()
+                    .is_some_and(|ratio| (ratio - playback_start).abs() <= 0.000_1);
+            if preserves_existing_marker {
+                self.waveform
+                    .current
+                    .restart_playback_preserving_marker(playback_start);
+            } else if show_start_marker {
                 self.waveform.current.start_playback(playback_start);
             } else {
                 self.waveform

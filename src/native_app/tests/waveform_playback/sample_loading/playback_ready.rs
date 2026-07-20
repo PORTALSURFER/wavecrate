@@ -233,7 +233,21 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
         sample_path_string.clone(),
         "preview_samples",
     );
-    state.audio.playback_progress.elapsed = Some(std::time::Duration::from_millis(110));
+    let preview_session = state
+        .audio
+        .sample_playback_session
+        .as_mut()
+        .expect("preview session");
+    preview_session.state = crate::native_app::app::SamplePlaybackSessionState::AudibleTransient;
+    preview_session.audible_started_at =
+        Some(std::time::Instant::now() - std::time::Duration::from_millis(110));
+    state.audio.playback_progress = wavecrate::audio::PlaybackRuntimeProgress {
+        active: true,
+        elapsed: Some(std::time::Duration::ZERO),
+        looping: false,
+        progress: Some(0.0),
+        error: None,
+    };
     let ticket = state.background.settled_sample_promotion_task.begin();
     let mut context = ui::UiUpdateContext::default();
 
@@ -267,6 +281,22 @@ fn settled_preview_promotion_starts_full_playback_for_current_loaded_sample() {
         "settled preview handoff should continue past the heard preview instead of replaying from the top"
     );
     assert_eq!(pending.intent.end_ratio, 1.0);
+    assert_eq!(
+        state.waveform.current.play_mark_ratio(),
+        Some(0.0),
+        "the start marker should describe where the audition began, not the continuation ratio"
+    );
+    let heard = state
+        .waveform
+        .current
+        .played_ranges()
+        .first()
+        .expect("preview handoff should preserve the already auditioned prefix");
+    assert!((heard.start() - 0.0).abs() < 0.001);
+    assert!(
+        (heard.end() - pending.intent.start_ratio).abs() < 0.01,
+        "played history should begin at the sample start and meet the continuing playhead"
+    );
 }
 
 #[test]

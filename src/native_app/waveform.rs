@@ -108,6 +108,7 @@ mod widget_input;
 mod edit_fade_curve_paint;
 mod edit_fade_geometry;
 mod edit_fade_paint;
+mod played_range_paint;
 mod playmark_label;
 mod selection_paint;
 

@@ -53,7 +53,9 @@ pub(crate) use routing::normalized_progress;
 pub(crate) use source::OutputAdapter;
 pub use source::{SamplesBuffer, Source};
 
-pub(crate) const DEFAULT_ANTI_CLIP_FADE: Duration = Duration::from_millis(2);
+// Keep the anti-click envelope short enough to preserve sharp audition
+// transients while still smoothing abrupt source starts and stops.
+pub(crate) const DEFAULT_ANTI_CLIP_FADE: Duration = Duration::from_millis(3);
 
 #[cfg(test)]
 mod tests;

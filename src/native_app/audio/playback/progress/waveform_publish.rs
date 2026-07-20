@@ -1,4 +1,7 @@
-use super::super::diagnostics::PlayheadOverlayFrameDiagnostics;
+use super::super::{
+    diagnostics::{PlayheadOverlayFrameDiagnostics, PlayheadProgressSource},
+    loop_control::PlayheadProgressProjection,
+};
 use crate::native_app::{
     app::{NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState},
     waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID},
@@ -37,20 +40,52 @@ impl NativeAppState {
         if self.chrome_overlay_suppresses_waveform_transient_overlay() {
             return;
         }
-        let Some(projection) = self.playhead_progress_projection_for_frame(context.animation_time)
-        else {
-            return;
+        let (projection, preview_audition) = if let Some(projection) =
+            self.playhead_progress_projection_for_frame(context.animation_time)
+        {
+            (projection, false)
+        } else {
+            let path = self.waveform.current.path().display().to_string();
+            let Some(ratio) = self.preview_slice_full_sample_handoff_ratio(path.as_str()) else {
+                return;
+            };
+            (
+                PlayheadProgressProjection {
+                    ratio,
+                    source: PlayheadProgressSource::PreviewAuditionProgress,
+                },
+                true,
+            )
         };
-        let Some(visible_ratio) = self
-            .waveform
-            .current
-            .visible_ratio_for_absolute(projection.ratio)
-        else {
-            return;
+        if preview_audition {
+            self.waveform
+                .current
+                .record_preview_audition_progress(projection.ratio);
+        } else {
+            let visual_progress = self.audio.playback_visual_progress;
+            let span = visual_progress
+                .and_then(|progress| progress.span)
+                .or(self.audio.current_playback_span);
+            let looping = visual_progress
+                .map(|progress| progress.looping)
+                .unwrap_or(self.audio.playback_progress.looping);
+            self.waveform
+                .current
+                .set_playhead_ratio_from_playback(projection.ratio, span, looping);
         };
         let Some(bounds) = context
             .plan
             .first_widget_rect_by_priority([WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID])
+        else {
+            return;
+        };
+        self.waveform
+            .current
+            .append_played_range_overlay(primitives, bounds);
+        let Some(visible_ratio) = self
+            .waveform
+            .current
+            .visible_ratio_for_absolute(projection.ratio)
         else {
             return;
         };

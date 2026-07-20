@@ -845,7 +845,7 @@ fn played_ranges_paint_as_a_subtle_thick_bottom_rail() {
     let rail = fills
         .iter()
         .find(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (103, 196, 207, 158)
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (98, 102, 106, 255)
         })
         .expect("played range rail");
     assert!((rail.rect.min.x - 40.0).abs() < 0.001);

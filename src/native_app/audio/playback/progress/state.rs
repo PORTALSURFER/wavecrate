@@ -5,6 +5,7 @@ use crate::native_app::app::{NativeAppState, SamplePlaybackSessionState, emit_gu
 
 const AUDIO_OUTPUT_STREAM_ERROR_PREFIX: &str = "Audio output stream error:";
 const AUDIO_OUTPUT_UNAVAILABLE_ERROR: &str = "Audio output stream is unavailable";
+const MAX_PENDING_PROGRESS_POLLS: usize = 256;
 
 impl NativeAppState {
     pub(in crate::native_app) fn sync_edit_fade_audio_state(&mut self) {
@@ -16,8 +17,20 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn refresh_playback_progress(&mut self) {
-        if let Some(runtime) = self.audio.playback_runtime.as_ref() {
-            let _ = runtime.try_poll_progress();
+        if let Some(poll_id) = self
+            .audio
+            .playback_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.try_poll_progress().ok())
+        {
+            let poll_id = poll_id.get();
+            self.audio.pending_playback_progress_polls.insert(poll_id);
+            if self.audio.pending_playback_progress_polls.len() > MAX_PENDING_PROGRESS_POLLS {
+                let oldest_retained = poll_id.saturating_sub(MAX_PENDING_PROGRESS_POLLS as u64 - 1);
+                self.audio
+                    .pending_playback_progress_polls
+                    .retain(|pending| *pending >= oldest_retained);
+            }
         }
         if self.audio.playback_runtime.is_some() {
             self.refresh_runtime_playback_progress();

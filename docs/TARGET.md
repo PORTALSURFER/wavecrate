@@ -500,7 +500,14 @@ Regions may be used for auditioning, looping, extraction, editing, markers, or v
 While a sample remains loaded, the waveform should accumulate the portions that
 were actually auditioned and show them as a subtle thick rail along the bottom
 edge. This played-range history is session-local to that loaded waveform, resets
-when another sample is loaded, and is not persisted as sample metadata.
+when another sample is loaded, and is not persisted as sample metadata. The rail
+should advance on paint-only playback frames, use a subdued neutral grey, and
+begin at the sample's actual playback start. Supported WAV navigation should
+stream the original file from frame zero as one continuous runtime source, so
+the waveform can attach to that source without replay, estimated seek offsets,
+or an audition-to-full-source splice. Rapid navigation should replace sources
+through a minimal three-millisecond crossfade rather than clearing the outgoing
+source at an arbitrary sample, preserving sharp transients without hard cuts.
 
 ### Play Selection
 

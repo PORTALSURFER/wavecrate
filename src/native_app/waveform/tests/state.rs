@@ -73,6 +73,20 @@ fn played_ranges_do_not_fill_a_non_looping_backward_seek_gap() {
 }
 
 #[test]
+fn already_auditioned_handoff_span_backfills_history_before_live_progress() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback_after_audition_handoff(0.4, 0.0, true);
+    state.set_playhead_ratio_from_playback(0.5, Some((0.0, 1.0)), false);
+
+    assert_eq!(state.play_mark_ratio(), Some(0.0));
+    assert_eq!(state.playhead_ratio(), Some(0.5));
+    assert_eq!(
+        state.played_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.0, 0.5)]
+    );
+}
+
+#[test]
 fn played_ranges_survive_same_sample_refresh_but_reset_for_a_new_load() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.1);

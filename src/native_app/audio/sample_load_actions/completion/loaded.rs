@@ -65,6 +65,7 @@ impl NativeAppState {
             );
             return;
         }
+        let replacing_preview = self.audio.active_sample_playback_is_preview(&path);
         let preview_handoff_start_ratio = self.preview_slice_full_sample_handoff_ratio(&path);
         if self.continue_streamable_sample_playback(&path, &file_name, started_at, context) {
             return;
@@ -88,7 +89,8 @@ impl NativeAppState {
             &path,
             &file_name,
             preview_handoff_start_ratio.unwrap_or(0.0),
-            if preview_handoff_start_ratio.is_some() {
+            preview_handoff_start_ratio.map(|_| 0.0),
+            if replacing_preview && preview_handoff_start_ratio.is_none() {
                 PlaybackRuntimeReplacePolicy::ClearPrevious
             } else {
                 PlaybackRuntimeReplacePolicy::FadeOutPrevious
@@ -108,8 +110,17 @@ impl NativeAppState {
         if !self.audio.active_sample_playback_is_streamable(path) {
             return false;
         }
-        let progress = self.audio.playback_progress.progress.unwrap_or(0.0);
-        self.waveform.current.start_playback(progress);
+        let Some(progress) = self
+            .audio
+            .active_sample_playback_progress(path)
+            .filter(|progress| progress.active)
+            .and_then(|progress| progress.progress)
+        else {
+            return false;
+        };
+        self.waveform
+            .current
+            .start_playback_after_audition_handoff(progress, 0.0, true);
         self.audio.current_playback_span = Some((0.0, 1.0));
         self.record_current_playback_history(0.0, 1.0);
         self.record_sample_last_played(path.to_owned(), context);

@@ -156,6 +156,25 @@ impl WaveformState {
         self.zoom_anchor_ratio = ratio;
     }
 
+    pub(in crate::native_app) fn start_playback_after_audition_handoff(
+        &mut self,
+        current_ratio: f32,
+        audition_start_ratio: f32,
+        show_marker: bool,
+    ) {
+        let current_ratio = current_ratio.clamp(0.0, 1.0);
+        let audition_start_ratio = audition_start_ratio.clamp(0.0, current_ratio);
+        self.start_playback_with_marker(current_ratio, false);
+        self.play_mark_ratio = show_marker.then_some(audition_start_ratio);
+        self.record_already_auditioned_span(audition_start_ratio, current_ratio);
+    }
+
+    pub(in crate::native_app) fn restart_playback_preserving_marker(&mut self, ratio: f32) {
+        let marker = self.play_mark_ratio;
+        self.start_playback_with_marker(ratio, false);
+        self.play_mark_ratio = marker;
+    }
+
     pub(in crate::native_app) fn set_playhead_ratio(&mut self, ratio: f32) {
         let ratio = ratio.clamp(0.0, 1.0);
         self.playhead_ratio = Some(ratio);
@@ -205,6 +224,18 @@ impl WaveformState {
             &mut self.played_ranges,
             SelectionRange::new(start, end),
         );
+    }
+
+    pub(in crate::native_app) fn record_already_auditioned_span(&mut self, start: f32, end: f32) {
+        self.mark_played_range(start, end);
+    }
+
+    pub(in crate::native_app) fn record_preview_audition_progress(&mut self, ratio: f32) {
+        let ratio = ratio.clamp(0.0, 1.0);
+        if self.play_mark_ratio.is_none() {
+            self.play_mark_ratio = Some(0.0);
+        }
+        self.mark_played_range(0.0, ratio);
     }
 
     pub(in crate::native_app) fn played_ranges(&self) -> &[SelectionRange] {

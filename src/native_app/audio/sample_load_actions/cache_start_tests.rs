@@ -136,9 +136,9 @@ fn starmap_drag_fast_audition_prefers_original_wav_before_persistent_or_preview_
     assert_eq!(
         fast_audition_probe_order(FastAuditionOptions::starmap_drag()),
         [
-            FastAuditionProbe::PreviewCache,
             FastAuditionProbe::FileBackedWav,
             FastAuditionProbe::PersistedCache,
+            FastAuditionProbe::PreviewCache,
             FastAuditionProbe::PreviewDecode,
         ]
     );
@@ -149,9 +149,25 @@ fn instant_navigation_fast_audition_prefers_original_wav_before_persistent_or_pr
     assert_eq!(
         fast_audition_probe_order(FastAuditionOptions::instant_navigation()),
         [
-            FastAuditionProbe::PreviewCache,
             FastAuditionProbe::FileBackedWav,
             FastAuditionProbe::PersistedCache,
+            FastAuditionProbe::PreviewCache,
+            FastAuditionProbe::PreviewDecode,
+        ]
+    );
+}
+
+#[test]
+fn preview_decode_completion_retries_the_original_wav_before_using_the_preview_clip() {
+    let options = FastAuditionOptions::preview_decode_completion("test", false);
+
+    assert!(options.allow_file_backed_source);
+    assert_eq!(
+        fast_audition_probe_order(options),
+        [
+            FastAuditionProbe::FileBackedWav,
+            FastAuditionProbe::PersistedCache,
+            FastAuditionProbe::PreviewCache,
             FastAuditionProbe::PreviewDecode,
         ]
     );
@@ -178,16 +194,16 @@ fn hot_fast_audition_options_submit_unprobed_file_backed_sources() {
 }
 
 #[test]
-fn hot_fast_audition_options_clear_previous_runtime_source() {
+fn hot_fast_audition_options_crossfade_previous_runtime_source() {
     assert_eq!(
         FastAuditionOptions::instant_navigation().replace_policy,
-        PlaybackRuntimeReplacePolicy::ClearPrevious,
-        "list and keyboard navigation should not keep old preview sources fading in the mixer"
+        PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+        "list and keyboard navigation should de-click the previous source instead of severing it"
     );
     assert_eq!(
         FastAuditionOptions::starmap_drag().replace_policy,
-        PlaybackRuntimeReplacePolicy::ClearPrevious,
-        "starmap drag playback should replace the prior preview source immediately"
+        PlaybackRuntimeReplacePolicy::FadeOutPrevious,
+        "starmap drag playback should de-click each rapid source replacement"
     );
 }
 
