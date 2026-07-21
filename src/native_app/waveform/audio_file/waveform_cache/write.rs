@@ -12,7 +12,6 @@ use std::{
 #[cfg(test)]
 use super::{MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES, format::CachedPlaybackCacheFile};
 use super::{
-    MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
     format::{CachedPlaybackDescriptor, CachedWaveformFile},
     identity::{
         CacheIdentity, cache_path_for_identity, playback_descriptor_path,
@@ -21,7 +20,6 @@ use super::{
     invalidation::{
         cleanup_cache_artifacts, commit_if_store_job_current, store_job_matches_current_file,
     },
-    prune::prune_waveform_cache_dir,
     store_queue::CachedWaveformStoreJob,
 };
 pub(super) use outcome::{
@@ -80,10 +78,6 @@ pub(super) fn store_cached_waveform_file_now(job: CachedWaveformStoreJob) -> Sto
         log_slow_cache_store(&job.file.path, started_at);
         return StoreWriteOutcome::RenameFailed(report);
     }
-    report.prune = Some(prune_waveform_cache_dir(
-        &job.cache_path,
-        MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
-    ));
     log_slow_cache_store(&job.file.path, started_at);
     StoreWriteOutcome::Completed(report)
 }

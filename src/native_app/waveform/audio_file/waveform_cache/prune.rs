@@ -12,6 +12,9 @@ use super::identity::{
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct PruneWaveformCacheOutcome {
     pub(super) read_dir_failed: bool,
+    pub(super) directory_scans: usize,
+    pub(super) entries_examined: usize,
+    pub(super) metadata_probes: usize,
     pub(super) stale_temp_removed: usize,
     pub(super) stale_temp_remove_failed: usize,
     pub(super) orphan_sidecar_removed: usize,
@@ -26,21 +29,21 @@ pub(super) struct PruneWaveformCacheOutcome {
 }
 
 pub(super) fn prune_waveform_cache_dir(
-    pinned_path: &Path,
+    cache_dir: &Path,
+    pinned_path: Option<&Path>,
     max_bytes: u64,
 ) -> PruneWaveformCacheOutcome {
     let mut outcome = PruneWaveformCacheOutcome::default();
-    let Some(cache_dir) = pinned_path.parent() else {
-        return outcome;
-    };
     let Ok(entries) = fs::read_dir(cache_dir) else {
         outcome.read_dir_failed = true;
         return outcome;
     };
+    outcome.directory_scans = 1;
     let mut cache_entries = Vec::new();
     let mut total_bytes = 0_u64;
 
     for entry in entries.flatten() {
+        outcome.entries_examined += 1;
         let path = entry.path();
         if path.extension().is_some_and(|extension| extension == "tmp") {
             if fs::remove_file(path).is_ok() {
@@ -51,6 +54,7 @@ pub(super) fn prune_waveform_cache_dir(
             continue;
         }
         if path.extension().is_some_and(|extension| extension == "pcm") {
+            outcome.metadata_probes += 1;
             if !path.with_extension("wfc").is_file() {
                 if fs::remove_file(path).is_ok() {
                     outcome.orphan_sidecar_removed += 1;
@@ -63,6 +67,7 @@ pub(super) fn prune_waveform_cache_dir(
         if path.extension().is_some_and(|extension| {
             extension == "ready" || extension == "playback" || extension == "source-ready"
         }) {
+            outcome.metadata_probes += 1;
             if !path.with_extension("wfc").is_file() {
                 if fs::remove_file(path).is_ok() {
                     outcome.orphan_marker_removed += 1;
@@ -75,6 +80,7 @@ pub(super) fn prune_waveform_cache_dir(
         if path.extension().is_none_or(|extension| extension != "wfc") {
             continue;
         }
+        outcome.metadata_probes += 1;
         let Ok(metadata) = entry.metadata() else {
             continue;
         };
@@ -82,11 +88,13 @@ pub(super) fn prune_waveform_cache_dir(
             continue;
         }
         let sidecar_path = playback_sidecar_path(&path);
+        outcome.metadata_probes += 1;
         let sidecar_len = sidecar_path
             .metadata()
             .map(|metadata| metadata.len())
             .unwrap_or(0);
         let descriptor_path = playback_descriptor_path(&path);
+        outcome.metadata_probes += 1;
         let descriptor_len = descriptor_path
             .metadata()
             .map(|metadata| metadata.len())
@@ -114,7 +122,7 @@ pub(super) fn prune_waveform_cache_dir(
         if total_bytes <= max_bytes {
             break;
         }
-        if entry.path == pinned_path {
+        if pinned_path.is_some_and(|pinned_path| entry.path == pinned_path) {
             continue;
         }
         if fs::remove_file(&entry.path).is_ok() {
@@ -138,6 +146,17 @@ pub(super) fn prune_waveform_cache_dir(
     }
     outcome.bytes_after = total_bytes;
     outcome
+}
+
+impl PruneWaveformCacheOutcome {
+    pub(super) fn has_failures(&self) -> bool {
+        self.read_dir_failed
+            || self.stale_temp_remove_failed > 0
+            || self.orphan_sidecar_remove_failed > 0
+            || self.orphan_marker_remove_failed > 0
+            || self.cache_remove_failed > 0
+            || self.companion_remove_failed > 0
+    }
 }
 
 #[derive(Debug)]

@@ -1,6 +1,5 @@
 #[cfg(test)]
 use super::super::format::CachedPlaybackCacheFile;
-use super::super::prune::PruneWaveformCacheOutcome;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::native_app::waveform::audio_file::waveform_cache) enum StoreWriteOutcome {
@@ -17,7 +16,6 @@ pub(in crate::native_app::waveform::audio_file::waveform_cache) struct StoreWrit
     pub(super) sidecar: PlaybackSidecarOutcome,
     pub(super) stale_sidecar_cleanup: Option<FileCleanupOutcome>,
     pub(super) ready_marker: Option<MarkerUpdateOutcome>,
-    pub(super) prune: Option<PruneWaveformCacheOutcome>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -107,7 +105,6 @@ impl StoreWriteReport {
                 self.ready_marker,
                 Some(MarkerUpdateOutcome::WriteFailed | MarkerUpdateOutcome::RemoveFailed)
             )
-            || self.prune.is_some_and(|prune| prune.has_failures())
     }
 }
 
@@ -126,15 +123,4 @@ fn playback_sidecar_has_failures(outcome: &PlaybackSidecarOutcome) -> bool {
             | PlaybackSidecarOutcome::RenameFailed
             | PlaybackSidecarOutcome::SampleBytesOverflow
     )
-}
-
-impl PruneWaveformCacheOutcome {
-    fn has_failures(&self) -> bool {
-        self.read_dir_failed
-            || self.stale_temp_remove_failed > 0
-            || self.orphan_sidecar_remove_failed > 0
-            || self.orphan_marker_remove_failed > 0
-            || self.cache_remove_failed > 0
-            || self.companion_remove_failed > 0
-    }
 }
