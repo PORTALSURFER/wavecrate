@@ -80,7 +80,9 @@ impl WaveformWidget {
             {
                 self.append_edit_selection_paint(&mut paint, &mut handle_paint, bounds, geometry);
             }
-            self.append_base_playmark_label_paint(&mut paint, bounds);
+            if !self.playmark_label_editor_active {
+                self.append_base_playmark_label_paint(&mut paint, bounds);
+            }
             self.append_played_range_paint(&mut paint, bounds);
         }
         self.append_marker_paint(&mut paint, bounds);

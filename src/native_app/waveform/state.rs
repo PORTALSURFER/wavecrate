@@ -66,6 +66,8 @@ pub(in crate::native_app) struct WaveformState {
     pub(in crate::native_app::waveform) detail_summary: Option<WaveformDetailSummary>,
     pub(in crate::native_app::waveform) pending_detail_key: Option<WaveformDetailKey>,
     pub(in crate::native_app::waveform) failed_detail_key: Option<WaveformDetailKey>,
+    pub(in crate::native_app::waveform) playmark_label_editor:
+        Option<super::PlaymarkLabelEditorState>,
 }
 
 impl WaveformState {

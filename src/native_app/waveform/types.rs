@@ -1,6 +1,14 @@
 use radiant::gui::types::{Point, Vector2};
 use radiant::widgets::DragHandleMessage;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum PlaymarkLabelMessage {
+    BeginEdit,
+    Changed(String),
+    Commit(String),
+    Cancel,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::native_app) enum WaveformInteraction {
     Wheel {
@@ -11,6 +19,10 @@ pub(in crate::native_app) enum WaveformInteraction {
     ZoomToPlaySelection,
     SlidePlaySelection {
         direction: i8,
+    },
+    SetPlaySelectionFrameRange {
+        start_frame: usize,
+        end_frame: usize,
     },
     ZoomFull,
     ScrollTo {

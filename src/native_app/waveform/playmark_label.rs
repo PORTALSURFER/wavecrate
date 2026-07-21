@@ -91,7 +91,7 @@ impl WaveformWidget {
     }
 }
 
-fn playmark_selection_label(
+pub(super) fn playmark_selection_label(
     selection: wavecrate::selection::SelectionRange,
     frames: usize,
     sample_rate: u32,

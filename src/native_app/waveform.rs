@@ -21,7 +21,7 @@ const SYNTHETIC_SECONDS: usize = 1;
 
 mod types;
 pub(super) use types::{
-    WaveformActiveDragKind, WaveformContextMenu, WaveformEditFadeHandle,
+    PlaymarkLabelMessage, WaveformActiveDragKind, WaveformContextMenu, WaveformEditFadeHandle,
     WaveformEditFadeOuterGainHandle, WaveformInteraction, WaveformSelectionEdge,
     WaveformSelectionKind,
 };
@@ -118,6 +118,8 @@ mod edit_fade_geometry;
 mod edit_fade_paint;
 mod played_range_paint;
 mod playmark_label;
+mod playmark_label_editor;
+pub(super) use playmark_label_editor::PlaymarkLabelEditorState;
 mod selection_paint;
 
 mod viewport;

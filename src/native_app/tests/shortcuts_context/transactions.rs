@@ -1,4 +1,9 @@
-use crate::native_app::test_support::state::{GuiMessage, NativeAppState, default_gui_shortcuts};
+use crate::native_app::{
+    test_support::state::{
+        GuiMessage, NativeAppState, NativeAppStateFixture, default_gui_shortcuts,
+    },
+    waveform::PlaymarkLabelMessage,
+};
 use radiant::prelude as ui;
 
 fn transaction_list_shortcut() -> ui::KeyPress {
@@ -29,6 +34,26 @@ fn transaction_list_modal_escape_closes_transaction_list() {
 
     assert_eq!(resolution.action, Some(GuiMessage::CloseTransactionList));
     assert!(resolution.handled);
+}
+
+#[test]
+fn playmark_label_editor_owns_escape_and_blocks_transport_shortcuts() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.2, 0.4);
+    assert!(state.waveform.current.begin_playmark_label_edit(false, 4));
+
+    let escape = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Escape));
+    let space = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::Space));
+
+    assert_eq!(
+        escape.action,
+        Some(GuiMessage::PlaymarkLabel(PlaymarkLabelMessage::Cancel))
+    );
+    assert!(escape.handled);
+    assert_eq!(space.action, None);
+    assert!(space.handled);
 }
 
 #[test]

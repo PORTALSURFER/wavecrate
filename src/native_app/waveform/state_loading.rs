@@ -157,6 +157,7 @@ impl WaveformState {
             detail_summary: None,
             pending_detail_key: None,
             failed_detail_key: None,
+            playmark_label_editor: None,
         }
     }
 
