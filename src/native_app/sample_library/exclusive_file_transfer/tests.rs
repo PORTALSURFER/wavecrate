@@ -160,6 +160,31 @@ fn ownership_cleanup_preserves_a_replacement_symlink_to_the_owned_file() {
     assert_eq!(fs::read(&destination).unwrap(), b"source");
 }
 
+#[cfg(unix)]
+#[test]
+fn native_move_rejects_a_symlink_source_without_moving_its_target() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let target = temp.path().join("target.wav");
+    let source = temp.path().join("source.wav");
+    let destination = temp.path().join("destination.wav");
+    fs::write(&target, b"target").unwrap();
+    symlink(&target, &source).unwrap();
+
+    let error = move_file_no_replace(&source, &destination).unwrap_err();
+
+    assert_eq!(error.kind(), ErrorKind::InvalidInput);
+    assert!(
+        fs::symlink_metadata(&source)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(fs::read(&target).unwrap(), b"target");
+    assert!(!destination.exists());
+}
+
 #[test]
 fn cross_device_fallback_preserves_a_late_destination() {
     let temp = tempdir().unwrap();

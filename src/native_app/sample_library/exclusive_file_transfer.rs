@@ -132,6 +132,16 @@ pub(super) fn copy_file_to_unique_destination(
 }
 
 pub(super) fn move_file_no_replace(source: &Path, destination: &Path) -> io::Result<CommittedFile> {
+    let source_entry = fs::symlink_metadata(source)?;
+    if !source_entry.file_type().is_file() {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "native file moves require a regular source file: {}",
+                source.display()
+            ),
+        ));
+    }
     let source_file = File::open(source)?;
     match rename_no_replace(source, destination) {
         Ok(()) => Ok(committed_file(destination, source_file)),
