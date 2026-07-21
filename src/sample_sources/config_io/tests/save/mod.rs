@@ -1,4 +1,4 @@
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "windows"))]
 use super::super::super::config_types::AppSettings;
 use super::super::super::config_types::{
     AnalysisSettings, AppSettingsCore, AudioWriteChannelBehavior, AudioWriteDither,
@@ -7,7 +7,7 @@ use super::super::super::config_types::{
     UpdateChannel, UpdateSettings,
 };
 use super::super::load::load_settings_from;
-#[cfg(unix)]
+#[cfg(any(unix, target_os = "windows"))]
 use super::super::save::save_settings_to_path;
 use super::super::save::save_to_path;
 use super::TestConfigEnv;
@@ -262,4 +262,41 @@ fn settings_atomic_write_preserves_existing_on_failure() {
 
     let contents = std::fs::read_to_string(&path).unwrap();
     assert_eq!(contents, "sentinel = true\n");
+}
+
+#[test]
+#[cfg(target_os = "windows")]
+fn settings_atomic_write_preserves_locked_destination_and_retries_cleanly() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let env = TestConfigEnv::new();
+    let path = env.path("cfg.toml");
+    env.write(&path, "sentinel = true\n");
+    let locked = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&path)
+        .unwrap();
+
+    let mut settings = AppSettings::default();
+    settings.core.volume = 0.33;
+    let first_attempt = save_settings_to_path(&settings, &path);
+    assert!(first_attempt.is_err());
+    drop(locked);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "sentinel = true\n");
+
+    save_settings_to_path(&settings, &path).unwrap();
+    let loaded = load_settings_from(&path).unwrap();
+    assert!((loaded.core.volume - 0.33).abs() < f32::EPSILON);
+
+    let temp_prefix = format!("{}.tmp-", path.file_name().unwrap().to_string_lossy());
+    assert!(
+        std::fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .all(|entry| !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(&temp_prefix))
+    );
 }
