@@ -75,6 +75,62 @@ fn ownership_cleanup_preserves_a_replaced_destination() {
 }
 
 #[test]
+fn ownership_cleanup_preserves_replacement_after_the_initial_check() {
+    let temp = tempdir().unwrap();
+    let source = temp.path().join("source.wav");
+    let destination = temp.path().join("destination.wav");
+    fs::write(&source, b"source").unwrap();
+    let committed = copy_file_no_replace(&source, &destination).unwrap();
+
+    let removed = committed
+        .remove_if_owned_with(|| {
+            fs::remove_file(&destination).unwrap();
+            fs::write(&destination, b"late replacement").unwrap();
+        })
+        .unwrap();
+
+    assert!(!removed);
+    assert_eq!(fs::read(&destination).unwrap(), b"late replacement");
+    assert!(fs::read_dir(temp.path()).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".wavecrate-cleanup-")
+    }));
+}
+
+#[test]
+fn ownership_cleanup_preserves_a_replacement_directory_after_the_initial_check() {
+    let temp = tempdir().unwrap();
+    let source = temp.path().join("source.wav");
+    let destination = temp.path().join("destination.wav");
+    fs::write(&source, b"source").unwrap();
+    let committed = copy_file_no_replace(&source, &destination).unwrap();
+
+    let removed = committed
+        .remove_if_owned_with(|| {
+            fs::remove_file(&destination).unwrap();
+            fs::create_dir(&destination).unwrap();
+            fs::write(destination.join("unrelated.wav"), b"unrelated").unwrap();
+        })
+        .unwrap();
+
+    assert!(!removed);
+    assert_eq!(
+        fs::read(destination.join("unrelated.wav")).unwrap(),
+        b"unrelated"
+    );
+    assert!(fs::read_dir(temp.path()).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .starts_with(".wavecrate-cleanup-")
+    }));
+}
+
+#[test]
 fn cross_device_fallback_preserves_a_late_destination() {
     let temp = tempdir().unwrap();
     let source = temp.path().join("source.wav");

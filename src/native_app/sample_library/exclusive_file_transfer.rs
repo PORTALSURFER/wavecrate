@@ -5,6 +5,8 @@ use std::{
     sync::Arc,
 };
 
+use platform::{rename_no_replace, same_file_handles};
+
 #[derive(Clone, Debug)]
 pub(super) struct CommittedFile {
     path: PathBuf,
@@ -17,10 +19,51 @@ impl CommittedFile {
     }
 
     pub(super) fn remove_if_owned(&self) -> io::Result<bool> {
+        self.remove_if_owned_with(|| {})
+    }
+
+    fn remove_if_owned_with(&self, before_quarantine: impl FnOnce()) -> io::Result<bool> {
         if !self.still_owned()? {
             return Ok(false);
         }
-        fs::remove_file(&self.path)?;
+        before_quarantine();
+        let parent = self.path.parent().unwrap_or_else(|| Path::new(""));
+        let quarantine = tempfile::Builder::new()
+            .prefix(".wavecrate-cleanup-")
+            .tempdir_in(parent)?;
+        let quarantined = quarantine.path().join("owned-file");
+        rename_no_replace(&self.path, &quarantined)?;
+        // From this point onward, keep the private directory on every error path. Its
+        // destructor must never recursively remove an object that was moved from the
+        // user-visible destination before its identity was verified.
+        let quarantine = quarantine.keep();
+        let moved = fs::metadata(&quarantined)
+            .and_then(|metadata| {
+                metadata
+                    .is_file()
+                    .then(|| File::open(&quarantined))
+                    .transpose()
+            })
+            .map_err(|error| preserved_cleanup_error(error, &quarantined))?;
+        let owned = match moved.as_ref() {
+            Some(moved) => same_file_handles(&self.owned_file, moved)
+                .map_err(|error| preserved_cleanup_error(error, &quarantined))?,
+            None => false,
+        };
+        if !owned {
+            return restore_quarantined_destination(&quarantined, &self.path, &quarantine);
+        }
+        drop(moved);
+        if let Err(remove_error) = fs::remove_file(&quarantined) {
+            return Err(io::Error::new(
+                remove_error.kind(),
+                format!(
+                    "owned destination cleanup failed and was preserved at {}: {remove_error}",
+                    quarantined.display()
+                ),
+            ));
+        }
+        fs::remove_dir(quarantine)?;
         Ok(true)
     }
 
@@ -43,6 +86,36 @@ impl CommittedFile {
             Err(error) => return Err(error),
         };
         same_file_handles(&self.owned_file, &actual)
+    }
+}
+
+fn preserved_cleanup_error(error: io::Error, quarantined: &Path) -> io::Error {
+    io::Error::new(
+        error.kind(),
+        format!(
+            "destination cleanup could not verify the quarantined object at {}; it was preserved: {error}",
+            quarantined.display()
+        ),
+    )
+}
+
+fn restore_quarantined_destination(
+    quarantined: &Path,
+    destination: &Path,
+    quarantine: &Path,
+) -> io::Result<bool> {
+    match rename_no_replace(quarantined, destination) {
+        Ok(()) => {
+            fs::remove_dir(quarantine)?;
+            Ok(false)
+        }
+        Err(restore_error) => Err(io::Error::new(
+            restore_error.kind(),
+            format!(
+                "destination changed during cleanup and was preserved at {} after restore failed: {restore_error}",
+                quarantined.display()
+            ),
+        )),
     }
 }
 
@@ -199,42 +272,6 @@ fn committed_file(path: &Path, owned_file: File) -> CommittedFile {
     }
 }
 
-#[cfg(unix)]
-fn same_file_handles(expected: &File, actual: &File) -> io::Result<bool> {
-    use std::os::unix::fs::MetadataExt;
-
-    let expected = expected.metadata()?;
-    let actual = actual.metadata()?;
-    Ok(expected.dev() == actual.dev() && expected.ino() == actual.ino())
-}
-
-#[cfg(windows)]
-fn same_file_handles(expected: &File, actual: &File) -> io::Result<bool> {
-    use std::os::windows::io::AsRawHandle;
-    use windows::Win32::{
-        Foundation::HANDLE,
-        Storage::FileSystem::{BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle},
-    };
-
-    fn identity(file: &File) -> io::Result<(u32, u64, u64)> {
-        let mut information = BY_HANDLE_FILE_INFORMATION::default();
-        unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut information) }
-            .map_err(io::Error::other)?;
-        let index =
-            (u64::from(information.nFileIndexHigh) << 32) | u64::from(information.nFileIndexLow);
-        let created = (u64::from(information.ftCreationTime.dwHighDateTime) << 32)
-            | u64::from(information.ftCreationTime.dwLowDateTime);
-        Ok((information.dwVolumeSerialNumber, index, created))
-    }
-
-    Ok(identity(expected)? == identity(actual)?)
-}
-
-#[cfg(not(any(unix, windows)))]
-fn same_file_handles(_expected: &File, _actual: &File) -> io::Result<bool> {
-    Ok(false)
-}
-
 fn rename_requires_copy_fallback(error: &io::Error) -> bool {
     error.kind() == ErrorKind::CrossesDevices
         || error.kind() == ErrorKind::Unsupported
@@ -245,105 +282,6 @@ fn rename_requires_copy_fallback(error: &io::Error) -> bool {
             )
 }
 
-#[cfg(target_os = "windows")]
-fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows::{
-        Win32::{
-            Foundation::{ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, ERROR_NOT_SAME_DEVICE},
-            Storage::FileSystem::{MOVE_FILE_FLAGS, MoveFileExW},
-        },
-        core::{HRESULT, PCWSTR},
-    };
-
-    let source = source
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect::<Vec<_>>();
-    let destination = destination
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect::<Vec<_>>();
-    unsafe {
-        MoveFileExW(
-            PCWSTR(source.as_ptr()),
-            PCWSTR(destination.as_ptr()),
-            MOVE_FILE_FLAGS(0),
-        )
-    }
-    .map_err(|error| {
-        let code = error.code();
-        if code == HRESULT::from_win32(ERROR_ALREADY_EXISTS.0)
-            || code == HRESULT::from_win32(ERROR_FILE_EXISTS.0)
-        {
-            io::Error::from(ErrorKind::AlreadyExists)
-        } else if code == HRESULT::from_win32(ERROR_NOT_SAME_DEVICE.0) {
-            io::Error::from(ErrorKind::CrossesDevices)
-        } else {
-            io::Error::other(error)
-        }
-    })
-}
-
-#[cfg(any(target_os = "macos", target_os = "linux", target_os = "android"))]
-fn path_to_c_string(path: &Path) -> io::Result<std::ffi::CString> {
-    use std::os::unix::ffi::OsStrExt;
-
-    std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(|_| {
-        io::Error::new(
-            ErrorKind::InvalidInput,
-            "file transfer path contains an interior NUL byte",
-        )
-    })
-}
-
-#[cfg(target_os = "macos")]
-fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    let source = path_to_c_string(source)?;
-    let destination = path_to_c_string(destination)?;
-    let result =
-        unsafe { libc::renamex_np(source.as_ptr(), destination.as_ptr(), libc::RENAME_EXCL) };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(any(target_os = "linux", target_os = "android"))]
-fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    let source = path_to_c_string(source)?;
-    let destination = path_to_c_string(destination)?;
-    let result = unsafe {
-        libc::renameat2(
-            libc::AT_FDCWD,
-            source.as_ptr(),
-            libc::AT_FDCWD,
-            destination.as_ptr(),
-            libc::RENAME_NOREPLACE,
-        )
-    };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(not(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "linux",
-    target_os = "android"
-)))]
-fn rename_no_replace(_source: &Path, _destination: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        ErrorKind::Unsupported,
-        "atomic no-replace rename is unavailable on this platform",
-    ))
-}
-
+mod platform;
 #[cfg(test)]
 mod tests;
