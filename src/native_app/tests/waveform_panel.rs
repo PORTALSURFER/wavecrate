@@ -4,9 +4,15 @@ use crate::native_app::{
         waveform_panel::{WAVEFORM_PANEL_HEIGHT, waveform_panel},
     },
     test_support::state::NativeAppStateFixture,
-    ui::ids::WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID,
+    ui::ids::{
+        WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID, WAVEFORM_PLAYMARK_BEAT_COUNT_ID,
+        WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID,
+    },
 };
-use radiant::prelude::{self as ui, IntoView};
+use radiant::{
+    gui::automation::AutomationRole,
+    prelude::{self as ui, IntoView},
+};
 
 fn loaded_sample_drag_handle_tooltip(
     state: &crate::native_app::app::NativeAppState,
@@ -118,5 +124,53 @@ fn waveform_help_tooltip_attaches_to_interaction_widget() {
         Some(
             "Waveform: click to set playback start, drag to select, Z zooms to selection, X zooms out."
         )
+    );
+}
+
+#[test]
+fn playmark_beat_controls_project_shared_toolbar_state_and_semantics() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+    state.ui.chrome.beat_guides_enabled = true;
+    state.ui.chrome.beat_guide_count = 16;
+
+    let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
+    let toggle = surface
+        .find_widget(WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID)
+        .expect("playmark beat toggle")
+        .widget_object()
+        .automation_semantics();
+    let count = surface
+        .find_widget(WAVEFORM_PLAYMARK_BEAT_COUNT_ID)
+        .expect("playmark beat count")
+        .widget_object()
+        .automation_semantics();
+
+    assert_eq!(toggle.role, AutomationRole::Toggle);
+    assert_eq!(toggle.label.as_deref(), Some("Playmark beat grid"));
+    assert_eq!(toggle.checked, Some(true));
+    assert_eq!(count.role, AutomationRole::TextInput);
+    assert_eq!(count.label.as_deref(), Some("Playmark beat count"));
+    assert_eq!(count.value_text.as_deref(), Some("16"));
+}
+
+#[test]
+fn playmark_beat_controls_are_absent_without_a_playmark() {
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
+
+    assert!(
+        surface
+            .find_widget(WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID)
+            .is_none()
+    );
+    assert!(
+        surface
+            .find_widget(WAVEFORM_PLAYMARK_BEAT_COUNT_ID)
+            .is_none()
     );
 }

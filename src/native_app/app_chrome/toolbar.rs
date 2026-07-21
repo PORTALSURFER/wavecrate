@@ -7,7 +7,9 @@ use radiant::{prelude as ui, widgets::ButtonMessage};
 
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::view_models::toolbar::MainToolbarViewModel;
-use beat_count_input::{BeatGuideCountInputMessage, BeatGuideCountInputWidget};
+pub(in crate::native_app) use beat_count_input::{
+    BeatGuideCountInputMessage, BeatGuideCountInputWidget,
+};
 
 pub(in crate::native_app) use icons::{ToolbarIcon, toolbar_icon_color, toolbar_icon_glyph};
 pub(in crate::native_app) use projection::{
@@ -66,7 +68,9 @@ fn beat_guide_count_field(count: u8, id: u64, key: &'static str) -> ui::View<Gui
     .size(34.0, 24.0)
 }
 
-fn beat_guide_count_input_message(message: BeatGuideCountInputMessage) -> GuiMessage {
+pub(in crate::native_app) fn beat_guide_count_input_message(
+    message: BeatGuideCountInputMessage,
+) -> GuiMessage {
     match message {
         BeatGuideCountInputMessage::Changed(value) => GuiMessage::ChangeBeatGuideCountInput(value),
         BeatGuideCountInputMessage::Committed(value) => {

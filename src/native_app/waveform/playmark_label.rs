@@ -10,7 +10,7 @@ use crate::ui_formatting::{format_selection_duration, format_waveform_bpm_input}
 
 use super::{WaveformActiveDragKind, WaveformSelectionKind, WaveformWidget};
 
-const PLAYMARK_LABEL_HEIGHT: f32 = 18.0;
+pub(super) const PLAYMARK_LABEL_HEIGHT: f32 = 18.0;
 const PLAYMARK_LABEL_BOTTOM_INSET: f32 = 2.0;
 const PLAYMARK_LABEL_SELECTION_INSET: f32 = 4.0;
 const PLAYMARK_LABEL_OUTSIDE_GAP: f32 = 6.0;
@@ -18,6 +18,10 @@ const PLAYMARK_LABEL_HORIZONTAL_PADDING: f32 = 10.0;
 const PLAYMARK_LABEL_GLYPH_WIDTH: f32 = 10.0;
 const PLAYMARK_LABEL_MIN_WIDTH: f32 = 80.0;
 const PLAYMARK_LABEL_MAX_WIDTH: f32 = 150.0;
+pub(super) const PLAYMARK_BEAT_TOGGLE_WIDTH: f32 = 20.0;
+pub(super) const PLAYMARK_BEAT_COUNT_WIDTH: f32 = 30.0;
+pub(super) const PLAYMARK_BEAT_CONTROL_GAP: f32 = 2.0;
+const PLAYMARK_LABEL_CONTROL_GAP: f32 = 4.0;
 const PLAYMARK_LABEL_BACKGROUND: Rgba8 = Rgba8::new(25, 18, 16, 214);
 const PLAYMARK_LABEL_TEXT: Rgba8 = Rgba8::new(255, 226, 210, 255);
 
@@ -33,6 +37,8 @@ pub(super) enum PlaymarkLabelPlacement {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct PlaymarkLabelLayout {
     pub(super) rect: Rect,
+    pub(super) beat_toggle_rect: Rect,
+    pub(super) beat_count_rect: Rect,
     pub(super) placement: PlaymarkLabelPlacement,
 }
 
@@ -120,28 +126,53 @@ pub(super) fn playmark_label_layout(
         return None;
     }
 
-    let desired_width =
+    let desired_label_width =
         label_len as f32 * PLAYMARK_LABEL_GLYPH_WIDTH + PLAYMARK_LABEL_HORIZONTAL_PADDING * 2.0;
-    let width = desired_width
+    let controls_width = PLAYMARK_LABEL_CONTROL_GAP
+        + PLAYMARK_BEAT_TOGGLE_WIDTH
+        + PLAYMARK_BEAT_CONTROL_GAP
+        + PLAYMARK_BEAT_COUNT_WIDTH;
+    if bounds.width() <= controls_width {
+        return None;
+    }
+    let label_width = desired_label_width
         .clamp(PLAYMARK_LABEL_MIN_WIDTH, PLAYMARK_LABEL_MAX_WIDTH)
-        .min(bounds.width());
+        .min(bounds.width() - controls_width);
+    let cluster_width = label_width + controls_width;
     let selection_left = selection_rect.min.x.clamp(bounds.min.x, bounds.max.x);
     let selection_right = selection_rect.max.x.clamp(selection_left, bounds.max.x);
     let selection_width = selection_right - selection_left;
-    let (left, placement) = if selection_width >= width + PLAYMARK_LABEL_SELECTION_INSET * 2.0 {
-        (
-            (selection_left + (selection_width - width) * 0.5)
-                .clamp(bounds.min.x, bounds.max.x - width),
-            PlaymarkLabelPlacement::Inside,
-        )
-    } else {
-        outside_label_left(bounds, selection_left, selection_right, width)
-    };
+    let (left, placement) =
+        if selection_width >= cluster_width + PLAYMARK_LABEL_SELECTION_INSET * 2.0 {
+            (
+                (selection_left + (selection_width - cluster_width) * 0.5)
+                    .clamp(bounds.min.x, bounds.max.x - cluster_width),
+                PlaymarkLabelPlacement::Inside,
+            )
+        } else {
+            outside_label_left(bounds, selection_left, selection_right, cluster_width)
+        };
     let bottom = (bounds.max.y - PLAYMARK_LABEL_BOTTOM_INSET).max(bounds.min.y);
     let top = (bottom - PLAYMARK_LABEL_HEIGHT).max(bounds.min.y);
+    let label_rect = Rect::from_min_max(
+        Point::new(left, top),
+        Point::new(left + label_width, bottom),
+    );
+    let toggle_left = label_rect.max.x + PLAYMARK_LABEL_CONTROL_GAP;
+    let beat_toggle_rect = Rect::from_min_max(
+        Point::new(toggle_left, top),
+        Point::new(toggle_left + PLAYMARK_BEAT_TOGGLE_WIDTH, bottom),
+    );
+    let count_left = beat_toggle_rect.max.x + PLAYMARK_BEAT_CONTROL_GAP;
+    let beat_count_rect = Rect::from_min_max(
+        Point::new(count_left, top),
+        Point::new(count_left + PLAYMARK_BEAT_COUNT_WIDTH, bottom),
+    );
 
     Some(PlaymarkLabelLayout {
-        rect: Rect::from_min_max(Point::new(left, top), Point::new(left + width, bottom)),
+        rect: label_rect,
+        beat_toggle_rect,
+        beat_count_rect,
         placement,
     })
 }
@@ -186,13 +217,15 @@ mod tests {
     }
 
     #[test]
-    fn wide_playmark_contains_centered_label_with_inset() {
+    fn wide_playmark_contains_centered_label_and_controls_with_inset() {
         let layout = playmark_label_layout(rect(0.0, 400.0), rect(100.0, 300.0), 6)
             .expect("wide label layout");
 
         assert_eq!(layout.placement, PlaymarkLabelPlacement::Inside);
-        assert_eq!(layout.rect.min.x, 160.0);
-        assert_eq!(layout.rect.max.x, 240.0);
+        assert_eq!(layout.rect.min.x, 132.0);
+        assert_eq!(layout.rect.max.x, 212.0);
+        assert_eq!(layout.beat_count_rect.max.x, 268.0);
+        assert_eq!(layout.beat_toggle_rect.min.x, 216.0);
     }
 
     #[test]
@@ -205,7 +238,8 @@ mod tests {
         let right_edge = playmark_label_layout(rect(0.0, 400.0), rect(350.0, 360.0), 6)
             .expect("right-edge narrow layout");
         assert_eq!(right_edge.placement, PlaymarkLabelPlacement::OutsideLeft);
-        assert_eq!(right_edge.rect.max.x, 344.0);
+        assert_eq!(right_edge.rect.min.x, 208.0);
+        assert_eq!(right_edge.beat_count_rect.max.x, 344.0);
     }
 
     #[test]
@@ -216,6 +250,7 @@ mod tests {
         assert_eq!(layout.placement, PlaymarkLabelPlacement::OutsideRight);
         assert_eq!(layout.rect.min.x, 26.0);
         assert_eq!(layout.rect.max.x, 106.0);
+        assert_eq!(layout.beat_count_rect.max.x, 162.0);
     }
 
     #[test]
@@ -234,14 +269,16 @@ mod tests {
         let tied = playmark_label_layout(rect(0.0, 100.0), rect(35.0, 65.0), 6)
             .expect("tied fallback layout");
         assert_eq!(tied.placement, PlaymarkLabelPlacement::FallbackRight);
-        assert_eq!(tied.rect.min.x, 20.0);
-        assert_eq!(tied.rect.max.x, 100.0);
+        assert_eq!(tied.rect.min.x, 0.0);
+        assert_eq!(tied.rect.max.x, 44.0);
+        assert_eq!(tied.beat_count_rect.max.x, 100.0);
 
         let left_roomier = playmark_label_layout(rect(0.0, 100.0), rect(60.0, 80.0), 6)
             .expect("left-roomier fallback layout");
         assert_eq!(left_roomier.placement, PlaymarkLabelPlacement::FallbackLeft);
         assert_eq!(left_roomier.rect.min.x, 0.0);
-        assert_eq!(left_roomier.rect.max.x, 80.0);
+        assert_eq!(left_roomier.rect.max.x, 44.0);
+        assert_eq!(left_roomier.beat_count_rect.max.x, 100.0);
     }
 
     #[test]

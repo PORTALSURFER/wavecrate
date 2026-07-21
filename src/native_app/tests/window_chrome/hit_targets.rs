@@ -13,6 +13,98 @@ fn full_app_scene_routes_waveform_hit_target() {
 }
 
 #[test]
+fn playmark_local_beat_controls_consume_hits_and_update_shared_state() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+    let original_selection = state.waveform.current.play_selection();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let theme = radiant::theme::ThemeTokens::default();
+    let frame = runtime.frame(&theme);
+    let toggle_id = crate::native_app::ui::ids::WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID;
+    let toggle_point = frame
+        .paint_plan
+        .first_svg_rect_for_widget(toggle_id)
+        .expect("local beat toggle paint")
+        .center();
+    let count_id = crate::native_app::ui::ids::WAVEFORM_PLAYMARK_BEAT_COUNT_ID;
+    let initial_count_rect = frame
+        .paint_plan
+        .text_inputs()
+        .find(|input| input.widget_id == count_id)
+        .map(|input| input.rect)
+        .expect("initial local beat count paint");
+    assert!(!initial_count_rect.contains(toggle_point));
+    let toggle_press = WidgetInput::PointerPress {
+        position: toggle_point,
+        button: PointerButton::Primary,
+        modifiers: Default::default(),
+    };
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(count_id)
+            .expect("count widget")
+            .widget_object()
+            .accepts_pointer_input(&toggle_press),
+        "count widget must reject the adjacent toggle hit"
+    );
+
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(toggle_point)),
+        Some(toggle_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(toggle_point)),
+        Some(toggle_id)
+    );
+    assert!(runtime.bridge().state().ui.chrome.beat_guides_enabled);
+    assert!(
+        crate::native_app::test_support::toolbar::main_toolbar_projection(runtime.bridge().state())
+            .beat_guides_enabled
+    );
+    assert_eq!(
+        runtime.bridge().state().waveform.current.play_selection(),
+        original_selection,
+        "local toggle must not leak into waveform gestures"
+    );
+
+    let frame = runtime.frame(&theme);
+    assert!(frame.paint_plan.contains_text("480 BPM"));
+    assert!(!frame.paint_plan.contains_text("500 ms"));
+    let count_point = frame
+        .paint_plan
+        .text_inputs()
+        .find(|input| input.widget_id == count_id)
+        .map(|input| input.rect)
+        .expect("local beat count paint")
+        .center();
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_press(count_point)),
+        Some(count_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::primary_release(count_point)),
+        Some(count_id)
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::KeyPress(WidgetKey::ArrowUp)),
+        Some(count_id)
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 5);
+    assert_eq!(
+        crate::native_app::test_support::toolbar::main_toolbar_projection(runtime.bridge().state())
+            .beat_guide_count,
+        5
+    );
+    assert!(runtime.frame(&theme).paint_plan.contains_text("600 BPM"));
+    assert_eq!(
+        runtime.bridge().state().waveform.current.play_selection(),
+        original_selection,
+        "local count editing must not leak into waveform gestures"
+    );
+}
+
+#[test]
 fn stale_waveform_loading_label_does_not_mask_waveform_hit_target() {
     let mut state = gui_state_for_span_tests();
     state.waveform.load.label = Some(String::from("previous.wav"));

@@ -8,19 +8,19 @@ use radiant::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum BeatGuideCountInputMessage {
+pub(in crate::native_app) enum BeatGuideCountInputMessage {
     Changed(String),
     Committed(String),
     Set(u8),
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct BeatGuideCountInputWidget {
+pub(in crate::native_app) struct BeatGuideCountInputWidget {
     input: TextInputWidget,
 }
 
 impl BeatGuideCountInputWidget {
-    pub(super) fn new(id: u64, count: u8, width: f32, height: f32) -> Self {
+    pub(in crate::native_app) fn new(id: u64, count: u8, width: f32, height: f32) -> Self {
         let mut input = TextInputWidget::new(
             id,
             count.to_string(),
