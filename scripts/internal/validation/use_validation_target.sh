@@ -7,7 +7,8 @@ set -euo pipefail
 
 wavecrate_use_validation_target() {
   local root_dir="$1"
-  if [[ "$(uname -s)" != "Darwin" ]]; then
+  local platform="${WAVECRATE_VALIDATION_TEST_PLATFORM:-$(uname -s)}"
+  if [[ "$platform" != "Darwin" ]]; then
     return 0
   fi
   if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
@@ -15,12 +16,37 @@ wavecrate_use_validation_target() {
     return 0
   fi
 
-  local rustc_identity lock_identity target_root target_dir deps_dir
+  local rustc_identity lock_identity target_root target_dir deps_dir lease_dir owner_pid
   rustc_identity="$(rustc -vV | awk '/^(release|host):/{print $2}' | tr '\n' '-' | sed 's/-$//')"
   lock_identity="$(shasum -a 256 "$root_dir/Cargo.lock" | awk '{print substr($1, 1, 12)}')"
   target_root="${WAVECRATE_VALIDATION_TARGET_ROOT:-$root_dir/target/agent-validation}"
   target_dir="$target_root/$rustc_identity-$lock_identity"
   deps_dir="$target_dir/debug/deps"
+  lease_dir="$target_root/.lock-$rustc_identity-$lock_identity"
+  owner_pid="${BASHPID:-$$}"
+  mkdir -p "$target_root"
+
+  local missing_owner_attempts=0
+  while ! mkdir "$lease_dir" 2>/dev/null; do
+    local current_owner=""
+    IFS= read -r current_owner 2>/dev/null < "$lease_dir/pid" || current_owner=""
+    if [[ "$current_owner" =~ ^[0-9]+$ ]] && kill -0 "$current_owner" 2>/dev/null; then
+      missing_owner_attempts=0
+      sleep 0.1
+      continue
+    fi
+    if [[ -z "$current_owner" && $missing_owner_attempts -lt 20 ]]; then
+      missing_owner_attempts=$((missing_owner_attempts + 1))
+      sleep 0.1
+      continue
+    fi
+    rm -f "$lease_dir/pid"
+    rmdir "$lease_dir" 2>/dev/null || true
+    missing_owner_attempts=0
+  done
+  printf '%s\n' "$owner_pid" > "$lease_dir/pid"
+  export WAVECRATE_VALIDATION_TARGET_LEASE_DIR="$lease_dir"
+  export WAVECRATE_VALIDATION_TARGET_LEASE_OWNER="$owner_pid"
 
   local max_metadata_bytes="${WAVECRATE_VALIDATION_MAX_DEPS_METADATA_BYTES:-8388608}"
   if [[ -d "$deps_dir" ]]; then
@@ -38,4 +64,23 @@ wavecrate_use_validation_target() {
   mkdir -p "$target_dir"
   export CARGO_TARGET_DIR="$target_dir"
   echo "[validation_target] CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
+}
+
+wavecrate_release_validation_target() {
+  local lease_dir="${WAVECRATE_VALIDATION_TARGET_LEASE_DIR:-}"
+  local expected_owner="${WAVECRATE_VALIDATION_TARGET_LEASE_OWNER:-}"
+  local owner_pid="${BASHPID:-$$}"
+  if [[ -z "$lease_dir" || "$expected_owner" != "$owner_pid" ]]; then
+    return 0
+  fi
+  local recorded_owner=""
+  if [[ -r "$lease_dir/pid" ]]; then
+    recorded_owner="$(<"$lease_dir/pid")"
+  fi
+  if [[ "$recorded_owner" == "$owner_pid" ]]; then
+    rm -f "$lease_dir/pid"
+    rmdir "$lease_dir" 2>/dev/null || true
+  fi
+  unset WAVECRATE_VALIDATION_TARGET_LEASE_DIR
+  unset WAVECRATE_VALIDATION_TARGET_LEASE_OWNER
 }

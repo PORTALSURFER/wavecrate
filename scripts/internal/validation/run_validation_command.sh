@@ -18,6 +18,11 @@ source "$ROOT_DIR/scripts/internal/validation/use_validation_target.sh"
 wavecrate_use_validation_target "$ROOT_DIR"
 
 if [[ "${WAVECRATE_VALIDATION_WATCHDOG_ACTIVE:-0}" == "1" ]]; then
+  if [[ "${WAVECRATE_VALIDATION_TARGET_LEASE_OWNER:-}" == "${BASHPID:-$$}" ]]; then
+    trap wavecrate_release_validation_target EXIT
+    "$@"
+    exit $?
+  fi
   exec "$@"
 fi
 

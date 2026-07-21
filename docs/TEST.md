@@ -46,7 +46,9 @@ validation independent from the unbounded general-purpose `target/debug/deps`
 directory while preserving warm reuse across repeated runs. A target whose
 `debug/deps` directory itself becomes pathological is atomically quarantined
 before Cargo starts; the emitted path can be removed after any needed
-diagnostics have been retained.
+diagnostics have been retained. A per-target lease serializes supported macOS
+validation commands so quarantine cannot race an active Cargo user; stale
+leases are recovered after their owner exits.
 
 Those entrypoints also own a process-group watchdog. A changing owned process
 tree or increasing aggregate CPU time counts as progress, so a quiet but active

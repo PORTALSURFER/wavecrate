@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import atexit
 import os
 import platform
 import shlex
@@ -16,6 +17,24 @@ from pathlib import Path
 
 
 STALL_EXIT_CODE = 124
+
+
+def release_validation_target_lease() -> None:
+    lease_text = os.environ.get("WAVECRATE_VALIDATION_TARGET_LEASE_DIR")
+    owner_text = os.environ.get("WAVECRATE_VALIDATION_TARGET_LEASE_OWNER")
+    if not lease_text or owner_text != str(os.getpid()):
+        return
+    lease = Path(lease_text)
+    pid_path = lease / "pid"
+    try:
+        if pid_path.read_text(encoding="utf-8").strip() != owner_text:
+            return
+        pid_path.unlink()
+        lease.rmdir()
+    except FileNotFoundError:
+        pass
+    except OSError as error:
+        print(f"[validation_watchdog] unable to release target lease {lease}: {error}", file=sys.stderr)
 
 
 @dataclass(frozen=True)
@@ -193,6 +212,7 @@ def main() -> int:
         print("Usage: run_with_progress_watchdog.py <command> [args...]", file=sys.stderr)
         return 2
 
+    atexit.register(release_validation_target_lease)
     command = sys.argv[1:]
     idle_seconds = env_seconds("WAVECRATE_VALIDATION_IDLE_SECONDS", 300)
     diagnostic_grace = env_seconds("WAVECRATE_VALIDATION_DIAGNOSTIC_GRACE_SECONDS", 120)

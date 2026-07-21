@@ -86,15 +86,56 @@ export WAVECRATE_VALIDATION_MAX_DEPS_METADATA_BYTES=1
 unset CARGO_TARGET_DIR
 # shellcheck source=scripts/internal/validation/use_validation_target.sh
 source "$ROOT_DIR/scripts/internal/validation/use_validation_target.sh"
+export WAVECRATE_VALIDATION_TEST_PLATFORM=Linux
+wavecrate_use_validation_target "$ROOT_DIR"
+[[ -z "${CARGO_TARGET_DIR:-}" ]] || fail "non-Darwin target selection changed CARGO_TARGET_DIR"
+echo "[validation_watchdog_test] PASS: non-Darwin target selection is a no-op"
+
+export WAVECRATE_VALIDATION_TEST_PLATFORM=Darwin
 wavecrate_use_validation_target "$ROOT_DIR"
 first_target="$CARGO_TARGET_DIR"
+wavecrate_release_validation_target
 mkdir -p "$first_target/debug/deps"
 : >"$first_target/debug/deps/artifact"
+
+run_target_selection() {
+  local output_path="$1"
+  unset CARGO_TARGET_DIR
+  wavecrate_use_validation_target "$ROOT_DIR"
+  printf '%s\n' "$CARGO_TARGET_DIR" > "$output_path"
+  sleep 0.2
+  wavecrate_release_validation_target
+}
+
+run_target_selection "$FIXTURE_DIR/target-one" &
+first_selector=$!
+run_target_selection "$FIXTURE_DIR/target-two" &
+second_selector=$!
+wait "$first_selector"
+wait "$second_selector"
+[[ "$(cat "$FIXTURE_DIR/target-one")" == "$first_target" ]] \
+  || fail "first concurrent target identity changed"
+[[ "$(cat "$FIXTURE_DIR/target-two")" == "$first_target" ]] \
+  || fail "second concurrent target identity changed"
+quarantine_count="$(find "$target_root" -mindepth 1 -maxdepth 1 -type d -name 'stale-*' | wc -l | tr -d ' ')"
+[[ "$quarantine_count" == "1" ]] || fail "expected one quarantine, got $quarantine_count"
+find "$target_root" -mindepth 1 -maxdepth 1 -type d -name '.lock-*' | grep -q . \
+  && fail "validation target lease survived successful selectors"
+echo "[validation_watchdog_test] PASS: concurrent pathological target rotation"
+
+unset WAVECRATE_VALIDATION_TEST_PLATFORM
 unset CARGO_TARGET_DIR
-wavecrate_use_validation_target "$ROOT_DIR"
-[[ "$CARGO_TARGET_DIR" == "$first_target" ]] || fail "target identity changed during rotation"
-find "$target_root" -mindepth 1 -maxdepth 1 -type d -name 'stale-*' | grep -q . \
-  || fail "pathological target was not quarantined"
-echo "[validation_watchdog_test] PASS: pathological target rotation"
+runner_target_root="$FIXTURE_DIR/runner-targets"
+WAVECRATE_VALIDATION_TARGET_ROOT="$runner_target_root" \
+  "$ROOT_DIR/scripts/internal/validation/run_validation_command.sh" sh -c 'sleep 0.2' &
+first_runner=$!
+WAVECRATE_VALIDATION_TARGET_ROOT="$runner_target_root" \
+  "$ROOT_DIR/scripts/internal/validation/run_validation_command.sh" sh -c 'sleep 0.2' &
+second_runner=$!
+wait "$first_runner"
+wait "$second_runner"
+find "$runner_target_root" -mindepth 1 -maxdepth 1 -type d -name '.lock-*' | grep -q . \
+  && fail "validation command left its target lease behind"
+echo "[validation_watchdog_test] PASS: concurrent validation command leases"
 
 echo "[validation_watchdog_test] OK"
