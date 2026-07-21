@@ -63,8 +63,8 @@ def main() -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", required=True, help="Stable version, e.g. 19.1.0")
-    parser.add_argument("--rc-tag", required=True, help="Promoted RC tag, e.g. v19.1.0-rc.2")
+    parser.add_argument("--version", required=True, help="Stable version, e.g. 0.19.1")
+    parser.add_argument("--rc-tag", required=True, help="Promoted RC tag, e.g. v0.19.1-rc.2")
     parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", ""), help="GitHub repo owner/name")
     parser.add_argument(
         "--contract",

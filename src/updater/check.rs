@@ -6,6 +6,11 @@ use tracing::warn;
 use super::github;
 use super::{RuntimeIdentity, UpdateChannel, UpdateError};
 
+const LEGACY_RENUMBERING_MAJOR: u64 = 19;
+const LEGACY_RENUMBERING_MINOR: u64 = 1;
+const FIRST_PRE_ONE_MINOR: u64 = 19;
+const FIRST_PRE_ONE_PATCH: u64 = 1;
+
 /// Input for checking whether an update is available.
 #[derive(Debug, Clone)]
 pub struct UpdateCheckRequest {
@@ -74,7 +79,7 @@ fn stable_outcome(
     let latest = Version::parse(version_text).map_err(|err| {
         UpdateError::Invalid(format!("Invalid stable version '{version_text}': {err}"))
     })?;
-    if &latest > current {
+    if release_version_is_newer(current, &latest) {
         Ok(UpdateCheckOutcome::UpdateAvailable {
             tag,
             html_url: release.html_url,
@@ -98,7 +103,7 @@ fn rc_outcome(
     let latest = Version::parse(version_text).map_err(|err| {
         UpdateError::Invalid(format!("Invalid RC version '{version_text}': {err}"))
     })?;
-    if &latest > current {
+    if release_version_is_newer(current, &latest) {
         Ok(UpdateCheckOutcome::UpdateAvailable {
             tag,
             html_url: release.html_url,
@@ -107,6 +112,31 @@ fn rc_outcome(
     } else {
         Ok(UpdateCheckOutcome::UpToDate)
     }
+}
+
+fn release_version_is_newer(current: &Version, candidate: &Version) -> bool {
+    if is_pre_one_install_with_historical_legacy_candidate(current, candidate) {
+        return false;
+    }
+
+    candidate > current || is_legacy_to_pre_one_transition(current, candidate)
+}
+
+fn is_legacy_to_pre_one_transition(current: &Version, candidate: &Version) -> bool {
+    current.major == LEGACY_RENUMBERING_MAJOR
+        && current.minor == LEGACY_RENUMBERING_MINOR
+        && candidate.major == 0
+        && (candidate.minor, candidate.patch) >= (FIRST_PRE_ONE_MINOR, FIRST_PRE_ONE_PATCH)
+}
+
+fn is_pre_one_install_with_historical_legacy_candidate(
+    current: &Version,
+    candidate: &Version,
+) -> bool {
+    current.major == 0
+        && (current.minor, current.patch) >= (FIRST_PRE_ONE_MINOR, FIRST_PRE_ONE_PATCH)
+        && candidate.major == LEGACY_RENUMBERING_MAJOR
+        && candidate.minor == LEGACY_RENUMBERING_MINOR
 }
 
 fn nightly_outcome(
@@ -208,6 +238,56 @@ mod tests {
         assert!(matches!(
             outcome,
             UpdateCheckOutcome::UpdateAvailable { .. }
+        ));
+    }
+
+    #[test]
+    fn legacy_release_line_updates_to_pre_one_version() {
+        let current = Version::parse("19.1.1").unwrap();
+        let candidate = Version::parse("0.19.1").unwrap();
+
+        assert!(release_version_is_newer(&current, &candidate));
+    }
+
+    #[test]
+    fn pre_one_versions_keep_normal_semver_ordering() {
+        let current = Version::parse("0.19.1").unwrap();
+
+        assert!(release_version_is_newer(
+            &current,
+            &Version::parse("0.19.2").unwrap()
+        ));
+        assert!(!release_version_is_newer(
+            &current,
+            &Version::parse("0.19.0").unwrap()
+        ));
+    }
+
+    #[test]
+    fn pre_one_versions_reject_legacy_catalog_entries() {
+        let current = Version::parse("0.19.1").unwrap();
+
+        assert!(!release_version_is_newer(
+            &current,
+            &Version::parse("19.1.1").unwrap()
+        ));
+    }
+
+    #[test]
+    fn future_major_nineteen_release_keeps_normal_semver_ordering() {
+        let current = Version::parse("18.9.0").unwrap();
+        let candidate = Version::parse("19.1.0").unwrap();
+
+        assert!(release_version_is_newer(&current, &candidate));
+    }
+
+    #[test]
+    fn legacy_transition_rejects_versions_before_first_pre_one_release() {
+        let current = Version::parse("19.1.0").unwrap();
+
+        assert!(!release_version_is_newer(
+            &current,
+            &Version::parse("0.19.0").unwrap()
         ));
     }
 }

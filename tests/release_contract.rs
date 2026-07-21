@@ -7,6 +7,32 @@ use toml::Value;
 const RELEASE_CONTRACT: &str = include_str!("../release_contract.toml");
 const WORKSPACE_MANIFEST: &str = include_str!("../Cargo.toml");
 const WORKSPACE_LOCKFILE: &str = include_str!("../Cargo.lock");
+const RELEASE_PACKAGE_MANIFESTS: &[(&str, &str)] = &[
+    (
+        "wavecrate-analysis",
+        include_str!("../crates/wavecrate-analysis/Cargo.toml"),
+    ),
+    (
+        "wavecrate-library",
+        include_str!("../crates/wavecrate-library/Cargo.toml"),
+    ),
+    (
+        "wavecrate-scan",
+        include_str!("../crates/wavecrate-scan/Cargo.toml"),
+    ),
+    (
+        "wavecrate-updater-helper",
+        include_str!("../apps/updater-helper/Cargo.toml"),
+    ),
+    (
+        "wavecrate-analysis-admin",
+        include_str!("../tools/analysis-admin/Cargo.toml"),
+    ),
+    (
+        "wavecrate-bench-cli",
+        include_str!("../tools/bench-cli/Cargo.toml"),
+    ),
+];
 const CODEOWNERS: &str = include_str!("../.github/CODEOWNERS");
 const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.yml");
 const RELEASE_TRAIN_PREP_WORKFLOW: &str =
@@ -49,6 +75,66 @@ const GETTING_STARTED_DOCS: &str = include_str!("../docs/book/src/getting-starte
 const MANUAL_USAGE_DOCS: &str = include_str!("../manual/usage.md");
 const UPDATER_ASSET_NAMES: &str = include_str!("../src/updater/asset_names.rs");
 const CHECKSUMS_PUBLIC_KEY: &str = "8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=";
+
+#[test]
+fn workspace_release_identity_is_pre_one_and_consistent() {
+    let workspace = WORKSPACE_MANIFEST
+        .parse::<Value>()
+        .expect("workspace manifest parses");
+    let current_version = workspace["package"]["version"]
+        .as_str()
+        .expect("workspace package version");
+    let parsed = semver::Version::parse(current_version).expect("workspace version is semver");
+
+    assert_eq!(
+        parsed.major, 0,
+        "Wavecrate must remain pre-1.0 until an explicit 1.0 decision"
+    );
+
+    let release_package_names = RELEASE_PACKAGE_MANIFESTS
+        .iter()
+        .map(|(name, manifest)| {
+            let manifest = manifest
+                .parse::<Value>()
+                .unwrap_or_else(|err| panic!("{name} manifest parses: {err}"));
+            assert_eq!(
+                manifest["package"]["version"].as_str(),
+                Some(current_version),
+                "{name} must share the Wavecrate release version"
+            );
+            *name
+        })
+        .chain(std::iter::once("wavecrate"))
+        .collect::<BTreeSet<_>>();
+
+    let lockfile = WORKSPACE_LOCKFILE
+        .parse::<Value>()
+        .expect("workspace lockfile parses");
+    for package in lockfile["package"].as_array().expect("lockfile packages") {
+        let Some(name) = package["name"].as_str() else {
+            continue;
+        };
+        if release_package_names.contains(name) {
+            assert_eq!(
+                package["version"].as_str(),
+                Some(current_version),
+                "Cargo.lock entry for {name} must share the Wavecrate release version"
+            );
+        }
+    }
+
+    assert!(
+        TARGET_DOCS.contains("Wavecrate uses pre-1.0 semantic versions"),
+        "docs/TARGET.md must preserve the pre-1.0 release policy"
+    );
+    assert!(
+        RC_WORKFLOW.contains("example 0.")
+            && RC_WORKFLOW.contains("example release/0.")
+            && STABLE_WORKFLOW.contains("example 0.")
+            && STABLE_WORKFLOW.contains("example release/0."),
+        "manual release workflows must demonstrate the pre-1.0 version and branch shape"
+    );
+}
 
 #[test]
 fn platform_labels_are_active_release_labels_only() {
@@ -617,29 +703,29 @@ fn release_contract_templates_emit_supported_rc_and_stable_asset_names() {
 
     let rc_names: BTreeSet<String> = active_target_matrix(&targets)
         .iter()
-        .map(|target| apply_asset_template(rc_template, app_name(&contract), target, "19.1.0", "2"))
+        .map(|target| apply_asset_template(rc_template, app_name(&contract), target, "0.19.1", "2"))
         .collect();
     let stable_names: BTreeSet<String> = active_target_matrix(&targets)
         .iter()
         .map(|target| {
-            apply_asset_template(stable_template, app_name(&contract), target, "19.1.0", "2")
+            apply_asset_template(stable_template, app_name(&contract), target, "0.19.1", "2")
         })
         .collect();
 
     assert_eq!(
         rc_names,
         BTreeSet::from([
-            "wavecrate-19.1.0-rc.2-macos-aarch64.zip".to_string(),
-            "wavecrate-19.1.0-rc.2-macos-x86_64.zip".to_string(),
-            "wavecrate-19.1.0-rc.2-windows-x86_64.zip".to_string(),
+            "wavecrate-0.19.1-rc.2-macos-aarch64.zip".to_string(),
+            "wavecrate-0.19.1-rc.2-macos-x86_64.zip".to_string(),
+            "wavecrate-0.19.1-rc.2-windows-x86_64.zip".to_string(),
         ])
     );
     assert_eq!(
         stable_names,
         BTreeSet::from([
-            "wavecrate-19.1.0-macos-aarch64.zip".to_string(),
-            "wavecrate-19.1.0-macos-x86_64.zip".to_string(),
-            "wavecrate-19.1.0-windows-x86_64.zip".to_string(),
+            "wavecrate-0.19.1-macos-aarch64.zip".to_string(),
+            "wavecrate-0.19.1-macos-x86_64.zip".to_string(),
+            "wavecrate-0.19.1-windows-x86_64.zip".to_string(),
         ])
     );
 }

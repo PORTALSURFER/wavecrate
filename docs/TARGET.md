@@ -180,6 +180,12 @@ Perceived stalls are product bugs. If a source scan, decode, rename, edit render
 
 Opportunistic metadata updates such as listen-history writes should never delay sample selection, validation, cache loading, or playback. They should use low-priority background work, short database busy timeouts, and skip/retry behavior when source databases are locked by higher-value work.
 
+## Release Identity
+
+Wavecrate uses pre-1.0 semantic versions until the product is explicitly declared ready for a 1.0 release. The current line is `0.19.1`, with release coordination on `release/0.19` and artifact identities such as `v0.19.1-rc.N` and `v0.19.1`. New builds must not continue the legacy `19.x` numbering.
+
+Previously published `19.x` artifacts remain immutable historical releases. During the one-time renumbering, update checks must allow an installed legacy `19.1.x` build to discover `0.19.1` or a later pre-1.0 release even though ordinary SemVer ordering would treat the new major-zero version as lower. Conversely, a pre-1.0 installation must ignore historical `19.1.x` catalog entries. This exception is scoped to the colliding `19.1.x` line so that a future ordinary upgrade to a real `19.x` release retains normal SemVer ordering. PortalSurfer must display catalog artifact versions truthfully; it may identify the current development line separately, but it must never relabel an existing signed `19.x` artifact as `0.19.1`.
+
 ## Non-Goals
 
 Wavecrate should not become:

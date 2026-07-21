@@ -102,18 +102,18 @@ mod tests {
         assert_eq!(
             expected_zip_asset_name(
                 &identity(UpdateChannel::Stable, "windows", "x86_64"),
-                Some("19.1.0")
+                Some("0.19.1")
             )
             .unwrap(),
-            "wavecrate-19.1.0-windows-x86_64.zip"
+            "wavecrate-0.19.1-windows-x86_64.zip"
         );
         assert_eq!(
             expected_zip_asset_name(
                 &identity(UpdateChannel::Rc, "macos", "aarch64"),
-                Some("19.1.0-rc.2")
+                Some("0.19.1-rc.2")
             )
             .unwrap(),
-            "wavecrate-19.1.0-rc.2-macos-aarch64.zip"
+            "wavecrate-0.19.1-rc.2-macos-aarch64.zip"
         );
     }
 

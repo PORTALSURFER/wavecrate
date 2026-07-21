@@ -157,7 +157,7 @@ git fetch --tags --force >/dev/null 2>&1 || true
 find_previous_stable_tag() {
   local exclude_tag="$1"
   local target="$2"
-  local tag commit
+  local tag commit distance best_tag="" best_distance=""
   while IFS= read -r tag; do
     if [[ "$tag" == "$exclude_tag" || ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
       continue
@@ -169,10 +169,16 @@ find_previous_stable_tag() {
       continue
     fi
     if git merge-base --is-ancestor "$commit" "$target"; then
-      printf '%s\n' "$tag"
-      return 0
+      distance="$(git rev-list --count "${commit}..${target}")"
+      if [[ -z "$best_distance" ]] || (( distance < best_distance )); then
+        best_tag="$tag"
+        best_distance="$distance"
+      fi
     fi
-  done < <(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname)
+  done < <(git tag -l 'v[0-9]*.[0-9]*.[0-9]*')
+  if [[ -n "$best_tag" ]]; then
+    printf '%s\n' "$best_tag"
+  fi
 }
 
 find_previous_rc_tag() {

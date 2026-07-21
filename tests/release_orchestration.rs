@@ -10,7 +10,7 @@ use tempfile::TempDir;
 #[test]
 fn prepare_minor_bump_derives_target_version_branch_and_runs_prep_helper() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
 
@@ -25,9 +25,9 @@ fn prepare_minor_bump_derives_target_version_branch_and_runs_prep_helper() {
 
     assert_success(&output);
     let stdout = stdout(&output);
-    assert!(stdout.contains("Resolved version: 19.2.0"));
-    assert!(stdout.contains("Release branch: release/19.2"));
-    assert!(stdout.contains("prepare-helper [--version] [19.2.0]"));
+    assert!(stdout.contains("Resolved version: 0.20.0"));
+    assert!(stdout.contains("Release branch: release/0.20"));
+    assert!(stdout.contains("prepare-helper [--version] [0.20.0]"));
     assert!(stdout.contains("[--dry-run]"));
     assert!(stdout.contains("release-train-prepare.yml"));
 }
@@ -35,7 +35,7 @@ fn prepare_minor_bump_derives_target_version_branch_and_runs_prep_helper() {
 #[test]
 fn prepare_major_bump_derives_next_major_train() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.4.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
 
@@ -43,17 +43,17 @@ fn prepare_major_bump_derives_next_major_train() {
 
     assert_success(&output);
     let stdout = stdout(&output);
-    assert!(stdout.contains("Resolved version: 20.0.0"));
-    assert!(stdout.contains("Release branch: release/20.0"));
+    assert!(stdout.contains("Resolved version: 1.0.0"));
+    assert!(stdout.contains("Release branch: release/1.0"));
 }
 
 #[test]
 fn prepare_patch_bump_derives_next_patch_on_existing_release_train() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.3");
+    repo.write_workspace("0.19.3");
     repo.commit_all("seed release train workspace");
-    repo.create_release_branch("release/19.1");
-    let release_sha = repo.git_stdout(&["rev-parse", "origin/release/19.1"]);
+    repo.create_release_branch("release/0.19");
+    let release_sha = repo.git_stdout(&["rev-parse", "origin/release/0.19"]);
     repo.write_workspace("20.5.0");
     repo.commit_all("advance local checkout after release branch");
     repo.push_branch("main");
@@ -63,23 +63,23 @@ fn prepare_patch_bump_derives_next_patch_on_existing_release_train() {
         "--bump",
         "patch",
         "--source-ref",
-        "release/19.1",
+        "release/0.19",
         "--dry-run",
     ]);
 
     assert_success(&output);
     let stdout = stdout(&output);
-    assert!(stdout.contains("Resolved version: 19.1.4"));
-    assert!(stdout.contains("Release branch: release/19.1"));
+    assert!(stdout.contains("Resolved version: 0.19.4"));
+    assert!(stdout.contains("Release branch: release/0.19"));
     assert!(stdout.contains(&format!("Target SHA: {release_sha}")));
-    assert!(stdout.contains("prepare-helper [--version] [19.1.4]"));
-    assert!(stdout.contains("[cwd-version=19.1.3]"));
+    assert!(stdout.contains("prepare-helper [--version] [0.19.4]"));
+    assert!(stdout.contains("[cwd-version=0.19.3]"));
 }
 
 #[test]
 fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.add_radiant_submodule();
     repo.commit_all("seed workspace");
     repo.push_branch("main");
@@ -90,7 +90,7 @@ fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
     repo.push_branch("main");
     repo.git(&["switch", "stale-local"]);
     assert!(
-        repo.read("Cargo.toml").contains("version = \"19.1.0\""),
+        repo.read("Cargo.toml").contains("version = \"0.19.1\""),
         "fixture checkout should stay on the stale package version"
     );
 
@@ -119,7 +119,7 @@ fn prepare_derives_bump_from_resolved_source_ref_not_local_checkout() {
 #[test]
 fn prepare_dispatch_uses_workflow_ref_for_gh_ref_and_source_sha_input() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
     let configured_repo = "PORTALSURFER/wavecrate-fork";
@@ -154,7 +154,7 @@ fn prepare_dispatch_uses_workflow_ref_for_gh_ref_and_source_sha_input() {
 #[test]
 fn prepare_dispatch_rejects_local_only_source_ref() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
     repo.write_workspace("19.2.0");
@@ -185,7 +185,7 @@ fn prepare_dispatch_rejects_local_only_source_ref() {
 #[test]
 fn prepare_rejects_invalid_bump_argument() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
 
@@ -198,7 +198,7 @@ fn prepare_rejects_invalid_bump_argument() {
 #[test]
 fn release_wrapper_rejects_dirty_worktree_before_release_actions() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
     repo.write("dirty.txt", "not committed\n");
@@ -212,7 +212,7 @@ fn release_wrapper_rejects_dirty_worktree_before_release_actions() {
 #[test]
 fn release_wrapper_rejects_github_origin_that_differs_from_target_repo() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.push_branch("main");
     repo.git(&[
@@ -395,7 +395,7 @@ fn rc_dry_run_preserves_release_notes_input() {
 #[test]
 fn rc_rejects_release_branch_with_mismatched_manifest_version() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.commit_all("seed workspace");
     repo.create_release_branch("release/19.2");
 
@@ -410,7 +410,7 @@ fn rc_rejects_release_branch_with_mismatched_manifest_version() {
     ]);
 
     assert_failure(&output);
-    assert!(stderr(&output).contains("Cargo.toml version 19.1.0"));
+    assert!(stderr(&output).contains("Cargo.toml version 0.19.1"));
 }
 
 #[test]

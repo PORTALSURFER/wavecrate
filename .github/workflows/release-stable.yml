@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Stable version, for example 19.1.0
+        description: Stable version, for example 0.19.1
         required: true
         type: string
       branch:
-        description: Release branch, for example release/19.1
+        description: Release branch, for example release/0.19
         required: true
         type: string
       release_notes:

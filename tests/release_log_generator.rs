@@ -15,8 +15,8 @@ fn rc_first_release_log_uses_previous_stable_boundary_and_manual_notes() {
     let release_dir = repo.release_dir();
     write_release_files(
         &release_dir,
-        "wavecrate-19.1.0-rc.1-windows-x86_64.zip",
-        "checksums-19.1.0-rc.1.txt",
+        "wavecrate-0.19.1-rc.1-windows-x86_64.zip",
+        "checksums-0.19.1-rc.1.txt",
     );
 
     let out = release_dir.join("release-log.md");
@@ -26,25 +26,25 @@ fn rc_first_release_log_uses_previous_stable_boundary_and_manual_notes() {
             "--channel",
             "rc",
             "--version",
-            "19.1.0-rc.1",
+            "0.19.1-rc.1",
             "--target-version",
-            "19.1.0",
+            "0.19.1",
             "--target-sha",
             &target_sha,
             "--target-branch",
-            "release/19.1",
+            "release/0.19",
             "--build-date",
             "2026-07-02",
             "--artifact-dir",
             release_dir.to_str().expect("release dir utf-8"),
             "--checksum-name",
-            "checksums-19.1.0-rc.1.txt",
+            "checksums-0.19.1-rc.1.txt",
             "--checksum-sig-name",
-            "checksums-19.1.0-rc.1.txt.sig",
+            "checksums-0.19.1-rc.1.txt.sig",
             "--rc-number",
             "1",
             "--release-tag",
-            "v19.1.0-rc.1",
+            "v0.19.1-rc.1",
             "--out",
             out.to_str().expect("output path utf-8"),
         ],
@@ -52,18 +52,71 @@ fn rc_first_release_log_uses_previous_stable_boundary_and_manual_notes() {
     );
 
     let log = fs::read_to_string(out).expect("read generated log");
-    assert!(log.contains("# Wavecrate 19.1.0-rc.1"));
+    assert!(log.contains("# Wavecrate 0.19.1-rc.1"));
     assert!(log.contains("- Channel: Release Candidate"));
-    assert!(log.contains("- Target branch: release/19.1"));
+    assert!(log.contains("- Target branch: release/0.19"));
     assert!(log.contains("- RC number: 1"));
     assert!(log.contains("- Previous release boundary: v19.0.0"));
-    assert!(log.contains("- windows / x86_64: `wavecrate-19.1.0-rc.1-windows-x86_64.zip`"));
-    assert!(log.contains("- Checksums: `checksums-19.1.0-rc.1.txt`"));
-    assert!(log.contains("- Signature: `checksums-19.1.0-rc.1.txt.sig`"));
+    assert!(log.contains("- windows / x86_64: `wavecrate-0.19.1-rc.1-windows-x86_64.zip`"));
+    assert!(log.contains("- Checksums: `checksums-0.19.1-rc.1.txt`"));
+    assert!(log.contains("- Signature: `checksums-0.19.1-rc.1.txt.sig`"));
     assert!(log.contains("## Manual Notes"));
     assert!(log.contains("Manual review note."));
     assert!(log.contains("## Generated Changes"));
     assert!(log.contains("- add sampler polishing"));
+}
+
+#[test]
+fn rc_release_log_prefers_nearest_pre_one_stable_over_legacy_version_sort() {
+    let repo = FixtureRepo::new();
+    repo.commit("legacy stable");
+    repo.tag("v19.1.0");
+    repo.commit("publish pre-one stable");
+    repo.tag("v0.19.1");
+    let target_sha = repo.commit("add current train change");
+    let release_dir = repo.release_dir();
+    write_release_files(
+        &release_dir,
+        "wavecrate-0.20.0-rc.1-windows-x86_64.zip",
+        "checksums-0.20.0-rc.1.txt",
+    );
+
+    let out = release_dir.join("release-log.md");
+    run_generator(
+        &repo,
+        &[
+            "--channel",
+            "rc",
+            "--version",
+            "0.20.0-rc.1",
+            "--target-version",
+            "0.20.0",
+            "--target-sha",
+            &target_sha,
+            "--target-branch",
+            "release/0.20",
+            "--build-date",
+            "2026-07-21",
+            "--artifact-dir",
+            release_dir.to_str().expect("release dir utf-8"),
+            "--checksum-name",
+            "checksums-0.20.0-rc.1.txt",
+            "--checksum-sig-name",
+            "checksums-0.20.0-rc.1.txt.sig",
+            "--rc-number",
+            "1",
+            "--release-tag",
+            "v0.20.0-rc.1",
+            "--out",
+            out.to_str().expect("output path utf-8"),
+        ],
+        None,
+    );
+
+    let log = fs::read_to_string(out).expect("read generated log");
+    assert!(log.contains("- Previous release boundary: v0.19.1"));
+    assert!(log.contains("- add current train change"));
+    assert!(!log.contains("- publish pre-one stable"));
 }
 
 #[test]
@@ -72,13 +125,13 @@ fn later_rc_release_log_uses_previous_rc_boundary() {
     repo.commit("initial stable");
     repo.tag("v19.0.0");
     repo.commit("prepare rc one");
-    repo.tag("v19.1.0-rc.1");
+    repo.tag("v0.19.1-rc.1");
     let target_sha = repo.commit("fix rc two blocker");
     let release_dir = repo.release_dir();
     write_release_files(
         &release_dir,
-        "wavecrate-19.1.0-rc.2-macos-aarch64.zip",
-        "checksums-19.1.0-rc.2.txt",
+        "wavecrate-0.19.1-rc.2-macos-aarch64.zip",
+        "checksums-0.19.1-rc.2.txt",
     );
 
     let out = release_dir.join("release-log.md");
@@ -88,25 +141,25 @@ fn later_rc_release_log_uses_previous_rc_boundary() {
             "--channel",
             "rc",
             "--version",
-            "19.1.0-rc.2",
+            "0.19.1-rc.2",
             "--target-version",
-            "19.1.0",
+            "0.19.1",
             "--target-sha",
             &target_sha,
             "--target-branch",
-            "release/19.1",
+            "release/0.19",
             "--build-date",
             "2026-07-02",
             "--artifact-dir",
             release_dir.to_str().expect("release dir utf-8"),
             "--checksum-name",
-            "checksums-19.1.0-rc.2.txt",
+            "checksums-0.19.1-rc.2.txt",
             "--checksum-sig-name",
-            "checksums-19.1.0-rc.2.txt.sig",
+            "checksums-0.19.1-rc.2.txt.sig",
             "--rc-number",
             "2",
             "--release-tag",
-            "v19.1.0-rc.2",
+            "v0.19.1-rc.2",
             "--out",
             out.to_str().expect("output path utf-8"),
         ],
@@ -114,7 +167,7 @@ fn later_rc_release_log_uses_previous_rc_boundary() {
     );
 
     let log = fs::read_to_string(out).expect("read generated log");
-    assert!(log.contains("- Previous release boundary: v19.1.0-rc.1"));
+    assert!(log.contains("- Previous release boundary: v0.19.1-rc.1"));
     assert!(log.contains("- fix rc two blocker"));
     assert!(!log.contains("- prepare rc one"));
 }
@@ -126,12 +179,12 @@ fn stable_release_log_records_promoted_rc_and_previous_stable_boundary() {
     repo.tag("v19.0.0");
     repo.commit("prepare final train");
     let target_sha = repo.commit("final release polish");
-    repo.tag("v19.1.0-rc.2");
+    repo.tag("v0.19.1-rc.2");
     let release_dir = repo.release_dir();
     write_release_files(
         &release_dir,
-        "wavecrate-19.1.0-macos-x86_64.zip",
-        "checksums-19.1.0.txt",
+        "wavecrate-0.19.1-macos-x86_64.zip",
+        "checksums-0.19.1.txt",
     );
 
     let out = release_dir.join("release-log.md");
@@ -141,23 +194,23 @@ fn stable_release_log_records_promoted_rc_and_previous_stable_boundary() {
             "--channel",
             "stable",
             "--version",
-            "19.1.0",
+            "0.19.1",
             "--target-sha",
             &target_sha,
             "--target-branch",
-            "release/19.1",
+            "release/0.19",
             "--build-date",
             "2026-07-02",
             "--artifact-dir",
             release_dir.to_str().expect("release dir utf-8"),
             "--checksum-name",
-            "checksums-19.1.0.txt",
+            "checksums-0.19.1.txt",
             "--checksum-sig-name",
-            "checksums-19.1.0.txt.sig",
+            "checksums-0.19.1.txt.sig",
             "--promoted-rc-tag",
-            "v19.1.0-rc.2",
+            "v0.19.1-rc.2",
             "--release-tag",
-            "v19.1.0",
+            "v0.19.1",
             "--out",
             out.to_str().expect("output path utf-8"),
         ],
@@ -165,11 +218,11 @@ fn stable_release_log_records_promoted_rc_and_previous_stable_boundary() {
     );
 
     let log = fs::read_to_string(out).expect("read generated log");
-    assert!(log.contains("# Wavecrate 19.1.0"));
+    assert!(log.contains("# Wavecrate 0.19.1"));
     assert!(log.contains("- Channel: Stable"));
-    assert!(log.contains("- Promoted from: v19.1.0-rc.2"));
+    assert!(log.contains("- Promoted from: v0.19.1-rc.2"));
     assert!(log.contains("- Previous release boundary: v19.0.0"));
-    assert!(log.contains("- macos / x86_64: `wavecrate-19.1.0-macos-x86_64.zip`"));
+    assert!(log.contains("- macos / x86_64: `wavecrate-0.19.1-macos-x86_64.zip`"));
     assert!(log.contains("- prepare final train"));
     assert!(log.contains("- final release polish"));
 }

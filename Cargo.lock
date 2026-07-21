@@ -6095,7 +6095,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "arboard",
  "base64",
@@ -6160,7 +6160,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-analysis"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "blake3",
  "directories",
@@ -6185,7 +6185,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-analysis-admin"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "rusqlite",
  "wavecrate",
@@ -6194,7 +6194,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-bench-cli"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "hound",
  "rand 0.9.5",
@@ -6209,7 +6209,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-library"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "blake3",
  "cap-primitives",
@@ -6228,7 +6228,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-scan"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "blake3",
  "libc",
@@ -6240,7 +6240,7 @@ dependencies = [
 
 [[package]]
 name = "wavecrate-updater-helper"
-version = "19.1.1"
+version = "0.19.1"
 dependencies = [
  "wavecrate",
 ]
