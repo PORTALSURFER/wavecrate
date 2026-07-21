@@ -23,6 +23,7 @@ use super::{
     WaveformState, WaveformViewport,
     audio_file::{gain_preview_for_range_with_gain, gain_preview_for_selection},
     edit_preview_for_selection,
+    playmark_label_editor::PlaymarkLabelWidget,
     widget_geometry::WaveformSelectionHandleHover,
 };
 
@@ -56,20 +57,18 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     normalized_audition_enabled: bool,
     playhead_occlusion_rect: Option<Rect>,
 ) -> ui::View<GuiMessage> {
-    let interaction = ui::custom_widget(
-        WaveformWidget::new(WaveformWidgetProps::from_state_with_playhead_occlusion(
-            state,
-            beat_guides_enabled,
-            bpm_snap_enabled,
-            beat_guide_count,
-            playhead_occlusion_rect,
-        )),
-        |output| {
-            output
-                .typed_copied::<WaveformInteraction>()
-                .map(GuiMessage::Waveform)
-        },
-    )
+    let props = WaveformWidgetProps::from_state_with_playhead_occlusion(
+        state,
+        beat_guides_enabled,
+        bpm_snap_enabled,
+        beat_guide_count,
+        playhead_occlusion_rect,
+    );
+    let interaction = ui::custom_widget(WaveformWidget::new(props.clone()), |output| {
+        output
+            .typed_copied::<WaveformInteraction>()
+            .map(GuiMessage::Waveform)
+    })
     .id(WAVEFORM_WIDGET_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32);
     let interaction = if let Some(tooltip) = tooltip {
@@ -77,6 +76,23 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     } else {
         interaction
     };
+    let label = PlaymarkLabelWidget::new(
+        widget_ids::WAVEFORM_PLAYMARK_LABEL_ID,
+        WaveformWidget::new(props),
+        state,
+        beat_guides_enabled,
+        beat_guide_count,
+    )
+    .map(|widget| {
+        ui::custom_widget(widget, |output| {
+            output
+                .typed_cloned::<super::PlaymarkLabelMessage>()
+                .map(GuiMessage::PlaymarkLabel)
+        })
+        .id(widget_ids::WAVEFORM_PLAYMARK_LABEL_ID)
+        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
+    })
+    .unwrap_or_else(ui::empty);
 
     ui::stack([
         waveform_signal_surface_view(
@@ -87,6 +103,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         .id(WAVEFORM_SIGNAL_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         interaction,
+        label,
     ])
     .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
@@ -218,6 +235,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     bpm_snap_enabled: bool,
     beat_guide_count: u8,
     playhead_occlusion_rect: Option<Rect>,
+    playmark_label_editor_active: bool,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -286,6 +304,7 @@ impl WaveformWidgetProps {
             bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
+            playmark_label_editor_active: state.playmark_label_editor.is_some(),
             active_drag_kind,
         }
     }
@@ -341,6 +360,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) bpm_snap_enabled: bool,
     pub(super) beat_guide_count: u8,
     pub(super) playhead_occlusion_rect: Option<Rect>,
+    pub(super) playmark_label_editor_active: bool,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
     pub(super) live_selection_preview_anchor: Option<LiveSelectionPreviewAnchor>,
@@ -379,6 +399,7 @@ impl WaveformWidget {
             bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
+            playmark_label_editor_active,
             active_drag_kind,
         } = props;
         let common = WidgetCommon::fixed(0, WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
@@ -414,6 +435,7 @@ impl WaveformWidget {
             bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
+            playmark_label_editor_active,
             edit_preview: edit_preview_for_selection(edit_selection),
             last_live_selection_update_visible_ratio: None,
             live_selection_preview_anchor: None,

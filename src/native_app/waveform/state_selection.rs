@@ -78,6 +78,12 @@ impl WaveformState {
         self.record_current_play_selection_mark();
     }
 
+    pub(super) fn set_play_selection_frame_range(&mut self, start_frame: usize, end_frame: usize) {
+        let selection = SelectionRange::from_frame_bounds(self.file.frames, start_frame, end_frame);
+        self.set_selection_for_kind(WaveformSelectionKind::Play, selection.start(), selection);
+        self.record_current_play_selection_mark();
+    }
+
     pub(in crate::native_app) fn slide_play_selection_by_width(&mut self, direction: i8) -> bool {
         let direction = direction.signum();
         let Some(selection) = self

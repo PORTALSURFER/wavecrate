@@ -2,8 +2,8 @@ use super::gui_state_for_span_tests;
 use crate::native_app::{
     test_support::state::{GuiMessage, WaveformInteraction},
     waveform::{
-        WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle, WaveformSelectionEdge,
-        WaveformSelectionKind,
+        PlaymarkLabelMessage, WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle,
+        WaveformSelectionEdge, WaveformSelectionKind,
     },
 };
 use radiant::prelude::{self as ui, IntoView};
@@ -45,6 +45,45 @@ fn transaction_group_undoes_and_redoes_as_one_entry() {
     state.redo_transaction(&mut radiant::prelude::UiUpdateContext::default());
     assert_eq!(state.ui.status.sample, "Redid Grouped edit");
     assert_eq!(state.audio.volume, 0.8);
+}
+
+#[test]
+fn playmark_label_length_commit_registers_one_undoable_frame_exact_transaction() {
+    let mut state = gui_state_for_span_tests();
+    let mut context = ui::UiUpdateContext::default();
+    let total_frames = state.waveform.current.frames();
+    let before = SelectionRange::from_frame_bounds(total_frames, 12_000, 18_000);
+    state
+        .waveform
+        .current
+        .set_play_selection_range(before.start(), before.end());
+
+    state.apply_message(
+        GuiMessage::PlaymarkLabel(PlaymarkLabelMessage::BeginEdit),
+        &mut context,
+    );
+    state.apply_message(
+        GuiMessage::PlaymarkLabel(PlaymarkLabelMessage::Commit(String::from("500ms"))),
+        &mut context,
+    );
+
+    let after = state
+        .waveform
+        .current
+        .play_selection()
+        .expect("playmark selection after label commit");
+    assert_eq!(
+        after.frame_bounds(total_frames).end_frame - after.frame_bounds(total_frames).start_frame,
+        24_000
+    );
+    let items = state.transactions.history.list_items();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].label, "Change play mark selection");
+
+    state.apply_message(GuiMessage::UndoTransaction, &mut context);
+    assert_eq!(state.waveform.current.play_selection(), Some(before));
+    state.apply_message(GuiMessage::RedoTransaction, &mut context);
+    assert_eq!(state.waveform.current.play_selection(), Some(after));
 }
 
 #[test]

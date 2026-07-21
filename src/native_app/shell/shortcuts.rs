@@ -29,6 +29,12 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             )),
         )
         .layer_when(
+            state.waveform.current.playmark_label_editor_active(),
+            ui::ShortcutLayer::modal_escape(GuiMessage::PlaymarkLabel(
+                crate::native_app::waveform::PlaymarkLabelMessage::Cancel,
+            )),
+        )
+        .layer_when(
             state.library.folder_browser.file_column_drag_active(),
             ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::CancelFileColumnDrag,

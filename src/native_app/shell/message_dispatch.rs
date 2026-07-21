@@ -264,6 +264,9 @@ impl NativeAppState {
                 self.apply_navigation_dispatch(message, context);
             }
             GuiMessage::Waveform(message) => self.apply_waveform_message(message, context),
+            GuiMessage::PlaymarkLabel(message) => {
+                self.apply_playmark_label_message(message, context)
+            }
             GuiMessage::WaveformDetailRefined(result) => {
                 self.finish_waveform_detail_refinement(result, context);
             }
@@ -365,6 +368,7 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::NormalizationProgress(_) => "NormalizationProgress",
         GuiMessage::NormalizationFinished(_) => "NormalizationFinished",
         GuiMessage::Waveform(_) => "Waveform",
+        GuiMessage::PlaymarkLabel(_) => "PlaymarkLabel",
         GuiMessage::PlaySelectedSample => "PlaySelectedSample",
         GuiMessage::PlayFromCurrentPlayStart => "PlayFromCurrentPlayStart",
         GuiMessage::PlayRandomSampleRange => "PlayRandomSampleRange",

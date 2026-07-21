@@ -42,7 +42,7 @@ use crate::native_app::sample_library::folder_scan_actions::FolderScanMaintenanc
 use crate::native_app::sample_library::native_file_open_actions::NativeAudioDocumentOpenValidation;
 use crate::native_app::sample_library::similarity_scores::SimilarityScoresResult;
 use crate::native_app::sample_library::trash_actions::movement::TrashMoveOutcome;
-use crate::native_app::waveform::WaveformInteraction;
+use crate::native_app::waveform::{PlaymarkLabelMessage, WaveformInteraction};
 use crate::native_app::waveform::{SimilarSectionsResult, WaveformExtractionCompletion};
 use crate::native_app::waveform_edits::WaveformDestructiveEditResult;
 
@@ -386,6 +386,7 @@ pub(in crate::native_app) enum GuiMessage {
     CancelBrowserDragOnSampleList,
     DropWaveformSelectionOnSampleList,
     Waveform(WaveformInteraction),
+    PlaymarkLabel(PlaymarkLabelMessage),
     WaveformDetailRefined(crate::native_app::waveform::WaveformDetailResult),
     WaveformFileDrop(NativeFileDrop),
     Frame,

@@ -7,6 +7,8 @@ use crate::native_app::app::{
     WaveformContextMenu, WaveformEditSelectionSnapshot, WaveformInteraction,
     WaveformPlaySelectionSnapshot, WaveformSelectionKind, emit_gui_action,
 };
+use crate::native_app::ui::ids as widget_ids;
+use crate::native_app::waveform::PlaymarkLabelMessage;
 
 pub(in crate::native_app) const PLAY_SELECTION_TRANSACTION_LABEL: &str =
     "Change play mark selection";
@@ -16,6 +18,63 @@ const EDIT_RESIZE_TRANSACTION_LABEL: &str = "Editmark resize";
 const EDIT_MOVE_TRANSACTION_LABEL: &str = "Editmark move";
 
 impl NativeAppState {
+    pub(super) fn apply_playmark_label_message(
+        &mut self,
+        message: PlaymarkLabelMessage,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        match message {
+            PlaymarkLabelMessage::BeginEdit => {
+                if self.waveform.current.begin_playmark_label_edit(
+                    self.ui.chrome.beat_guides_enabled,
+                    self.ui.chrome.beat_guide_count,
+                ) {
+                    context.focus(widget_ids::WAVEFORM_PLAYMARK_LABEL_ID);
+                }
+            }
+            PlaymarkLabelMessage::Changed(draft) => {
+                self.waveform.current.update_playmark_label_draft(draft);
+            }
+            PlaymarkLabelMessage::Commit(draft) => {
+                if self
+                    .waveform
+                    .current
+                    .playmark_label_commit_is_unchanged(&draft)
+                {
+                    self.waveform.current.close_playmark_label_editor();
+                    context.clear_focus();
+                    return;
+                }
+                match self
+                    .waveform
+                    .current
+                    .playmark_frame_range_from_text(&draft, self.ui.chrome.beat_guide_count)
+                {
+                    Ok((start_frame, end_frame)) => {
+                        self.waveform.current.close_playmark_label_editor();
+                        self.apply_waveform_message(
+                            WaveformInteraction::SetPlaySelectionFrameRange {
+                                start_frame,
+                                end_frame,
+                            },
+                            context,
+                        );
+                        context.clear_focus();
+                    }
+                    Err(error) => {
+                        self.ui.status.sample = error.clone();
+                        self.waveform.current.set_playmark_label_error(error);
+                        context.focus(widget_ids::WAVEFORM_PLAYMARK_LABEL_ID);
+                    }
+                }
+            }
+            PlaymarkLabelMessage::Cancel => {
+                self.waveform.current.close_playmark_label_editor();
+                context.clear_focus();
+            }
+        }
+    }
+
     pub(super) fn apply_waveform_message(
         &mut self,
         message: WaveformInteraction,
@@ -62,8 +121,11 @@ impl NativeAppState {
         self.mark_harvest_touched_after_waveform_mark_change(harvest_mark_before);
         if let Some(before) = play_selection_before {
             self.waveform.pending_play_selection_transaction =
-                play_selection_drag_active(self.waveform.current.active_drag_kind())
-                    .then_some(before);
+                (matches!(
+                    message,
+                    WaveformInteraction::SetPlaySelectionFrameRange { .. }
+                ) || play_selection_drag_active(self.waveform.current.active_drag_kind()))
+                .then_some(before);
         }
         if let Some(before) = edit_selection_before {
             self.waveform.pending_edit_selection_transaction =
@@ -140,6 +202,7 @@ impl NativeAppState {
                 kind: WaveformSelectionKind::Play,
                 ..
             } | WaveformInteraction::SlidePlaySelection { .. }
+                | WaveformInteraction::SetPlaySelectionFrameRange { .. }
         );
         begins_play_selection_change
             .then(|| WaveformPlaySelectionSnapshot::from_waveform(&self.waveform.current))
@@ -330,10 +393,17 @@ fn waveform_interaction_updates_play_selection(
         WaveformInteraction::UpdateSelection { .. }
             | WaveformInteraction::FinishSelection { .. }
             | WaveformInteraction::SlidePlaySelection { .. }
+            | WaveformInteraction::SetPlaySelectionFrameRange { .. }
     ) {
         return false;
     }
     if matches!(interaction, WaveformInteraction::SlidePlaySelection { .. }) {
+        return true;
+    }
+    if matches!(
+        interaction,
+        WaveformInteraction::SetPlaySelectionFrameRange { .. }
+    ) {
         return true;
     }
     match active_drag {
@@ -353,6 +423,7 @@ fn waveform_interaction_finishes_play_selection_update(interaction: &WaveformInt
         interaction,
         WaveformInteraction::FinishSelection { .. }
             | WaveformInteraction::SlidePlaySelection { .. }
+            | WaveformInteraction::SetPlaySelectionFrameRange { .. }
     )
 }
 
@@ -403,6 +474,7 @@ fn waveform_interaction_can_finish_mark_change(interaction: &WaveformInteraction
         WaveformInteraction::FinishSelection { .. }
             | WaveformInteraction::SelectSimilarSection { .. }
             | WaveformInteraction::SlidePlaySelection { .. }
+            | WaveformInteraction::SetPlaySelectionFrameRange { .. }
             | WaveformInteraction::ClearEditFadeSilence { .. }
             | WaveformInteraction::FinishEditFadeOuterGain { .. }
             | WaveformInteraction::FinishEditGain { .. }
@@ -413,9 +485,12 @@ fn play_selection_transaction_finishes(
     interaction: &WaveformInteraction,
     active_drag: Option<WaveformActiveDragKind>,
 ) -> bool {
-    matches!(interaction, WaveformInteraction::SlidePlaySelection { .. })
-        || (matches!(interaction, WaveformInteraction::FinishSelection { .. })
-            && play_selection_drag_active(active_drag))
+    matches!(
+        interaction,
+        WaveformInteraction::SlidePlaySelection { .. }
+            | WaveformInteraction::SetPlaySelectionFrameRange { .. }
+    ) || (matches!(interaction, WaveformInteraction::FinishSelection { .. })
+        && play_selection_drag_active(active_drag))
 }
 
 fn play_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bool {
@@ -490,6 +565,9 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::Wheel { .. } => Some("waveform.zoom_wheel"),
         WaveformInteraction::ZoomToPlaySelection => Some("waveform.zoom_to_play_selection"),
         WaveformInteraction::SlidePlaySelection { .. } => Some("waveform.playmark.slide"),
+        WaveformInteraction::SetPlaySelectionFrameRange { .. } => {
+            Some("waveform.playmark.length_commit")
+        }
         WaveformInteraction::ZoomFull => Some("waveform.zoom_full"),
         WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
         WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
@@ -623,6 +701,24 @@ mod tests {
                 active_drag,
             ));
         }
+    }
+
+    #[test]
+    fn committed_label_length_is_one_finished_playmark_mutation() {
+        let interaction = WaveformInteraction::SetPlaySelectionFrameRange {
+            start_frame: 120,
+            end_frame: 480,
+        };
+
+        assert!(waveform_interaction_can_finish_mark_change(&interaction));
+        assert!(waveform_interaction_updates_play_selection(
+            &interaction,
+            None
+        ));
+        assert!(waveform_interaction_finishes_play_selection_update(
+            &interaction
+        ));
+        assert!(play_selection_transaction_finishes(&interaction, None));
     }
 
     #[test]

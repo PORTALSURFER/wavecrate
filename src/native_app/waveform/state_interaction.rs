@@ -183,6 +183,10 @@ impl WaveformState {
                 self.apply_play_selection_export_drag(drag);
             }
             WaveformInteraction::DragLoadedSample(_) => {}
+            WaveformInteraction::SetPlaySelectionFrameRange {
+                start_frame,
+                end_frame,
+            } => self.set_play_selection_frame_range(start_frame, end_frame),
             WaveformInteraction::Frame => {
                 self.play_selection_flash_frames =
                     self.play_selection_flash_frames.saturating_sub(1);
