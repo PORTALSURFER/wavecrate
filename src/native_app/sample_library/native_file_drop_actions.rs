@@ -11,6 +11,7 @@ use crate::native_app::app::{GuiMessage, NativeAppState, NativeFileDropHover, em
 use crate::native_app::sample_library::committed_file_mutations::{
     FileMutationChange, FileMutationOperation, FileMutationProjection,
 };
+use crate::native_app::sample_library::exclusive_file_transfer::copy_file_to_unique_destination_with;
 
 impl NativeAppState {
     pub(in crate::native_app) fn apply_native_file_drop(
@@ -238,34 +239,17 @@ fn file_name_or_path(path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
-fn unique_copy_destination(first_candidate: &Path) -> PathBuf {
-    if !first_candidate.exists() {
-        return first_candidate.to_path_buf();
-    }
-    let parent = first_candidate.parent().unwrap_or_else(|| Path::new(""));
-    let stem = first_candidate
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_else(|| String::from("sample"));
-    let extension = first_candidate
-        .extension()
-        .map(|extension| extension.to_string_lossy().to_string());
-    for count in 1.. {
-        let file_name = match &extension {
-            Some(extension) => format!("{stem}_copy{count:03}.{extension}"),
-            None => format!("{stem}_copy{count:03}"),
-        };
-        let candidate = parent.join(file_name);
-        if !candidate.exists() {
-            return candidate;
-        }
-    }
-    unreachable!("unbounded copy suffix search should find a destination")
-}
-
 fn execute_external_waveform_file_drop(
     source: &Path,
     target_folder: &Path,
+) -> Result<PathBuf, String> {
+    execute_external_waveform_file_drop_with(source, target_folder, |_, _| {})
+}
+
+fn execute_external_waveform_file_drop_with(
+    source: &Path,
+    target_folder: &Path,
+    before_publish: impl FnMut(usize, &Path),
 ) -> Result<PathBuf, String> {
     if !source.is_file() {
         return Err(format!("not a file: {}", source.display()));
@@ -283,15 +267,15 @@ fn execute_external_waveform_file_drop(
     if paths_refer_to_same_file(source, &direct_target) {
         return Err(String::from("drop target unchanged"));
     }
-    let target = unique_copy_destination(&direct_target);
-    fs::copy(source, &target).map_err(|err| {
-        format!(
-            "failed to copy {} to {}: {err}",
-            source.display(),
-            target.display()
-        )
-    })?;
-    Ok(target)
+    let committed = copy_file_to_unique_destination_with(source, &direct_target, before_publish)
+        .map_err(|err| {
+            format!(
+                "failed to copy {} into {}: {err}",
+                source.display(),
+                target_folder.display()
+            )
+        })?;
+    Ok(committed.path().to_path_buf())
 }
 
 fn paths_refer_to_same_file(left: &Path, right: &Path) -> bool {
@@ -310,5 +294,33 @@ mod tests {
         assert!(supported_waveform_drop_file(Path::new("kick.wav")));
         assert!(!supported_waveform_drop_file(Path::new("._kick.wav")));
         assert!(!supported_waveform_drop_file(Path::new("drums/._kick.wav")));
+    }
+
+    #[test]
+    fn external_drop_retries_a_destination_created_before_commit() {
+        let root = tempfile::tempdir().unwrap();
+        let source_folder = root.path().join("external");
+        let target_folder = root.path().join("target");
+        fs::create_dir(&source_folder).unwrap();
+        fs::create_dir(&target_folder).unwrap();
+        let source = source_folder.join("kick.wav");
+        let direct_target = target_folder.join("kick.wav");
+        fs::write(&source, b"source").unwrap();
+
+        let copied = execute_external_waveform_file_drop_with(
+            &source,
+            &target_folder,
+            |index, candidate| {
+                if index == 0 {
+                    fs::write(candidate, b"late owner").unwrap();
+                }
+            },
+        )
+        .unwrap();
+
+        assert_eq!(copied, target_folder.join("kick_copy001.wav"));
+        assert_eq!(fs::read(direct_target).unwrap(), b"late owner");
+        assert_eq!(fs::read(copied).unwrap(), b"source");
+        assert_eq!(fs::read(source).unwrap(), b"source");
     }
 }

@@ -792,6 +792,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "waveform clipboard clip staging worker",
         ),
         (
+            "src/native_app/sample_library/exclusive_file_transfer.rs",
+            "exclusive file-transfer worker boundary",
+        ),
+        (
             "src/native_app/sample_library/folder_scan_actions/filesystem_refresh_worker.rs",
             "source database filesystem-sync worker",
         ),

@@ -6,6 +6,7 @@ pub(in crate::native_app) const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
 pub(in crate::native_app) mod committed_file_mutations;
 pub(in crate::native_app) mod context_menu_target;
 pub(in crate::native_app) mod drag_drop_actions;
+mod exclusive_file_transfer;
 pub(in crate::native_app) mod file_actions;
 pub(in crate::native_app) mod folder_browser;
 pub(in crate::native_app) mod folder_browser_actions;
