@@ -50,6 +50,15 @@ fn global_storage_usage_at(root: &Path) -> Result<GlobalStorageUsage, String> {
 }
 
 fn directory_regular_file_size(root: &Path) -> Result<u64, String> {
+    let root_metadata = match fs::symlink_metadata(root) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(read_error("metadata", root, error)),
+    };
+    if !root_metadata.file_type().is_dir() {
+        return Ok(0);
+    }
+
     let mut total = 0_u64;
     let mut pending = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
@@ -152,5 +161,21 @@ mod tests {
         let usage = global_storage_usage_at(root.path()).expect("measure linked cache");
 
         assert_eq!(usage.cache_bytes, 5);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_traversal_does_not_follow_symbolic_cache_root() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("create storage root");
+        let external = tempfile::tempdir().expect("create external cache root");
+        fs::write(external.path().join("external.cache"), [0_u8; 61])
+            .expect("write external payload");
+        symlink(external.path(), root.path().join(CACHE_DIR_NAME)).expect("link cache root");
+
+        let usage = global_storage_usage_at(root.path()).expect("measure linked cache root");
+
+        assert_eq!(usage.cache_bytes, 0);
     }
 }
