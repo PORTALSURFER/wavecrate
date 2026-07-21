@@ -40,6 +40,69 @@ fn playback_and_foreground_activity_do_not_publish_pause_feedback() {
 }
 
 #[test]
+fn routine_activity_transitions_are_debug_only() {
+    let supervisor = SourceProcessingSupervisor::dormant();
+
+    let info = capture_logs(tracing::Level::INFO, || {
+        supervisor.set_playback_active(true);
+        supervisor.set_foreground_activity(true);
+    });
+    assert!(!info.contains("source_processing.playback_activity_changed"));
+    assert!(!info.contains("source_processing.foreground_activity_changed"));
+
+    let debug = capture_logs(tracing::Level::DEBUG, || {
+        supervisor.set_playback_active(false);
+        supervisor.set_foreground_activity(false);
+    });
+    assert!(debug.contains("source_processing.playback_activity_changed"));
+    assert!(debug.contains("source_processing.foreground_activity_changed"));
+}
+
+#[test]
+fn retirement_logging_is_bounded_at_info_and_detailed_at_debug() {
+    fn offline_retirement_supervisor(prefix: &str) -> SourceProcessingSupervisor {
+        let first = SampleSource::new_with_id(
+            SourceId::from_string(format!("{prefix}-first")),
+            PathBuf::from(format!("/missing/{prefix}/first")),
+        );
+        let second = SampleSource::new_with_id(
+            SourceId::from_string(format!("{prefix}-second")),
+            PathBuf::from(format!("/missing/{prefix}/second")),
+        );
+        let supervisor = SourceProcessingSupervisor::dormant();
+        supervisor
+            .replace_sources(vec![first, second])
+            .expect("configure missing sources");
+        supervisor
+            .replace_sources(Vec::new())
+            .expect("remove missing sources");
+        supervisor
+    }
+
+    let mut info_supervisor = offline_retirement_supervisor("info-retirement");
+    let info = capture_logs(tracing::Level::INFO, || {
+        process_ready_source_retirements(&info_supervisor.shared);
+    });
+    assert!(info.contains("source_processing.retirement.sweep"));
+    assert!(info.contains("scheduled=2"));
+    assert!(info.contains("started=2"));
+    assert!(info.contains("offline=2"));
+    assert!(!info.contains("source_processing.retirement.started"));
+    assert!(!info.contains("source_processing.retirement.offline"));
+    assert_eq!(info.matches("source_processing.retirement.sweep").count(), 1);
+    assert_eq!(info_supervisor.shutdown()["joined"], true);
+
+    let mut debug_supervisor = offline_retirement_supervisor("debug-retirement");
+    let debug = capture_logs(tracing::Level::DEBUG, || {
+        process_ready_source_retirements(&debug_supervisor.shared);
+    });
+    assert!(debug.contains("source_processing.retirement.started"));
+    assert!(debug.contains("source_processing.retirement.offline"));
+    assert!(debug.contains("source_processing.retirement.sweep"));
+    assert_eq!(debug_supervisor.shutdown()["joined"], true);
+}
+
+#[test]
 fn brief_discovery_reconciliation_does_not_flash_processing_feedback() {
     let source = SampleSource::new_with_id(
         SourceId::from_string("stable-discovery"),

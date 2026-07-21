@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
+use std::{io, sync::Mutex};
 
 use rusqlite::OptionalExtension;
+use tracing_subscriber::fmt::MakeWriter;
 use wavecrate::sample_sources::{
     SourceId,
     readiness::{
@@ -11,6 +13,48 @@ use wavecrate::sample_sources::{
 };
 
 use super::*;
+
+#[derive(Clone, Default)]
+struct LogBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl LogBuffer {
+    fn captured(&self) -> String {
+        String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+    }
+}
+
+impl<'a> MakeWriter<'a> for LogBuffer {
+    type Writer = LogBufferWriter;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        LogBufferWriter(Arc::clone(&self.0))
+    }
+}
+
+struct LogBufferWriter(Arc<Mutex<Vec<u8>>>);
+
+impl io::Write for LogBufferWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn capture_logs(level: tracing::Level, run: impl FnOnce()) -> String {
+    let buffer = LogBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .without_time()
+        .with_max_level(level)
+        .with_writer(buffer.clone())
+        .finish();
+    tracing::subscriber::with_default(subscriber, run);
+    buffer.captured()
+}
 
 fn reconcile_readiness(
     connection: &rusqlite::Connection,

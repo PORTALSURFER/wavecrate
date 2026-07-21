@@ -237,7 +237,7 @@ impl SourceProcessingSupervisor {
         if control.playback_active != active {
             control.playback_active = active;
             control.notify("playback_activity_changed");
-            tracing::info!(
+            tracing::debug!(
                 target: "wavecrate::source_processing",
                 event = "source_processing.playback_activity_changed",
                 active,
@@ -255,7 +255,7 @@ impl SourceProcessingSupervisor {
         }
         control.foreground_active = active;
         control.notify("foreground_activity_changed");
-        tracing::info!(
+        tracing::debug!(
             target: "wavecrate::source_processing",
             event = "source_processing.foreground_activity_changed",
             active,
