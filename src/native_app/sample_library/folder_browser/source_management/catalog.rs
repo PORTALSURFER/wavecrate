@@ -12,6 +12,7 @@ use wavecrate::sample_sources::{SampleSource, SourceRole};
 #[derive(Clone, Debug)]
 pub(in crate::native_app::sample_library::folder_browser) struct BrowserSourceState {
     pub(in crate::native_app::sample_library::folder_browser) selected_source: String,
+    pub(in crate::native_app::sample_library::folder_browser) keyboard_focus_active: bool,
     pub(in crate::native_app::sample_library::folder_browser) selected_tree_loaded: bool,
     pub(in crate::native_app::sample_library::folder_browser) sources: Vec<SourceEntry>,
     pub(in crate::native_app::sample_library::folder_browser) reorder_drag:
@@ -26,6 +27,7 @@ impl BrowserSourceState {
     ) -> Self {
         Self {
             selected_source,
+            keyboard_focus_active: false,
             selected_tree_loaded,
             sources,
             reorder_drag: None,
@@ -40,6 +42,41 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn selected_source_id(&self) -> &str {
         self.source.selected_source.as_str()
+    }
+
+    pub(in crate::native_app) fn source_keyboard_focus_active(&self) -> bool {
+        self.source.keyboard_focus_active
+    }
+
+    pub(in crate::native_app) fn focus_selected_source_for_keyboard(&mut self) {
+        self.source.keyboard_focus_active = self
+            .source
+            .sources
+            .iter()
+            .any(|source| source.id == self.source.selected_source);
+    }
+
+    pub(in crate::native_app) fn clear_source_keyboard_focus(&mut self) {
+        self.source.keyboard_focus_active = false;
+    }
+
+    pub(in crate::native_app) fn adjacent_source_id(&self, delta: i32) -> Option<String> {
+        if delta == 0 || !self.source.keyboard_focus_active {
+            return None;
+        }
+        let current_index = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == self.source.selected_source)?;
+        let last_index = self.source.sources.len().checked_sub(1)?;
+        let steps = delta.unsigned_abs() as usize;
+        let target_index = if delta.is_negative() {
+            current_index.saturating_sub(steps)
+        } else {
+            current_index.saturating_add(steps).min(last_index)
+        };
+        (target_index != current_index).then(|| self.source.sources[target_index].id.clone())
     }
 
     pub(in crate::native_app) fn source_label(&self, source_id: &str) -> Option<&str> {

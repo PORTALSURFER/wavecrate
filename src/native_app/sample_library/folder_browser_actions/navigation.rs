@@ -366,6 +366,7 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let direction = if delta < 0 { "previous" } else { "next" };
+        self.library.folder_browser.clear_source_keyboard_focus();
         if self
             .library
             .folder_browser

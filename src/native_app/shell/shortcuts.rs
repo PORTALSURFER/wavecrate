@@ -83,11 +83,27 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             selected_metadata_tag_shortcuts(),
         )
         .layer_when(
+            state.library.folder_browser.source_keyboard_focus_active(),
+            source_focus_shortcuts(),
+        )
+        .layer_when(
             state.library.folder_browser.collection_focus_active(),
             collection_focus_shortcuts(),
         )
         .layer(default_shortcuts(state))
         .fallback(navigation_shortcut)
+}
+
+fn source_focus_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::new()
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::ArrowUp),
+            GuiMessage::FolderBrowser(FolderBrowserMessage::NavigateSource(-1)),
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::ArrowDown),
+            GuiMessage::FolderBrowser(FolderBrowserMessage::NavigateSource(1)),
+        )
 }
 
 fn job_details_shortcuts() -> ui::ShortcutLayer<GuiMessage> {

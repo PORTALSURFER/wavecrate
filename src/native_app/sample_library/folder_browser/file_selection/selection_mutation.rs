@@ -10,6 +10,7 @@ impl FolderBrowserState {
         let file_ids = self.selected_audio_file_ids();
         if file_ids.contains(&id) {
             self.cancel_rename();
+            self.clear_source_keyboard_focus();
             self.selection.select_single_file(id, &file_ids);
         }
     }
@@ -25,6 +26,7 @@ impl FolderBrowserState {
             return;
         }
         self.cancel_rename();
+        self.clear_source_keyboard_focus();
         self.selection
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
@@ -40,6 +42,7 @@ impl FolderBrowserState {
             return;
         }
         self.cancel_rename();
+        self.clear_source_keyboard_focus();
         self.selection
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
@@ -49,13 +52,19 @@ impl FolderBrowserState {
             return;
         }
         self.cancel_rename();
-        self.selection.select_known_single_file(id);
+        if self.selection.select_known_single_file(id) {
+            self.clear_source_keyboard_focus();
+        }
     }
 
     pub(in crate::native_app) fn focus_file_preserving_selection(&mut self, id: String) {
         let file_ids = self.selected_audio_file_ids();
-        self.selection
-            .focus_file_preserving_selection(id, &file_ids);
+        if self
+            .selection
+            .focus_file_preserving_selection(id, &file_ids)
+        {
+            self.clear_source_keyboard_focus();
+        }
     }
 
     pub(in crate::native_app) fn focus_file_preserving_selection_matching_tags(
@@ -64,8 +73,12 @@ impl FolderBrowserState {
         tags_by_file: &HashMap<String, Vec<String>>,
     ) {
         let file_ids = self.selected_audio_file_ids_matching_tags(tags_by_file);
-        self.selection
-            .focus_file_preserving_selection(id, &file_ids);
+        if self
+            .selection
+            .focus_file_preserving_selection(id, &file_ids)
+        {
+            self.clear_source_keyboard_focus();
+        }
     }
 
     #[cfg(test)]
@@ -111,7 +124,11 @@ impl FolderBrowserState {
     }
 
     fn select_audio_file_ids(&mut self, ids: Vec<String>) -> usize {
-        self.selection.select_all_files(ids)
+        let count = self.selection.select_all_files(ids);
+        if count > 0 {
+            self.clear_source_keyboard_focus();
+        }
+        count
     }
 
     fn focus_first_active_collection_file_matching_tags(

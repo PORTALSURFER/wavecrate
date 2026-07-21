@@ -13,6 +13,58 @@ fn deferred_source(
 }
 
 #[test]
+fn source_keyboard_focus_navigates_configured_order_and_clamps_at_edges() {
+    let sources = vec![
+        deferred_source("source-a", wavecrate::sample_sources::SourceRole::Normal),
+        deferred_source("source-b", wavecrate::sample_sources::SourceRole::Normal),
+        deferred_source("source-c", wavecrate::sample_sources::SourceRole::Normal),
+    ];
+    let mut browser = FolderBrowserState::from_sample_sources_deferred(&sources);
+
+    assert!(!browser.source_keyboard_focus_active());
+    assert_eq!(browser.adjacent_source_id(1), None);
+
+    browser.focus_selected_source_for_keyboard();
+    assert!(browser.source_keyboard_focus_active());
+    assert_eq!(browser.adjacent_source_id(-1), None);
+    assert_eq!(browser.adjacent_source_id(1).as_deref(), Some("source-b"));
+    assert!(browser.select_source_without_scan(String::from("source-b")));
+    assert_eq!(browser.adjacent_source_id(-1).as_deref(), Some("source-a"));
+    assert_eq!(browser.adjacent_source_id(1).as_deref(), Some("source-c"));
+    assert!(browser.select_source_without_scan(String::from("source-c")));
+    assert_eq!(browser.adjacent_source_id(1), None);
+}
+
+#[test]
+fn folder_collection_and_file_activation_clear_source_keyboard_focus() {
+    let root = temp_source_root("wavecrate-gui-source-keyboard-focus");
+    let sample = root.join("sample.wav");
+    fs::write(&sample, []).expect("sample file");
+    let sources = vec![wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("source-a"),
+        root.clone(),
+    )];
+    let mut browser = FolderBrowserState::from_sample_sources(&sources);
+
+    browser.focus_selected_source_for_keyboard();
+    browser.activate_folder(path_id(&root));
+    assert!(!browser.source_keyboard_focus_active());
+
+    browser.focus_selected_source_for_keyboard();
+    browser.activate_collection(
+        wavecrate::sample_sources::SampleCollection::new(0).expect("collection"),
+    );
+    assert!(!browser.source_keyboard_focus_active());
+
+    browser.exit_collection_focus();
+    browser.focus_selected_source_for_keyboard();
+    browser.select_file(path_id(&sample));
+    assert!(!browser.source_keyboard_focus_active());
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn source_reorder_drag_commits_stable_source_order_without_changing_selection_or_roles() {
     let sources = vec![
         deferred_source("source-a", wavecrate::sample_sources::SourceRole::Primary),

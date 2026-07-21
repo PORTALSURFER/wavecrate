@@ -22,6 +22,7 @@ pub(in crate::native_app) enum FilterFamily {
 pub(in crate::native_app) enum FolderBrowserMessage {
     AddSource,
     SelectSource(String),
+    NavigateSource(i32),
     DragSource(String, DragHandleMessage),
     OpenSourceContextMenu(String, Point),
     ActivateFolder(String, PointerModifiers),
