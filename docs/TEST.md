@@ -56,9 +56,12 @@ Those entrypoints also own a process-group watchdog. A changing owned process
 tree or increasing aggregate CPU time counts as progress, so a quiet but active
 clean compile is not a stall. After five minutes with neither signal, the
 watchdog records the exact command, Cargo/Rust/macOS versions, owned process
-tree, and macOS samples under `target/validation-diagnostics/`. It allows a
-further two minutes for recovery, then exits 124 and terminates only the process
-group it created. Cancellation uses the same owned cleanup path.
+tree, and macOS samples under `target/validation-diagnostics/`, with one
+30-second budget across all collection. It then allows a full two minutes for
+recovery before exiting 124 and terminating only the process group it created.
+With the default five-second polling and ten-second termination grace, the
+maximum scheduled bound is 7 minutes 50 seconds after last observed progress.
+Cancellation uses the same owned cleanup path.
 
 Run `bash scripts/internal/agent/test_agent_preflight_coordination.sh` to
 exercise hook installation, checkout ownership, concurrent coalescing,
@@ -68,6 +71,8 @@ progress classification, diagnostics, cancellation/stall cleanup, unrelated
 process isolation, and pathological-target rotation.
 The fixture also covers reused-PID stale-lease recovery and bounded waits for a
 genuinely live lease owner.
+It also emulates several unresponsive compiler samples to prove the global
+diagnostic budget and post-collection recovery interval.
 
 ## Validation and release lane contract
 

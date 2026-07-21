@@ -58,6 +58,42 @@ diagnostic_dir="$(find "$FIXTURE_DIR/diagnostics" -mindepth 1 -maxdepth 1 -type 
 [[ -f "$diagnostic_dir/command.txt" ]] || fail "missing command record"
 echo "[validation_watchdog_test] PASS: stall diagnostics and owned cleanup"
 
+fake_sample="$FIXTURE_DIR/fake-sample"
+printf '%s\n' '#!/usr/bin/env bash' 'exec sleep 30' > "$fake_sample"
+chmod +x "$fake_sample"
+for compiler_name in rustc cargo clang; do
+  ln -s "$(command -v sleep)" "$FIXTURE_DIR/$compiler_name"
+done
+slow_diagnostics="$FIXTURE_DIR/slow-diagnostics"
+started_at="$(date +%s)"
+set +e
+WAVECRATE_VALIDATION_IDLE_SECONDS=1 \
+  WAVECRATE_VALIDATION_DIAGNOSTIC_COLLECTION_SECONDS=2 \
+  WAVECRATE_VALIDATION_DIAGNOSTIC_GRACE_SECONDS=1 \
+  WAVECRATE_VALIDATION_TERM_GRACE_SECONDS=1 \
+  WAVECRATE_VALIDATION_POLL_SECONDS=0.1 \
+  WAVECRATE_VALIDATION_SAMPLE_SECONDS=3 \
+  WAVECRATE_VALIDATION_SAMPLE_COMMAND="$fake_sample" \
+  WAVECRATE_VALIDATION_TEST_PLATFORM=Darwin \
+  WAVECRATE_VALIDATION_DIAGNOSTICS_DIR="$slow_diagnostics" \
+  python3 "$WATCHDOG" sh -c \
+    "'$FIXTURE_DIR/rustc' 30 & '$FIXTURE_DIR/cargo' 30 & '$FIXTURE_DIR/clang' 30 & wait" \
+    >"$FIXTURE_DIR/slow-samples.out" 2>&1
+status=$?
+set -e
+elapsed=$(( $(date +%s) - started_at ))
+[[ "$status" == "124" ]] || fail "expected slow-sample stall exit 124, got $status"
+(( elapsed >= 3 )) || fail "post-diagnostic recovery grace was not preserved (${elapsed}s)"
+(( elapsed <= 7 )) || fail "global diagnostic budget was exceeded (${elapsed}s)"
+slow_diagnostic_dir="$(find "$slow_diagnostics" -mindepth 1 -maxdepth 1 -type d | head -1)"
+compiler_candidates="$(grep -Ec '/(rustc|cargo|clang) 30' "$slow_diagnostic_dir/process-tree.tsv")"
+[[ "$compiler_candidates" == "3" ]] || fail "expected three sample candidates, got $compiler_candidates"
+find "$slow_diagnostic_dir" -maxdepth 1 -type f -name 'sample-*' | grep -q . \
+  || fail "slow sampling fixture did not invoke the sample command"
+grep -R -Eq "diagnostic collection budget exhausted|timed out" "$slow_diagnostics" \
+  || fail "slow sampling did not record its bounded failure"
+echo "[validation_watchdog_test] PASS: slow multi-process diagnostics use one global budget"
+
 child_pid_file="$FIXTURE_DIR/cancel-child.pid"
 WAVECRATE_VALIDATION_IDLE_SECONDS=30 \
   WAVECRATE_VALIDATION_DIAGNOSTIC_GRACE_SECONDS=1 \

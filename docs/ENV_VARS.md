@@ -64,6 +64,11 @@ before diagnostics are captured. Default: `300`.
 Additional no-progress interval after diagnostics before the owned process
 group is terminated with exit 124. Default: `120`.
 
+- `WAVECRATE_VALIDATION_DIAGNOSTIC_COLLECTION_SECONDS`
+Global budget shared by toolchain metadata and every compiler sample in one
+diagnostic bundle. The recovery grace starts only after this budgeted collection
+finishes. Default: `30`.
+
 - `WAVECRATE_VALIDATION_TERM_GRACE_SECONDS`
 Grace after `SIGTERM` before remaining owned processes receive `SIGKILL`.
 Default: `10`.

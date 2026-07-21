@@ -19,6 +19,16 @@ wavecrate_process_identity() {
   printf '%s\n' "$identity"
 }
 
+wavecrate_directory_metadata() {
+  python3 - "$1" <<'PY'
+import os
+import sys
+
+metadata = os.stat(sys.argv[1])
+print(metadata.st_size, metadata.st_nlink)
+PY
+}
+
 wavecrate_use_validation_target() {
   local root_dir="$1"
   local platform="${WAVECRATE_VALIDATION_TEST_PLATFORM:-$(uname -s)}"
@@ -82,9 +92,9 @@ wavecrate_use_validation_target() {
 
   local max_metadata_bytes="${WAVECRATE_VALIDATION_MAX_DEPS_METADATA_BYTES:-8388608}"
   if [[ -d "$deps_dir" ]]; then
-    local metadata_bytes link_count
-    metadata_bytes="$(stat -f '%z' "$deps_dir")"
-    link_count="$(stat -f '%l' "$deps_dir")"
+    local metadata metadata_bytes link_count
+    metadata="$(wavecrate_directory_metadata "$deps_dir")"
+    read -r metadata_bytes link_count <<< "$metadata"
     if (( metadata_bytes > max_metadata_bytes || link_count >= 60000 )); then
       local quarantine="$target_root/stale-$(date -u +%Y%m%dT%H%M%SZ)-$$"
       mv "$target_dir" "$quarantine"

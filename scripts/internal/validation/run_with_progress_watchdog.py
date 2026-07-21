@@ -120,9 +120,19 @@ def made_progress(
     return previous_pids != current_pids or current_cpu >= previous_cpu + 0.05
 
 
-def run_and_record(path: Path, command: list[str]) -> None:
+def run_and_record(path: Path, command: list[str], deadline: float) -> None:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        path.write_text("diagnostic collection budget exhausted\n", encoding="utf-8")
+        return
     try:
-        result = subprocess.run(command, check=False, capture_output=True, text=True, timeout=20)
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=min(20, remaining),
+        )
         content = result.stdout + result.stderr
     except (OSError, subprocess.TimeoutExpired) as error:
         content = f"unable to run {shlex.join(command)}: {error}\n"
@@ -130,8 +140,13 @@ def run_and_record(path: Path, command: list[str]) -> None:
 
 
 def write_diagnostics(
-    root_pid: int, command: list[str], processes: dict[int, Process], root: Path
+    root_pid: int,
+    command: list[str],
+    processes: dict[int, Process],
+    root: Path,
+    collection_seconds: float,
 ) -> Path:
+    deadline = time.monotonic() + collection_seconds
     timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     destination = root / f"{timestamp}-{root_pid}"
     destination.mkdir(parents=True, exist_ok=False)
@@ -144,21 +159,33 @@ def write_diagnostics(
         "pid\tppid\tcpu_seconds\tstate\tcommand\n" + "\n".join(process_lines) + "\n",
         encoding="utf-8",
     )
-    run_and_record(destination / "rustc-version.txt", ["rustc", "-Vv"])
-    run_and_record(destination / "cargo-version.txt", ["cargo", "-Vv"])
-    if platform.system() == "Darwin":
-        run_and_record(destination / "macos-version.txt", ["sw_vers"])
-        sample_seconds = int(float(os.environ.get("WAVECRATE_VALIDATION_SAMPLE_SECONDS", "3")))
+    run_and_record(destination / "rustc-version.txt", ["rustc", "-Vv"], deadline)
+    run_and_record(destination / "cargo-version.txt", ["cargo", "-Vv"], deadline)
+    diagnostic_platform = os.environ.get(
+        "WAVECRATE_VALIDATION_TEST_PLATFORM", platform.system()
+    )
+    if diagnostic_platform == "Darwin":
+        run_and_record(destination / "macos-version.txt", ["sw_vers"], deadline)
+        sample_seconds = int(
+            float(os.environ.get("WAVECRATE_VALIDATION_SAMPLE_SECONDS", "3"))
+        )
+        sample_command = os.environ.get("WAVECRATE_VALIDATION_SAMPLE_COMMAND", "sample")
         if sample_seconds > 0:
             for item in processes.values():
                 executable = Path(item.command.split(None, 1)[0]).name
                 if executable not in {"cargo", "rustc", "clang", "cc", "ld"}:
                     continue
                 sample_path = destination / f"sample-{item.pid}-{executable}.txt"
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    sample_path.write_text(
+                        "diagnostic collection budget exhausted\n", encoding="utf-8"
+                    )
+                    break
                 try:
                     subprocess.run(
                         [
-                            "sample",
+                            sample_command,
                             str(item.pid),
                             str(sample_seconds),
                             "1",
@@ -167,7 +194,7 @@ def write_diagnostics(
                         ],
                         check=False,
                         capture_output=True,
-                        timeout=sample_seconds + 20,
+                        timeout=min(sample_seconds + 20, remaining),
                     )
                 except (OSError, subprocess.TimeoutExpired) as error:
                     sample_path.write_text(f"unable to sample pid {item.pid}: {error}\n")
@@ -218,6 +245,9 @@ def main() -> int:
     command = sys.argv[1:]
     idle_seconds = env_seconds("WAVECRATE_VALIDATION_IDLE_SECONDS", 300)
     diagnostic_grace = env_seconds("WAVECRATE_VALIDATION_DIAGNOSTIC_GRACE_SECONDS", 120)
+    diagnostic_collection = env_seconds(
+        "WAVECRATE_VALIDATION_DIAGNOSTIC_COLLECTION_SECONDS", 30
+    )
     term_grace = env_seconds("WAVECRATE_VALIDATION_TERM_GRACE_SECONDS", 10)
     poll_seconds = env_seconds("WAVECRATE_VALIDATION_POLL_SECONDS", 5)
     diagnostics_root = Path(
@@ -261,7 +291,13 @@ def main() -> int:
             if now - last_progress < idle_seconds:
                 continue
             if diagnostic_signature is None:
-                destination = write_diagnostics(child.pid, command, processes, diagnostics_root)
+                destination = write_diagnostics(
+                    child.pid,
+                    command,
+                    processes,
+                    diagnostics_root,
+                    diagnostic_collection,
+                )
                 print(
                     f"[validation_watchdog] no owned-process progress for {idle_seconds:g}s; "
                     f"diagnostics: {destination}",
@@ -269,7 +305,7 @@ def main() -> int:
                     flush=True,
                 )
                 diagnostic_signature = signature
-                diagnostic_time = now
+                diagnostic_time = time.monotonic()
                 continue
             if made_progress(diagnostic_signature, signature):
                 last_progress = now
