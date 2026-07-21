@@ -23,11 +23,13 @@ dispatcher maps. These are the public entrypoints people should run directly:
   `calibrate-startup` command is optional Linux developer tooling for refreshing
   startup threshold lock files; it is not shipped Linux product support.
 - `release.sh`: Bash release orchestration for release-train prep and explicit
-  RC/stable GitHub workflow dispatch. It derives major, minor, and patch targets
+  RC GitHub workflow dispatch. It derives major, minor, and patch targets
   from the resolved source release package version and delegates
   packaging/publication to the existing release workflows. RC publication
-  starts stabilization while normal PRs continue on `main`; stable publication
-  remains a separate explicit action and is never implied by PR or RC approval.
+  starts stabilization while normal PRs continue on `main`. Stable publication
+  is temporarily disabled and its command fails closed while the implementation
+  remains preserved until an explicit, reviewed change re-enables stable
+  publication.
 - `gui.ps1`: Windows GUI validation lanes.
 
 PowerShell compatibility wrappers also remain available for the older

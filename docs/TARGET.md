@@ -2754,6 +2754,11 @@ Stable publication is a separate explicit product decision. PR approval,
 of them authorize a stable release unless the user explicitly asks to release
 or promote the version as stable.
 
+Stable publication is temporarily disabled while Wavecrate remains in RC
+stabilization. The promotion implementation stays preserved, but both the
+active GitHub workflow and local dispatch entrypoint must fail closed until a
+dedicated reviewed change explicitly re-enables them.
+
 ### Data-Format Notes
 
 Keep these formats stable unless there is a coordinated migration:

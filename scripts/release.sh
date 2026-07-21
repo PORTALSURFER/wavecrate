@@ -9,11 +9,12 @@ usage() {
 Usage:
   scripts/release.sh prepare --bump <major|minor|patch> [--source-ref <ref>] [--workflow-ref <branch-or-tag>] [--dry-run|--push] [--dispatch]
   scripts/release.sh rc --version <X.Y.Z> --rc-number <N> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
-  scripts/release.sh stable --version <X.Y.Z> --branch <release/X.Y> [--release-notes <text>] [--dispatch]
+  scripts/release.sh stable [options]  # temporarily disabled
 
 Prepare derives the target version from Cargo.toml at the resolved source ref.
 Without --dispatch, prepare runs scripts/internal/release/prepare_release_train.py locally.
-Without --dispatch, rc/stable validate inputs and print the exact gh workflow command.
+Without --dispatch, rc validates inputs and prints the exact gh workflow command.
+Stable publication is temporarily disabled while release candidates continue.
 Public publishing workflow dispatch requires --dispatch.
 EOF
 }
@@ -408,6 +409,10 @@ stable() {
       *) die "unknown stable argument: $1" ;;
     esac
   done
+  die "stable releases are temporarily disabled; continue publishing release candidates"
+
+  # Preserve the promotion implementation below so it can be re-enabled once
+  # Wavecrate is ready for stable publication.
   [[ -n "$version" && -n "$branch" ]] || die "stable requires --version and --branch"
   validate_version "$version"
   validate_branch_for_version "$branch" "$version"

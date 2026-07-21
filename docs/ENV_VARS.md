@@ -93,7 +93,8 @@ Maximum macOS directory metadata size allowed for a validation target's
 
 ### Release upload secrets
 
-Wavecrate has four public release workflows:
+Wavecrate has three active public release workflows and one preserved inactive
+stable workflow:
 
 - `.github/workflows/release-train-prepare.yml`
   - manual release-train branch/version preparation for `release/X.Y`
@@ -101,8 +102,9 @@ Wavecrate has four public release workflows:
   - automatic and manual nightly builds from `main`
 - `.github/workflows/release-rc.yml`
   - manual release-candidate builds from `release/X.Y`
-- `.github/workflows/release-stable.yml`
-  - manual stable releases from `release/X.Y`
+- `.github/workflows/release-stable.yml.disabled`
+  - preserved stable implementation; the non-YAML suffix keeps it unavailable
+    to GitHub Actions while Wavecrate remains in RC stabilization
 
 ### Release lifecycle policy
 
@@ -122,11 +124,12 @@ workflow deliberately requires the latest `vX.Y.Z-rc.N` tag and
 `release/X.Y` to point at the same commit, so stable cannot silently include
 changes that were never published as an RC.
 
-Stable publication requires an explicit operator decision such as "release
-X.Y.Z stable" or "promote RC N to stable." PR approval, `approved`, sign-off,
-or acceptance of an RC only authorizes the relevant PR merge and cleanup. None
-of those phrases alone authorizes `release-stable.yml` or
-`scripts/release.sh stable --dispatch`.
+Stable publication is temporarily disabled. The workflow implementation and
+promotion checks remain in the repository, but GitHub does not register the
+`.yml.disabled` file and `scripts/release.sh stable` fails closed before any
+release resolution or dispatch. Re-enabling stable publication requires a
+dedicated reviewed change; an RC approval or ordinary merge approval is not
+sufficient.
 
 Nightly runs publish rolling `nightly` builds for Windows x86_64 plus macOS
 x86_64/aarch64 assets from the current `main` commit. The schedule is
@@ -152,21 +155,19 @@ scripts/release.sh prepare --bump minor --source-ref main --dry-run
 scripts/release.sh prepare --bump minor --source-ref main --push
 scripts/release.sh prepare --bump patch --source-ref release/0.19 --dry-run
 scripts/release.sh rc --version 0.20.0 --rc-number 1 --branch release/0.20 --dispatch
-scripts/release.sh stable --version 0.20.0 --branch release/0.20 --dispatch
 ```
 
 `prepare --bump major` bumps `X.Y.Z` to `(X+1).0.0`; `prepare --bump minor`
 bumps to `X.(Y+1).0`; `prepare --bump patch` bumps to `X.Y.(Z+1)` on the same
-`release/X.Y` train. Without `--dispatch`, `rc` and `stable` validate inputs
-and print the exact `gh workflow run ...` command instead of publishing. With
-`--dispatch`, the script requires an authenticated GitHub CLI (`gh`) and invokes
-the existing workflows with their native input names. When `origin` is a GitHub
+`release/X.Y` train. Without `--dispatch`, `rc` validates inputs and prints the
+exact `gh workflow run ...` command instead of publishing. Stable commands fail
+closed while publication is disabled. With `--dispatch`, the RC path requires
+an authenticated GitHub CLI (`gh`) and invokes the active workflow with its
+native input names. When `origin` is a GitHub
 remote, it must match `WAVECRATE_GITHUB_REPO` so local ref resolution and
 workflow dispatch target the same repository. `prepare --dispatch` dispatches
 the workflow file from `--workflow-ref` (default `main`) while passing the
-resolved source commit SHA as the workflow `source_ref` input. Stable dispatch
-also preflights the safety invariant locally: the latest `vX.Y.Z-rc.N` tag must
-point at the same commit as the release branch.
+resolved source commit SHA as the workflow `source_ref` input.
 
 Local equivalent:
 
