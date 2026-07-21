@@ -159,6 +159,12 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn reconcile_sources_after_focus_regained(&self) {
+        if let Some(watcher) = self.library.source_watcher.as_ref() {
+            watcher.request_full_reconciliation();
+        }
+    }
+
     pub(in crate::native_app) fn persist_user_configuration(
         &mut self,
         action: &'static str,

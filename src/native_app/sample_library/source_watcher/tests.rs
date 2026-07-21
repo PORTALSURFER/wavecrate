@@ -535,6 +535,60 @@ fn watcher_restart_marks_every_source_for_authoritative_refresh() {
 }
 
 #[test]
+fn foreground_reconciliation_request_refreshes_every_configured_source() {
+    let first_root = tempfile::tempdir().expect("first watched source root");
+    let second_root = tempfile::tempdir().expect("second watched source root");
+    let first = SampleSource::new_with_id(
+        SourceId::from_string("source_id::foreground-first"),
+        first_root.path().to_path_buf(),
+    );
+    let second = SampleSource::new_with_id(
+        SourceId::from_string("source_id::foreground-second"),
+        second_root.path().to_path_buf(),
+    );
+    let expected_source_ids = [
+        first.id.as_str().to_string(),
+        second.id.as_str().to_string(),
+    ];
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let watcher = GuiSourceWatcherHandle::spawn(vec![first, second], sender);
+    watcher.wait_until_ready_for_tests();
+    while !matches!(
+        receiver
+            .recv_timeout(super::WATCHER_START_TIMEOUT)
+            .expect("watcher-ready message"),
+        GuiMessage::SourceWatcherReady
+    ) {}
+
+    watcher.request_full_reconciliation();
+
+    let deadline = Instant::now()
+        + super::SOURCE_CHANGE_DEBOUNCE
+        + super::WATCHER_POLL_INTERVAL.saturating_mul(4);
+    let mut refreshed_source_ids = Vec::new();
+    while refreshed_source_ids.len() < expected_source_ids.len() {
+        let message = receiver
+            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+            .expect("foreground reconciliation event");
+        if let GuiMessage::SourceFilesystemChanged {
+            source_id,
+            paths,
+            overflowed,
+            source_root_available,
+        } = message
+        {
+            assert!(paths.is_empty());
+            assert!(overflowed);
+            assert!(source_root_available);
+            refreshed_source_ids.push(source_id);
+        }
+    }
+    refreshed_source_ids.sort();
+
+    assert_eq!(refreshed_source_ids, expected_source_ids);
+}
+
+#[test]
 fn watcher_restart_backoff_is_bounded() {
     assert_eq!(
         doubled_backoff(super::WATCHER_RESTART_MIN),
