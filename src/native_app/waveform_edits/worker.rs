@@ -10,12 +10,13 @@ use wavecrate::selection::SelectionRange;
 use crate::native_app::app::{PendingWaveformDestructiveEdit, WaveformDestructiveEditKind};
 use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
 use crate::native_app::waveform_edit_effects::apply_edit_selection_effects;
+use crate::native_app::waveform_edits::atomic_write::{AtomicWriteFailure, write_wav_atomically};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OverwriteBackup {
     pub(super) before: PathBuf,
     pub(super) after: PathBuf,
-    dir: PathBuf,
+    dir: Option<PathBuf>,
 }
 
 impl OverwriteBackup {
@@ -29,26 +30,34 @@ impl OverwriteBackup {
         let before = dir.join("before.wav");
         let after = dir.join("after.wav");
         fs::copy(target, &before).map_err(|err| format!("Failed to snapshot audio file: {err}"))?;
-        Ok(Self { before, after, dir })
-    }
-
-    fn capture_after(&self, target: &Path) -> Result<(), String> {
-        fs::copy(target, &self.after)
-            .map_err(|err| format!("Failed to snapshot edited audio file: {err}"))?;
-        Ok(())
+        Ok(Self {
+            before,
+            after,
+            dir: Some(dir),
+        })
     }
 
     fn capture_extracted(&self, target: &Path) -> Result<PathBuf, String> {
-        let extracted = self.dir.join("extracted.wav");
+        let extracted = self
+            .dir
+            .as_ref()
+            .expect("active waveform backup directory")
+            .join("extracted.wav");
         fs::copy(target, &extracted)
             .map_err(|err| format!("Failed to snapshot extracted audio file: {err}"))?;
         Ok(extracted)
+    }
+
+    fn retain_recovery_copy(&mut self) {
+        self.dir = None;
     }
 }
 
 impl Drop for OverwriteBackup {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.dir);
+        if let Some(dir) = self.dir.as_ref() {
+            let _ = fs::remove_dir_all(dir);
+        }
     }
 }
 
@@ -224,7 +233,7 @@ fn execute_destructive_edit_write(
 ) -> Result<AppliedWaveformEdit, String> {
     validate_destructive_edit_target(&request.absolute_path)?;
     let before_content_identity = cache_content_identity(&request.absolute_path);
-    let backup = OverwriteBackup::capture_before(&request.absolute_path)?;
+    let mut backup = OverwriteBackup::capture_before(&request.absolute_path)?;
     let extracted = extracted_path
         .map(|path| {
             let relative_path = source_relative_path(&request.source.root, &path)?;
@@ -244,8 +253,16 @@ fn execute_destructive_edit_write(
             request.prompt.edit.gerund_label()
         ));
     }
-    write_edited_wav(&request.absolute_path, &wav)?;
-    backup.capture_after(&request.absolute_path)?;
+    if let Err(failure) = write_wav_atomically(
+        &request.absolute_path,
+        &backup.before,
+        &backup.after,
+        wav.channels,
+        wav.sample_rate,
+        &wav.samples,
+    ) {
+        return Err(report_atomic_write_failure(&mut backup, failure));
+    }
     Ok(AppliedWaveformEdit {
         source_id: request.source.id.as_str().to_string(),
         relative_path: request.relative_path.clone(),
@@ -430,23 +447,14 @@ fn load_editable_wav(path: &Path) -> Result<EditableWav, String> {
     })
 }
 
-fn write_edited_wav(path: &Path, wav: &EditableWav) -> Result<(), String> {
-    let spec = hound::WavSpec {
-        channels: wav.channels as u16,
-        sample_rate: wav.sample_rate,
-        bits_per_sample: 32,
-        sample_format: hound::SampleFormat::Float,
-    };
-    let mut writer = hound::WavWriter::create(path, spec)
-        .map_err(|err| format!("Failed to write wav: {err}"))?;
-    for sample in &wav.samples {
-        writer
-            .write_sample(*sample)
-            .map_err(|err| format!("Failed to write sample: {err}"))?;
+fn report_atomic_write_failure(
+    backup: &mut OverwriteBackup,
+    failure: AtomicWriteFailure,
+) -> String {
+    if failure.recovery_copy_required() {
+        backup.retain_recovery_copy();
     }
-    writer
-        .finalize()
-        .map_err(|err| format!("Failed to finalize wav: {err}"))
+    failure.to_string()
 }
 
 fn selection_existing_frame_bounds(
