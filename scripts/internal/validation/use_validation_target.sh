@@ -29,6 +29,36 @@ print(metadata.st_size, metadata.st_nlink)
 PY
 }
 
+wavecrate_has_enclosing_validation_watchdog() {
+  [[ "${WAVECRATE_VALIDATION_WATCHDOG_ACTIVE:-0}" == "1" ]] || return 1
+  [[ "${WAVECRATE_VALIDATION_TARGET_SELECTED:-0}" == "1" ]] || return 1
+
+  local lease_dir="${WAVECRATE_VALIDATION_TARGET_LEASE_DIR:-}"
+  local owner_pid="${WAVECRATE_VALIDATION_TARGET_LEASE_OWNER:-}"
+  local owner_identity="${WAVECRATE_VALIDATION_TARGET_LEASE_IDENTITY:-}"
+  local current_pid="${BASHPID:-$$}"
+  [[ -n "$lease_dir" && "$owner_pid" =~ ^[0-9]+$ && -n "$owner_identity" ]] || return 1
+  [[ "$owner_pid" != "$current_pid" ]] || return 1
+
+  local recorded_owner="" recorded_identity="" current_identity="" owner_command=""
+  IFS=$'\t' read -r recorded_owner recorded_identity 2>/dev/null < "$lease_dir/pid" || return 1
+  [[ "$recorded_owner" == "$owner_pid" && "$recorded_identity" == "$owner_identity" ]] \
+    || return 1
+  current_identity="$(wavecrate_process_identity "$owner_pid")" || return 1
+  [[ "$current_identity" == "$owner_identity" ]] || return 1
+  owner_command="$(ps -p "$owner_pid" -o command= 2>/dev/null || true)"
+  [[ "$owner_command" == *run_with_progress_watchdog.py* ]] || return 1
+
+  local ancestor="$current_pid" parent=""
+  while [[ "$ancestor" =~ ^[0-9]+$ ]] && (( ancestor > 1 )); do
+    parent="$(ps -p "$ancestor" -o ppid= 2>/dev/null | tr -d '[:space:]')"
+    [[ "$parent" =~ ^[0-9]+$ ]] || return 1
+    [[ "$parent" == "$owner_pid" ]] && return 0
+    ancestor="$parent"
+  done
+  return 1
+}
+
 wavecrate_use_validation_target() {
   local root_dir="$1"
   local platform="${WAVECRATE_VALIDATION_TEST_PLATFORM:-$(uname -s)}"
@@ -43,11 +73,13 @@ wavecrate_use_validation_target() {
   target_dir="$target_root/$rustc_identity-$lock_identity"
   deps_dir="$target_dir/debug/deps"
   lease_dir="$target_root/.lock-$rustc_identity-$lock_identity"
-  if [[ "${WAVECRATE_VALIDATION_WATCHDOG_ACTIVE:-0}" == "1" \
-    && "${WAVECRATE_VALIDATION_TARGET_SELECTED:-0}" == "1" \
-    && "${CARGO_TARGET_DIR:-}" == "$target_dir" ]]; then
-    echo "[validation_target] reusing owned CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
-    return 0
+  if wavecrate_has_enclosing_validation_watchdog; then
+    if [[ "${CARGO_TARGET_DIR:-}" == "$target_dir" ]]; then
+      echo "[validation_target] reusing owned CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
+      return 0
+    fi
+    echo "[validation_target] nested validation cannot change its enclosing Cargo target" >&2
+    return 2
   fi
   if [[ -n "${CARGO_TARGET_DIR:-}" && "$CARGO_TARGET_DIR" != "$target_dir" ]]; then
     echo "[validation_target] overriding ambient CARGO_TARGET_DIR=$CARGO_TARGET_DIR"

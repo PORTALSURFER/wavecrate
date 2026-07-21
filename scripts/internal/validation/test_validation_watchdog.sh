@@ -7,6 +7,15 @@ WATCHDOG="$ROOT_DIR/scripts/internal/validation/run_with_progress_watchdog.py"
 FIXTURE_DIR="$(mktemp -d)"
 trap 'rm -rf "$FIXTURE_DIR"' EXIT
 
+# The fixture owns disposable target roots and nested watchdogs. Do not let an
+# enclosing supported validation lane's private recursion proof leak into it.
+unset WAVECRATE_VALIDATION_WATCHDOG_ACTIVE
+unset WAVECRATE_VALIDATION_TARGET_SELECTED
+unset WAVECRATE_VALIDATION_TARGET_LEASE_DIR
+unset WAVECRATE_VALIDATION_TARGET_LEASE_OWNER
+unset WAVECRATE_VALIDATION_TARGET_LEASE_IDENTITY
+unset CARGO_TARGET_DIR
+
 fail() {
   echo "[validation_watchdog_test] FAIL: $*" >&2
   exit 1
@@ -197,6 +206,28 @@ wait "$second_runner"
 find "$runner_target_root" -mindepth 1 -maxdepth 1 -type d -name '.lock-*' | grep -q . \
   && fail "validation command left its target lease behind"
 echo "[validation_watchdog_test] PASS: concurrent validation command leases"
+
+marker_diagnostics="$FIXTURE_DIR/marker-diagnostics"
+set +e
+WAVECRATE_VALIDATION_WATCHDOG_ACTIVE=1 \
+  WAVECRATE_VALIDATION_IDLE_SECONDS=1 \
+  WAVECRATE_VALIDATION_DIAGNOSTIC_COLLECTION_SECONDS=1 \
+  WAVECRATE_VALIDATION_DIAGNOSTIC_GRACE_SECONDS=1 \
+  WAVECRATE_VALIDATION_TERM_GRACE_SECONDS=1 \
+  WAVECRATE_VALIDATION_POLL_SECONDS=0.1 \
+  WAVECRATE_VALIDATION_SAMPLE_SECONDS=0 \
+  WAVECRATE_VALIDATION_DIAGNOSTICS_DIR="$marker_diagnostics" \
+  WAVECRATE_VALIDATION_TARGET_ROOT="$runner_target_root" \
+  "$ROOT_DIR/scripts/internal/validation/run_validation_command.sh" sh -c 'sleep 30' \
+  >"$FIXTURE_DIR/untrusted-marker.out" 2>&1
+status=$?
+set -e
+[[ "$status" == "124" ]] || fail "untrusted marker bypassed watchdog (exit $status)"
+find "$marker_diagnostics" -mindepth 1 -maxdepth 1 -type d | grep -q . \
+  || fail "untrusted marker run did not capture diagnostics"
+find "$runner_target_root" -mindepth 1 -maxdepth 1 -type d -name '.lock-*' | grep -q . \
+  && fail "untrusted marker run left its target lease behind"
+echo "[validation_watchdog_test] PASS: untrusted recursion marker cannot bypass watchdog"
 
 target_key="$(basename "$first_target")"
 stale_lease="$runner_target_root/.lock-$target_key"

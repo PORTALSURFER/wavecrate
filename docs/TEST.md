@@ -77,6 +77,10 @@ It also emulates several unresponsive compiler samples to prove the global
 diagnostic budget and post-collection recovery interval.
 Pre-spawn cancellation coverage proves a signal cannot start and detach a new
 validation process group after cancellation has already been recorded.
+Nested wrapper calls bypass duplicate supervision only after verifying the
+enclosing watchdog's live PID/start identity, lease record, command, and process
+ancestry. An inherited recursion marker without that proof starts a fresh
+watchdog normally.
 
 ## Validation and release lane contract
 
