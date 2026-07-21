@@ -106,6 +106,105 @@ fn playback_restart_refreshes_projection_to_clear_stale_playhead_visuals() {
 }
 
 #[test]
+fn starmap_drag_frame_keeps_audio_handoffs_and_progress_ticks_paint_only() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+    state.waveform.current.start_playback(0.25);
+
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
+    state.waveform.current.stop_playback();
+    state.background.progress_tick = 0.5;
+    state.finish_frame_surface_revision_tracking(guard);
+
+    assert_eq!(
+        state.frame_surface_revisions().repaint_scope_since(before),
+        RepaintScope::PaintOnly,
+        "starmap drag handoffs should keep frame-clock work on retained paint"
+    );
+}
+
+#[test]
+fn starmap_drag_begin_and_release_frames_stay_paint_only() {
+    let mut state = gui_state_for_span_tests();
+    let before_begin = state.frame_surface_revisions();
+    let begin_guard = state.begin_frame_surface_revision_tracking();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+    state.waveform.current.start_playback(0.0);
+    state.finish_frame_surface_revision_tracking(begin_guard);
+    assert_eq!(
+        state
+            .frame_surface_revisions()
+            .repaint_scope_since(before_begin),
+        RepaintScope::PaintOnly,
+        "the pointer-down frame must not rebuild the scene"
+    );
+
+    let before_release = state.frame_surface_revisions();
+    let release_guard = state.begin_frame_surface_revision_tracking();
+    state.ui.chrome.starmap_audition_drag = None;
+    state.finish_frame_surface_revision_tracking(release_guard);
+    assert_eq!(
+        state
+            .frame_surface_revisions()
+            .repaint_scope_since(before_release),
+        RepaintScope::PaintOnly,
+        "the pointer-release frame must not rebuild the scene"
+    );
+}
+
+#[test]
+fn starmap_audition_handoff_stays_paint_only_after_pointer_release() {
+    let mut state = gui_state_for_span_tests();
+    let request = crate::native_app::app::SamplePlaybackRequest::transient(
+        String::from("/samples/kick.wav"),
+        crate::native_app::app::SamplePlaybackIntent::StarmapDrag,
+        "starmap_drag",
+    );
+    state.audio.pending_sample_playback = Some(request.clone());
+
+    let before = state.frame_surface_revisions();
+    let guard = state.begin_frame_surface_revision_tracking();
+    state.background.progress_tick = 0.5;
+    state.finish_frame_surface_revision_tracking(guard);
+
+    assert_eq!(
+        state.frame_surface_revisions().repaint_scope_since(before),
+        RepaintScope::PaintOnly,
+        "a queued starmap audition must retain the scene after pointer release"
+    );
+
+    state.audio.pending_sample_playback = None;
+    state
+        .audio
+        .start_resolving_sample_playback_session(request, "audio_file");
+    state.audio.sample_playback_session.as_mut().unwrap().state =
+        crate::native_app::app::SamplePlaybackSessionState::AudibleTransient;
+    let before_runtime = state.frame_surface_revisions();
+    let runtime_guard = state.begin_frame_surface_revision_tracking();
+    state.background.progress_tick = 0.75;
+    state.finish_frame_surface_revision_tracking(runtime_guard);
+
+    assert_eq!(
+        state
+            .frame_surface_revisions()
+            .repaint_scope_since(before_runtime),
+        RepaintScope::PaintOnly,
+        "an audible starmap session must retain the scene even between runtime progress events"
+    );
+}
+
+#[test]
 fn idle_frame_uses_paint_only_when_frame_state_is_stable() {
     let mut state = gui_state_for_span_tests();
 
@@ -399,6 +498,36 @@ fn scene_playback_frame_uses_paint_only_repaint_scope() {
         broad_observations,
         "repeated playback frames must remain on the revision fast path"
     );
+}
+
+#[test]
+fn scene_starmap_drag_frame_uses_paint_only_repaint_scope_during_background_progress() {
+    let mut state = gui_state_for_span_tests();
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+    state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
+    state.waveform.cache.active_folder_warm_total = 10;
+    let bridge = radiant::app(state)
+        .view(crate::native_app::test_support::state::view)
+        .handle_message(apply_gui_message_for_presentation_test)
+        .into_bridge();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    apply_strict_update_diagnostics(&mut runtime);
+
+    assert!(runtime.host_animation_activity().needs_frame_message());
+    assert!(runtime.host_queue_animation_frame());
+    let outcome = runtime.drain_runtime_messages();
+
+    assert_eq!(outcome.messages_dispatched, 1);
+    assert!(
+        outcome.paint_only_requested,
+        "background progress during a starmap drag must retain the existing scene"
+    );
+    assert!(!outcome.surface_refresh_requested);
 }
 
 #[test]
