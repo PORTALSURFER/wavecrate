@@ -124,13 +124,15 @@ fn workspace_release_identity_is_pre_one_and_consistent() {
     }
 
     assert!(
-        TARGET_DOCS.contains(&format!("current line is `{current_version}`")),
-        "docs/TARGET.md must name the current pre-1.0 release line"
+        TARGET_DOCS.contains("Wavecrate uses pre-1.0 semantic versions"),
+        "docs/TARGET.md must preserve the pre-1.0 release policy"
     );
     assert!(
-        RC_WORKFLOW.contains(&format!("example {current_version}"))
-            && STABLE_WORKFLOW.contains(&format!("example {current_version}")),
-        "manual release workflows must show the current pre-1.0 version"
+        RC_WORKFLOW.contains("example 0.")
+            && RC_WORKFLOW.contains("example release/0.")
+            && STABLE_WORKFLOW.contains("example 0.")
+            && STABLE_WORKFLOW.contains("example release/0."),
+        "manual release workflows must demonstrate the pre-1.0 version and branch shape"
     );
 }
 

@@ -12,13 +12,7 @@ fn prepare_release_train_updates_wavecrate_packages_and_lockfile() {
     repo.write_workspace("0.19.1");
     repo.git(&["add", "."]);
     repo.git(&["commit", "-m", "seed workspace"]);
-    let output = repo.run_prepare(&[
-        "--version",
-        "0.20.0",
-        "--source-ref",
-        "HEAD",
-        "--skip-release-tests",
-    ]);
+    let output = repo.run_prepare(&["--version", "0.20.0", "--source-ref", "HEAD"]);
 
     assert!(
         output.status.success(),
@@ -155,6 +149,14 @@ edition = "2024"
 "#,
         );
         self.write("src/lib.rs", "");
+        self.write(
+            "tests/release_contract.rs",
+            "#[test]\nfn release_contract() {}\n",
+        );
+        self.write(
+            "tests/manual_release_matching.rs",
+            "#[test]\nfn manual_release_matching() {}\n",
+        );
         self.write("crates/wavecrate-tool/src/lib.rs", "");
         self.write("crates/reson/src/lib.rs", "");
         self.write("tools/gui-test-cli/src/lib.rs", "");

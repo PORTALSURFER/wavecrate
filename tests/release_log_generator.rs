@@ -67,6 +67,59 @@ fn rc_first_release_log_uses_previous_stable_boundary_and_manual_notes() {
 }
 
 #[test]
+fn rc_release_log_prefers_nearest_pre_one_stable_over_legacy_version_sort() {
+    let repo = FixtureRepo::new();
+    repo.commit("legacy stable");
+    repo.tag("v19.1.0");
+    repo.commit("publish pre-one stable");
+    repo.tag("v0.19.1");
+    let target_sha = repo.commit("add current train change");
+    let release_dir = repo.release_dir();
+    write_release_files(
+        &release_dir,
+        "wavecrate-0.20.0-rc.1-windows-x86_64.zip",
+        "checksums-0.20.0-rc.1.txt",
+    );
+
+    let out = release_dir.join("release-log.md");
+    run_generator(
+        &repo,
+        &[
+            "--channel",
+            "rc",
+            "--version",
+            "0.20.0-rc.1",
+            "--target-version",
+            "0.20.0",
+            "--target-sha",
+            &target_sha,
+            "--target-branch",
+            "release/0.20",
+            "--build-date",
+            "2026-07-21",
+            "--artifact-dir",
+            release_dir.to_str().expect("release dir utf-8"),
+            "--checksum-name",
+            "checksums-0.20.0-rc.1.txt",
+            "--checksum-sig-name",
+            "checksums-0.20.0-rc.1.txt.sig",
+            "--rc-number",
+            "1",
+            "--release-tag",
+            "v0.20.0-rc.1",
+            "--out",
+            out.to_str().expect("output path utf-8"),
+        ],
+        None,
+    );
+
+    let log = fs::read_to_string(out).expect("read generated log");
+    assert!(log.contains("- Previous release boundary: v0.19.1"));
+    assert!(log.contains("- add current train change"));
+    assert!(!log.contains("- publish pre-one stable"));
+}
+
+#[test]
 fn later_rc_release_log_uses_previous_rc_boundary() {
     let repo = FixtureRepo::new();
     repo.commit("initial stable");
