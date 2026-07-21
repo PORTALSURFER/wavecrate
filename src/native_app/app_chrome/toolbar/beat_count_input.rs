@@ -148,6 +148,15 @@ impl Widget for BeatGuideCountInputWidget {
         self.input.accepts_pointer_move()
     }
 
+    fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
+        match input {
+            WidgetInput::Wheel { delta, .. } => {
+                delta.y.abs() >= delta.x.abs() && delta.y.abs() > f32::EPSILON
+            }
+            _ => self.input.accepts_pointer_input(input),
+        }
+    }
+
     fn accepts_wheel_input(&self) -> bool {
         true
     }

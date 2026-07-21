@@ -218,9 +218,10 @@ impl Widget for PlaymarkBeatCountWidget {
     }
 
     fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        pointer_is_inside_control(input, &self.painted_bounds, |bounds| {
-            self.control_rect(bounds)
-        })
+        self.input.accepts_pointer_input(input)
+            && pointer_is_inside_control(input, &self.painted_bounds, |bounds| {
+                self.control_rect(bounds)
+            })
     }
 
     fn automation_role(&self) -> AutomationRole {
