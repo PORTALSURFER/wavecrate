@@ -69,10 +69,7 @@ pub(in crate::native_app) fn default_gui_shortcuts(
             state.ui.chrome.harvest_filter_dropdown_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseHarvestFilterDropdown),
         )
-        .layer_when(
-            state.ui.chrome.job_details_open,
-            ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
-        )
+        .layer_when(state.ui.chrome.job_details_open, job_details_shortcuts())
         .layer_when(
             state.ui.chrome.transaction_list_open,
             ui::ShortcutLayer::modal_escape(GuiMessage::CloseTransactionList),
@@ -91,6 +88,13 @@ pub(in crate::native_app) fn default_gui_shortcuts(
         )
         .layer(default_shortcuts(state))
         .fallback(navigation_shortcut)
+}
+
+fn job_details_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::new().bind(
+        ui::KeyPress::new(ui::KeyCode::Escape),
+        GuiMessage::CloseJobDetails,
+    )
 }
 
 fn shortcut_help_modal_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
