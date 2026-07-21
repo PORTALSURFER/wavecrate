@@ -213,6 +213,10 @@ impl Widget for PlaymarkBeatCountWidget {
         self.input.accepts_pointer_move()
     }
 
+    fn accepts_wheel_input(&self) -> bool {
+        self.input.accepts_wheel_input()
+    }
+
     fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
         pointer_is_inside_control(input, &self.painted_bounds, |bounds| {
             self.control_rect(bounds)

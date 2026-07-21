@@ -82,6 +82,12 @@ impl BeatGuideCountInputWidget {
             WidgetInput::KeyPress(WidgetKey::ArrowDown) if self.accepts_editing_input() => {
                 Some(BeatGuideCountInputMessage::Set(self.step_value(-1)))
             }
+            WidgetInput::Wheel { delta, .. } if delta.y < 0.0 => {
+                Some(BeatGuideCountInputMessage::Set(self.step_value(1)))
+            }
+            WidgetInput::Wheel { delta, .. } if delta.y > 0.0 => {
+                Some(BeatGuideCountInputMessage::Set(self.step_value(-1)))
+            }
             WidgetInput::FocusChanged(false) => {
                 let message = Some(BeatGuideCountInputMessage::Committed(
                     self.value().to_owned(),
@@ -140,6 +146,10 @@ impl Widget for BeatGuideCountInputWidget {
 
     fn accepts_pointer_move(&self) -> bool {
         self.input.accepts_pointer_move()
+    }
+
+    fn accepts_wheel_input(&self) -> bool {
+        true
     }
 
     fn automation_role(&self) -> AutomationRole {

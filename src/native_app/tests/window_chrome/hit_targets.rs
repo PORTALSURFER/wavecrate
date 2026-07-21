@@ -102,6 +102,22 @@ fn playmark_local_beat_controls_consume_hits_and_update_shared_state() {
         original_selection,
         "local count editing must not leak into waveform gestures"
     );
+
+    runtime.clear_focus();
+    assert!(runtime.wheel_or_scroll_at(count_point, Vector2::new(0.0, -40.0)));
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 6);
+    assert!(runtime.frame(&theme).paint_plan.contains_text("720 BPM"));
+
+    let waveform_wheel_point = Point::new(
+        waveform_rect(&runtime).min.x + 12.0,
+        waveform_rect(&runtime).center().y,
+    );
+    assert!(runtime.wheel_or_scroll_at(waveform_wheel_point, Vector2::new(0.0, -40.0)));
+    assert_eq!(
+        runtime.bridge().state().ui.chrome.beat_guide_count,
+        6,
+        "the full-size playmark overlay must not steal wheel input outside its painted field"
+    );
 }
 
 #[test]
