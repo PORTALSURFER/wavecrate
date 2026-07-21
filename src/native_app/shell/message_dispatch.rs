@@ -205,6 +205,7 @@ impl NativeAppState {
             | GuiMessage::ToggleHarvestFilterDropdown
             | GuiMessage::CloseHarvestFilterDropdown
             | GuiMessage::ToggleZeroCrossingSnap
+            | GuiMessage::ToggleBpmSnap
             | GuiMessage::ToggleBeatGuides
             | GuiMessage::SetBeatGuideCount(_)
             | GuiMessage::ChangeBeatGuideCountInput(_)

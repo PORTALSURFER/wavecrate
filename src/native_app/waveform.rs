@@ -28,6 +28,14 @@ pub(super) use types::{
 
 mod interaction;
 use interaction::{WaveformDrag, edit_preview_for_selection};
+mod bpm_snap;
+use bpm_snap::snap_resize_ratio_to_whole_bpm;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) struct WaveformBpmSnapSettings {
+    pub(in crate::native_app) enabled: bool,
+    pub(in crate::native_app) beat_count: u8,
+}
 
 mod state;
 mod state_extraction;

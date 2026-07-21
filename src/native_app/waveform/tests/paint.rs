@@ -192,6 +192,7 @@ fn playhead_cursor_paints_around_occlusion_rect() {
     let props = WaveformWidgetProps::from_state_with_playhead_occlusion(
         &state,
         false,
+        false,
         4,
         Some(Rect::from_min_max(
             Point::new(99.0, 20.0),
@@ -1345,7 +1346,7 @@ fn active_selection_drag_widget_props_keep_extracted_range_overlays_only() {
         visible_ratio: 0.4,
     });
 
-    let props = WaveformWidgetProps::from_state(&state, false, 4);
+    let props = WaveformWidgetProps::from_state(&state, false, false, 4);
 
     assert_eq!(props.static_range_overlay_counts(), (1, 0));
     assert_eq!(

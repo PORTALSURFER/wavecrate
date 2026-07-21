@@ -548,6 +548,8 @@ Edit commands should follow this priority:
 
 The play selection and edit selection should not interfere with each other visually or behaviorally. They are two separate core functions, not one selection with a later mode layered on top.
 
+Beat guides may derive a tempo from the selected duration and configured guide count. An explicit BPM Snap mode should quantize play-selection and edit-selection resize gestures so that derived tempo is a whole-number BPM, while leaving selection creation and whole-selection movement continuous. The live resize preview and committed selection should use the same snapped boundary, and the non-dragged edge should remain anchored.
+
 Previewed fade handles on an edit selection are audition and preview state until explicitly applied. Pressing Enter while an edit selection has active fades should route through the destructive-edit system and bake those fades into the current audio file. After a successful apply, the edit-marked area should flash as confirmation.
 
 Applied edit feedback should be consistent. When any destructive edit succeeds, including mute, normalize, trim/crop, gain, reverse, silence trim, paste, fade apply, envelope apply, or downmix conversion, the affected edit region or whole-file region should briefly pulse or flash as a small visual confirmation. This should be similar in spirit to the export/extraction confirmation on the play region.

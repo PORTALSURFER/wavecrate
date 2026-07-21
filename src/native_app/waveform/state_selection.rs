@@ -1,5 +1,5 @@
 use super::{
-    WaveformSelectionKind, WaveformState,
+    WaveformBpmSnapSettings, WaveformSelectionKind, WaveformState,
     interaction::{WaveformDrag, WaveformSelectionDrag},
     zero_crossing_snap::snap_selection_to_zero_crossings,
 };
@@ -24,15 +24,35 @@ impl WaveformState {
         self.set_selection_for_kind(drag.kind, anchor_ratio, range);
     }
 
-    pub(super) fn update_active_selection_resize(&mut self, ratio: f32, snap: bool) {
+    pub(super) fn update_active_selection_resize(
+        &mut self,
+        ratio: f32,
+        zero_crossing_snap: bool,
+        bpm_snap: WaveformBpmSnapSettings,
+    ) {
         let Some(WaveformDrag::SelectionResize(drag)) = self.active_drag else {
             return;
         };
         if self.selection_for_kind(drag.kind).is_none() {
             return;
         }
+        let ratio = if bpm_snap.enabled {
+            super::snap_resize_ratio_to_whole_bpm(
+                drag.fixed_ratio,
+                ratio,
+                self.file.frames as f32 / self.file.sample_rate.max(1) as f32,
+                bpm_snap.beat_count,
+                !drag.allow_out_of_bounds,
+            )
+        } else {
+            ratio
+        };
         let selection = drag.apply_with_adjusted_bounds(ratio, |selection| {
-            self.snap_selection_if_requested(selection, snap)
+            if bpm_snap.enabled {
+                selection
+            } else {
+                self.snap_selection_if_requested(selection, zero_crossing_snap)
+            }
         });
         self.set_selection_for_kind(drag.kind, selection.start(), selection);
     }

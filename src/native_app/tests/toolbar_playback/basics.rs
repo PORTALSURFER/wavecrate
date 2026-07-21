@@ -8,6 +8,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         crate::native_app::test_support::toolbar::ToolbarIcon::Random,
         crate::native_app::test_support::toolbar::ToolbarIcon::SimilarSections,
         crate::native_app::test_support::toolbar::ToolbarIcon::ZeroCrossingSnap,
+        crate::native_app::test_support::toolbar::ToolbarIcon::BpmSnap,
         crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
         crate::native_app::test_support::toolbar::ToolbarIcon::Metronome,
         crate::native_app::test_support::toolbar::ToolbarIcon::Play,
@@ -64,6 +65,10 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::ZeroCrossingSnap,
             crate::native_app::test_support::state::GuiMessage::ToggleZeroCrossingSnap,
+        ),
+        (
+            crate::native_app::test_support::toolbar::ToolbarIcon::BpmSnap,
+            crate::native_app::test_support::state::GuiMessage::ToggleBpmSnap,
         ),
         (
             crate::native_app::test_support::toolbar::ToolbarIcon::BeatGuides,
@@ -203,6 +208,7 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             loop_playback: true,
             playing: false,
             zero_crossing_snap_enabled: true,
+            bpm_snap_enabled: true,
             beat_guides_enabled: true,
             metronome_enabled: true,
             beat_guide_count: 8,
@@ -212,7 +218,7 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
     );
 
     assert!(projection.help_tooltips_enabled);
-    assert_eq!(projection.controls.len(), 11);
+    assert_eq!(projection.controls.len(), 12);
 
     let icon_control = |index| match projection.controls[index] {
         ToolbarControlProjection::Icon(button) => button,
@@ -240,10 +246,16 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
         icon_control(3).id,
         crate::native_app::test_support::toolbar::TOOLBAR_ZERO_CROSSING_SNAP_ID
     );
-    assert_eq!(icon_control(4).icon, ToolbarIcon::BeatGuides);
+    assert_eq!(icon_control(4).icon, ToolbarIcon::BpmSnap);
     assert!(icon_control(4).active);
+    assert_eq!(
+        icon_control(4).id,
+        crate::native_app::test_support::toolbar::TOOLBAR_BPM_SNAP_ID
+    );
+    assert_eq!(icon_control(5).icon, ToolbarIcon::BeatGuides);
+    assert!(icon_control(5).active);
     assert!(matches!(
-        projection.controls[5],
+        projection.controls[6],
         ToolbarControlProjection::BeatGuideCountField {
             count: 8,
             id: crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID,
@@ -251,35 +263,35 @@ fn main_toolbar_control_projection_makes_order_and_identity_explicit() {
             tooltip: "Beat guide divisions.",
         }
     ));
-    assert_eq!(icon_control(6).icon, ToolbarIcon::Metronome);
+    assert_eq!(icon_control(7).icon, ToolbarIcon::Metronome);
     assert_eq!(
-        icon_control(6).id,
+        icon_control(7).id,
         crate::native_app::test_support::toolbar::TOOLBAR_METRONOME_ID
     );
-    assert!(icon_control(6).active);
+    assert!(icon_control(7).active);
     assert_eq!(
-        icon_control(6).tooltip,
+        icon_control(7).tooltip,
         "Play a metronome from the beat guide divisions."
     );
 
     assert!(matches!(
-        projection.controls[7],
+        projection.controls[8],
         ToolbarControlProjection::ApplyEditMarkEdits {
             id: crate::native_app::test_support::toolbar::TOOLBAR_APPLY_EDIT_MARK_EDITS_ID,
             tooltip: "Apply edit mark gain and fade edits.",
         }
     ));
 
-    assert_eq!(icon_control(8).icon, ToolbarIcon::Random);
-    assert!(icon_control(8).enabled);
-    assert!(icon_control(8).active);
-    assert!(icon_control(8).tooltip.starts_with("Play random section"));
-    assert_eq!(icon_control(9).icon, ToolbarIcon::Play);
-    assert!(!icon_control(9).active);
-    assert_eq!(icon_control(9).tooltip, "Play");
-    assert_eq!(icon_control(10).icon, ToolbarIcon::Stop);
+    assert_eq!(icon_control(9).icon, ToolbarIcon::Random);
+    assert!(icon_control(9).enabled);
+    assert!(icon_control(9).active);
+    assert!(icon_control(9).tooltip.starts_with("Play random section"));
+    assert_eq!(icon_control(10).icon, ToolbarIcon::Play);
+    assert!(!icon_control(10).active);
+    assert_eq!(icon_control(10).tooltip, "Play");
+    assert_eq!(icon_control(11).icon, ToolbarIcon::Stop);
     assert_eq!(
-        icon_control(10).id,
+        icon_control(11).id,
         crate::native_app::test_support::toolbar::TOOLBAR_STOP_ID
     );
 }
@@ -370,6 +382,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(!empty.loop_playback);
     assert!(!empty.playing);
     assert!(!empty.zero_crossing_snap_enabled);
+    assert!(!empty.bpm_snap_enabled);
     assert!(!empty.beat_guides_enabled);
     assert!(!empty.metronome_enabled);
     assert_eq!(empty.beat_guide_count, 4);
@@ -379,6 +392,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     state.audio.metronome_enabled = true;
     state.ui.chrome.sticky_random_sample_range_playback = true;
     state.ui.chrome.beat_guides_enabled = true;
+    state.ui.chrome.bpm_snap_enabled = true;
     state.ui.chrome.beat_guide_count = 8;
     state.waveform.current =
         crate::native_app::test_support::state::WaveformState::synthetic_for_tests();
@@ -397,6 +411,7 @@ fn main_toolbar_view_model_projects_playback_state() {
     assert!(loaded.loop_playback);
     assert!(loaded.playing);
     assert!(loaded.zero_crossing_snap_enabled);
+    assert!(loaded.bpm_snap_enabled);
     assert!(loaded.beat_guides_enabled);
     assert!(loaded.metronome_enabled);
     assert_eq!(loaded.beat_guide_count, 8);
@@ -449,6 +464,21 @@ fn zero_crossing_snap_toolbar_message_updates_waveform_state() {
 
     assert!(!state.waveform.current.zero_crossing_snap_enabled());
     assert_eq!(state.ui.status.sample, "Zero crossing snap disabled");
+}
+
+#[test]
+fn bpm_snap_toolbar_message_updates_chrome_state_and_status() {
+    let mut state = NativeAppState::load_default().expect("default state loads");
+    let mut context = radiant::prelude::UiUpdateContext::default();
+
+    assert!(!state.ui.chrome.bpm_snap_enabled);
+    state.apply_message(GuiMessage::ToggleBpmSnap, &mut context);
+    assert!(state.ui.chrome.bpm_snap_enabled);
+    assert_eq!(state.ui.status.sample, "BPM snap enabled");
+
+    state.apply_message(GuiMessage::ToggleBpmSnap, &mut context);
+    assert!(!state.ui.chrome.bpm_snap_enabled);
+    assert_eq!(state.ui.status.sample, "BPM snap disabled");
 }
 
 #[test]

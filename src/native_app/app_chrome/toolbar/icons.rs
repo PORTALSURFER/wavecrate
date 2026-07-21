@@ -16,6 +16,7 @@ pub(in crate::native_app) enum ToolbarIcon {
     Random,
     SimilarSections,
     ZeroCrossingSnap,
+    BpmSnap,
     BeatGuides,
     Metronome,
     Play,
@@ -30,6 +31,7 @@ impl ToolbarIcon {
             Self::Random => &RANDOM_ICON,
             Self::SimilarSections => &SIMILAR_SECTIONS_ICON,
             Self::ZeroCrossingSnap => &ZERO_CROSSING_SNAP_ICON,
+            Self::BpmSnap => &BPM_SNAP_ICON,
             Self::BeatGuides => &BEAT_GUIDES_ICON,
             Self::Metronome => &METRONOME_ICON,
             Self::Play => &PLAY_ICON,
@@ -95,6 +97,14 @@ static ZERO_CROSSING_SNAP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new
   <rect x="2" y="7.25" width="12" height="1.5"/>
   <path d="M2 10.8c2.2 0 2.7-5.6 5-5.6s2.8 5.6 5 5.6h2v1.5h-2c-2.9 0-3.4-5.6-5-5.6s-2.1 5.6-5 5.6z"/>
   <rect x="7.25" y="2" width="1.5" height="12"/>
+</svg>"#,
+);
+
+static BPM_SNAP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1.5" y="2.5" width="1.5" height="11"/>
+  <rect x="13" y="2.5" width="1.5" height="11"/>
+  <path d="M5 4h3.1c1.5 0 2.4.8 2.4 2 0 .8-.4 1.4-1.1 1.7.9.3 1.4 1 1.4 2 0 1.5-1 2.3-2.7 2.3H5V4zm1.5 1.3v1.8h1.4c.7 0 1.1-.3 1.1-.9s-.4-.9-1.1-.9H6.5zm0 3v2.4H8c.8 0 1.2-.4 1.2-1.2s-.4-1.2-1.2-1.2H6.5z"/>
 </svg>"#,
 );
 

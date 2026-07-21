@@ -1,11 +1,11 @@
 use super::audio_file::gain_preview_for_selection;
 use super::{
     BAND_COUNT, LiveSelectionPreview, MIN_VISIBLE_FRAMES, WaveformActiveDragKind,
-    WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle, WaveformInteraction,
-    WaveformSelectionEdge, WaveformSelectionKind, WaveformState, WaveformViewport, WaveformWidget,
-    WaveformWidgetProps, downmix_to_mono, signal_edit_selection_for_state,
-    signal_gain_preview_for_state, split_frequency_bands, waveform_file_from_mono_samples,
-    waveform_signal_surface_view,
+    WaveformBpmSnapSettings, WaveformEditFadeHandle, WaveformEditFadeOuterGainHandle,
+    WaveformInteraction, WaveformSelectionEdge, WaveformSelectionKind, WaveformState,
+    WaveformViewport, WaveformWidget, WaveformWidgetProps, downmix_to_mono,
+    signal_edit_selection_for_state, signal_gain_preview_for_state, split_frequency_bands,
+    waveform_file_from_mono_samples, waveform_signal_surface_view,
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -36,7 +36,13 @@ fn waveform_widget_for_state_with_beat_guides(
     enabled: bool,
     count: u8,
 ) -> WaveformWidget {
-    WaveformWidget::new(WaveformWidgetProps::from_state(state, enabled, count))
+    WaveformWidget::new(WaveformWidgetProps::from_state(
+        state, enabled, false, count,
+    ))
+}
+
+fn waveform_widget_for_state_with_bpm_snap(state: &WaveformState, count: u8) -> WaveformWidget {
+    WaveformWidget::new(WaveformWidgetProps::from_state(state, true, true, count))
 }
 
 fn fill_rects(plan: &SurfacePaintPlan) -> Vec<&PaintFillRect> {

@@ -141,6 +141,7 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     registered_widget_id!(Toolbar, TOOLBAR_STOP_ID, "toolbar.stop"),
     registered_widget_id!(Toolbar, TOOLBAR_RANDOM_ID, "toolbar.random"),
     registered_widget_id!(Toolbar, TOOLBAR_BEAT_GUIDES_ID, "toolbar.beat_guides"),
+    registered_widget_id!(Toolbar, TOOLBAR_BPM_SNAP_ID, "toolbar.bpm_snap"),
     registered_widget_id!(
         Toolbar,
         TOOLBAR_BEAT_GUIDE_DECREMENT_ID,

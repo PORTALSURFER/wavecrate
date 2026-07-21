@@ -65,6 +65,14 @@ impl NativeAppState {
                     String::from("Zero crossing snap disabled")
                 };
             }
+            GuiMessage::ToggleBpmSnap => {
+                self.ui.chrome.bpm_snap_enabled = !self.ui.chrome.bpm_snap_enabled;
+                self.ui.status.sample = if self.ui.chrome.bpm_snap_enabled {
+                    String::from("BPM snap enabled")
+                } else {
+                    String::from("BPM snap disabled")
+                };
+            }
             GuiMessage::ToggleBeatGuides => {
                 self.ui.chrome.beat_guides_enabled = !self.ui.chrome.beat_guides_enabled;
             }

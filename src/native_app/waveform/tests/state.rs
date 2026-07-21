@@ -457,6 +457,85 @@ fn playmark_range_edges_are_resizable() {
 }
 
 #[test]
+fn bpm_snap_resizes_editmark_to_whole_bpm_without_losing_edit_shape() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.edit_selection = Some(
+        wavecrate::selection::SelectionRange::new(0.2, 0.6)
+            .with_gain(0.5)
+            .with_fade_in(0.25, 0.2),
+    );
+    state.edit_mark_ratio = Some(0.2);
+    let settings = WaveformBpmSnapSettings {
+        enabled: true,
+        beat_count: 4,
+    };
+
+    state.apply_interaction_with_bpm_snap(
+        WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Edit,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6,
+        },
+        settings,
+    );
+    state.apply_interaction_with_bpm_snap(
+        WaveformInteraction::FinishSelection {
+            visible_ratio: 0.61,
+        },
+        settings,
+    );
+
+    let selection = state.edit_selection().expect("resized editmark");
+    let fade = selection.fade_in().expect("fade should be preserved");
+    assert!((4.0 * 60.0 / selection.width() - 585.0).abs() < 0.01);
+    assert!((selection.gain() - 0.5).abs() < 0.001);
+    assert!((selection.start() + selection.width() * fade.length - 0.3).abs() < 0.001);
+}
+
+#[test]
+fn bpm_snap_does_not_quantize_selection_creation_or_movement() {
+    let mut state = WaveformState::synthetic_for_tests();
+    let settings = WaveformBpmSnapSettings {
+        enabled: true,
+        beat_count: 4,
+    };
+
+    state.apply_interaction_with_bpm_snap(
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.2,
+        },
+        settings,
+    );
+    state.apply_interaction_with_bpm_snap(
+        WaveformInteraction::FinishSelection {
+            visible_ratio: 0.61,
+        },
+        settings,
+    );
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.2, 0.61))
+    );
+
+    state.apply_interaction_with_bpm_snap(
+        WaveformInteraction::BeginSelectionMove {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.4,
+        },
+        settings,
+    );
+    state.apply_interaction_with_bpm_snap(
+        WaveformInteraction::FinishSelection { visible_ratio: 0.5 },
+        settings,
+    );
+    assert_eq!(
+        state.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.3, 0.71))
+    );
+}
+
+#[test]
 fn edit_bottom_handle_resize_preserves_gain_and_existing_fade_shape() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(

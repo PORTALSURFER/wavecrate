@@ -1,6 +1,6 @@
 use super::{
-    MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformEditFadeHandle, WaveformInteraction,
-    WaveformSelectionKind, WaveformState,
+    MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformBpmSnapSettings, WaveformEditFadeHandle,
+    WaveformInteraction, WaveformSelectionKind, WaveformState,
     interaction::{
         WaveformDrag, WaveformEditFadeDrag, WaveformEditFadeOuterGainDrag, WaveformEditGainDrag,
         WaveformPanDrag, WaveformSampleSlideDrag, WaveformSelectionDrag, WaveformSelectionMoveDrag,
@@ -12,6 +12,14 @@ const LIVE_SELECTION_PREVIEW_STEPS_PER_PIXEL: f32 = 2.0;
 
 impl WaveformState {
     pub(in crate::native_app) fn apply_interaction(&mut self, interaction: WaveformInteraction) {
+        self.apply_interaction_with_bpm_snap(interaction, WaveformBpmSnapSettings::default());
+    }
+
+    pub(in crate::native_app) fn apply_interaction_with_bpm_snap(
+        &mut self,
+        interaction: WaveformInteraction,
+        bpm_snap: WaveformBpmSnapSettings,
+    ) {
         if !self.has_loaded_sample() && !matches!(interaction, WaveformInteraction::Frame) {
             self.active_drag = None;
             return;
@@ -126,7 +134,7 @@ impl WaveformState {
                 self.active_drag = Some(WaveformDrag::SelectionResize(
                     WaveformSelectionResizeDrag::new(kind, edge, selection, allow_out_of_bounds),
                 ));
-                self.update_active_selection_resize(ratio, false);
+                self.update_active_selection_resize(ratio, false, bpm_snap);
             }
             WaveformInteraction::BeginSelectionMove {
                 kind,
@@ -163,10 +171,13 @@ impl WaveformState {
                 )));
             }
             WaveformInteraction::UpdateSelection { visible_ratio } => {
-                self.update_active_drag(quantized_live_selection_visible_ratio(visible_ratio));
+                self.update_active_drag(
+                    quantized_live_selection_visible_ratio(visible_ratio),
+                    bpm_snap,
+                );
             }
             WaveformInteraction::FinishSelection { visible_ratio } => {
-                self.finish_active_drag(visible_ratio);
+                self.finish_active_drag(visible_ratio, bpm_snap);
             }
             WaveformInteraction::DragPlaySelectionExport(drag) => {
                 self.apply_play_selection_export_drag(drag);
@@ -188,7 +199,7 @@ impl WaveformState {
         }
     }
 
-    fn update_active_drag(&mut self, visible_ratio: f32) {
+    fn update_active_drag(&mut self, visible_ratio: f32, bpm_snap: WaveformBpmSnapSettings) {
         let ratio = self.absolute_ratio_from_visible(visible_ratio);
         let Some(drag) = self.active_drag else {
             return;
@@ -207,7 +218,7 @@ impl WaveformState {
             WaveformDrag::EditFadeOuterGain(_) => {}
             WaveformDrag::EditGain(_) => {}
             WaveformDrag::SelectionResize(_) => {
-                self.update_active_selection_resize(ratio, false);
+                self.update_active_selection_resize(ratio, false, bpm_snap);
             }
             WaveformDrag::SelectionMove(_) => {
                 self.update_active_selection_move(ratio, false);
@@ -222,7 +233,7 @@ impl WaveformState {
         }
     }
 
-    fn finish_active_drag(&mut self, visible_ratio: f32) {
+    fn finish_active_drag(&mut self, visible_ratio: f32, bpm_snap: WaveformBpmSnapSettings) {
         let ratio = self.absolute_ratio_from_visible(visible_ratio);
         let Some(drag) = self.active_drag.take() else {
             return;
@@ -264,7 +275,7 @@ impl WaveformState {
             }
             WaveformDrag::SelectionResize(drag) => {
                 self.active_drag = Some(WaveformDrag::SelectionResize(drag));
-                self.update_active_selection_resize(ratio, true);
+                self.update_active_selection_resize(ratio, true, bpm_snap);
                 self.active_drag = None;
                 if drag.kind == WaveformSelectionKind::Play {
                     self.clear_similar_sections();

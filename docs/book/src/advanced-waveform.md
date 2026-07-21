@@ -44,6 +44,7 @@ Beat guides draw divisions over the waveform.
 
 - Toggle beat guides from the toolbar.
 - Set the beat guide count in the number field.
+- Toggle BPM Snap to make playmark and editmark resizing land on whole BPM values derived from the beat guide count.
 - Toggle the metronome when you want click feedback during playback.
 
 Beat guides are visual timing aids. They do not turn Wavecrate into an arrangement editor.

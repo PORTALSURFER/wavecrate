@@ -64,6 +64,7 @@ pub(in crate::native_app) struct ChromeUiState {
     pub(in crate::native_app) harvest_family_open: bool,
     pub(in crate::native_app) curation_filter_dropdown_open: bool,
     pub(in crate::native_app) harvest_filter_dropdown_open: bool,
+    pub(in crate::native_app) bpm_snap_enabled: bool,
     pub(in crate::native_app) beat_guides_enabled: bool,
     pub(in crate::native_app) beat_guide_count: u8,
 }
@@ -177,6 +178,7 @@ impl ChromeUiState {
             harvest_family_open: false,
             curation_filter_dropdown_open: false,
             harvest_filter_dropdown_open: false,
+            bpm_snap_enabled: false,
             beat_guides_enabled: false,
             beat_guide_count: DEFAULT_BEAT_GUIDE_COUNT,
         }
