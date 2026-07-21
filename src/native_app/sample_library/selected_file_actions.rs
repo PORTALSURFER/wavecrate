@@ -19,8 +19,9 @@ use std::{
     time::Instant,
 };
 use wavecrate::sample_sources::{
-    HarvestDerivationOperation, WholeFileHarvestExtractionPlan, WholeFileHarvestExtractionRequest,
-    WholeFileHarvestExtractionResult, execute_whole_file_harvest_extraction,
+    HarvestDerivationOperation, SourceRole, WholeFileHarvestExtractionPlan,
+    WholeFileHarvestExtractionRequest, WholeFileHarvestExtractionResult,
+    execute_whole_file_harvest_extraction,
 };
 
 #[derive(Clone, Copy)]
@@ -510,6 +511,10 @@ impl NativeAppState {
                     .library
                     .folder_browser
                     .path_is_in_protected_source(&completion.source_path);
+                self.flash_primary_source_acceptance_for_protected_extraction(
+                    &completion.source_path,
+                    &path,
+                );
                 let focus_derivative = focus_derivative && cross_source_derivative;
                 self.log_sample_identity_checkpoint(
                     "waveform.extract.finished_after_refresh",
@@ -659,6 +664,13 @@ impl NativeAppState {
 
         let copied_count = result.copied.len();
         let failed_count = result.failed.len();
+        if result.copied.iter().any(|copy| {
+            self.protected_extraction_was_accepted_by_primary(&copy.source_path, &copy.output_path)
+        }) {
+            self.library
+                .folder_browser
+                .flash_primary_source_acceptance();
+        }
         self.queue_partially_committed_file_mutation(
             FileMutationOperation::Extract,
             result
@@ -755,5 +767,32 @@ impl NativeAppState {
             .sample_source_for_file_path(child_path)
             .map(|(source, _)| source.id);
         source_id.is_some() && child_id.is_some() && source_id != child_id
+    }
+
+    fn flash_primary_source_acceptance_for_protected_extraction(
+        &mut self,
+        source_path: &std::path::Path,
+        child_path: &std::path::Path,
+    ) {
+        if self.protected_extraction_was_accepted_by_primary(source_path, child_path) {
+            self.library
+                .folder_browser
+                .flash_primary_source_acceptance();
+        }
+    }
+
+    fn protected_extraction_was_accepted_by_primary(
+        &self,
+        source_path: &std::path::Path,
+        child_path: &std::path::Path,
+    ) -> bool {
+        self.library
+            .folder_browser
+            .path_is_in_protected_source(source_path)
+            && self
+                .library
+                .folder_browser
+                .sample_source_for_file_path(child_path)
+                .is_some_and(|(source, _)| source.role == SourceRole::Primary)
     }
 }

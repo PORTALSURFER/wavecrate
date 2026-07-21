@@ -966,6 +966,14 @@ fn playmark_extraction_completion_evicts_reused_output_cache() {
             .contains_key(&extracted),
         "finishing an extraction must discard stale in-memory audio for the output path"
     );
+    assert!(
+        !scenario
+            .state
+            .library
+            .folder_browser
+            .primary_source_acceptance_flash_active(),
+        "ordinary extraction must not show protected-source acceptance feedback"
+    );
 }
 
 #[test]
@@ -1202,6 +1210,14 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
         "protected-source extraction should not load the derivative automatically"
     );
     assert_eq!(scenario.state.waveform.current.path(), source_path);
+    assert!(
+        scenario
+            .state
+            .library
+            .folder_browser
+            .primary_source_acceptance_flash_active(),
+        "successful protected extraction should light the Primary source row"
+    );
     assert_extracted_metadata_tags(&scenario.state, &extracted, &["one-shot"]);
     let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
         protected_source.id.clone(),
@@ -1227,6 +1243,48 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
         PathBuf::from("_Harvests")
             .join(harvest_source_folder)
             .join("playmark-extract-protected-primary_extraction.wav")
+    );
+
+    let failed_flash_started = std::time::Instant::now();
+    scenario
+        .state
+        .library
+        .folder_browser
+        .set_primary_source_acceptance_flash_time_for_tests(failed_flash_started);
+    let selection = scenario
+        .state
+        .waveform
+        .current
+        .play_selection()
+        .expect("play selection remains available");
+    let mut failed_context = ui::UiUpdateContext::default();
+    scenario.state.finish_play_selection_extraction(
+        crate::native_app::waveform::WaveformExtractionCompletion {
+            source_path: source_path.clone(),
+            selection,
+            result: Err(String::from("simulated write failure")),
+        },
+        None,
+        crate::native_app::app::ExtractedFilePlaybackType::OneShot,
+        wavecrate::sample_sources::HarvestDerivationOperation::Extract,
+        false,
+        std::time::Instant::now(),
+        &mut failed_context,
+    );
+    scenario
+        .state
+        .library
+        .folder_browser
+        .advance_primary_source_acceptance_flash_time_for_tests(
+            failed_flash_started + std::time::Duration::from_secs(1),
+        );
+    assert!(
+        !scenario
+            .state
+            .library
+            .folder_browser
+            .primary_source_acceptance_flash_active(),
+        "failed extraction completion must not restart the success feedback"
     );
 }
 
@@ -1911,6 +1969,13 @@ fn e_without_playmark_copies_protected_whole_file_to_primary_harvest_and_keeps_f
     assert!(
         active_sample_load_ticket(&state).is_none(),
         "whole-file fallback should not load the derivative automatically"
+    );
+    assert!(
+        state
+            .library
+            .folder_browser
+            .primary_source_acceptance_flash_active(),
+        "successful protected whole-file extraction should light the Primary source row"
     );
     let parent_key = wavecrate::sample_sources::HarvestFileKey::new(
         protected_source.id.clone(),

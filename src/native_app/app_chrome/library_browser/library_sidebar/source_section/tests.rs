@@ -1,11 +1,11 @@
 use super::identity::{AUTOMATION_SOURCE_ADD_BUTTON_ID, retained_source_row_input_id};
 use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT,
-    SOURCE_ROW_LABEL_PADDING_X, source_add_button, source_add_button_tooltip_for_tests,
-    source_missing_color_for_tests, source_processing_fill_for_tests,
-    source_processing_marker_color_for_tests, source_protected_error_icon_color_for_tests,
-    source_role_icon_color_for_source_for_tests, source_role_icon_color_for_tests, source_row,
-    source_row_outline_for_tests,
+    SOURCE_ROW_LABEL_PADDING_X, source_acceptance_fill_for_tests, source_add_button,
+    source_add_button_tooltip_for_tests, source_missing_color_for_tests,
+    source_processing_fill_for_tests, source_processing_marker_color_for_tests,
+    source_protected_error_icon_color_for_tests, source_role_icon_color_for_source_for_tests,
+    source_role_icon_color_for_tests, source_row, source_row_outline_for_tests,
 };
 use super::source_selector;
 use crate::native_app::app::GuiMessage;
@@ -21,6 +21,7 @@ use crate::native_app::sample_library::folder_browser::{FolderBrowserState, mode
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 use radiant::widgets::ButtonMessage;
+use std::time::{Duration, Instant};
 use wavecrate::sample_sources::SourceRole;
 
 fn test_source(id: &str) -> SourceEntry {
@@ -156,6 +157,7 @@ fn source_row_routes_drop_to_source_root() {
         processing: false,
         missing: false,
         protected_source_error_flash: false,
+        primary_source_acceptance_flash: false,
         drag_active: true,
         drop_candidate: true,
         drop_target: false,
@@ -388,6 +390,64 @@ fn primary_source_row_uses_role_icon_instead_of_text_badge() {
         "primary sources should not render the old text badge"
     );
     assert_no_left_source_marker!(frame);
+}
+
+#[test]
+fn primary_source_acceptance_flash_projects_paints_and_expires_after_one_second() {
+    let mut primary = test_source("source-primary-acceptance");
+    primary.role = SourceRole::Primary;
+    let normal = test_source("source-normal-acceptance");
+    let mut state = FolderBrowserState::from_sources_deferred(
+        vec![primary.clone(), normal],
+        primary.id.clone(),
+    );
+
+    let started_at = Instant::now();
+    state.set_primary_source_acceptance_flash_time_for_tests(started_at);
+    let model = SourceSelectorViewModel::from_folder_browser(&state, false);
+    let primary_row = model
+        .rows
+        .iter()
+        .find(|row| row.id == primary.id)
+        .expect("primary source row");
+    let normal_row = model
+        .rows
+        .iter()
+        .find(|row| row.role == SourceRole::Normal)
+        .expect("normal source row");
+    let frame = source_row(primary_row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(200.0, SOURCE_ROW_HEIGHT));
+
+    assert!(primary_row.primary_source_acceptance_flash);
+    assert!(!normal_row.primary_source_acceptance_flash);
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == source_acceptance_fill_for_tests()),
+        "accepted extraction should tint the Primary source row green"
+    );
+    assert!(state.primary_source_acceptance_flash_active_at_for_tests(
+        started_at + Duration::from_millis(999)
+    ));
+    assert!(
+        !state.primary_source_acceptance_flash_active_at_for_tests(
+            started_at + Duration::from_secs(1)
+        )
+    );
+
+    let restarted_at = Instant::now();
+    state.set_primary_source_acceptance_flash_time_for_tests(restarted_at);
+    assert!(
+        state.primary_source_acceptance_flash_active_at_for_tests(
+            restarted_at + Duration::from_millis(999)
+        ),
+        "a later extraction should restart the one-second interval"
+    );
+    state.advance_primary_source_acceptance_flash_time_for_tests(
+        restarted_at + Duration::from_secs(1),
+    );
+    assert!(!state.primary_source_acceptance_flash_active());
 }
 
 #[test]

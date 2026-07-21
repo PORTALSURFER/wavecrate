@@ -16,6 +16,7 @@ use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
 
 const COPY_FLASH_FRAMES: u8 = 12;
 const PROTECTED_SOURCE_ERROR_FLASH_FRAMES: u8 = 24;
+const PRIMARY_SOURCE_ACCEPTANCE_FLASH_DURATION: Duration = Duration::from_secs(1);
 const SLOW_SAMPLE_PROJECTION_CACHE_FILL: Duration = Duration::from_millis(4);
 
 #[derive(Clone, Copy)]
@@ -95,6 +96,7 @@ pub(super) struct SampleListState {
     protected_source_error_flash_file_ids: HashSet<String>,
     protected_source_error_flash_source_ids: HashSet<String>,
     protected_source_error_flash_frames: u8,
+    primary_source_acceptance_flash_deadline: Option<Instant>,
 }
 
 impl SampleListState {
@@ -127,6 +129,7 @@ impl SampleListState {
             protected_source_error_flash_file_ids: HashSet::new(),
             protected_source_error_flash_source_ids: HashSet::new(),
             protected_source_error_flash_frames: 0,
+            primary_source_acceptance_flash_deadline: None,
         }
     }
 
@@ -520,6 +523,59 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn copy_flash_frames(&self) -> u8 {
         self.sample_list.copy_flash_frames
+    }
+
+    pub(in crate::native_app) fn flash_primary_source_acceptance(&mut self) {
+        self.flash_primary_source_acceptance_at(Instant::now());
+    }
+
+    pub(in crate::native_app) fn primary_source_acceptance_flash_active(&self) -> bool {
+        self.primary_source_acceptance_flash_active_at(Instant::now())
+    }
+
+    pub(in crate::native_app) fn advance_primary_source_acceptance_flash_frame(&mut self) {
+        self.advance_primary_source_acceptance_flash_at(Instant::now());
+    }
+
+    fn flash_primary_source_acceptance_at(&mut self, now: Instant) {
+        self.sample_list.primary_source_acceptance_flash_deadline =
+            Some(now + PRIMARY_SOURCE_ACCEPTANCE_FLASH_DURATION);
+    }
+
+    fn primary_source_acceptance_flash_active_at(&self, now: Instant) -> bool {
+        self.sample_list
+            .primary_source_acceptance_flash_deadline
+            .is_some_and(|deadline| now < deadline)
+    }
+
+    fn advance_primary_source_acceptance_flash_at(&mut self, now: Instant) {
+        if !self.primary_source_acceptance_flash_active_at(now) {
+            self.sample_list.primary_source_acceptance_flash_deadline = None;
+        }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn set_primary_source_acceptance_flash_time_for_tests(
+        &mut self,
+        now: Instant,
+    ) {
+        self.flash_primary_source_acceptance_at(now);
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn advance_primary_source_acceptance_flash_time_for_tests(
+        &mut self,
+        now: Instant,
+    ) {
+        self.advance_primary_source_acceptance_flash_at(now);
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn primary_source_acceptance_flash_active_at_for_tests(
+        &self,
+        now: Instant,
+    ) -> bool {
+        self.primary_source_acceptance_flash_active_at(now)
     }
 
     pub(in crate::native_app) fn advance_copy_flash_frame(&mut self) {
