@@ -915,7 +915,11 @@ fn published_release_verifier_adds_portalsurfer_download_tokens_to_file_urls() {
     let python = format!(
         r#"
 import importlib.util
+import http.server
 import sys
+import tempfile
+import threading
+from pathlib import Path
 spec = importlib.util.spec_from_file_location("verify_published_release", {script:?})
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
@@ -925,6 +929,70 @@ url = module.portalsurfer_download_url(
     "token with spaces",
 )
 assert url == "https://portalsurfer.org/wavecrate/api/v1/releases/build/files/file.zip/download?existing=1&download_token=token+with+spaces", url
+request = module.request_for_url(url, verification_token="verification-secret")
+assert request.get_header("X-wavecrate-release-verification") == module.hashlib.sha256(b"verification-secret").hexdigest()
+
+args = type("Args", (), {
+    "portal_catalog_url": "https://portalsurfer.org/wavecrate/api/v1/releases",
+})()
+module.ensure_portalsurfer_origin(args, url)
+try:
+    module.ensure_portalsurfer_origin(args, "https://example.com/file.zip")
+except SystemExit as error:
+    assert "different origin" in str(error)
+else:
+    raise AssertionError("cross-origin verifier credentials must be rejected")
+
+class TargetHandler(http.server.BaseHTTPRequestHandler):
+    verification_proof = None
+
+    def do_GET(self):
+        type(self).verification_proof = self.headers.get("X-Wavecrate-Release-Verification")
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"unexpected target response")
+
+    def log_message(self, *args):
+        pass
+
+class RedirectHandler(http.server.BaseHTTPRequestHandler):
+    target_url = ""
+
+    def do_GET(self):
+        self.send_response(302)
+        self.send_header("Location", type(self).target_url)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+target_server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
+RedirectHandler.target_url = f"http://127.0.0.1:{{target_server.server_port}}/artifact.zip"
+redirect_server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+threads = [
+    threading.Thread(target=target_server.serve_forever, daemon=True),
+    threading.Thread(target=redirect_server.serve_forever, daemon=True),
+]
+for thread in threads:
+    thread.start()
+try:
+    with tempfile.TemporaryDirectory() as directory:
+        try:
+            module.download_url(
+                f"http://127.0.0.1:{{redirect_server.server_port}}/artifact.zip",
+                Path(directory) / "artifact.zip",
+                verification_token="verification-secret",
+            )
+        except SystemExit as error:
+            assert "different origin" in str(error)
+        else:
+            raise AssertionError("cross-origin redirects must fail verification downloads")
+finally:
+    redirect_server.shutdown()
+    target_server.shutdown()
+    redirect_server.server_close()
+    target_server.server_close()
+assert TargetHandler.verification_proof is None
 "#,
         script = script.display().to_string(),
     );

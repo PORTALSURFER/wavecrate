@@ -920,6 +920,13 @@ fn release_workflows_verify_published_artifacts_after_publication() {
             workflow.contains("--surface portalsurfer"),
             "{name} must verify PortalSurfer downloads after PortalSurfer publication"
         );
+        assert!(
+            workflow
+                .matches("PORTALSURFER_RELEASE_UPLOAD_TOKEN:")
+                .count()
+                >= 2,
+            "{name} must authenticate both PortalSurfer publication and post-publish verification"
+        );
     }
     assert!(
         NIGHTLY_WORKFLOW.contains("Verify published GitHub nightly release"),
