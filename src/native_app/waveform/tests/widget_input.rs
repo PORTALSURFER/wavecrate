@@ -1281,6 +1281,57 @@ fn playmark_resize_motion_updates_live_until_release() {
 }
 
 #[test]
+fn bpm_snap_updates_live_resize_preview_and_reducer_to_same_whole_bpm() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state_with_bpm_snap(&state, 4);
+    let bounds = Rect::from_size(200.0, 80.0);
+    let settings = super::WaveformBpmSnapSettings {
+        enabled: true,
+        beat_count: 4,
+    };
+
+    let begin = widget
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
+        .expect("playmark resize should begin")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction_with_bpm_snap(begin, settings);
+    widget.active_drag_kind = state.active_drag_kind();
+
+    let update = widget
+        .handle_input(bounds, WidgetInput::pointer_move(Point::new(122.0, 8.0)))
+        .expect("resize motion should update")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction_with_bpm_snap(update, settings);
+    let preview = widget
+        .live_selection_preview
+        .expect("live snapped preview")
+        .selection;
+    let live = state.play_selection().expect("live snapped selection");
+    assert!((preview.end() - live.end()).abs() < 0.000_01);
+    assert!((4.0 * 60.0 / preview.width() - 585.0).abs() < 0.01);
+
+    let finish = widget
+        .handle_input(
+            bounds,
+            WidgetInput::pointer_release(
+                Point::new(122.0, 8.0),
+                PointerButton::Primary,
+                Default::default(),
+            ),
+        )
+        .expect("playmark resize should finish")
+        .typed_copied::<WaveformInteraction>()
+        .expect("waveform interaction");
+    state.apply_interaction_with_bpm_snap(finish, settings);
+    let finished = state.play_selection().expect("finished snapped selection");
+    assert!((finished.end() - preview.end()).abs() < 0.000_01);
+}
+
+#[test]
 fn playmark_right_resize_updates_when_returning_through_original_handle() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

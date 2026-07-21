@@ -236,7 +236,7 @@ pub(super) struct WaveformSelectionResizeDrag {
     pub(super) edge: WaveformSelectionEdge,
     pub(super) fixed_ratio: f32,
     baseline: wavecrate::selection::SelectionRange,
-    allow_out_of_bounds: bool,
+    pub(super) allow_out_of_bounds: bool,
 }
 
 impl WaveformSelectionResizeDrag {

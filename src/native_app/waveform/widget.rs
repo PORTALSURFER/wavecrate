@@ -51,6 +51,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
     state: &WaveformState,
     tooltip: Option<&'static str>,
     beat_guides_enabled: bool,
+    bpm_snap_enabled: bool,
     beat_guide_count: u8,
     normalized_audition_enabled: bool,
     playhead_occlusion_rect: Option<Rect>,
@@ -59,6 +60,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         WaveformWidget::new(WaveformWidgetProps::from_state_with_playhead_occlusion(
             state,
             beat_guides_enabled,
+            bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
         )),
@@ -213,6 +215,7 @@ pub(in crate::native_app) struct WaveformWidgetProps {
     protected_source_error_flash_frames: u8,
     sample_slide_frame_offset: Option<i64>,
     beat_guides_enabled: bool,
+    bpm_snap_enabled: bool,
     beat_guide_count: u8,
     playhead_occlusion_rect: Option<Rect>,
     pub(in crate::native_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
@@ -223,14 +226,22 @@ impl WaveformWidgetProps {
     pub(super) fn from_state(
         state: &WaveformState,
         beat_guides_enabled: bool,
+        bpm_snap_enabled: bool,
         beat_guide_count: u8,
     ) -> Self {
-        Self::from_state_with_playhead_occlusion(state, beat_guides_enabled, beat_guide_count, None)
+        Self::from_state_with_playhead_occlusion(
+            state,
+            beat_guides_enabled,
+            bpm_snap_enabled,
+            beat_guide_count,
+            None,
+        )
     }
 
     pub(super) fn from_state_with_playhead_occlusion(
         state: &WaveformState,
         beat_guides_enabled: bool,
+        bpm_snap_enabled: bool,
         beat_guide_count: u8,
         playhead_occlusion_rect: Option<Rect>,
     ) -> Self {
@@ -272,6 +283,7 @@ impl WaveformWidgetProps {
             protected_source_error_flash_frames: state.protected_source_error_flash_frames(),
             sample_slide_frame_offset: state.pending_sample_slide_frame_offset,
             beat_guides_enabled,
+            bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
             active_drag_kind,
@@ -326,6 +338,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) protected_source_error_flash_frames: u8,
     pub(super) sample_slide_frame_offset: Option<i64>,
     pub(super) beat_guides_enabled: bool,
+    pub(super) bpm_snap_enabled: bool,
     pub(super) beat_guide_count: u8,
     pub(super) playhead_occlusion_rect: Option<Rect>,
     pub(super) edit_preview: TimelineEditPreview,
@@ -363,6 +376,7 @@ impl WaveformWidget {
             protected_source_error_flash_frames,
             sample_slide_frame_offset,
             beat_guides_enabled,
+            bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
             active_drag_kind,
@@ -397,6 +411,7 @@ impl WaveformWidget {
             protected_source_error_flash_frames,
             sample_slide_frame_offset,
             beat_guides_enabled,
+            bpm_snap_enabled,
             beat_guide_count,
             playhead_occlusion_rect,
             edit_preview: edit_preview_for_selection(edit_selection),

@@ -98,6 +98,7 @@ pub(in crate::native_app) const TOOLBAR_SIMILAR_SECTIONS_ID: u64 = TOOLBAR.id(9)
 pub(in crate::native_app) const TOOLBAR_METRONOME_ID: u64 = TOOLBAR.id(10);
 pub(in crate::native_app) const TOOLBAR_ZERO_CROSSING_SNAP_ID: u64 = TOOLBAR.id(11);
 pub(in crate::native_app) const TOOLBAR_BEAT_GUIDE_COUNT_ID: u64 = TOOLBAR.id(12);
+pub(in crate::native_app) const TOOLBAR_BPM_SNAP_ID: u64 = TOOLBAR.id(13);
 
 #[cfg(test)]
 pub(in crate::native_app) const FILTER_SECTION_NODE_ID: u64 = FOLDER_FILTERS.id(1);

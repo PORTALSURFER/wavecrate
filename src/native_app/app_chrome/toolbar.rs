@@ -137,6 +137,7 @@ fn toolbar_button_message(icon: ToolbarIcon, message: ButtonMessage) -> GuiMessa
         ToolbarIcon::Random => GuiMessage::PlayRandomSampleRange,
         ToolbarIcon::SimilarSections => GuiMessage::ToggleSimilarSections,
         ToolbarIcon::ZeroCrossingSnap => GuiMessage::ToggleZeroCrossingSnap,
+        ToolbarIcon::BpmSnap => GuiMessage::ToggleBpmSnap,
         ToolbarIcon::BeatGuides => GuiMessage::ToggleBeatGuides,
         ToolbarIcon::Metronome => GuiMessage::ToggleMetronome,
         ToolbarIcon::Play => GuiMessage::PlaySelectedSample,

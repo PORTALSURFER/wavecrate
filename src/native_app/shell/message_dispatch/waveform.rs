@@ -43,7 +43,13 @@ impl NativeAppState {
         {
             return;
         }
-        self.waveform.current.apply_interaction(message);
+        self.waveform.current.apply_interaction_with_bpm_snap(
+            message,
+            crate::native_app::waveform::WaveformBpmSnapSettings {
+                enabled: self.ui.chrome.bpm_snap_enabled,
+                beat_count: self.ui.chrome.beat_guide_count,
+            },
+        );
         self.queue_waveform_detail_refinement(context);
         if matches!(message, WaveformInteraction::FinishSampleSlide { .. })
             && let Some(frame_offset) = self

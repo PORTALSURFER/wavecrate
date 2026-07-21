@@ -303,6 +303,7 @@ pub(in crate::native_app) enum GuiMessage {
     ToggleHarvestFilterDropdown,
     CloseHarvestFilterDropdown,
     ToggleZeroCrossingSnap,
+    ToggleBpmSnap,
     ToggleBeatGuides,
     SetBeatGuideCount(u8),
     ChangeBeatGuideCountInput(String),

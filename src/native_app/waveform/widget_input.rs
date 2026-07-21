@@ -650,6 +650,17 @@ impl WaveformWidget {
             WaveformSelectionEdge::Start => selection.end(),
             WaveformSelectionEdge::End => selection.start(),
         };
+        let ratio = if self.bpm_snap_enabled {
+            super::snap_resize_ratio_to_whole_bpm(
+                fixed_ratio,
+                ratio,
+                self.file.frames as f32 / self.file.sample_rate.max(1) as f32,
+                self.beat_guide_count,
+                !self.allows_out_of_bounds_selection_preview(),
+            )
+        } else {
+            ratio
+        };
         Some(self.selection_range_for_current_domain(fixed_ratio, ratio))
     }
 
