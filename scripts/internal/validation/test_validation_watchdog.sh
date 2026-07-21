@@ -116,6 +116,26 @@ set -e
 kill -0 "$owned_child_pid" 2>/dev/null && fail "owned child survived cancellation"
 echo "[validation_watchdog_test] PASS: cancellation cleanup"
 
+prespawn_ready="$FIXTURE_DIR/prespawn-ready"
+prespawn_child="$FIXTURE_DIR/prespawn-child"
+WAVECRATE_VALIDATION_TEST_PRESPAWN_READY_FILE="$prespawn_ready" \
+  WAVECRATE_VALIDATION_TEST_PRESPAWN_SECONDS=2 \
+  python3 "$WATCHDOG" sh -c "echo started > '$prespawn_child'; sleep 30" &
+wrapper_pid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  [[ -s "$prespawn_ready" ]] && break
+  sleep 0.1
+done
+[[ -s "$prespawn_ready" ]] || fail "pre-spawn cancellation fixture did not become ready"
+kill -TERM "$wrapper_pid"
+set +e
+wait "$wrapper_pid"
+status=$?
+set -e
+[[ "$status" == "143" ]] || fail "expected pre-spawn cancellation exit 143, got $status"
+[[ ! -e "$prespawn_child" ]] || fail "command started after pre-spawn cancellation"
+echo "[validation_watchdog_test] PASS: pre-spawn cancellation cannot orphan a process group"
+
 target_root="$FIXTURE_DIR/targets"
 export WAVECRATE_VALIDATION_TARGET_ROOT="$target_root"
 export WAVECRATE_VALIDATION_MAX_DEPS_METADATA_BYTES=1
@@ -128,9 +148,13 @@ wavecrate_use_validation_target "$ROOT_DIR"
 echo "[validation_watchdog_test] PASS: non-Darwin target selection is a no-op"
 
 export WAVECRATE_VALIDATION_TEST_PLATFORM=Darwin
+ambient_target="$FIXTURE_DIR/ambient-target"
+export CARGO_TARGET_DIR="$ambient_target"
 wavecrate_use_validation_target "$ROOT_DIR"
 first_target="$CARGO_TARGET_DIR"
+[[ "$first_target" != "$ambient_target" ]] || fail "ambient CARGO_TARGET_DIR bypassed isolation"
 wavecrate_release_validation_target
+echo "[validation_watchdog_test] PASS: ambient Cargo target cannot bypass isolation"
 mkdir -p "$first_target/debug/deps"
 : >"$first_target/debug/deps/artifact"
 

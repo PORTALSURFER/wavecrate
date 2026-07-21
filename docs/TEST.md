@@ -43,7 +43,9 @@ merge cleanup.
 On macOS, the supported Bash `scripts/agent.sh` and `scripts/ci.sh` entrypoints
 use a Cargo target keyed by the Rust host/release and `Cargo.lock`. This keeps
 validation independent from the unbounded general-purpose `target/debug/deps`
-directory while preserving warm reuse across repeated runs. A target whose
+directory while preserving warm reuse across repeated runs. These entrypoints
+override an inherited `CARGO_TARGET_DIR`; use `WAVECRATE_VALIDATION_TARGET_ROOT`
+to customize validation cache placement. A target whose
 `debug/deps` directory itself becomes pathological is atomically quarantined
 before Cargo starts; the emitted path can be removed after any needed
 diagnostics have been retained. A per-target lease serializes supported macOS
@@ -73,6 +75,8 @@ The fixture also covers reused-PID stale-lease recovery and bounded waits for a
 genuinely live lease owner.
 It also emulates several unresponsive compiler samples to prove the global
 diagnostic budget and post-collection recovery interval.
+Pre-spawn cancellation coverage proves a signal cannot start and detach a new
+validation process group after cancellation has already been recorded.
 
 ## Validation and release lane contract
 

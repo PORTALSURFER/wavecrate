@@ -257,8 +257,8 @@ def main() -> int:
         )
     )
 
-    child = subprocess.Popen(command, start_new_session=True)
     interrupted_signal = 0
+    child: subprocess.Popen[bytes] | None = None
 
     def record_signal(received: int, _frame: object) -> None:
         nonlocal interrupted_signal
@@ -268,6 +268,14 @@ def main() -> int:
     signal.signal(signal.SIGTERM, record_signal)
 
     try:
+        ready_file = os.environ.get("WAVECRATE_VALIDATION_TEST_PRESPAWN_READY_FILE")
+        if ready_file:
+            Path(ready_file).write_text("ready\n", encoding="utf-8")
+            time.sleep(env_seconds("WAVECRATE_VALIDATION_TEST_PRESPAWN_SECONDS", 1))
+        if interrupted_signal:
+            return 128 + interrupted_signal
+
+        child = subprocess.Popen(command, start_new_session=True)
         last_signature = progress_signature(owned_processes(child.pid))
         last_progress = time.monotonic()
         diagnostic_signature: tuple[frozenset[int], float] | None = None
@@ -324,7 +332,7 @@ def main() -> int:
 
         return child.returncode
     finally:
-        if process_group_exists(child.pid):
+        if child is not None and process_group_exists(child.pid):
             print(
                 f"[validation_watchdog] command exited with owned processes still active; "
                 f"cleaning process group {child.pid}",

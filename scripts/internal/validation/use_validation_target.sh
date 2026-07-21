@@ -35,10 +35,6 @@ wavecrate_use_validation_target() {
   if [[ "$platform" != "Darwin" ]]; then
     return 0
   fi
-  if [[ -n "${CARGO_TARGET_DIR:-}" ]]; then
-    echo "[validation_target] keeping CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
-    return 0
-  fi
 
   local rustc_identity lock_identity target_root target_dir deps_dir lease_dir owner_pid owner_identity
   rustc_identity="$(rustc -vV | awk '/^(release|host):/{print $2}' | tr '\n' '-' | sed 's/-$//')"
@@ -47,6 +43,15 @@ wavecrate_use_validation_target() {
   target_dir="$target_root/$rustc_identity-$lock_identity"
   deps_dir="$target_dir/debug/deps"
   lease_dir="$target_root/.lock-$rustc_identity-$lock_identity"
+  if [[ "${WAVECRATE_VALIDATION_WATCHDOG_ACTIVE:-0}" == "1" \
+    && "${WAVECRATE_VALIDATION_TARGET_SELECTED:-0}" == "1" \
+    && "${CARGO_TARGET_DIR:-}" == "$target_dir" ]]; then
+    echo "[validation_target] reusing owned CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
+    return 0
+  fi
+  if [[ -n "${CARGO_TARGET_DIR:-}" && "$CARGO_TARGET_DIR" != "$target_dir" ]]; then
+    echo "[validation_target] overriding ambient CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
+  fi
   owner_pid="${BASHPID:-$$}"
   owner_identity="$(wavecrate_process_identity "$owner_pid")" || {
     echo "[validation_target] unable to identify lease owner process $owner_pid" >&2
@@ -105,6 +110,7 @@ wavecrate_use_validation_target() {
 
   mkdir -p "$target_dir"
   export CARGO_TARGET_DIR="$target_dir"
+  export WAVECRATE_VALIDATION_TARGET_SELECTED=1
   echo "[validation_target] CARGO_TARGET_DIR=$CARGO_TARGET_DIR"
 }
 
@@ -127,4 +133,5 @@ wavecrate_release_validation_target() {
   unset WAVECRATE_VALIDATION_TARGET_LEASE_DIR
   unset WAVECRATE_VALIDATION_TARGET_LEASE_OWNER
   unset WAVECRATE_VALIDATION_TARGET_LEASE_IDENTITY
+  unset WAVECRATE_VALIDATION_TARGET_SELECTED
 }

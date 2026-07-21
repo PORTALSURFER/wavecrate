@@ -79,7 +79,8 @@ Overrides the diagnostic bundle root. Default:
 
 - `WAVECRATE_VALIDATION_TARGET_ROOT`
 Overrides the root containing toolchain/lockfile-specific Cargo targets.
-Default: `target/agent-validation`.
+Default: `target/agent-validation`. Supported macOS validation overrides an
+inherited `CARGO_TARGET_DIR`; use this variable to customize its cache root.
 
 - `WAVECRATE_VALIDATION_LEASE_WAIT_SECONDS`
 Maximum time a supported macOS validation command waits for the keyed Cargo
