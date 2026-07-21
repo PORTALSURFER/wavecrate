@@ -276,24 +276,24 @@ The end-to-end tests are ignored by the default suite so normal CI does not
 inherit a real-time soak:
 
 - deterministic liveness oracle:
-  `cargo test -p wavecrate --bin wavecrate liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work`
+  `cargo test -p wavecrate --lib liveness_oracle_rejects_actionable_deficits_without_observable_runtime_work`
 - real temporary source through add, targeted and overflow reconciliation,
   same-size content change, rename, delete, playback pause, committed internal
   mutation, closed-app restart audit, root disappearance/reappearance, and
   source remove/re-add:
-  `cargo test -p wavecrate --bin wavecrate source_processing_liveness_harness_converges_restart_churn_and_root_recovery -- --ignored --nocapture`
+  `cargo test -p wavecrate --lib source_processing_liveness_harness_converges_restart_churn_and_root_recovery -- --ignored --nocapture`
 - 10,000-file / 30,001-target calibrated source-processing profile:
-  `cargo test -p wavecrate --bin wavecrate profile_source_processing_churn_under_playback_and_browser_priority -- --ignored --nocapture`
+  `cargo test -p wavecrate --lib profile_source_processing_churn_under_playback_and_browser_priority -- --ignored --nocapture`
 - fully analyzed 10,000-file periodic-sweep and one-file readiness-delta profile:
-  `cargo test -p wavecrate --bin wavecrate profile_revision_gated_readiness_sweeps_10k -- --ignored --nocapture`
+  `cargo test -p wavecrate --lib profile_revision_gated_readiness_sweeps_10k -- --ignored --nocapture`
 - full mutation and watcher family coverage:
-  `cargo test -p wavecrate --bin wavecrate committed_file_mutations`
+  `cargo test -p wavecrate --lib committed_file_mutations`
   and
-  `cargo test -p wavecrate --bin wavecrate source_watcher`
+  `cargo test -p wavecrate --lib source_watcher`
 - supervisor and durable-readiness failure injection (busy/resource contention,
   retry deadlines, expired leases, cancellation, worker failures, unsupported
   inputs, and stale completions):
-  `cargo test -p wavecrate --bin wavecrate native_app::source_processing::supervisor::tests`
+  `cargo test -p wavecrate --lib native_app::source_processing::supervisor::tests`
   and
   `cargo test -p wavecrate-library sample_sources::readiness::tests`
 - UI frame and input budgets while exercising browser interactions:
