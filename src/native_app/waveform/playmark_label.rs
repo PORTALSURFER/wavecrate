@@ -73,7 +73,8 @@ impl WaveformWidget {
     ) {
         let selection = match self.active_drag_kind {
             Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
-            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play)) => self
+            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play))
+            | Some(WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)) => self
                 .live_selection_preview
                 .filter(|preview| preview.kind == WaveformSelectionKind::Play)
                 .map(|preview| preview.selection)

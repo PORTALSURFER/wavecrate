@@ -315,8 +315,12 @@ fn playmark_label_has_one_owner_across_live_and_transition_states() {
         selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
     });
     let resized_plan = composed_widget_plan(&resized, bounds);
-    assert_single_playmark_label(&resized_plan, "300 ms");
-    assert!(!resized_plan.contains_text("400 ms"));
+    assert!(
+        !resized.prefers_pointer_move_paint_only(),
+        "live playmark resize text must rebuild the base scene"
+    );
+    assert_single_playmark_label(&resized_plan, "400 ms");
+    assert!(!resized_plan.contains_text("300 ms"));
 
     let mut stale_preview_after_release = waveform_widget_for_state(&state);
     stale_preview_after_release.live_selection_preview = Some(LiveSelectionPreview {

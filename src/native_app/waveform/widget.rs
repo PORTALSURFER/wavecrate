@@ -483,6 +483,9 @@ impl Widget for WaveformWidget {
                 WaveformSelectionKind::Play
             )) | Some(WaveformActiveDragKind::SelectionMove(
                 WaveformSelectionKind::Play
+            )) | Some(WaveformActiveDragKind::SelectionResize(
+                WaveformSelectionKind::Play,
+                _
             ))
         )
     }
