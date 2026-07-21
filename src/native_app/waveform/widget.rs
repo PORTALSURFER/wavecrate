@@ -477,7 +477,17 @@ impl Widget for WaveformWidget {
     }
 
     fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+        !matches!(
+            self.active_drag_kind,
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Play
+            )) | Some(WaveformActiveDragKind::SelectionMove(
+                WaveformSelectionKind::Play
+            )) | Some(WaveformActiveDragKind::SelectionResize(
+                WaveformSelectionKind::Play,
+                _
+            ))
+        )
     }
 
     fn append_paint(
