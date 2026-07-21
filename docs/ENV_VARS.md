@@ -76,6 +76,11 @@ Overrides the diagnostic bundle root. Default:
 Overrides the root containing toolchain/lockfile-specific Cargo targets.
 Default: `target/agent-validation`.
 
+- `WAVECRATE_VALIDATION_LEASE_WAIT_SECONDS`
+Maximum time a supported macOS validation command waits for the keyed Cargo
+target's live lease owner. Timeout exits 124 without terminating the owner or
+removing its lease. Default: `480`.
+
 - `WAVECRATE_VALIDATION_MAX_DEPS_METADATA_BYTES`
 Maximum macOS directory metadata size allowed for a validation target's
 `debug/deps` before that target is quarantined. Default: `8388608`.

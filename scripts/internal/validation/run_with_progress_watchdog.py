@@ -22,12 +22,14 @@ STALL_EXIT_CODE = 124
 def release_validation_target_lease() -> None:
     lease_text = os.environ.get("WAVECRATE_VALIDATION_TARGET_LEASE_DIR")
     owner_text = os.environ.get("WAVECRATE_VALIDATION_TARGET_LEASE_OWNER")
-    if not lease_text or owner_text != str(os.getpid()):
+    identity_text = os.environ.get("WAVECRATE_VALIDATION_TARGET_LEASE_IDENTITY")
+    if not lease_text or owner_text != str(os.getpid()) or not identity_text:
         return
     lease = Path(lease_text)
     pid_path = lease / "pid"
     try:
-        if pid_path.read_text(encoding="utf-8").strip() != owner_text:
+        expected = f"{owner_text}\t{identity_text}"
+        if pid_path.read_text(encoding="utf-8").strip() != expected:
             return
         pid_path.unlink()
         lease.rmdir()

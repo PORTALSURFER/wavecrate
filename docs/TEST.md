@@ -48,7 +48,9 @@ directory while preserving warm reuse across repeated runs. A target whose
 before Cargo starts; the emitted path can be removed after any needed
 diagnostics have been retained. A per-target lease serializes supported macOS
 validation commands so quarantine cannot race an active Cargo user; stale
-leases are recovered after their owner exits.
+leases are recovered when their recorded PID and process-start identity no
+longer identify a live, non-zombie owner. Waiting for a genuinely active owner
+is bounded and exits 124 without disturbing that owner's processes or lease.
 
 Those entrypoints also own a process-group watchdog. A changing owned process
 tree or increasing aggregate CPU time counts as progress, so a quiet but active
@@ -64,6 +66,8 @@ and stale-lock recovery without invoking Cargo.
 Run `bash scripts/internal/validation/test_validation_watchdog.sh` to exercise
 progress classification, diagnostics, cancellation/stall cleanup, unrelated
 process isolation, and pathological-target rotation.
+The fixture also covers reused-PID stale-lease recovery and bounded waits for a
+genuinely live lease owner.
 
 ## Validation and release lane contract
 

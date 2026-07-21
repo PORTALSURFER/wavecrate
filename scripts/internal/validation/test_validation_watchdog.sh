@@ -138,4 +138,31 @@ find "$runner_target_root" -mindepth 1 -maxdepth 1 -type d -name '.lock-*' | gre
   && fail "validation command left its target lease behind"
 echo "[validation_watchdog_test] PASS: concurrent validation command leases"
 
+target_key="$(basename "$first_target")"
+stale_lease="$runner_target_root/.lock-$target_key"
+mkdir -p "$stale_lease"
+printf '%s\t%s\n' "$$" "reused-pid-start-identity" > "$stale_lease/pid"
+WAVECRATE_VALIDATION_TARGET_ROOT="$runner_target_root" \
+  "$ROOT_DIR/scripts/internal/validation/run_validation_command.sh" sh -c 'exit 0'
+[[ ! -d "$stale_lease" ]] || fail "stale reused-PID lease was not recovered"
+echo "[validation_watchdog_test] PASS: stale reused-PID lease recovery"
+
+live_identity="$(wavecrate_process_identity "$$")"
+mkdir -p "$stale_lease"
+printf '%s\t%s\n' "$$" "$live_identity" > "$stale_lease/pid"
+set +e
+WAVECRATE_VALIDATION_TARGET_ROOT="$runner_target_root" \
+  WAVECRATE_VALIDATION_LEASE_WAIT_SECONDS=1 \
+  "$ROOT_DIR/scripts/internal/validation/run_validation_command.sh" sh -c 'exit 0' \
+  >"$FIXTURE_DIR/lease-timeout.out" 2>&1
+status=$?
+set -e
+[[ "$status" == "124" ]] || fail "expected live lease timeout exit 124, got $status"
+[[ -d "$stale_lease" ]] || fail "live owner lease was disturbed on timeout"
+grep -Fq "timed out after 1s waiting for active owner $$" "$FIXTURE_DIR/lease-timeout.out" \
+  || fail "missing bounded lease-wait diagnostic"
+rm -f "$stale_lease/pid"
+rmdir "$stale_lease"
+echo "[validation_watchdog_test] PASS: live lease wait is bounded"
+
 echo "[validation_watchdog_test] OK"
