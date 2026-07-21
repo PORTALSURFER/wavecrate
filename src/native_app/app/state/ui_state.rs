@@ -11,7 +11,8 @@ use wavecrate::sample_sources::config::AppSettingsCore;
 use wavecrate::selection::SelectionRange;
 
 use crate::native_app::app::{
-    AppSettingsTab, AudioSettingsDropdown, NativeFileDropHover, SamplePlaybackSession,
+    AppSettingsTab, AudioSettingsDropdown, GlobalStorageUsageState, NativeFileDropHover,
+    SamplePlaybackSession,
 };
 use crate::native_app::sample_library::context_menu_target::{
     BrowserContextMenu, BrowserContextPointerAnchor,
@@ -222,6 +223,7 @@ pub(in crate::native_app) struct SettingsUiState {
     pub(in crate::native_app) audio_settings_open: bool,
     pub(in crate::native_app) app_settings_tab: AppSettingsTab,
     pub(in crate::native_app) audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
+    pub(in crate::native_app) global_storage_usage: GlobalStorageUsageState,
 }
 
 impl Default for SettingsUiState {
@@ -230,6 +232,7 @@ impl Default for SettingsUiState {
             audio_settings_open: false,
             app_settings_tab: Default::default(),
             audio_settings_dropdown: ui::ExclusiveOpen::new(),
+            global_storage_usage: GlobalStorageUsageState::default(),
         }
     }
 }

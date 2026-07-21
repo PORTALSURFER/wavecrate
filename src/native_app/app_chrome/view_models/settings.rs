@@ -3,13 +3,16 @@ use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 #[cfg(test)]
 use wavecrate::sample_sources::config::DEFAULT_RATING_DECAY_WEEKS;
 
-use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, NativeAppState};
+use crate::native_app::app::{
+    AppSettingsTab, AudioSettingsDropdown, GlobalStorageUsageState, NativeAppState,
+};
 
 #[derive(Clone, Debug)]
 pub(in crate::native_app) struct AudioSettingsSnapshot {
     pub(in crate::native_app) tab: AppSettingsTab,
     pub(in crate::native_app) trash_folder: Option<PathBuf>,
     pub(in crate::native_app) rating_decay_weeks: u16,
+    pub(in crate::native_app) global_storage_usage: GlobalStorageUsageState,
     pub(in crate::native_app) detail_label: String,
     pub(in crate::native_app) error: Option<String>,
     pub(in crate::native_app) audio_output_config: AudioOutputConfig,
@@ -25,6 +28,7 @@ impl AudioSettingsSnapshot {
             tab: state.ui.settings.ui.app_settings_tab,
             trash_folder: state.ui.settings.persisted.trash_folder.clone(),
             rating_decay_weeks: state.ui.settings.persisted.controls.rating_decay_weeks,
+            global_storage_usage: state.ui.settings.ui.global_storage_usage.clone(),
             detail_label: state.audio_engine_detail_label(),
             error: state.audio.settings_error.clone(),
             audio_output_config: state.audio.output_config.clone(),
@@ -55,6 +59,7 @@ impl AudioSettingsSnapshot {
             tab: AppSettingsTab::AudioEngine,
             trash_folder: None,
             rating_decay_weeks: DEFAULT_RATING_DECAY_WEEKS,
+            global_storage_usage: GlobalStorageUsageState::NotLoaded,
             detail_label: "no audio".to_string(),
             error: None,
             audio_output_config: AudioOutputConfig::default(),

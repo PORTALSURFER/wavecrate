@@ -3,8 +3,9 @@ use radiant::prelude as ui;
 mod projection;
 
 use self::projection::{
-    CacheMaintenanceProjection, RatingDecayProjection, SettingsActionProjection,
-    SettingsPanelRowProjection, TrashFolderProjection, settings_panel_projection,
+    CacheMaintenanceProjection, GlobalStorageProjection, RatingDecayProjection,
+    SettingsActionProjection, SettingsPanelRowProjection, TrashFolderProjection,
+    settings_panel_projection,
 };
 use super::AUDIO_SETTINGS_LABELED_ROW_HEIGHT;
 use super::AUDIO_SETTINGS_ROW_SPACING;
@@ -34,10 +35,20 @@ fn settings_panel_row(
         }
         SettingsPanelRowProjection::TrashFolder(projection) => trash_folder_section(projection),
         SettingsPanelRowProjection::RatingDecay(projection) => rating_decay_section(projection),
+        SettingsPanelRowProjection::GlobalStorage(projection) => global_storage_section(projection),
         SettingsPanelRowProjection::CacheMaintenance(projection) => {
             cache_maintenance_section(projection)
         }
     }
+}
+
+fn global_storage_section(projection: GlobalStorageProjection) -> ui::View<GuiMessage> {
+    let mut values = vec![ui::text_line(projection.total_label, 20.0)];
+    if let Some(detail_label) = projection.detail_label {
+        values.push(ui::text_line(detail_label, 16.0));
+    }
+    let control = ui::column(values).spacing(2.0).fill_width().height(42.0);
+    ui::labeled_control(projection.label, control, 54.0)
 }
 
 fn audio_engine_detail_row(detail_label: String) -> ui::View<GuiMessage> {

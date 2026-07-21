@@ -36,6 +36,7 @@ pub(in crate::native_app) struct BackgroundTaskState {
     pub(in crate::native_app) folder_tree_refresh_task: ui::LatestTask,
     pub(in crate::native_app) folder_verify_task: ui::LatestTask,
     pub(in crate::native_app) release_update_check_task: ui::LatestTask,
+    pub(in crate::native_app) global_storage_usage_task: ui::LatestTask,
     pub(in crate::native_app) waveform_destructive_edit_task: ui::LatestTask,
     pub(in crate::native_app) waveform_destructive_edit_context:
         Option<WaveformDestructiveEditUiContext>,
@@ -110,6 +111,7 @@ impl BackgroundTaskState {
             folder_tree_refresh_task: ui::LatestTask::new(),
             folder_verify_task: ui::LatestTask::new(),
             release_update_check_task: ui::LatestTask::new(),
+            global_storage_usage_task: ui::LatestTask::new(),
             waveform_destructive_edit_task: ui::LatestTask::new(),
             waveform_destructive_edit_context: None,
             normalization_progress: None,

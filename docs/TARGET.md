@@ -314,6 +314,8 @@ Caches, logs, handoff staging, and recovery files should not be scattered across
 
 Cache payloads should live under the global `.wavecrate` folder in the current target. Source-local `.wavecrate.db` files may store cache references, status, fingerprints, and invalidation state for files in that source, but waveform, analysis, similarity, map, handoff, and other cache payloads should not be written next to the source database.
 
+Settings should report the current on-disk footprint of the global `library.db` (including active SQLite sidecars) and rebuildable cache, with the filesystem traversal performed outside the GUI thread. This read-only usage insight excludes source-local databases, logs, configuration, and handoff staging so the displayed scope stays consistent with the cache-maintenance surface.
+
 Browser row cache indicators describe compact waveform or browser projections only. They must not imply that decoded playback is persisted or reuse source-readiness markers; supported WAV auditionability comes from the current source file and file-backed playback runtime.
 
 ### Durable Source Readiness and Convergence
