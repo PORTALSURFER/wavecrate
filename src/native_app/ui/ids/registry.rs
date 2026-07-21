@@ -70,6 +70,21 @@ const REGISTERED_WIDGET_IDS: &[RegisteredWidgetId] = &[
     registered_widget_id!(Waveform, WAVEFORM_WIDGET_ID, "waveform.interaction_widget"),
     registered_widget_id!(
         Waveform,
+        WAVEFORM_PLAYMARK_LABEL_ID,
+        "waveform.playmark_label"
+    ),
+    registered_widget_id!(
+        Waveform,
+        WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID,
+        "waveform.playmark_beat_toggle"
+    ),
+    registered_widget_id!(
+        Waveform,
+        WAVEFORM_PLAYMARK_BEAT_COUNT_ID,
+        "waveform.playmark_beat_count"
+    ),
+    registered_widget_id!(
+        Waveform,
         WAVEFORM_LOADED_SAMPLE_DRAG_HANDLE_ID,
         "waveform.loaded_sample_drag_handle"
     ),
