@@ -925,6 +925,19 @@ url = module.portalsurfer_download_url(
     "token with spaces",
 )
 assert url == "https://portalsurfer.org/wavecrate/api/v1/releases/build/files/file.zip/download?existing=1&download_token=token+with+spaces", url
+request = module.request_for_url(url, verification_token="verification-secret")
+assert request.get_header("X-wavecrate-release-verification") == module.hashlib.sha256(b"verification-secret").hexdigest()
+
+args = type("Args", (), {
+    "portal_catalog_url": "https://portalsurfer.org/wavecrate/api/v1/releases",
+})()
+module.ensure_portalsurfer_origin(args, url)
+try:
+    module.ensure_portalsurfer_origin(args, "https://example.com/file.zip")
+except SystemExit as error:
+    assert "different origin" in str(error)
+else:
+    raise AssertionError("cross-origin verifier credentials must be rejected")
 "#,
         script = script.display().to_string(),
     );

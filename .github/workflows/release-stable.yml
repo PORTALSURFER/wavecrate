@@ -310,6 +310,7 @@ jobs:
       - name: Verify published PortalSurfer stable release artifacts
         shell: bash
         env:
+          PORTALSURFER_RELEASE_UPLOAD_TOKEN: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_TOKEN }}
           PORTALSURFER_RELEASE_UPLOAD_URL: ${{ secrets.PORTALSURFER_RELEASE_UPLOAD_URL }}
         run: |
           upload_base="${PORTALSURFER_RELEASE_UPLOAD_URL:-https://portalsurfer.org/wavecrate/api/v1/release-uploads}"

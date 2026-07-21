@@ -174,7 +174,9 @@ under `scripts/internal/release/`:
 - `verify_published_release.py` downloads public GitHub or PortalSurfer release
   assets after publication, verifies checksum signatures and zip hashes, and
   inspects each `update-manifest.json` for the expected channel, version,
-  commit, build date, target, platform, and architecture.
+  commit, build date, target, platform, and architecture. PortalSurfer downloads
+  authenticate with the release upload token so integrity verification is not
+  counted as a user download.
 - `publish_portalsurfer_release.sh` stages release files privately in
   PortalSurfer, assembles the full Wavecrate changelog, commits the staged
   files, generated release log, catalog entry, and full changelog in one
@@ -282,6 +284,7 @@ scripts/internal/release/verify_published_release.py \
 To rerun the PortalSurfer verifier for the same release:
 
 ```bash
+export PORTALSURFER_RELEASE_UPLOAD_TOKEN=<release-upload-token>
 scripts/internal/release/verify_published_release.py \
   --surface portalsurfer \
   --channel stable \
@@ -296,9 +299,12 @@ scripts/internal/release/verify_published_release.py \
 ```
 
 - `PORTALSURFER_RELEASE_UPLOAD_TOKEN`
-Bearer token sent by the workflow to the PortalSurfer upload endpoint. Store
-the matching `WAVECRATE_RELEASE_UPLOAD_TOKEN_SHA256` on the PortalSurfer server
-when possible, so the server does not keep the raw token.
+Bearer token sent by the workflow to the PortalSurfer upload endpoint. The
+post-publish verifier sends only a SHA-256 proof derived from this token, so its
+downloads still stream and validate the public artifact bytes without exposing
+upload credentials or incrementing the public user-download total. Store the
+matching `WAVECRATE_RELEASE_UPLOAD_TOKEN_SHA256` on the PortalSurfer server when
+possible, so the server does not keep the raw token.
 
 - `PORTALSURFER_RELEASE_UPLOAD_URL`
 Optional upload endpoint. Defaults to

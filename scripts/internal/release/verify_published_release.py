@@ -109,6 +109,11 @@ def parse_args() -> argparse.Namespace:
         "--portal-download-token",
         help="Pre-issued PortalSurfer download token for fixture or diagnostic runs",
     )
+    parser.add_argument(
+        "--portal-verification-token",
+        default=os.environ.get("PORTALSURFER_RELEASE_UPLOAD_TOKEN", "").strip(),
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--build-number", type=int, help="Expected PortalSurfer build number")
     parser.add_argument(
         "--source",
@@ -167,6 +172,11 @@ def validate_args(args: argparse.Namespace) -> list[str]:
             errors.append("PortalSurfer verification requires --build-number")
         if not args.release_json and not args.portal_catalog_url:
             errors.append("PortalSurfer live verification requires --portal-catalog-url")
+        if not args.asset_dir and not args.portal_verification_token:
+            errors.append(
+                "PortalSurfer live verification requires PORTALSURFER_RELEASE_UPLOAD_TOKEN "
+                "so verification downloads are not counted as user downloads"
+            )
     return errors
 
 
@@ -521,9 +531,12 @@ class local_asset_dir:
             url = str(entry.get("url") or entry.get("download_url") or entry.get("href") or "")
             if not url:
                 raise SystemExit(f"PortalSurfer catalog entry for {asset} does not include a download URL")
+            resolved_url = resolve_portalsurfer_url(self.args, url)
+            ensure_portalsurfer_origin(self.args, resolved_url)
             download_url(
-                portalsurfer_download_url(resolve_portalsurfer_url(self.args, url), download_token),
+                portalsurfer_download_url(resolved_url, download_token),
                 asset_dir / asset,
+                verification_token=self.args.portal_verification_token,
             )
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
@@ -818,17 +831,25 @@ def fetch_json(url: str | None) -> dict[str, Any]:
         raise SystemExit(f"Failed to fetch JSON from {url}: {error}") from error
 
 
-def download_url(url: str, path: Path) -> None:
+def download_url(url: str, path: Path, verification_token: str = "") -> None:
     try:
-        with urllib.request.urlopen(request_for_url(url), timeout=120) as response:
+        with urllib.request.urlopen(
+            request_for_url(url, verification_token=verification_token),
+            timeout=120,
+        ) as response:
             with path.open("wb") as output:
                 shutil.copyfileobj(response, output)
     except urllib.error.URLError as error:
         raise SystemExit(f"Failed to download {url}: {error}") from error
 
 
-def request_for_url(url: str) -> urllib.request.Request:
-    return urllib.request.Request(url, headers={"User-Agent": "wavecrate-release-verifier"})
+def request_for_url(url: str, verification_token: str = "") -> urllib.request.Request:
+    headers = {"User-Agent": "wavecrate-release-verifier"}
+    if verification_token:
+        headers["X-Wavecrate-Release-Verification"] = hashlib.sha256(
+            verification_token.encode("utf-8")
+        ).hexdigest()
+    return urllib.request.Request(url, headers=headers)
 
 
 def fetch_portalsurfer_download_token(args: argparse.Namespace) -> str:
@@ -862,6 +883,23 @@ def resolve_portalsurfer_url(args: argparse.Namespace, url: str) -> str:
         return url
     base = args.portal_catalog_url or "https://portalsurfer.org/wavecrate/api/v1/releases"
     return urllib.parse.urljoin(base, url)
+
+
+def ensure_portalsurfer_origin(args: argparse.Namespace, url: str) -> None:
+    catalog_url = args.portal_catalog_url or "https://portalsurfer.org/wavecrate/api/v1/releases"
+    if normalized_url_origin(url) != normalized_url_origin(catalog_url):
+        raise SystemExit(
+            "Refusing to send PortalSurfer release verification credentials to a different origin: "
+            f"{url}"
+        )
+
+
+def normalized_url_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urllib.parse.urlparse(url)
+    port = parsed.port
+    if port is None:
+        port = {"http": 80, "https": 443}.get(parsed.scheme.lower())
+    return parsed.scheme.lower(), (parsed.hostname or "").lower(), port
 
 
 def print_errors(errors: list[str]) -> None:
