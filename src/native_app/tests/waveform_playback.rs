@@ -1245,19 +1245,12 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
             .join("playmark-extract-protected-primary_extraction.wav")
     );
 
-    while scenario
+    let failed_flash_started = std::time::Instant::now();
+    scenario
         .state
         .library
         .folder_browser
-        .primary_source_acceptance_flash_frames()
-        > 1
-    {
-        scenario
-            .state
-            .library
-            .folder_browser
-            .advance_primary_source_acceptance_flash_frame();
-    }
+        .set_primary_source_acceptance_flash_time_for_tests(failed_flash_started);
     let selection = scenario
         .state
         .waveform
@@ -1278,13 +1271,19 @@ fn protected_playmark_extraction_routes_to_primary_harvest_destination() {
         std::time::Instant::now(),
         &mut failed_context,
     );
-    assert_eq!(
-        scenario
+    scenario
+        .state
+        .library
+        .folder_browser
+        .advance_primary_source_acceptance_flash_time_for_tests(
+            failed_flash_started + std::time::Duration::from_secs(1),
+        );
+    assert!(
+        !scenario
             .state
             .library
             .folder_browser
-            .primary_source_acceptance_flash_frames(),
-        1,
+            .primary_source_acceptance_flash_active(),
         "failed extraction completion must not restart the success feedback"
     );
 }

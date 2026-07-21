@@ -21,6 +21,7 @@ use crate::native_app::sample_library::folder_browser::{FolderBrowserState, mode
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 use radiant::widgets::ButtonMessage;
+use std::time::{Duration, Instant};
 use wavecrate::sample_sources::SourceRole;
 
 fn test_source(id: &str) -> SourceEntry {
@@ -401,7 +402,8 @@ fn primary_source_acceptance_flash_projects_paints_and_expires_after_one_second(
         primary.id.clone(),
     );
 
-    state.flash_primary_source_acceptance();
+    let started_at = Instant::now();
+    state.set_primary_source_acceptance_flash_time_for_tests(started_at);
     let model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let primary_row = model
         .rows
@@ -425,20 +427,26 @@ fn primary_source_acceptance_flash_projects_paints_and_expires_after_one_second(
             .any(|fill| fill.color == source_acceptance_fill_for_tests()),
         "accepted extraction should tint the Primary source row green"
     );
-    assert_eq!(state.primary_source_acceptance_flash_frames(), 60);
+    assert!(state.primary_source_acceptance_flash_active_at_for_tests(
+        started_at + Duration::from_millis(999)
+    ));
+    assert!(
+        !state.primary_source_acceptance_flash_active_at_for_tests(
+            started_at + Duration::from_secs(1)
+        )
+    );
 
-    for _ in 0..20 {
-        state.advance_primary_source_acceptance_flash_frame();
-    }
-    state.flash_primary_source_acceptance();
-    assert_eq!(
-        state.primary_source_acceptance_flash_frames(),
-        60,
+    let restarted_at = Instant::now();
+    state.set_primary_source_acceptance_flash_time_for_tests(restarted_at);
+    assert!(
+        state.primary_source_acceptance_flash_active_at_for_tests(
+            restarted_at + Duration::from_millis(999)
+        ),
         "a later extraction should restart the one-second interval"
     );
-    for _ in 0..60 {
-        state.advance_primary_source_acceptance_flash_frame();
-    }
+    state.advance_primary_source_acceptance_flash_time_for_tests(
+        restarted_at + Duration::from_secs(1),
+    );
     assert!(!state.primary_source_acceptance_flash_active());
 }
 
