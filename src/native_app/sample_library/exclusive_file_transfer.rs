@@ -37,7 +37,7 @@ impl CommittedFile {
         // destructor must never recursively remove an object that was moved from the
         // user-visible destination before its identity was verified.
         let quarantine = quarantine.keep();
-        let moved = fs::metadata(&quarantined)
+        let moved = fs::symlink_metadata(&quarantined)
             .and_then(|metadata| {
                 metadata
                     .is_file()

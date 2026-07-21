@@ -130,6 +130,36 @@ fn ownership_cleanup_preserves_a_replacement_directory_after_the_initial_check()
     }));
 }
 
+#[cfg(unix)]
+#[test]
+fn ownership_cleanup_preserves_a_replacement_symlink_to_the_owned_file() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempdir().unwrap();
+    let source = temp.path().join("source.wav");
+    let destination = temp.path().join("destination.wav");
+    let owned_alias = temp.path().join("owned-alias.wav");
+    fs::write(&source, b"source").unwrap();
+    let committed = copy_file_no_replace(&source, &destination).unwrap();
+    fs::hard_link(&destination, &owned_alias).unwrap();
+
+    let removed = committed
+        .remove_if_owned_with(|| {
+            fs::remove_file(&destination).unwrap();
+            symlink(&owned_alias, &destination).unwrap();
+        })
+        .unwrap();
+
+    assert!(!removed);
+    assert!(
+        fs::symlink_metadata(&destination)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(fs::read(&destination).unwrap(), b"source");
+}
+
 #[test]
 fn cross_device_fallback_preserves_a_late_destination() {
     let temp = tempdir().unwrap();
