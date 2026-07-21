@@ -1,9 +1,6 @@
-use std::{
-    fs::File,
-    io::{BufWriter, ErrorKind, Read, Seek, SeekFrom, Write},
-    path::Path,
-    time::Duration,
-};
+use std::fs::File;
+use std::io::{BufWriter, ErrorKind, Read, Seek, SeekFrom, Write};
+use std::time::Duration;
 
 use wavecrate::audio::short_edge_fade_frame_count;
 use wavecrate::selection::SelectionRange;
@@ -27,7 +24,7 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
     reader: &mut R,
     loaded_frames: usize,
     selection: SelectionRange,
-    output_path: &Path,
+    output: &mut File,
     gain: f32,
     fade_duration: Duration,
 ) -> Result<bool, String> {
@@ -43,7 +40,7 @@ pub(super) fn copy_selection_to_file<R: Read + Seek>(
     }
     let frame_range = selection.frame_bounds(total_frames);
     let byte_span = layout.byte_span(frame_range.start_frame, frame_range.end_frame)?;
-    write_raw_slice(reader, &layout, byte_span, output_path, gain, fade_duration)?;
+    write_raw_slice(reader, &layout, byte_span, output, gain, fade_duration)?;
     Ok(true)
 }
 
@@ -282,7 +279,7 @@ fn write_raw_slice<R: Read + Seek>(
     reader: &mut R,
     layout: &RawWavLayout,
     span: RawByteSpan,
-    output_path: &Path,
+    output: &mut File,
     gain: f32,
     fade_duration: Duration,
 ) -> Result<(), String> {
@@ -294,13 +291,7 @@ fn write_raw_slice<R: Read + Seek>(
         .seek(SeekFrom::Start(span.source_offset))
         .map_err(|err| format!("failed to seek WAV selection: {err}"))?;
 
-    let file = File::create(output_path).map_err(|err| {
-        format!(
-            "failed to create extraction {}: {err}",
-            output_path.display()
-        )
-    })?;
-    let mut writer = BufWriter::new(file);
+    let mut writer = BufWriter::new(output);
     write_header(&mut writer, layout, data_len, riff_size)
         .map_err(|err| format!("failed to write extraction header: {err}"))?;
 

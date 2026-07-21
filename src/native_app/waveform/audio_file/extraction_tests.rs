@@ -1,6 +1,7 @@
 use super::extraction::{extract_wav_reader_range_to_folder, write_wav_frame_range};
 use std::{
     cell::Cell,
+    fs::File,
     io::{Cursor, Read, Seek, SeekFrom},
     rc::Rc,
 };
@@ -58,7 +59,8 @@ fn late_wav_range_extraction_seeks_instead_of_reading_prefix() {
     let spec = reader.spec();
     read_bytes.set(0);
 
-    write_wav_frame_range(reader, spec, 1, 19_000, 19_100, &output, 1.0)
+    let mut output_file = File::create(&output).expect("create output");
+    write_wav_frame_range(reader, spec, 1, 19_000, 19_100, &mut output_file, 1.0)
         .expect("extract late range");
 
     assert!(
@@ -174,7 +176,8 @@ fn decoded_wav_range_writer_clamps_i24_samples_to_destination_depth() {
     let reader = hound::WavReader::open(&source).expect("open 24-bit wav");
     let spec = reader.spec();
 
-    write_wav_frame_range(reader, spec, 1, 0, 256, &output, 2.0)
+    let mut output_file = File::create(&output).expect("create decoded output");
+    write_wav_frame_range(reader, spec, 1, 0, 256, &mut output_file, 2.0)
         .expect("write decoded 24-bit range with gain");
 
     let mut reader = hound::WavReader::open(&output).expect("open decoded 24-bit output");
