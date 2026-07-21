@@ -40,9 +40,47 @@ hooks deliberately run only `run_agent_hook_checks.sh`: bounded
 repository-state checks that preserve reviewed-head validation evidence during
 merge cleanup.
 
+On macOS, the supported Bash `scripts/agent.sh` and `scripts/ci.sh` entrypoints
+use a Cargo target keyed by the Rust host/release and `Cargo.lock`. This keeps
+validation independent from the unbounded general-purpose `target/debug/deps`
+directory while preserving warm reuse across repeated runs. These entrypoints
+override an inherited `CARGO_TARGET_DIR`; use `WAVECRATE_VALIDATION_TARGET_ROOT`
+to customize validation cache placement. A target whose
+`debug/deps` directory itself becomes pathological is atomically quarantined
+before Cargo starts; the emitted path can be removed after any needed
+diagnostics have been retained. A per-target lease serializes supported macOS
+validation commands so quarantine cannot race an active Cargo user; stale
+leases are recovered when their recorded PID and process-start identity no
+longer identify a live, non-zombie owner. Waiting for a genuinely active owner
+is bounded and exits 124 without disturbing that owner's processes or lease.
+
+Those entrypoints also own a process-group watchdog. A changing owned process
+tree or increasing aggregate CPU time counts as progress, so a quiet but active
+clean compile is not a stall. After five minutes with neither signal, the
+watchdog records the exact command, Cargo/Rust/macOS versions, owned process
+tree, and macOS samples under `target/validation-diagnostics/`, with one
+30-second budget across all collection. It then allows a full two minutes for
+recovery before exiting 124 and terminating only the process group it created.
+With the default five-second polling and ten-second termination grace, the
+maximum scheduled bound is 7 minutes 50 seconds after last observed progress.
+Cancellation uses the same owned cleanup path.
+
 Run `bash scripts/internal/agent/test_agent_preflight_coordination.sh` to
 exercise hook installation, checkout ownership, concurrent coalescing,
 and stale-lock recovery without invoking Cargo.
+Run `bash scripts/internal/validation/test_validation_watchdog.sh` to exercise
+progress classification, diagnostics, cancellation/stall cleanup, unrelated
+process isolation, and pathological-target rotation.
+The fixture also covers reused-PID stale-lease recovery and bounded waits for a
+genuinely live lease owner.
+It also emulates several unresponsive compiler samples to prove the global
+diagnostic budget and post-collection recovery interval.
+Pre-spawn cancellation coverage proves a signal cannot start and detach a new
+validation process group after cancellation has already been recorded.
+Nested wrapper calls bypass duplicate supervision only after verifying the
+enclosing watchdog's live PID/start identity, lease record, command, and process
+ancestry. An inherited recursion marker without that proof starts a fresh
+watchdog normally.
 
 ## Validation and release lane contract
 

@@ -18,19 +18,20 @@ shift
 
 case "$command" in
   request)
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_request.sh" "$@"
+    script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_request.sh"
     ;;
   preflight)
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_preflight.sh" "$@"
+    script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_preflight.sh"
     ;;
   checks)
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_ci_checks.sh" "$@"
+    script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_ci_checks.sh"
     ;;
   install-hooks)
     exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/install_agent_preflight_hooks.sh" "$@"
     ;;
   -h|--help)
     usage
+    exit 0
     ;;
   *)
     echo "Unknown agent command: $command" >&2
@@ -38,3 +39,5 @@ case "$command" in
     exit 2
     ;;
 esac
+
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/validation/run_validation_command.sh" "$script" "$@"

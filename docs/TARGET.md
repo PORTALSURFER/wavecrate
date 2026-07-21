@@ -180,6 +180,15 @@ Perceived stalls are product bugs. If a source scan, decode, rename, edit render
 
 Opportunistic metadata updates such as listen-history writes should never delay sample selection, validation, cache loading, or playback. They should use low-priority background work, short database busy timeouts, and skip/retry behavior when source databases are locked by higher-value work.
 
+Supported developer validation is also a bounded automation surface. On macOS,
+parent-workspace validation must not depend on an indefinitely growing shared
+Cargo artifact directory. It must distinguish quiet active compilation from a
+genuinely idle owned process tree, capture actionable command/toolchain/process
+samples before termination, and clean up only the process group created for the
+current run on failure, cancellation, or confirmed no progress. Focused
+standalone Radiant validation remains useful evidence but never replaces the
+parent-workspace gate.
+
 ## Release Identity
 
 Wavecrate uses pre-1.0 semantic versions until the product is explicitly declared ready for a 1.0 release. The current line is `0.19.1`, with release coordination on `release/0.19` and artifact identities such as `v0.19.1-rc.N` and `v0.19.1`. New builds must not continue the legacy `19.x` numbering.

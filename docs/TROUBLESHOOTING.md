@@ -2,6 +2,25 @@
 
 Use this document when local setup, validation, or invariant checks fail.
 
+## macOS Cargo validation stops producing output
+
+Supported Bash validation writes a diagnostic bundle and exits 124 instead of
+waiting indefinitely when its complete owned process tree has made no progress
+for the documented bound. Inspect the newest directory under
+`target/validation-diagnostics/`; it contains the exact command, toolchain and
+macOS versions, process tree, and samples of idle Cargo/compiler processes.
+
+A sample ending in `rustc_metadata::creader`, `dyld`, and `fcntl` while
+`target/debug/deps` has unusually large directory metadata indicates an
+accumulated flat Cargo artifact directory rather than a Radiant source failure.
+Use the supported `scripts/agent.sh` or `scripts/ci.sh` entrypoint: on macOS it
+selects a bounded toolchain/lockfile-specific target automatically. Do not use a
+standalone Radiant checkout as a substitute for the parent workspace gate.
+
+If validation reports that it quarantined a pathological target, retain it only
+while investigating the bundle, then remove the exact printed `stale-*` path.
+Do not broadly delete `target/` while another Cargo run is active.
+
 ## First diagnostics
 
 - environment sanity:

@@ -50,6 +50,47 @@ When set to `1`, repo Cargo helper scripts may use `sccache` if it is installed
 and its wrapper probe passes. Default: unset, so repo scripts use direct
 `rustc` and do not probe `sccache`.
 
+## macOS developer validation
+
+These overrides are intended for watchdog regression tests and deliberate
+diagnosis. Normal `scripts/agent.sh` and `scripts/ci.sh` runs should use their
+defaults.
+
+- `WAVECRATE_VALIDATION_IDLE_SECONDS`
+Seconds without an owned process-tree change or aggregate CPU-time increase
+before diagnostics are captured. Default: `300`.
+
+- `WAVECRATE_VALIDATION_DIAGNOSTIC_GRACE_SECONDS`
+Additional no-progress interval after diagnostics before the owned process
+group is terminated with exit 124. Default: `120`.
+
+- `WAVECRATE_VALIDATION_DIAGNOSTIC_COLLECTION_SECONDS`
+Global budget shared by toolchain metadata and every compiler sample in one
+diagnostic bundle. The recovery grace starts only after this budgeted collection
+finishes. Default: `30`.
+
+- `WAVECRATE_VALIDATION_TERM_GRACE_SECONDS`
+Grace after `SIGTERM` before remaining owned processes receive `SIGKILL`.
+Default: `10`.
+
+- `WAVECRATE_VALIDATION_DIAGNOSTICS_DIR`
+Overrides the diagnostic bundle root. Default:
+`target/validation-diagnostics`.
+
+- `WAVECRATE_VALIDATION_TARGET_ROOT`
+Overrides the root containing toolchain/lockfile-specific Cargo targets.
+Default: `target/agent-validation`. Supported macOS validation overrides an
+inherited `CARGO_TARGET_DIR`; use this variable to customize its cache root.
+
+- `WAVECRATE_VALIDATION_LEASE_WAIT_SECONDS`
+Maximum time a supported macOS validation command waits for the keyed Cargo
+target's live lease owner. Timeout exits 124 without terminating the owner or
+removing its lease. Default: `480`.
+
+- `WAVECRATE_VALIDATION_MAX_DEPS_METADATA_BYTES`
+Maximum macOS directory metadata size allowed for a validation target's
+`debug/deps` before that target is quarantined. Default: `8388608`.
+
 ### Release upload secrets
 
 Wavecrate has four public release workflows:
