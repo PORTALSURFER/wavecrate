@@ -1,8 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    io::ErrorKind,
+    path::{Path, PathBuf},
+};
 
 use super::diagnostics::log_prune_completion;
 use crate::native_app::waveform::audio_file::waveform_cache::{
-    MAX_PERSISTED_WAVEFORM_CACHE_BYTES, prune::prune_waveform_cache_dir,
+    MAX_PERSISTED_WAVEFORM_CACHE_BYTES,
+    identity::{playback_descriptor_path, playback_sidecar_path},
+    prune::prune_waveform_cache_dir,
 };
 
 use super::CachedWaveformStoreJob;
@@ -93,6 +99,33 @@ pub(super) fn reconcile_cache(
     );
 }
 
+pub(super) fn published_cache_bytes(cache_path: &Path) -> Option<u64> {
+    let mut bytes = required_file_bytes(cache_path)?;
+    for companion in [
+        playback_sidecar_path(cache_path),
+        playback_descriptor_path(cache_path),
+    ] {
+        bytes = bytes.saturating_add(optional_file_bytes(&companion)?);
+    }
+    Some(bytes)
+}
+
+fn required_file_bytes(path: &Path) -> Option<u64> {
+    fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.is_file())
+        .map(|metadata| metadata.len())
+}
+
+fn optional_file_bytes(path: &Path) -> Option<u64> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => Some(metadata.len()),
+        Ok(_) => None,
+        Err(err) if err.kind() == ErrorKind::NotFound => Some(0),
+        Err(_) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,6 +163,28 @@ mod tests {
     fn unknown_written_size_is_conservatively_due_immediately() {
         let mut schedule = CachePruneSchedule::default();
         schedule.record_success(Path::new("unknown-size.wfc"), None);
+        assert!(schedule.immediate_prune_due());
+    }
+
+    #[test]
+    fn published_cache_size_includes_companion_artifacts() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let cache_path = dir.path().join("with-companions.wfc");
+        fs::write(&cache_path, [0_u8]).expect("write cache file");
+        fs::write(playback_sidecar_path(&cache_path), [0_u8; 7]).expect("write sidecar");
+        fs::File::create(playback_descriptor_path(&cache_path))
+            .expect("create descriptor")
+            .set_len(MAX_BYTES_BETWEEN_PRUNES)
+            .expect("size descriptor");
+
+        let published_bytes = published_cache_bytes(&cache_path);
+        assert_eq!(
+            published_bytes,
+            Some(MAX_BYTES_BETWEEN_PRUNES.saturating_add(8))
+        );
+
+        let mut schedule = CachePruneSchedule::default();
+        schedule.record_success(&cache_path, published_bytes);
         assert!(schedule.immediate_prune_due());
     }
 

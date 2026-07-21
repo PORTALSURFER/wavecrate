@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    fs,
     path::{Path, PathBuf},
     sync::{Arc, Condvar, Mutex, OnceLock},
     thread,
@@ -17,7 +16,7 @@ use super::{
 use crate::native_app::waveform::audio_file::WaveformFile;
 use diagnostics::{log_slow_cache_shutdown_flush, log_store_completion};
 pub(super) use prune_schedule::CachePruneSchedule;
-use prune_schedule::{StoreWorkerAction, reconcile_cache};
+use prune_schedule::{StoreWorkerAction, published_cache_bytes, reconcile_cache};
 
 mod diagnostics;
 mod prune_schedule;
@@ -201,10 +200,7 @@ impl BackgroundStoreQueue {
                     let outcome = write_cached_waveform_file_now(job);
                     let cache_written = matches!(&outcome, StoreWriteOutcome::Completed(_));
                     if cache_written {
-                        let written_bytes = fs::metadata(&cache_path)
-                            .ok()
-                            .filter(|metadata| metadata.is_file())
-                            .map(|metadata| metadata.len());
+                        let written_bytes = published_cache_bytes(&cache_path);
                         prune_schedule.record_success(&cache_path, written_bytes);
                     }
                     log_store_completion(&cache_path, outcome);
