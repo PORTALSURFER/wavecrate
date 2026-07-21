@@ -216,7 +216,7 @@ impl NativeAppState {
                 let request = request.with_gain(
                     self.normalized_audition_gain_for_span(selection.start(), selection.end()),
                 );
-                if self.protected_extraction_needs_target_source(request.source_path()) {
+                if self.protected_playmark_extraction_needs_primary_source(request.source_path()) {
                     self.request_protected_extraction_target_source(
                         target.pending_protected_extraction_action(),
                     );
@@ -465,7 +465,11 @@ impl NativeAppState {
         &self,
         request: WaveformExtractionRequest,
     ) -> Result<WaveformExtractionRequest, String> {
-        let target_folder = self.harvest_destination_for_origin(request.source_path())?;
+        let target_folder =
+            match self.harvest_destination_for_protected_origin(request.source_path())? {
+                Some(target_folder) => target_folder,
+                None => self.harvest_destination_for_origin(request.source_path())?,
+            };
         wavecrate::sample_sources::harvest_file_ops::ensure_dir(
             &target_folder,
             "Could not create harvest destination",

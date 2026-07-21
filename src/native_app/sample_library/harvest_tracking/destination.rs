@@ -18,11 +18,34 @@ impl NativeAppState {
         if !origin_source.is_protected() {
             return Ok(None);
         }
-        self.harvest_destination_for_source(&origin_source)
-            .map(Some)
-            .map_err(|_| {
+        let primary_source = self
+            .library
+            .folder_browser
+            .primary_sample_source()
+            .ok_or_else(|| {
                 String::from("Set a Primary source before extracting from a protected source")
-            })
+            })?;
+        Ok(Some(
+            primary_source
+                .root
+                .join(HARVEST_ROOT_FOLDER)
+                .join(harvest_source_folder_name(&origin_source)),
+        ))
+    }
+
+    pub(in crate::native_app) fn protected_playmark_extraction_needs_primary_source(
+        &self,
+        source_path: &Path,
+    ) -> bool {
+        self.library
+            .folder_browser
+            .sample_source_for_file_path(source_path)
+            .is_some_and(|(source, _)| source.is_protected())
+            && self
+                .library
+                .folder_browser
+                .primary_sample_source()
+                .is_none()
     }
 
     pub(in crate::native_app) fn harvest_destination_for_origin(
