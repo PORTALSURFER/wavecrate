@@ -1,3 +1,4 @@
+use crate::native_app::app::GlobalStorageUsageState;
 use crate::native_app::app::{AppSettingsTab, AudioSettingsDropdown, SettingsMessage};
 use crate::native_app::app_chrome::view_models::settings::AudioSettingsSnapshot;
 use wavecrate::sample_sources::config::{
@@ -39,6 +40,7 @@ pub(super) enum SettingsPanelRowProjection {
     },
     TrashFolder(TrashFolderProjection),
     RatingDecay(RatingDecayProjection),
+    GlobalStorage(GlobalStorageProjection),
     CacheMaintenance(CacheMaintenanceProjection),
 }
 
@@ -54,6 +56,13 @@ pub(super) struct TrashFolderProjection {
 pub(super) struct CacheMaintenanceProjection {
     pub(super) label: &'static str,
     pub(super) clear_action: SettingsActionProjection,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct GlobalStorageProjection {
+    pub(super) label: &'static str,
+    pub(super) total_label: String,
+    pub(super) detail_label: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -144,6 +153,9 @@ fn general_settings_panel_rows(
                 message: SettingsMessage::ClearTrashFolder,
             },
         }),
+        SettingsPanelRowProjection::GlobalStorage(global_storage_projection(
+            &snapshot.global_storage_usage,
+        )),
         SettingsPanelRowProjection::CacheMaintenance(CacheMaintenanceProjection {
             label: "Maintenance",
             clear_action: SettingsActionProjection {
@@ -152,6 +164,47 @@ fn general_settings_panel_rows(
             },
         }),
     ]
+}
+
+fn global_storage_projection(state: &GlobalStorageUsageState) -> GlobalStorageProjection {
+    match state {
+        GlobalStorageUsageState::NotLoaded | GlobalStorageUsageState::Loading => {
+            GlobalStorageProjection {
+                label: "Database + Cache",
+                total_label: "Calculating...".to_string(),
+                detail_label: None,
+            }
+        }
+        GlobalStorageUsageState::Ready(usage) => GlobalStorageProjection {
+            label: "Database + Cache",
+            total_label: format!("{} total", format_storage_bytes(usage.total_bytes())),
+            detail_label: Some(format!(
+                "{} database + {} cache",
+                format_storage_bytes(usage.database_bytes),
+                format_storage_bytes(usage.cache_bytes)
+            )),
+        },
+        GlobalStorageUsageState::Unavailable => GlobalStorageProjection {
+            label: "Database + Cache",
+            total_label: "Size unavailable".to_string(),
+            detail_label: None,
+        },
+    }
+}
+
+fn format_storage_bytes(bytes: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = KIB * 1024;
+    const GIB: u64 = MIB * 1024;
+    if bytes >= GIB {
+        format!("{:.1} GiB", bytes as f64 / GIB as f64)
+    } else if bytes >= MIB {
+        format!("{:.1} MiB", bytes as f64 / MIB as f64)
+    } else if bytes >= KIB {
+        format!("{:.1} KiB", bytes as f64 / KIB as f64)
+    } else {
+        format!("{bytes} B")
+    }
 }
 
 fn rating_decay_slider_value(weeks: u16) -> f32 {
@@ -233,7 +286,7 @@ mod tests {
             panic!("expected general panel");
         };
 
-        assert_eq!(rows.len(), 4);
+        assert_eq!(rows.len(), 5);
         assert_eq!(
             rows[0],
             SettingsPanelRowProjection::Title { label: "General" }
@@ -265,7 +318,14 @@ mod tests {
             SettingsMessage::ClearTrashFolder
         );
 
-        let SettingsPanelRowProjection::CacheMaintenance(maintenance) = &rows[3] else {
+        let SettingsPanelRowProjection::GlobalStorage(storage) = &rows[3] else {
+            panic!("expected global storage row");
+        };
+        assert_eq!(storage.label, "Database + Cache");
+        assert_eq!(storage.total_label, "Calculating...");
+        assert_eq!(storage.detail_label, None);
+
+        let SettingsPanelRowProjection::CacheMaintenance(maintenance) = &rows[4] else {
             panic!("expected cache maintenance row");
         };
         assert_eq!(maintenance.label, "Maintenance");
@@ -313,5 +373,39 @@ mod tests {
             RatingDecayProjection::weeks_from_slider_value(rating_decay.slider_value),
             12
         );
+    }
+
+    #[test]
+    fn global_storage_projection_formats_total_and_breakdown() {
+        let snapshot = snapshot(|snapshot| {
+            snapshot.tab = AppSettingsTab::General;
+            snapshot.global_storage_usage =
+                GlobalStorageUsageState::Ready(wavecrate::app_dirs::GlobalStorageUsage {
+                    database_bytes: 9 * 1024 * 1024 + 512 * 1024,
+                    cache_bytes: 470 * 1024 * 1024,
+                });
+        });
+
+        let SettingsPanelProjection::General { rows } = settings_panel_projection(&snapshot) else {
+            panic!("expected general panel");
+        };
+        let SettingsPanelRowProjection::GlobalStorage(storage) = &rows[3] else {
+            panic!("expected global storage row");
+        };
+
+        assert_eq!(storage.total_label, "479.5 MiB total");
+        assert_eq!(
+            storage.detail_label.as_deref(),
+            Some("9.5 MiB database + 470.0 MiB cache")
+        );
+    }
+
+    #[test]
+    fn storage_size_formatter_preserves_small_values_and_scales_large_values() {
+        assert_eq!(format_storage_bytes(0), "0 B");
+        assert_eq!(format_storage_bytes(512), "512 B");
+        assert_eq!(format_storage_bytes(1536), "1.5 KiB");
+        assert_eq!(format_storage_bytes(2 * 1024 * 1024), "2.0 MiB");
+        assert_eq!(format_storage_bytes(3 * 1024 * 1024 * 1024), "3.0 GiB");
     }
 }

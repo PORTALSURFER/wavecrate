@@ -28,7 +28,7 @@ pub(in crate::native_app) use progress::{
     NormalizationQueueItem, NormalizationResult, SourceProcessingProgress,
 };
 pub(in crate::native_app) use settings::{
-    AppSettingsTab, AudioSettingsDropdown, SampleNameViewMode,
+    AppSettingsTab, AudioSettingsDropdown, GlobalStorageUsageState, SampleNameViewMode,
 };
 pub(in crate::native_app) use source_processing_events::GuiSourceProcessingEventSink;
 #[cfg(test)]

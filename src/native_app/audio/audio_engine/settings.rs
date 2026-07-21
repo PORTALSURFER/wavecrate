@@ -1,18 +1,23 @@
 use std::time::Instant;
 
+use radiant::prelude as ui;
+
 use crate::native_app::app::{
-    AppSettingsTab, AudioSettingsDropdown, NativeAppState, emit_gui_action,
+    AppSettingsTab, AudioSettingsDropdown, GuiMessage, NativeAppState, emit_gui_action,
 };
 
 impl NativeAppState {
-    pub(in crate::native_app) fn toggle_audio_settings(&mut self) {
+    pub(in crate::native_app) fn toggle_audio_settings(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         if self.ui.settings.ui.audio_settings_open
             && self.ui.settings.ui.app_settings_tab == AppSettingsTab::AudioEngine
         {
             self.close_audio_settings_window();
         } else {
-            self.open_settings_window(AppSettingsTab::AudioEngine);
+            self.open_settings_window(AppSettingsTab::AudioEngine, context);
         }
         emit_gui_action(
             "audio.settings.toggle",
@@ -28,9 +33,12 @@ impl NativeAppState {
         );
     }
 
-    pub(in crate::native_app) fn open_general_settings(&mut self) {
+    pub(in crate::native_app) fn open_general_settings(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
-        self.open_settings_window(AppSettingsTab::General);
+        self.open_settings_window(AppSettingsTab::General, context);
         emit_gui_action(
             "settings.general.open",
             Some("top_bar"),
@@ -55,8 +63,13 @@ impl NativeAppState {
         );
     }
 
-    fn open_settings_window(&mut self, tab: AppSettingsTab) {
+    fn open_settings_window(
+        &mut self,
+        tab: AppSettingsTab,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         self.refresh_audio_options();
+        self.queue_global_storage_usage_refresh(context);
         self.ui.settings.ui.audio_settings_open = true;
         self.ui.settings.ui.app_settings_tab = tab;
         self.close_audio_settings_dropdowns();

@@ -31,6 +31,10 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
     assert!(!cache_payload.exists());
     assert!(handoff_payload.exists());
     assert_eq!(state.audio.settings_error, None);
+    assert_eq!(
+        state.ui.settings.ui.global_storage_usage,
+        crate::native_app::app::GlobalStorageUsageState::Loading
+    );
     assert!(
         state
             .ui

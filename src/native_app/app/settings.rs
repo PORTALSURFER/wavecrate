@@ -12,6 +12,15 @@ pub(in crate::native_app) enum AppSettingsTab {
     AudioEngine,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(in crate::native_app) enum GlobalStorageUsageState {
+    #[default]
+    NotLoaded,
+    Loading,
+    Ready(wavecrate::app_dirs::GlobalStorageUsage),
+    Unavailable,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) enum SampleNameViewMode {
     DiskFilename,

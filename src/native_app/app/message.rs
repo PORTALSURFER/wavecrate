@@ -494,4 +494,7 @@ pub(in crate::native_app) enum SettingsMessage {
     PickTrashFolder,
     ClearTrashFolder,
     ClearRebuildableCaches,
+    GlobalStorageUsageFinished(
+        ui::TaskCompletion<Result<wavecrate::app_dirs::GlobalStorageUsage, String>>,
+    ),
 }

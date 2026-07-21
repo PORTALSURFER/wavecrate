@@ -18,8 +18,8 @@ impl NativeAppState {
                 self.set_normalized_audition_enabled(enabled, context);
             }
             SettingsMessage::ToggleHelpTooltips => self.toggle_help_tooltips(),
-            SettingsMessage::ToggleAudioSettings => self.toggle_audio_settings(),
-            SettingsMessage::OpenGeneralSettings => self.open_general_settings(),
+            SettingsMessage::ToggleAudioSettings => self.toggle_audio_settings(context),
+            SettingsMessage::OpenGeneralSettings => self.open_general_settings(context),
             SettingsMessage::SelectSettingsTab(tab) => self.select_settings_tab(tab),
             SettingsMessage::CloseAudioSettings => self.close_audio_settings_window(),
             SettingsMessage::ToggleAudioBackendDropdown => self.toggle_audio_backend_dropdown(),
@@ -36,7 +36,10 @@ impl NativeAppState {
             SettingsMessage::SetRatingDecayWeeks(weeks) => self.set_rating_decay_weeks(weeks),
             SettingsMessage::PickTrashFolder => self.pick_trash_folder(context),
             SettingsMessage::ClearTrashFolder => self.clear_trash_folder(),
-            SettingsMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
+            SettingsMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(context),
+            SettingsMessage::GlobalStorageUsageFinished(completion) => {
+                self.finish_global_storage_usage_refresh(completion);
+            }
         }
     }
 

@@ -167,6 +167,10 @@ fn settings_top_bar_actions_open_expected_tabs() {
         state.ui.settings.ui.app_settings_tab,
         crate::native_app::test_support::state::AppSettingsTab::General
     );
+    assert_eq!(
+        state.ui.settings.ui.global_storage_usage,
+        crate::native_app::app::GlobalStorageUsageState::Loading
+    );
 
     state.apply_message(
         crate::native_app::test_support::state::GuiMessage::Settings(

@@ -1,9 +1,14 @@
 use std::time::Instant;
 
-use crate::native_app::app::{NativeAppState, emit_gui_action};
+use radiant::prelude as ui;
+
+use crate::native_app::app::{GuiMessage, NativeAppState, emit_gui_action};
 
 impl NativeAppState {
-    pub(in crate::native_app) fn clear_rebuildable_caches(&mut self) {
+    pub(in crate::native_app) fn clear_rebuildable_caches(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         match wavecrate::app_dirs::clear_rebuildable_cache_payloads() {
             Ok(path) => {
@@ -32,5 +37,6 @@ impl NativeAppState {
                 );
             }
         }
+        self.queue_global_storage_usage_refresh(context);
     }
 }

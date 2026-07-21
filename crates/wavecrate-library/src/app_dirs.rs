@@ -12,6 +12,7 @@ mod paths;
 mod profile;
 mod resolution;
 mod state;
+mod storage_usage;
 
 pub use error::AppDirError;
 pub use overrides::{AppRootGuard, ConfigBaseGuard};
@@ -24,6 +25,7 @@ pub use resolution::{
     app_root_dir, config_base_dir_path, ensure_test_config_base, persistence_mode,
     resolve_persistence, set_app_root_override,
 };
+pub use storage_usage::{GlobalStorageUsage, global_storage_usage};
 
 /// Name of the application directory that lives under the OS config root.
 pub const APP_DIR_NAME: &str = ".wavecrate";
