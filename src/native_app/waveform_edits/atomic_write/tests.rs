@@ -129,6 +129,10 @@ fn replace_failure_restores_original_bytes() {
     let (_directory, target, recovery, error) = run_with_failure(InjectedFailure::Replace);
 
     assert_eq!(fs::read(&target).unwrap(), fs::read(&recovery).unwrap());
+    assert_eq!(
+        fs::metadata(&target).unwrap().permissions(),
+        fs::metadata(&recovery).unwrap().permissions()
+    );
     assert!(!error.recovery_copy_required());
     assert!(error.to_string().contains("original audio was restored"));
 }

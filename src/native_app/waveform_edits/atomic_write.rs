@@ -244,6 +244,7 @@ fn restore_recovery_copy(
         .tempfile_in(parent)?;
     let mut recovery = fs::File::open(recovery_copy)?;
     io::copy(&mut recovery, staged.as_file_mut())?;
+    fs::set_permissions(staged.path(), fs::metadata(recovery_copy)?.permissions())?;
     staged.as_file().sync_all()?;
     let staged_path = staged.into_temp_path();
     edit_io.replace(&staged_path, target, ReplacePhase::Restore)?;
