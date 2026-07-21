@@ -1555,6 +1555,8 @@ Batch operations should be cancellable where practical. If a user cancels a batc
 
 Rollback should be best-effort but serious. For audio edits, file moves, generated renames, tag/rating/metadata changes, temporary color collection changes, and trash moves, Wavecrate should capture enough before-state to undo completed items when cancellation happens. If rollback is unsafe or impossible for an item, Wavecrate must inform the user that not everything could be rolled back. The UI and logs should say exactly which items remain changed and why.
 
+Native file moves, copies, and external-file imports must claim their final destination without replacing an existing filesystem entry. A destination that appears after planning is a recoverable collision: moves keep the source, copy and import flows continue the predictable collision-numbering policy, and rollback or failure cleanup mutates only a destination whose filesystem identity still belongs to the transaction. Cross-device move fallback must publish a complete same-folder staged copy with the same no-replace guarantee before removing the source.
+
 Silence trimming should be available both as a waveform-editor action and as an item-based batch action.
 
 In the waveform editor, silence trimming should let the user visually inspect and apply removal of silence at the start and/or end of the current audio file or selected range.
