@@ -4,6 +4,8 @@ mod diagnostics;
 mod downmix;
 mod extraction;
 #[cfg(test)]
+mod extraction_output_tests;
+#[cfg(test)]
 mod extraction_tests;
 mod file_io;
 mod loader;

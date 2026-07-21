@@ -1,8 +1,6 @@
-use std::{
-    fs::File,
-    io::{BufWriter, ErrorKind, Read, Seek, SeekFrom, Write},
-    time::Duration,
-};
+use std::fs::File;
+use std::io::{BufWriter, ErrorKind, Read, Seek, SeekFrom, Write};
+use std::time::Duration;
 
 use wavecrate::audio::short_edge_fade_frame_count;
 use wavecrate::selection::SelectionRange;
