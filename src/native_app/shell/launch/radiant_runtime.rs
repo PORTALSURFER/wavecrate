@@ -25,6 +25,9 @@ pub(in crate::native_app) fn native_app_runtime_bridge(
         .view(view)
         .subscriptions(NativeAppState::worker_subscription)
         .auxiliary_windows(settings::auxiliary_windows)
+        .on_native_focus_regained(|state, _context| {
+            state.reconcile_sources_after_focus_regained();
+        })
         .on_native_file_open(|state, open, context| {
             state.open_audio_documents(open.paths, context);
         });
