@@ -41,3 +41,4 @@ assets/ml/panns_cnn14_16k/*.pth
 /model.json
 /profile.json.gz
 /flamegraph.svg
+assets/wavecrate-editorial-terminal-clean-master.png
