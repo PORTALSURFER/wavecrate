@@ -40,9 +40,28 @@ hooks deliberately run only `run_agent_hook_checks.sh`: bounded
 repository-state checks that preserve reviewed-head validation evidence during
 merge cleanup.
 
+On macOS, the supported Bash `scripts/agent.sh` and `scripts/ci.sh` entrypoints
+use a Cargo target keyed by the Rust host/release and `Cargo.lock`. This keeps
+validation independent from the unbounded general-purpose `target/debug/deps`
+directory while preserving warm reuse across repeated runs. A target whose
+`debug/deps` directory itself becomes pathological is atomically quarantined
+before Cargo starts; the emitted path can be removed after any needed
+diagnostics have been retained.
+
+Those entrypoints also own a process-group watchdog. A changing owned process
+tree or increasing aggregate CPU time counts as progress, so a quiet but active
+clean compile is not a stall. After five minutes with neither signal, the
+watchdog records the exact command, Cargo/Rust/macOS versions, owned process
+tree, and macOS samples under `target/validation-diagnostics/`. It allows a
+further two minutes for recovery, then exits 124 and terminates only the process
+group it created. Cancellation uses the same owned cleanup path.
+
 Run `bash scripts/internal/agent/test_agent_preflight_coordination.sh` to
 exercise hook installation, checkout ownership, concurrent coalescing,
 and stale-lock recovery without invoking Cargo.
+Run `bash scripts/internal/validation/test_validation_watchdog.sh` to exercise
+progress classification, diagnostics, cancellation/stall cleanup, unrelated
+process isolation, and pathological-target rotation.
 
 ## Validation and release lane contract
 

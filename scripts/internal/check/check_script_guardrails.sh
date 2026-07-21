@@ -557,6 +557,12 @@ run_cleanup_audit_fixture
 run_docs_index_fixture
 run_taste_invariants_fixture
 
+run_expect_exit_code \
+  "validation watchdog fixtures" \
+  0 \
+  "$ROOT_DIR" \
+  scripts/internal/validation/test_validation_watchdog.sh
+
 if (( failures > 0 )); then
   echo "[guardrails] FAILED: $failures checks failed."
   exit 1
