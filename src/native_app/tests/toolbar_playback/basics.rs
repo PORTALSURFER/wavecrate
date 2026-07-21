@@ -643,6 +643,41 @@ fn beat_guide_count_field_owns_up_down_only_while_focused() {
 }
 
 #[test]
+fn beat_guide_count_field_steps_on_hovered_vertical_wheel_input() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let mut runtime = SurfaceRuntime::new(
+        radiant::runtime::DeclarativeOwnedRuntimeBridge::new(
+            state,
+            |state| crate::native_app::test_support::toolbar::main_toolbar(state).into_surface(),
+            |state, message| {
+                let mut context = ui::UiUpdateContext::default();
+                state.apply_message(message, &mut context);
+            },
+        ),
+        Vector2::new(664.0, 34.0),
+    );
+    let input_id = crate::native_app::test_support::toolbar::TOOLBAR_BEAT_GUIDE_COUNT_ID;
+    let input_point = runtime.layout().rects[&input_id].center();
+
+    assert!(runtime.wheel_or_scroll_at(input_point, Vector2::new(0.0, -40.0)));
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 5);
+    assert!(runtime.wheel_or_scroll_at(input_point, Vector2::new(0.0, 40.0)));
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 4);
+    assert!(
+        !runtime.wheel_or_scroll_at(input_point, Vector2::new(40.0, 0.0)),
+        "horizontal-only wheel input should remain available to another target"
+    );
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 4);
+
+    for _ in 0..40 {
+        assert!(runtime.wheel_or_scroll_at(input_point, Vector2::new(0.0, -1.0)));
+    }
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 32);
+    assert!(runtime.wheel_or_scroll_at(input_point, Vector2::new(0.0, 1.0)));
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 31);
+}
+
+#[test]
 fn metronome_toolbar_message_updates_audio_state() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     let mut context = radiant::prelude::UiUpdateContext::default();

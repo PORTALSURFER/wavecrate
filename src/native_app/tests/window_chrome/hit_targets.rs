@@ -102,6 +102,43 @@ fn playmark_local_beat_controls_consume_hits_and_update_shared_state() {
         original_selection,
         "local count editing must not leak into waveform gestures"
     );
+
+    runtime.clear_focus();
+    assert!(runtime.wheel_or_scroll_at(count_point, Vector2::new(0.0, -40.0)));
+    assert_eq!(runtime.bridge().state().ui.chrome.beat_guide_count, 6);
+    assert!(runtime.frame(&theme).paint_plan.contains_text("720 BPM"));
+
+    let horizontal_wheel = WidgetInput::Wheel {
+        position: count_point,
+        delta: Vector2::new(40.0, 0.0),
+        modifiers: Default::default(),
+    };
+    assert!(
+        !runtime
+            .surface()
+            .find_widget(count_id)
+            .expect("count widget")
+            .widget_object()
+            .accepts_pointer_input(&horizontal_wheel),
+        "the local count field must leave horizontal wheel input to the waveform"
+    );
+    assert!(runtime.wheel_or_scroll_at(count_point, Vector2::new(40.0, 0.0)));
+    assert_eq!(
+        runtime.bridge().state().ui.chrome.beat_guide_count,
+        6,
+        "horizontal wheel fallback must not change the beat count"
+    );
+
+    let waveform_wheel_point = Point::new(
+        waveform_rect(&runtime).min.x + 12.0,
+        waveform_rect(&runtime).center().y,
+    );
+    assert!(runtime.wheel_or_scroll_at(waveform_wheel_point, Vector2::new(0.0, -40.0)));
+    assert_eq!(
+        runtime.bridge().state().ui.chrome.beat_guide_count,
+        6,
+        "the full-size playmark overlay must not steal wheel input outside its painted field"
+    );
 }
 
 #[test]
