@@ -1,5 +1,9 @@
 name: Wavecrate stable release
 
+# Temporarily stored outside GitHub's active workflow extensions while Wavecrate
+# remains in release-candidate stabilization. Restore the .yml suffix only when
+# stable publication is explicitly re-enabled.
+
 on:
   workflow_dispatch:
     inputs:

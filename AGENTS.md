@@ -65,6 +65,10 @@ likely to miss important reasoning.
   stable release. Stable must promote the exact commit already published and
   reviewed as the latest `vX.Y.Z-rc.N`; it must never silently include newer,
   un-RCed commits from `main`.
+- Stable publication is temporarily disabled while Wavecrate remains in RC
+  stabilization. Keep publishing RCs and preserve the stable implementation;
+  re-enabling it requires a dedicated reviewed change that restores the active
+  workflow and command entrypoint.
 - A stable release requires an explicit user instruction such as "release
   X.Y.Z stable" or "promote RC N to stable." PR approval, `approved`, sign-off,
   or acceptance of an RC authorizes the applicable PR merge and cleanup only;

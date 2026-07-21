@@ -414,89 +414,10 @@ fn rc_rejects_release_branch_with_mismatched_manifest_version() {
 }
 
 #[test]
-fn stable_requires_latest_rc_tag_to_match_release_branch_commit() {
+fn stable_command_fails_closed_before_resolving_or_dispatching() {
     let repo = FixtureRepo::new();
     repo.write_workspace("19.2.0");
     repo.commit_all("seed workspace");
-    let release_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
-    repo.create_release_branch("release/19.2");
-    repo.write("src/lib.rs", "// changed after release branch\n");
-    repo.commit_all("advance main");
-    repo.git(&["tag", "v19.2.0-rc.1"]);
-    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
-    assert_ne!(repo.git_stdout(&["rev-parse", "HEAD"]), release_sha);
-
-    let output = repo.run_release(&["stable", "--version", "19.2.0", "--branch", "release/19.2"]);
-
-    assert_failure(&output);
-    assert!(stderr(&output).contains("stable target is"));
-}
-
-#[test]
-fn stable_prunes_stale_local_rc_tags_before_selecting_promoted_rc() {
-    let repo = FixtureRepo::new();
-    repo.write_workspace("19.2.0");
-    repo.commit_all("seed workspace");
-    repo.create_release_branch("release/19.2");
-    repo.git(&["tag", "v19.2.0-rc.1"]);
-    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
-    repo.write("src/lib.rs", "// stale local rc tag only\n");
-    repo.commit_all("advance main after remote rc");
-    repo.git(&["tag", "v19.2.0-rc.2"]);
-    assert_eq!(
-        repo.git_stdout(&["tag", "-l", "v19.2.0-rc.*", "--sort=-v:refname"])
-            .lines()
-            .next(),
-        Some("v19.2.0-rc.2"),
-        "stale local rc tag should sort ahead before the wrapper fetches"
-    );
-
-    let output = repo.run_release(&["stable", "--version", "19.2.0", "--branch", "release/19.2"]);
-
-    assert_success(&output);
-    let stdout = stdout(&output);
-    assert!(stdout.contains("Promoted RC tag: v19.2.0-rc.1"));
-    assert!(
-        !repo
-            .git_stdout(&["tag", "-l", "v19.2.0-rc.2"])
-            .contains("v19.2.0-rc.2")
-    );
-}
-
-#[test]
-fn stable_rejects_existing_tag_that_points_at_different_commit() {
-    let repo = FixtureRepo::new();
-    repo.write_workspace("19.2.0");
-    repo.commit_all("seed workspace");
-    let release_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
-    repo.create_release_branch("release/19.2");
-    repo.git(&["tag", "v19.2.0-rc.1"]);
-    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
-    repo.write("src/lib.rs", "// later commit with reused stable tag\n");
-    repo.commit_all("advance main after release branch");
-    let tag_sha = repo.git_stdout(&["rev-parse", "HEAD"]);
-    repo.git(&["tag", "v19.2.0"]);
-    repo.git(&["push", "origin", "v19.2.0"]);
-    assert_ne!(release_sha, tag_sha);
-
-    let output = repo.run_release(&["stable", "--version", "19.2.0", "--branch", "release/19.2"]);
-
-    assert_failure(&output);
-    assert!(stderr(&output).contains(&format!(
-        "stable tag v19.2.0 already points at {tag_sha}, not {release_sha}"
-    )));
-    assert!(!stdout(&output).contains("Promoted RC tag: v19.2.0-rc.1"));
-    assert!(!stdout(&output).contains("Dry command: gh workflow run"));
-}
-
-#[test]
-fn stable_dry_run_accepts_matching_latest_rc_tag_and_prints_dispatch_command() {
-    let repo = FixtureRepo::new();
-    repo.write_workspace("19.2.0");
-    repo.commit_all("seed workspace");
-    repo.create_release_branch("release/19.2");
-    repo.git(&["tag", "v19.2.0-rc.1"]);
-    repo.git(&["push", "origin", "v19.2.0-rc.1"]);
 
     let output = repo.run_release(&[
         "stable",
@@ -504,17 +425,15 @@ fn stable_dry_run_accepts_matching_latest_rc_tag_and_prints_dispatch_command() {
         "19.2.0",
         "--branch",
         "release/19.2",
-        "--release-notes",
-        "Stable notes with spaces",
+        "--dispatch",
     ]);
 
-    assert_success(&output);
-    let stdout = stdout(&output);
-    assert!(stdout.contains("Promoted RC tag: v19.2.0-rc.1"));
-    assert!(stdout.contains("Dry command: gh workflow run release-stable.yml"));
-    assert!(stdout.contains("--repo PORTALSURFER/wavecrate"));
-    assert!(stdout.contains("-f release_notes=Stable\\ notes\\ with\\ spaces"));
-    assert!(stdout.contains("release-stable.yml"));
+    assert_failure(&output);
+    assert!(stderr(&output).contains(
+        "stable releases are temporarily disabled; continue publishing release candidates"
+    ));
+    assert!(!stdout(&output).contains("git fetch"));
+    assert!(!stdout(&output).contains("gh workflow run"));
 }
 
 struct FixtureRepo {
@@ -573,7 +492,6 @@ edition = "2024"
         self.write("src/lib.rs", "");
         self.write(".github/workflows/release-train-prepare.yml", "");
         self.write(".github/workflows/release-rc.yml", "");
-        self.write(".github/workflows/release-stable.yml", "");
         self.write(
             "scripts/internal/release/prepare_release_train.py",
             "#!/usr/bin/env bash\nversion=\"$(awk '/^\\[package\\]$/ { in_package = 1; next } in_package && /^\\[/ { exit } in_package && /^[[:space:]]*version[[:space:]]*=/ { gsub(/\\\"/, \"\", $3); print $3; exit }' Cargo.toml)\"\nradiant_status=\"\"\nif [[ -f .gitmodules ]]; then\n  if [[ ! -f vendor/radiant/radiant.marker ]]; then\n    echo 'missing vendor/radiant submodule contents' >&2\n    exit 42\n  fi\n  radiant_status=' [radiant-submodule=present]'\nfi\nprintf 'prepare-helper'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf ' [cwd-version=%s]%s\\n' \"$version\" \"$radiant_status\"\n",

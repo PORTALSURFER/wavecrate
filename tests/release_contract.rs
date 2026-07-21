@@ -1,6 +1,7 @@
 //! Release contract checks for active targets and release asset labels.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use toml::Value;
 
@@ -38,7 +39,7 @@ const NIGHTLY_WORKFLOW: &str = include_str!("../.github/workflows/release-build.
 const RELEASE_TRAIN_PREP_WORKFLOW: &str =
     include_str!("../.github/workflows/release-train-prepare.yml");
 const RC_WORKFLOW: &str = include_str!("../.github/workflows/release-rc.yml");
-const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml");
+const STABLE_WORKFLOW: &str = include_str!("../.github/workflows/release-stable.yml.disabled");
 const RELEASE_TRAIN_PREP_SCRIPT: &str =
     include_str!("../scripts/internal/release/prepare_release_train.py");
 const ASSEMBLE_RELEASE_FILES_SCRIPT: &str =
@@ -133,6 +134,25 @@ fn workspace_release_identity_is_pre_one_and_consistent() {
             && STABLE_WORKFLOW.contains("example 0.")
             && STABLE_WORKFLOW.contains("example release/0."),
         "manual release workflows must demonstrate the pre-1.0 version and branch shape"
+    );
+}
+
+#[test]
+fn stable_workflow_is_inert_while_its_implementation_is_preserved() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for active_name in ["release-stable.yml", "release-stable.yaml"] {
+        assert!(
+            !repo_root
+                .join(".github/workflows")
+                .join(active_name)
+                .exists(),
+            "stable publication must not be exposed as active workflow {active_name}"
+        );
+    }
+    assert!(
+        STABLE_WORKFLOW.contains("name: Wavecrate stable release")
+            && STABLE_WORKFLOW.contains("Publish GitHub stable release"),
+        "the stable workflow implementation must remain available for later re-enablement"
     );
 }
 
