@@ -2,6 +2,8 @@
 
 use std::{fs, io, path::Path};
 
+use cap_primitives::{ambient_authority, fs as capability_fs};
+
 use crate::sample_sources::LIBRARY_DB_FILE_NAME;
 
 use super::app_root_dir;
@@ -27,8 +29,8 @@ impl GlobalStorageUsage {
 
 /// Measure the current global library database and rebuildable cache footprint.
 ///
-/// The traversal does not follow symbolic links, so a link below the cache root
-/// cannot make the reported size escape the app-owned storage boundary.
+/// The traversal does not follow symbolic links, so a linked cache root or
+/// descendant cannot make the reported size escape the app-owned boundary.
 pub fn global_storage_usage() -> Result<GlobalStorageUsage, String> {
     let root = app_root_dir().map_err(|error| error.to_string())?;
     global_storage_usage_at(&root)
@@ -50,6 +52,13 @@ fn global_storage_usage_at(root: &Path) -> Result<GlobalStorageUsage, String> {
 }
 
 fn directory_regular_file_size(root: &Path) -> Result<u64, String> {
+    directory_regular_file_size_with_observer(root, |_| {})
+}
+
+fn directory_regular_file_size_with_observer(
+    root: &Path,
+    mut before_descend: impl FnMut(&Path),
+) -> Result<u64, String> {
     let root_metadata = match fs::symlink_metadata(root) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
@@ -59,34 +68,79 @@ fn directory_regular_file_size(root: &Path) -> Result<u64, String> {
         return Ok(0);
     }
 
+    let parent = root
+        .parent()
+        .ok_or_else(|| format!("Global cache root has no parent: {}", root.display()))?;
+    let root_name = root
+        .file_name()
+        .ok_or_else(|| format!("Global cache root has no file name: {}", root.display()))?;
+    let parent_directory = capability_fs::open_ambient_dir(parent, ambient_authority())
+        .map_err(|error| read_error("cache parent directory", parent, error))?;
+    let root_directory =
+        match capability_fs::open_dir_nofollow(&parent_directory, Path::new(root_name)) {
+            Ok(directory) => directory,
+            Err(error) if entry_changed_before_open(&error) => return Ok(0),
+            Err(error) => return Err(read_error("cache directory", root, error)),
+        };
+
     let mut total = 0_u64;
-    let mut pending = vec![root.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        let entries = match fs::read_dir(&directory) {
+    let mut pending = vec![(root_directory, root.to_path_buf())];
+    while let Some((directory, display_path)) = pending.pop() {
+        let entries = match capability_fs::read_base_dir(&directory) {
             Ok(entries) => entries,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(read_error("directory", &directory, error)),
+            Err(error) => return Err(read_error("directory", &display_path, error)),
         };
         for entry in entries {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(read_error("directory entry", &directory, error)),
+                Err(error) => return Err(read_error("directory entry", &display_path, error)),
             };
-            let path = entry.path();
+            let path = display_path.join(entry.file_name());
             let file_type = match entry.file_type() {
                 Ok(file_type) => file_type,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
                 Err(error) => return Err(read_error("file type", &path, error)),
             };
             if file_type.is_dir() {
-                pending.push(path);
+                before_descend(&path);
+                match capability_fs::open_dir_nofollow(&directory, Path::new(&entry.file_name())) {
+                    Ok(child) => pending.push((child, path)),
+                    Err(error) if entry_changed_before_open(&error) => continue,
+                    Err(error) => return Err(read_error("directory", &path, error)),
+                }
             } else if file_type.is_file() {
-                total = checked_add(total, regular_file_size(&path)?, &path)?;
+                let metadata = match entry.metadata() {
+                    Ok(metadata) => metadata,
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                    Err(error) => return Err(read_error("metadata", &path, error)),
+                };
+                if metadata.file_type().is_file() {
+                    total = checked_add(total, metadata.len(), &path)?;
+                }
             }
         }
     }
     Ok(total)
+}
+
+fn entry_changed_before_open(error: &io::Error) -> bool {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+    ) {
+        return true;
+    }
+    #[cfg(unix)]
+    if error.raw_os_error() == Some(libc::ELOOP) {
+        return true;
+    }
+    #[cfg(target_os = "windows")]
+    if error.raw_os_error() == Some(windows::Win32::Foundation::ERROR_STOPPED_ON_SYMLINK.0 as i32) {
+        return true;
+    }
+    false
 }
 
 fn regular_file_size(path: &Path) -> Result<u64, String> {
@@ -177,5 +231,34 @@ mod tests {
         let usage = global_storage_usage_at(root.path()).expect("measure linked cache root");
 
         assert_eq!(usage.cache_bytes, 0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_traversal_does_not_follow_directory_replaced_by_symbolic_link() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("create storage root");
+        let external = tempfile::tempdir().expect("create external cache root");
+        fs::write(external.path().join("external.cache"), [0_u8; 61])
+            .expect("write external payload");
+        let cache = root.path().join(CACHE_DIR_NAME);
+        let replaceable = cache.join("replaceable");
+        fs::create_dir_all(&replaceable).expect("create replaceable cache directory");
+        fs::write(replaceable.join("owned.cache"), [0_u8; 5]).expect("write owned payload");
+        let detached = root.path().join("detached-cache");
+        let mut replaced = false;
+
+        let cache_bytes = directory_regular_file_size_with_observer(&cache, |path| {
+            if path == replaceable && !replaced {
+                fs::rename(&replaceable, &detached).expect("detach enumerated directory");
+                symlink(external.path(), &replaceable).expect("replace directory with symlink");
+                replaced = true;
+            }
+        })
+        .expect("measure cache during directory replacement");
+
+        assert!(replaced, "replacement hook should observe the directory");
+        assert_eq!(cache_bytes, 0);
     }
 }
