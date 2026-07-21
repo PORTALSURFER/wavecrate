@@ -113,6 +113,90 @@ fn command_arrow_navigation_preserves_folder_selection() {
 }
 
 #[test]
+fn plain_arrows_navigate_sources_while_a_source_has_keyboard_focus() {
+    let mut state = state_with_deferred_sources();
+    state
+        .library
+        .folder_browser
+        .focus_selected_source_for_keyboard();
+
+    let up = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowUp));
+    let down = default_gui_shortcuts(&state).resolve(ui::KeyPress::new(ui::KeyCode::ArrowDown));
+
+    assert_eq!(
+        up.action,
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::NavigateSource(-1)
+        ))
+    );
+    assert_eq!(
+        down.action,
+        Some(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::NavigateSource(1)
+        ))
+    );
+    assert!(up.handled);
+    assert!(down.handled);
+}
+
+#[test]
+fn modified_arrows_keep_existing_browser_navigation_during_source_focus() {
+    let mut state = state_with_deferred_sources();
+    state
+        .library
+        .folder_browser
+        .focus_selected_source_for_keyboard();
+
+    let resolution =
+        default_gui_shortcuts(&state).resolve(ui::KeyPress::with_shift(ui::KeyCode::ArrowDown));
+
+    assert_eq!(
+        resolution.action,
+        Some(GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: true,
+            preserve_selection: false,
+        })
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
+fn source_arrow_action_selects_the_adjacent_source_through_app_dispatch() {
+    let mut state = state_with_deferred_sources();
+    state
+        .library
+        .folder_browser
+        .focus_selected_source_for_keyboard();
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(
+        GuiMessage::FolderBrowser(FolderBrowserMessage::NavigateSource(1)),
+        &mut context,
+    );
+
+    assert_eq!(
+        state.library.folder_browser.selected_source_id(),
+        "source-b"
+    );
+    assert!(state.library.folder_browser.source_keyboard_focus_active());
+}
+
+fn state_with_deferred_sources() -> NativeAppState {
+    let roots = tempfile::tempdir().expect("source roots");
+    let sources = ["source-a", "source-b"].map(|id| {
+        wavecrate::sample_sources::SampleSource::new_with_id(
+            wavecrate::sample_sources::SourceId::from_string(id),
+            roots.path().join(id),
+        )
+    });
+    let folder_browser = FolderBrowserState::from_sample_sources_deferred(&sources);
+    NativeAppStateFixture::default()
+        .with_folder_browser(folder_browser)
+        .build()
+}
+
+#[test]
 /// Command-A keeps selecting all visible samples in the normal list browser.
 fn command_a_selects_all_samples_in_list_mode() {
     let (mut state, _source_root) = state_with_two_samples();

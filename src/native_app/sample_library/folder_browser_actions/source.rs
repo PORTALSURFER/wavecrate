@@ -29,6 +29,11 @@ impl NativeAppState {
         self.ui.browser_interaction.context_menu = None;
         let selection_started_at = Instant::now();
         self.select_source(id, context);
+        if self.library.folder_browser.selected_source_id() == source {
+            self.library
+                .folder_browser
+                .focus_selected_source_for_keyboard();
+        }
         log_select_source_phase("select_source", selection_started_at);
         let prep_started_at = Instant::now();
         self.queue_selected_source_prep(
@@ -45,6 +50,17 @@ impl NativeAppState {
             started_at,
             None,
         );
+    }
+
+    pub(super) fn navigate_folder_browser_source(
+        &mut self,
+        delta: i32,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let Some(source_id) = self.library.folder_browser.adjacent_source_id(delta) else {
+            return;
+        };
+        self.select_folder_browser_source(source_id, context);
     }
 }
 

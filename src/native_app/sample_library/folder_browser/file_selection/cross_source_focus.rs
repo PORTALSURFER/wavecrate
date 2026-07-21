@@ -78,6 +78,7 @@ impl FolderBrowserState {
         if let Some((tags_by_file, reason)) = tags_by_file {
             self.reveal_selected_file_if_hidden(tags_by_file, reason);
         }
+        self.clear_source_keyboard_focus();
         true
     }
 
@@ -95,6 +96,7 @@ impl FolderBrowserState {
         }
         self.cancel_rename();
         self.selection.set_focus_file_set(file_id.to_owned());
+        self.clear_source_keyboard_focus();
         true
     }
 
@@ -118,6 +120,7 @@ impl FolderBrowserState {
             .any(|id| id == file_id);
         if visible {
             self.cancel_rename();
+            self.clear_source_keyboard_focus();
             return true;
         }
 

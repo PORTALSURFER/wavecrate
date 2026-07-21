@@ -396,6 +396,7 @@ fn folder_browser_profile_label(message: &FolderBrowserMessage) -> &'static str 
     match message {
         FolderBrowserMessage::AddSource => "FolderBrowser::AddSource",
         FolderBrowserMessage::SelectSource(_) => "FolderBrowser::SelectSource",
+        FolderBrowserMessage::NavigateSource(_) => "FolderBrowser::NavigateSource",
         FolderBrowserMessage::DragSource(_, _) => "FolderBrowser::DragSource",
         FolderBrowserMessage::OpenSourceContextMenu(_, _) => "FolderBrowser::OpenSourceContextMenu",
         FolderBrowserMessage::ActivateFolder(_, _) => "FolderBrowser::ActivateFolder",

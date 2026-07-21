@@ -100,6 +100,7 @@ impl FolderBrowserState {
         id: String,
         modifiers: PointerModifiers,
     ) {
+        self.clear_source_keyboard_focus();
         if modifiers.shift || modifiers.command {
             let previous_folder_id = self.selection.selected_folder.clone();
             let visible_ids = self

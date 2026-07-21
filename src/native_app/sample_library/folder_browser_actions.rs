@@ -34,6 +34,9 @@ impl NativeAppState {
             FolderBrowserMessage::SelectSource(id) => {
                 self.select_folder_browser_source(id, context)
             }
+            FolderBrowserMessage::NavigateSource(delta) => {
+                self.navigate_folder_browser_source(delta, context)
+            }
             FolderBrowserMessage::DragSource(source_id, message) => {
                 let started_at = std::time::Instant::now();
                 if self.drag_source_row(source_id.clone(), message, context) {
