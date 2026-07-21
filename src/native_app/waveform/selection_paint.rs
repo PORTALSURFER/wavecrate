@@ -80,6 +80,7 @@ impl WaveformWidget {
             {
                 self.append_edit_selection_paint(&mut paint, &mut handle_paint, bounds, geometry);
             }
+            self.append_base_playmark_label_paint(&mut paint, bounds);
             self.append_played_range_paint(&mut paint, bounds);
         }
         self.append_marker_paint(&mut paint, bounds);
@@ -205,11 +206,6 @@ impl WaveformWidget {
             WaveformSelectionKind::Play,
             self.play_selection,
         );
-        if self.base_owns_playmark_label()
-            && let Some(selection) = self.play_selection
-        {
-            self.append_playmark_label_paint(paint, bounds, geometry, selection);
-        }
         self.append_selection_boundary_cursors(paint, bounds, self.play_selection, style, 1.25);
         self.append_selection_affordance_paint(
             handle_paint,
@@ -330,14 +326,6 @@ impl WaveformWidget {
                     style,
                 );
                 self.append_live_selection_preview_beat_guide_paint(&mut paint, bounds, preview);
-                if self.runtime_owns_playmark_label() {
-                    self.append_playmark_label_paint(
-                        &mut paint,
-                        bounds,
-                        geometry,
-                        preview.selection,
-                    );
-                }
                 self.append_selection_affordance_paint(
                     &mut paint,
                     geometry,

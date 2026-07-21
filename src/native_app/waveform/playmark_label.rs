@@ -36,12 +36,6 @@ pub(super) struct PlaymarkLabelLayout {
     pub(super) placement: PlaymarkLabelPlacement,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PlaymarkLabelPaintOwner {
-    Base,
-    Runtime,
-}
-
 impl WaveformWidget {
     pub(super) fn append_playmark_label_paint(
         &self,
@@ -72,48 +66,27 @@ impl WaveformWidget {
         );
     }
 
-    pub(super) fn base_owns_playmark_label(&self) -> bool {
-        self.playmark_label_paint_owner() == PlaymarkLabelPaintOwner::Base
-    }
-
-    pub(super) fn runtime_owns_playmark_label(&self) -> bool {
-        self.playmark_label_paint_owner() == PlaymarkLabelPaintOwner::Runtime
-    }
-
-    pub(super) fn append_runtime_playmark_label_fallback_paint(
+    pub(super) fn append_base_playmark_label_paint(
         &self,
-        primitives: &mut Vec<radiant::runtime::PaintPrimitive>,
+        paint: &mut WidgetPaint<'_>,
         bounds: Rect,
     ) {
-        if !self.runtime_owns_playmark_label()
-            || self
+        let selection = match self.active_drag_kind {
+            Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
+            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play)) => self
                 .live_selection_preview
-                .is_some_and(|preview| preview.kind == WaveformSelectionKind::Play)
-        {
-            return;
-        }
-        let Some(selection) = self.play_selection else {
+                .filter(|preview| preview.kind == WaveformSelectionKind::Play)
+                .map(|preview| preview.selection)
+                .or(self.play_selection),
+            _ => self.play_selection,
+        };
+        let Some(selection) = selection else {
             return;
         };
         let Some(geometry) = self.selection_geometry(bounds, Some(selection)) else {
             return;
         };
-        self.append_playmark_label_paint(
-            &mut WidgetPaint::new(primitives, self.common.id),
-            bounds,
-            geometry,
-            selection,
-        );
-    }
-
-    fn playmark_label_paint_owner(&self) -> PlaymarkLabelPaintOwner {
-        match self.active_drag_kind {
-            Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
-            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play)) => {
-                PlaymarkLabelPaintOwner::Runtime
-            }
-            _ => PlaymarkLabelPaintOwner::Base,
-        }
+        self.append_playmark_label_paint(paint, bounds, geometry, selection);
     }
 }
 

@@ -477,7 +477,14 @@ impl Widget for WaveformWidget {
     }
 
     fn prefers_pointer_move_paint_only(&self) -> bool {
-        true
+        !matches!(
+            self.active_drag_kind,
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Play
+            )) | Some(WaveformActiveDragKind::SelectionMove(
+                WaveformSelectionKind::Play
+            ))
+        )
     }
 
     fn append_paint(
@@ -501,7 +508,6 @@ impl Widget for WaveformWidget {
         _theme: &ThemeTokens,
     ) {
         self.append_live_selection_preview_paint(primitives, bounds);
-        self.append_runtime_playmark_label_fallback_paint(primitives, bounds);
         self.append_playmark_drag_ghost_paint(primitives, bounds);
         self.append_sample_slide_preview_paint(primitives, bounds);
         self.append_hover_edit_fade_handle_paint(primitives, bounds);

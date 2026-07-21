@@ -212,7 +212,7 @@ fn live_playmark_preview_paints_current_duration_label() {
         selection: wavecrate::selection::SelectionRange::new(0.2, 0.7),
     });
 
-    let plan = runtime_overlay_plan(&widget, Rect::from_size(400.0, 80.0));
+    let plan = composed_widget_plan(&widget, Rect::from_size(400.0, 80.0));
 
     assert!(plan.contains_text("500 ms"));
 }
@@ -295,7 +295,11 @@ fn playmark_label_has_one_owner_across_live_and_transition_states() {
         kind: WaveformSelectionKind::Play,
         selection: wavecrate::selection::SelectionRange::new(0.4, 0.7),
     });
-    let moved_plan = cached_base_with_runtime_overlay(&move_start, &moved, bounds);
+    assert!(
+        !moved.prefers_pointer_move_paint_only(),
+        "live playmark text must rebuild the base scene instead of composing over its stale label"
+    );
+    let moved_plan = composed_widget_plan(&moved, bounds);
     assert_single_playmark_label(&moved_plan, "300 ms");
     assert!(!moved_plan.contains_text("500 ms"));
 
@@ -322,6 +326,33 @@ fn playmark_label_has_one_owner_across_live_and_transition_states() {
     let released_plan = composed_widget_plan(&stale_preview_after_release, bounds);
     assert_single_playmark_label(&released_plan, "500 ms");
     assert!(!released_plan.contains_text("300 ms"));
+}
+
+#[test]
+fn steady_base_is_rebuilt_before_live_move_label_paints() {
+    let bounds = Rect::from_size(400.0, 80.0);
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.7));
+    let steady = waveform_widget_for_state(&state);
+    let steady_base = steady.paint_plan_with_defaults(bounds);
+    assert_single_playmark_label(&steady_base, "500 ms");
+
+    let mut moved = waveform_widget_for_state(&state);
+    moved.active_drag_kind = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Play,
+    ));
+    moved.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.4, 0.7),
+    });
+
+    assert!(
+        !moved.prefers_pointer_move_paint_only(),
+        "Base-to-live label ownership must invalidate the cached steady scene"
+    );
+    let rebuilt = composed_widget_plan(&moved, bounds);
+    assert_single_playmark_label(&rebuilt, "300 ms");
+    assert!(!rebuilt.contains_text("500 ms"));
 }
 
 #[test]
