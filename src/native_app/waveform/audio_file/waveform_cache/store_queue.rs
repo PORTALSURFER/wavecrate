@@ -1,12 +1,12 @@
 use std::{
     collections::{HashMap, HashSet, VecDeque},
+    fs,
     path::{Path, PathBuf},
-    sync::{Arc, Condvar, LazyLock, Mutex},
+    sync::{Arc, Condvar, Mutex, OnceLock},
     thread,
     time::{Duration, Instant},
 };
 
-#[cfg(test)]
 use super::write::StoreWriteOutcome;
 use super::{
     BACKGROUND_STORE_SHUTDOWN_WAIT,
@@ -16,13 +16,14 @@ use super::{
 };
 use crate::native_app::waveform::audio_file::WaveformFile;
 use diagnostics::{log_slow_cache_shutdown_flush, log_store_completion};
+pub(super) use prune_schedule::CachePruneSchedule;
+use prune_schedule::{StoreWorkerAction, reconcile_cache};
 
 mod diagnostics;
+mod prune_schedule;
 
 const BACKGROUND_STORE_QUEUE_CAPACITY: usize = 128;
-
-static BACKGROUND_STORE_QUEUE: LazyLock<Arc<BackgroundStoreQueue>> =
-    LazyLock::new(|| BackgroundStoreQueue::start(BACKGROUND_STORE_QUEUE_CAPACITY));
+static BACKGROUND_STORE_QUEUE: OnceLock<Arc<BackgroundStoreQueue>> = OnceLock::new();
 
 #[cfg(test)]
 pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file(file: &WaveformFile) {
@@ -59,7 +60,9 @@ pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in
     };
     let path = job.file.path.clone();
     let cache_path = job.cache_path.clone();
-    match BACKGROUND_STORE_QUEUE.enqueue(job) {
+    let queue = BACKGROUND_STORE_QUEUE
+        .get_or_init(|| BackgroundStoreQueue::start(BACKGROUND_STORE_QUEUE_CAPACITY));
+    match queue.enqueue(job) {
         StoreEnqueueOutcome::Enqueued => {}
         StoreEnqueueOutcome::ReplacedQueued => {
             tracing::debug!(
@@ -85,7 +88,7 @@ pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in
                 event = "browser.sample_cache.store_dropped_queue_full",
                 path = %path.display(),
                 cache_path = %cache_path.display(),
-                capacity = BACKGROUND_STORE_QUEUE.capacity(),
+                capacity = queue.capacity(),
                 "Dropped waveform cache persistence because the writer queue is full"
             );
         }
@@ -102,7 +105,9 @@ pub(in crate::native_app::waveform::audio_file) fn store_cached_waveform_file_in
 }
 
 pub(in crate::native_app) fn flush_background_waveform_cache_stores_for_shutdown() {
-    BACKGROUND_STORE_QUEUE.flush_for_shutdown(BACKGROUND_STORE_SHUTDOWN_WAIT);
+    if let Some(queue) = BACKGROUND_STORE_QUEUE.get() {
+        queue.flush_for_shutdown(BACKGROUND_STORE_SHUTDOWN_WAIT);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -124,7 +129,7 @@ pub(super) struct BackgroundStoreQueue {
 
 impl BackgroundStoreQueue {
     fn start(capacity: usize) -> Arc<Self> {
-        let queue = Arc::new(Self::new(capacity, true));
+        let queue = Arc::new(Self::new(capacity, true, true));
         let worker_queue = Arc::clone(&queue);
         if let Err(err) = thread::Builder::new()
             .name(String::from("waveform-cache-store"))
@@ -132,6 +137,7 @@ impl BackgroundStoreQueue {
         {
             if let Ok(mut state) = queue.state.lock() {
                 state.worker_available = false;
+                state.prune_pending = false;
             }
             tracing::warn!(
                 target: "wavecrate::debug::sample_cache",
@@ -143,11 +149,12 @@ impl BackgroundStoreQueue {
         queue
     }
 
-    fn new(capacity: usize, worker_available: bool) -> Self {
+    pub(super) fn new(capacity: usize, worker_available: bool, prune_pending: bool) -> Self {
         Self {
             capacity,
             state: Mutex::new(StoreQueueState {
                 worker_available,
+                prune_pending,
                 ..StoreQueueState::default()
             }),
             available: Condvar::new(),
@@ -184,22 +191,64 @@ impl BackgroundStoreQueue {
     }
 
     fn run_worker(&self) {
+        reconcile_cache(None, 0, 0, "startup");
+        self.finish_prune();
+        let mut prune_schedule = CachePruneSchedule::default();
         loop {
-            let job = self.next_job();
-            let cache_path = job.cache_path.clone();
-            let outcome = write_cached_waveform_file_now(job);
-            log_store_completion(&cache_path, outcome);
-            self.finish_job(&cache_path);
+            match self.next_worker_action(&prune_schedule) {
+                StoreWorkerAction::Write(job) => {
+                    let cache_path = job.cache_path.clone();
+                    let outcome = write_cached_waveform_file_now(job);
+                    let cache_written = matches!(&outcome, StoreWriteOutcome::Completed(_));
+                    if cache_written {
+                        let written_bytes = fs::metadata(&cache_path)
+                            .ok()
+                            .filter(|metadata| metadata.is_file())
+                            .map(|metadata| metadata.len());
+                        prune_schedule.record_success(&cache_path, written_bytes);
+                    }
+                    log_store_completion(&cache_path, outcome);
+                    self.finish_job(&cache_path, cache_written);
+                }
+                StoreWorkerAction::Prune => {
+                    reconcile_cache(
+                        prune_schedule.pinned_path(),
+                        prune_schedule.successful_writes(),
+                        prune_schedule.bytes_written(),
+                        if prune_schedule.immediate_prune_due() {
+                            "threshold"
+                        } else {
+                            "idle"
+                        },
+                    );
+                    prune_schedule.reset();
+                    self.finish_prune();
+                }
+            }
         }
     }
 
-    fn next_job(&self) -> CachedWaveformStoreJob {
+    fn next_worker_action(&self, prune_schedule: &CachePruneSchedule) -> StoreWorkerAction {
         let mut state = self.state.lock().expect("waveform cache queue lock");
         loop {
+            if state.prune_pending && prune_schedule.immediate_prune_due() {
+                return StoreWorkerAction::Prune;
+            }
             if let Some(job) = state.queued.pop_front() {
                 state.queued_paths.remove(&job.cache_path);
                 state.active_paths.insert(job.cache_path.clone());
-                return job;
+                return StoreWorkerAction::Write(job);
+            }
+            if state.prune_pending {
+                let (next_state, timeout) = self
+                    .available
+                    .wait_timeout(state, Duration::from_millis(250))
+                    .expect("waveform cache queue condvar");
+                state = next_state;
+                if timeout.timed_out() && state.queued.is_empty() {
+                    return StoreWorkerAction::Prune;
+                }
+                continue;
             }
             state = self
                 .available
@@ -208,9 +257,10 @@ impl BackgroundStoreQueue {
         }
     }
 
-    pub(super) fn finish_job(&self, cache_path: &Path) {
+    pub(super) fn finish_job(&self, cache_path: &Path, cache_written: bool) {
         if let Ok(mut state) = self.state.lock() {
             state.active_paths.remove(cache_path);
+            state.prune_pending |= cache_written;
             if let Some(successor) = state.active_successors.remove(cache_path) {
                 let successor_cache_path = successor.cache_path.clone();
                 if state.queued_paths.contains(&successor_cache_path) {
@@ -221,6 +271,18 @@ impl BackgroundStoreQueue {
                 }
                 self.available.notify_one();
             }
+            if state.prune_pending {
+                self.available.notify_one();
+            }
+            if state.is_drained() {
+                self.drained.notify_all();
+            }
+        }
+    }
+
+    pub(super) fn finish_prune(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            state.prune_pending = false;
             if state.is_drained() {
                 self.drained.notify_all();
             }
@@ -252,6 +314,7 @@ impl BackgroundStoreQueue {
                 queued = state.queued.len(),
                 active = state.active_paths.len(),
                 active_successors = state.active_successors.len(),
+                prune_pending = state.prune_pending,
                 elapsed_ms = started_at.elapsed().as_secs_f64() * 1000.0,
                 "Timed out waiting for waveform cache persistence during shutdown"
             );
@@ -283,11 +346,15 @@ struct StoreQueueState {
     queued_paths: HashSet<PathBuf>,
     active_paths: HashSet<PathBuf>,
     active_successors: HashMap<PathBuf, CachedWaveformStoreJob>,
+    prune_pending: bool,
 }
 
 impl StoreQueueState {
     fn is_drained(&self) -> bool {
-        self.queued.is_empty() && self.active_paths.is_empty() && self.active_successors.is_empty()
+        self.queued.is_empty()
+            && self.active_paths.is_empty()
+            && self.active_successors.is_empty()
+            && !self.prune_pending
     }
 }
 
@@ -327,9 +394,4 @@ fn replace_queued_job(queued: &mut VecDeque<CachedWaveformStoreJob>, job: Cached
     {
         *existing = job;
     }
-}
-
-#[cfg(test)]
-pub(super) fn test_store_queue(capacity: usize) -> BackgroundStoreQueue {
-    BackgroundStoreQueue::new(capacity, true)
 }

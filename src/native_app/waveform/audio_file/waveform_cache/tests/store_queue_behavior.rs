@@ -20,7 +20,7 @@ fn background_store_queue_coalesces_duplicate_cache_paths() {
         1,
         vec![0.0, 0.5],
     );
-    let queue = test_store_queue(4);
+    let queue = BackgroundStoreQueue::new(4, true, false);
 
     assert_eq!(
         queue.enqueue(CachedWaveformStoreJob::new(&first).expect("first job")),
@@ -33,7 +33,7 @@ fn background_store_queue_coalesces_duplicate_cache_paths() {
 
     let queued = queue.pop_next_for_test().expect("queued job");
     assert_eq!(queued.file.sample_rate, 96_000);
-    queue.finish_job(&queued.cache_path);
+    queue.finish_job(&queued.cache_path, false);
     assert_eq!(queue.pending_for_test(), 0);
 }
 
@@ -64,7 +64,7 @@ fn background_store_queue_retains_latest_successor_for_active_cache_path() {
         1,
         vec![0.0, 0.75],
     );
-    let queue = test_store_queue(4);
+    let queue = BackgroundStoreQueue::new(4, true, false);
 
     assert_eq!(
         queue.enqueue(CachedWaveformStoreJob::new(&first).expect("first job")),
@@ -90,14 +90,14 @@ fn background_store_queue_retains_latest_successor_for_active_cache_path() {
         StoreWriteOutcome::StaleInput(Default::default())
     );
 
-    queue.finish_job(&active.cache_path);
+    queue.finish_job(&active.cache_path, false);
     let successor = queue.pop_next_for_test().expect("successor job");
     assert_eq!(successor.file.sample_rate, 192_000);
     assert!(matches!(
         store_cached_waveform_file_now(successor.clone()),
         StoreWriteOutcome::Completed(_)
     ));
-    queue.finish_job(&successor.cache_path);
+    queue.finish_job(&successor.cache_path, false);
     assert_eq!(queue.pending_for_test(), 0);
 }
 
@@ -123,7 +123,7 @@ fn background_store_queue_reports_queue_full_without_blocking() {
         1,
         vec![0.0, 0.25],
     );
-    let queue = test_store_queue(1);
+    let queue = BackgroundStoreQueue::new(1, true, false);
 
     assert_eq!(
         queue.enqueue(CachedWaveformStoreJob::new(&first).expect("first job")),
@@ -149,7 +149,7 @@ fn shutdown_flush_waits_for_background_store_queue_drain() {
         1,
         vec![0.0, 0.25],
     );
-    let queue = test_store_queue(2);
+    let queue = BackgroundStoreQueue::new(2, true, false);
     assert_eq!(
         queue.enqueue(CachedWaveformStoreJob::new(&file).expect("job")),
         StoreEnqueueOutcome::Enqueued
@@ -160,7 +160,7 @@ fn shutdown_flush_waits_for_background_store_queue_drain() {
     thread::scope(|scope| {
         let waiter = scope.spawn(|| queue.flush_for_shutdown(Duration::from_millis(200)));
         thread::sleep(Duration::from_millis(20));
-        queue.finish_job(&queued.cache_path);
+        queue.finish_job(&queued.cache_path, false);
         waiter.join().expect("shutdown flush completes");
     });
     let elapsed = started_at.elapsed();
@@ -169,4 +169,39 @@ fn shutdown_flush_waits_for_background_store_queue_drain() {
         "shutdown flush should wait for active cache persistence and wake after completion"
     );
     assert_eq!(queue.pending_for_test(), 0);
+}
+
+#[test]
+fn shutdown_flush_waits_for_pending_cache_prune() {
+    let _guard = waveform_cache_test_guard();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("shutdown-prune.wav");
+    fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+    let file = waveform_file_from_mono_samples(
+        path,
+        Arc::from([1_u8, 2, 3, 4]),
+        48_000,
+        1,
+        vec![0.0, 0.25],
+    );
+    let queue = BackgroundStoreQueue::new(2, true, false);
+    assert_eq!(
+        queue.enqueue(CachedWaveformStoreJob::new(&file).expect("job")),
+        StoreEnqueueOutcome::Enqueued
+    );
+    let queued = queue.pop_next_for_test().expect("queued job");
+    queue.finish_job(&queued.cache_path, true);
+
+    let started_at = Instant::now();
+    thread::scope(|scope| {
+        let waiter = scope.spawn(|| queue.flush_for_shutdown(Duration::from_millis(200)));
+        thread::sleep(Duration::from_millis(20));
+        queue.finish_prune();
+        waiter.join().expect("shutdown flush completes");
+    });
+    let elapsed = started_at.elapsed();
+    assert!(
+        elapsed >= Duration::from_millis(15) && elapsed < Duration::from_millis(150),
+        "shutdown flush should include pending cache-limit maintenance"
+    );
 }
