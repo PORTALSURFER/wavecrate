@@ -833,10 +833,15 @@ def fetch_json(url: str | None) -> dict[str, Any]:
 
 def download_url(url: str, path: Path, verification_token: str = "") -> None:
     try:
-        with urllib.request.urlopen(
-            request_for_url(url, verification_token=verification_token),
-            timeout=120,
-        ) as response:
+        request = request_for_url(url, verification_token=verification_token)
+        if verification_token:
+            opener = urllib.request.build_opener(
+                SameOriginRedirectHandler(normalized_url_origin(url))
+            )
+            response_context = opener.open(request, timeout=120)
+        else:
+            response_context = urllib.request.urlopen(request, timeout=120)
+        with response_context as response:
             with path.open("wb") as output:
                 shutil.copyfileobj(response, output)
     except urllib.error.URLError as error:
@@ -850,6 +855,29 @@ def request_for_url(url: str, verification_token: str = "") -> urllib.request.Re
             verification_token.encode("utf-8")
         ).hexdigest()
     return urllib.request.Request(url, headers=headers)
+
+
+class SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowed_origin: tuple[str, str, int | None]) -> None:
+        super().__init__()
+        self.allowed_origin = allowed_origin
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        resolved_url = urllib.parse.urljoin(req.full_url, newurl)
+        if normalized_url_origin(resolved_url) != self.allowed_origin:
+            raise urllib.error.URLError(
+                "refusing to send PortalSurfer release verification proof to a different origin: "
+                f"{resolved_url}"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, resolved_url)
 
 
 def fetch_portalsurfer_download_token(args: argparse.Namespace) -> str:
