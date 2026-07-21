@@ -2300,6 +2300,7 @@ Commands should be routed by focus context:
 - Other global application shortcuts should not fire while a focused text or value editor expects the same key input.
 - Browser-focused commands apply to selected sample rows or folders.
 - Waveform-focused commands apply to the active waveform, play selection, edit selection, cursor, or active waveform mode.
+- Non-modal utility popovers such as job details may own dismissal shortcuts such as Escape, but must pass unrelated application and navigation shortcuts through.
 - Modal dialogs and confirmation prompts own Enter, Escape, arrow keys, Tab, and text input until dismissed.
 
 The command layer should expose enabled, disabled, hidden, pending, and destructive states so the UI can present actions consistently across menus, buttons, tooltips, status text, and keyboard handling.
