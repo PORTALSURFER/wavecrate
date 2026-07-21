@@ -6,7 +6,9 @@ use radiant::runtime::{RepaintScope, SurfaceRevisions};
 
 use super::super::diagnostics::PlayheadFrameMessageDiagnostics;
 use crate::native_app::{
-    app::{NativeAppState, SamplePlaybackSession},
+    app::{
+        NativeAppState, SamplePlaybackIntent, SamplePlaybackSession, SamplePlaybackSessionState,
+    },
     starmap_audition_telemetry::{
         self as starmap_telemetry, StarmapAuditionCounter, StarmapAuditionDuration,
     },
@@ -22,7 +24,7 @@ thread_local! {
 pub(in crate::native_app) struct FrameSurfaceRevisionTracker {
     last: Option<FrameSurfaceRevisionInputs>,
     revisions: SurfaceRevisions,
-    playback_fast_path_active: bool,
+    transient_fast_path_active: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,19 +66,20 @@ struct FrameProjectionState {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct FrameSurfaceRevisionGuard {
-    before: Option<PlaybackFrameRevisionInputs>,
+    before: Option<TransientFrameRevisionInputs>,
     forced_surface: bool,
+    starmap_retained_scene_active_before_message: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PlaybackFrameRevisionInputs {
-    structure: PlaybackFrameStructureState,
+struct TransientFrameRevisionInputs {
+    structure: TransientFrameStructureState,
     layout: FrameLayoutState,
-    projection: PlaybackFrameProjectionState,
+    projection: TransientFrameProjectionState,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PlaybackFrameStructureState {
+struct TransientFrameStructureState {
     drag_hover_auto_expand_pending: bool,
     source_cache_progress_active: bool,
     sample_loading: bool,
@@ -86,7 +89,7 @@ struct PlaybackFrameStructureState {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PlaybackFrameProjectionState {
+struct TransientFrameProjectionState {
     playback_visual_generation: u64,
     play_selection_flash_active: bool,
     copy_flash_frames: u8,
@@ -96,15 +99,15 @@ struct PlaybackFrameProjectionState {
 
 impl NativeAppState {
     pub(in crate::native_app) fn frame_surface_revisions(&mut self) -> SurfaceRevisions {
-        let playing = self.playback_visual_activity_active();
-        if playing
+        let transient_active = self.transient_frame_fast_path_active();
+        if transient_active
             || self
                 .frame_surface_revision_tracker
-                .playback_fast_path_active
+                .transient_fast_path_active
         {
-            if playing {
+            if transient_active {
                 self.frame_surface_revision_tracker
-                    .playback_fast_path_active = true;
+                    .transient_fast_path_active = true;
             }
             return self.frame_surface_revision_tracker.revisions;
         }
@@ -136,20 +139,21 @@ impl NativeAppState {
     pub(in crate::native_app) fn begin_frame_surface_revision_tracking(
         &mut self,
     ) -> FrameSurfaceRevisionGuard {
-        let playing = self.playback_visual_activity_active();
+        let transient_active = self.transient_frame_fast_path_active();
         let forced_surface = self
             .frame_surface_revision_tracker
-            .playback_fast_path_active
-            && !playing;
+            .transient_fast_path_active
+            && !transient_active;
         if forced_surface {
             self.frame_surface_revision_tracker
                 .bump(RepaintScope::Surface);
             self.frame_surface_revision_tracker
-                .playback_fast_path_active = false;
+                .transient_fast_path_active = false;
         }
         FrameSurfaceRevisionGuard {
-            before: playing.then(|| PlaybackFrameRevisionInputs::from_state(self)),
+            before: transient_active.then(|| TransientFrameRevisionInputs::from_state(self)),
             forced_surface,
+            starmap_retained_scene_active_before_message: self.starmap_retained_scene_active(),
         }
     }
 
@@ -157,9 +161,14 @@ impl NativeAppState {
         &mut self,
         guard: FrameSurfaceRevisionGuard,
     ) {
-        let playing = self.playback_visual_activity_active();
-        let after = playing.then(|| PlaybackFrameRevisionInputs::from_state(self));
-        let scope = if guard.forced_surface || guard.before.is_some() != after.is_some() {
+        let transient_active = self.transient_frame_fast_path_active();
+        let after = transient_active.then(|| TransientFrameRevisionInputs::from_state(self));
+        let starmap_retained_scene_touched_frame = guard
+            .starmap_retained_scene_active_before_message
+            || self.starmap_retained_scene_active();
+        let scope = if starmap_retained_scene_touched_frame {
+            RepaintScope::PaintOnly
+        } else if guard.forced_surface || guard.before.is_some() != after.is_some() {
             RepaintScope::Surface
         } else {
             match (guard.before, after) {
@@ -172,7 +181,7 @@ impl NativeAppState {
             self.frame_surface_revision_tracker.bump(scope);
         }
         self.frame_surface_revision_tracker
-            .playback_fast_path_active = playing;
+            .transient_fast_path_active = transient_active;
         if guard.before.is_some() || after.is_some() || guard.forced_surface {
             self.playhead_frame_diagnostics
                 .record_frame_message(PlayheadFrameMessageDiagnostics {
@@ -185,6 +194,27 @@ impl NativeAppState {
     #[cfg(test)]
     pub(in crate::native_app) fn broad_frame_revision_observations() -> u64 {
         BROAD_FRAME_REVISION_OBSERVATIONS.get()
+    }
+
+    fn transient_frame_fast_path_active(&self) -> bool {
+        self.playback_visual_activity_active() || self.starmap_retained_scene_active()
+    }
+
+    pub(in crate::native_app) fn starmap_retained_scene_active(&self) -> bool {
+        self.ui.chrome.starmap_audition_drag.is_some()
+            || self
+                .audio
+                .sample_playback_session
+                .as_ref()
+                .is_some_and(|session| {
+                    session.request.intent == SamplePlaybackIntent::StarmapDrag
+                        && !matches!(session.state, SamplePlaybackSessionState::Failed(_))
+                })
+            || self
+                .audio
+                .pending_sample_playback
+                .as_ref()
+                .is_some_and(|request| request.intent == SamplePlaybackIntent::StarmapDrag)
     }
 
     pub(in crate::native_app) fn observe_playhead_native_frame_diagnostics(
@@ -346,10 +376,10 @@ impl FrameSurfaceRevisionInputs {
     }
 }
 
-impl PlaybackFrameRevisionInputs {
+impl TransientFrameRevisionInputs {
     fn from_state(state: &NativeAppState) -> Self {
         Self {
-            structure: PlaybackFrameStructureState {
+            structure: TransientFrameStructureState {
                 drag_hover_auto_expand_pending: state
                     .library
                     .folder_browser
@@ -371,7 +401,7 @@ impl PlaybackFrameRevisionInputs {
                     .as_ref()
                     .map(|output| output.sample_rate),
             },
-            projection: PlaybackFrameProjectionState {
+            projection: TransientFrameProjectionState {
                 playback_visual_generation: state.waveform.current.playback_visual_generation(),
                 play_selection_flash_active: state.waveform.current.play_selection_flash_active(),
                 copy_flash_frames: state

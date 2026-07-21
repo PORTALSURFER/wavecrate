@@ -30,6 +30,8 @@ impl NativeAppState {
         message: GuiMessage,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        let starmap_retained_scene_message = starmap_message_uses_retained_scene(&message);
+        let starmap_scene_active_before = self.starmap_retained_scene_active();
         let frame_preparation_state = matches!(message, GuiMessage::Frame)
             .then(|| SampleBrowserFramePreparationState::capture(self));
         self.apply_message(message, context);
@@ -38,6 +40,11 @@ impl NativeAppState {
             .unwrap_or(true)
         {
             prepare_sample_browser_view(self);
+        }
+        if starmap_retained_scene_message
+            && (starmap_scene_active_before || self.starmap_retained_scene_active())
+        {
+            context.request_paint_only();
         }
     }
 
@@ -287,6 +294,31 @@ impl NativeAppState {
             "Slow UI message dispatch"
         );
     }
+}
+
+fn starmap_message_uses_retained_scene(message: &GuiMessage) -> bool {
+    matches!(
+        message,
+        GuiMessage::BeginStarmapAuditionDrag { .. }
+            | GuiMessage::UpdateStarmapAuditionDrag { .. }
+            | GuiMessage::AdvanceStarmapAudition { .. }
+            | GuiMessage::PromoteStarmapAudition { .. }
+            | GuiMessage::FinishStarmapAuditionDrag
+            | GuiMessage::DeferredSampleLoad { .. }
+            | GuiMessage::SettledSamplePromotion { .. }
+            | GuiMessage::SampleLoadPathValidated { .. }
+            | GuiMessage::SampleLoadProgress(..)
+            | GuiMessage::SamplePlaybackReady(_)
+            | GuiMessage::PreviewAuditionDecoded { .. }
+            | GuiMessage::PreviewAuditionWarmFinished { .. }
+            | GuiMessage::SampleLoadFinished(_)
+            | GuiMessage::AudioPlayerOpenFinished(_)
+            | GuiMessage::LastPlayedPersistReady { .. }
+            | GuiMessage::LastPlayedPersisted(_)
+            | GuiMessage::SourceProcessingProgress(_)
+            | GuiMessage::FolderScanProgress(_)
+            | GuiMessage::NormalizationProgress(_)
+    )
 }
 
 fn gui_message_profile_label(message: &GuiMessage) -> &'static str {

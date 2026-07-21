@@ -118,6 +118,102 @@ fn source_processing_progress_refreshes_the_retained_details_projection() {
 }
 
 #[test]
+fn source_processing_progress_does_not_reproject_during_starmap_audition() {
+    let mut state = NativeAppStateFixture::default().build();
+    let source_id = state
+        .library
+        .folder_browser
+        .defer_add_source_path(
+            std::path::PathBuf::from("/tmp/starmap-progress-source"),
+            false,
+        )
+        .expect("source registered");
+    state
+        .background
+        .source_lifecycle_generations
+        .insert(source_id.clone(), 0);
+    state.ui.chrome.starmap_audition_drag =
+        Some(crate::native_app::app::StarmapAuditionDragState {
+            last_hit_file_id: Some(String::from("/samples/kick.wav")),
+            last_position: radiant::gui::types::Point::new(50.0, 50.0),
+            modifiers: radiant::widgets::PointerModifiers::default(),
+        });
+    let mut context = ui::UiUpdateContext::default();
+
+    state.handle_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: true,
+            completed: 4,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("snare.wav"),
+        }),
+        &mut context,
+    );
+
+    assert_eq!(
+        context.into_command().repaint_scope(),
+        Some(ui::RepaintScope::PaintOnly),
+        "background progress must not rebuild the starmap scene during audition"
+    );
+
+    state.ui.chrome.starmap_audition_drag = None;
+    let request = crate::native_app::app::SamplePlaybackRequest::transient(
+        String::from("/samples/kick.wav"),
+        crate::native_app::app::SamplePlaybackIntent::StarmapDrag,
+        "starmap_release",
+    );
+    state
+        .audio
+        .start_resolving_sample_playback_session(request, "audio_file");
+    state.audio.sample_playback_session.as_mut().unwrap().state =
+        crate::native_app::app::SamplePlaybackSessionState::AudibleTransient;
+    let mut active_session_context = ui::UiUpdateContext::default();
+    state.handle_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: true,
+            completed: 5,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("hat.wav"),
+        }),
+        &mut active_session_context,
+    );
+    assert_eq!(
+        active_session_context.into_command().repaint_scope(),
+        Some(ui::RepaintScope::PaintOnly),
+        "the retained scene must cover an audible starmap release session"
+    );
+
+    state.audio.clear_sample_playback_session();
+    let mut settled_context = ui::UiUpdateContext::default();
+    state.handle_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id,
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: true,
+            completed: 6,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("clap.wav"),
+        }),
+        &mut settled_context,
+    );
+    assert_eq!(
+        settled_context.into_command().repaint_scope(),
+        Some(ui::RepaintScope::Projection),
+        "normal progress projection must resume when the starmap session ends"
+    );
+}
+
+#[test]
 fn late_progress_for_removed_source_is_ignored() {
     let mut state = NativeAppStateFixture::default().build();
     let mut context = ui::UiUpdateContext::default();
