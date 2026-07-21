@@ -954,6 +954,8 @@ Extraction is not the same as destructive editing.
 
 When a user selects a region of an audio file and extracts it, Wavecrate should create a new sample file containing that region. The original file should remain unchanged unless the user separately performs a destructive edit on it.
 
+Extraction output should be failure-atomic and collision-safe. Wavecrate should write and finalize an exclusively owned staging file in the destination folder, then publish it without replacing any path that appeared concurrently. Failed or cancelled work should remove only its own staging artifact and must never expose a partial WAV as a completed extraction.
+
 If audition-time processing is active, such as target-BPM warping, extraction should create what the user hears. If a user auditions a warped loop and extracts it, the created sample file should bake the auditioned warp result into the new file.
 
 Extraction should support:
