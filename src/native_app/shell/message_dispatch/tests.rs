@@ -142,7 +142,7 @@ fn source_processing_progress_does_not_reproject_during_starmap_audition() {
 
     state.handle_message(
         GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
-            source_id,
+            source_id: source_id.clone(),
             lifecycle_generation: 0,
             active: true,
             source_row_active: true,
@@ -158,6 +158,58 @@ fn source_processing_progress_does_not_reproject_during_starmap_audition() {
         context.into_command().repaint_scope(),
         Some(ui::RepaintScope::PaintOnly),
         "background progress must not rebuild the starmap scene during audition"
+    );
+
+    state.ui.chrome.starmap_audition_drag = None;
+    let request = crate::native_app::app::SamplePlaybackRequest::transient(
+        String::from("/samples/kick.wav"),
+        crate::native_app::app::SamplePlaybackIntent::StarmapDrag,
+        "starmap_release",
+    );
+    state
+        .audio
+        .start_resolving_sample_playback_session(request, "audio_file");
+    state.audio.sample_playback_session.as_mut().unwrap().state =
+        crate::native_app::app::SamplePlaybackSessionState::AudibleTransient;
+    let mut active_session_context = ui::UiUpdateContext::default();
+    state.handle_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id: source_id.clone(),
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: true,
+            completed: 5,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("hat.wav"),
+        }),
+        &mut active_session_context,
+    );
+    assert_eq!(
+        active_session_context.into_command().repaint_scope(),
+        Some(ui::RepaintScope::PaintOnly),
+        "the retained scene must cover an audible starmap release session"
+    );
+
+    state.audio.clear_sample_playback_session();
+    let mut settled_context = ui::UiUpdateContext::default();
+    state.handle_message(
+        GuiMessage::SourceProcessingProgress(crate::native_app::app::SourceProcessingProgress {
+            source_id,
+            lifecycle_generation: 0,
+            active: true,
+            source_row_active: true,
+            completed: 6,
+            total: 10,
+            stage: String::from("Preparing similarity"),
+            detail: String::from("clap.wav"),
+        }),
+        &mut settled_context,
+    );
+    assert_eq!(
+        settled_context.into_command().repaint_scope(),
+        Some(ui::RepaintScope::Projection),
+        "normal progress projection must resume when the starmap session ends"
     );
 }
 
