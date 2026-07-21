@@ -6,7 +6,8 @@ use tracing::warn;
 use super::github;
 use super::{RuntimeIdentity, UpdateChannel, UpdateError};
 
-const PRE_ONE_RENUMBERING_MAJOR: u64 = 19;
+const LEGACY_RENUMBERING_MAJOR: u64 = 19;
+const LEGACY_RENUMBERING_MINOR: u64 = 1;
 const FIRST_PRE_ONE_MINOR: u64 = 19;
 const FIRST_PRE_ONE_PATCH: u64 = 1;
 
@@ -114,7 +115,7 @@ fn rc_outcome(
 }
 
 fn release_version_is_newer(current: &Version, candidate: &Version) -> bool {
-    if current.major == 0 && candidate.major == PRE_ONE_RENUMBERING_MAJOR {
+    if is_pre_one_install_with_historical_legacy_candidate(current, candidate) {
         return false;
     }
 
@@ -122,9 +123,20 @@ fn release_version_is_newer(current: &Version, candidate: &Version) -> bool {
 }
 
 fn is_legacy_to_pre_one_transition(current: &Version, candidate: &Version) -> bool {
-    current.major == PRE_ONE_RENUMBERING_MAJOR
+    current.major == LEGACY_RENUMBERING_MAJOR
+        && current.minor == LEGACY_RENUMBERING_MINOR
         && candidate.major == 0
         && (candidate.minor, candidate.patch) >= (FIRST_PRE_ONE_MINOR, FIRST_PRE_ONE_PATCH)
+}
+
+fn is_pre_one_install_with_historical_legacy_candidate(
+    current: &Version,
+    candidate: &Version,
+) -> bool {
+    current.major == 0
+        && (current.minor, current.patch) >= (FIRST_PRE_ONE_MINOR, FIRST_PRE_ONE_PATCH)
+        && candidate.major == LEGACY_RENUMBERING_MAJOR
+        && candidate.minor == LEGACY_RENUMBERING_MINOR
 }
 
 fn nightly_outcome(
@@ -259,6 +271,14 @@ mod tests {
             &current,
             &Version::parse("19.1.1").unwrap()
         ));
+    }
+
+    #[test]
+    fn future_major_nineteen_release_keeps_normal_semver_ordering() {
+        let current = Version::parse("18.9.0").unwrap();
+        let candidate = Version::parse("19.1.0").unwrap();
+
+        assert!(release_version_is_newer(&current, &candidate));
     }
 
     #[test]
