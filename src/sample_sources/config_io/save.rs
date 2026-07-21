@@ -139,6 +139,14 @@ pub(super) fn save_settings_to_path(
 }
 
 fn atomic_write(path: &Path, data: &[u8]) -> Result<(), ConfigError> {
+    atomic_write_with(path, data, publish_temp_file)
+}
+
+fn atomic_write_with(
+    path: &Path,
+    data: &[u8],
+    publish: impl Fn(&Path, &Path, &Path) -> Result<(), ConfigError>,
+) -> Result<(), ConfigError> {
     use rand::TryRngCore;
     let dir = path.parent().ok_or_else(|| ConfigError::Write {
         path: path.to_path_buf(),
@@ -197,14 +205,10 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), ConfigError> {
             });
         }
         drop(file);
-        if let Err(err) = replace_file(&tmp_path, path) {
+        if let Err(err) = publish(&tmp_path, path, dir) {
             let _ = std::fs::remove_file(&tmp_path);
-            return Err(ConfigError::Write {
-                path: path.to_path_buf(),
-                source: err,
-            });
+            return Err(err);
         }
-        sync_parent_dir(dir)?;
         return Ok(());
     }
 
@@ -224,25 +228,43 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), ConfigError> {
     })
 }
 
+fn publish_temp_file(temp_path: &Path, path: &Path, dir: &Path) -> Result<(), ConfigError> {
+    replace_file(temp_path, path).map_err(|source| ConfigError::Write {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    sync_parent_dir(dir)
+}
+
+#[cfg(not(target_os = "windows"))]
 fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
-    match std::fs::rename(temp_path, path) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            #[cfg(target_os = "windows")]
-            if err.kind() == std::io::ErrorKind::AlreadyExists
-                || err.kind() == std::io::ErrorKind::PermissionDenied
-            {
-                if let Err(inner) = std::fs::remove_file(path)
-                    && inner.kind() != std::io::ErrorKind::NotFound
-                {
-                    return Err(inner);
-                }
-                std::fs::rename(temp_path, path)?;
-                return Ok(());
-            }
-            Err(err)
-        }
-    }
+    std::fs::rename(temp_path, path)
+}
+
+#[cfg(target_os = "windows")]
+fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
+    use windows::{
+        Win32::Storage::FileSystem::{
+            MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+        },
+        core::PCWSTR,
+    };
+
+    let temp_path = wide_path(temp_path);
+    let path = wide_path(path);
+    let flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
+    unsafe { MoveFileExW(PCWSTR(temp_path.as_ptr()), PCWSTR(path.as_ptr()), flags) }
+        .map_err(std::io::Error::other)
+}
+
+#[cfg(target_os = "windows")]
+fn wide_path(path: &Path) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+
+    path.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 fn sync_parent_dir(dir: &Path) -> Result<(), ConfigError> {
@@ -265,9 +287,53 @@ fn sync_parent_dir(dir: &Path) -> Result<(), ConfigError> {
 }
 
 #[cfg(test)]
-mod revision_tests {
-    use super::{ConfigError, SaveRevisionGate, require_current_save};
+mod tests {
+    use super::{ConfigError, SaveRevisionGate, atomic_write_with, require_current_save};
     use std::{cell::Cell, path::PathBuf};
+
+    #[test]
+    fn replacement_failure_preserves_existing_settings_and_cleans_temporary_file() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("config.toml");
+        std::fs::write(&path, b"old = true\n").unwrap();
+
+        let result = atomic_write_with(&path, b"new = true\n", |temp_path, path, _dir| {
+            assert_eq!(std::fs::read(temp_path).unwrap(), b"new = true\n");
+            Err(ConfigError::Write {
+                path: path.to_path_buf(),
+                source: std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "injected replacement failure",
+                ),
+            })
+        });
+
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"old = true\n");
+        let remaining: Vec<_> = std::fs::read_dir(temp_dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(remaining, [path.file_name().unwrap()]);
+    }
+
+    #[test]
+    fn durability_failure_after_replacement_leaves_new_settings_recoverable() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("config.toml");
+        std::fs::write(&path, b"old = true\n").unwrap();
+
+        let result = atomic_write_with(&path, b"new = true\n", |temp_path, path, dir| {
+            std::fs::rename(temp_path, path).unwrap();
+            Err(ConfigError::Write {
+                path: dir.to_path_buf(),
+                source: std::io::Error::other("injected directory sync failure"),
+            })
+        });
+
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"new = true\n");
+    }
 
     #[test]
     fn stale_snapshot_is_skipped_after_newer_revision_is_reserved() {
