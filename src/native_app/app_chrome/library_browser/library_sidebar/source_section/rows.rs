@@ -21,6 +21,8 @@ const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
 const SOURCE_PROTECTED_ERROR_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 255);
 const SOURCE_PROTECTED_ERROR_FILL: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 145);
 const SOURCE_PROTECTED_ERROR_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 175);
+const SOURCE_ACCEPTANCE_FILL: ui::Rgba8 = ui::Rgba8::new(76, 217, 100, 92);
+const SOURCE_ACCEPTANCE_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(86, 227, 110, 122);
 const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
 const SOURCE_ROW_OUTLINE_WIDTH: f32 = 1.0;
 const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
@@ -56,7 +58,12 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
             RETAINED_SOURCE_ROW_INPUT_SCOPE,
             retained_source_row_key(source.id.as_str()),
         )
-        .selected(source.selected || source.processing || source.protected_source_error_flash)
+        .selected(
+            source.selected
+                || source.processing
+                || source.protected_source_error_flash
+                || source.primary_source_acceptance_flash,
+        )
         .leading_marker_if(source.processing, source_processing_marker())
         .outline(source_row_outline());
     let row = if source.reorder_enabled {
@@ -71,6 +78,8 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
         row.dense_chrome_palette(source_protected_error_palette())
     } else if source.processing {
         row.dense_chrome_palette(source_processing_palette())
+    } else if source.primary_source_acceptance_flash {
+        row.dense_chrome_palette(source_acceptance_palette())
     } else {
         row
     };
@@ -241,6 +250,13 @@ fn source_protected_error_palette() -> ui::DenseRowPalette {
         )
 }
 
+fn source_acceptance_palette() -> ui::DenseRowPalette {
+    ui::DenseRowPalette::new()
+        .selected(SOURCE_ACCEPTANCE_FILL)
+        .selected_hovered(SOURCE_ACCEPTANCE_HOVER_FILL)
+        .interaction_fills(SOURCE_ACCEPTANCE_HOVER_FILL, SOURCE_ACCEPTANCE_HOVER_FILL)
+}
+
 pub(super) fn source_missing_color() -> ui::Rgba8 {
     SOURCE_MISSING_COLOR
 }
@@ -280,6 +296,11 @@ pub(super) fn source_processing_marker_color_for_tests() -> ui::Rgba8 {
 #[cfg(test)]
 pub(super) fn source_processing_fill_for_tests() -> ui::Rgba8 {
     SOURCE_PROCESSING_MARKER_COLOR.with_alpha(SOURCE_PROCESSING_FILL_ALPHA)
+}
+
+#[cfg(test)]
+pub(super) fn source_acceptance_fill_for_tests() -> ui::Rgba8 {
+    SOURCE_ACCEPTANCE_FILL
 }
 
 #[cfg(test)]

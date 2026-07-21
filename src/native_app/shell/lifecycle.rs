@@ -209,6 +209,9 @@ impl NativeAppState {
                 .advance_protected_source_error_flash_frame();
             self.library
                 .folder_browser
+                .advance_primary_source_acceptance_flash_frame();
+            self.library
+                .folder_browser
                 .advance_drag_hover_folder_auto_expand();
             self.drain_playback_runtime_events();
             self.refresh_playback_progress();
@@ -240,6 +243,9 @@ impl NativeAppState {
         self.library
             .folder_browser
             .advance_protected_source_error_flash_frame();
+        self.library
+            .folder_browser
+            .advance_primary_source_acceptance_flash_frame();
         self.library
             .folder_browser
             .advance_drag_hover_folder_auto_expand();

@@ -48,6 +48,7 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) processing: bool,
     pub(in crate::native_app) missing: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
+    pub(in crate::native_app) primary_source_acceptance_flash: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) drop_candidate: bool,
     pub(in crate::native_app) drop_target: bool,
@@ -276,6 +277,8 @@ impl SourceRowViewModel {
             missing: source.is_missing(),
             protected_source_error_flash: folder_browser
                 .source_protected_error_flash_active(&source.id),
+            primary_source_acceptance_flash: source.role == SourceRole::Primary
+                && folder_browser.primary_source_acceptance_flash_active(),
             drag_active: folder_browser.drag_active(),
             drop_candidate: folder_browser.can_drop_drag_on_source(&source.id),
             drop_target: folder_browser.hovered_drop_target_source_id().as_deref()

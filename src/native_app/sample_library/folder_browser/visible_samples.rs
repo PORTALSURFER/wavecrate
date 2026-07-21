@@ -16,6 +16,7 @@ use wavecrate::sample_sources::{HarvestState, config::SimilarityAspectSettings};
 
 const COPY_FLASH_FRAMES: u8 = 12;
 const PROTECTED_SOURCE_ERROR_FLASH_FRAMES: u8 = 24;
+const PRIMARY_SOURCE_ACCEPTANCE_FLASH_FRAMES: u8 = 60;
 const SLOW_SAMPLE_PROJECTION_CACHE_FILL: Duration = Duration::from_millis(4);
 
 #[derive(Clone, Copy)]
@@ -95,6 +96,7 @@ pub(super) struct SampleListState {
     protected_source_error_flash_file_ids: HashSet<String>,
     protected_source_error_flash_source_ids: HashSet<String>,
     protected_source_error_flash_frames: u8,
+    primary_source_acceptance_flash_frames: u8,
 }
 
 impl SampleListState {
@@ -127,6 +129,7 @@ impl SampleListState {
             protected_source_error_flash_file_ids: HashSet::new(),
             protected_source_error_flash_source_ids: HashSet::new(),
             protected_source_error_flash_frames: 0,
+            primary_source_acceptance_flash_frames: 0,
         }
     }
 
@@ -520,6 +523,27 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn copy_flash_frames(&self) -> u8 {
         self.sample_list.copy_flash_frames
+    }
+
+    pub(in crate::native_app) fn flash_primary_source_acceptance(&mut self) {
+        self.sample_list.primary_source_acceptance_flash_frames =
+            PRIMARY_SOURCE_ACCEPTANCE_FLASH_FRAMES;
+    }
+
+    pub(in crate::native_app) fn primary_source_acceptance_flash_active(&self) -> bool {
+        self.sample_list.primary_source_acceptance_flash_frames > 0
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn primary_source_acceptance_flash_frames(&self) -> u8 {
+        self.sample_list.primary_source_acceptance_flash_frames
+    }
+
+    pub(in crate::native_app) fn advance_primary_source_acceptance_flash_frame(&mut self) {
+        self.sample_list.primary_source_acceptance_flash_frames = self
+            .sample_list
+            .primary_source_acceptance_flash_frames
+            .saturating_sub(1);
     }
 
     pub(in crate::native_app) fn advance_copy_flash_frame(&mut self) {
