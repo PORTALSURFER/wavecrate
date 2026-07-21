@@ -15,7 +15,7 @@ resolver = "3"
 
 [package]
 name = "wavecrate"
-version = "19.1.1"
+version = "0.19.1"
 edition = "2024"
 default-run = "wavecrate"
 autobins = false

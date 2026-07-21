@@ -81,13 +81,13 @@ fn release_summary_helper_writes_public_metadata_without_secret_values() {
     let summary_file = temp.path().join("summary.md");
     fs::create_dir_all(&artifact_dir).expect("create release dir");
     fs::write(
-        artifact_dir.join("wavecrate-19.1.0-windows-x86_64.zip"),
+        artifact_dir.join("wavecrate-0.19.1-windows-x86_64.zip"),
         "not a real zip but enough for summary hashing\n",
     )
     .expect("write artifact");
     fs::write(
-        artifact_dir.join("checksums-19.1.0.txt"),
-        "abc  wavecrate-19.1.0-windows-x86_64.zip\n",
+        artifact_dir.join("checksums-0.19.1.txt"),
+        "abc  wavecrate-0.19.1-windows-x86_64.zip\n",
     )
     .expect("write checksum");
 
@@ -103,25 +103,25 @@ fn release_summary_helper_writes_public_metadata_without_secret_values() {
             .arg("--channel")
             .arg("stable")
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--target-version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--commit")
             .arg("abcdef123456")
             .arg("--build-id")
-            .arg("wavecrate-19.1.0")
+            .arg("wavecrate-0.19.1")
             .arg("--build-number")
             .arg("6258")
             .arg("--github-release-url")
-            .arg("https://github.com/PORTALSURFER/wavecrate/releases/tag/v19.1.0")
+            .arg("https://github.com/PORTALSURFER/wavecrate/releases/tag/v0.19.1")
             .arg("--portal-catalog-url")
             .arg("https://portalsurfer.org/wavecrate/api/v1/releases")
             .arg("--portal-build-id")
-            .arg("wavecrate-19.1.0")
+            .arg("wavecrate-0.19.1")
             .arg("--artifact-dir")
             .arg(&artifact_dir)
             .arg("--checksum-file")
-            .arg(artifact_dir.join("checksums-19.1.0.txt"))
+            .arg(artifact_dir.join("checksums-0.19.1.txt"))
             .arg("--note")
             .arg("fixture note")
             .env("GITHUB_STEP_SUMMARY", &summary_file)
@@ -138,8 +138,8 @@ fn release_summary_helper_writes_public_metadata_without_secret_values() {
 
     let summary = fs::read_to_string(summary_file).expect("read summary");
     assert!(summary.contains("## Stable release publication"));
-    assert!(summary.contains("wavecrate-19.1.0-windows-x86_64.zip"));
-    assert!(summary.contains("checksums-19.1.0.txt"));
+    assert!(summary.contains("wavecrate-0.19.1-windows-x86_64.zip"));
+    assert!(summary.contains("checksums-0.19.1.txt"));
     assert!(summary.contains("PortalSurfer catalog"));
     assert!(summary.contains("SHA-256"));
     assert!(!summary.contains("super-secret"));
@@ -150,7 +150,7 @@ fn github_release_body_helper_leaves_short_logs_unchanged() {
     let temp = tempfile::tempdir().expect("create GitHub body fixture");
     let input = temp.path().join("release-log.md");
     let output = temp.path().join("github-release-body.md");
-    let body = "# Wavecrate 19.1.0-rc.1\n\n- Short release log\n";
+    let body = "# Wavecrate 0.19.1-rc.1\n\n- Short release log\n";
     fs::write(&input, body).expect("write release log");
 
     run_success(
@@ -178,7 +178,7 @@ fn github_release_body_helper_caps_oversized_logs_with_full_log_notice() {
     let input = temp.path().join("release-log.md");
     let output = temp.path().join("github-release-body.md");
     let body = format!(
-        "# Wavecrate 19.1.0-rc.1\n\n## Generated Changes\n\n- {}\n",
+        "# Wavecrate 0.19.1-rc.1\n\n## Generated Changes\n\n- {}\n",
         "very long generated change ".repeat(200)
     );
     fs::write(&input, body).expect("write release log");
@@ -198,7 +198,7 @@ fn github_release_body_helper_caps_oversized_logs_with_full_log_notice() {
 
     let github_body = fs::read_to_string(output).expect("read GitHub release body");
     assert!(github_body.len() <= 1000);
-    assert!(github_body.starts_with("# Wavecrate 19.1.0-rc.1"));
+    assert!(github_body.starts_with("# Wavecrate 0.19.1-rc.1"));
     assert!(github_body.contains("## Full Release Log"));
     assert!(github_body.contains("`release-log.md`"));
     assert!(github_body.contains("PortalSurfer release changelog"));
@@ -217,7 +217,7 @@ fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog(
                 {
                     "build_id": "wavecrate-nightly-b6306-deadbee",
                     "build_number": 6306,
-                    "version": "19.1.0-nightly.6306+deadbee",
+                    "version": "0.19.1-nightly.6306+deadbee",
                     "released_at": "2026-07-03T19:00:00Z",
                     "changelog": {
                         "title": "Wavecrate nightly-b6306-deadbee",
@@ -232,7 +232,7 @@ fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog(
     .expect("write catalog");
     fs::write(
         &release_log,
-        "# Wavecrate 19.1.0-nightly.6307+8f1a7aa2\n\n- Current staged nightly\n",
+        "# Wavecrate 0.19.1-nightly.6307+8f1a7aa2\n\n- Current staged nightly\n",
     )
     .expect("write current log");
 
@@ -248,7 +248,7 @@ fn portal_changelog_assembler_accepts_current_staged_release_not_yet_in_catalog(
             .arg("--current-build-number")
             .arg("6307")
             .arg("--current-version")
-            .arg("19.1.0-nightly.6307+8f1a7aa2")
+            .arg("0.19.1-nightly.6307+8f1a7aa2")
             .arg("--current-released-at")
             .arg("2026-07-03T20:00:00Z")
             .arg("--current-log")
@@ -278,14 +278,14 @@ fn portal_changelog_assembler_preserves_legacy_nightly_sections_after_current_st
         serde_json::to_string_pretty(&json!({
             "releases": [
                 {
-                    "build_id": "wavecrate-19.1.0",
+                    "build_id": "wavecrate-0.19.1",
                     "build_number": 6315,
-                    "version": "19.1.0",
+                    "version": "0.19.1",
                     "released_at": "2026-07-04T10:00:00Z",
                     "changelog": {
-                        "title": "Wavecrate 19.1.0",
+                        "title": "Wavecrate 0.19.1",
                         "format": "markdown",
-                        "body": "# Wavecrate 19.1.0\n\n- Current stable\n"
+                        "body": "# Wavecrate 0.19.1\n\n- Current stable\n"
                     }
                 }
             ]
@@ -299,7 +299,7 @@ fn portal_changelog_assembler_preserves_legacy_nightly_sections_after_current_st
             "changelog": {
                 "title": "Wavecrate changelog",
                 "format": "markdown",
-                "body": "# Wavecrate Changelog\n\n- Latest release: wavecrate-19.1.0\n\n# Wavecrate 19.1.0\n\n- Old stable body\n\n## [nightly-b6307-8f1a7aa2]\n\n- Legacy nightly\n"
+                "body": "# Wavecrate Changelog\n\n- Latest release: wavecrate-0.19.1\n\n# Wavecrate 0.19.1\n\n- Old stable body\n\n## [nightly-b6307-8f1a7aa2]\n\n- Legacy nightly\n"
             }
         }))
         .expect("serialize existing changelog"),
@@ -307,7 +307,7 @@ fn portal_changelog_assembler_preserves_legacy_nightly_sections_after_current_st
     .expect("write existing changelog");
     fs::write(
         &release_log,
-        "# Wavecrate 19.1.0\n\n- Repaired stable body\n",
+        "# Wavecrate 0.19.1\n\n- Repaired stable body\n",
     )
     .expect("write current log");
 
@@ -319,11 +319,11 @@ fn portal_changelog_assembler_preserves_legacy_nightly_sections_after_current_st
             .arg("--catalog-file")
             .arg(&catalog)
             .arg("--current-build-id")
-            .arg("wavecrate-19.1.0")
+            .arg("wavecrate-0.19.1")
             .arg("--current-build-number")
             .arg("6315")
             .arg("--current-version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--current-released-at")
             .arg("2026-07-04T10:00:00Z")
             .arg("--current-log")
@@ -417,9 +417,9 @@ fn build_release_artifact_helper_names_zip_and_checksum_entry() {
         .arg("--channel")
         .arg("nightly")
         .arg("--version")
-        .arg("19.1.0-nightly.20260702+abcdef0")
+        .arg("0.19.1-nightly.20260702+abcdef0")
         .arg("--target-version")
-        .arg("19.1.0")
+        .arg("0.19.1")
         .arg("--build-number")
         .arg("123")
         .arg("--git-sha")
@@ -487,7 +487,7 @@ fn build_release_artifact_helper_names_zip_and_checksum_entry() {
 fn promoted_rc_validator_accepts_complete_release_fixture() {
     let temp = tempfile::tempdir().expect("create promoted RC fixture");
     let (release_json, asset_dir) =
-        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 19.1.0-rc.2\n", true);
+        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 0.19.1-rc.2\n", true);
 
     run_success(
         Command::new("python3")
@@ -495,9 +495,9 @@ fn promoted_rc_validator_accepts_complete_release_fixture() {
                 "scripts/internal/release/validate_promoted_rc_release.py",
             ))
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--rc-tag")
-            .arg("v19.1.0-rc.2")
+            .arg("v0.19.1-rc.2")
             .arg("--release-json")
             .arg(&release_json)
             .arg("--asset-dir")
@@ -509,7 +509,7 @@ fn promoted_rc_validator_accepts_complete_release_fixture() {
 fn promoted_rc_validator_verifies_checksum_signature_when_public_key_is_supplied() {
     let temp = tempfile::tempdir().expect("create promoted RC fixture");
     let (release_json, asset_dir) =
-        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 19.1.0-rc.2\n", true);
+        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 0.19.1-rc.2\n", true);
     let key = temp.path().join("ed25519.pem");
     let keygen = Command::new("openssl")
         .arg("genpkey")
@@ -542,9 +542,9 @@ fn promoted_rc_validator_verifies_checksum_signature_when_public_key_is_supplied
                 "scripts/internal/release/sign_release_checksums.sh",
             ))
             .arg("--checksum-file")
-            .arg(asset_dir.join("checksums-19.1.0-rc.2.txt"))
+            .arg(asset_dir.join("checksums-0.19.1-rc.2.txt"))
             .arg("--signature-file")
-            .arg(asset_dir.join("checksums-19.1.0-rc.2.txt.sig"))
+            .arg(asset_dir.join("checksums-0.19.1-rc.2.txt.sig"))
             .env("CHECKSUMS_SIGNING_KEY", key_pem),
     );
     run_success(
@@ -553,9 +553,9 @@ fn promoted_rc_validator_verifies_checksum_signature_when_public_key_is_supplied
                 "scripts/internal/release/validate_promoted_rc_release.py",
             ))
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--rc-tag")
-            .arg("v19.1.0-rc.2")
+            .arg("v0.19.1-rc.2")
             .arg("--release-json")
             .arg(&release_json)
             .arg("--asset-dir")
@@ -568,12 +568,12 @@ fn promoted_rc_validator_verifies_checksum_signature_when_public_key_is_supplied
 #[test]
 fn promoted_rc_validator_rejects_missing_release_assets() {
     let temp = tempfile::tempdir().expect("create promoted RC fixture");
-    let missing = "wavecrate-19.1.0-rc.2-macos-aarch64.zip";
+    let missing = "wavecrate-0.19.1-rc.2-macos-aarch64.zip";
     let (release_json, asset_dir) = write_promoted_rc_fixture(
         &temp,
         Some(missing),
         false,
-        "# Wavecrate 19.1.0-rc.2\n",
+        "# Wavecrate 0.19.1-rc.2\n",
         true,
     );
 
@@ -583,9 +583,9 @@ fn promoted_rc_validator_rejects_missing_release_assets() {
                 "scripts/internal/release/validate_promoted_rc_release.py",
             ))
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--rc-tag")
-            .arg("v19.1.0-rc.2")
+            .arg("v0.19.1-rc.2")
             .arg("--release-json")
             .arg(&release_json)
             .arg("--asset-dir")
@@ -601,9 +601,9 @@ fn promoted_rc_validator_rejects_missing_release_assets() {
 #[test]
 fn promoted_rc_validator_rejects_undownloadable_release_assets() {
     let temp = tempfile::tempdir().expect("create promoted RC fixture");
-    let missing = "wavecrate-19.1.0-rc.2-macos-aarch64.zip";
+    let missing = "wavecrate-0.19.1-rc.2-macos-aarch64.zip";
     let (release_json, asset_dir) =
-        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 19.1.0-rc.2\n", true);
+        write_promoted_rc_fixture(&temp, None, false, "# Wavecrate 0.19.1-rc.2\n", true);
     fs::remove_file(asset_dir.join(missing)).expect("remove fixture asset");
 
     let output = run_failure(
@@ -612,9 +612,9 @@ fn promoted_rc_validator_rejects_undownloadable_release_assets() {
                 "scripts/internal/release/validate_promoted_rc_release.py",
             ))
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--rc-tag")
-            .arg("v19.1.0-rc.2")
+            .arg("v0.19.1-rc.2")
             .arg("--release-json")
             .arg(&release_json)
             .arg("--asset-dir")
@@ -631,7 +631,7 @@ fn promoted_rc_validator_rejects_undownloadable_release_assets() {
 fn promoted_rc_validator_rejects_checksum_mismatches() {
     let temp = tempfile::tempdir().expect("create promoted RC fixture");
     let (release_json, asset_dir) =
-        write_promoted_rc_fixture(&temp, None, true, "# Wavecrate 19.1.0-rc.2\n", true);
+        write_promoted_rc_fixture(&temp, None, true, "# Wavecrate 0.19.1-rc.2\n", true);
 
     let output = run_failure(
         Command::new("python3")
@@ -639,9 +639,9 @@ fn promoted_rc_validator_rejects_checksum_mismatches() {
                 "scripts/internal/release/validate_promoted_rc_release.py",
             ))
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--rc-tag")
-            .arg("v19.1.0-rc.2")
+            .arg("v0.19.1-rc.2")
             .arg("--release-json")
             .arg(&release_json)
             .arg("--asset-dir")
@@ -677,15 +677,15 @@ fn published_release_verifier_accepts_portalsurfer_catalog_fixture() {
             .arg("--channel")
             .arg("stable")
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--target-version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--commit")
             .arg("abcdef1")
             .arg("--build-date")
             .arg("2026-07-02")
             .arg("--portal-build-id")
-            .arg("wavecrate-19.1.0")
+            .arg("wavecrate-0.19.1")
             .arg("--build-number")
             .arg("6200")
             .arg("--release-json")
@@ -767,15 +767,15 @@ fn published_release_verifier_rejects_manifest_mismatches() {
             .arg("--channel")
             .arg("stable")
             .arg("--version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--target-version")
-            .arg("19.1.0")
+            .arg("0.19.1")
             .arg("--commit")
             .arg("abcdef1")
             .arg("--build-date")
             .arg("2026-07-02")
             .arg("--portal-build-id")
-            .arg("wavecrate-19.1.0")
+            .arg("wavecrate-0.19.1")
             .arg("--build-number")
             .arg("6200")
             .arg("--release-json")
@@ -816,7 +816,7 @@ fn published_release_verifier_rejects_flattened_archives() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "wavecrate-19.1.0-windows-x86_64.zip manifest must be at wavecrate/update-manifest.json"
+            "wavecrate-0.19.1-windows-x86_64.zip manifest must be at wavecrate/update-manifest.json"
         ) && stderr.contains("must contain expected archive root wavecrate/"),
         "flattened archive failure should name the asset and missing root\nstderr:\n{stderr}"
     );
@@ -846,7 +846,7 @@ fn published_release_verifier_rejects_missing_platform_executable() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(
-            "wavecrate-19.1.0-windows-x86_64.zip is missing required archive file wavecrate/wavecrate.exe"
+            "wavecrate-0.19.1-windows-x86_64.zip is missing required archive file wavecrate/wavecrate.exe"
         ),
         "missing executable failure should name the asset and missing executable path\nstderr:\n{stderr}"
     );
@@ -870,7 +870,7 @@ fn portalsurfer_upload_catalog_verifier_accepts_equivalent_timestamp_precision()
             .arg("--build-number")
             .arg("6242")
             .arg("--release-version")
-            .arg("19.1.0-nightly.20260702+5e5f4198")
+            .arg("0.19.1-nightly.20260702+5e5f4198")
             .arg("--released-at")
             .arg("2026-07-02T10:10:24Z")
             .arg("--expected-file")
@@ -896,7 +896,7 @@ fn portalsurfer_upload_catalog_verifier_rejects_different_timestamps() {
             .arg("--build-number")
             .arg("6242")
             .arg("--release-version")
-            .arg("19.1.0-nightly.20260702+5e5f4198")
+            .arg("0.19.1-nightly.20260702+5e5f4198")
             .arg("--released-at")
             .arg("2026-07-02T10:10:24Z")
             .arg("--expected-file")
@@ -960,7 +960,7 @@ fn write_portalsurfer_upload_catalog(path: &Path, released_at: &str) {
         "releases": [{
             "build_id": "wavecrate-nightly-b6242-5e5f4198",
             "build_number": 6242,
-            "version": "19.1.0-nightly.20260702+5e5f4198",
+            "version": "0.19.1-nightly.20260702+5e5f4198",
             "released_at": released_at,
             "changelog": {
                 "title": "Wavecrate nightly",
@@ -1022,12 +1022,12 @@ fn write_promoted_rc_fixture(
     let asset_dir = temp.path().join("assets");
     fs::create_dir_all(&asset_dir).expect("create asset dir");
     let zip_assets = [
-        "wavecrate-19.1.0-rc.2-macos-aarch64.zip",
-        "wavecrate-19.1.0-rc.2-macos-x86_64.zip",
-        "wavecrate-19.1.0-rc.2-windows-x86_64.zip",
+        "wavecrate-0.19.1-rc.2-macos-aarch64.zip",
+        "wavecrate-0.19.1-rc.2-macos-x86_64.zip",
+        "wavecrate-0.19.1-rc.2-windows-x86_64.zip",
     ];
-    let checksum_asset = "checksums-19.1.0-rc.2.txt";
-    let signature_asset = "checksums-19.1.0-rc.2.txt.sig";
+    let checksum_asset = "checksums-0.19.1-rc.2.txt";
+    let signature_asset = "checksums-0.19.1-rc.2.txt.sig";
 
     let mut checksum_lines = Vec::new();
     for zip in zip_assets {
@@ -1051,7 +1051,7 @@ fn write_promoted_rc_fixture(
         .map(|name| json!({ "name": name }))
         .collect::<Vec<_>>();
     let release = json!({
-        "tagName": "v19.1.0-rc.2",
+        "tagName": "v0.19.1-rc.2",
         "isPrerelease": is_prerelease,
         "body": body,
         "assets": asset_names,
@@ -1091,26 +1091,26 @@ fn write_published_release_fixture_with_zip_mutation(
     fs::create_dir_all(&asset_dir).expect("create asset dir");
     let zip_assets = [
         (
-            "wavecrate-19.1.0-macos-aarch64.zip",
+            "wavecrate-0.19.1-macos-aarch64.zip",
             "aarch64-apple-darwin",
             "macos",
             "aarch64",
         ),
         (
-            "wavecrate-19.1.0-macos-x86_64.zip",
+            "wavecrate-0.19.1-macos-x86_64.zip",
             "x86_64-apple-darwin",
             "macos",
             "x86_64",
         ),
         (
-            "wavecrate-19.1.0-windows-x86_64.zip",
+            "wavecrate-0.19.1-windows-x86_64.zip",
             "x86_64-pc-windows-msvc",
             "windows",
             "x86_64",
         ),
     ];
-    let checksum_asset = "checksums-19.1.0.txt";
-    let signature_asset = "checksums-19.1.0.txt.sig";
+    let checksum_asset = "checksums-0.19.1.txt";
+    let signature_asset = "checksums-0.19.1.txt.sig";
 
     let mut checksum_lines = Vec::new();
     let mut files = Vec::new();
@@ -1133,7 +1133,7 @@ fn write_published_release_fixture_with_zip_mutation(
         checksum_lines.push(format!("{hash}  {zip_name}\n"));
         files.push(json!({
             "name": zip_name,
-            "url": format!("/wavecrate/api/v1/releases/wavecrate-19.1.0/files/{zip_name}/download"),
+            "url": format!("/wavecrate/api/v1/releases/wavecrate-0.19.1/files/{zip_name}/download"),
             "sha256": hash,
             "size_bytes": fs::metadata(asset_dir.join(zip_name)).expect("zip metadata").len()
         }));
@@ -1155,7 +1155,7 @@ fn write_published_release_fixture_with_zip_mutation(
     for file_name in [checksum_asset, signature_asset] {
         files.push(json!({
             "name": file_name,
-            "url": format!("/wavecrate/api/v1/releases/wavecrate-19.1.0/files/{file_name}/download"),
+            "url": format!("/wavecrate/api/v1/releases/wavecrate-0.19.1/files/{file_name}/download"),
             "sha256": sha256_file(&asset_dir.join(file_name)),
             "size_bytes": fs::metadata(asset_dir.join(file_name)).expect("asset metadata").len()
         }));
@@ -1164,15 +1164,15 @@ fn write_published_release_fixture_with_zip_mutation(
     let catalog = json!({
         "app": "wavecrate",
         "releases": [{
-            "build_id": "wavecrate-19.1.0",
+            "build_id": "wavecrate-0.19.1",
             "build_number": 6200,
-            "version": "19.1.0",
+            "version": "0.19.1",
             "released_at": "2026-07-02T09:00:00Z",
             "changelog": {
-                "title": "Wavecrate 19.1.0",
+                "title": "Wavecrate 0.19.1",
                 "format": "markdown",
-                "body": "# Wavecrate 19.1.0\n\n## Release Metadata\n",
-                "url": "/wavecrate/api/v1/releases/wavecrate-19.1.0/changelog"
+                "body": "# Wavecrate 0.19.1\n\n## Release Metadata\n",
+                "url": "/wavecrate/api/v1/releases/wavecrate-0.19.1/changelog"
             },
             "files": files
         }]
@@ -1201,15 +1201,15 @@ fn published_release_verifier_command(
         .arg("--channel")
         .arg("stable")
         .arg("--version")
-        .arg("19.1.0")
+        .arg("0.19.1")
         .arg("--target-version")
-        .arg("19.1.0")
+        .arg("0.19.1")
         .arg("--commit")
         .arg("abcdef1")
         .arg("--build-date")
         .arg("2026-07-02")
         .arg("--portal-build-id")
-        .arg("wavecrate-19.1.0")
+        .arg("wavecrate-0.19.1")
         .arg("--build-number")
         .arg("6200")
         .arg("--release-json")
@@ -1238,8 +1238,8 @@ fn write_release_zip(
         "target": target,
         "platform": platform,
         "arch": arch,
-        "version": "19.1.0",
-        "target_version": "19.1.0",
+        "version": "0.19.1",
+        "target_version": "0.19.1",
         "commit": "abcdef1",
         "build_date": "2026-07-02",
         "files": payload_files.iter().chain(["update-manifest.json"].iter()).collect::<Vec<_>>()

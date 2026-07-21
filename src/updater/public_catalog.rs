@@ -477,23 +477,23 @@ mod tests {
         let catalog = catalog(&[
             release_with_version(
                 250,
-                "wavecrate-19.1.0-nightly.20260701+abcdef0",
-                "19.1.0-nightly.20260701+abcdef0",
-                "wavecrate-19.1.0-nightly.20260701+abcdef0-windows-x86_64.zip",
+                "wavecrate-0.19.1-nightly.20260701+abcdef0",
+                "0.19.1-nightly.20260701+abcdef0",
+                "wavecrate-0.19.1-nightly.20260701+abcdef0-windows-x86_64.zip",
                 "2026-07-01T20:00:00.000Z",
             ),
             release_with_version(
                 251,
-                "wavecrate-19.1.0-rc.1",
-                "19.1.0-rc.1",
-                "wavecrate-19.1.0-rc.1-windows-x86_64.zip",
+                "wavecrate-0.19.1-rc.1",
+                "0.19.1-rc.1",
+                "wavecrate-0.19.1-rc.1-windows-x86_64.zip",
                 "2026-07-02T20:00:00.000Z",
             ),
             release_with_version(
                 252,
-                "wavecrate-19.1.0",
-                "19.1.0",
-                "wavecrate-19.1.0-windows-x86_64.zip",
+                "wavecrate-0.19.1",
+                "0.19.1",
+                "wavecrate-0.19.1-windows-x86_64.zip",
                 "2026-07-03T20:00:00.000Z",
             ),
         ]);
@@ -529,20 +529,20 @@ mod tests {
         .expect("release contract")
         .expect("nightly");
 
-        assert_eq!(stable.version, "19.1.0");
-        assert_eq!(stable.build_id, "wavecrate-19.1.0");
-        assert_eq!(rc.version, "19.1.0");
-        assert_eq!(rc.build_id, "wavecrate-19.1.0");
-        assert_eq!(nightly.version, "19.1.0-nightly.20260701+abcdef0");
+        assert_eq!(stable.version, "0.19.1");
+        assert_eq!(stable.build_id, "wavecrate-0.19.1");
+        assert_eq!(rc.version, "0.19.1");
+        assert_eq!(rc.build_id, "wavecrate-0.19.1");
+        assert_eq!(nightly.version, "0.19.1-nightly.20260701+abcdef0");
     }
 
     #[test]
     fn public_catalog_exposes_rc_when_no_newer_stable_supersedes_it() {
         let catalog = catalog(&[release_with_version(
             251,
-            "wavecrate-19.1.0-rc.1",
-            "19.1.0-rc.1",
-            "wavecrate-19.1.0-rc.1-macos-aarch64.zip",
+            "wavecrate-0.19.1-rc.1",
+            "0.19.1-rc.1",
+            "wavecrate-0.19.1-rc.1-macos-aarch64.zip",
             "2026-07-02T20:00:00.000Z",
         )]);
 
@@ -557,8 +557,8 @@ mod tests {
         .expect("release contract")
         .expect("rc");
 
-        assert_eq!(rc.build_id, "wavecrate-19.1.0-rc.1");
-        assert_eq!(rc.version, "19.1.0-rc.1");
+        assert_eq!(rc.build_id, "wavecrate-0.19.1-rc.1");
+        assert_eq!(rc.version, "0.19.1-rc.1");
     }
 
     fn catalog(releases: &[PublicReleaseCatalogRelease]) -> PublicReleaseCatalog {

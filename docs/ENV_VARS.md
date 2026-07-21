@@ -28,13 +28,13 @@ expected to be an Ed25519 private key in PEM form that OpenSSL can use for
 
 - `WAVECRATE_RELEASE_VERSION`
 Full semver release identity embedded into a packaged binary. Examples:
-`19.1.0-nightly.20260701+abc1234`, `19.1.0-rc.1`, `19.1.0`.
+`0.19.1-nightly.20260701+abc1234`, `0.19.1-rc.1`, `0.19.1`.
 
 - `WAVECRATE_RELEASE_CHANNEL`
 Embedded release channel: `nightly`, `rc`, or `stable`.
 
 - `WAVECRATE_RELEASE_TARGET_VERSION`
-Stable target version for the release train, such as `19.1.0`.
+Stable target version for the release train, such as `0.19.1`.
 
 - `WAVECRATE_RELEASE_BUILD_DATE`
 UTC build date embedded into the binary in `YYYY-MM-DD` form.
@@ -109,9 +109,9 @@ behind explicit operator intent:
 ```bash
 scripts/release.sh prepare --bump minor --source-ref main --dry-run
 scripts/release.sh prepare --bump minor --source-ref main --push
-scripts/release.sh prepare --bump patch --source-ref release/19.1 --dry-run
-scripts/release.sh rc --version 19.2.0 --rc-number 1 --branch release/19.2 --dispatch
-scripts/release.sh stable --version 19.2.0 --branch release/19.2 --dispatch
+scripts/release.sh prepare --bump patch --source-ref release/0.19 --dry-run
+scripts/release.sh rc --version 0.20.0 --rc-number 1 --branch release/0.20 --dispatch
+scripts/release.sh stable --version 0.20.0 --branch release/0.20 --dispatch
 ```
 
 `prepare --bump major` bumps `X.Y.Z` to `(X+1).0.0`; `prepare --bump minor`
@@ -131,7 +131,7 @@ Local equivalent:
 
 ```bash
 scripts/internal/release/prepare_release_train.py \
-  --version 19.1.0 \
+  --version 0.19.1 \
   --source-ref main \
   --push
 ```
@@ -221,7 +221,7 @@ the workflow verifies that the public per-release log and full changelog bodies
 match the generated files.
 Only after PortalSurfer publication has been verified does the workflow refresh
 the rolling GitHub `nightly` release assets, publish the immutable nightly
-version tag named like `19.1.0-nightly.20260701+abc1234`, move the rolling
+version tag named like `0.19.1-nightly.20260701+abc1234`, move the rolling
 `nightly` tag, and update the rolling release metadata. Scheduled and manual
 nightly runs do not cancel an in-flight run because tag movement is the final
 public identity transition. If a run fails before the PortalSurfer commit step,
@@ -270,11 +270,11 @@ release metadata from the workflow run:
 scripts/internal/release/verify_published_release.py \
   --surface github \
   --channel stable \
-  --version 19.1.0 \
-  --target-version 19.1.0 \
+  --version 0.19.1 \
+  --target-version 0.19.1 \
   --commit <target-sha> \
   --build-date <yyyy-mm-dd> \
-  --tag v19.1.0 \
+  --tag v0.19.1 \
   --repo PORTALSURFER/wavecrate \
   --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
 ```
@@ -285,12 +285,12 @@ To rerun the PortalSurfer verifier for the same release:
 scripts/internal/release/verify_published_release.py \
   --surface portalsurfer \
   --channel stable \
-  --version 19.1.0 \
-  --target-version 19.1.0 \
+  --version 0.19.1 \
+  --target-version 0.19.1 \
   --commit <target-sha> \
   --build-date <yyyy-mm-dd> \
   --portal-catalog-url https://portalsurfer.org/wavecrate/api/v1/releases \
-  --portal-build-id wavecrate-19.1.0 \
+  --portal-build-id wavecrate-0.19.1 \
   --build-number <build-number> \
   --checksum-public-key 8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=
 ```

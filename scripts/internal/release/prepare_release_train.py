@@ -34,7 +34,7 @@ def main() -> int:
     parser.add_argument(
         "--version",
         required=True,
-        help="Target release version, for example 19.1.0.",
+        help="Target release version, for example 0.19.1.",
     )
     parser.add_argument(
         "--source-ref",

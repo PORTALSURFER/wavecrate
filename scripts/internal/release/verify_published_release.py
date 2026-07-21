@@ -98,7 +98,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--channel", required=True, choices=["nightly", "rc", "stable"])
     parser.add_argument("--version", required=True, help="Release version embedded in update-manifest.json")
-    parser.add_argument("--target-version", required=True, help="Stable target version, e.g. 19.1.0")
+    parser.add_argument("--target-version", required=True, help="Stable target version, e.g. 0.19.1")
     parser.add_argument("--commit", required=True, help="Expected release commit SHA")
     parser.add_argument("--build-date", required=True, help="Expected release build date, YYYY-MM-DD")
     parser.add_argument("--tag", help="GitHub release tag to inspect")

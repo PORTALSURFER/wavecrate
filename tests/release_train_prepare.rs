@@ -9,12 +9,12 @@ use tempfile::TempDir;
 #[test]
 fn prepare_release_train_updates_wavecrate_packages_and_lockfile() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0");
+    repo.write_workspace("0.19.1");
     repo.git(&["add", "."]);
     repo.git(&["commit", "-m", "seed workspace"]);
     let output = repo.run_prepare(&[
         "--version",
-        "19.2.0",
+        "0.20.0",
         "--source-ref",
         "HEAD",
         "--skip-release-tests",
@@ -28,15 +28,15 @@ fn prepare_release_train_updates_wavecrate_packages_and_lockfile() {
     );
     assert_eq!(
         repo.git_stdout(&["branch", "--show-current"]),
-        "release/19.2"
+        "release/0.20"
     );
     assert!(
         repo.read("Cargo.toml")
-            .contains("name = \"wavecrate\"\nversion = \"19.2.0\"")
+            .contains("name = \"wavecrate\"\nversion = \"0.20.0\"")
     );
     assert!(
         repo.read("crates/wavecrate-tool/Cargo.toml")
-            .contains("name = \"wavecrate-tool\"\nversion = \"19.2.0\"")
+            .contains("name = \"wavecrate-tool\"\nversion = \"0.20.0\"")
     );
     assert!(
         repo.read("crates/reson/Cargo.toml")
@@ -48,27 +48,27 @@ fn prepare_release_train_updates_wavecrate_packages_and_lockfile() {
     );
     assert!(
         repo.read("Cargo.lock")
-            .contains("name = \"wavecrate\"\nversion = \"19.2.0\"")
+            .contains("name = \"wavecrate\"\nversion = \"0.20.0\"")
     );
     assert!(
         repo.read("Cargo.lock")
-            .contains("name = \"wavecrate-tool\"\nversion = \"19.2.0\"")
+            .contains("name = \"wavecrate-tool\"\nversion = \"0.20.0\"")
     );
     assert!(
         repo.git_stdout(&["log", "-1", "--pretty=%s"])
-            .contains("Prepare Wavecrate 19.2.0 release train")
+            .contains("Prepare Wavecrate 0.20.0 release train")
     );
 }
 
 #[test]
 fn prepare_release_train_rejects_stale_prerelease_package_versions() {
     let repo = FixtureRepo::new();
-    repo.write_workspace("19.1.0-alpha.1");
+    repo.write_workspace("0.19.1-alpha.1");
     repo.git(&["add", "."]);
     repo.git(&["commit", "-m", "seed prerelease workspace"]);
     let output = repo.run_prepare(&[
         "--version",
-        "19.1.0",
+        "0.19.1",
         "--source-ref",
         "HEAD",
         "--dry-run",
