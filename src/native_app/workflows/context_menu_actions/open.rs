@@ -294,12 +294,18 @@ impl NativeAppState {
             .library
             .folder_browser
             .context_file_is_keep_locked(&path);
+        let source_role = self
+            .library
+            .folder_browser
+            .sample_source_for_file_path(&path)
+            .map(|(source, _)| source.role)
+            .unwrap_or(SourceRole::Normal);
         self.ui.browser_interaction.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             title: sample_path_label(&path),
             path,
             source_id: None,
-            source_role: SourceRole::Normal,
+            source_role,
             source_removable: false,
             folder_locked: false,
             folder_lock_inherited: false,

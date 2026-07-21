@@ -178,11 +178,13 @@ fn context_menu_commands(
                 GuiMessage::OpenContextSampleHarvestDestination,
             ));
         }
-        actions.push(
-            ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash)
-                .hotkey_hint(DELETE_HOTKEY_HINT)
-                .danger(),
-        );
+        if menu.source_role != SourceRole::Protected {
+            actions.push(
+                ui::MenuCommand::new("Move to Trash", GuiMessage::MoveContextTargetToTrash)
+                    .hotkey_hint(DELETE_HOTKEY_HINT)
+                    .danger(),
+            );
+        }
     }
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
         actions.push(ui::MenuCommand::new(

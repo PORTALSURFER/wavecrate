@@ -144,6 +144,41 @@ fn sample_context_menu_paints_move_to_trash_shortcut_hint() {
         label.rect,
         hint.rect
     );
+
+    let mut primary_menu = menu;
+    primary_menu.source_role = wavecrate::sample_sources::SourceRole::Primary;
+    let primary_frame =
+        crate::native_app::test_support::context_menu::browser_context_menu_overlay(&primary_menu)
+            .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+    assert!(primary_frame.paint_plan.contains_text("Move to Trash"));
+}
+
+#[test]
+fn protected_sample_context_menu_omits_move_to_trash_but_keeps_other_actions() {
+    let menu = crate::native_app::test_support::context_menu::BrowserContextMenu {
+        kind: crate::native_app::test_support::context_menu::BrowserContextTargetKind::Sample,
+        path: PathBuf::from("protected-kick.wav"),
+        source_id: None,
+        source_role: wavecrate::sample_sources::SourceRole::Protected,
+        source_removable: false,
+        folder_locked: false,
+        folder_lock_inherited: false,
+        metadata_tag: None,
+        collection: None,
+        sample_missing: false,
+        sample_keep_locked: false,
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("protected-kick.wav"),
+    };
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+
+    assert!(frame.paint_plan.contains_text(reveal_file_manager_label()));
+    assert!(frame.paint_plan.contains_text("Copy Path"));
+    assert!(frame.paint_plan.contains_text("Duplicate Same"));
+    assert!(frame.paint_plan.contains_text("Duplicate Double"));
+    assert!(!frame.paint_plan.contains_text("Move to Trash"));
+    assert!(!frame.paint_plan.contains_text("Delete / Backspace"));
 }
 
 #[test]
@@ -1198,6 +1233,43 @@ fn harvest_context_menu_actions_are_active_for_selected_harvest_filter() {
             .harvest_context_menu_actions_active(),
         "HarvestFilter::All is an intentional Harvest workflow mode"
     );
+}
+
+#[test]
+fn sample_context_menu_uses_most_specific_source_role_for_trash_visibility() {
+    let parent_root = tempfile::tempdir().expect("parent source root");
+    let protected_root = parent_root.path().join("protected");
+    fs::create_dir_all(&protected_root).expect("create protected nested source");
+    let sample = protected_root.join("nested-protected.wav");
+    fs::write(&sample, [0_u8; 8]).expect("write nested protected sample");
+    let parent_source =
+        wavecrate::sample_sources::SampleSource::new(parent_root.path().to_path_buf());
+    let protected_source = wavecrate::sample_sources::SampleSource::new(protected_root).protected();
+    let mut state = gui_state_for_span_tests();
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            parent_source,
+            protected_source,
+        ]);
+    let sample_id = sample.to_string_lossy().into_owned();
+    state.library.folder_browser.select_file(sample_id.clone());
+
+    state.open_sample_context_menu(sample_id, Point::new(40.0, 120.0));
+
+    let menu = state
+        .ui
+        .browser_interaction
+        .context_menu
+        .as_ref()
+        .expect("sample context menu opens");
+    assert_eq!(
+        menu.source_role,
+        wavecrate::sample_sources::SourceRole::Protected,
+        "the nested protected source must own the sample over its parent source"
+    );
+    let frame = crate::native_app::test_support::context_menu::browser_context_menu_overlay(menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+    assert!(!frame.paint_plan.contains_text("Move to Trash"));
 }
 
 #[test]
