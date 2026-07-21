@@ -181,6 +181,39 @@ fn discovery_progress_publisher_exposes_advancing_counter() {
 }
 
 #[test]
+fn discovery_phase_progress_is_debug_only() {
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("progress-log-policy"),
+        PathBuf::from("/library/progress-log-policy"),
+    );
+    let shared = Shared::new(vec![source], None);
+    let lifecycle_generation = shared.control().source_lifecycle_generations["progress-log-policy"];
+    let mut publisher = DiscoveryProgressPublisher {
+        shared: &shared,
+        source_id: "progress-log-policy",
+        lifecycle_generation,
+        started_at: Instant::now(),
+        last_phase: None,
+        last_event_publish_at: None,
+        last_log_publish_at: None,
+        event_published: false,
+    };
+
+    let info = capture_logs(tracing::Level::INFO, || {
+        publisher.advance("Reading manifest and readiness targets", 1);
+    });
+    assert!(!info.contains("source_processing.discovery_progress"));
+
+    publisher.last_phase = None;
+    publisher.last_log_publish_at = None;
+    let debug = capture_logs(tracing::Level::DEBUG, || {
+        publisher.advance("Comparing durable readiness", 2);
+    });
+    assert!(debug.contains("source_processing.discovery_progress"));
+    assert!(debug.contains("work_units=2"));
+}
+
+#[test]
 fn large_source_discovery_cancels_mid_manifest_and_resumes_cleanly() {
     const FILE_COUNT: usize = 512;
     let directory = tempfile::tempdir().expect("large cancellation source");

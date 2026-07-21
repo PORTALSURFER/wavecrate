@@ -49,7 +49,7 @@ impl DiscoveryProgressPublisher<'_> {
                 published_at.elapsed() >= DISCOVERY_PROGRESS_LOG_INTERVAL
             });
         if log_due {
-            tracing::info!(
+            tracing::debug!(
                 target: "wavecrate::source_processing",
                 event = "source_processing.discovery_progress",
                 source_id = self.source_id,

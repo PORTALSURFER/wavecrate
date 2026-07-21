@@ -2155,6 +2155,13 @@ Logs should be structured enough to support debugging. Important operations shou
 
 Logging should help answer practical debugging questions: what happened, in what order, on which thread or worker, for which file or source, how long it took, and why it failed. Logging itself must not cause UI stalls, excessive disk writes, or unreadable noise.
 
+Default `INFO` logging should favor bounded aggregate health and convergence summaries over
+routine per-transition, per-phase, or per-source success-path events. Detailed structured
+source-processing lifecycle events remain available at `DEBUG`, while warnings, failures,
+actionable parked states, and aggregate sweep outcomes stay visible at their appropriate
+operational levels. Use explicit severity and deterministic aggregation rather than time-based
+rate limiting so incident reconstruction remains reliable.
+
 ## UI Target
 
 The Wavecrate UI should be compact, stable, and optimized for scanning, auditioning, extracting, editing, naming, tagging, rating, organizing, and using sample files.

@@ -59,6 +59,12 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
             .map(|(retirement_id, retirement)| (*retirement_id, retirement.clone()))
             .collect::<Vec<_>>()
     };
+    let scheduled = candidates.len();
+    let mut started = 0_usize;
+    let mut retired = 0_usize;
+    let mut offline = 0_usize;
+    let mut cancelled = 0_usize;
+    let mut retrying = 0_usize;
 
     for (retirement_id, retirement) in candidates {
         // Fence only the admission snapshot and final publication. The potentially blocking
@@ -103,7 +109,8 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
                 continue;
             }
         }
-        tracing::info!(
+        started = started.saturating_add(1);
+        tracing::debug!(
             target: "wavecrate::source_processing",
             event = "source_processing.retirement.started",
             source_id = retirement.source.id.as_str(),
@@ -160,7 +167,8 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
         match result {
             Ok(Some(SourceRetirementOutcome::Retired { retired_cache_refs })) => {
                 control.pending_retirements.remove(&retirement_id);
-                tracing::info!(
+                retired = retired.saturating_add(1);
+                tracing::debug!(
                     target: "wavecrate::source_processing",
                     event = "source_processing.retirement.completed",
                     source_id = retirement.source.id.as_str(),
@@ -173,7 +181,8 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
                     pending.terminal_offline = true;
                     pending.retry_at = i64::MAX;
                 }
-                tracing::info!(
+                offline = offline.saturating_add(1);
+                tracing::debug!(
                     target: "wavecrate::source_processing",
                     event = "source_processing.retirement.offline",
                     source_id = retirement.source.id.as_str(),
@@ -183,7 +192,8 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
             }
             Ok(None) => {
                 control.pending_retirements.remove(&retirement_id);
-                tracing::info!(
+                cancelled = cancelled.saturating_add(1);
+                tracing::debug!(
                     target: "wavecrate::source_processing",
                     event = "source_processing.retirement.cancelled",
                     source_id = retirement.source.id.as_str(),
@@ -198,6 +208,7 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
                         .saturating_mul(1_i64 << pending.attempts.min(6));
                     pending.retry_at = now.saturating_add(delay);
                 }
+                retrying = retrying.saturating_add(1);
                 tracing::warn!(
                     target: "wavecrate::source_processing",
                     event = "source_processing.retirement.retry",
@@ -215,6 +226,19 @@ pub(super) fn process_ready_source_retirements(shared: &Shared) {
                 );
             }
         }
+    }
+    if started > 0 {
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            event = "source_processing.retirement.sweep",
+            scheduled,
+            started,
+            retired,
+            offline,
+            cancelled,
+            retrying,
+            "Removed-source retirement pass complete"
+        );
     }
 }
 
