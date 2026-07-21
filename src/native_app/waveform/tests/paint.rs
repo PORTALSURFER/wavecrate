@@ -11,6 +11,48 @@ fn runtime_overlay_plan(widget: &WaveformWidget, bounds: Rect) -> SurfacePaintPl
     plan
 }
 
+fn composed_widget_plan(widget: &WaveformWidget, bounds: Rect) -> SurfacePaintPlan {
+    cached_base_with_runtime_overlay(widget, widget, bounds)
+}
+
+fn cached_base_with_runtime_overlay(
+    base_widget: &WaveformWidget,
+    runtime_widget: &WaveformWidget,
+    bounds: Rect,
+) -> SurfacePaintPlan {
+    let mut plan = base_widget.paint_plan_with_defaults(bounds);
+    runtime_widget.append_runtime_overlay_paint(
+        &mut plan.primitives,
+        bounds,
+        &radiant::layout::LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+    plan
+}
+
+fn playmark_label_background_count(plan: &SurfacePaintPlan) -> usize {
+    plan.fill_rects()
+        .filter(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (25, 18, 16, 214)
+        })
+        .count()
+}
+
+fn assert_single_playmark_label(plan: &SurfacePaintPlan, text: &str) {
+    assert_eq!(
+        plan.text_runs()
+            .filter(|run| run.text.as_str() == text)
+            .count(),
+        1,
+        "expected exactly one {text:?} text primitive"
+    );
+    assert_eq!(
+        playmark_label_background_count(plan),
+        1,
+        "expected exactly one playmark label background"
+    );
+}
+
 fn assert_no_white_hover_border(plan: &SurfacePaintPlan) {
     assert!(
         !plan.stroke_rects().any(|stroke| {
@@ -173,6 +215,142 @@ fn live_playmark_preview_paints_current_duration_label() {
     let plan = runtime_overlay_plan(&widget, Rect::from_size(400.0, 80.0));
 
     assert!(plan.contains_text("500 ms"));
+}
+
+#[test]
+fn narrow_playmark_labels_move_outside_selection_at_left_center_and_right() {
+    let bounds = Rect::from_size(400.0, 80.0);
+
+    let mut center = WaveformState::synthetic_for_tests();
+    center.play_selection = Some(wavecrate::selection::SelectionRange::new(0.49, 0.51));
+    let center_plan = composed_widget_plan(&waveform_widget_for_state(&center), bounds);
+    let center_label = center_plan.text_runs().next().expect("center label paints");
+    assert!(center_label.rect.min.x >= 204.0 + 6.0 - f32::EPSILON);
+    assert!(center_label.rect.max.x <= bounds.max.x);
+    assert_eq!(playmark_label_background_count(&center_plan), 1);
+
+    let mut left = WaveformState::synthetic_for_tests();
+    left.play_selection = Some(wavecrate::selection::SelectionRange::new(0.0, 0.02));
+    let left_plan = composed_widget_plan(&waveform_widget_for_state(&left), bounds);
+    let left_label = left_plan.text_runs().next().expect("left label paints");
+    assert!(left_label.rect.min.x >= 8.0 + 6.0 - f32::EPSILON);
+    assert!(left_label.rect.max.x <= bounds.max.x);
+
+    let mut right = WaveformState::synthetic_for_tests();
+    right.play_selection = Some(wavecrate::selection::SelectionRange::new(0.95, 1.0));
+    let right_plan = composed_widget_plan(&waveform_widget_for_state(&right), bounds);
+    let right_label = right_plan.text_runs().next().expect("right label paints");
+    assert!(right_label.rect.max.x <= 380.0 - 6.0 + f32::EPSILON);
+    assert!(right_label.rect.min.x >= bounds.min.x);
+
+    let mut zoomed = WaveformState::synthetic_for_tests();
+    let total_frames = zoomed.file.frames as i64;
+    zoomed.viewport = WaveformViewport {
+        start: total_frames / 4,
+        end: total_frames * 3 / 4,
+    };
+    zoomed.play_selection = Some(wavecrate::selection::SelectionRange::new(0.495, 0.505));
+    let zoomed_plan = composed_widget_plan(&waveform_widget_for_state(&zoomed), bounds);
+    let zoomed_label = zoomed_plan.text_runs().next().expect("zoomed label paints");
+    assert!(zoomed_label.rect.min.x >= 204.0 + 6.0 - f32::EPSILON);
+    assert!(zoomed_label.rect.max.x <= bounds.max.x);
+}
+
+#[test]
+fn playmark_label_has_one_owner_across_live_and_transition_states() {
+    let bounds = Rect::from_size(400.0, 80.0);
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.7));
+
+    let steady = waveform_widget_for_state(&state);
+    assert_single_playmark_label(&composed_widget_plan(&steady, bounds), "500 ms");
+
+    let mut creation = waveform_widget_for_state(&WaveformState::synthetic_for_tests());
+    creation.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    creation.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.7),
+    });
+    assert_single_playmark_label(&composed_widget_plan(&creation, bounds), "500 ms");
+
+    let mut move_start = waveform_widget_for_state(&state);
+    move_start.active_drag_kind = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Play,
+    ));
+    assert_single_playmark_label(&composed_widget_plan(&move_start, bounds), "500 ms");
+
+    let mut zero_delta_move = waveform_widget_for_state(&state);
+    zero_delta_move.active_drag_kind = move_start.active_drag_kind;
+    zero_delta_move.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: state.play_selection.expect("committed playmark"),
+    });
+    assert_single_playmark_label(&composed_widget_plan(&zero_delta_move, bounds), "500 ms");
+
+    let mut moved = waveform_widget_for_state(&state);
+    moved.active_drag_kind = zero_delta_move.active_drag_kind;
+    moved.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.4, 0.7),
+    });
+    let moved_plan = cached_base_with_runtime_overlay(&move_start, &moved, bounds);
+    assert_single_playmark_label(&moved_plan, "300 ms");
+    assert!(!moved_plan.contains_text("500 ms"));
+
+    let mut resized_state = WaveformState::synthetic_for_tests();
+    resized_state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.5));
+    let mut resized = waveform_widget_for_state(&resized_state);
+    resized.active_drag_kind = Some(WaveformActiveDragKind::SelectionResize(
+        WaveformSelectionKind::Play,
+        WaveformSelectionEdge::End,
+    ));
+    resized.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.2, 0.6),
+    });
+    let resized_plan = composed_widget_plan(&resized, bounds);
+    assert_single_playmark_label(&resized_plan, "300 ms");
+    assert!(!resized_plan.contains_text("400 ms"));
+
+    let mut stale_preview_after_release = waveform_widget_for_state(&state);
+    stale_preview_after_release.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.4, 0.7),
+    });
+    let released_plan = composed_widget_plan(&stale_preview_after_release, bounds);
+    assert_single_playmark_label(&released_plan, "500 ms");
+    assert!(!released_plan.contains_text("300 ms"));
+}
+
+#[test]
+fn rebuilt_move_widget_preserves_one_live_playmark_label_owner() {
+    let bounds = Rect::from_size(400.0, 80.0);
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.7));
+    let active_drag = Some(WaveformActiveDragKind::SelectionMove(
+        WaveformSelectionKind::Play,
+    ));
+
+    let mut previous = waveform_widget_for_state(&state);
+    previous.active_drag_kind = active_drag;
+    previous.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: wavecrate::selection::SelectionRange::new(0.4, 0.7),
+    });
+
+    let mut rebuilt = waveform_widget_for_state(&state);
+    rebuilt.active_drag_kind = active_drag;
+    rebuilt.synchronize_from_previous(&previous);
+
+    assert_eq!(
+        rebuilt.live_selection_preview,
+        previous.live_selection_preview
+    );
+    let plan = composed_widget_plan(&rebuilt, bounds);
+    assert_single_playmark_label(&plan, "300 ms");
+    assert!(!plan.contains_text("500 ms"));
 }
 
 fn waveform_state_with_duration_seconds(seconds: usize) -> WaveformState {
