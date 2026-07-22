@@ -270,7 +270,7 @@ fn apply_batch(
         };
         match outcome {
             PrepareForApply::Ready(file) => ready.push(file),
-            PrepareForApply::Gone => {}
+            PrepareForApply::Gone => context.mark_source_tree_incomplete(),
             PrepareForApply::Skip => {
                 context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
@@ -403,7 +403,7 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        PrepareForApply, finalize_source_tree_snapshot, prepare_for_apply,
+        PrepareForApply, apply_batch, finalize_source_tree_snapshot, prepare_for_apply,
         prepare_for_apply_with_post_hash_hook, refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
@@ -468,6 +468,31 @@ mod tests {
                 .unwrap();
 
         assert!(refreshed.is_none());
+        assert!(context.source_tree_incomplete());
+        let snapshot = finalize_source_tree_snapshot(&context, Default::default());
+        assert!(!snapshot.is_complete());
+    }
+
+    #[test]
+    fn committed_batch_marks_disappeared_file_projection_incomplete() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, b"one").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let prepared = prepare_diff(dir.path(), &file_path, &context).unwrap();
+        assert!(prepared.requires_apply);
+
+        std::fs::remove_file(&file_path).unwrap();
+        let outcome = apply_batch(&db, dir.path(), None, &mut context, vec![prepared], true)
+            .expect("tolerated committed batch");
+
+        assert!(!outcome.committed);
         assert!(context.source_tree_incomplete());
         let snapshot = finalize_source_tree_snapshot(&context, Default::default());
         assert!(!snapshot.is_complete());
