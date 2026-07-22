@@ -1,3 +1,5 @@
+use super::coordinator_completion::handle_completion;
+
 #[test]
 fn late_progress_is_rejected_across_remove_and_readd() {
     let directory = tempfile::tempdir().expect("progress source");
@@ -76,6 +78,82 @@ fn held_execution_worker_defers_finished_event_until_result_is_handled() {
         false,
     ));
     assert!(matches!(receiver.try_recv(), Ok(SourceProcessingEvent::Completed)));
+}
+
+#[test]
+fn completion_from_removed_lifecycle_cannot_mutate_readded_source_state() {
+    let directory = tempfile::tempdir().expect("temporary source");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("stale-completion-source"),
+        directory.path().to_path_buf(),
+    );
+    let shared = Arc::new(Shared::new(vec![source.clone()], None));
+    let supervisor = SourceProcessingSupervisor {
+        shared: Arc::clone(&shared),
+        coordinator: None,
+        retirement_worker: None,
+    };
+    let old_cancel = shared.control().source_work_cancels[source.id.as_str()].clone();
+    let in_flight = shared
+        .begin_in_flight_work(source.id.as_str(), &old_cancel)
+        .expect("begin old lifecycle work");
+    let old_generation = in_flight.lifecycle_generation;
+    let permit = shared
+        .budgets()
+        .try_acquire(source.id.as_str(), ProcessingLane::Scan)
+        .expect("reserve old lifecycle budget");
+
+    supervisor
+        .replace_sources(Vec::new())
+        .expect("remove old lifecycle");
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("re-add source");
+    assert_ne!(
+        shared.control().source_lifecycle_generations[source.id.as_str()],
+        old_generation
+    );
+
+    let candidate = || RuntimeCandidate {
+        schedule: WorkCandidate::source(source.id.as_str(), ProcessingLane::Scan, 0, 0),
+        source: source.clone(),
+        task: RuntimeTask::ManifestAudit,
+    };
+    let mut candidates = vec![candidate()];
+    let mut source_stats = BTreeMap::new();
+    let mut state = CoordinatorExecutionState {
+        next_retry_at: None,
+        pending_similarity_refresh_lifecycles: BTreeSet::new(),
+        last_similarity_refresh_publish_at: None,
+        active_progress_source: None,
+        last_progress_publish_at: None,
+        progress_visible: false,
+    };
+    handle_completion(
+        &shared,
+        &mut candidates,
+        &mut source_stats,
+        &mut state,
+        ExecutionResult {
+            candidate: candidate(),
+            permit,
+            lifecycle_generation: old_generation,
+            result: Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh),
+            elapsed_ms: 1.0,
+            in_flight,
+        },
+    );
+
+    let control = shared.control();
+    assert!(
+        !control
+            .awaiting_foreground_refresh_sources
+            .contains(source.id.as_str()),
+        "old completion must not block discovery for the re-added lifecycle"
+    );
+    assert_eq!(candidates.len(), 1, "new lifecycle candidate must remain queued");
+    drop(control);
+    assert_eq!(shared.telemetry().stale, 1);
 }
 
 #[test]

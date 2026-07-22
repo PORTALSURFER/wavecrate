@@ -25,16 +25,6 @@ pub(super) fn handle_completion(
         elapsed_ms,
         in_flight,
     } = completion;
-    if matches!(
-        result,
-        Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
-            | ExecutionOutcome::FailedAwaitingForegroundRefresh)
-    ) {
-        shared
-            .control()
-            .awaiting_foreground_refresh_sources
-            .insert(candidate.source.id.as_str().to_string());
-    }
     tracing::info!(
         target: "wavecrate::source_processing",
         event = "source_processing.candidate.finished",
@@ -51,6 +41,39 @@ pub(super) fn handle_completion(
     {
         let mut telemetry = shared.telemetry();
         telemetry.execution_queue_depth = telemetry.execution_queue_depth.saturating_sub(1);
+    }
+    let stale_lifecycle = {
+        let mut control = shared.control();
+        let current = control.source_is_active(candidate.source.id.as_str())
+            && control
+                .source_lifecycle_generations
+                .get(candidate.source.id.as_str())
+                == Some(&lifecycle_generation);
+        if current
+            && matches!(
+                result,
+                Ok(ExecutionOutcome::CompletedAwaitingForegroundRefresh
+                    | ExecutionOutcome::FailedAwaitingForegroundRefresh)
+            )
+        {
+            control
+                .awaiting_foreground_refresh_sources
+                .insert(candidate.source.id.as_str().to_string());
+        }
+        !current
+    };
+    if stale_lifecycle {
+        let mut telemetry = shared.telemetry();
+        telemetry.stale = telemetry.stale.saturating_add(1);
+        drop(telemetry);
+        tracing::debug!(
+            target: "wavecrate::source_processing",
+            source_id = candidate.source.id.as_str(),
+            lifecycle_generation,
+            task = ?candidate.task,
+            "Discarded source work completion from a retired lifecycle"
+        );
+        return;
     }
     if matches!(
         &result,
