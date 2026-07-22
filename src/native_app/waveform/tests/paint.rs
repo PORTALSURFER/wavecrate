@@ -1069,22 +1069,6 @@ fn played_ranges_paint_as_a_subtle_thick_bottom_rail() {
 }
 
 #[test]
-fn active_playback_leaves_the_played_range_rail_to_the_transient_overlay() {
-    let mut state = WaveformState::synthetic_for_tests();
-    state
-        .played_ranges
-        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
-    state.start_playback(0.2);
-
-    let widget = waveform_widget_for_state(&state);
-    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
-
-    assert!(fill_rects(&plan).iter().all(|fill| {
-        (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (98, 102, 106, 255)
-    }));
-}
-
-#[test]
 fn extracted_ranges_paint_while_playmark_selection_drag_is_active() {
     let mut state = WaveformState::synthetic_for_tests();
     state

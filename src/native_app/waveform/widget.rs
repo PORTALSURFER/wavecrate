@@ -302,15 +302,7 @@ impl WaveformWidgetProps {
             } else {
                 Vec::new()
             },
-            // Playback owns the live rail through the paint-only transient overlay.
-            // Keeping the same rail in the retained surface makes the two scenes
-            // overlap until playback stops and can leave neighboring primitives
-            // duplicated at the overlay damage boundary.
-            played_ranges: if state.is_playing() {
-                Vec::new()
-            } else {
-                state.played_ranges().to_vec()
-            },
+            played_ranges: state.played_ranges().to_vec(),
             similar_section_ranges: if similar_section_overlays_visible(active_drag_kind) {
                 state.similar_section_ranges().to_vec()
             } else {

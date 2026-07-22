@@ -95,6 +95,8 @@ impl NativeAppState {
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.current.active_drag_kind();
+        let finishes_play_selection_drag =
+            play_selection_drag_finishes_surface_ownership(&message, active_drag);
         let play_selection_before = self.play_selection_transaction_begin_snapshot(&message);
         let edit_selection_before = self.edit_selection_transaction_begin_snapshot(&message);
         let edit_fade_before = self.edit_fade_transaction_begin_snapshot(&message);
@@ -113,6 +115,12 @@ impl NativeAppState {
                 beat_count: self.ui.chrome.beat_guide_count,
             },
         );
+        if finishes_play_selection_drag {
+            // The interaction widget owns the live drag label, while the label
+            // widget owns the committed label. Rebuild the retained surface at
+            // that ownership handoff before playback resumes paint-only frames.
+            context.repaint(ui::RepaintScope::Surface);
+        }
         self.queue_waveform_detail_refinement(context);
         if matches!(message, WaveformInteraction::FinishSampleSlide { .. })
             && let Some(frame_offset) = self
@@ -511,6 +519,14 @@ fn play_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bo
     )
 }
 
+fn play_selection_drag_finishes_surface_ownership(
+    interaction: &WaveformInteraction,
+    active_drag: Option<WaveformActiveDragKind>,
+) -> bool {
+    matches!(interaction, WaveformInteraction::FinishSelection { .. })
+        && play_selection_drag_active(active_drag)
+}
+
 fn edit_selection_drag_active(active_drag: Option<WaveformActiveDragKind>) -> bool {
     matches!(
         active_drag,
@@ -678,6 +694,28 @@ mod tests {
                 visible_ratio: 0.40
             },
             active_drag,
+        ));
+    }
+
+    #[test]
+    fn finishing_playmark_drag_requests_fresh_surface_before_playback_frames() {
+        assert!(play_selection_drag_finishes_surface_ownership(
+            &WaveformInteraction::FinishSelection { visible_ratio: 0.4 },
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Play
+            ))
+        ));
+        assert!(!play_selection_drag_finishes_surface_ownership(
+            &WaveformInteraction::UpdateSelection { visible_ratio: 0.3 },
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Play
+            ))
+        ));
+        assert!(!play_selection_drag_finishes_surface_ownership(
+            &WaveformInteraction::FinishSelection { visible_ratio: 0.4 },
+            Some(WaveformActiveDragKind::Selection(
+                WaveformSelectionKind::Edit
+            ))
         ));
     }
 
