@@ -2,6 +2,7 @@ mod audio;
 mod background;
 mod library;
 mod metadata;
+mod source_refresh;
 /// Background scan worker transport and batching for source scans.
 mod source_scan_worker;
 mod source_scan_workflow;
@@ -24,6 +25,7 @@ pub(in crate::native_app) use background::{
 };
 pub(in crate::native_app) use library::LibraryAppState;
 pub(in crate::native_app) use metadata::MetadataAppState;
+pub(in crate::native_app) use source_refresh::{PendingSourceRefresh, SourceRefreshCause};
 pub(in crate::native_app) use source_scan_worker::{FolderScanWorkerEvent, run_folder_scan_worker};
 pub(in crate::native_app) use source_scan_workflow::{
     SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,

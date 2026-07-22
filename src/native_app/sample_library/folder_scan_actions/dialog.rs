@@ -103,7 +103,7 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.launch_folder_scan(request, context);
+            self.launch_folder_scan_with_cause(request, "source_add", context);
             Some(source_id)
         } else {
             emit_gui_action(

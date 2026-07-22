@@ -1,4 +1,6 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{collections::VecDeque, path::PathBuf, time::Instant};
+
+use super::source_refresh::{PendingSourceRefresh, QueuedSourceRefresh, SourceRefreshCause};
 
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState,
@@ -12,13 +14,7 @@ mod tests;
 
 pub(in crate::native_app) struct SourceScanWorkflow {
     progress: Option<FolderScanProgress>,
-    pending_refreshes: VecDeque<PendingSourceRefresh>,
-}
-
-struct PendingSourceRefresh {
-    source_id: String,
-    selection_requested: bool,
-    scan_required: bool,
+    pending_refreshes: VecDeque<QueuedSourceRefresh>,
 }
 
 pub(in crate::native_app) enum SourceFilesystemChangePlan {
@@ -39,8 +35,16 @@ pub(in crate::native_app) enum SourceFilesystemChangePlan {
 
 pub(in crate::native_app) enum SourceRefreshRequest {
     Queued(FolderScanRequest),
-    Deferred { source_id: String },
-    IgnoredMissing { source_id: String },
+    Deferred {
+        source_id: String,
+    },
+    Covered {
+        source_id: String,
+        accepted_revision: u64,
+    },
+    IgnoredMissing {
+        source_id: String,
+    },
 }
 
 pub(in crate::native_app) enum SourceSelectionRequest {
@@ -94,7 +98,10 @@ impl SourceScanWorkflow {
             if let Some(source_id) = browser.source_id_for_root_path(&root) {
                 let _ = self.begin_select_source(browser, source_id, task_id);
             } else if let Some(source_id) = browser.defer_add_source_path(root, true) {
-                self.queue_selected_required_refresh(source_id);
+                self.queue_selected_required_refresh_with_cause(
+                    source_id,
+                    SourceRefreshCause::DeferredSourceAdd,
+                );
             }
             return None;
         }
@@ -111,9 +118,17 @@ impl SourceScanWorkflow {
             if let Some(source_id) = browser.source_id_for_root_path(&root)
                 && !browser.source_is_missing(&source_id)
             {
-                self.queue_required_refresh(source_id);
+                self.queue_required_refresh_with_context(
+                    source_id,
+                    SourceRefreshCause::DeferredSourceAdd,
+                    None,
+                );
             } else if let Some(source_id) = browser.defer_add_source_path(root, false) {
-                self.queue_required_refresh(source_id);
+                self.queue_required_refresh_with_context(
+                    source_id,
+                    SourceRefreshCause::DeferredSourceAdd,
+                    None,
+                );
             }
             return None;
         }
@@ -150,7 +165,10 @@ impl SourceScanWorkflow {
                 self.clear_pending_selection(&id);
                 return SourceSelectionRequest::Settled;
             }
-            self.queue_selected_required_refresh(id);
+            self.queue_selected_required_refresh_with_cause(
+                id,
+                SourceRefreshCause::DeferredSelection,
+            );
             return SourceSelectionRequest::Deferred;
         }
         if !browser.select_source_without_scan(id.clone()) {
@@ -215,13 +233,14 @@ impl SourceScanWorkflow {
         browser.apply_scan_discovered_batch(batch)
     }
 
-    pub(in crate::native_app) fn plan_filesystem_change(
+    pub(in crate::native_app) fn plan_filesystem_change_for_generation(
         &mut self,
         browser: &mut FolderBrowserState,
         source_id: String,
         paths: &[PathBuf],
         overflowed: bool,
         source_root_available: bool,
+        lifecycle_generation: Option<u64>,
     ) -> SourceFilesystemChangePlan {
         let Some(source_missing) =
             browser.apply_observed_source_availability(&source_id, source_root_available)
@@ -240,13 +259,38 @@ impl SourceScanWorkflow {
             };
         }
         if self.active() {
-            self.queue_required_refresh(source_id.clone());
+            self.queue_required_refresh_with_context(
+                source_id.clone(),
+                SourceRefreshCause::WatcherOverflow,
+                lifecycle_generation,
+            );
             return SourceFilesystemChangePlan::DeferredAlreadyRunning { source_id };
         }
         SourceFilesystemChangePlan::QueueRefresh { source_id }
     }
 
-    pub(in crate::native_app) fn next_pending_refresh_if_idle(&mut self) -> Option<String> {
+    #[cfg(test)]
+    pub(in crate::native_app) fn plan_filesystem_change(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        source_id: String,
+        paths: &[PathBuf],
+        overflowed: bool,
+        source_root_available: bool,
+    ) -> SourceFilesystemChangePlan {
+        self.plan_filesystem_change_for_generation(
+            browser,
+            source_id,
+            paths,
+            overflowed,
+            source_root_available,
+            None,
+        )
+    }
+
+    pub(in crate::native_app) fn next_pending_refresh_context_if_idle(
+        &mut self,
+    ) -> Option<PendingSourceRefresh> {
         if self.active() {
             return None;
         }
@@ -257,6 +301,17 @@ impl SourceScanWorkflow {
         pending_selection
             .and_then(|index| self.pending_refreshes.remove(index))
             .or_else(|| self.pending_refreshes.pop_back())
+            .map(|pending| PendingSourceRefresh {
+                source_id: pending.source_id,
+                cause: pending.cause,
+                lifecycle_generation: pending.lifecycle_generation,
+                enqueued_at: pending.enqueued_at,
+            })
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app) fn next_pending_refresh_if_idle(&mut self) -> Option<String> {
+        self.next_pending_refresh_context_if_idle()
             .map(|pending| pending.source_id)
     }
 
@@ -277,12 +332,25 @@ impl SourceScanWorkflow {
         active
     }
 
-    pub(in crate::native_app) fn begin_filesystem_refresh(
+    pub(in crate::native_app) fn begin_filesystem_refresh_with_context(
         &mut self,
         browser: &mut FolderBrowserState,
         source_id: String,
         task_id: u64,
+        cause: SourceRefreshCause,
+        lifecycle_generation: Option<u64>,
     ) -> SourceRefreshRequest {
+        if let (Some(required_revision), Some(accepted_revision)) = (
+            cause.committed_revision(),
+            browser.source_projection_revision(&source_id),
+        ) && accepted_revision >= required_revision
+        {
+            self.remove_pending_refresh(&source_id);
+            return SourceRefreshRequest::Covered {
+                source_id,
+                accepted_revision,
+            };
+        }
         if let Some(request) = browser.begin_source_scan(source_id.clone(), task_id) {
             return SourceRefreshRequest::Queued(request);
         }
@@ -290,16 +358,58 @@ impl SourceScanWorkflow {
             self.remove_pending_refresh(&source_id);
             return SourceRefreshRequest::IgnoredMissing { source_id };
         }
-        self.queue_required_refresh(source_id.clone());
+        self.queue_required_refresh_with_context(source_id.clone(), cause, lifecycle_generation);
         SourceRefreshRequest::Deferred { source_id }
     }
 
-    fn queue_required_refresh(&mut self, source_id: String) {
-        self.queue_pending_refresh(source_id, false, true);
+    #[cfg(test)]
+    pub(in crate::native_app) fn begin_filesystem_refresh(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        source_id: String,
+        task_id: u64,
+    ) -> SourceRefreshRequest {
+        self.begin_filesystem_refresh_with_context(
+            browser,
+            source_id,
+            task_id,
+            SourceRefreshCause::WatcherOverflow,
+            None,
+        )
     }
 
+    fn queue_required_refresh_with_context(
+        &mut self,
+        source_id: String,
+        cause: SourceRefreshCause,
+        lifecycle_generation: Option<u64>,
+    ) {
+        self.queue_pending_refresh(source_id, false, true, cause, lifecycle_generation);
+    }
+
+    #[cfg(test)]
+    fn queue_required_refresh(&mut self, source_id: String) {
+        self.queue_required_refresh_with_context(
+            source_id,
+            SourceRefreshCause::WatcherOverflow,
+            None,
+        );
+    }
+
+    fn queue_selected_required_refresh_with_cause(
+        &mut self,
+        source_id: String,
+        cause: SourceRefreshCause,
+    ) {
+        self.queue_pending_refresh(source_id, true, true, cause, None);
+    }
+
+    #[cfg(test)]
     fn queue_selected_required_refresh(&mut self, source_id: String) {
-        self.queue_pending_refresh(source_id, true, true);
+        self.queue_selected_required_refresh_with_cause(
+            source_id,
+            SourceRefreshCause::DeferredSelection,
+        );
     }
 
     fn queue_pending_refresh(
@@ -307,18 +417,32 @@ impl SourceScanWorkflow {
         source_id: String,
         selection_requested: bool,
         scan_required: bool,
+        cause: SourceRefreshCause,
+        lifecycle_generation: Option<u64>,
     ) {
         let previous = self
             .pending_refreshes
             .iter()
             .find(|pending| pending.source_id == source_id)
-            .map(|pending| (pending.selection_requested, pending.scan_required))
-            .unwrap_or_default();
+            .filter(|pending| pending.lifecycle_generation == lifecycle_generation)
+            .map(|pending| {
+                (
+                    pending.selection_requested,
+                    pending.scan_required,
+                    pending.cause,
+                    pending.lifecycle_generation,
+                    pending.enqueued_at,
+                )
+            });
         self.remove_pending_refresh(&source_id);
-        self.pending_refreshes.push_back(PendingSourceRefresh {
+        self.pending_refreshes.push_back(QueuedSourceRefresh {
             source_id,
-            selection_requested: previous.0 || selection_requested,
-            scan_required: previous.1 || scan_required,
+            selection_requested: previous.is_some_and(|previous| previous.0) || selection_requested,
+            scan_required: previous.is_some_and(|previous| previous.1) || scan_required,
+            cause: previous.map_or(cause, |previous| previous.2.merge(cause)),
+            lifecycle_generation: lifecycle_generation
+                .or_else(|| previous.and_then(|previous| previous.3)),
+            enqueued_at: previous.map_or_else(Instant::now, |previous| previous.4),
         });
     }
 
@@ -339,10 +463,21 @@ impl SourceScanWorkflow {
             .retain(|pending| pending.source_id != source_id);
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn finish_scan(
         &mut self,
         browser: &mut FolderBrowserState,
         result: FolderScanResult,
+    ) -> SourceScanFinish {
+        self.finish_scan_with_lifecycle(browser, result, None, true)
+    }
+
+    pub(in crate::native_app) fn finish_scan_with_lifecycle(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        result: FolderScanResult,
+        lifecycle_generation: Option<u64>,
+        lifecycle_is_current: bool,
     ) -> SourceScanFinish {
         let source_id = result.source_id.clone();
         let label = result.label.clone();
@@ -354,13 +489,40 @@ impl SourceScanWorkflow {
         if result.cancelled {
             if browser.cancel_scan(&source_id, result.task_id) {
                 self.progress = None;
-                self.queue_required_refresh(source_id.clone());
+                if !lifecycle_is_current {
+                    tracing::info!(
+                        target: "wavecrate::source_processing",
+                        source_id,
+                        lifecycle_generation = ?lifecycle_generation,
+                        outcome = "stale_lifecycle",
+                        "Discarding cancelled scan from a retired source generation"
+                    );
+                    return SourceScanFinish::Stale { label };
+                }
+                self.queue_required_refresh_with_context(
+                    source_id.clone(),
+                    SourceRefreshCause::ScanCancelled,
+                    lifecycle_generation,
+                );
                 return SourceScanFinish::Cancelled { source_id, label };
             }
             return SourceScanFinish::Stale { label };
         }
+        let accepted_revision = result.metadata_hydration.revision();
         if browser.apply_scan_finished(result) {
             self.progress = None;
+            if let Some(accepted_revision) = accepted_revision {
+                self.discard_refresh_covered_by_revision(&source_id, accepted_revision);
+            }
+            if self.pending_refreshes.is_empty() {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id,
+                    accepted_revision = ?accepted_revision,
+                    outcome = "terminal_idle",
+                    "Source refresh convergence transition"
+                );
+            }
             SourceScanFinish::Applied {
                 source_id,
                 label,
@@ -373,6 +535,34 @@ impl SourceScanWorkflow {
         } else {
             SourceScanFinish::Stale { label }
         }
+    }
+
+    fn discard_refresh_covered_by_revision(&mut self, source_id: &str, accepted_revision: u64) {
+        let Some(pending) = self
+            .pending_refreshes
+            .iter()
+            .find(|pending| pending.source_id == source_id)
+        else {
+            return;
+        };
+        let Some(required_revision) = pending.cause.committed_revision() else {
+            return;
+        };
+        if accepted_revision < required_revision {
+            return;
+        }
+        let queue_age_ms = pending.enqueued_at.elapsed().as_millis();
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            source_id,
+            cause = pending.cause.label(),
+            required_revision,
+            accepted_revision,
+            queue_age_ms,
+            outcome = "covered_by_scan",
+            "Suppressing covered source refresh"
+        );
+        self.remove_pending_refresh(source_id);
     }
 
     #[cfg(test)]

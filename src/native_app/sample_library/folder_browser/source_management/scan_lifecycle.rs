@@ -13,6 +13,14 @@ use super::super::{
 use crate::native_app::app::BrowserProjectionDelta;
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn source_projection_revision(&self, source_id: &str) -> Option<u64> {
+        self.source
+            .sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .and_then(|source| source.projection_revision)
+    }
+
     pub(in crate::native_app) fn apply_committed_projection_delta(
         &mut self,
         source_id: &str,

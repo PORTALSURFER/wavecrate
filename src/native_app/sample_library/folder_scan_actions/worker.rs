@@ -33,9 +33,19 @@ pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_INTENTS: SourcePrepI
 pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_REASON: &str = "source_scan_finished";
 
 impl NativeAppState {
+    #[cfg(test)]
     pub(in crate::native_app) fn launch_folder_scan(
         &mut self,
+        request: FolderScanRequest,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.launch_folder_scan_with_cause(request, "test", context);
+    }
+
+    pub(in crate::native_app) fn launch_folder_scan_with_cause(
+        &mut self,
         mut request: FolderScanRequest,
+        enqueue_cause: &str,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         request.rating_decay_weeks = self.ui.settings.persisted.controls.rating_decay_weeks;
@@ -84,6 +94,7 @@ impl NativeAppState {
             source = label,
             root = root,
             task_id = request.task_id,
+            enqueue_cause,
             "default gui: folder scan queued"
         );
         emit_gui_action(
@@ -143,7 +154,9 @@ impl NativeAppState {
     ) {
         let mut prepared = prepared.into();
         let started_at = Instant::now();
-        if let Some(generation) = prepared.lifecycle_generation {
+        let lifecycle_generation = prepared.lifecycle_generation;
+        let mut lifecycle_is_current = true;
+        if let Some(generation) = lifecycle_generation {
             let source_id = prepared.scan.source_id.clone();
             if self
                 .background
@@ -156,6 +169,7 @@ impl NativeAppState {
                     .source_lifecycle_generations
                     .insert(source_id, generation);
             } else {
+                lifecycle_is_current = false;
                 tracing::debug!(
                     source_id,
                     lifecycle_generation = generation,
@@ -166,7 +180,11 @@ impl NativeAppState {
         }
         let scan_cache_update = prepared.scan_cache_update;
         let rating_decay_maintenance = prepared.rating_decay_maintenance;
-        match self.library.finish_folder_scan(prepared.scan) {
+        match self.library.finish_folder_scan(
+            prepared.scan,
+            lifecycle_generation,
+            lifecycle_is_current,
+        ) {
             SourceScanFinish::Applied {
                 source_id,
                 label,

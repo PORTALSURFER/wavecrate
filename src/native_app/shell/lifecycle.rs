@@ -160,9 +160,14 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn reconcile_sources_after_focus_regained(&self) {
-        if let Some(watcher) = self.library.source_watcher.as_ref() {
-            watcher.request_full_reconciliation();
-        }
+        // Refocus is a correctness hint for changes made while Wavecrate was inactive, not proof
+        // that the watcher lost events. Re-arm the authoritative manifest audit so unchanged
+        // sources stop at their durable checkpoints and real deltas publish a revision-backed
+        // browser refresh. Treating every focus transition as watcher overflow queues one full
+        // scan per source and can make repeated app activation look like a self-feeding scan loop.
+        self.background
+            .source_processing
+            .request_manifest_audits("application_focus_regained");
     }
 
     pub(in crate::native_app) fn persist_user_configuration(

@@ -39,7 +39,7 @@ impl NativeAppState {
                     started_at,
                     None,
                 );
-                self.launch_folder_scan(request, context);
+                self.launch_folder_scan_with_cause(request, "source_selection", context);
                 return;
             }
             SourceSelectionRequest::Deferred => {
@@ -108,7 +108,7 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.launch_folder_scan(request, context);
+            self.launch_folder_scan_with_cause(request, "user_refresh", context);
         } else if self.library.folder_browser.source_is_missing(&source_id) {
             self.ui.browser_interaction.context_menu = None;
             self.ui.status.sample = String::from("Source missing");
@@ -234,7 +234,7 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.launch_folder_scan(request, context);
+            self.launch_folder_scan_with_cause(request, "startup", context);
         } else {
             emit_gui_action(
                 "folder_browser.startup_scan",

@@ -146,7 +146,7 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.launch_folder_scan(request, context);
+            self.launch_folder_scan_with_cause(request, "native_document_open", context);
         } else {
             self.ui.status.sample = format!(
                 "Waiting for source scan to open {}",
@@ -185,7 +185,7 @@ impl NativeAppState {
                 started_at,
                 None,
             );
-            self.launch_folder_scan(request, context);
+            self.launch_folder_scan_with_cause(request, "native_document_open_source_add", context);
         } else {
             self.open_ready_audio_documents(context, started_at);
         }

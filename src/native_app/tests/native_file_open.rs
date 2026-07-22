@@ -137,7 +137,10 @@ fn native_file_open_waits_for_its_deferred_source_scan() {
     );
 
     assert_eq!(
-        state.library.next_pending_source_refresh_if_idle(),
+        state
+            .library
+            .next_pending_source_refresh_if_idle()
+            .map(|pending| pending.source_id),
         Some(deferred_id.clone())
     );
     let deferred_request = state

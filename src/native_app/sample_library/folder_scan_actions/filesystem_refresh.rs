@@ -4,7 +4,7 @@ use radiant::prelude as ui;
 
 use crate::native_app::app::{
     GuiMessage, NativeAppState, SourceFilesystemChangePlan, SourceFilesystemSyncResult,
-    SourceRefreshRequest, emit_gui_action,
+    SourceRefreshCause, SourceRefreshRequest, emit_gui_action,
 };
 use crate::native_app::sample_library::folder_scan_actions::filesystem_refresh_worker::sync_source_database_paths;
 use crate::native_app::sample_library::source_prep::{
@@ -34,11 +34,17 @@ impl NativeAppState {
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        let lifecycle_generation = self
+            .background
+            .source_lifecycle_generations
+            .get(&source_id)
+            .copied();
         match self.library.plan_filesystem_change(
             source_id,
             &paths,
             overflowed,
             source_root_available,
+            lifecycle_generation,
         ) {
             SourceFilesystemChangePlan::IgnoredSourceMissing { source_id } => {
                 self.background
@@ -85,7 +91,13 @@ impl NativeAppState {
                 );
             }
             SourceFilesystemChangePlan::QueueRefresh { source_id } => {
-                self.queue_filesystem_source_refresh(source_id, started_at, context);
+                self.queue_filesystem_source_refresh(
+                    source_id,
+                    SourceRefreshCause::WatcherOverflow,
+                    lifecycle_generation,
+                    started_at,
+                    context,
+                );
             }
         }
     }
@@ -159,8 +171,24 @@ impl NativeAppState {
                             "filesystem_sync_incomplete_after_commit",
                         );
                 }
-                if !browser_delta_applied {
-                    self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+                if result.cancelled || incomplete_error.is_some() {
+                    self.queue_filesystem_source_refresh(
+                        source_id,
+                        SourceRefreshCause::FilesystemSyncIncomplete,
+                        Some(result.lifecycle_generation),
+                        Instant::now(),
+                        context,
+                    );
+                } else if !browser_delta_applied {
+                    self.queue_filesystem_source_refresh(
+                        source_id,
+                        SourceRefreshCause::ProjectionRevisionGap {
+                            committed_revision: delta.revision,
+                        },
+                        Some(result.lifecycle_generation),
+                        Instant::now(),
+                        context,
+                    );
                 }
             }
             Err(error) => {
@@ -173,7 +201,13 @@ impl NativeAppState {
                 if source_id == self.library.folder_browser.selected_source_id() {
                     self.ui.status.sample = format!("Source sync failed: {error}");
                 }
-                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+                self.queue_filesystem_source_refresh(
+                    source_id,
+                    SourceRefreshCause::FilesystemSyncFailed,
+                    Some(result.lifecycle_generation),
+                    Instant::now(),
+                    context,
+                );
             }
         }
     }
@@ -218,7 +252,15 @@ impl NativeAppState {
                 // The folder refresh writes the same source database that
                 // discovery reads. Its completion queues SourceScanFinished
                 // reconciliation, so wait until the refresh releases the DB.
-                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+                self.queue_filesystem_source_refresh(
+                    source_id,
+                    SourceRefreshCause::ManifestAudit {
+                        committed_revision: committed_delta.revision,
+                    },
+                    Some(lifecycle_generation),
+                    Instant::now(),
+                    context,
+                );
             }
         }
     }
@@ -227,24 +269,65 @@ impl NativeAppState {
         &mut self,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if let Some(source_id) = self.library.next_pending_source_refresh_if_idle() {
-            self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+        while let Some(pending) = self.library.next_pending_source_refresh_if_idle() {
+            let current_generation = self
+                .background
+                .source_lifecycle_generations
+                .get(&pending.source_id)
+                .copied();
+            if pending.lifecycle_generation.is_some()
+                && pending.lifecycle_generation != current_generation
+            {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id = pending.source_id,
+                    cause = pending.cause.label(),
+                    queued_generation = ?pending.lifecycle_generation,
+                    current_generation = ?current_generation,
+                    queue_age_ms = pending.enqueued_at.elapsed().as_millis(),
+                    outcome = "stale_lifecycle",
+                    "Suppressing stale pending source refresh"
+                );
+                continue;
+            }
+            self.queue_filesystem_source_refresh(
+                pending.source_id,
+                pending.cause,
+                pending.lifecycle_generation,
+                pending.enqueued_at,
+                context,
+            );
+            break;
         }
     }
 
     fn queue_filesystem_source_refresh(
         &mut self,
         source_id: String,
+        cause: SourceRefreshCause,
+        lifecycle_generation: Option<u64>,
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let task_id = self.next_folder_task_id();
-        match self
-            .library
-            .begin_filesystem_refresh(source_id.clone(), task_id)
-        {
+        match self.library.begin_filesystem_refresh(
+            source_id.clone(),
+            task_id,
+            cause,
+            lifecycle_generation,
+        ) {
             SourceRefreshRequest::Queued(request) => {
                 let label = request.label.clone();
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id,
+                    cause = cause.label(),
+                    covered_revision = ?cause.committed_revision(),
+                    lifecycle_generation = ?lifecycle_generation,
+                    queue_age_ms = started_at.elapsed().as_millis(),
+                    outcome = "scan_queued",
+                    "Source refresh convergence transition"
+                );
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
@@ -253,9 +336,19 @@ impl NativeAppState {
                     started_at,
                     None,
                 );
-                self.launch_folder_scan(request, context);
+                self.launch_folder_scan_with_cause(request, cause.label(), context);
             }
             SourceRefreshRequest::Deferred { source_id } => {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id,
+                    cause = cause.label(),
+                    covered_revision = ?cause.committed_revision(),
+                    lifecycle_generation = ?lifecycle_generation,
+                    queue_age_ms = started_at.elapsed().as_millis(),
+                    outcome = "coalesced_while_active",
+                    "Source refresh convergence transition"
+                );
                 emit_gui_action(
                     "folder_browser.source.filesystem_change",
                     Some("sources"),
@@ -263,6 +356,22 @@ impl NativeAppState {
                     "deferred",
                     started_at,
                     Some("source_not_queued"),
+                );
+            }
+            SourceRefreshRequest::Covered {
+                source_id,
+                accepted_revision,
+            } => {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    source_id,
+                    cause = cause.label(),
+                    covered_revision = ?cause.committed_revision(),
+                    accepted_revision,
+                    lifecycle_generation = ?lifecycle_generation,
+                    queue_age_ms = started_at.elapsed().as_millis(),
+                    outcome = "covered_before_queue",
+                    "Suppressing covered source refresh"
                 );
             }
             SourceRefreshRequest::IgnoredMissing { source_id } => {
