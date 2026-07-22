@@ -12,13 +12,46 @@ impl NativeAppState {
     ) {
         let started_at = Instant::now();
         let label = progress.label.clone();
-        let phase = progress.phase.clone();
+        let phase = progress.lifecycle.label();
+        let source_id = progress.source_id.clone();
+        let task_id = progress.task_id;
+        let lifecycle_generation = progress.lifecycle_generation;
+        let retry_count = progress.retry_count;
+        let queue_age_ms = progress.queued_at.elapsed().as_millis();
+        let last_progress_age_ms = progress.last_progress_at.elapsed().as_millis();
+        let state_age_ms = progress.state_changed_at.elapsed().as_millis();
+        let current_owner = match &progress.lifecycle {
+            crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForScanCapacity {
+                current_owner,
+            } => current_owner.clone(),
+            _ => None,
+        };
+        let blocking_subsystem = match &progress.lifecycle {
+            crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForSourceRegistration => Some("source_registration"),
+            crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForScanCapacity { .. } => Some("scan_capacity"),
+            crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForDatabaseAccess => Some("database_access"),
+            _ => None,
+        };
         if self.library.apply_folder_scan_progress(progress) {
             self.ui.status.sample = format!("{phase} source {label}");
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                task_id,
+                source_id,
+                lifecycle_generation = ?lifecycle_generation,
+                wait_reason = phase,
+                queue_age_ms,
+                last_progress_age_ms,
+                state_age_ms,
+                current_owner = ?current_owner,
+                blocking_subsystem,
+                retry_count,
+                "Source scan lifecycle changed"
+            );
             emit_gui_action(
                 "folder_browser.scan.progress",
                 Some("folder_browser"),
-                Some(&phase),
+                Some(phase),
                 "active",
                 started_at,
                 None,

@@ -292,6 +292,8 @@ pub(in crate::native_app) enum GuiMessage {
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
+    RetryActiveSourceScan,
+    CancelActiveSourceScan,
     ReleaseUpdateCheckFinished(
         ui::TaskCompletion<Result<Option<wavecrate::updater::PublicReleaseInfo>, String>>,
     ),

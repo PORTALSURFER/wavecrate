@@ -18,6 +18,14 @@ pub(in crate::native_app) struct SourceProcessingBudgetPermit {
     pub(super) cancel: Arc<AtomicBool>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum SourceScanAdmissionState {
+    WaitingForSourceActivation,
+    WaitingForCapacity { current_owner: Option<String> },
+    WaitingForDatabaseAccess,
+    Admitted,
+}
+
 impl SourceProcessingBudgetHandle {
     #[cfg(test)]
     pub(in crate::native_app) fn lifecycle_generation(&self, source_id: &str) -> Option<u64> {
@@ -33,14 +41,32 @@ impl SourceProcessingBudgetHandle {
         source_id: &str,
         expected_lifecycle_generation: u64,
     ) -> Option<SourceProcessingBudgetPermit> {
+        self.acquire_scan_for_generation_with_state(
+            source_id,
+            expected_lifecycle_generation,
+            |_| {},
+        )
+    }
+
+    pub(in crate::native_app) fn acquire_scan_for_generation_with_state(
+        &self,
+        source_id: &str,
+        expected_lifecycle_generation: u64,
+        mut publish_state: impl FnMut(SourceScanAdmissionState),
+    ) -> Option<SourceProcessingBudgetPermit> {
         {
             let mut control = self.shared.control();
+            let mut waiting_published = false;
             while !control.shutdown
                 && control.source_is_configured(source_id)
                 && control.source_lifecycle_generations.get(source_id)
                     == Some(&expected_lifecycle_generation)
                 && !control.source_is_active(source_id)
             {
+                if !waiting_published {
+                    publish_state(SourceScanAdmissionState::WaitingForSourceActivation);
+                    waiting_published = true;
+                }
                 control = self
                     .shared
                     .wake
@@ -92,10 +118,12 @@ impl SourceProcessingBudgetHandle {
         };
         drop(budgets);
         self.shared.wake.notify_one();
+        let mut capacity_wait_published = false;
         loop {
             let mut budgets = self.shared.budgets();
             if let Some(permit) = budgets.try_acquire(source_id, ProcessingLane::Scan) {
                 drop(budgets);
+                publish_state(SourceScanAdmissionState::WaitingForDatabaseAccess);
                 let database_writer = self
                     .shared
                     .database_writer
@@ -141,7 +169,16 @@ impl SourceProcessingBudgetHandle {
                 if permit.should_cancel_now() {
                     permit.cancel.store(true, Ordering::Release);
                 }
+                publish_state(SourceScanAdmissionState::Admitted);
                 return Some(permit);
+            }
+            if !capacity_wait_published {
+                let current_owner = budgets
+                    .active_sources()
+                    .into_iter()
+                    .find(|active_source| active_source != source_id);
+                publish_state(SourceScanAdmissionState::WaitingForCapacity { current_owner });
+                capacity_wait_published = true;
             }
             drop(
                 self.shared

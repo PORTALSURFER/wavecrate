@@ -20,6 +20,12 @@ impl NativeAppState {
             GuiMessage::CloseJobDetails => {
                 self.ui.chrome.job_details_open = false;
             }
+            GuiMessage::RetryActiveSourceScan => {
+                self.retry_active_source_scan(context);
+            }
+            GuiMessage::CancelActiveSourceScan => {
+                let _ = self.cancel_active_source_scan(false);
+            }
             GuiMessage::ReleaseUpdateCheckFinished(completion) => {
                 self.finish_release_update_check(completion);
             }

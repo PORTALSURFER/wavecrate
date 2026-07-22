@@ -83,6 +83,30 @@ fn source_processing_progress_opens_the_shared_job_details_popover() {
 }
 
 #[test]
+fn repeated_source_scan_cancel_messages_release_visible_owner_once() {
+    let root = tempfile::tempdir().expect("source root");
+    fs::write(root.path().join("sample.wav"), [0_u8; 8]).expect("sample");
+    let mut state = NativeAppStateFixture::default().build();
+    let request = state
+        .library
+        .begin_add_source_path(root.path().to_path_buf(), 71)
+        .expect("scan request");
+    state.library.start_folder_scan(&request);
+    state.ui.chrome.job_details_open = true;
+    let mut context = ui::UiUpdateContext::default();
+
+    state.apply_message(GuiMessage::CancelActiveSourceScan, &mut context);
+    state.apply_message(GuiMessage::CancelActiveSourceScan, &mut context);
+
+    assert!(state.library.folder_progress().is_none());
+    assert!(!state.ui.chrome.job_details_open);
+    assert_eq!(
+        state.ui.status.sample,
+        format!("Canceled source scan for {}", request.label)
+    );
+}
+
+#[test]
 fn source_processing_progress_refreshes_the_retained_details_projection() {
     let mut state = NativeAppStateFixture::default().build();
     let source_id = state

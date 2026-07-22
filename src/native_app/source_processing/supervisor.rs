@@ -81,7 +81,8 @@ mod startup;
 mod state;
 mod telemetry;
 
-use admission::*;
+pub(in crate::native_app) use admission::SourceScanAdmissionState;
+use admission::{SourceProcessingBudgetHandle, install_worker_app_root};
 use cache_ownership::*;
 use control::*;
 use coordination::*;

@@ -10,7 +10,9 @@ pub(in crate::native_app) use crate::native_app::app::{
 };
 use crate::native_app::sample_library::folder_browser::view_contract::DEFAULT_FOLDER_WIDTH;
 pub(in crate::native_app) use crate::native_app::sample_library::folder_browser::{
-    FolderBrowserState, commands::FolderBrowserMessage, scan::FolderScanProgress,
+    FolderBrowserState,
+    commands::FolderBrowserMessage,
+    scan::{FolderScanLifecycle, FolderScanProgress},
 };
 pub(in crate::native_app) use crate::native_app::waveform::{WaveformInteraction, WaveformState};
 use wavecrate::sample_sources::config::AppSettingsCore;

@@ -1,6 +1,7 @@
 use crate::native_app::app::{
     FileMoveProgress, FolderScanProgress, NativeAppState, NormalizationProgress,
 };
+use std::time::Instant;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::native_app) struct StatusBarViewModel {
@@ -44,6 +45,7 @@ pub(in crate::native_app) struct WorkerProgressViewModel {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::native_app) struct JobDetailsViewModel {
     pub(in crate::native_app) rows: [String; 4],
+    pub(in crate::native_app) source_scan_recovery: bool,
 }
 
 struct ActiveWorkerViewModel {
@@ -117,7 +119,7 @@ impl WorkerProgressViewModel {
             total: progress.total,
             current_fraction: None,
             active_animation: false,
-            compact_activity: false,
+            compact_activity: progress.lifecycle.is_waiting(),
         }
     }
 
@@ -172,24 +174,64 @@ impl WorkerProgressViewModel {
 
 impl JobDetailsViewModel {
     pub(in crate::native_app) fn from_folder_progress(progress: &FolderScanProgress) -> Self {
+        Self::from_folder_progress_at(progress, Instant::now())
+    }
+
+    pub(in crate::native_app) fn from_folder_progress_at(
+        progress: &FolderScanProgress,
+        now: Instant,
+    ) -> Self {
+        let queue_age = progress.queue_age_at(now).as_secs();
+        let last_progress_age = progress.last_progress_age_at(now).as_secs();
+        let taking_longer = progress.taking_longer_than_expected_at(now);
+        let progress_label = if taking_longer {
+            format!("Taking longer than expected — {last_progress_age}s without progress")
+        } else {
+            match &progress.lifecycle {
+                crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::Queued => {
+                    format!("Queued — {queue_age}s")
+                }
+                crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForSourceRegistration => {
+                    format!("Waiting for source update — {queue_age}s")
+                }
+                crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForScanCapacity { .. } => {
+                    format!("Queued — another source is being reconciled — {queue_age}s")
+                }
+                crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::WaitingForDatabaseAccess => {
+                    format!("Waiting for database access — {queue_age}s")
+                }
+                crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::RetryScheduled => {
+                    format!("Retry scheduled — attempt {}", progress.retry_count.saturating_add(1))
+                }
+                _ if progress.total == 0 => {
+                    format!("{} — {} found", progress.lifecycle.label(), progress.completed)
+                }
+                _ => format!(
+                    "{} — {}/{}",
+                    progress.lifecycle.label(),
+                    progress.completed.min(progress.total),
+                    progress.total
+                ),
+            }
+        };
+        let current = if taking_longer {
+            format!(
+                "{} | Queue age: {queue_age}s | Last progress: {last_progress_age}s | Retry or cancel safely",
+                progress.detail
+            )
+        } else if progress.detail.is_empty() {
+            format!("{} | Queue age: {queue_age}s", progress.lifecycle.label())
+        } else {
+            format!("{} | Queue age: {queue_age}s", progress.detail)
+        };
         Self {
-            rows: if progress.phase == "Waiting" {
-                [
-                    String::from("Type: Source scan"),
-                    format!("Source: {}", progress.label),
-                    String::from("Progress: Waiting"),
-                    format!("Current: {}", progress.detail),
-                ]
-            } else {
-                job_rows(
-                    progress.phase.as_str(),
-                    progress.label.as_str(),
-                    progress.completed,
-                    progress.total,
-                    progress.detail.as_str(),
-                    "found",
-                )
-            },
+            rows: [
+                String::from("Type: Source scan"),
+                format!("Source: {}", progress.label),
+                format!("Progress: {progress_label}"),
+                format!("Current: {current}"),
+            ],
+            source_scan_recovery: taking_longer,
         }
     }
 
@@ -208,6 +250,7 @@ impl JobDetailsViewModel {
                 detail.as_str(),
                 "processed",
             ),
+            source_scan_recovery: false,
         }
     }
 
@@ -221,6 +264,7 @@ impl JobDetailsViewModel {
                 progress.detail.as_str(),
                 "processed",
             ),
+            source_scan_recovery: false,
         }
     }
 
@@ -256,6 +300,7 @@ impl JobDetailsViewModel {
                 detail.as_str(),
                 if checking { "checked" } else { "cached" },
             ),
+            source_scan_recovery: false,
         }
     }
 
@@ -300,6 +345,7 @@ impl JobDetailsViewModel {
                     "processed",
                 )
             },
+            source_scan_recovery: false,
         }
     }
 }
@@ -338,4 +384,94 @@ fn job_rows(
         format!("Progress: {progress}"),
         format!("Current: {detail}"),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_app::sample_library::folder_browser::scan::{
+        FolderScanLifecycle, FolderScanProgress, SOURCE_SCAN_LONG_WAIT_THRESHOLD,
+    };
+    use std::time::Duration;
+
+    fn progress(lifecycle: FolderScanLifecycle) -> FolderScanProgress {
+        FolderScanProgress::new(
+            7,
+            String::from("source-id"),
+            String::from("Samples"),
+            lifecycle,
+            2,
+            5,
+            String::from("Working"),
+        )
+    }
+
+    #[test]
+    fn every_source_scan_lifecycle_has_typed_user_facing_copy() {
+        let states = [
+            (FolderScanLifecycle::Queued, "Queued"),
+            (
+                FolderScanLifecycle::WaitingForSourceRegistration,
+                "Waiting for source update",
+            ),
+            (
+                FolderScanLifecycle::WaitingForScanCapacity {
+                    current_owner: Some(String::from("other-source")),
+                },
+                "another source is being reconciled",
+            ),
+            (
+                FolderScanLifecycle::WaitingForDatabaseAccess,
+                "Waiting for database access",
+            ),
+            (FolderScanLifecycle::Scanning, "Scanning"),
+            (FolderScanLifecycle::ApplyingResults, "Applying results"),
+            (FolderScanLifecycle::PersistingResults, "Saving results"),
+            (FolderScanLifecycle::RetryScheduled, "Retry scheduled"),
+            (FolderScanLifecycle::Canceled, "Canceled"),
+            (FolderScanLifecycle::Failed, "Failed"),
+            (FolderScanLifecycle::Complete, "Complete"),
+        ];
+
+        for (state, expected) in states {
+            let progress = progress(state.clone());
+            let projection =
+                JobDetailsViewModel::from_folder_progress_at(&progress, progress.queued_at);
+            assert_eq!(projection.rows[0], "Type: Source scan");
+            assert_eq!(projection.rows[1], "Source: Samples");
+            assert!(
+                projection.rows[2].contains(expected),
+                "missing lifecycle copy for {state:?}: {:?}",
+                projection.rows
+            );
+        }
+    }
+
+    #[test]
+    fn fake_clock_exposes_queue_and_last_progress_age_then_offers_recovery() {
+        let mut progress = progress(FolderScanLifecycle::WaitingForDatabaseAccess);
+        let now = progress.queued_at + SOURCE_SCAN_LONG_WAIT_THRESHOLD + Duration::from_secs(2);
+        progress.last_progress_at = progress.queued_at;
+
+        let projection = JobDetailsViewModel::from_folder_progress_at(&progress, now);
+
+        assert!(projection.source_scan_recovery);
+        assert!(projection.rows[2].contains("Taking longer than expected"));
+        assert!(projection.rows[2].contains("32s without progress"));
+        assert!(projection.rows[3].contains("Queue age: 32s"));
+        assert!(projection.rows[3].contains("Retry or cancel safely"));
+    }
+
+    #[test]
+    fn long_queued_work_with_recent_progress_is_not_marked_stalled() {
+        let mut progress = progress(FolderScanLifecycle::Scanning);
+        let now = progress.queued_at + Duration::from_secs(90);
+        progress.last_progress_at = now - Duration::from_secs(2);
+
+        let projection = JobDetailsViewModel::from_folder_progress_at(&progress, now);
+
+        assert!(!projection.source_scan_recovery);
+        assert!(!projection.rows[2].contains("Taking longer than expected"));
+        assert!(projection.rows[3].contains("Queue age: 90s"));
+    }
 }

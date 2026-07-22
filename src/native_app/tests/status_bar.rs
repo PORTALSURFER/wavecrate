@@ -53,15 +53,15 @@ fn status_bar_reports_selected_missing_source() {
 fn bottom_status_progress_bar_paints_without_text_chrome() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.set_folder_progress_for_tests(
-        crate::native_app::test_support::state::FolderScanProgress {
-            task_id: 7,
-            source_id: String::from("assets"),
-            label: String::from("Assets"),
-            phase: String::from("Scanning"),
-            completed: 2,
-            total: 5,
-            detail: String::from("kick.wav"),
-        },
+        crate::native_app::test_support::state::FolderScanProgress::new(
+            7,
+            String::from("assets"),
+            String::from("Assets"),
+            crate::native_app::test_support::state::FolderScanLifecycle::Scanning,
+            2,
+            5,
+            String::from("kick.wav"),
+        ),
     );
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
@@ -141,15 +141,15 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.progress_tick = 0.5;
     state.library.set_folder_progress_for_tests(
-        crate::native_app::test_support::state::FolderScanProgress {
-            task_id: 7,
-            source_id: String::from("assets"),
-            label: String::from("Assets"),
-            phase: String::from("Scanning"),
-            completed: 128,
-            total: 0,
-            detail: String::from("kick.wav"),
-        },
+        crate::native_app::test_support::state::FolderScanProgress::new(
+            7,
+            String::from("assets"),
+            String::from("Assets"),
+            crate::native_app::test_support::state::FolderScanLifecycle::Scanning,
+            128,
+            0,
+            String::from("kick.wav"),
+        ),
     );
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
         .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
@@ -299,21 +299,21 @@ fn normalization_progress_does_not_advance_activity_tick_on_frame() {
 
 #[test]
 fn job_details_popover_reports_active_scan_progress() {
-    let progress = crate::native_app::test_support::state::FolderScanProgress {
-        task_id: 7,
-        source_id: String::from("assets"),
-        label: String::from("Assets"),
-        phase: String::from("Scanning"),
-        completed: 2,
-        total: 5,
-        detail: String::from("kick.wav"),
-    };
+    let progress = crate::native_app::test_support::state::FolderScanProgress::new(
+        7,
+        String::from("assets"),
+        String::from("Assets"),
+        crate::native_app::test_support::state::FolderScanLifecycle::Scanning,
+        2,
+        5,
+        String::from("kick.wav"),
+    );
     let frame = crate::native_app::test_support::status_bar::job_details_popover(&progress)
         .view_frame_at_size_with_default_theme(Vector2::new(360.0, 180.0));
 
     assert!(frame.paint_plan.contains_text("Job Details"));
-    assert!(frame.paint_plan.contains_text("Type: Scanning"));
-    assert!(frame.paint_plan.contains_text("Progress: 2/5"));
+    assert!(frame.paint_plan.contains_text("Type: Source scan"));
+    assert!(frame.paint_plan.contains_text("Progress: Scanning — 2/5"));
     assert!(frame.paint_plan.contains_text("Current: kick.wav"));
 }
 
@@ -322,15 +322,15 @@ fn status_bar_view_model_prioritizes_active_worker_progress() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.ui.status.sample = String::from("Ready");
     state.library.set_folder_progress_for_tests(
-        crate::native_app::test_support::state::FolderScanProgress {
-            task_id: 7,
-            source_id: String::from("assets"),
-            label: String::from("Assets"),
-            phase: String::from("Scanning"),
-            completed: 2,
-            total: 5,
-            detail: String::from("kick.wav"),
-        },
+        crate::native_app::test_support::state::FolderScanProgress::new(
+            7,
+            String::from("assets"),
+            String::from("Assets"),
+            crate::native_app::test_support::state::FolderScanLifecycle::Scanning,
+            2,
+            5,
+            String::from("kick.wav"),
+        ),
     );
     state.background.normalization_progress = Some(
         crate::native_app::test_support::state::NormalizationProgress {

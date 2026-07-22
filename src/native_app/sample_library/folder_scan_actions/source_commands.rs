@@ -89,6 +89,49 @@ impl NativeAppState {
         }
     }
 
+    pub(in crate::native_app) fn cancel_active_source_scan(&mut self, retry: bool) -> bool {
+        let Some((source_id, label)) = self.library.cancel_active_folder_scan_by_user() else {
+            return false;
+        };
+        self.background
+            .source_processing
+            .cancel_foreground_source_scan(&source_id, "user_cancelled_source_scan");
+        self.ui.chrome.job_details_open = false;
+        self.background.progress_tick = 0.0;
+        self.ui.status.sample = if retry {
+            format!("Retrying source scan for {label}")
+        } else {
+            format!("Canceled source scan for {label}")
+        };
+        tracing::info!(
+            target: "wavecrate::source_processing",
+            source_id,
+            terminal_outcome = if retry { "retry_requested" } else { "user_cancelled" },
+            "Source scan recovery action applied"
+        );
+        true
+    }
+
+    pub(in crate::native_app) fn retry_active_source_scan(
+        &mut self,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        let source_id = self
+            .library
+            .folder_progress()
+            .map(|progress| progress.source_id.clone());
+        let Some(source_id) = source_id else {
+            return;
+        };
+        if !self.cancel_active_source_scan(true) {
+            return;
+        }
+        self.background
+            .source_processing
+            .wake_source_for_full_reconciliation(&source_id, "user_retried_source_scan");
+        self.refresh_source(source_id, context);
+    }
+
     pub(in crate::native_app) fn refresh_source(
         &mut self,
         id: String,

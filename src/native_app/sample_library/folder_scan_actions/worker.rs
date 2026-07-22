@@ -8,12 +8,14 @@ use crate::native_app::{
         run_folder_scan_worker,
     },
     sample_library::folder_browser::scan::{
-        FolderScanRequest, PreparedFolderScanResult, reserve_source_scan_cache_revision,
+        FolderScanLifecycle, FolderScanProgress, FolderScanRequest, PreparedFolderScanResult,
+        reserve_source_scan_cache_revision,
     },
     sample_library::source_prep::{
         CacheWarmIntent, MetadataRefreshIntent, ReadinessIntent, SourceFeedbackIntent,
         SourcePrepIntents, SourcePriorityIntent,
     },
+    source_processing::SourceScanAdmissionState,
 };
 use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
 
@@ -111,36 +113,161 @@ impl NativeAppState {
         // replaced by progress.
         context.business().background("gui-folder-scan").stream(
             move |_context, events| {
-                let Some(source) = source else {
-                    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                    return run_folder_scan_worker(request, events, cancel);
-                };
-                let generation = match match admission_generation {
-                    Some(generation) => Ok(generation),
-                    None => budget.register_source_for_scan_waiting(source),
-                } {
-                    Ok(generation) => generation,
-                    Err(error) => {
-                        tracing::error!(
-                            target: "wavecrate::source_processing",
-                            source_id,
-                            error,
-                            "Folder scan was cancelled because source admission failed"
+                let task_id = request.task_id;
+                let progress_source_id = request.source_id.clone();
+                let progress_label = request.label.clone();
+                let recovery_request = request.clone();
+                let recovery_events = events.clone();
+                let emit_lifecycle =
+                    |events: &ui::BusinessEventSink<FolderScanWorkerEvent>,
+                     lifecycle: FolderScanLifecycle,
+                     detail: &str,
+                     generation: Option<u64>| {
+                        let mut progress = FolderScanProgress::transition(
+                            task_id,
+                            progress_source_id.clone(),
+                            progress_label.clone(),
+                            lifecycle,
+                            detail,
+                        );
+                        progress.lifecycle_generation = generation;
+                        let _ = events.emit(FolderScanWorkerEvent::Progress(progress));
+                    };
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let Some(source) = source else {
+                        emit_lifecycle(
+                            &events,
+                            FolderScanLifecycle::Failed,
+                            "Source is no longer configured",
+                            None,
                         );
                         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
                         return run_folder_scan_worker(request, events, cancel);
+                    };
+                    if admission_generation.is_none() {
+                        emit_lifecycle(
+                            &events,
+                            FolderScanLifecycle::WaitingForSourceRegistration,
+                            "Waiting for source replacement to finish",
+                            None,
+                        );
                     }
-                };
-                let Some(permit) = budget.acquire_scan_for_generation(&source_id, generation)
-                else {
-                    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                    return run_folder_scan_worker(request, events, cancel);
-                };
-                let cancel = permit.cancel_token();
-                let mut result = run_folder_scan_worker(request, events, cancel);
-                result.lifecycle_generation = Some(generation);
-                drop(permit);
-                result
+                    let generation = match match admission_generation {
+                        Some(generation) => Ok(generation),
+                        None => budget.register_source_for_scan_waiting(source),
+                    } {
+                        Ok(generation) => generation,
+                        Err(error) => {
+                            tracing::error!(
+                                target: "wavecrate::source_processing",
+                                source_id,
+                                error,
+                                "Folder scan was cancelled because source admission failed"
+                            );
+                            emit_lifecycle(
+                                &events,
+                                FolderScanLifecycle::Failed,
+                                "Source registration failed",
+                                None,
+                            );
+                            let cancel =
+                                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                            return run_folder_scan_worker(request, events, cancel);
+                        }
+                    };
+                    let Some(permit) = budget.acquire_scan_for_generation_with_state(
+                        &source_id,
+                        generation,
+                        |state| {
+                            let (lifecycle, detail) = match state {
+                                SourceScanAdmissionState::WaitingForSourceActivation => (
+                                    FolderScanLifecycle::WaitingForSourceRegistration,
+                                    "Waiting for source replacement to finish",
+                                ),
+                                SourceScanAdmissionState::WaitingForCapacity { current_owner } => (
+                                    FolderScanLifecycle::WaitingForScanCapacity { current_owner },
+                                    "Queued behind another source reconciliation",
+                                ),
+                                SourceScanAdmissionState::WaitingForDatabaseAccess => (
+                                    FolderScanLifecycle::WaitingForDatabaseAccess,
+                                    "Waiting for database access",
+                                ),
+                                SourceScanAdmissionState::Admitted => {
+                                    (FolderScanLifecycle::Scanning, "Source access acquired")
+                                }
+                            };
+                            emit_lifecycle(&events, lifecycle, detail, Some(generation));
+                        },
+                    ) else {
+                        emit_lifecycle(
+                            &events,
+                            FolderScanLifecycle::Canceled,
+                            "Source scan canceled before admission",
+                            Some(generation),
+                        );
+                        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                        return run_folder_scan_worker(request, events, cancel);
+                    };
+                    let cancel = permit.cancel_token();
+                    let completion_events = events.clone();
+                    let mut result = run_folder_scan_worker(request, events, cancel);
+                    result.lifecycle_generation = Some(generation);
+                    if result.scan.cancelled {
+                        emit_lifecycle(
+                            &completion_events,
+                            FolderScanLifecycle::RetryScheduled,
+                            "The interrupted source scan will retry safely",
+                            Some(generation),
+                        );
+                    } else {
+                        emit_lifecycle(
+                            &completion_events,
+                            FolderScanLifecycle::PersistingResults,
+                            "Source changes persisted",
+                            Some(generation),
+                        );
+                        emit_lifecycle(
+                            &completion_events,
+                            FolderScanLifecycle::ApplyingResults,
+                            "Applying the refreshed source view",
+                            Some(generation),
+                        );
+                        emit_lifecycle(
+                            &completion_events,
+                            FolderScanLifecycle::Complete,
+                            "Source scan complete",
+                            Some(generation),
+                        );
+                    }
+                    drop(permit);
+                    result
+                }));
+                match outcome {
+                    Ok(result) => result,
+                    Err(payload) => {
+                        let panic_detail = payload
+                            .downcast_ref::<&str>()
+                            .copied()
+                            .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+                            .unwrap_or("unknown panic");
+                        tracing::error!(
+                            target: "wavecrate::source_processing",
+                            task_id,
+                            source_id = progress_source_id,
+                            panic_detail,
+                            terminal_outcome = "worker_panicked",
+                            "Source scan worker panic converted into a failed terminal result"
+                        );
+                        emit_lifecycle(
+                            &recovery_events,
+                            FolderScanLifecycle::Failed,
+                            "Source scan stopped unexpectedly",
+                            admission_generation,
+                        );
+                        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+                        run_folder_scan_worker(recovery_request, recovery_events, cancel)
+                    }
+                }
             },
             folder_scan_worker_event_message,
             GuiMessage::FolderScanFinished,

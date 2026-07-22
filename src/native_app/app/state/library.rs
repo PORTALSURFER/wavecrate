@@ -136,6 +136,13 @@ impl LibraryAppState {
         self.source_scan.retire_source(source_id)
     }
 
+    pub(in crate::native_app) fn cancel_active_folder_scan_by_user(
+        &mut self,
+    ) -> Option<(String, String)> {
+        self.source_scan
+            .cancel_active_scan_by_user(&mut self.folder_browser)
+    }
+
     pub(in crate::native_app) fn begin_filesystem_refresh(
         &mut self,
         source_id: String,

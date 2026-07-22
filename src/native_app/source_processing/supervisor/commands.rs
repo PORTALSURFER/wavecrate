@@ -89,6 +89,24 @@ impl SourceProcessingSupervisor {
         self.wake_source(source_id, reason);
     }
 
+    pub(in crate::native_app) fn cancel_foreground_source_scan(
+        &self,
+        source_id: &str,
+        reason: &'static str,
+    ) {
+        let mut control = self.shared.control();
+        if !control.source_is_active(source_id) {
+            return;
+        }
+        control.cancel_source_work(source_id);
+        control.notify(reason);
+        drop(control);
+        self.shared
+            .cancel_external_scans(|registration| registration.source_id == source_id);
+        self.shared.budget_wake.notify_all();
+        self.shared.wake.notify_one();
+    }
+
     /// Reconcile a source without invalidating work that already owns its
     /// current lifecycle generation.
     ///

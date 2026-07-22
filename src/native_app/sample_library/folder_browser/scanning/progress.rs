@@ -11,8 +11,8 @@ use super::{
         collections::MissingCollectionSnapshot,
         path_helpers::{folder_label, path_id},
         scan_types::{
-            FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-            FolderScanResult, MetadataHydrationStatus,
+            FolderScanDiscovery, FolderScanItem, FolderScanLifecycle, FolderScanProgress,
+            FolderScanRequest, FolderScanResult, MetadataHydrationStatus,
         },
     },
     entry::{BrowserEntryKind, classify_path_without_following},
@@ -127,15 +127,15 @@ fn sync_source_database(
         if completed != 1 && !completed.is_multiple_of(INDEX_PROGRESS_REPORT_INTERVAL) {
             return;
         }
-        progress(FolderScanProgress {
-            task_id: request.task_id,
-            source_id: request.source_id.clone(),
-            label: request.label.clone(),
-            phase: String::from("Indexing"),
+        progress(FolderScanProgress::new(
+            request.task_id,
+            request.source_id.clone(),
+            request.label.clone(),
+            FolderScanLifecycle::Scanning,
             completed,
-            total: 0,
-            detail: path.display().to_string(),
-        });
+            0,
+            format!("Indexing | {}", path.display()),
+        ));
     };
     let stats = match scanner::scan_with_progress(
         &db,
@@ -365,15 +365,15 @@ where
     D: FnMut(FolderScanDiscovery),
 {
     fn report_initial(&mut self) {
-        (self.progress)(FolderScanProgress {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            label: self.request.label.clone(),
-            phase: String::from("Scanning"),
-            completed: 0,
-            total: 0,
-            detail: self.request.root.display().to_string(),
-        });
+        (self.progress)(FolderScanProgress::new(
+            self.request.task_id,
+            self.request.source_id.clone(),
+            self.request.label.clone(),
+            FolderScanLifecycle::Scanning,
+            0,
+            0,
+            self.request.root.display().to_string(),
+        ));
     }
 
     fn record_folder(&mut self, path: &Path, parent_id: &str) {
@@ -417,15 +417,15 @@ where
 
     fn maybe_report_progress(&mut self, path: &Path) {
         if self.counter.completed == 1 || self.counter.completed.is_multiple_of(64) {
-            (self.progress)(FolderScanProgress {
-                task_id: self.request.task_id,
-                source_id: self.request.source_id.clone(),
-                label: self.request.label.clone(),
-                phase: String::from("Scanning"),
-                completed: self.counter.completed,
-                total: 0,
-                detail: path.display().to_string(),
-            });
+            (self.progress)(FolderScanProgress::new(
+                self.request.task_id,
+                self.request.source_id.clone(),
+                self.request.label.clone(),
+                FolderScanLifecycle::Scanning,
+                self.counter.completed,
+                0,
+                path.display().to_string(),
+            ));
         }
     }
 }

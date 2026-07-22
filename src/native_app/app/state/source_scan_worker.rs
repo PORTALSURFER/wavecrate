@@ -212,7 +212,8 @@ mod tests {
             .filter(|message| {
                 matches!(
                     message,
-                    FolderScanWorkerEvent::Progress(progress) if progress.phase == "Indexing"
+                    FolderScanWorkerEvent::Progress(progress)
+                        if progress.detail.starts_with("Indexing | ")
                 )
             })
             .count();

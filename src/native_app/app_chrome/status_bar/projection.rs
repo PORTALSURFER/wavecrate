@@ -1,7 +1,9 @@
-#[cfg(test)]
-use crate::native_app::app::FolderScanProgress;
 use crate::native_app::app_chrome::view_models::status_bar::{
     JobDetailsViewModel, StatusBarViewModel, StatusSeverity, WorkerProgressViewModel,
+};
+#[cfg(test)]
+use crate::native_app::{
+    app::FolderScanProgress, sample_library::folder_browser::scan::FolderScanLifecycle,
 };
 use radiant::prelude as ui;
 
@@ -39,6 +41,7 @@ pub(super) enum WorkerProgressBarContentProjection {
 pub(super) struct JobDetailsPopoverProjection {
     pub(super) title: &'static str,
     pub(super) rows: [String; 4],
+    pub(super) source_scan_recovery: bool,
 }
 
 pub(super) fn bottom_status_bar_projection(model: StatusBarViewModel) -> BottomStatusBarProjection {
@@ -99,6 +102,7 @@ pub(super) fn job_details_popover_projection_from_model(
     JobDetailsPopoverProjection {
         title: "Job Details",
         rows: model.rows,
+        source_scan_recovery: model.source_scan_recovery,
     }
 }
 
@@ -220,72 +224,75 @@ mod tests {
 
     #[test]
     fn job_details_projection_formats_active_progress() {
-        let projection = job_details_popover_projection(&FolderScanProgress {
-            task_id: 7,
-            source_id: "assets".to_string(),
-            label: "Assets".to_string(),
-            phase: "Scanning".to_string(),
-            completed: 2,
-            total: 5,
-            detail: "kick.wav".to_string(),
-        });
+        let projection = job_details_popover_projection(&FolderScanProgress::new(
+            7,
+            "assets".to_string(),
+            "Assets".to_string(),
+            FolderScanLifecycle::Scanning,
+            2,
+            5,
+            "kick.wav".to_string(),
+        ));
 
         assert_eq!(projection.title, "Job Details");
         assert_eq!(
             projection.rows,
             [
-                "Type: Scanning",
+                "Type: Source scan",
                 "Source: Assets",
-                "Progress: 2/5",
-                "Current: kick.wav"
+                "Progress: Scanning — 2/5",
+                "Current: kick.wav | Queue age: 0s"
             ]
         );
     }
 
     #[test]
     fn job_details_projection_explains_missing_detail() {
-        let projection = job_details_popover_projection(&FolderScanProgress {
-            task_id: 7,
-            source_id: "assets".to_string(),
-            label: "Assets".to_string(),
-            phase: "Scanning".to_string(),
-            completed: 8,
-            total: 0,
-            detail: String::new(),
-        });
-
-        assert_eq!(
-            projection.rows,
-            [
-                "Type: Scanning",
-                "Source: Assets",
-                "Progress: 8 found",
-                "Current: Waiting for next item"
-            ]
-        );
-    }
-
-    #[test]
-    fn job_details_projection_distinguishes_waiting_from_zero_progress() {
-        let projection = job_details_popover_projection(&FolderScanProgress {
-            task_id: 7,
-            source_id: "assets".to_string(),
-            label: "Assets".to_string(),
-            phase: "Waiting".to_string(),
-            completed: 0,
-            total: 0,
-            detail: "Waiting for source access".to_string(),
-        });
+        let projection = job_details_popover_projection(&FolderScanProgress::new(
+            7,
+            "assets".to_string(),
+            "Assets".to_string(),
+            FolderScanLifecycle::Scanning,
+            8,
+            0,
+            String::new(),
+        ));
 
         assert_eq!(
             projection.rows,
             [
                 "Type: Source scan",
                 "Source: Assets",
-                "Progress: Waiting",
-                "Current: Waiting for source access"
+                "Progress: Scanning — 8 found",
+                "Current: Scanning | Queue age: 0s"
             ]
         );
+    }
+
+    #[test]
+    fn job_details_projection_distinguishes_waiting_from_zero_progress() {
+        let projection = job_details_popover_projection(&FolderScanProgress::new(
+            7,
+            "assets".to_string(),
+            "Assets".to_string(),
+            FolderScanLifecycle::WaitingForScanCapacity {
+                current_owner: Some("other-source".to_string()),
+            },
+            0,
+            0,
+            "Queued behind another source reconciliation".to_string(),
+        ));
+
+        assert_eq!(
+            projection.rows,
+            [
+                "Type: Source scan",
+                "Source: Assets",
+                "Progress: Queued — another source is being reconciled — 0s",
+                "Current: Queued behind another source reconciliation | Queue age: 0s"
+            ]
+        );
+        assert!(!projection.source_scan_recovery);
     }
 
     fn projection_for_count(count: usize) -> BottomStatusBarProjection {
