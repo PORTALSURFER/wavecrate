@@ -461,6 +461,56 @@ fn worker_failure_retires_owner_without_scheduling_an_automatic_retry() {
 }
 
 #[test]
+fn user_cancel_retires_post_projection_persistence_owner_and_fences_late_completion() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 73)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(9),
+        FolderScanLifecycle::ApplyingResults,
+        "Applying"
+    ));
+    let applying = workflow.progress().cloned().expect("applying progress");
+    let result = scan_source_with_progress(request.clone(), |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan_with_lifecycle(&mut browser, result, Some(9), true),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert!(workflow.resume_progress_after_projection(applying));
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(9),
+        FolderScanLifecycle::PersistingResults,
+        "Saving"
+    ));
+
+    assert_eq!(
+        workflow.cancel_active_scan_by_user(&mut browser),
+        Some((source_id.clone(), request.label.clone()))
+    );
+    assert!(!workflow.active());
+    assert!(
+        workflow
+            .finish_current_scan_terminal(
+                request.task_id,
+                &source_id,
+                Some(9),
+                FolderScanLifecycle::Complete,
+            )
+            .is_none(),
+        "late maintenance completion must not revive a retired owner"
+    );
+}
+
+#[test]
 fn refresh_coalescing_does_not_transfer_cause_across_lifecycle_generations() {
     let mut workflow = SourceScanWorkflow::new();
     let source_id = String::from("source");

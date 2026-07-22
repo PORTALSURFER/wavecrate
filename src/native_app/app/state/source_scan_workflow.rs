@@ -405,7 +405,10 @@ impl SourceScanWorkflow {
         browser: &mut FolderBrowserState,
     ) -> Option<(String, String)> {
         let progress = self.progress.take()?;
-        if !browser.cancel_scan(&progress.source_id, progress.task_id) {
+        let browser_owner_released = browser.cancel_scan(&progress.source_id, progress.task_id);
+        let workflow_only_owner =
+            matches!(progress.lifecycle, FolderScanLifecycle::PersistingResults);
+        if !browser_owner_released && !workflow_only_owner {
             self.progress = Some(progress);
             return None;
         }
