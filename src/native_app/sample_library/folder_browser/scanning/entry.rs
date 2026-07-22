@@ -39,7 +39,17 @@ pub(super) fn read_sorted_entries(path: &Path) -> Option<Vec<BrowserEntry>> {
     if classify_path_without_following(path) != Some(BrowserEntryKind::Directory) {
         return None;
     }
-    let read_dir = fs::read_dir(path).ok()?;
+    let read_dir = match fs::read_dir(path) {
+        Ok(read_dir) => read_dir,
+        Err(error) => {
+            tracing::warn!(
+                directory = %path.display(),
+                %error,
+                "Failed to enumerate browser directory"
+            );
+            return None;
+        }
+    };
     let mut entries = read_dir
         .filter_map(|entry| match entry {
             Ok(entry) => Some(entry),

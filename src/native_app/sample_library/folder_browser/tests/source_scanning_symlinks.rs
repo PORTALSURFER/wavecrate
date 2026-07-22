@@ -185,3 +185,47 @@ fn source_scanning_targeted_refresh_removes_file_replaced_by_symlink() {
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(outside);
 }
+
+#[test]
+fn source_scanning_direct_file_refresh_removes_file_replaced_by_symlink() {
+    assert_file_refresh_removes_replaced_link("direct", |browser, path| {
+        browser.refresh_file_path(path)
+    });
+}
+
+#[test]
+fn source_scanning_across_sources_refresh_removes_file_replaced_by_symlink() {
+    assert_file_refresh_removes_replaced_link("across-sources", |browser, path| {
+        browser.refresh_file_path_across_sources(path)
+    });
+}
+
+#[test]
+fn source_scanning_batched_file_refresh_removes_file_replaced_by_symlink() {
+    assert_file_refresh_removes_replaced_link("batch", |browser, path| {
+        browser.refresh_file_paths(&[path.to_path_buf()])
+    });
+}
+
+fn assert_file_refresh_removes_replaced_link(
+    name: &str,
+    refresh: impl FnOnce(&mut FolderBrowserState, &std::path::Path) -> bool,
+) {
+    let root = temp_source_root(&format!("wavecrate-browser-symlink-{name}-root"));
+    let outside = temp_source_root(&format!("wavecrate-browser-symlink-{name}-outside"));
+    let replaced = root.join("replaced.wav");
+    let outside_file = outside.join("outside.wav");
+    fs::write(&replaced, b"original").expect("write original sample");
+    fs::write(&outside_file, b"outside").expect("write outside sample");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.select_file(path_id(&replaced));
+
+    fs::remove_file(&replaced).expect("remove original sample");
+    unix_fs::symlink(&outside_file, &replaced).expect("replace sample with outside link");
+    assert!(refresh(&mut browser, &replaced));
+    assert!(browser.selected_files().is_empty());
+    assert!(browser.selected_file_paths().is_empty());
+
+    let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(outside);
+}
