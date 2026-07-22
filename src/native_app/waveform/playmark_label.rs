@@ -45,11 +45,24 @@ pub(super) struct PlaymarkLabelLayout {
 }
 
 impl WaveformWidget {
+    fn effective_playmark_label_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
+        match self.active_drag_kind {
+            Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
+            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play))
+            | Some(WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)) => self
+                .live_selection_preview
+                .filter(|preview| preview.kind == WaveformSelectionKind::Play)
+                .map(|preview| preview.selection)
+                .or(self.play_selection),
+            _ => self.play_selection,
+        }
+    }
+
     pub(in crate::native_app) fn playmark_control_cluster_rect(
         &self,
         bounds: Rect,
     ) -> Option<Rect> {
-        let selection = self.play_selection?;
+        let selection = self.effective_playmark_label_selection()?;
         let geometry = self.selection_geometry(bounds, Some(selection))?;
         let label = playmark_selection_label(
             selection,
@@ -104,16 +117,7 @@ impl WaveformWidget {
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
     ) {
-        let selection = match self.active_drag_kind {
-            Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
-            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play))
-            | Some(WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)) => self
-                .live_selection_preview
-                .filter(|preview| preview.kind == WaveformSelectionKind::Play)
-                .map(|preview| preview.selection)
-                .or(self.play_selection),
-            _ => self.play_selection,
-        };
+        let selection = self.effective_playmark_label_selection();
         let Some(selection) = selection else {
             return;
         };

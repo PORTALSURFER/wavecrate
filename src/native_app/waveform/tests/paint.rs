@@ -333,6 +333,32 @@ fn playmark_label_has_one_owner_across_live_and_transition_states() {
 }
 
 #[test]
+fn playmark_control_occlusion_tracks_live_drag_selection() {
+    let bounds = Rect::from_size(400.0, 80.0);
+    let live_selection = wavecrate::selection::SelectionRange::new(0.6, 0.9);
+    let mut widget = waveform_widget_for_state(&WaveformState::synthetic_for_tests());
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: live_selection,
+    });
+
+    let occlusion = widget
+        .playmark_control_cluster_rect(bounds)
+        .expect("live playmark control occlusion");
+    let mut committed = WaveformState::synthetic_for_tests();
+    committed.play_selection = Some(live_selection);
+    let expected = waveform_widget_for_state(&committed)
+        .playmark_control_cluster_rect(bounds)
+        .expect("equivalent committed playmark control occlusion");
+
+    assert_eq!(occlusion, expected);
+    assert_eq!(occlusion.max.y, 74.0);
+}
+
+#[test]
 fn steady_base_is_rebuilt_before_live_move_label_paints() {
     let bounds = Rect::from_size(400.0, 80.0);
     let mut state = WaveformState::synthetic_for_tests();
