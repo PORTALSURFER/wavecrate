@@ -45,6 +45,7 @@ pub(super) fn walk_phase(
             let mut prepared = match prepare_diff(root, path, context) {
                 Ok(prepared) => prepared,
                 Err(error) if committed.get() => {
+                    context.mark_source_tree_incomplete();
                     if let Ok(relative) = path.strip_prefix(root)
                         && is_supported_scannable_audio_file(root, relative)
                     {
@@ -111,8 +112,21 @@ pub(super) fn walk_phase(
         }
     }
     context.flush_manifest_audit_checkpoint(db)?;
-    context.stats.source_tree_snapshot = Some(source_tree_snapshot);
+    context.stats.source_tree_snapshot =
+        Some(finalize_source_tree_snapshot(context, source_tree_snapshot));
     Ok(())
+}
+
+fn finalize_source_tree_snapshot(
+    context: &ScanContext,
+    mut source_tree_snapshot: super::scan::SourceTreeSnapshot,
+) -> super::scan::SourceTreeSnapshot {
+    if context.source_tree_incomplete() {
+        source_tree_snapshot.diagnostics.push(String::from(
+            "supported audio changed or became unavailable after an earlier scan batch committed",
+        ));
+    }
+    source_tree_snapshot
 }
 
 fn publish_manifest_audit_progress(
@@ -171,6 +185,7 @@ fn refresh_noop_preparation_or_skip(
     match refresh_noop_preparation(db, root, context, prepared) {
         Ok(prepared) => Ok(Some(prepared)),
         Err(error) if tolerate_file_errors => {
+            context.mark_source_tree_incomplete();
             skip_changed_or_unavailable(context, root, &relative_path);
             tracing::warn!(
                 path = %root.join(&relative_path).display(),
@@ -242,6 +257,7 @@ fn apply_batch(
             Ok(outcome) => outcome,
             Err(ScanError::Canceled) => return Err(ScanError::Canceled),
             Err(error) if tolerate_file_errors => {
+                context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
                 tracing::warn!(
                     path = %root.join(&relative_path).display(),
@@ -256,6 +272,7 @@ fn apply_batch(
             PrepareForApply::Ready(file) => ready.push(file),
             PrepareForApply::Gone => {}
             PrepareForApply::Skip => {
+                context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
             }
         }
@@ -276,6 +293,7 @@ fn apply_batch(
         match read_facts(root, &absolute) {
             Ok(current) if prepared_still_current(&file, &current) => {}
             _ => {
+                context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
                 continue;
             }
@@ -385,8 +403,8 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        PrepareForApply, prepare_for_apply, prepare_for_apply_with_post_hash_hook,
-        refresh_noop_preparation_or_skip,
+        PrepareForApply, finalize_source_tree_snapshot, prepare_for_apply,
+        prepare_for_apply_with_post_hash_hook, refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
     use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
@@ -450,6 +468,9 @@ mod tests {
                 .unwrap();
 
         assert!(refreshed.is_none());
+        assert!(context.source_tree_incomplete());
+        let snapshot = finalize_source_tree_snapshot(&context, Default::default());
+        assert!(!snapshot.is_complete());
     }
 
     #[test]
