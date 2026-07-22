@@ -329,6 +329,72 @@ fn native_app_ui_update_paths_do_not_call_blocking_business_apis() {
 }
 
 #[test]
+fn native_app_blocking_helper_modules_stay_owned_by_business_workers() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let native_app_root = manifest_dir.join("src/native_app");
+    let mut exclusive_transfer_consumers = BTreeSet::new();
+    let mut atomic_write_consumers = BTreeSet::new();
+
+    for_rust_source_file(&native_app_root, &mut |path| {
+        if is_test_source(path) {
+            return;
+        }
+        let source = read_source(path);
+        let relative = path
+            .strip_prefix(&manifest_dir)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if source.contains("sample_library::exclusive_file_transfer::") {
+            exclusive_transfer_consumers.insert(relative.clone());
+        }
+        if source.contains("mod atomic_write;") || source.contains("self::atomic_write::") {
+            atomic_write_consumers.insert(relative);
+        }
+    });
+
+    assert_eq!(
+        exclusive_transfer_consumers,
+        BTreeSet::from([
+            String::from("src/native_app/sample_library/folder_browser/file_move_transaction.rs"),
+            String::from("src/native_app/sample_library/native_file_drop_actions.rs"),
+        ]),
+        "exclusive transfer helpers must stay behind file-operation workers or the typed native-drop background handoff"
+    );
+    assert_eq!(
+        atomic_write_consumers,
+        BTreeSet::from([String::from("src/native_app/waveform_edits/worker.rs")]),
+        "failure-atomic WAV replacement must remain private to the destructive-edit worker"
+    );
+
+    let destructive_queue = read_source(&native_app_root.join("waveform_edits/queue.rs"));
+    for required in [
+        ".business()",
+        ".blocking_io(WAVEFORM_DESTRUCTIVE_EDIT_TASK_NAME)",
+        ".latest(&mut self.background.waveform_destructive_edit_task)",
+        "worker::execute_destructive_edit(worker_request)",
+    ] {
+        assert!(
+            destructive_queue.contains(required),
+            "destructive-edit worker handoff must retain `{required}`"
+        );
+    }
+
+    let native_drop =
+        read_source(&native_app_root.join("sample_library/native_file_drop_actions.rs"));
+    for required in [
+        ".business()",
+        ".background(\"gui-external-waveform-drop\")",
+        "execute_external_waveform_file_drop(&source, &target_folder)",
+    ] {
+        assert!(
+            native_drop.contains(required),
+            "exclusive external-drop transfer must retain `{required}`"
+        );
+    }
+}
+
+#[test]
 fn native_app_blocking_guardrail_skips_cfg_test_fixture_blocks_only() {
     let root = std::env::temp_dir().join(format!(
         "wavecrate_cfg_test_guardrail_fixture_{}",
@@ -792,8 +858,8 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "waveform clipboard clip staging worker",
         ),
         (
-            "src/native_app/sample_library/exclusive_file_transfer.rs",
-            "exclusive file-transfer worker boundary",
+            "src/native_app/sample_library/exclusive_file_transfer",
+            "exclusive file-transfer implementation module tree",
         ),
         (
             "src/native_app/sample_library/folder_scan_actions/filesystem_refresh_worker.rs",
@@ -920,8 +986,8 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "waveform cache and decode workers",
         ),
         (
-            "src/native_app/waveform_edits/worker.rs",
-            "waveform destructive edit worker",
+            "src/native_app/waveform_edits/worker",
+            "waveform destructive edit implementation module tree",
         ),
         (
             "src/native_app/waveform/similar_sections/source_loading.rs",

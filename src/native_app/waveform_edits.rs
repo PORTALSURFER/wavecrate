@@ -1,4 +1,3 @@
-mod atomic_write;
 mod completion;
 mod entrypoints;
 mod prompt;

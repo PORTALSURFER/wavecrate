@@ -10,7 +10,10 @@ use wavecrate::selection::SelectionRange;
 use crate::native_app::app::{PendingWaveformDestructiveEdit, WaveformDestructiveEditKind};
 use crate::native_app::waveform::{WaveformExtractionRequest, execute_waveform_extraction};
 use crate::native_app::waveform_edit_effects::apply_edit_selection_effects;
-use crate::native_app::waveform_edits::atomic_write::{AtomicWriteFailure, write_wav_atomically};
+
+use self::atomic_write::{AtomicWriteFailure, write_wav_atomically};
+
+mod atomic_write;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct OverwriteBackup {
