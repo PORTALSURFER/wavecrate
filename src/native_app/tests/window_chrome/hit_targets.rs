@@ -182,7 +182,9 @@ fn playmark_local_beat_controls_consume_hits_and_update_shared_state() {
     let toggle_id = crate::native_app::ui::ids::WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID;
     let toggle_point = frame
         .paint_plan
-        .first_svg_rect_for_widget(toggle_id)
+        .text_runs()
+        .find(|text| text.widget_id == toggle_id && text.text.as_str() == "Grid")
+        .map(|text| text.rect)
         .expect("local beat toggle paint")
         .center();
     let count_id = crate::native_app::ui::ids::WAVEFORM_PLAYMARK_BEAT_COUNT_ID;

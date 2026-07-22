@@ -123,9 +123,7 @@ impl PlaymarkLabelWidget {
             })
             .unwrap_or((None, None));
         let mut geometry_source = geometry_source;
-        if input.is_none() {
-            geometry_source.common.focus = FocusBehavior::Keyboard;
-        }
+        geometry_source.common.focus = FocusBehavior::Keyboard;
         Some(Self {
             geometry_source,
             label,
@@ -151,17 +149,11 @@ impl PlaymarkLabelWidget {
 
 impl Widget for PlaymarkLabelWidget {
     fn common(&self) -> &WidgetCommon {
-        self.input
-            .as_ref()
-            .map(Widget::common)
-            .unwrap_or_else(|| self.geometry_source.common())
+        self.geometry_source.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        self.input
-            .as_mut()
-            .map(Widget::common_mut)
-            .unwrap_or_else(|| self.geometry_source.common_mut())
+        self.geometry_source.common_mut()
     }
 
     fn handle_input(&mut self, bounds: ui::Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -195,6 +187,7 @@ impl Widget for PlaymarkLabelWidget {
         if let (Some(input), Some(previous_input)) = (&mut self.input, &previous.input) {
             input.synchronize_from_previous(previous_input);
         }
+        self.geometry_source.common.state = previous.geometry_source.common.state;
         self.painted_bounds = Arc::clone(&previous.painted_bounds);
     }
 

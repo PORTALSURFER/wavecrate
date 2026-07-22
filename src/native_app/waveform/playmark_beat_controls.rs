@@ -2,7 +2,7 @@ use radiant::{
     gui::automation::AutomationRole,
     prelude as ui,
     widgets::{
-        IconButtonWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
+        ButtonWidget, Widget, WidgetCommon, WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::{Arc, Mutex};
@@ -10,8 +10,7 @@ use std::sync::{Arc, Mutex};
 use crate::native_app::{
     app::GuiMessage,
     app_chrome::toolbar::{
-        BeatGuideCountInputMessage, BeatGuideCountInputWidget, ToolbarIcon,
-        beat_guide_count_input_message, toolbar_icon_glyph,
+        BeatGuideCountInputMessage, BeatGuideCountInputWidget, beat_guide_count_input_message,
     },
 };
 
@@ -26,7 +25,7 @@ enum PlaymarkBeatToggleMessage {
 struct PlaymarkBeatToggleWidget {
     geometry_source: WaveformWidget,
     label: String,
-    button: IconButtonWidget,
+    button: ButtonWidget,
     checked: bool,
     painted_bounds: Arc<Mutex<Option<ui::Rect>>>,
 }
@@ -47,9 +46,9 @@ impl PlaymarkBeatToggleWidget {
             beat_guides_enabled,
             beat_guide_count,
         )?;
-        let mut button = IconButtonWidget::new(
+        let mut button = ButtonWidget::new(
             id,
-            toolbar_icon_glyph(ToolbarIcon::BeatGuides, true, beat_guides_enabled),
+            "Grid",
             WidgetSizing::fixed(ui::Vector2::new(
                 playmark_label::PLAYMARK_BEAT_TOGGLE_WIDTH,
                 playmark_label::PLAYMARK_LABEL_HEIGHT,
@@ -57,6 +56,8 @@ impl PlaymarkBeatToggleWidget {
         );
         button.common.state.active = beat_guides_enabled;
         button.common.paint.paints_focus = true;
+        let mut geometry_source = geometry_source;
+        geometry_source.common.focus = radiant::widgets::FocusBehavior::Keyboard;
         Some(Self {
             geometry_source,
             label,
@@ -74,11 +75,11 @@ impl PlaymarkBeatToggleWidget {
 
 impl Widget for PlaymarkBeatToggleWidget {
     fn common(&self) -> &WidgetCommon {
-        self.button.common()
+        self.geometry_source.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        self.button.common_mut()
+        self.geometry_source.common_mut()
     }
 
     fn handle_input(&mut self, bounds: ui::Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -94,11 +95,12 @@ impl Widget for PlaymarkBeatToggleWidget {
         };
         self.button.synchronize_from_previous(&previous.button);
         self.button.common.state.active = self.checked;
+        self.geometry_source.common.state = previous.geometry_source.common.state;
         self.painted_bounds = Arc::clone(&previous.painted_bounds);
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        self.button.accepts_pointer_move()
+        true
     }
 
     fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
@@ -161,6 +163,8 @@ impl PlaymarkBeatCountWidget {
             beat_guides_enabled,
             beat_guide_count,
         )?;
+        let mut geometry_source = geometry_source;
+        geometry_source.common.focus = radiant::widgets::FocusBehavior::Keyboard;
         Some(Self {
             geometry_source,
             label,
@@ -182,11 +186,11 @@ impl PlaymarkBeatCountWidget {
 
 impl Widget for PlaymarkBeatCountWidget {
     fn common(&self) -> &WidgetCommon {
-        self.input.common()
+        self.geometry_source.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        self.input.common_mut()
+        self.geometry_source.common_mut()
     }
 
     fn handle_input(&mut self, bounds: ui::Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -198,6 +202,7 @@ impl Widget for PlaymarkBeatCountWidget {
             return;
         };
         self.input.synchronize_from_previous(&previous.input);
+        self.geometry_source.common.state = previous.geometry_source.common.state;
         self.painted_bounds = Arc::clone(&previous.painted_bounds);
     }
 
