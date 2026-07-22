@@ -65,9 +65,14 @@ fn readiness_lease_heartbeat_keeps_long_claim_current() {
         .expect("claim available");
     let cancel = AtomicBool::new(false);
 
-    let ((), stale) = run_with_readiness_lease_heartbeat(&source, &claim, &cancel, 2, |_| {
-        thread::sleep(Duration::from_millis(2_500))
-    })
+    let ((), stale) = run_with_readiness_lease_heartbeat(
+        &source,
+        &claim,
+        &cancel,
+        2,
+        &DatabaseWriterGate::default(),
+        |_| thread::sleep(Duration::from_millis(2_500)),
+    )
     .expect("run with heartbeat");
 
     assert!(!stale);
@@ -222,7 +227,7 @@ fn discovery_selects_exactly_one_source_and_keeps_the_active_owner() {
     let pending = ["second".to_string()].into_iter().collect();
     assert_eq!(
         select_source_for_discovery(&sources, &pending, Some("first"), &priority),
-        None,
-        "another source cannot be discovered while the owner is active"
+        Some("second".to_string()),
+        "another source should be discovered for bounded secondary execution"
     );
 }

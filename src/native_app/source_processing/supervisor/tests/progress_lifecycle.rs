@@ -233,9 +233,13 @@ fn periodic_manifest_audit_wakes_browser_projection_after_committed_repair() {
         task: RuntimeTask::ManifestAudit,
     };
     assert_eq!(
-        execute_candidate(&candidate, 0, &AtomicBool::new(false), &mut |event| sender
-            .send(event)
-            .is_ok(),)
+        execute_candidate(
+            &candidate,
+            0,
+            &AtomicBool::new(false),
+            &DatabaseWriterGate::default(),
+            &mut |event| sender.send(event).is_ok(),
+        )
         .expect("execute manifest audit"),
         ExecutionOutcome::CompletedAwaitingForegroundRefresh
     );

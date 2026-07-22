@@ -27,6 +27,15 @@ impl SourceProcessingSupervisor {
             .is_none_or(|worker| worker.join().is_ok());
         let joined = coordinator_joined && retirement_joined;
         self.shared.wait_for_external_scans();
+        let database = self.shared.database_writer.snapshot();
+        let database_phases = serde_json::json!({
+            "writer_active": database.active,
+            "writer_peak_active": database.peak_active,
+            "claim": { "count": database.claim.count, "wait_ms": database.claim.wait_ms, "held_ms": database.claim.held_ms },
+            "lease": { "count": database.lease.count, "wait_ms": database.lease.wait_ms, "held_ms": database.lease.held_ms },
+            "publish": { "count": database.publish.count, "wait_ms": database.publish.wait_ms, "held_ms": database.publish.held_ms },
+            "serial": { "count": database.serial.count, "wait_ms": database.serial.wait_ms, "held_ms": database.serial.held_ms },
+        });
         let telemetry = self.shared.telemetry();
         serde_json::json!({
             "joined": joined,
@@ -54,6 +63,13 @@ impl SourceProcessingSupervisor {
             "delta_reconciliations": telemetry.delta_reconciliations,
             "full_audits": telemetry.full_audits,
             "settled_wake_generation": telemetry.settled_wake_generation,
+            "active_execution_workers": telemetry.active_execution_workers,
+            "peak_execution_workers": telemetry.peak_execution_workers,
+            "execution_count": telemetry.execution_count,
+            "execution_elapsed_ms": telemetry.execution_elapsed_ms,
+            "execution_queue_depth": telemetry.execution_queue_depth,
+            "max_execution_queue_depth": telemetry.max_execution_queue_depth,
+            "database_phases": database_phases,
         })
     }
 }

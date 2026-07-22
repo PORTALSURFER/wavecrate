@@ -26,10 +26,10 @@ pub(super) fn select_source_for_discovery(
     active_source_id: Option<&str>,
     priority: &PriorityContext,
 ) -> Option<String> {
-    if let Some(active_source_id) = active_source_id {
-        return pending_source_ids
-            .contains(active_source_id)
-            .then(|| active_source_id.to_string());
+    if let Some(active_source_id) = active_source_id
+        && pending_source_ids.contains(active_source_id)
+    {
+        return Some(active_source_id.to_string());
     }
     let prioritized = priority
         .selected_source

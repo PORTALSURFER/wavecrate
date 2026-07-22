@@ -1,31 +1,37 @@
 use super::{
-    ArtifactPublishOutcome, AtomicBool, ExecutionOutcome, Ordering,
-    PREREQUISITE_INVALIDATION_RETRY_SECONDS, READINESS_LEASE_SECONDS, READINESS_MAX_ATTEMPTS,
-    ReadinessExecutionOutcome, ReadinessFailureClassification, ReadinessFailureOutcome,
-    ReadinessRetryPolicy, ReadinessStore, ReadinessTarget, SampleSource, SourceDatabase,
-    SourceDatabaseConnectionRole, cancel_claim, cleanup_unpublished_readiness_output,
-    execution_outcome_for_failure, invalidate_persisted_waveform_cache_ref, now_epoch_seconds,
-    run_readiness_stage, run_with_readiness_lease_heartbeat,
+    ArtifactPublishOutcome, AtomicBool, DatabasePhase, DatabaseWriterGate, ExecutionOutcome,
+    Ordering, PREREQUISITE_INVALIDATION_RETRY_SECONDS, READINESS_LEASE_SECONDS,
+    READINESS_MAX_ATTEMPTS, ReadinessExecutionOutcome, ReadinessFailureClassification,
+    ReadinessFailureOutcome, ReadinessRetryPolicy, ReadinessStore, ReadinessTarget, SampleSource,
+    SourceDatabase, SourceDatabaseConnectionRole, cancel_claim,
+    cleanup_unpublished_readiness_output, execution_outcome_for_failure,
+    invalidate_persisted_waveform_cache_ref, now_epoch_seconds, run_readiness_stage,
+    run_with_readiness_lease_heartbeat,
 };
 
 pub(super) fn execute_readiness_target(
     source: &SampleSource,
     target: &ReadinessTarget,
     cancel: &AtomicBool,
+    database_writer: &DatabaseWriterGate,
 ) -> Result<ExecutionOutcome, String> {
-    let database_root = source.database_root().map_err(|error| error.to_string())?;
-    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
-        &source.root,
-        &database_root,
-        SourceDatabaseConnectionRole::JobWorker,
-    )
-    .map_err(|error| error.to_string())?;
-    let now = now_epoch_seconds();
-    let Some(claim) = ReadinessStore::new(&mut connection)
-        .claim(target, now, READINESS_LEASE_SECONDS)
-        .map_err(|error| error.to_string())?
-    else {
-        return Ok(ExecutionOutcome::NotClaimed);
+    let (mut connection, claim, now) = {
+        let _writer = database_writer.lock(DatabasePhase::Claim);
+        let database_root = source.database_root().map_err(|error| error.to_string())?;
+        let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+            &source.root,
+            &database_root,
+            SourceDatabaseConnectionRole::JobWorker,
+        )
+        .map_err(|error| error.to_string())?;
+        let now = now_epoch_seconds();
+        let Some(claim) = ReadinessStore::new(&mut connection)
+            .claim(target, now, READINESS_LEASE_SECONDS)
+            .map_err(|error| error.to_string())?
+        else {
+            return Ok(ExecutionOutcome::NotClaimed);
+        };
+        (connection, claim, now)
     };
     tracing::info!(
         target: "wavecrate::source_processing",
@@ -39,6 +45,7 @@ pub(super) fn execute_readiness_target(
         "Readiness work claimed"
     );
     if cancel.load(Ordering::Acquire) {
+        let _writer = database_writer.lock(DatabasePhase::Publish);
         return cancel_claim(&mut connection, &claim, "runtime cancellation", now);
     }
     let (outcome, lease_stale) = match run_with_readiness_lease_heartbeat(
@@ -46,10 +53,20 @@ pub(super) fn execute_readiness_target(
         &claim,
         cancel,
         READINESS_LEASE_SECONDS,
-        |lease_cancel| run_readiness_stage(source, &mut connection, &claim, lease_cancel),
+        database_writer,
+        |lease_cancel| {
+            run_readiness_stage(
+                source,
+                &mut connection,
+                database_writer,
+                &claim,
+                lease_cancel,
+            )
+        },
     ) {
         Ok(result) => result,
         Err(error) => {
+            let _writer = database_writer.lock(DatabasePhase::Publish);
             let _ = ReadinessStore::new(&mut connection).cancel(
                 &claim,
                 "readiness lease heartbeat failure",
@@ -64,6 +81,7 @@ pub(super) fn execute_readiness_target(
     }
     if cancel.load(Ordering::Acquire) {
         cleanup_unpublished_readiness_output(&outcome);
+        let _writer = database_writer.lock(DatabasePhase::Publish);
         return cancel_claim(
             &mut connection,
             &claim,
@@ -71,6 +89,7 @@ pub(super) fn execute_readiness_target(
             now_epoch_seconds(),
         );
     }
+    let _writer = database_writer.lock(DatabasePhase::Publish);
     match outcome {
         Ok(ReadinessExecutionOutcome::Complete(artifact_ref)) => {
             let completed = match artifact_ref.as_deref() {

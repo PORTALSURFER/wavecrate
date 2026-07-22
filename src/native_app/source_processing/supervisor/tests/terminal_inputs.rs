@@ -284,7 +284,12 @@ fn missing_analysis_payload_requeues_its_prerequisite_without_consuming_a_retry(
     );
     drop(connection);
 
-    let outcome = execute_readiness_target(&source, &embedding, &AtomicBool::new(false))
+    let outcome = execute_readiness_target(
+        &source,
+        &embedding,
+        &AtomicBool::new(false),
+        &DatabaseWriterGate::default(),
+    )
         .expect("repair inconsistent prerequisite");
     assert!(matches!(
         outcome,

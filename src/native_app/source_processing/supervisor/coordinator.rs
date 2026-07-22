@@ -1,14 +1,16 @@
 use super::{
-    Arc, BTreeMap, BTreeSet, CoordinatorExecutionState, FairScheduler, Instant, RuntimeCandidate,
-    RuntimeTask, SAFETY_SWEEP_INTERVAL, Shared, SourceDiscoveryStats, SourceProcessingLifecycle,
-    aggregate_source_stats, coordinator_wait_duration, discover_candidates, earliest_deadline,
-    execute_candidates, now_epoch_seconds, oldest_job_age_seconds,
-    publish_similarity_readiness_refreshes, publish_source_processing_finished,
-    publish_source_processing_wait, queue_depths_by_source, release_converged_source_owner,
-    select_source_for_discovery,
+    Arc, BTreeMap, BTreeSet, CoordinatorExecutionState, ExecutionPool, FairScheduler, Instant,
+    RuntimeCandidate, RuntimeTask, SAFETY_SWEEP_INTERVAL, Shared, SourceDiscoveryStats,
+    SourceProcessingLifecycle, aggregate_source_stats, coordinator_wait_duration,
+    discover_candidates, earliest_deadline, execute_candidates, now_epoch_seconds,
+    oldest_job_age_seconds, publish_similarity_readiness_refreshes,
+    publish_source_processing_finished, publish_source_processing_wait, queue_depths_by_source,
+    release_converged_source_owner, select_source_for_discovery,
 };
 
 pub(super) fn run_coordinator(shared: Arc<Shared>) {
+    let worker_limit = shared.budgets().execution_worker_limit();
+    let mut execution_pool = ExecutionPool::new(&shared, worker_limit);
     let mut observed_generation = 0;
     let mut next_retry_at = None;
     let mut next_safety_sweep_at = Instant::now() + SAFETY_SWEEP_INTERVAL;
@@ -302,6 +304,7 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
         );
         let execution_state = execute_candidates(
             &shared,
+            &mut execution_pool,
             &mut candidates,
             &mut scheduler,
             &mut source_stats,
@@ -331,9 +334,10 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
             last_similarity_refresh_publish_at = Some(Instant::now());
         }
         let active_source_has_runnable_work = scheduler.active_source().is_some_and(|source_id| {
-            candidates
-                .iter()
-                .any(|candidate| candidate.source.id.as_str() == source_id)
+            execution_pool.source_is_in_flight(source_id)
+                || candidates
+                    .iter()
+                    .any(|candidate| candidate.source.id.as_str() == source_id)
         });
         if !active_source_has_runnable_work
             && publish_source_processing_wait(
@@ -383,5 +387,11 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
             shared.control().notify("next_source_discovery");
             shared.wake.notify_one();
         }
+    }
+    if !execution_pool.shutdown() {
+        tracing::error!(
+            target: "wavecrate::source_processing",
+            "A source execution worker panicked during shutdown"
+        );
     }
 }

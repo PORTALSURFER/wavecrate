@@ -24,4 +24,10 @@ pub(super) struct SupervisorTelemetry {
     pub(super) delta_reconciliations: u64,
     pub(super) full_audits: u64,
     pub(super) settled_wake_generation: u64,
+    pub(super) active_execution_workers: usize,
+    pub(super) peak_execution_workers: usize,
+    pub(super) execution_count: u64,
+    pub(super) execution_elapsed_ms: f64,
+    pub(super) execution_queue_depth: usize,
+    pub(super) max_execution_queue_depth: usize,
 }

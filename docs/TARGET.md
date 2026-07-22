@@ -358,6 +358,21 @@ the facade or coordinator, reach through another service, or start a second coor
 or persistence queue. The existing joined retirement cleanup worker remains an
 implementation detail of the retirement service.
 
+The coordinator owns one joined, bounded preparation pool for file-scoped feature and
+embedding work. Those stages cross explicit typed claim/read, pure preparation, and
+publication boundaries: workers receive bounded owned inputs, perform no SQLite access,
+and return bounded prepared payloads. A single writer gate serializes readiness claims,
+lease renewal, publication, foreground scan admission, and the legacy stages whose
+filesystem work is still transaction-coupled. Publication revalidates exact manifest,
+content-generation, lifecycle, and cancellation fences after preparation. The initial
+rollout admits at most one preparation job per source and two jobs globally, allowing a
+secondary source to use spare capacity without changing the visible active-source owner.
+Requests and results are bounded, pool workers are joined on shutdown, and telemetry
+reports queue depth, worker concurrency, and writer wait/hold timing by database phase.
+Manifest audits, indexed hashing, similarity finalization, and retirement keep their
+existing serial compatibility paths until each can preserve its current atomic contract
+across the same typed phase boundary.
+
 Source retirement keeps the audio folder, authoritative source database, source manifest, reusable analysis/similarity artifacts, and safe content-addressed analysis caches. It releases source-owned in-memory playback/preview/browser state and asynchronously removes readiness-managed jobs and unshared managed cache payloads. The source descriptor registry retains role, metadata-storage policy, and primary-import settings so protected/AppData sources rehydrate safely; corrupt present descriptor values fail closed. Cleanup is idempotent, retryable after unavailable/read-only storage, recovered from retained inactive descriptors at startup, and bounded so removal never waits for database maintenance or cache garbage collection.
 
 For every current eligible file, the readiness stages are:

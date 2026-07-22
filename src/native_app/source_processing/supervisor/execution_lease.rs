@@ -1,9 +1,9 @@
 use super::{
-    AtomicBool, ClaimedReadinessWork, Duration, ExecutionOutcome, Instant, Mutex, Ordering,
-    ReadinessExecutionOutcome, ReadinessFailureOutcome, ReadinessLeaseRenewalOutcome,
-    ReadinessStore, ReadinessWorkMutationOutcome, SampleSource, SourceDatabase,
-    SourceDatabaseConnectionRole, SourceProcessingFailure, invalidate_persisted_waveform_cache_ref,
-    now_epoch_seconds, thread,
+    AtomicBool, ClaimedReadinessWork, DatabasePhase, DatabaseWriterGate, Duration,
+    ExecutionOutcome, Instant, Mutex, Ordering, ReadinessExecutionOutcome, ReadinessFailureOutcome,
+    ReadinessLeaseRenewalOutcome, ReadinessStore, ReadinessWorkMutationOutcome, SampleSource,
+    SourceDatabase, SourceDatabaseConnectionRole, SourceProcessingFailure,
+    invalidate_persisted_waveform_cache_ref, now_epoch_seconds, thread,
 };
 
 pub(super) fn cleanup_unpublished_readiness_output(
@@ -46,6 +46,7 @@ pub(super) fn run_with_readiness_lease_heartbeat<T>(
     claim: &ClaimedReadinessWork,
     external_cancel: &AtomicBool,
     lease_duration_seconds: i64,
+    database_writer: &DatabaseWriterGate,
     execute: impl FnOnce(&AtomicBool) -> T,
 ) -> Result<(T, bool), String> {
     let local_cancel = AtomicBool::new(external_cancel.load(Ordering::Acquire));
@@ -69,11 +70,15 @@ pub(super) fn run_with_readiness_lease_heartbeat<T>(
                     local_cancel.store(true, Ordering::Release);
                 }
                 if Instant::now() >= next_renewal {
-                    match ReadinessStore::new(&mut heartbeat_connection).renew_lease(
-                        claim,
-                        now_epoch_seconds(),
-                        lease_duration_seconds,
-                    ) {
+                    let renewal = {
+                        let _writer = database_writer.lock(DatabasePhase::Lease);
+                        ReadinessStore::new(&mut heartbeat_connection).renew_lease(
+                            claim,
+                            now_epoch_seconds(),
+                            lease_duration_seconds,
+                        )
+                    };
+                    match renewal {
                         Ok(ReadinessLeaseRenewalOutcome::Renewed { .. }) => {
                             next_renewal = Instant::now() + renew_interval;
                         }
