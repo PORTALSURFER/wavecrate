@@ -185,7 +185,7 @@ fn retry_only_source_releases_owner_before_another_source_runs() {
     )]
     .into_iter()
     .collect();
-    release_converged_source_owner(&mut scheduler, &configured, &stats, &[]);
+    release_converged_source_owner(&mut scheduler, &configured, &stats, &[], false);
     assert_eq!(scheduler.active_source(), None);
 
     let next = [WorkCandidate::source("next", ProcessingLane::Hashing, 0, 0)];
@@ -194,6 +194,33 @@ fn retry_only_source_releases_owner_before_another_source_runs() {
         Some(0)
     );
     assert_eq!(scheduler.active_source(), Some("next"));
+}
+
+#[test]
+fn in_flight_manifest_audit_keeps_active_source_owner_across_wake() {
+    let mut scheduler = FairScheduler::default();
+    let budgets = BudgetTracker::new(ProcessingBudgets::default());
+    let audit = [WorkCandidate::source(
+        "audited",
+        ProcessingLane::Hashing,
+        0,
+        0,
+    )];
+    assert_eq!(
+        scheduler.choose(&audit, &PriorityContext::default(), &budgets),
+        Some(0)
+    );
+    let configured = ["audited".to_string()].into_iter().collect();
+    let stats = [(
+        "audited".to_string(),
+        SourceDiscoveryStats::default(),
+    )]
+    .into_iter()
+    .collect();
+
+    release_converged_source_owner(&mut scheduler, &configured, &stats, &[], true);
+
+    assert_eq!(scheduler.active_source(), Some("audited"));
 }
 
 #[test]

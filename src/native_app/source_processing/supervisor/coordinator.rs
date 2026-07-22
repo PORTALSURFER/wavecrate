@@ -296,11 +296,15 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
                 })
                 .collect();
         }
+        let active_source_in_flight = scheduler
+            .active_source()
+            .is_some_and(|source_id| execution_pool.source_is_in_flight(source_id));
         release_converged_source_owner(
             &mut scheduler,
             &configured_source_ids,
             &source_stats,
             &candidates,
+            active_source_in_flight,
         );
         let execution_state = execute_candidates(
             &shared,
