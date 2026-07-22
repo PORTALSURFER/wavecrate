@@ -72,6 +72,91 @@ fn stale_finish_keeps_active_scan_owner() {
 }
 
 #[test]
+fn apply_and_persist_owners_advance_in_order_and_terminal_completion_retires_progress() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 12)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(3),
+        FolderScanLifecycle::ApplyingResults,
+        "Applying"
+    ));
+    let applying = workflow.progress().cloned().expect("applying progress");
+    let result = scan_source_with_progress(request.clone(), |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan_with_lifecycle(&mut browser, result, Some(3), true),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert!(
+        !workflow.active(),
+        "projection owner retires before persistence"
+    );
+    assert!(workflow.resume_progress_after_projection(applying));
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(3),
+        FolderScanLifecycle::PersistingResults,
+        "Saving"
+    ));
+    assert!(
+        workflow
+            .finish_current_scan_terminal(
+                request.task_id,
+                &source_id,
+                Some(3),
+                FolderScanLifecycle::Complete,
+            )
+            .is_some()
+    );
+    assert!(!workflow.active());
+}
+
+#[test]
+fn stale_maintenance_generation_cannot_retire_replacement_progress() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 13)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(5),
+        FolderScanLifecycle::PersistingResults,
+        "Saving"
+    ));
+
+    assert!(
+        workflow
+            .finish_current_scan_terminal(
+                request.task_id,
+                &source_id,
+                Some(4),
+                FolderScanLifecycle::Complete,
+            )
+            .is_none()
+    );
+    assert_eq!(
+        workflow
+            .progress()
+            .expect("replacement progress")
+            .lifecycle_generation,
+        Some(5)
+    );
+}
+
+#[test]
 fn pending_refresh_waits_for_active_scan() {
     let root = temp_dir_with_wav();
     let mut browser = FolderBrowserState::load_default();

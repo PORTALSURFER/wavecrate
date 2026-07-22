@@ -53,6 +53,7 @@ pub(in crate::native_app) enum FolderScanLifecycle {
     RetryScheduled,
     Canceled,
     Failed,
+    CompleteWithWarnings,
     Complete,
 }
 
@@ -69,6 +70,7 @@ impl FolderScanLifecycle {
             Self::RetryScheduled => "Retry scheduled",
             Self::Canceled => "Canceled",
             Self::Failed => "Failed",
+            Self::CompleteWithWarnings => "Complete with warnings",
             Self::Complete => "Complete",
         }
     }
@@ -85,7 +87,10 @@ impl FolderScanLifecycle {
     }
 
     pub(in crate::native_app) fn is_terminal(&self) -> bool {
-        matches!(self, Self::Canceled | Self::Failed | Self::Complete)
+        matches!(
+            self,
+            Self::Canceled | Self::Failed | Self::CompleteWithWarnings | Self::Complete
+        )
     }
 }
 

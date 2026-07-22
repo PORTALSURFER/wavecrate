@@ -241,6 +241,57 @@ impl SourceScanWorkflow {
         true
     }
 
+    pub(in crate::native_app) fn transition_current_scan(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+        lifecycle: FolderScanLifecycle,
+        detail: impl Into<String>,
+    ) -> bool {
+        let Some(progress) = self.progress.as_mut() else {
+            return false;
+        };
+        if progress.task_id != task_id || progress.source_id != source_id {
+            return false;
+        }
+        if lifecycle_generation.is_some()
+            && progress.lifecycle_generation.is_some()
+            && lifecycle_generation != progress.lifecycle_generation
+        {
+            return false;
+        }
+        let now = Instant::now();
+        progress.lifecycle = lifecycle;
+        progress.detail = detail.into();
+        progress.state_changed_at = now;
+        progress.last_progress_at = now;
+        progress.lifecycle_generation = lifecycle_generation.or(progress.lifecycle_generation);
+        true
+    }
+
+    pub(in crate::native_app) fn finish_current_scan_terminal(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+        lifecycle: FolderScanLifecycle,
+    ) -> Option<FolderScanProgress> {
+        if !lifecycle.is_terminal() {
+            return None;
+        }
+        if !self.transition_current_scan(
+            task_id,
+            source_id,
+            lifecycle_generation,
+            lifecycle,
+            "Source scan reached a terminal outcome",
+        ) {
+            return None;
+        }
+        self.progress.take()
+    }
+
     pub(in crate::native_app) fn apply_discovery_batch(
         &mut self,
         browser: &mut FolderBrowserState,
@@ -626,6 +677,17 @@ impl SourceScanWorkflow {
             );
             SourceScanFinish::Stale { label }
         }
+    }
+
+    pub(in crate::native_app) fn resume_progress_after_projection(
+        &mut self,
+        progress: FolderScanProgress,
+    ) -> bool {
+        if self.progress.is_some() || progress.lifecycle != FolderScanLifecycle::ApplyingResults {
+            return false;
+        }
+        self.progress = Some(progress);
+        true
     }
 
     fn discard_refresh_covered_by_revision(&mut self, source_id: &str, accepted_revision: u64) {

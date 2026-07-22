@@ -1,4 +1,6 @@
-use crate::native_app::sample_library::folder_browser::scan::FolderScanProgress;
+use crate::native_app::sample_library::folder_browser::scan::{
+    FolderScanLifecycle, FolderScanProgress,
+};
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState,
     scan::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
@@ -98,6 +100,45 @@ impl LibraryAppState {
     ) -> bool {
         self.source_scan
             .apply_progress(&self.folder_browser, progress)
+    }
+
+    pub(in crate::native_app) fn transition_folder_scan(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+        lifecycle: FolderScanLifecycle,
+        detail: impl Into<String>,
+    ) -> bool {
+        self.source_scan.transition_current_scan(
+            task_id,
+            source_id,
+            lifecycle_generation,
+            lifecycle,
+            detail,
+        )
+    }
+
+    pub(in crate::native_app) fn finish_folder_scan_terminal(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+        lifecycle: FolderScanLifecycle,
+    ) -> Option<FolderScanProgress> {
+        self.source_scan.finish_current_scan_terminal(
+            task_id,
+            source_id,
+            lifecycle_generation,
+            lifecycle,
+        )
+    }
+
+    pub(in crate::native_app) fn resume_folder_scan_progress_after_projection(
+        &mut self,
+        progress: FolderScanProgress,
+    ) -> bool {
+        self.source_scan.resume_progress_after_projection(progress)
     }
 
     pub(in crate::native_app) fn apply_folder_scan_discovery_batch(

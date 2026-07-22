@@ -20,7 +20,8 @@ use crate::native_app::{
 use wavecrate::sample_sources::config::{AppConfig, reserve_save_revision};
 
 use super::maintenance::{
-    FolderScanMaintenanceRequest, FolderScanMaintenanceResult, persist_folder_scan_maintenance,
+    FolderScanCompletionContext, FolderScanMaintenanceRequest, FolderScanMaintenanceResult,
+    persist_folder_scan_maintenance_recovering,
 };
 
 pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_INTENTS: SourcePrepIntents =
@@ -219,25 +220,6 @@ impl NativeAppState {
                             "The interrupted source scan will retry safely",
                             Some(generation),
                         );
-                    } else {
-                        emit_lifecycle(
-                            &completion_events,
-                            FolderScanLifecycle::PersistingResults,
-                            "Source changes persisted",
-                            Some(generation),
-                        );
-                        emit_lifecycle(
-                            &completion_events,
-                            FolderScanLifecycle::ApplyingResults,
-                            "Applying the refreshed source view",
-                            Some(generation),
-                        );
-                        emit_lifecycle(
-                            &completion_events,
-                            FolderScanLifecycle::Complete,
-                            "Source scan complete",
-                            Some(generation),
-                        );
                     }
                     drop(permit);
                     result
@@ -282,9 +264,10 @@ impl NativeAppState {
         let mut prepared = prepared.into();
         let started_at = Instant::now();
         let lifecycle_generation = prepared.lifecycle_generation;
+        let task_id = prepared.scan.task_id;
+        let source_id = prepared.scan.source_id.clone();
         let mut lifecycle_is_current = true;
         if let Some(generation) = lifecycle_generation {
-            let source_id = prepared.scan.source_id.clone();
             if self
                 .background
                 .source_processing
@@ -294,7 +277,7 @@ impl NativeAppState {
             {
                 self.background
                     .source_lifecycle_generations
-                    .insert(source_id, generation);
+                    .insert(source_id.clone(), generation);
             } else {
                 lifecycle_is_current = false;
                 tracing::debug!(
@@ -305,6 +288,16 @@ impl NativeAppState {
                 prepared.scan.cancelled = true;
             }
         }
+        if lifecycle_is_current {
+            self.library.transition_folder_scan(
+                task_id,
+                &source_id,
+                lifecycle_generation,
+                FolderScanLifecycle::ApplyingResults,
+                "Applying the refreshed source view",
+            );
+        }
+        let applying_progress = self.library.folder_progress().cloned();
         let scan_cache_update = prepared.scan_cache_update;
         let rating_decay_maintenance = prepared.rating_decay_maintenance;
         match self.library.finish_folder_scan(
@@ -321,7 +314,21 @@ impl NativeAppState {
                 metadata_hydration_error,
                 source_root_available,
             } => {
+                if let Some(progress) = applying_progress {
+                    self.library
+                        .resume_folder_scan_progress_after_projection(progress);
+                }
+                let completion = FolderScanCompletionContext {
+                    task_id,
+                    source_id: source_id.clone(),
+                    label: label.clone(),
+                    lifecycle_generation,
+                    source_root_available,
+                    source_db_error: source_db_error.clone(),
+                    metadata_hydration_error: metadata_hydration_error.clone(),
+                };
                 self.queue_folder_scan_maintenance(
+                    completion,
                     source_root_available
                         .then_some(prepared.audio_file_paths)
                         .unwrap_or_default(),
@@ -371,7 +378,8 @@ impl NativeAppState {
     }
 
     fn queue_folder_scan_maintenance(
-        &self,
+        &mut self,
+        completion: FolderScanCompletionContext,
         audio_file_paths: Vec<std::path::PathBuf>,
         scan_cache_update: crate::native_app::sample_library::folder_browser::scan::FolderScanCacheUpdate,
         rating_decay: Option<
@@ -379,8 +387,16 @@ impl NativeAppState {
         >,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
+        self.library.transition_folder_scan(
+            completion.task_id,
+            &completion.source_id,
+            completion.lifecycle_generation,
+            FolderScanLifecycle::PersistingResults,
+            "Saving the refreshed source state",
+        );
         let sources = self.library.folder_browser.configured_sample_sources();
         let request = FolderScanMaintenanceRequest {
+            completion,
             config: AppConfig {
                 sources: sources.clone(),
                 core: self.current_settings_core(),
@@ -394,7 +410,7 @@ impl NativeAppState {
         };
         #[cfg(test)]
         {
-            let result = persist_folder_scan_maintenance(request.clone());
+            let result = persist_folder_scan_maintenance_recovering(request.clone());
             if let Some(error) = result.config_error {
                 tracing::warn!("failed to persist source configuration after scan: {error}");
             }
@@ -409,7 +425,7 @@ impl NativeAppState {
             .business()
             .background("gui-folder-scan-maintenance")
             .run(
-                move |_| persist_folder_scan_maintenance(request),
+                move |_| persist_folder_scan_maintenance_recovering(request),
                 GuiMessage::FolderScanMaintenanceFinished,
             );
     }
@@ -419,7 +435,15 @@ impl NativeAppState {
         result: FolderScanMaintenanceResult,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        if let Some(error) = result.persistence_error() {
+        let completion = result.completion.clone();
+        let persistence_error = result.persistence_error();
+        let has_optional_errors = persistence_error.is_some()
+            || !result.harvest_errors.is_empty()
+            || result.rating_decay_error.is_some();
+        let rating_decay_refresh = (result.rating_decay_updated_count > 0)
+            .then(|| result.rating_decay_source_id.clone())
+            .flatten();
+        if let Some(error) = persistence_error.as_deref() {
             self.ui.status.sample = format!("Settings not saved: {error}");
             emit_gui_action(
                 "folder_browser.sources.persist",
@@ -430,20 +454,67 @@ impl NativeAppState {
                 Some(&error),
             );
         }
-        if let Some(error) = result.config_error {
+        if let Some(error) = result.config_error.as_deref() {
             tracing::warn!("failed to persist source configuration after scan: {error}");
         }
-        if let Some(error) = result.scan_cache_error {
+        if let Some(error) = result.scan_cache_error.as_deref() {
             tracing::warn!("failed to persist source scan cache after scan: {error}");
         }
-        for error in result.harvest_errors {
+        for error in &result.harvest_errors {
             tracing::warn!("{error}");
         }
-        if let Some(error) = result.rating_decay_error {
+        if let Some(error) = result.rating_decay_error.as_deref() {
             tracing::warn!("rating decay maintenance failed: {error}");
-        } else if result.rating_decay_updated_count > 0
-            && let Some(source_id) = result.rating_decay_source_id
-        {
+        }
+        if let Some(completion) = completion {
+            let (terminal, terminal_outcome) =
+                classify_terminal_outcome(&completion, has_optional_errors);
+            if has_optional_errors
+                && persistence_error.is_none()
+                && completion.metadata_hydration_error.is_none()
+            {
+                self.ui.status.sample = format!(
+                    "Loaded source {} with maintenance warnings",
+                    completion.label
+                );
+            }
+            if let Some(progress) = self.library.finish_folder_scan_terminal(
+                completion.task_id,
+                &completion.source_id,
+                completion.lifecycle_generation,
+                terminal,
+            ) {
+                self.ui.chrome.job_details_open = false;
+                self.background.progress_tick = 0.0;
+                self.background
+                    .source_processing
+                    .finish_foreground_source_refresh(
+                        &completion.source_id,
+                        "source_scan_terminal",
+                    );
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    task_id = completion.task_id,
+                    source_id = completion.source_id,
+                    lifecycle_generation = ?completion.lifecycle_generation,
+                    queue_age_ms = progress.queued_at.elapsed().as_millis(),
+                    last_progress_age_ms = progress.last_progress_at.elapsed().as_millis(),
+                    retry_count = progress.retry_count,
+                    terminal_outcome,
+                    "Source scan maintenance reached its terminal outcome"
+                );
+            } else {
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    task_id = completion.task_id,
+                    source_id = completion.source_id,
+                    lifecycle_generation = ?completion.lifecycle_generation,
+                    terminal_outcome = "stale",
+                    "Discarding maintenance completion for a retired scan owner"
+                );
+            }
+        }
+        if let Some(source_id) = rating_decay_refresh {
             self.refresh_source(source_id, context);
         }
     }
@@ -454,11 +525,6 @@ impl NativeAppState {
         started_at: Instant,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        self.ui.chrome.job_details_open = false;
-        self.background.progress_tick = 0.0;
-        self.background
-            .source_processing
-            .finish_foreground_source_refresh(&scan.source_id, "source_scan_finished");
         if !scan.source_root_available {
             self.ui.status.sample = format!("Source missing: {}", scan.label);
             emit_gui_action(
@@ -536,6 +602,72 @@ impl NativeAppState {
         );
         self.sync_source_watcher();
         self.open_ready_audio_documents(context, started_at);
+    }
+}
+
+fn classify_terminal_outcome(
+    completion: &FolderScanCompletionContext,
+    has_optional_errors: bool,
+) -> (FolderScanLifecycle, &'static str) {
+    if !completion.source_root_available || completion.source_db_error.is_some() {
+        (FolderScanLifecycle::Failed, "failed")
+    } else if completion.metadata_hydration_error.is_some() || has_optional_errors {
+        (
+            FolderScanLifecycle::CompleteWithWarnings,
+            "complete_with_warnings",
+        )
+    } else {
+        (FolderScanLifecycle::Complete, "complete")
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+
+    fn completion() -> FolderScanCompletionContext {
+        FolderScanCompletionContext {
+            task_id: 7,
+            source_id: String::from("source"),
+            label: String::from("Samples"),
+            lifecycle_generation: Some(11),
+            source_root_available: true,
+            source_db_error: None,
+            metadata_hydration_error: None,
+        }
+    }
+
+    #[test]
+    fn terminal_outcome_is_complete_only_for_clean_applied_and_persisted_results() {
+        assert_eq!(
+            classify_terminal_outcome(&completion(), false),
+            (FolderScanLifecycle::Complete, "complete")
+        );
+
+        let mut missing = completion();
+        missing.source_root_available = false;
+        assert_eq!(
+            classify_terminal_outcome(&missing, false),
+            (FolderScanLifecycle::Failed, "failed")
+        );
+
+        let mut metadata = completion();
+        metadata.metadata_hydration_error = Some(String::from("legacy metadata unavailable"));
+        assert_eq!(
+            classify_terminal_outcome(&metadata, false),
+            (
+                FolderScanLifecycle::CompleteWithWarnings,
+                "complete_with_warnings"
+            )
+        );
+
+        assert_eq!(
+            classify_terminal_outcome(&completion(), true),
+            (
+                FolderScanLifecycle::CompleteWithWarnings,
+                "complete_with_warnings"
+            )
+        );
     }
 }
 

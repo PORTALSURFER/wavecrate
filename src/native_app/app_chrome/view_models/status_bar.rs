@@ -430,6 +430,10 @@ mod tests {
             (FolderScanLifecycle::RetryScheduled, "Retry scheduled"),
             (FolderScanLifecycle::Canceled, "Canceled"),
             (FolderScanLifecycle::Failed, "Failed"),
+            (
+                FolderScanLifecycle::CompleteWithWarnings,
+                "Complete with warnings",
+            ),
             (FolderScanLifecycle::Complete, "Complete"),
         ];
 
