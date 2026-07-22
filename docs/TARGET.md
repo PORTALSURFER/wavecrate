@@ -358,17 +358,19 @@ the facade or coordinator, reach through another service, or start a second coor
 or persistence queue. The existing joined retirement cleanup worker remains an
 implementation detail of the retirement service.
 
-The coordinator owns one joined, bounded preparation pool for file-scoped feature and
-embedding work. Those stages cross explicit typed claim/read, pure preparation, and
-publication boundaries: workers receive bounded owned inputs, perform no SQLite access,
-and return bounded prepared payloads. A single writer gate serializes readiness claims,
-lease renewal, publication, foreground scan admission, and the legacy stages whose
-filesystem work is still transaction-coupled. Publication revalidates exact manifest,
-content-generation, lifecycle, and cancellation fences after preparation. The initial
-rollout admits at most one preparation job per source and two jobs globally, allowing a
-secondary source to use spare capacity without changing the visible active-source owner.
-Requests and results are bounded, pool workers are joined on shutdown, and telemetry
-reports queue depth, worker concurrency, and writer wait/hold timing by database phase.
+The coordinator owns one joined, bounded execution pool for file-scoped feature and
+embedding work. Pool workers orchestrate explicit typed claim/read, pure preparation, and
+publication phases under the supervisor's lifecycle guard. Production preparation runs
+in killable child processes that receive bounded owned inputs, perform no SQLite access,
+and return bounded prepared payloads; the surrounding pool worker acquires the single
+writer gate only for readiness claims, lease renewal, and fenced publication. The same
+gate covers foreground scan admission and legacy stages whose filesystem work is still
+transaction-coupled. Publication revalidates exact manifest, content-generation,
+lifecycle, and cancellation fences after preparation. The initial rollout admits at most
+one execution job per source and two jobs globally, allowing a secondary source to use
+spare capacity without changing the visible active-source owner. Requests and results are
+bounded, pool workers and child processes are joined on shutdown, and telemetry reports
+queue depth, worker concurrency, and writer wait/hold timing by database phase.
 Manifest audits, indexed hashing, similarity finalization, and retirement keep their
 existing serial compatibility paths until each can preserve its current atomic contract
 across the same typed phase boundary.
