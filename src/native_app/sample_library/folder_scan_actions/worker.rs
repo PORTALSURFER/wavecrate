@@ -447,15 +447,7 @@ impl NativeAppState {
         #[cfg(test)]
         {
             let result = persist_folder_scan_maintenance_recovering(request.clone());
-            if let Some(error) = result.config_error {
-                tracing::warn!("failed to persist source configuration after scan: {error}");
-            }
-            if let Some(error) = result.scan_cache_error {
-                tracing::warn!("failed to persist source scan cache after scan: {error}");
-            }
-            for error in result.harvest_errors {
-                tracing::warn!("{error}");
-            }
+            self.finish_folder_scan_maintenance(result, context);
         }
         context
             .business()
