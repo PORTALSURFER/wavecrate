@@ -83,11 +83,12 @@ fn source_scan_installs_finished_tree_after_placeholder_selection() {
             .collect::<Vec<_>>(),
         vec!["kick.wav"]
     );
-    assert!(
-        progress_events
-            .iter()
-            .any(|progress| progress.phase == "Scanning" && progress.total == 0)
-    );
+    assert!(progress_events.iter().any(|progress| {
+        matches!(
+            progress.lifecycle,
+            super::super::scan::FolderScanLifecycle::Scanning
+        ) && progress.total == 0
+    }));
     assert!(!discovery_events.is_empty());
     let _ = fs::remove_dir_all(root);
 }

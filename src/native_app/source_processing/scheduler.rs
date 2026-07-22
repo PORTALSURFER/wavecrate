@@ -216,7 +216,6 @@ impl BudgetTracker {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn active_sources(&self) -> BTreeSet<String> {
         self.by_source.keys().cloned().collect()
     }

@@ -1,10 +1,17 @@
-use std::{collections::VecDeque, path::PathBuf, time::Instant};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    path::PathBuf,
+    time::Instant,
+};
 
 use super::source_refresh::{PendingSourceRefresh, QueuedSourceRefresh, SourceRefreshCause};
 
 use crate::native_app::sample_library::folder_browser::{
     FolderBrowserState,
-    scan::{FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest, FolderScanResult},
+    scan::{
+        FolderScanDiscoveryBatch, FolderScanLifecycle, FolderScanProgress, FolderScanRequest,
+        FolderScanResult,
+    },
 };
 
 #[cfg(test)]
@@ -15,6 +22,7 @@ mod tests;
 pub(in crate::native_app) struct SourceScanWorkflow {
     progress: Option<FolderScanProgress>,
     pending_refreshes: VecDeque<QueuedSourceRefresh>,
+    retry_counts: BTreeMap<String, u32>,
 }
 
 pub(in crate::native_app) enum SourceFilesystemChangePlan {
@@ -77,6 +85,7 @@ impl SourceScanWorkflow {
         Self {
             progress: None,
             pending_refreshes: VecDeque::new(),
+            retry_counts: BTreeMap::new(),
         }
     }
 
@@ -202,27 +211,85 @@ impl SourceScanWorkflow {
     }
 
     pub(in crate::native_app) fn start_scan(&mut self, request: &FolderScanRequest) {
-        self.progress = Some(FolderScanProgress {
-            task_id: request.task_id,
-            source_id: request.source_id.clone(),
-            label: request.label.clone(),
-            phase: String::from("Waiting"),
-            completed: 0,
-            total: 0,
-            detail: String::from("Waiting for source access"),
-        });
+        let mut progress = FolderScanProgress::transition(
+            request.task_id,
+            request.source_id.clone(),
+            request.label.clone(),
+            FolderScanLifecycle::Queued,
+            "Queued — preparing source scan",
+        );
+        progress.retry_count = self
+            .retry_counts
+            .get(&request.source_id)
+            .copied()
+            .unwrap_or(0);
+        self.progress = Some(progress);
     }
 
     pub(in crate::native_app) fn apply_progress(
         &mut self,
         browser: &FolderBrowserState,
-        progress: FolderScanProgress,
+        mut progress: FolderScanProgress,
     ) -> bool {
         if !browser.scan_is_active(&progress.source_id, progress.task_id) {
             return false;
         }
+        if let Some(previous) = self.progress.as_ref() {
+            progress.reconcile_timing_from(previous);
+        }
         self.progress = Some(progress);
         true
+    }
+
+    pub(in crate::native_app) fn transition_current_scan(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+        lifecycle: FolderScanLifecycle,
+        detail: impl Into<String>,
+    ) -> bool {
+        let Some(progress) = self.progress.as_mut() else {
+            return false;
+        };
+        if progress.task_id != task_id || progress.source_id != source_id {
+            return false;
+        }
+        if lifecycle_generation.is_some()
+            && progress.lifecycle_generation.is_some()
+            && lifecycle_generation != progress.lifecycle_generation
+        {
+            return false;
+        }
+        let now = Instant::now();
+        progress.lifecycle = lifecycle;
+        progress.detail = detail.into();
+        progress.state_changed_at = now;
+        progress.last_progress_at = now;
+        progress.lifecycle_generation = lifecycle_generation.or(progress.lifecycle_generation);
+        true
+    }
+
+    pub(in crate::native_app) fn finish_current_scan_terminal(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+        lifecycle: FolderScanLifecycle,
+    ) -> Option<FolderScanProgress> {
+        if !lifecycle.is_terminal() {
+            return None;
+        }
+        if !self.transition_current_scan(
+            task_id,
+            source_id,
+            lifecycle_generation,
+            lifecycle,
+            "Source scan reached a terminal outcome",
+        ) {
+            return None;
+        }
+        self.progress.take()
     }
 
     pub(in crate::native_app) fn apply_discovery_batch(
@@ -322,6 +389,7 @@ impl SourceScanWorkflow {
     /// permanently active while the removed source no longer exists in the browser model.
     pub(in crate::native_app) fn retire_source(&mut self, source_id: &str) -> bool {
         self.remove_pending_refresh(source_id);
+        self.retry_counts.remove(source_id);
         let active = self
             .progress
             .as_ref()
@@ -330,6 +398,45 @@ impl SourceScanWorkflow {
             self.progress = None;
         }
         active
+    }
+
+    pub(in crate::native_app) fn cancel_active_scan_by_user(
+        &mut self,
+        browser: &mut FolderBrowserState,
+    ) -> Option<(String, String)> {
+        let progress = self.progress.take()?;
+        let browser_owner_released = browser.cancel_scan(&progress.source_id, progress.task_id);
+        let workflow_only_owner =
+            matches!(progress.lifecycle, FolderScanLifecycle::PersistingResults);
+        if !browser_owner_released && !workflow_only_owner {
+            self.progress = Some(progress);
+            return None;
+        }
+        self.remove_pending_refresh(&progress.source_id);
+        self.retry_counts.remove(&progress.source_id);
+        Some((progress.source_id, progress.label))
+    }
+
+    pub(in crate::native_app) fn fail_active_scan(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+    ) -> Option<FolderScanProgress> {
+        if !self.transition_current_scan(
+            task_id,
+            source_id,
+            lifecycle_generation,
+            FolderScanLifecycle::Failed,
+            "Source scan stopped unexpectedly",
+        ) || !browser.cancel_scan(source_id, task_id)
+        {
+            return None;
+        }
+        self.remove_pending_refresh(source_id);
+        self.retry_counts.remove(source_id);
+        self.progress.take()
     }
 
     pub(in crate::native_app) fn begin_filesystem_refresh_with_context(
@@ -480,21 +587,38 @@ impl SourceScanWorkflow {
         lifecycle_is_current: bool,
     ) -> SourceScanFinish {
         let source_id = result.source_id.clone();
+        let task_id = result.task_id;
         let label = result.label.clone();
         let file_count = result.file_count;
         let folder_count = result.folder_count;
         let source_db_error = result.source_db_error.clone();
         let metadata_hydration_error = result.metadata_hydration.error().map(str::to_owned);
         let source_root_available = result.source_root_available;
+        let queue_age_ms = self
+            .progress
+            .as_ref()
+            .map_or(0, |progress| progress.queued_at.elapsed().as_millis());
+        let last_progress_age_ms = self.progress.as_ref().map_or(0, |progress| {
+            progress.last_progress_at.elapsed().as_millis()
+        });
+        let retry_count = self
+            .progress
+            .as_ref()
+            .map_or(0, |progress| progress.retry_count);
         if result.cancelled {
             if browser.cancel_scan(&source_id, result.task_id) {
                 self.progress = None;
                 if !lifecycle_is_current {
                     tracing::info!(
                         target: "wavecrate::source_processing",
+                        task_id,
                         source_id,
                         lifecycle_generation = ?lifecycle_generation,
+                        queue_age_ms,
+                        last_progress_age_ms,
+                        retry_count,
                         outcome = "stale_lifecycle",
+                        terminal_outcome = "stale",
                         "Discarding cancelled scan from a retired source generation"
                     );
                     return SourceScanFinish::Stale { label };
@@ -504,13 +628,39 @@ impl SourceScanWorkflow {
                     SourceRefreshCause::ScanCancelled,
                     lifecycle_generation,
                 );
+                let next_retry_count = retry_count.saturating_add(1);
+                self.retry_counts
+                    .insert(source_id.clone(), next_retry_count);
+                tracing::info!(
+                    target: "wavecrate::source_processing",
+                    task_id,
+                    source_id,
+                    lifecycle_generation = ?lifecycle_generation,
+                    queue_age_ms,
+                    last_progress_age_ms,
+                    retry_count = next_retry_count,
+                    terminal_outcome = "cancelled_retry_scheduled",
+                    "Source scan reached a terminal outcome"
+                );
                 return SourceScanFinish::Cancelled { source_id, label };
             }
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                task_id,
+                source_id,
+                lifecycle_generation = ?lifecycle_generation,
+                queue_age_ms,
+                last_progress_age_ms,
+                retry_count,
+                terminal_outcome = "stale",
+                "Discarding cancelled completion for a retired scan owner"
+            );
             return SourceScanFinish::Stale { label };
         }
         let accepted_revision = result.metadata_hydration.revision();
         if browser.apply_scan_finished(result) {
             self.progress = None;
+            self.retry_counts.remove(&source_id);
             if let Some(accepted_revision) = accepted_revision {
                 self.discard_refresh_covered_by_revision(&source_id, accepted_revision);
             }
@@ -519,7 +669,13 @@ impl SourceScanWorkflow {
                     target: "wavecrate::source_processing",
                     source_id,
                     accepted_revision = ?accepted_revision,
+                    task_id,
+                    lifecycle_generation = ?lifecycle_generation,
+                    queue_age_ms,
+                    last_progress_age_ms,
+                    retry_count,
                     outcome = "terminal_idle",
+                    terminal_outcome = "complete",
                     "Source refresh convergence transition"
                 );
             }
@@ -533,8 +689,30 @@ impl SourceScanWorkflow {
                 source_root_available,
             }
         } else {
+            tracing::info!(
+                target: "wavecrate::source_processing",
+                task_id,
+                source_id,
+                lifecycle_generation = ?lifecycle_generation,
+                queue_age_ms,
+                last_progress_age_ms,
+                retry_count,
+                terminal_outcome = "stale",
+                "Discarding completion for a retired scan owner"
+            );
             SourceScanFinish::Stale { label }
         }
+    }
+
+    pub(in crate::native_app) fn resume_progress_after_projection(
+        &mut self,
+        progress: FolderScanProgress,
+    ) -> bool {
+        if self.progress.is_some() || progress.lifecycle != FolderScanLifecycle::ApplyingResults {
+            return false;
+        }
+        self.progress = Some(progress);
+        true
     }
 
     fn discard_refresh_covered_by_revision(&mut self, source_id: &str, accepted_revision: u64) {

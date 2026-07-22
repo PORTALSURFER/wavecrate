@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use super::source_scan_cache::FolderScanCacheUpdate;
 use super::{FileEntry, FolderEntry, collections::MissingCollectionSnapshot};
@@ -25,10 +28,137 @@ pub(in crate::native_app) struct FolderScanProgress {
     pub(in crate::native_app) task_id: u64,
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) label: String,
-    pub(in crate::native_app) phase: String,
+    pub(in crate::native_app) lifecycle: FolderScanLifecycle,
     pub(in crate::native_app) completed: usize,
     pub(in crate::native_app) total: usize,
     pub(in crate::native_app) detail: String,
+    pub(in crate::native_app) queued_at: Instant,
+    pub(in crate::native_app) state_changed_at: Instant,
+    pub(in crate::native_app) last_progress_at: Instant,
+    pub(in crate::native_app) lifecycle_generation: Option<u64>,
+    pub(in crate::native_app) retry_count: u32,
+}
+
+pub(in crate::native_app) const SOURCE_SCAN_LONG_WAIT_THRESHOLD: Duration = Duration::from_secs(30);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum FolderScanLifecycle {
+    Queued,
+    WaitingForSourceRegistration,
+    WaitingForScanCapacity { current_owner: Option<String> },
+    WaitingForDatabaseAccess,
+    Scanning,
+    ApplyingResults,
+    PersistingResults,
+    RetryScheduled,
+    Canceled,
+    Failed,
+    CompleteWithWarnings,
+    Complete,
+}
+
+impl FolderScanLifecycle {
+    pub(in crate::native_app) fn label(&self) -> &'static str {
+        match self {
+            Self::Queued => "Queued",
+            Self::WaitingForSourceRegistration => "Waiting for source update",
+            Self::WaitingForScanCapacity { .. } => "Waiting for scan capacity",
+            Self::WaitingForDatabaseAccess => "Waiting for database access",
+            Self::Scanning => "Scanning",
+            Self::ApplyingResults => "Applying results",
+            Self::PersistingResults => "Saving results",
+            Self::RetryScheduled => "Retry scheduled",
+            Self::Canceled => "Canceled",
+            Self::Failed => "Failed",
+            Self::CompleteWithWarnings => "Complete with warnings",
+            Self::Complete => "Complete",
+        }
+    }
+
+    pub(in crate::native_app) fn is_waiting(&self) -> bool {
+        matches!(
+            self,
+            Self::Queued
+                | Self::WaitingForSourceRegistration
+                | Self::WaitingForScanCapacity { .. }
+                | Self::WaitingForDatabaseAccess
+                | Self::RetryScheduled
+        )
+    }
+
+    pub(in crate::native_app) fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::Canceled | Self::Failed | Self::CompleteWithWarnings | Self::Complete
+        )
+    }
+}
+
+impl FolderScanProgress {
+    pub(in crate::native_app) fn new(
+        task_id: u64,
+        source_id: String,
+        label: String,
+        lifecycle: FolderScanLifecycle,
+        completed: usize,
+        total: usize,
+        detail: String,
+    ) -> Self {
+        let now = Instant::now();
+        Self {
+            task_id,
+            source_id,
+            label,
+            lifecycle,
+            completed,
+            total,
+            detail,
+            queued_at: now,
+            state_changed_at: now,
+            last_progress_at: now,
+            lifecycle_generation: None,
+            retry_count: 0,
+        }
+    }
+
+    pub(in crate::native_app) fn transition(
+        task_id: u64,
+        source_id: String,
+        label: String,
+        lifecycle: FolderScanLifecycle,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self::new(task_id, source_id, label, lifecycle, 0, 0, detail.into())
+    }
+
+    pub(in crate::native_app) fn reconcile_timing_from(&mut self, previous: &Self) {
+        let meaningful_progress = self.lifecycle != previous.lifecycle
+            || self.completed != previous.completed
+            || self.total != previous.total
+            || self.detail != previous.detail;
+        self.queued_at = previous.queued_at;
+        if self.lifecycle == previous.lifecycle {
+            self.state_changed_at = previous.state_changed_at;
+        }
+        if !meaningful_progress {
+            self.last_progress_at = previous.last_progress_at;
+        }
+        self.retry_count = self.retry_count.max(previous.retry_count);
+        self.lifecycle_generation = self.lifecycle_generation.or(previous.lifecycle_generation);
+    }
+
+    pub(in crate::native_app) fn queue_age_at(&self, now: Instant) -> Duration {
+        now.saturating_duration_since(self.queued_at)
+    }
+
+    pub(in crate::native_app) fn last_progress_age_at(&self, now: Instant) -> Duration {
+        now.saturating_duration_since(self.last_progress_at)
+    }
+
+    pub(in crate::native_app) fn taking_longer_than_expected_at(&self, now: Instant) -> bool {
+        !self.lifecycle.is_terminal()
+            && self.last_progress_age_at(now) >= SOURCE_SCAN_LONG_WAIT_THRESHOLD
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -109,6 +239,7 @@ pub(in crate::native_app) struct PreparedFolderScanResult {
     pub(in crate::native_app) audio_file_paths: Vec<PathBuf>,
     pub(in crate::native_app) scan_cache_update: FolderScanCacheUpdate,
     pub(in crate::native_app) lifecycle_generation: Option<u64>,
+    pub(in crate::native_app) terminal_failure: Option<String>,
     pub(in crate::native_app) rating_decay_maintenance: Option<RatingDecayMaintenanceRequest>,
 }
 
@@ -121,6 +252,7 @@ impl From<FolderScanResult> for PreparedFolderScanResult {
             audio_file_paths,
             scan_cache_update,
             lifecycle_generation: None,
+            terminal_failure: None,
             rating_decay_maintenance: None,
         }
     }

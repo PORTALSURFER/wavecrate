@@ -21,24 +21,24 @@ fn stale_progress_is_ignored() {
         .expect("scan request");
     workflow.start_scan(&request);
 
-    let stale = FolderScanProgress {
-        task_id: request.task_id + 1,
-        source_id: request.source_id.clone(),
-        label: request.label.clone(),
-        phase: String::from("Scanning"),
-        completed: 1,
-        total: 1,
-        detail: String::new(),
-    };
+    let stale = FolderScanProgress::new(
+        request.task_id + 1,
+        request.source_id.clone(),
+        request.label.clone(),
+        FolderScanLifecycle::Scanning,
+        1,
+        1,
+        String::new(),
+    );
 
     assert!(!workflow.apply_progress(&browser, stale));
     assert_eq!(
-        workflow.progress().expect("queued progress").phase,
-        "Waiting"
+        workflow.progress().expect("queued progress").lifecycle,
+        FolderScanLifecycle::Queued
     );
     assert_eq!(
         workflow.progress().expect("queued progress").detail,
-        "Waiting for source access"
+        "Queued — preparing source scan"
     );
 }
 
@@ -69,6 +69,91 @@ fn stale_finish_keeps_active_scan_owner() {
         SourceScanFinish::Stale { .. }
     ));
     assert!(workflow.active());
+}
+
+#[test]
+fn apply_and_persist_owners_advance_in_order_and_terminal_completion_retires_progress() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 12)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(3),
+        FolderScanLifecycle::ApplyingResults,
+        "Applying"
+    ));
+    let applying = workflow.progress().cloned().expect("applying progress");
+    let result = scan_source_with_progress(request.clone(), |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan_with_lifecycle(&mut browser, result, Some(3), true),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert!(
+        !workflow.active(),
+        "projection owner retires before persistence"
+    );
+    assert!(workflow.resume_progress_after_projection(applying));
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(3),
+        FolderScanLifecycle::PersistingResults,
+        "Saving"
+    ));
+    assert!(
+        workflow
+            .finish_current_scan_terminal(
+                request.task_id,
+                &source_id,
+                Some(3),
+                FolderScanLifecycle::Complete,
+            )
+            .is_some()
+    );
+    assert!(!workflow.active());
+}
+
+#[test]
+fn stale_maintenance_generation_cannot_retire_replacement_progress() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 13)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(5),
+        FolderScanLifecycle::PersistingResults,
+        "Saving"
+    ));
+
+    assert!(
+        workflow
+            .finish_current_scan_terminal(
+                request.task_id,
+                &source_id,
+                Some(4),
+                FolderScanLifecycle::Complete,
+            )
+            .is_none()
+    );
+    assert_eq!(
+        workflow
+            .progress()
+            .expect("replacement progress")
+            .lifecycle_generation,
+        Some(5)
+    );
 }
 
 #[test]
@@ -237,6 +322,46 @@ fn cancelled_scan_releases_ownership_and_requeues_the_source() {
         SourceScanFinish::Cancelled { .. }
     ));
     assert!(!workflow.active());
+    assert_eq!(workflow.retry_counts.get(&source_id), Some(&1));
+    assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
+}
+
+#[test]
+fn repeated_scan_retries_increment_without_creating_parallel_owners() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let first = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 223)
+        .expect("first scan request");
+    let source_id = first.source_id.clone();
+    workflow.start_scan(&first);
+    let mut first_result = scan_source_with_progress(first, |_| {}, |_| {});
+    first_result.cancelled = true;
+    workflow.finish_scan(&mut browser, first_result);
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        Some(source_id.clone())
+    );
+
+    let second = match workflow.begin_filesystem_refresh_with_context(
+        &mut browser,
+        source_id.clone(),
+        224,
+        SourceRefreshCause::ScanCancelled,
+        Some(4),
+    ) {
+        SourceRefreshRequest::Queued(request) => request,
+        _ => panic!("retry must queue exactly one replacement scan"),
+    };
+    workflow.start_scan(&second);
+    assert_eq!(workflow.progress().expect("retry progress").retry_count, 1);
+    let mut second_result = scan_source_with_progress(second, |_| {}, |_| {});
+    second_result.cancelled = true;
+    workflow.finish_scan(&mut browser, second_result);
+
+    assert!(!workflow.active());
+    assert_eq!(workflow.retry_counts.get(&source_id), Some(&2));
     assert_eq!(workflow.next_pending_refresh_if_idle(), Some(source_id));
 }
 
@@ -273,6 +398,115 @@ fn cancelled_scan_from_retired_generation_releases_ownership_without_requeueing(
         SourceRefreshCause::ManifestAudit {
             committed_revision: 12
         }
+    );
+}
+
+#[test]
+fn user_cancel_releases_visible_owner_once_and_drops_late_completion() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 222)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    let result = scan_source_with_progress(request.clone(), |_| {}, |_| {});
+    workflow.start_scan(&request);
+    workflow.queue_required_refresh_with_context(
+        source_id.clone(),
+        SourceRefreshCause::WatcherOverflow,
+        Some(3),
+    );
+
+    assert_eq!(
+        workflow.cancel_active_scan_by_user(&mut browser),
+        Some((source_id, request.label))
+    );
+    assert!(!workflow.active());
+    assert!(workflow.next_pending_refresh_context_if_idle().is_none());
+    assert_eq!(workflow.cancel_active_scan_by_user(&mut browser), None);
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Stale { .. }
+    ));
+    assert!(!workflow.active());
+}
+
+#[test]
+fn worker_failure_retires_owner_without_scheduling_an_automatic_retry() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 72)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(8),
+        FolderScanLifecycle::Scanning,
+        "Scanning"
+    ));
+
+    let failed = workflow
+        .fail_active_scan(&mut browser, request.task_id, &source_id, Some(8))
+        .expect("failed terminal progress");
+
+    assert_eq!(failed.lifecycle, FolderScanLifecycle::Failed);
+    assert!(!workflow.active());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
+    assert!(!browser.scan_is_active(&source_id, request.task_id));
+}
+
+#[test]
+fn user_cancel_retires_post_projection_persistence_owner_and_fences_late_completion() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 73)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(9),
+        FolderScanLifecycle::ApplyingResults,
+        "Applying"
+    ));
+    let applying = workflow.progress().cloned().expect("applying progress");
+    let result = scan_source_with_progress(request.clone(), |_| {}, |_| {});
+    assert!(matches!(
+        workflow.finish_scan_with_lifecycle(&mut browser, result, Some(9), true),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert!(workflow.resume_progress_after_projection(applying));
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(9),
+        FolderScanLifecycle::PersistingResults,
+        "Saving"
+    ));
+
+    assert_eq!(
+        workflow.cancel_active_scan_by_user(&mut browser),
+        Some((source_id.clone(), request.label.clone()))
+    );
+    assert!(!workflow.active());
+    assert!(
+        workflow
+            .finish_current_scan_terminal(
+                request.task_id,
+                &source_id,
+                Some(9),
+                FolderScanLifecycle::Complete,
+            )
+            .is_none(),
+        "late maintenance completion must not revive a retired owner"
     );
 }
 

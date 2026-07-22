@@ -15,6 +15,7 @@ use crate::native_app::sample_library::folder_browser::scan::{
 
 #[derive(Clone)]
 pub(super) struct FolderScanMaintenanceRequest {
+    pub(super) completion: FolderScanCompletionContext,
     pub(super) config: AppConfig,
     pub(super) config_revision: Result<ConfigSaveRevision, String>,
     pub(super) sources: Vec<SampleSource>,
@@ -24,8 +25,20 @@ pub(super) struct FolderScanMaintenanceRequest {
     pub(super) rating_decay: Option<RatingDecayMaintenanceRequest>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderScanCompletionContext {
+    pub(super) task_id: u64,
+    pub(super) source_id: String,
+    pub(super) label: String,
+    pub(super) lifecycle_generation: Option<u64>,
+    pub(super) source_root_available: bool,
+    pub(super) source_db_error: Option<String>,
+    pub(super) metadata_hydration_error: Option<String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(in crate::native_app) struct FolderScanMaintenanceResult {
+    pub(super) completion: Option<FolderScanCompletionContext>,
     pub(in crate::native_app) config_error: Option<String>,
     pub(in crate::native_app) scan_cache_error: Option<String>,
     pub(in crate::native_app) harvest_errors: Vec<String>,
@@ -69,12 +82,36 @@ pub(super) fn persist_folder_scan_maintenance(
         })
         .unwrap_or_default();
     FolderScanMaintenanceResult {
+        completion: Some(request.completion),
         config_error,
         scan_cache_error,
         harvest_errors,
         rating_decay_source_id,
         rating_decay_updated_count,
         rating_decay_error,
+    }
+}
+
+pub(super) fn persist_folder_scan_maintenance_recovering(
+    request: FolderScanMaintenanceRequest,
+) -> FolderScanMaintenanceResult {
+    let completion = request.completion.clone();
+    recover_folder_scan_maintenance(completion, || persist_folder_scan_maintenance(request))
+}
+
+fn recover_folder_scan_maintenance(
+    completion: FolderScanCompletionContext,
+    work: impl FnOnce() -> FolderScanMaintenanceResult,
+) -> FolderScanMaintenanceResult {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)) {
+        Ok(result) => result,
+        Err(_) => FolderScanMaintenanceResult {
+            completion: Some(completion),
+            config_error: Some(String::from(
+                "source maintenance worker stopped unexpectedly",
+            )),
+            ..FolderScanMaintenanceResult::default()
+        },
     }
 }
 
@@ -177,6 +214,7 @@ mod tests {
     #[test]
     fn maintenance_result_combines_user_visible_persistence_errors() {
         let result = FolderScanMaintenanceResult {
+            completion: None,
             config_error: Some(String::from("config denied")),
             scan_cache_error: Some(String::from("cache full")),
             harvest_errors: Vec::new(),
@@ -201,5 +239,29 @@ mod tests {
         let error = persist_config_revision(&AppConfig::default(), &Ok(stale));
 
         assert!(error.is_some_and(|error| error.contains("superseded")));
+    }
+
+    #[test]
+    fn maintenance_panic_preserves_completion_identity_and_reports_warning() {
+        let completion = FolderScanCompletionContext {
+            task_id: 7,
+            source_id: String::from("source"),
+            label: String::from("Samples"),
+            lifecycle_generation: Some(9),
+            source_root_available: true,
+            source_db_error: None,
+            metadata_hydration_error: None,
+        };
+
+        let result = recover_folder_scan_maintenance(completion.clone(), || {
+            panic!("fault injected maintenance panic")
+        });
+
+        assert_eq!(result.completion, Some(completion));
+        assert!(
+            result
+                .persistence_error()
+                .is_some_and(|error| error.contains("stopped unexpectedly"))
+        );
     }
 }

@@ -200,6 +200,7 @@ pub(in crate::native_app) fn job_details_popover(
 fn job_details_popover_from_projection(
     projection: JobDetailsPopoverProjection,
 ) -> ui::View<GuiMessage> {
+    let source_scan_recovery = projection.source_scan_recovery;
     let [kind, source, progress, current] = projection.rows;
     let mut rows = vec![
         ui::text_line(kind, JOB_DETAILS_ROW_HEIGHT),
@@ -215,6 +216,20 @@ fn job_details_popover_from_projection(
             .enumerate()
             .map(job_details_current_row),
     );
+    if source_scan_recovery {
+        rows.push(
+            ui::button_row([
+                ui::button("Retry")
+                    .primary()
+                    .message(GuiMessage::RetryActiveSourceScan)
+                    .width(78.0),
+                ui::button("Cancel")
+                    .message(GuiMessage::CancelActiveSourceScan)
+                    .width(78.0),
+            ])
+            .into(),
+        );
+    }
     let content = ui::column(rows).spacing(5.0).fill_width();
     radiant::application::closeable_dialog_layer_from_parts(
         radiant::application::DialogLayerParts::new(
@@ -333,6 +348,7 @@ mod tests {
                 String::from("Progress: 61/200"),
                 String::from(current),
             ],
+            source_scan_recovery: false,
         })
         .view_frame_at_size_with_default_theme(viewport);
         let current_run = frame
@@ -345,6 +361,30 @@ mod tests {
             current_run.rect.max.y <= dialog_bottom,
             "current work row must remain inside the bottom-anchored dialog"
         );
+    }
+
+    #[test]
+    fn stalled_source_scan_popover_exposes_retry_and_cancel_actions() {
+        let viewport = ui::Vector2::new(540.0, 260.0);
+        let frame = job_details_popover_from_projection(JobDetailsPopoverProjection {
+            title: "Job Details",
+            rows: [
+                String::from("Type: Source scan"),
+                String::from("Source: Samples"),
+                String::from("Progress: Taking longer than expected"),
+                String::from("Current: Waiting for database access"),
+            ],
+            source_scan_recovery: true,
+        })
+        .view_frame_at_size_with_default_theme(viewport);
+
+        assert!(frame.paint_plan.contains_text("Retry"));
+        assert!(frame.paint_plan.contains_text("Cancel"));
+        let cancel = frame
+            .paint_plan
+            .first_text_run("Cancel")
+            .expect("cancel action paints");
+        assert!(cancel.rect.max.y <= viewport.y - 38.0);
     }
 
     #[test]

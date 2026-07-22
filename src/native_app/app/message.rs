@@ -71,6 +71,7 @@ pub(in crate::native_app) enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(PreparedFolderScanResult),
+    #[cfg_attr(test, allow(dead_code))]
     FolderScanMaintenanceFinished(FolderScanMaintenanceResult),
     FolderTreeRefreshFinished(ui::TaskCompletion<FolderTreeRefreshResult>),
     SelectedFolderVerifyFinished(ui::TaskCompletion<FolderVerifyResult>),
@@ -292,6 +293,8 @@ pub(in crate::native_app) enum GuiMessage {
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
+    RetryActiveSourceScan,
+    CancelActiveSourceScan,
     ReleaseUpdateCheckFinished(
         ui::TaskCompletion<Result<Option<wavecrate::updater::PublicReleaseInfo>, String>>,
     ),

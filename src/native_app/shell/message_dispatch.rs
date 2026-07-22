@@ -195,6 +195,8 @@ impl NativeAppState {
             | GuiMessage::WaveformFileDrop(_) => self.apply_file_dispatch(message, context),
             GuiMessage::ToggleJobDetails
             | GuiMessage::CloseJobDetails
+            | GuiMessage::RetryActiveSourceScan
+            | GuiMessage::CancelActiveSourceScan
             | GuiMessage::ReleaseUpdateCheckFinished(_)
             | GuiMessage::OpenReleaseDownloadPage
             | GuiMessage::ToggleShortcutHelp

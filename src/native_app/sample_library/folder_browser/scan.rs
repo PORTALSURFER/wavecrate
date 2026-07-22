@@ -1,9 +1,11 @@
-#[cfg(test)]
-pub(in crate::native_app) use super::scan_types::FolderScanItem;
 pub(in crate::native_app) use super::scan_types::{
-    FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
-    FolderScanResult, FolderTreeRefreshRequest, FolderTreeRefreshResult, FolderVerifyResult,
-    PreparedFolderScanResult, RatingDecayMaintenanceRequest,
+    FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanLifecycle, FolderScanProgress,
+    FolderScanRequest, FolderScanResult, FolderTreeRefreshRequest, FolderTreeRefreshResult,
+    FolderVerifyResult, PreparedFolderScanResult, RatingDecayMaintenanceRequest,
+};
+#[cfg(test)]
+pub(in crate::native_app) use super::scan_types::{
+    FolderScanItem, SOURCE_SCAN_LONG_WAIT_THRESHOLD,
 };
 #[cfg(test)]
 pub(in crate::native_app) use super::scanning::INDEX_PROGRESS_REPORT_INTERVAL;

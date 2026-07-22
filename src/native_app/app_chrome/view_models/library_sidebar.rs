@@ -197,7 +197,14 @@ impl LibrarySidebarViewModel {
                 state
                     .library
                     .folder_progress()
-                    .filter(|progress| progress.phase != "Waiting")
+                    .filter(|progress| {
+                        matches!(
+                            progress.lifecycle,
+                            crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::Scanning
+                                | crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::ApplyingResults
+                                | crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::PersistingResults
+                        )
+                    })
                     .map(|progress| progress.source_id.as_str()),
             ),
             folder_tree: FolderTreeViewModel::from_folder_browser(
@@ -565,15 +572,15 @@ mod tests {
         assert!(
             state
                 .library
-                .apply_folder_scan_progress(FolderScanProgress {
-                    task_id: request.task_id,
-                    source_id: request.source_id.clone(),
-                    label: request.label,
-                    phase: String::from("Scanning"),
-                    completed: 1,
-                    total: 10,
-                    detail: String::from("snare.wav"),
-                })
+                .apply_folder_scan_progress(FolderScanProgress::new(
+                    request.task_id,
+                    request.source_id.clone(),
+                    request.label,
+                    crate::native_app::sample_library::folder_browser::scan::FolderScanLifecycle::Scanning,
+                    1,
+                    10,
+                    String::from("snare.wav"),
+                ))
         );
         let admitted = LibrarySidebarViewModel::from_app_state(&state);
         let admitted_row = admitted
