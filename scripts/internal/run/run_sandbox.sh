@@ -17,11 +17,13 @@ CLEAN=0
 TEMP=0
 NAME=""
 WRITE_DB=0
+FIXTURE=""
+FIXTURE_RESET=1
 
 usage() {
   local entrypoint="${WAVECRATE_RUN_ENTRYPOINT:-scripts/run.sh}"
   cat <<EOF
-Usage: ${entrypoint} sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--write-db] [--] [app args...]
+Usage: ${entrypoint} sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--clean] [--write-db] [--fixture <name>] [--fixture-preserve] [--] [app args...]
 
 Runs cargo run --release with:
 - WAVECRATE_CONFIG_HOME set to an isolated sandbox base directory
@@ -38,6 +40,11 @@ Options:
   --temp        Use a temporary sandbox base dir (mktemp) and delete it on exit.
   --clean       Delete the sandbox base dir on exit.
   --write-db    Allow source DB writes (opt out of read-only DB mode).
+  --fixture <name>
+                Provision empty, small-multi-source, or large-source before launch.
+                Fixture sources are disposable and automatically write-enabled.
+  --fixture-preserve
+                Validate and reuse an existing fixture instead of resetting it.
 EOF
 }
 
@@ -53,6 +60,14 @@ while (( $# > 0 )); do
       CLEAN=1; shift ;;
     --write-db)
       WRITE_DB=1; shift ;;
+    --fixture)
+      if (( $# < 2 )) || [[ -z "${2:-}" ]]; then
+        echo "[run_sandbox][error] --fixture requires a fixture name." >&2
+        exit 2
+      fi
+      FIXTURE="$2"; shift 2 ;;
+    --fixture-preserve)
+      FIXTURE_RESET=0; shift ;;
     --)
       shift; break ;;
     -h|--help)
@@ -82,6 +97,19 @@ if [[ -z "$SANDBOX_BASE" ]]; then
   fi
 fi
 
+if [[ -n "$FIXTURE" ]]; then
+  case "$FIXTURE" in
+    empty|small-multi-source|large-source) ;;
+    *)
+      echo "[run_sandbox][error] Unknown fixture '$FIXTURE'. Expected empty, small-multi-source, or large-source." >&2
+      exit 2 ;;
+  esac
+fi
+if (( FIXTURE_RESET == 0 )) && [[ -z "$FIXTURE" ]]; then
+  echo "[run_sandbox][error] --fixture-preserve requires --fixture <name>." >&2
+  exit 2
+fi
+
 mkdir -p "$SANDBOX_BASE"
 
 if (( CLEAN == 1 )); then
@@ -90,6 +118,16 @@ fi
 
 export WAVECRATE_CONFIG_HOME="$SANDBOX_BASE"
 export WAVECRATE_CONFIG_PROFILE="sandbox"
+if [[ -n "$FIXTURE" ]]; then
+  fixture_args=(provision --fixture "$FIXTURE" --config-base "$SANDBOX_BASE" --profile sandbox)
+  if (( FIXTURE_RESET == 0 )); then
+    fixture_args+=(--no-reset)
+  fi
+  cargo run --quiet --bin wavecrate-fixture -- "${fixture_args[@]}" >/dev/null
+  WRITE_DB=1
+  echo "[run_sandbox] fixture=$FIXTURE"
+  echo "[run_sandbox] fixture_manifest=$SANDBOX_BASE/.wavecrate/fixtures/$FIXTURE/fixture-manifest.json"
+fi
 if (( WRITE_DB == 1 )); then
   unset WAVECRATE_SOURCE_DB_READ_ONLY
 else

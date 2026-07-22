@@ -493,8 +493,12 @@ Selects the GUI fixture used in GUI test mode. The default is
 temporary config base using the dedicated non-live `automated-tests` profile.
 Use `live` only when you explicitly want GUI validation to exercise the real
 persisted startup profile. The legacy `default` tag is accepted only as an alias
-for `isolated-startup`. Named deterministic fixtures remain retained-controller
-compatibility tools and are not product-startup certification.
+for `isolated-startup`. The versioned `empty`, `small-multi-source`, and
+`large-source` tags use production-native startup with deterministic disposable
+source libraries; `small-multi-source` is the routine source-system QA fixture
+and `large-source` is explicit/opt-in. Older names such as `browser`,
+`waveform`, and `map` remain retained-controller compatibility tools and are not
+product-startup certification.
 
 ## Logging
 

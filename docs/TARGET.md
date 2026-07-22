@@ -2682,12 +2682,13 @@ Behavioral coverage anchor: `src/app_core/ui_bridge/tests.rs`.
 
 The GUI test platform has two explicitly separated runtime families:
 
-1. product certification for `live`, `isolated-startup`, and the legacy
-   `default` alias lowers `NativeAppState` through the same Radiant runtime
-   bridge, subscriptions, message reducer, and shutdown hook as the desktop
-   executable;
-2. named deterministic fixtures remain retained-controller compatibility
-   coverage until equivalent native fixture builders exist.
+1. product certification for `live`, `isolated-startup`, the legacy `default`
+   alias, and the versioned native `empty`, `small-multi-source`, and
+   `large-source` fixtures lowers `NativeAppState` through the same Radiant
+   runtime bridge, subscriptions, message reducer, and shutdown hook as the
+   desktop executable;
+2. older named fixtures such as `browser`, `waveform`, and `map` remain
+   retained-controller compatibility coverage.
 
 The product-native path owns startup and persistence certification. Named
 controller fixtures must never be treated as proof of production startup or
@@ -2708,6 +2709,16 @@ The important contract is semantic stability:
   profile
 * complete native captures through the real shutdown hook and retain its
   machine-readable artifact
+
+Native source-system fixtures use one versioned generator for shell, PowerShell,
+and in-process automation. `empty` has no sources; `small-multi-source` is the
+routine source-system and visual-QA baseline with two disposable configured
+sources; `large-source` is opt-in for high-cardinality validation only. A clean
+reset removes the fixture's non-live profile, source databases, caches, WAL
+state, and prior mutations, then regenerates exact audio inputs, stable source
+ids, and a machine-readable hash/count manifest. Fixture tooling must reject
+the live profile and confine every write-capable source below the resolved
+fixture config base.
 
 Current development loops:
 

@@ -103,7 +103,7 @@ fn find_node_recursive<'a>(
 mod tests {
     use super::*;
     use crate::{
-        app_dirs::{ConfigBaseGuard, PersistenceProfileGuard},
+        app_dirs::{APP_DIR_NAME, AppRootGuard, PersistenceProfileGuard},
         gui_test::{GuiFixtureRuntime, GuiTestModeConfig, capture_default_bundle},
         sample_sources::config::{AppConfig, AppSettingsCore, config_path, save},
     };
@@ -134,8 +134,9 @@ mod tests {
     #[test]
     fn resolve_target_uses_window_relative_center() {
         let live_base = tempdir().expect("live config base");
-        let _base_guard = ConfigBaseGuard::set(live_base.path().to_path_buf());
         let _live_guard = PersistenceProfileGuard::live();
+        let _root_guard = AppRootGuard::set(live_base.path().join(APP_DIR_NAME))
+            .expect("select isolated live sentinel root");
         save(&AppConfig {
             sources: Vec::new(),
             core: AppSettingsCore {
@@ -185,6 +186,33 @@ mod tests {
         assert!(target.center_x > 0.0);
         assert!(target.center_y > 0.0);
         assert_eq!(target.node_id, target_id);
+    }
+
+    #[test]
+    fn small_multi_source_fixture_uses_native_workers() {
+        let bundle = capture_default_bundle(&GuiTestModeConfig {
+            fixture_tag: String::from(crate::gui_test::GUI_TEST_SMALL_MULTI_SOURCE_FIXTURE_TAG),
+            ..GuiTestModeConfig::default()
+        })
+        .expect("small native source fixture bundle");
+
+        assert_eq!(bundle.fixture_runtime, GuiFixtureRuntime::NativeApp);
+        assert_eq!(
+            bundle.runtime_composition,
+            Some(crate::gui_test::GuiRuntimeComposition {
+                native_source_watchers: 1,
+                native_readiness_supervisors: 1,
+                legacy_analysis_pools: 0,
+            })
+        );
+        assert_eq!(bundle.fixture_tag, "small-multi-source");
+        assert_eq!(
+            bundle
+                .shutdown_artifact
+                .as_ref()
+                .and_then(|artifact| artifact["source_processing"]["joined"].as_bool()),
+            Some(true)
+        );
     }
 
     #[test]

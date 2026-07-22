@@ -2,6 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
+use crate::native_source_fixture::FixtureManifest;
 use radiant::{
     gui::{automation::GuiAutomationSnapshot, repaint::RepaintSignal},
     layout::Vector2,
@@ -10,7 +11,8 @@ use radiant::{
 use serde::Serialize;
 
 use crate::native_app::{
-    app::NativeAppState, app_chrome::view_models::sample_browser::prepare_sample_browser_view,
+    app::{GuiMessage, NativeAppState},
+    app_chrome::view_models::sample_browser::prepare_sample_browser_view,
     shell::native_app_runtime_bridge,
 };
 
@@ -37,6 +39,21 @@ pub(crate) struct NativeAutomationCapture {
 
 /// Capture one product-native startup without opening a desktop window.
 pub(crate) fn capture_startup(viewport: [u32; 2]) -> Result<NativeAutomationCapture, String> {
+    capture_startup_with_readiness(viewport, None)
+}
+
+/// Capture product-native startup after one deterministic fixture fully converges.
+pub(crate) fn capture_startup_for_fixture(
+    viewport: [u32; 2],
+    manifest: &FixtureManifest,
+) -> Result<NativeAutomationCapture, String> {
+    capture_startup_with_readiness(viewport, Some(manifest))
+}
+
+fn capture_startup_with_readiness(
+    viewport: [u32; 2],
+    manifest: Option<&FixtureManifest>,
+) -> Result<NativeAutomationCapture, String> {
     let mut state = NativeAppState::load_for_automation()?;
     state.wait_for_source_watcher_ready(Duration::from_secs(30))?;
     let runtime_composition = state.automation_runtime_composition();
@@ -46,7 +63,18 @@ pub(crate) fn capture_startup(viewport: [u32; 2]) -> Result<NativeAutomationCapt
     let mut runtime =
         SurfaceRuntime::new(bridge, Vector2::new(viewport[0] as f32, viewport[1] as f32));
     runtime.host_install_repaint_signal(Arc::new(NoopRepaintSignal));
-    let _ = runtime.drain_runtime_messages();
+    if let Some(manifest) = manifest {
+        let _ = runtime.dispatch_message(GuiMessage::Frame);
+        crate::native_source_fixture::wait_for_readiness(
+            manifest,
+            Duration::from_secs(45),
+            || {
+                let _ = runtime.drain_runtime_messages();
+            },
+        )?;
+    } else {
+        let _ = runtime.drain_runtime_messages();
+    }
     let automation_snapshot = runtime.automation_snapshot();
     let shutdown_artifact = runtime.host_on_runtime_exit();
 
@@ -66,7 +94,7 @@ impl RepaintSignal for NoopRepaintSignal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
+    use crate::app_dirs::{APP_DIR_NAME, AppRootGuard, PROFILE_DIR_NAME, PersistenceProfileGuard};
     use crate::sample_sources::{
         SampleSource,
         config::{AppConfig, AppSettingsCore, save},
@@ -77,8 +105,15 @@ mod tests {
     fn startup_capture_uses_native_workers_and_shutdown_hook() {
         let config_base = tempdir().expect("config base");
         let source_root = tempdir().expect("source root");
-        let _base_guard = ConfigBaseGuard::set(config_base.path().to_path_buf());
         let _profile_guard = PersistenceProfileGuard::automated();
+        let _root_guard = AppRootGuard::set(
+            config_base
+                .path()
+                .join(APP_DIR_NAME)
+                .join(PROFILE_DIR_NAME)
+                .join("automated-tests"),
+        )
+        .expect("select isolated automation app root");
         save(&AppConfig {
             sources: vec![SampleSource::new(source_root.path().to_path_buf())],
             core: AppSettingsCore::default(),

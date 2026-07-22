@@ -145,6 +145,10 @@ embed-resource = "3.0"
 name = "wavecrate"
 path = "src/main.rs"
 
+[[bin]]
+name = "wavecrate-fixture"
+path = "tools/native-fixture-cli/main.rs"
+
 [[bench]]
 name = "tagging"
 harness = false

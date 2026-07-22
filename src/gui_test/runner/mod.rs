@@ -10,12 +10,13 @@ use super::{
 };
 use crate::{
     app_core::actions::{GuiDispatchPolicy, NativeUiAction, action_catalog_entry},
-    app_dirs::{ConfigBaseGuard, PersistenceProfileGuard},
+    app_dirs::{APP_DIR_NAME, AppRootGuard, PROFILE_DIR_NAME, PersistenceProfileGuard},
     gui_test::{
         GuiFixtureBridge, GuiFixtureRuntime, GuiRuntimeComposition, build_native_model_summary,
         gui_test_fixture_uses_isolated_startup, gui_test_fixture_uses_live_profile,
-        trace_event_for_action,
+        gui_test_native_source_fixture, trace_event_for_action,
     },
+    native_source_fixture::{FixtureProfile, FixtureProvisionRequest, provision},
     sample_sources::{
         SampleSource,
         config::{AppConfig, AppSettingsCore},
@@ -78,6 +79,7 @@ pub fn run_scenario(
 fn fixture_uses_native_app(fixture_tag: &str) -> bool {
     gui_test_fixture_uses_live_profile(fixture_tag)
         || gui_test_fixture_uses_isolated_startup(fixture_tag)
+        || gui_test_native_source_fixture(fixture_tag).is_some()
 }
 
 fn ensure_legacy_fixture_for_controller_actions(fixture_tag: &str) -> Result<(), String> {
@@ -104,17 +106,40 @@ fn capture_native_startup_bundle(
         .map_err(|err| format!("create isolated native GUI config base: {err}"))?;
     let source_root = tempfile::tempdir()
         .map_err(|err| format!("create isolated native GUI source root: {err}"))?;
-    let _base_guard = ConfigBaseGuard::set(config_base.path().to_path_buf());
     let _profile_guard = PersistenceProfileGuard::automated();
-    crate::sample_sources::config::save(&AppConfig {
-        sources: vec![SampleSource::new(source_root.path().to_path_buf())],
-        core: AppSettingsCore::default(),
-    })
-    .map_err(|err| format!("seed isolated native GUI profile: {err}"))?;
-    native_bundle_from_capture(
-        config,
-        crate::native_app::automation::capture_startup(config.viewport)?,
+    let _root_guard = AppRootGuard::set(
+        config_base
+            .path()
+            .join(APP_DIR_NAME)
+            .join(PROFILE_DIR_NAME)
+            .join(FixtureProfile::AutomatedTests.as_str()),
     )
+    .map_err(|err| format!("select isolated native GUI app root: {err}"))?;
+    let fixture_manifest =
+        if let Some(fixture) = gui_test_native_source_fixture(&config.fixture_tag) {
+            Some(provision(&FixtureProvisionRequest {
+                config_base: config_base.path().to_path_buf(),
+                fixture,
+                profile: FixtureProfile::AutomatedTests,
+                reset: true,
+            })?)
+        } else {
+            crate::sample_sources::config::save(&AppConfig {
+                sources: vec![SampleSource::new(source_root.path().to_path_buf())],
+                core: AppSettingsCore::default(),
+            })
+            .map_err(|err| format!("seed isolated native GUI profile: {err}"))?;
+            None
+        };
+    let capture = match fixture_manifest.as_ref() {
+        Some(manifest)
+            if manifest.fixture == crate::native_source_fixture::FixtureName::SmallMultiSource =>
+        {
+            crate::native_app::automation::capture_startup_for_fixture(config.viewport, manifest)?
+        }
+        _ => crate::native_app::automation::capture_startup(config.viewport)?,
+    };
+    native_bundle_from_capture(config, capture)
 }
 
 fn native_bundle_from_capture(

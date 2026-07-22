@@ -596,6 +596,13 @@ run_expect_exit_code \
   "$ROOT_DIR" \
   scripts/internal/validation/test_validation_watchdog.sh
 
+run_expect_exit_code \
+  "sandbox fixture dispatcher" \
+  0 \
+  "$ROOT_DIR" \
+  bash \
+  scripts/internal/run/test_sandbox_fixture_dispatch.sh
+
 if (( failures > 0 )); then
   echo "[guardrails] FAILED: $failures checks failed."
   exit 1
