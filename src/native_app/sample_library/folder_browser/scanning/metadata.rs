@@ -5,7 +5,10 @@ use std::{
 };
 
 use super::super::FileEntry;
-use super::file_entry_metadata::file_entry_with_metadata;
+use super::{
+    entry::{BrowserEntryKind, classify_path_without_following},
+    file_entry_metadata::file_entry_with_metadata,
+};
 use wavecrate::sample_sources::{
     Rating, SampleCollection, SourceDatabase, config::clamp_rating_decay_weeks,
 };
@@ -267,6 +270,7 @@ pub(in crate::native_app::sample_library::folder_browser) fn refreshed_file_entr
     let ratings = source_rating_map(source_root, source_database_root);
     paths
         .iter()
+        .filter(|path| classify_path_without_following(path) == Some(BrowserEntryKind::File))
         .map(|path| rated_file_entry(path, source_root, &ratings))
         .collect()
 }

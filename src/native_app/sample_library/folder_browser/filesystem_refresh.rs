@@ -10,11 +10,25 @@ use super::{
     FileColumnKind, FolderBrowserState, FolderEntry, FolderVerifyOutcome, FolderVerifyResult,
     file_columns::sort_kind_for_details_sort,
     path_helpers::path_id,
-    scanning::{file_entry_for_source_path, load_folder_at_path, upsert_file, upsert_folder},
+    scanning::{
+        BrowserEntryKind, classify_path_without_following, file_entry_for_source_path,
+        load_folder_at_path, upsert_file, upsert_folder,
+    },
 };
 
 impl FolderBrowserState {
     pub(in crate::native_app) fn refresh_file_path(&mut self, path: &Path) -> bool {
+        let Some(source_index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == self.source.selected_source)
+        else {
+            return false;
+        };
+        if classify_path_without_following(path) != Some(BrowserEntryKind::File) {
+            return self.remove_unscannable_path_from_source(source_index, path);
+        }
         let Some(parent) = path.parent() else {
             return false;
         };
@@ -22,14 +36,7 @@ impl FolderBrowserState {
         let refreshes_selected_file =
             self.selection.selected_file_id() == Some(refreshed_file_id.as_str());
         let parent_id = path_id(parent);
-        let Some(source) = self
-            .source
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.source.selected_source)
-        else {
-            return false;
-        };
+        let source = &mut self.source.sources[source_index];
         let Some(root_folder) = &mut source.root_folder else {
             return false;
         };
@@ -51,12 +58,6 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn refresh_file_path_across_sources(&mut self, path: &Path) -> bool {
-        let Some(parent) = path.parent() else {
-            return false;
-        };
-        let refreshed_file_id = path_id(path);
-        let refreshes_selected_file =
-            self.selection.selected_file_id() == Some(refreshed_file_id.as_str());
         let Some(source_index) = self
             .source
             .sources
@@ -68,6 +69,15 @@ impl FolderBrowserState {
         else {
             return false;
         };
+        if classify_path_without_following(path) != Some(BrowserEntryKind::File) {
+            return self.remove_unscannable_path_from_source(source_index, path);
+        }
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let refreshed_file_id = path_id(path);
+        let refreshes_selected_file =
+            self.selection.selected_file_id() == Some(refreshed_file_id.as_str());
         let source_id = self.source.sources[source_index].id.clone();
         let source_root = self.source.sources[source_index].root.clone();
         let source_database_root = self.source.sources[source_index].database_root.clone();
@@ -111,12 +121,16 @@ impl FolderBrowserState {
         let refreshes_selected_file = selected_file_id
             .as_deref()
             .is_some_and(|selected| paths.iter().any(|path| path_id(path) == selected));
-        let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
-            return false;
-        };
 
         let mut changed = false;
         for path in paths {
+            if classify_path_without_following(path) != Some(BrowserEntryKind::File) {
+                changed |= self.remove_missing_path_from_source(source_index, path);
+                continue;
+            }
+            let Some(root_folder) = self.source.sources[source_index].root_folder.as_mut() else {
+                continue;
+            };
             let Some(parent) = path.parent() else {
                 continue;
             };
@@ -132,12 +146,17 @@ impl FolderBrowserState {
             return false;
         }
 
-        self.tree.folders = vec![root_folder.clone()];
-        if refreshes_selected_file {
+        let source_id = self.source.sources[source_index].id.clone();
+        let refreshed_selected_file_still_exists = selected_file_id.as_deref().is_some_and(|id| {
+            self.source.sources[source_index]
+                .root_folder
+                .as_ref()
+                .is_some_and(|root| root.find_file(id).is_some())
+        });
+        self.after_source_tree_changed(&source_id);
+        if refreshes_selected_file && refreshed_selected_file_still_exists {
             self.request_selected_file_view_refollow_after_content_change();
         }
-        self.bump_file_content_revision();
-        self.refresh_missing_collection_state();
         true
     }
 
@@ -293,20 +312,23 @@ impl FolderBrowserState {
         relative_path: &Path,
     ) -> bool {
         let absolute_path = source_root.join(relative_path);
-        if absolute_path.is_dir() {
-            return self.refresh_existing_folder_path(
-                source_index,
-                source_root,
-                source_database_root,
-                &absolute_path,
-            );
-        }
-        if absolute_path.is_file() {
-            return self.refresh_existing_file_path(
-                source_index,
-                source_database_root,
-                &absolute_path,
-            );
+        match classify_path_without_following(&absolute_path) {
+            Some(BrowserEntryKind::Directory) => {
+                return self.refresh_existing_folder_path(
+                    source_index,
+                    source_root,
+                    source_database_root,
+                    &absolute_path,
+                );
+            }
+            Some(BrowserEntryKind::File) => {
+                return self.refresh_existing_file_path(
+                    source_index,
+                    source_database_root,
+                    &absolute_path,
+                );
+            }
+            None => {}
         }
         self.remove_missing_path_from_source(source_index, &absolute_path)
     }
@@ -409,6 +431,15 @@ impl FolderBrowserState {
             if let Some(file) = removed_file {
                 snapshot.add_missing_file(file);
             }
+        }
+        changed
+    }
+
+    fn remove_unscannable_path_from_source(&mut self, source_index: usize, path: &Path) -> bool {
+        let source_id = self.source.sources[source_index].id.clone();
+        let changed = self.remove_missing_path_from_source(source_index, path);
+        if changed {
+            self.after_source_tree_changed(&source_id);
         }
         changed
     }

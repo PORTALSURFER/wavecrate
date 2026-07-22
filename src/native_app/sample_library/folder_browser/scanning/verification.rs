@@ -7,8 +7,8 @@ use super::{
             FolderVerifyOutcome, FolderVerifyRequest, FolderVerifyResult, FolderVerifySnapshot,
         },
     },
+    entry::{BrowserEntryKind, classify_path_without_following, read_sorted_entries},
     file_entry_metadata::file_entry,
-    traversal::read_sorted_entries,
 };
 
 pub(in crate::native_app) fn verify_direct_folder(
@@ -39,7 +39,7 @@ enum DirectFolderSnapshot {
 }
 
 fn read_direct_folder_snapshot(path: &Path) -> DirectFolderSnapshot {
-    if !path.is_dir() {
+    if classify_path_without_following(path) != Some(BrowserEntryKind::Directory) {
         return DirectFolderSnapshot::Missing;
     }
     let Some(entries) = read_sorted_entries(path) else {
@@ -47,13 +47,13 @@ fn read_direct_folder_snapshot(path: &Path) -> DirectFolderSnapshot {
     };
     let child_paths = entries
         .iter()
-        .filter(|entry| entry.is_dir())
-        .cloned()
+        .filter(|entry| entry.kind == BrowserEntryKind::Directory)
+        .map(|entry| entry.path.clone())
         .collect::<Vec<_>>();
     let files = entries
         .iter()
-        .filter(|entry| entry.is_file())
-        .map(file_entry)
+        .filter(|entry| entry.kind == BrowserEntryKind::File)
+        .map(|entry| file_entry(&entry.path))
         .collect::<Vec<_>>();
     DirectFolderSnapshot::Available(FolderVerifySnapshot { child_paths, files })
 }
