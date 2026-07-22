@@ -1,6 +1,6 @@
 use super::{
-    ArtifactPublishOutcome, AtomicBool, DatabasePhase, DatabaseWriterGate, ExecutionOutcome,
-    Ordering, PREREQUISITE_INVALIDATION_RETRY_SECONDS, READINESS_LEASE_SECONDS,
+    ArtifactPublishOutcome, AtomicBool, DatabasePhase, DatabaseWriterGate, DatabaseWriterGuard,
+    ExecutionOutcome, Ordering, PREREQUISITE_INVALIDATION_RETRY_SECONDS, READINESS_LEASE_SECONDS,
     READINESS_MAX_ATTEMPTS, ReadinessExecutionOutcome, ReadinessFailureClassification,
     ReadinessFailureOutcome, ReadinessRetryPolicy, ReadinessStore, ReadinessTarget, SampleSource,
     SourceDatabase, SourceDatabaseConnectionRole, cancel_claim,
@@ -89,7 +89,16 @@ pub(super) fn execute_readiness_target(
             now_epoch_seconds(),
         );
     }
-    let _writer = database_writer.lock(DatabasePhase::Publish);
+    let (_writer, cancelled_after_wait) = lock_readiness_publication(database_writer, cancel);
+    if cancelled_after_wait {
+        cleanup_unpublished_readiness_output(&outcome);
+        return cancel_claim(
+            &mut connection,
+            &claim,
+            "runtime cancellation while waiting for readiness publication",
+            now_epoch_seconds(),
+        );
+    }
     match outcome {
         Ok(ReadinessExecutionOutcome::Complete(artifact_ref)) => {
             let completed = match artifact_ref.as_deref() {
@@ -214,5 +223,51 @@ pub(super) fn execute_readiness_target(
                 | ReadinessFailureOutcome::AttemptsExhausted => Ok(ExecutionOutcome::Failed),
             }
         }
+    }
+}
+
+fn lock_readiness_publication(
+    database_writer: &DatabaseWriterGate,
+    cancel: &AtomicBool,
+) -> (DatabaseWriterGuard, bool) {
+    let writer = database_writer.lock(DatabasePhase::Publish);
+    let cancelled_after_wait = cancel.load(Ordering::Acquire);
+    (writer, cancelled_after_wait)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        sync::Arc,
+        thread,
+        time::{Duration, Instant},
+    };
+
+    #[test]
+    fn publication_lock_observes_cancellation_that_arrives_while_waiting() {
+        let gate = DatabaseWriterGate::default();
+        let held_writer = gate.lock(DatabasePhase::Publish);
+        let cancel = Arc::new(AtomicBool::new(false));
+        let worker_gate = gate.clone();
+        let worker_cancel = Arc::clone(&cancel);
+        let worker = thread::spawn(move || {
+            let (_writer, cancelled) =
+                lock_readiness_publication(&worker_gate, worker_cancel.as_ref());
+            cancelled
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while gate.waiting_count() == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "publication did not wait for gate"
+            );
+            thread::sleep(Duration::from_millis(1));
+        }
+        cancel.store(true, Ordering::Release);
+        drop(held_writer);
+
+        assert!(worker.join().expect("publication waiter joins"));
     }
 }

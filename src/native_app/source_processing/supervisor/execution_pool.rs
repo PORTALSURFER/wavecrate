@@ -110,8 +110,16 @@ impl ExecutionPool {
 
     pub(super) fn shutdown(&mut self) -> bool {
         self.request_tx.take();
-        self.workers.drain(..).all(|worker| worker.join().is_ok())
+        join_all_workers(self.workers.drain(..))
     }
+}
+
+fn join_all_workers(workers: impl IntoIterator<Item = JoinHandle<()>>) -> bool {
+    let mut joined = true;
+    for worker in workers {
+        joined = worker.join().is_ok() && joined;
+    }
+    joined
 }
 
 fn run_worker(
@@ -299,5 +307,29 @@ mod tests {
         assert_eq!(completed, 2);
         assert_eq!(pool.in_flight_count(), 0);
         assert!(pool.shutdown());
+    }
+
+    #[test]
+    fn worker_panic_does_not_detach_remaining_workers_during_shutdown() {
+        let panicked = thread::spawn(|| panic!("intentional worker panic"));
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let waiting = thread::spawn(move || {
+            release_rx.recv().expect("release remaining worker");
+        });
+        let (joined_tx, joined_rx) = std::sync::mpsc::channel();
+        let joiner = thread::spawn(move || {
+            joined_tx
+                .send(join_all_workers([panicked, waiting]))
+                .expect("report join result");
+        });
+
+        thread::sleep(std::time::Duration::from_millis(20));
+        assert!(
+            joined_rx.try_recv().is_err(),
+            "shutdown returned before the remaining worker exited"
+        );
+        release_tx.send(()).expect("release remaining worker");
+        assert!(!joined_rx.recv().expect("receive join result"));
+        joiner.join().expect("join shutdown observer");
     }
 }
