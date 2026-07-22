@@ -2,7 +2,7 @@ use super::super::{
     diagnostics::{PlayheadOverlayFrameDiagnostics, PlayheadProgressSource},
     loop_control::PlayheadProgressProjection,
 };
-use crate::native_app::app_chrome::palette::PALE_MARKER;
+use crate::native_app::app_chrome::palette::ACCENT;
 use crate::native_app::{
     app::{NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState},
     waveform::{
@@ -14,7 +14,7 @@ use radiant::{
     runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
 
-const PLAYBACK_CURSOR_COLOR: Rgba8 = PALE_MARKER.with_alpha(210);
+const PLAYBACK_CURSOR_COLOR: Rgba8 = ACCENT;
 const PLAYBACK_CURSOR_WIDTH: f32 = 2.0;
 const LOADING_BACKGROUND_COLOR: Rgba8 = Rgba8 {
     r: 22,
@@ -124,11 +124,10 @@ impl NativeAppState {
     }
 
     pub(in crate::native_app) fn should_paint_app_transient_overlay(&self) -> bool {
-        !self.chrome_overlay_suppresses_waveform_transient_overlay()
-            && (self.playback_visual_activity_active()
-                || self.waveform.load.label.is_some()
-                || self.source_processing_activity_overlay_visible()
-                || self.active_starmap_audition_file_id().is_some())
+        self.worker_progress_indicator_visible()
+            || self.active_starmap_audition_file_id().is_some()
+            || (!self.chrome_overlay_suppresses_waveform_transient_overlay()
+                && (self.playback_visual_activity_active() || self.waveform.load.label.is_some()))
     }
 
     #[cfg(test)]
@@ -277,6 +276,12 @@ mod tests {
             .filter_map(PaintPrimitive::fill_rect)
             .collect::<Vec<_>>();
         assert_eq!(cursor_segments.len(), 2);
+        assert!(
+            cursor_segments
+                .iter()
+                .all(|segment| segment.color == ACCENT),
+            "playback cursor should use the shared active accent"
+        );
         assert_eq!(cursor_segments[0].rect.max.y, 60.0);
         assert_eq!(cursor_segments[1].rect.min.y, 78.0);
     }

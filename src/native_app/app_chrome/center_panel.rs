@@ -20,6 +20,7 @@ pub(in crate::native_app) fn library_sidebar_region(
     ui::resizable(library_sidebar_view(state))
         .handle_width(1.0)
         .handle_inset(0.0)
+        .full_height_rail()
         .subtle_resize_handle("library-sidebar-resize-handle", GuiMessage::ResizeFolder)
 }
 

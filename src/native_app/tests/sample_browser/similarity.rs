@@ -5,6 +5,32 @@ use wavecrate_analysis::aspects::SimilarityAspect;
 const SIMILARITY_TEST_SOURCE_ID: &str = "native-similarity-test";
 
 #[test]
+fn toggling_similarity_anchor_hands_keyboard_focus_to_the_sample_lane() {
+    let mut state = crate::native_app::tests::gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let anchor = source_root.path().join("anchor.wav");
+    fs::write(&anchor, []).expect("write anchor");
+    state.library.folder_browser =
+        crate::native_app::test_support::state::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+        ]);
+    state
+        .library
+        .folder_browser
+        .focus_selected_source_for_keyboard();
+    assert!(state.library.folder_browser.source_keyboard_focus_active());
+    assert!(state.library.folder_browser.keyboard_focus_visible());
+
+    state.toggle_similarity_anchor(
+        anchor.display().to_string(),
+        &mut radiant::prelude::UiUpdateContext::default(),
+    );
+
+    assert!(!state.library.folder_browser.source_keyboard_focus_active());
+    assert!(!state.library.folder_browser.keyboard_focus_visible());
+}
+
+#[test]
 fn sample_row_selection_still_works_in_similarity_mode() {
     let mut state = crate::native_app::tests::gui_state_for_span_tests();
     let source_root = tempfile::tempdir().expect("source root");

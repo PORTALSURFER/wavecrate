@@ -52,6 +52,7 @@ pub(in crate::native_app) struct VisibleSampleRow<'a> {
     pub(in crate::native_app) file: &'a FileEntry,
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) focused: bool,
+    pub(in crate::native_app) focus_alpha: u8,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) drag_active: bool,
@@ -757,12 +758,18 @@ impl FolderBrowserState {
     ) -> VisibleSampleRow<'a> {
         let harvest_facts = harvest_lookup.facts_for_file(self, file);
         let selected = self.is_file_selected(&file.id);
+        let focused = !self.source_keyboard_focus_active()
+            && self.keyboard_focus_visible()
+            && self.selected_file_id() == Some(file.id.as_str());
         VisibleSampleRow {
             file,
             selected,
-            focused: !self.source_keyboard_focus_active()
-                && self.keyboard_focus_visible()
-                && self.selected_file_id() == Some(file.id.as_str()),
+            focused,
+            focus_alpha: if focused {
+                self.keyboard_focus_alpha()
+            } else {
+                0
+            },
             copy_flash: self.copied_file_flash_active(&file.id),
             protected_source_error_flash: self.protected_source_error_file_flash_active(&file.id),
             drag_active: self.file_drag_active(),

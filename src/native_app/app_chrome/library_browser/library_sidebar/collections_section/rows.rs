@@ -49,7 +49,8 @@ fn collection_input(
 ) -> ui::View<GuiMessage> {
     sidebar_row_underlay(
         visual,
-        ListItemState::new(collection.selected, collection.focused),
+        ListItemState::new(collection.selected, collection.focused)
+            .with_focus_alpha(collection.focus_alpha),
     )
     .tracked_drop_target(collection.drag_active, collection.drop_target)
     .stable_row_identity(

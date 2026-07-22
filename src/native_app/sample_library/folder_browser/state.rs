@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use wavecrate::sample_sources::config::SimilarityAspectSettings;
 
@@ -24,11 +25,13 @@ pub(in crate::native_app) struct FolderBrowserState {
     pub(super) collection_panel: CollectionPanelState,
     pub(super) panel_layout: BrowserPanelLayoutState,
     pub(super) sample_list: SampleListState,
-    /// Whether the active browser navigation domain should paint keyboard
-    /// focus. Pointer activation preserves the domain but hides this chrome
-    /// until keyboard navigation resumes.
-    keyboard_focus_visible: bool,
+    /// Most recent keyboard navigation activity. Pointer activation preserves
+    /// the navigation domain but clears this visual-only focus timestamp.
+    keyboard_focus_shown_at: Option<Instant>,
 }
+
+const KEYBOARD_FOCUS_HOLD: Duration = Duration::from_millis(800);
+const KEYBOARD_FOCUS_FADE: Duration = Duration::from_millis(250);
 
 impl FolderBrowserState {
     #[cfg(test)]
@@ -88,7 +91,7 @@ impl FolderBrowserState {
             collection_panel: CollectionPanelState::new(),
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
-            keyboard_focus_visible: false,
+            keyboard_focus_shown_at: None,
         };
         state.refresh_missing_collection_state();
         state
@@ -114,20 +117,40 @@ impl FolderBrowserState {
             collection_panel: CollectionPanelState::new(),
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
-            keyboard_focus_visible: false,
+            keyboard_focus_shown_at: None,
         }
     }
 
     pub(in crate::native_app) fn keyboard_focus_visible(&self) -> bool {
-        self.keyboard_focus_visible
+        self.keyboard_focus_alpha() > 0
+    }
+
+    pub(in crate::native_app) fn keyboard_focus_alpha(&self) -> u8 {
+        self.keyboard_focus_alpha_at(Instant::now())
+    }
+
+    fn keyboard_focus_alpha_at(&self, now: Instant) -> u8 {
+        let Some(shown_at) = self.keyboard_focus_shown_at else {
+            return 0;
+        };
+        let elapsed = now.checked_duration_since(shown_at).unwrap_or_default();
+        if elapsed <= KEYBOARD_FOCUS_HOLD {
+            return u8::MAX;
+        }
+        let fade_elapsed = elapsed.saturating_sub(KEYBOARD_FOCUS_HOLD);
+        if fade_elapsed >= KEYBOARD_FOCUS_FADE {
+            return 0;
+        }
+        let remaining = 1.0 - fade_elapsed.as_secs_f32() / KEYBOARD_FOCUS_FADE.as_secs_f32();
+        (remaining * f32::from(u8::MAX)).round() as u8
     }
 
     pub(in crate::native_app) fn show_keyboard_focus(&mut self) {
-        self.keyboard_focus_visible = true;
+        self.keyboard_focus_shown_at = Some(Instant::now());
     }
 
     pub(in crate::native_app) fn hide_keyboard_focus(&mut self) {
-        self.keyboard_focus_visible = false;
+        self.keyboard_focus_shown_at = None;
     }
 
     #[cfg(test)]
@@ -487,6 +510,31 @@ impl FolderBrowserState {
 
     pub(in crate::native_app) fn invalidate_visible_sample_projection_cache(&mut self) {
         self.sample_list.projection_cache.clear();
+    }
+}
+
+#[cfg(test)]
+mod keyboard_focus_tests {
+    use super::*;
+
+    #[test]
+    fn keyboard_focus_holds_then_fades_without_clearing_navigation_state() {
+        let mut state = FolderBrowserState::empty();
+        let shown_at = Instant::now();
+        state.keyboard_focus_shown_at = Some(shown_at);
+
+        assert_eq!(state.keyboard_focus_alpha_at(shown_at), u8::MAX);
+        assert_eq!(
+            state.keyboard_focus_alpha_at(shown_at + KEYBOARD_FOCUS_HOLD),
+            u8::MAX
+        );
+        let midway = shown_at + KEYBOARD_FOCUS_HOLD + KEYBOARD_FOCUS_FADE / 2;
+        assert!(state.keyboard_focus_alpha_at(midway).abs_diff(128) <= 1);
+        assert_eq!(
+            state.keyboard_focus_alpha_at(shown_at + KEYBOARD_FOCUS_HOLD + KEYBOARD_FOCUS_FADE),
+            0
+        );
+        assert!(state.keyboard_focus_shown_at.is_some());
     }
 }
 

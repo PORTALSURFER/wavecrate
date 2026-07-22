@@ -280,6 +280,11 @@ impl FolderBrowserState {
             Some(super::FolderBrowserDrag::Folder { folder_ids }) if folder_ids.contains(&folder.id)
         );
         let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
+        let focused = self.selection.selected_collection.is_none()
+            && !self.source_keyboard_focus_active()
+            && !self.selection.selected_file_active()
+            && self.keyboard_focus_visible()
+            && self.selection.selected_folder == folder.id;
         folders.push(VisibleFolder {
             id: folder.id.clone(),
             name: if is_source_root {
@@ -296,11 +301,12 @@ impl FolderBrowserState {
             expanded: is_source_root || self.is_expanded(&folder.id),
             selected: self.selection.selected_collection.is_none()
                 && self.selection.selected_folder_ids_contains(&folder.id),
-            focused: self.selection.selected_collection.is_none()
-                && !self.source_keyboard_focus_active()
-                && !self.selection.selected_file_active()
-                && self.keyboard_focus_visible()
-                && self.selection.selected_folder == folder.id,
+            focused,
+            focus_alpha: if focused {
+                self.keyboard_focus_alpha()
+            } else {
+                0
+            },
             drag_active,
             drag_source,
             drop_candidate,

@@ -25,6 +25,11 @@ impl FolderBrowserState {
                 color: collection.color,
                 selected: self.selection.selected_collection == Some(collection.collection),
                 focused: focused_collection == Some(collection.collection),
+                focus_alpha: if focused_collection == Some(collection.collection) {
+                    self.keyboard_focus_alpha()
+                } else {
+                    0
+                },
                 drop_target: self
                     .drag_drop
                     .drop_target

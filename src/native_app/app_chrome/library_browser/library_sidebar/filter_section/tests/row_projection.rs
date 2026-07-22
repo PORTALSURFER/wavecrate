@@ -211,7 +211,7 @@ fn filter_section_projects_curation_scope_dropdown_and_dispatches_changes() {
             .first_widget_rect(CURATION_FILTER_DROPDOWN_TRIGGER_ID)
             .is_some()
     );
-    assert!(frame.paint_plan.contains_text("Rate  v"));
+    assert!(frame.paint_plan.contains_text("Rate"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             CURATION_FILTER_DROPDOWN_TRIGGER_ID,
@@ -307,7 +307,7 @@ fn filter_section_uses_harvest_dropdown_as_only_filter_mode_trigger() {
         None,
         "Harvest should not render a separate arrow button for the dropdown mode"
     );
-    assert!(frame.paint_plan.contains_text("Needs Review  v"));
+    assert!(frame.paint_plan.contains_text("Needs Review"));
     assert_close(harvest_rect.min.x, curation_rect.min.x);
     assert_close(harvest_rect.width(), curation_rect.width());
     assert_eq!(
@@ -335,7 +335,7 @@ fn filter_section_projects_harvest_filter_dropdown_and_dispatches_changes() {
             .first_widget_rect(HARVEST_FILTER_DROPDOWN_TRIGGER_ID)
             .is_some()
     );
-    assert!(frame.paint_plan.contains_text("Needs Review  v"));
+    assert!(frame.paint_plan.contains_text("Needs Review"));
     assert_eq!(
         filter_section(&model).view_dispatch_widget_output(
             HARVEST_FILTER_DROPDOWN_TRIGGER_ID,
@@ -403,7 +403,7 @@ fn filter_section_projects_default_harvest_all_after_family_toggle() {
         FILTER_SECTION_TEST_FRAME_HEIGHT,
     ));
 
-    assert!(frame.paint_plan.contains_text("All  v"));
+    assert!(frame.paint_plan.contains_text("All"));
 }
 
 #[test]

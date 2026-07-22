@@ -1,5 +1,5 @@
 mod identity;
-mod progress_bar;
+mod progress_indicator;
 mod projection;
 
 #[cfg(test)]
@@ -12,16 +12,18 @@ use self::projection::{
 use crate::native_app::app::FolderScanProgress;
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::modals;
-use crate::native_app::app_chrome::palette::{DANGER, WARNING};
+use crate::native_app::app_chrome::palette::{ACCENT, DANGER};
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel;
 use crate::native_app::app_chrome::view_models::status_bar::{StatusBarViewModel, StatusSeverity};
 use crate::native_app::ui::ids::{
-    JOB_DETAILS_CURRENT_ROW_ID_BASE, WORKER_PROGRESS_ACTIVITY_OVERLAY_ID, WORKER_PROGRESS_ROOT_ID,
+    JOB_DETAILS_CURRENT_ROW_ID_BASE, WORKER_PROGRESS_PULSE_CORE_ID, WORKER_PROGRESS_ROOT_ID,
 };
-use radiant::gui::feedback::horizontal_progress_activity_rect;
 use radiant::prelude as ui;
-use radiant::runtime::{PaintPrimitive, SurfaceNode, TransientOverlayContext, WidgetPaint};
+use radiant::runtime::{
+    PaintBrush, PaintFillPath, PaintPath, PaintPathCommand, PaintPrimitive, SurfaceNode,
+    TransientOverlayContext, WidgetPaint,
+};
 use radiant::widgets::{TextWidget, WidgetSizing};
 
 const STATUS_BAR_HEIGHT: f32 = 30.0;
@@ -36,13 +38,16 @@ const JOB_DETAILS_HEIGHT: f32 = 212.0;
 const JOB_DETAILS_ROW_HEIGHT: f32 = 20.0;
 const JOB_DETAILS_TOOLTIP_THRESHOLD: usize = 72;
 const SOURCE_MISSING_STATUS_COLOR: ui::Rgba8 = DANGER.with_alpha(230);
-const SOURCE_PROCESSING_ACTIVITY_COLOR: ui::Rgba8 = WARNING.with_alpha(220);
-const SOURCE_PROCESSING_ACTIVITY_HEIGHT: f32 = 2.0;
-const SOURCE_PROCESSING_ACTIVITY_CYCLES_PER_SECOND: f32 = 2.1;
-const SOURCE_PROCESSING_ACTIVITY_SEGMENT_FRACTION: f32 = 0.24;
-const SOURCE_PROCESSING_ACTIVITY_MIN_WIDTH: f32 = 18.0;
+const WORKER_PROGRESS_PULSE_CYCLES_PER_SECOND: f32 = 1.15;
+const WORKER_PROGRESS_PULSE_SEGMENTS: usize = 24;
+const WORKER_PROGRESS_PULSE_RADIUS: f32 = 5.0;
 const SOURCE_PROCESSING_SOURCE_PULSE_ID: u64 = 0x7372_635f_7075_6c73;
-const SOURCE_PROCESSING_SOURCE_PULSE_CYCLES_PER_SECOND: f32 = 0.85;
+const SOURCE_PROCESSING_SOURCE_PULSE_CYCLES_PER_SECOND: f32 = 0.45;
+const SOURCE_PROCESSING_TRACK_HEIGHT: f32 = 1.5;
+const SOURCE_PROCESSING_SEGMENT_FRACTION: f32 = 0.28;
+const SOURCE_PROCESSING_MIN_SEGMENT_WIDTH: f32 = 28.0;
+const SOURCE_PROCESSING_TRACK_ALPHA: u8 = 42;
+const SOURCE_PROCESSING_SEGMENT_ALPHA: u8 = 235;
 
 pub(in crate::native_app) fn bottom_status_area(state: &NativeAppState) -> ui::View<GuiMessage> {
     bottom_status_bar(StatusBarViewModel::from_app_state(state))
@@ -55,7 +60,7 @@ pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui:
         status_segment(projection.selected_sample_count_label).width(STATUS_BAR_LEFT_WIDTH),
         status_segment(projection.listed_audio_count_label).width(STATUS_BAR_LISTING_WIDTH),
         status_text_segment(projection.status_text, projection.status_severity).fill_width(),
-        progress_bar::worker_progress_bar_from_projection(projection.worker_progress),
+        progress_indicator::worker_progress_indicator_from_projection(projection.worker_progress),
     ])
     .style(ui::WidgetStyle::default())
     .spacing(STATUS_BAR_SPACING)
@@ -66,20 +71,21 @@ pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui:
 }
 
 impl NativeAppState {
-    pub(in crate::native_app) fn source_processing_activity_overlay_visible(&self) -> bool {
-        self.library.folder_progress().is_none()
-            && self.background.normalization_progress.is_none()
-            && self.background.file_move_progress.is_none()
-            && self.waveform.cache.active_folder_warm_folder_id.is_none()
-            && self.background.source_processing_progress.is_some()
+    pub(in crate::native_app) fn worker_progress_indicator_visible(&self) -> bool {
+        self.library.folder_progress().is_some()
+            || self.background.normalization_progress.is_some()
+            || self.background.file_move_progress.is_some()
+            || (self.waveform.cache.active_folder_warm_folder_id.is_some()
+                && self.waveform.cache.active_folder_warm_total > 0)
+            || self.background.source_processing_progress.is_some()
     }
 
-    pub(in crate::native_app) fn paint_source_processing_activity_overlay(
+    pub(in crate::native_app) fn paint_worker_progress_indicator(
         &mut self,
         context: TransientOverlayContext<'_>,
         primitives: &mut Vec<PaintPrimitive>,
     ) {
-        if !self.source_processing_activity_overlay_visible() {
+        if !self.worker_progress_indicator_visible() {
             return;
         }
         let Some(bounds) = context
@@ -88,28 +94,21 @@ impl NativeAppState {
         else {
             return;
         };
-        let height = bounds.height().min(SOURCE_PROCESSING_ACTIVITY_HEIGHT);
-        if height <= 0.0 {
+        if !bounds.has_finite_positive_area() {
             return;
         }
-        let y = bounds.min.y + (bounds.height() - height) * 0.5;
-        let track = ui::Rect::from_min_max(
-            ui::Point::new(bounds.min.x, y),
-            ui::Point::new(bounds.max.x, y + height),
-        );
-        let position = (context.animation_time.as_secs_f32()
-            * SOURCE_PROCESSING_ACTIVITY_CYCLES_PER_SECOND)
-            .fract();
-        let Some(activity) = horizontal_progress_activity_rect(
-            track,
-            position,
-            SOURCE_PROCESSING_ACTIVITY_SEGMENT_FRACTION,
-            SOURCE_PROCESSING_ACTIVITY_MIN_WIDTH,
-        ) else {
-            return;
-        };
-        WidgetPaint::new(primitives, WORKER_PROGRESS_ACTIVITY_OVERLAY_ID)
-            .push_visible_fill_rect(activity, SOURCE_PROCESSING_ACTIVITY_COLOR);
+        let center = bounds.center();
+        let breath = (context.animation_time.as_secs_f32()
+            * std::f32::consts::TAU
+            * WORKER_PROGRESS_PULSE_CYCLES_PER_SECOND)
+            .sin();
+        let breath = (breath + 1.0) * 0.5;
+        let core_alpha = (80.0 + 175.0 * breath).round() as u8;
+        primitives.push(PaintPrimitive::FillPath(PaintFillPath::new(
+            WORKER_PROGRESS_PULSE_CORE_ID,
+            circle_path(center, WORKER_PROGRESS_PULSE_RADIUS),
+            PaintBrush::Solid(ACCENT.with_alpha(core_alpha)),
+        )));
     }
 
     pub(in crate::native_app) fn paint_source_processing_source_pulse(
@@ -134,13 +133,27 @@ impl NativeAppState {
         let Some(bounds) = context.plan.first_widget_rect_by_priority([widget_id]) else {
             return;
         };
-        let wave = (context.animation_time.as_secs_f32()
-            * std::f32::consts::TAU
+        let track = ui::Rect::from_min_max(
+            ui::Point::new(
+                bounds.min.x,
+                (bounds.max.y - SOURCE_PROCESSING_TRACK_HEIGHT).max(bounds.min.y),
+            ),
+            bounds.max,
+        );
+        let position = (context.animation_time.as_secs_f32()
             * SOURCE_PROCESSING_SOURCE_PULSE_CYCLES_PER_SECOND)
-            .sin();
-        let alpha = (28.0 + 26.0 * ((wave + 1.0) * 0.5)).round() as u8;
-        WidgetPaint::new(primitives, SOURCE_PROCESSING_SOURCE_PULSE_ID)
-            .push_visible_fill_rect(bounds, WARNING.with_alpha(alpha));
+            .fract();
+        let Some(segment) = radiant::gui::feedback::horizontal_progress_activity_rect(
+            track,
+            position,
+            SOURCE_PROCESSING_SEGMENT_FRACTION,
+            SOURCE_PROCESSING_MIN_SEGMENT_WIDTH,
+        ) else {
+            return;
+        };
+        let mut paint = WidgetPaint::new(primitives, SOURCE_PROCESSING_SOURCE_PULSE_ID);
+        paint.push_visible_fill_rect(track, ACCENT.with_alpha(SOURCE_PROCESSING_TRACK_ALPHA));
+        paint.push_visible_fill_rect(segment, ACCENT.with_alpha(SOURCE_PROCESSING_SEGMENT_ALPHA));
     }
 }
 
@@ -163,7 +176,25 @@ pub(in crate::native_app) fn worker_progress_bar(
     progress: Option<WorkerProgressViewModel>,
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {
-    progress_bar::worker_progress_bar(progress, progress_tick)
+    progress_indicator::worker_progress_indicator(progress, progress_tick)
+}
+
+fn circle_path(center: ui::Point, radius: f32) -> PaintPath {
+    let mut commands = Vec::with_capacity(WORKER_PROGRESS_PULSE_SEGMENTS + 2);
+    for index in 0..WORKER_PROGRESS_PULSE_SEGMENTS {
+        let angle = index as f32 / WORKER_PROGRESS_PULSE_SEGMENTS as f32 * std::f32::consts::TAU;
+        let point = ui::Point::new(
+            center.x + radius * angle.cos(),
+            center.y + radius * angle.sin(),
+        );
+        commands.push(if index == 0 {
+            PaintPathCommand::MoveTo(point)
+        } else {
+            PaintPathCommand::LineTo(point)
+        });
+    }
+    commands.push(PaintPathCommand::Close);
+    PaintPath::from(commands)
 }
 
 fn status_bar_overlays(state: &NativeAppState) -> ui::Overlays<GuiMessage> {

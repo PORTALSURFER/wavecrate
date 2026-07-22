@@ -50,7 +50,7 @@ fn status_bar_reports_selected_missing_source() {
 }
 
 #[test]
-fn bottom_status_progress_bar_paints_without_text_chrome() {
+fn bottom_status_worker_indicator_retains_only_a_transparent_pulse_anchor() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.library.set_folder_progress_for_tests(
         crate::native_app::test_support::state::FolderScanProgress::new(
@@ -64,10 +64,22 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
         ),
     );
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(20.0, 20.0));
 
-    let fills = frame.paint_plan.fill_rects().count();
-    assert_eq!(fills, 2);
+    assert_eq!(
+        frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(
+                primitive,
+                radiant::runtime::PaintPrimitive::FillPolygon(_)
+            ))
+            .count(),
+        0,
+        "the visible circle belongs exclusively to the animated overlay"
+    );
+    assert_eq!(frame.paint_plan.fill_rects().count(), 1);
     assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
 
@@ -137,7 +149,7 @@ fn bottom_status_progress_bar_click_opens_job_details() {
 }
 
 #[test]
-fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
+fn bottom_status_worker_indicator_keeps_one_anchor_for_unknown_totals() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.progress_tick = 0.5;
     state.library.set_folder_progress_for_tests(
@@ -152,15 +164,27 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
         ),
     );
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(20.0, 20.0));
 
-    let fills = frame.paint_plan.fill_rects().count();
-    assert_eq!(fills, 2);
+    assert_eq!(
+        frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(
+                primitive,
+                radiant::runtime::PaintPrimitive::FillPolygon(_)
+            ))
+            .count(),
+        0,
+        "unknown totals still retain only the transparent pulse anchor"
+    );
+    assert_eq!(frame.paint_plan.fill_rects().count(), 1);
     assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
 
 #[test]
-fn bottom_status_source_cache_progress_bar_shows_overall_and_activity() {
+fn bottom_status_source_cache_uses_one_worker_indicator_anchor() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.progress_tick = 0.5;
     state.waveform.cache.active_folder_warm_folder_id = Some(String::from("source"));
@@ -170,9 +194,22 @@ fn bottom_status_source_cache_progress_bar_shows_overall_and_activity() {
     state.waveform.cache.active_folder_warm_current_progress = 0.42;
 
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 12.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(20.0, 20.0));
 
-    assert_eq!(frame.paint_plan.fill_rects().count(), 6);
+    assert_eq!(
+        frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(
+                primitive,
+                radiant::runtime::PaintPrimitive::FillPolygon(_)
+            ))
+            .count(),
+        0,
+        "source-cache progress still retains only the transparent pulse anchor"
+    );
+    assert_eq!(frame.paint_plan.fill_rects().count(), 1);
     assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
 
@@ -209,7 +246,7 @@ fn source_processing_advances_activity_tick_on_frame() {
 }
 
 #[test]
-fn source_processing_keeps_measured_progress_and_activity_on_one_track() {
+fn source_processing_keeps_measured_progress_behind_one_worker_indicator() {
     let mut state = NativeAppState::load_default().expect("default state loads");
     state.background.source_processing_progress = Some(
         crate::native_app::test_support::state::SourceProcessingProgress {
@@ -225,13 +262,22 @@ fn source_processing_keeps_measured_progress_and_activity_on_one_track() {
     );
 
     let frame = crate::native_app::test_support::status_bar::worker_progress_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(20.0, 20.0));
 
     assert_eq!(
-        frame.paint_plan.fill_rects().count(),
-        2,
-        "source processing keeps only the determinate track in retained paint"
+        frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(
+                primitive,
+                radiant::runtime::PaintPrimitive::FillPolygon(_)
+            ))
+            .count(),
+        0,
+        "source processing must not leave a static retained indicator behind"
     );
+    assert_eq!(frame.paint_plan.fill_rects().count(), 1);
     assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
 

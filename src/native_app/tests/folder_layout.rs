@@ -62,6 +62,26 @@ fn folder_tree_and_sample_list_share_one_pixel_boundary() {
         (samples.min.x - tree.max.x - 1.0).abs() < 0.01,
         "the resize divider should be the only column between panes: tree={tree:?}, samples={samples:?}"
     );
+    let frame = runtime.frame(&radiant::prelude::ThemeTokens::default());
+    let rail = frame
+        .paint_plan
+        .fill_rects()
+        .find(|fill| {
+            (fill.rect.min.x - tree.max.x).abs() < 0.01
+                && (fill.rect.width() - 1.0).abs() < 0.01
+                && fill.color == radiant::prelude::ThemeTokens::default().border_emphasis
+        })
+        .expect("the outer sidebar resize boundary should paint one continuous rail");
+    assert!(rail.rect.min.y <= tree.min.y);
+    assert!(rail.rect.max.y >= samples.max.y);
+    assert!(
+        frame.paint_plan.stroke_rects().all(|stroke| {
+            ((stroke.rect.max.x - tree.max.x).abs() >= 0.01
+                && (stroke.rect.min.x - samples.min.x).abs() >= 0.01)
+                || stroke.rect.height() <= 40.0
+        }),
+        "inner lists must not paint structural edges beside the continuous sidebar rail"
+    );
 }
 
 #[test]

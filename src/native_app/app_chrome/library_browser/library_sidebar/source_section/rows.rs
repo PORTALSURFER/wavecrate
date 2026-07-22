@@ -7,9 +7,7 @@ use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
 #[cfg(test)]
 use crate::native_app::app_chrome::palette::SELECTED_ROW_FILL;
-use crate::native_app::app_chrome::palette::{
-    ACCENT, DANGER, ListItemState, TEXT_PRIMARY, WARNING,
-};
+use crate::native_app::app_chrome::palette::{ACCENT, DANGER, ListItemState, TEXT_PRIMARY};
 use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
 use crate::native_app::app_chrome::view_models::library_sidebar::SourceRowViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -29,9 +27,6 @@ const SOURCE_PROTECTED_ERROR_FILL: ui::Rgba8 = DANGER.with_alpha(145);
 const SOURCE_PROTECTED_ERROR_HOVER_FILL: ui::Rgba8 = DANGER.with_alpha(175);
 const SOURCE_ACCEPTANCE_FILL: ui::Rgba8 = ui::Rgba8::new(76, 217, 100, 92);
 const SOURCE_ACCEPTANCE_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(86, 227, 110, 122);
-const SOURCE_PROCESSING_MARKER_COLOR: ui::Rgba8 = WARNING.with_alpha(230);
-const SOURCE_PROCESSING_FILL_ALPHA: u8 = 48;
-const SOURCE_PROCESSING_HOVER_ALPHA_BOOST: u8 = 24;
 const SOURCE_REORDER_MARKER_COLOR: ui::Rgba8 = ACCENT.with_alpha(230);
 const SOURCE_REORDER_MARKER_WIDTH: f32 = 2.0;
 const SOURCE_ADD_BUTTON_TOOLTIP: &str = "Add source";
@@ -50,24 +45,25 @@ fn source_add_icon() -> ui::SvgIcon {
 
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source);
-    let row = sidebar_row_underlay(visual, ListItemState::new(source.selected, source.focused))
-        .tracked_drop_candidate(
-            source.drag_active,
-            source.drop_target,
-            source.drop_candidate,
-            source.drop_target_active,
-        )
-        .stable_row_identity(
-            RETAINED_SOURCE_ROW_INPUT_SCOPE,
-            retained_source_row_key(source.id.as_str()),
-        )
-        .selected(
-            source.selected
-                || source.processing
-                || source.protected_source_error_flash
-                || source.primary_source_acceptance_flash,
-        )
-        .leading_marker_if(source.processing, source_processing_marker());
+    let row = sidebar_row_underlay(
+        visual,
+        ListItemState::new(source.selected, source.focused).with_focus_alpha(source.focus_alpha),
+    )
+    .tracked_drop_candidate(
+        source.drag_active,
+        source.drop_target,
+        source.drop_candidate,
+        source.drop_target_active,
+    )
+    .stable_row_identity(
+        RETAINED_SOURCE_ROW_INPUT_SCOPE,
+        retained_source_row_key(source.id.as_str()),
+    )
+    .selected(
+        source.selected
+            || source.protected_source_error_flash
+            || source.primary_source_acceptance_flash,
+    );
     let row = if source.reorder_enabled {
         row.tracked_drag_source_with_motion(
             source.drag_active || source.reorder_drag_active,
@@ -78,8 +74,6 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     };
     let row = if source.protected_source_error_flash {
         row.dense_chrome_palette(source_protected_error_palette())
-    } else if source.processing {
-        row.dense_chrome_palette(source_processing_palette())
     } else if source.primary_source_acceptance_flash {
         row.dense_chrome_palette(source_acceptance_palette())
     } else {
@@ -227,24 +221,6 @@ fn source_role_icon(
         .height(SOURCE_ROW_HEIGHT)
 }
 
-fn source_processing_marker() -> ui::DenseRowMarkerStyle {
-    ui::DenseRowMarkerStyle::new(
-        radiant::gui::list::DenseRowMarkerParts::leading(2.0).vertical_inset(3.0),
-        SOURCE_PROCESSING_MARKER_COLOR,
-    )
-}
-
-fn source_processing_palette() -> ui::DenseRowPalette {
-    // Keep the retained row stable. The cadence-independent pulse is painted by the
-    // app transient overlay from its monotonic animation time.
-    let fill = SOURCE_PROCESSING_MARKER_COLOR.with_alpha(SOURCE_PROCESSING_FILL_ALPHA);
-    let hovered = fill.with_alpha(fill.a.saturating_add(SOURCE_PROCESSING_HOVER_ALPHA_BOOST));
-    ui::DenseRowPalette::new()
-        .selected(fill)
-        .selected_hovered(hovered)
-        .interaction_fills(hovered, hovered)
-}
-
 fn source_protected_error_palette() -> ui::DenseRowPalette {
     ui::DenseRowPalette::new()
         .selected(SOURCE_PROTECTED_ERROR_FILL)
@@ -296,16 +272,6 @@ pub(super) fn source_selected_fill_for_tests() -> ui::Rgba8 {
 #[cfg(test)]
 pub(super) fn source_selected_marker_color_for_tests() -> ui::Rgba8 {
     ACCENT
-}
-
-#[cfg(test)]
-pub(super) fn source_processing_marker_color_for_tests() -> ui::Rgba8 {
-    SOURCE_PROCESSING_MARKER_COLOR
-}
-
-#[cfg(test)]
-pub(super) fn source_processing_fill_for_tests() -> ui::Rgba8 {
-    SOURCE_PROCESSING_MARKER_COLOR.with_alpha(SOURCE_PROCESSING_FILL_ALPHA)
 }
 
 #[cfg(test)]

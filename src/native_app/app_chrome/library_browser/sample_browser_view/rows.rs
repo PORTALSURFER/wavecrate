@@ -44,6 +44,7 @@ pub(super) fn sample_browser_rows(
     .overscan_px(SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32)
     .on_window_changed(GuiMessage::SampleBrowserWindowChanged)
     .view()
+    .without_chrome()
     .id(SAMPLE_BROWSER_LIST_ID)
     .fill()
 }
@@ -96,6 +97,7 @@ fn sample_browser_row(
             file_id: row.file_id,
             selected: row.selected,
             focused: row.focused,
+            focus_alpha: row.focus_alpha,
             copy_flash: row.copy_flash,
             protected_source_error_flash: row.protected_source_error_flash,
             cut_pending: row.cut_pending,

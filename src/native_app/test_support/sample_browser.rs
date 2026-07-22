@@ -107,6 +107,7 @@ pub(in crate::native_app) fn sample_file_hit_target(
             file_id: "sample.wav",
             selected,
             focused: false,
+            focus_alpha: 0,
             copy_flash: false,
             protected_source_error_flash: false,
             cut_pending: false,

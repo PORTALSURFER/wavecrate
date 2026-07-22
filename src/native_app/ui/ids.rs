@@ -83,7 +83,7 @@ pub(in crate::native_app) const RELEASE_UPDATE_BUTTON_ID: u64 = AUDIO_SETTINGS.i
 
 pub(in crate::native_app) const TRANSACTION_LIST_MODAL_ID: u64 = TRANSACTION_HISTORY.id(0);
 pub(in crate::native_app) const WORKER_PROGRESS_ROOT_ID: u64 = STATUS_BAR.id(0);
-pub(in crate::native_app) const WORKER_PROGRESS_ACTIVITY_OVERLAY_ID: u64 = STATUS_BAR.id(1);
+pub(in crate::native_app) const WORKER_PROGRESS_PULSE_CORE_ID: u64 = STATUS_BAR.id(1);
 pub(in crate::native_app) const JOB_DETAILS_CURRENT_ROW_ID_BASE: u64 = STATUS_BAR.id(10);
 
 pub(in crate::native_app) const TOOLBAR_FOCUS_LOADED_ID: u64 = TOOLBAR.id(0);

@@ -28,6 +28,7 @@ fn collection_view(drag_active: bool, drop_target: bool) -> SampleCollectionView
         },
         selected: false,
         focused: false,
+        focus_alpha: u8::MAX,
         drop_target,
         drag_active,
         assigned_count: 0,
@@ -113,8 +114,7 @@ fn focused_selected_collection_layers_global_selection_and_focus_chrome() {
     };
     let frame = collection_row(&row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, COLLECTION_ROW_HEIGHT));
-    let outline = crate::native_app::app_chrome::palette::focused_row_outline();
-    let marker = crate::native_app::app_chrome::palette::selected_row_trailing_marker();
+    let focus = crate::native_app::app_chrome::palette::focused_row_marker();
 
     assert_eq!(
         frame.paint_plan.first_text_color("1  Collection 1"),
@@ -123,14 +123,8 @@ fn focused_selected_collection_layers_global_selection_and_focus_chrome() {
     assert!(
         frame
             .paint_plan
-            .stroke_rects()
-            .any(|stroke| stroke.color == outline.color)
-    );
-    assert!(
-        frame
-            .paint_plan
             .fill_rects()
-            .any(|fill| fill.color == marker.color && fill.rect.max.x == 180.0)
+            .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width)
     );
 }
 

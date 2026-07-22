@@ -3,7 +3,6 @@ use super::rows::{
     SOURCE_ADD_BUTTON_HEIGHT, SOURCE_ADD_BUTTON_WIDTH, SOURCE_ROW_HEIGHT, SOURCE_ROW_INSET_X,
     SOURCE_ROW_LABEL_PADDING_X, source_acceptance_fill_for_tests, source_add_button,
     source_add_button_tooltip_for_tests, source_missing_color_for_tests,
-    source_processing_fill_for_tests, source_processing_marker_color_for_tests,
     source_protected_error_icon_color_for_tests, source_role_icon_color_for_source_for_tests,
     source_role_icon_color_for_tests, source_row, source_selected_fill_for_tests,
     source_selected_marker_color_for_tests,
@@ -151,13 +150,13 @@ fn source_row_routes_drop_to_source_root() {
         role: SourceRole::Normal,
         selected: false,
         focused: false,
+        focus_alpha: 0,
         reorder_enabled: true,
         reorder_drag_active: false,
         reorder_drag_source: false,
         reorder_drop_target: false,
         reorder_drop_after: false,
         scanning: false,
-        processing: false,
         missing: false,
         protected_source_error_flash: false,
         primary_source_acceptance_flash: false,
@@ -226,12 +225,11 @@ fn selected_source_row_uses_flat_highlight_with_left_active_marker() {
         "selected source should paint an inset left active marker"
     );
     assert!(
-        frame.paint_plan.fill_rects().any(|fill| {
-            fill.color == source_selected_marker_color_for_tests()
-                && (fill.rect.width() - SELECTED_ROW_MARKER_WIDTH).abs() < 0.5
-                && (fill.rect.max.x - 180.0).abs() < 0.5
+        frame.paint_plan.fill_rects().all(|fill| {
+            fill.color != source_selected_marker_color_for_tests()
+                || (fill.rect.max.x - 180.0).abs() >= 0.5
         }),
-        "selected source should paint a matching flush-right active marker"
+        "selected source should keep the reference's single leading selection rail"
     );
     assert_eq!(
         frame.paint_plan.first_text_color("Source"),
@@ -250,39 +248,24 @@ fn keyboard_navigation_layers_focus_over_active_source_selection() {
     let row = model.rows.first().expect("source row");
     let frame = source_row(row)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
-    let outline = crate::native_app::app_chrome::palette::focused_row_outline();
+    let focus = crate::native_app::app_chrome::palette::focused_row_marker();
 
     assert!(row.selected);
     assert!(row.focused);
     assert!(
         frame
             .paint_plan
-            .stroke_rects()
-            .any(|stroke| stroke.color == outline.color && stroke.width == outline.width)
+            .fill_rects()
+            .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width)
     );
 }
 
 #[test]
-fn processing_source_row_keeps_actions_enabled_and_paints_activity_marker() {
+fn source_row_keeps_actions_enabled_while_processing_feedback_is_overlay_owned() {
     let source = test_source("source-processing");
     let state = FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
     let mut model = SourceSelectorViewModel::from_folder_browser(&state, false);
     let row = model.rows.first_mut().expect("source row");
-    row.processing = true;
-    let frame = source_row(row)
-        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, SOURCE_ROW_HEIGHT));
-
-    let pulse_fill = source_processing_fill_for_tests();
-    assert!(
-        frame
-            .paint_plan
-            .fill_rects()
-            .any(|fill| fill.color == pulse_fill && fill.rect.width() > 100.0),
-        "processing highlight must paint across the idle row without requiring hover"
-    );
-    assert!(frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == source_processing_marker_color_for_tests() && fill.rect.width() <= 3.0
-    }));
     assert_eq!(
         source_row(row).view_dispatch_widget_output(
             retained_source_row_input_id(source.id.as_str()),

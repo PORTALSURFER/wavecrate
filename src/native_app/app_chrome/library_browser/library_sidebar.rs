@@ -119,7 +119,7 @@ fn library_sidebar_content(model: LibrarySidebarViewModel) -> ui::View<GuiMessag
 
 fn section_divider() -> ui::View<GuiMessage> {
     ui::feedback_overlay()
-        .background(ui::ThemeTokens::default().border)
+        .background(ui::ThemeTokens::default().border_emphasis)
         .view()
         .fill_width()
         .height(LIBRARY_SIDEBAR_SECTION_DIVIDER_HEIGHT)
@@ -136,7 +136,7 @@ mod tests {
             240.0,
             LIBRARY_SIDEBAR_SECTION_DIVIDER_HEIGHT,
         ));
-        let divider_color = ui::ThemeTokens::default().border;
+        let divider_color = ui::ThemeTokens::default().border_emphasis;
 
         assert!(frame.paint_plan.fill_rects().any(|fill| {
             fill.color == divider_color && fill.rect.width() == 240.0 && fill.rect.height() == 1.0

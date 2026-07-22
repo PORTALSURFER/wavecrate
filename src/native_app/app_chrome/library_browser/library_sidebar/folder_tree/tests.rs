@@ -146,7 +146,7 @@ fn focused_unselected_folder_rows_use_global_accent_label_color() {
 }
 
 #[test]
-fn focused_unselected_folder_rows_paint_outline_without_selected_fill() {
+fn focused_unselected_folder_rows_paint_marker_without_selected_fill() {
     let mut folder = visible_folder_for_tests(false);
     folder.focused = true;
 
@@ -162,12 +162,12 @@ fn focused_unselected_folder_rows_paint_outline_without_selected_fill() {
             .fill_rects()
             .any(|fill| fill.color == selected_fill)
     );
-    let outline = crate::native_app::app_chrome::palette::focused_row_outline();
+    let focus = crate::native_app::app_chrome::palette::focused_row_marker();
     assert!(
         frame
             .paint_plan
-            .stroke_rects()
-            .any(|stroke| stroke.color == outline.color && stroke.width == outline.width)
+            .fill_rects()
+            .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width)
     );
 }
 
@@ -214,7 +214,7 @@ fn folder_labels_keep_space_after_the_selection_rail_and_disclosure_slot() {
 
     let marker = selected_row_marker();
     assert_eq!(label.min.x, FOLDER_LABEL_INSET_X + 2.0);
-    assert!(label.min.x - marker.parts.width >= 6.0);
+    assert!(label.min.x - marker.parts.width >= 10.0);
 }
 
 #[test]
@@ -328,6 +328,7 @@ fn visible_folder_for_tests(empty: bool) -> VisibleFolder {
         expanded: false,
         selected: false,
         focused: false,
+        focus_alpha: u8::MAX,
         drag_active: false,
         drag_source: false,
         drop_candidate: false,

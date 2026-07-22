@@ -13,7 +13,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::{
 };
 
 const FOLDER_EXPANDER_WIDTH: f32 = 28.0;
-pub(super) const FOLDER_LABEL_INSET_X: f32 = 8.0;
+pub(super) const FOLDER_LABEL_INSET_X: f32 = 10.0;
 const FOLDER_TREE_HIGHLIGHTED_LABEL: ui::Rgba8 = ui::Rgba8 {
     r: 255,
     g: 238,
@@ -102,7 +102,14 @@ fn standard_folder_row(folder: &VisibleFolder, id: String) -> ui::View<GuiMessag
         .expander_width(FOLDER_EXPANDER_WIDTH)
         .label_inset_x(FOLDER_LABEL_INSET_X)
         .style(SIDEBAR_ROW_STYLE)
-        .wavecrate_tree_row_style(SIDEBAR_ROW_STYLE)
+        .wavecrate_tree_row_style(
+            SIDEBAR_ROW_STYLE,
+            crate::native_app::app_chrome::palette::ListItemState::new(
+                folder.selected,
+                folder.focused,
+            )
+            .with_focus_alpha(folder.focus_alpha),
+        )
         .guide_style(folder_tree_guide_style())
         .highlighted_label_color(folder_tree_highlighted_label_color(folder));
 

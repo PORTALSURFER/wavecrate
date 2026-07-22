@@ -72,6 +72,7 @@ pub(in crate::native_app) struct SampleFileHitTargetModel<'a> {
     pub(in crate::native_app) file_id: &'a str,
     pub(in crate::native_app) selected: bool,
     pub(in crate::native_app) focused: bool,
+    pub(in crate::native_app) focus_alpha: u8,
     pub(in crate::native_app) copy_flash: bool,
     pub(in crate::native_app) protected_source_error_flash: bool,
     pub(in crate::native_app) cut_pending: bool,
@@ -108,7 +109,7 @@ fn sample_file_hit_target_builder(
         .dense_row_policy(sample_file_row_policy(model))
         .wavecrate_list_row_style(
             SAMPLE_ROW_STYLE,
-            ListItemState::new(model.selected, model.focused),
+            ListItemState::new(model.selected, model.focused).with_focus_alpha(model.focus_alpha),
         )
         .leading_marker_if(
             model.selected || model.cut_pending || model.missing,

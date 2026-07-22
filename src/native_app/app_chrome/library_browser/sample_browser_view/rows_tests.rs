@@ -56,6 +56,46 @@ fn fill_rects(frame: &radiant::runtime::SurfaceFrame) -> Vec<radiant::prelude::R
 }
 
 #[test]
+fn active_similarity_anchor_keeps_sample_selection_and_focus_chrome() {
+    let frame = sample_browser_row(
+        SampleRowDisplay {
+            file_id: "anchor.wav",
+            selected: true,
+            focused: true,
+            focus_alpha: u8::MAX,
+            copy_flash: false,
+            protected_source_error_flash: false,
+            cut_pending: false,
+            drag_active: false,
+            drag_source: false,
+            cached: false,
+            missing: false,
+            similarity_anchor: true,
+            similarity_strength: Some(1.0),
+            columns: Vec::new(),
+        },
+        false,
+    )
+    .view_frame_at_size_with_default_theme(Vector2::new(320.0, SAMPLE_BROWSER_ROW_HEIGHT));
+
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == crate::native_app::app_chrome::palette::SELECTED_ROW_FILL),
+        "an active anchor must not suppress persistent sample selection"
+    );
+    let focus = crate::native_app::app_chrome::palette::focused_row_marker();
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == focus.color && fill.rect.width() == focus.parts.width),
+        "an active anchor must not suppress keyboard focus chrome"
+    );
+}
+
+#[test]
 /// Verifies rating strength maps to the visible indicator count.
 fn rating_indicator_count_reflects_rating_strength() {
     assert_eq!(RatingIndicator::new(Rating::NEUTRAL, false).count(), 0);

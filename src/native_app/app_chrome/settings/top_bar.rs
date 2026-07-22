@@ -20,17 +20,18 @@ pub(in crate::native_app) const VOLUME_SLIDER_ID: u64 = widget_ids::VOLUME_SLIDE
 pub(in crate::native_app) const NORMALIZED_AUDITION_BUTTON_ID: u64 =
     widget_ids::NORMALIZED_AUDITION_BUTTON_ID;
 const VOLUME_SLIDER_SIZE: ControlSize = ControlSize {
-    width: 92.0,
-    height: 14.0,
+    width: 112.0,
+    height: 16.0,
 };
+const VOLUME_SLIDER_TRACK_HEIGHT: f32 = 8.0;
 const NORMALIZED_AUDITION_BUTTON_SIZE: ControlSize = ControlSize {
-    width: 18.0,
-    height: 18.0,
+    width: 28.0,
+    height: 24.0,
 };
 pub(in crate::native_app) const HELP_TOOLTIPS_BUTTON_ID: u64 = widget_ids::HELP_TOOLTIPS_BUTTON_ID;
 const HELP_TOOLTIPS_BUTTON_SIZE: ControlSize = ControlSize {
-    width: 18.0,
-    height: 22.0,
+    width: 28.0,
+    height: 24.0,
 };
 pub(in crate::native_app) const AUDIO_ENGINE_PILL_ID: u64 = widget_ids::AUDIO_ENGINE_PILL_ID;
 const AUDIO_ENGINE_PILL_SIZE: ControlSize = ControlSize {
@@ -112,7 +113,6 @@ fn settings_controls(model: SettingsControlsProjection) -> ui::View<GuiMessage> 
 
 fn help_tooltips_button(projection: HelpTooltipsButtonProjection) -> ui::View<GuiMessage> {
     let button = ui::icon_button(help_tooltips_icon(projection.active))
-        .bare()
         .active(projection.active)
         .message(GuiMessage::Settings(SettingsMessage::ToggleHelpTooltips))
         .id(HELP_TOOLTIPS_BUTTON_ID)
@@ -162,6 +162,8 @@ pub(in crate::native_app) fn volume_slider(volume: f32) -> ui::View<GuiMessage> 
 fn volume_slider_from_projection(projection: VolumeSliderProjection) -> ui::View<GuiMessage> {
     ui::slider(projection.value)
         .compact()
+        .track_height(VOLUME_SLIDER_TRACK_HEIGHT)
+        .track_border()
         .paint_focus(false)
         .message(|volume| GuiMessage::Settings(SettingsMessage::SetVolume(volume)))
         .id(VOLUME_SLIDER_ID)
@@ -172,7 +174,6 @@ fn normalized_audition_button(
     projection: NormalizedAuditionButtonProjection,
 ) -> ui::View<GuiMessage> {
     ui::icon_button(normalized_audition_icon(projection.active))
-        .bare()
         .active(projection.active)
         .message(GuiMessage::Settings(
             SettingsMessage::SetNormalizedAuditionEnabled(!projection.active),

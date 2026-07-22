@@ -10,7 +10,7 @@ use super::row_projection::SampleColumnDisplay;
 use super::row_widgets::RatingIndicator;
 use super::similarity_aspect_color;
 use crate::native_app::app::GuiMessage;
-use crate::native_app::app_chrome::palette::{ACCENT, TEXT_MUTED, TEXT_PRIMARY};
+use crate::native_app::app_chrome::palette::{ACCENT, ACCENT_SOFT, TEXT_MUTED, TEXT_PRIMARY};
 use crate::native_app::sample_library::folder_browser::commands::FileRenameView;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 #[cfg(test)]
@@ -86,11 +86,21 @@ pub(super) fn similarity_anchor_toggle(
     strength: Option<f32>,
     help_tooltips_enabled: bool,
 ) -> ui::View<GuiMessage> {
-    let button = ui::icon_button(similarity_anchor_icon(active, strength.is_some()))
+    let available = strength.is_some();
+    let button = ui::icon_button(similarity_anchor_icon(active, available))
         // The anchor occupies the leading sample gutter, but must not paint a
         // second boxed column edge beside the pane resize divider.
         .bare()
-        .active(active)
+        // The sample row remains the keyboard-navigation owner. The nested
+        // sphere is a pointer toggle and must not replace row focus state.
+        .focus(ui::FocusBehavior::Pointer)
+        .hover_icon(SIMILARITY_ANCHOR_ICON.icon(if active {
+            ACCENT_SOFT
+        } else if available {
+            ACCENT
+        } else {
+            TEXT_PRIMARY
+        }))
         .message(GuiMessage::FolderBrowser(
             FolderBrowserMessage::ToggleSimilarityAnchor(file_id.clone()),
         ))
