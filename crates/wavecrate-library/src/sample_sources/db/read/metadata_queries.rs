@@ -1,13 +1,194 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use rusqlite::OptionalExtension;
 
 use super::super::util::map_sql_error;
 use super::super::{
-    META_WAV_PATHS_REVISION, Rating, SampleCollection, SampleSoundType, SourceDatabase,
-    SourceDbError,
+    BrowserFileMetadata, BrowserMetadataSnapshot, META_WAV_PATHS_REVISION, Rating,
+    SampleCollection, SampleSoundType, SourceDatabase, SourceDbError,
 };
-use super::decode::{table_has_columns, wav_file_has_column};
+use super::decode::{
+    decode_path_row, decode_relative_path, table_has_columns, wav_file_has_column,
+};
+
+struct BrowserMetadataCapabilities {
+    wav_columns: std::collections::HashSet<String>,
+    collection_memberships: bool,
+    metadata_revision: bool,
+}
+
+fn optional_browser_column<'a>(
+    columns: &std::collections::HashSet<String>,
+    column: &'a str,
+    fallback: &'a str,
+) -> &'a str {
+    if columns.contains(column) {
+        column
+    } else {
+        fallback
+    }
+}
+
+fn browser_metadata_snapshot_with_observer(
+    db: &SourceDatabase,
+    mut statement_started: impl FnMut(),
+) -> Result<BrowserMetadataSnapshot, SourceDbError> {
+    let transaction = db
+        .connection
+        .unchecked_transaction()
+        .map_err(map_sql_error)?;
+
+    statement_started();
+    let wav_columns = super::super::schema::table_columns(&transaction, "wav_files")?;
+    statement_started();
+    let collection_columns =
+        super::super::schema::table_columns(&transaction, "wav_file_collections")?;
+    statement_started();
+    let metadata_columns = super::super::schema::table_columns(&transaction, "metadata")?;
+    let capabilities = BrowserMetadataCapabilities {
+        wav_columns,
+        collection_memberships: collection_columns.contains("path")
+            && collection_columns.contains("collection"),
+        metadata_revision: metadata_columns.contains("key") && metadata_columns.contains("value"),
+    };
+
+    let revision = if capabilities.metadata_revision {
+        statement_started();
+        transaction
+            .query_row(
+                "SELECT value FROM metadata WHERE key = 'revision'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .map(|raw| raw.parse::<u64>().map_err(|_| SourceDbError::Unexpected))
+            .transpose()?
+            .unwrap_or_default()
+    } else {
+        0
+    };
+
+    let supported_filter = if capabilities.wav_columns.contains("extension") {
+        crate::sample_sources::supported_audio_where_clause()
+    } else {
+        String::from("lower(path) GLOB '*.wav' AND path NOT GLOB '._*' AND path NOT GLOB '*/._*'")
+    };
+    let legacy_collection = optional_browser_column(
+        &capabilities.wav_columns,
+        "collection",
+        "NULL AS collection",
+    );
+    let sql = format!(
+        "SELECT path, {}, {}, {}, {}, {legacy_collection}
+         FROM wav_files
+         WHERE {supported_filter}
+         ORDER BY path ASC",
+        optional_browser_column(&capabilities.wav_columns, "tag", "0 AS tag"),
+        optional_browser_column(&capabilities.wav_columns, "locked", "0 AS locked"),
+        optional_browser_column(
+            &capabilities.wav_columns,
+            "last_played_at",
+            "NULL AS last_played_at"
+        ),
+        optional_browser_column(
+            &capabilities.wav_columns,
+            "last_curated_at",
+            "NULL AS last_curated_at"
+        ),
+    );
+    statement_started();
+    let mut files = {
+        let mut statement = transaction.prepare(&sql).map_err(map_sql_error)?;
+        statement
+            .query_map([], |row| {
+                let Some(relative_path) = decode_path_row(
+                    row,
+                    "Skipping browser metadata row with invalid relative path",
+                )?
+                else {
+                    return Ok(None);
+                };
+                let legacy_collection = if capabilities.collection_memberships {
+                    Vec::new()
+                } else {
+                    row.get::<_, Option<i64>>(5)?
+                        .and_then(SampleCollection::from_i64)
+                        .into_iter()
+                        .collect()
+                };
+                Ok(Some(BrowserFileMetadata {
+                    relative_path,
+                    rating: Rating::from_i64(row.get(1)?),
+                    locked: row.get::<_, i64>(2)? != 0,
+                    collections: legacy_collection,
+                    last_played_at: row.get(3)?,
+                    last_curated_at: row.get(4)?,
+                }))
+            })
+            .map_err(map_sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_sql_error)?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+    };
+
+    if capabilities.collection_memberships {
+        statement_started();
+        let memberships = {
+            let mut statement = transaction
+                .prepare(
+                    "SELECT path, collection
+                     FROM wav_file_collections
+                     ORDER BY path ASC, collection ASC",
+                )
+                .map_err(map_sql_error)?;
+            statement
+                .query_map([], |row| {
+                    let path = row.get::<_, String>(0)?;
+                    Ok((
+                        decode_relative_path(
+                            path,
+                            "Skipping browser collection row with invalid relative path",
+                        )?,
+                        row.get::<_, i64>(1)?,
+                    ))
+                })
+                .map_err(map_sql_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(map_sql_error)?
+        };
+        let by_path = files
+            .iter_mut()
+            .map(|file| (file.relative_path.clone(), file))
+            .collect::<HashMap<_, _>>();
+        let mut by_path = by_path;
+        for (path, collection) in memberships {
+            let Some(path) = path else {
+                continue;
+            };
+            if let (Some(file), Some(collection)) = (
+                by_path.get_mut(&path),
+                SampleCollection::from_i64(collection),
+            ) {
+                file.collections.push(collection);
+            }
+        }
+    }
+
+    transaction.rollback().map_err(map_sql_error)?;
+    Ok(BrowserMetadataSnapshot { revision, files })
+}
+
+#[cfg(test)]
+pub(super) fn browser_metadata_snapshot_statement_count(
+    db: &SourceDatabase,
+) -> Result<(BrowserMetadataSnapshot, usize), SourceDbError> {
+    let mut count = 0;
+    let snapshot = browser_metadata_snapshot_with_observer(db, || count += 1)?;
+    Ok((snapshot, count))
+}
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
     if !crate::sample_sources::is_supported_audio(path) {
@@ -31,6 +212,13 @@ fn query_flag_for_path(
 }
 
 impl SourceDatabase {
+    /// Fetch all browser metadata from one committed read snapshot.
+    ///
+    /// Schema capabilities and data are read with a fixed statement budget that is independent
+    /// of the number of tracked files.
+    pub fn browser_metadata_snapshot(&self) -> Result<BrowserMetadataSnapshot, SourceDbError> {
+        browser_metadata_snapshot_with_observer(self, || {})
+    }
     /// Return the numeric metadata value for `key` (0 if missing).
     fn get_numeric_metadata(&self, key: &str) -> Result<u64, SourceDbError> {
         let value = self.get_metadata(key)?;

@@ -6,6 +6,96 @@ use tempfile::tempdir;
 use super::super::{DB_FILE_NAME, Rating, SampleCollection, SampleSoundType, SourceDatabase};
 
 #[test]
+fn browser_metadata_snapshot_reads_multi_collection_rows_coherently() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    db.set_tag(Path::new("one.wav"), Rating::new(2)).unwrap();
+    db.set_locked(Path::new("one.wav"), true).unwrap();
+    db.set_last_played_at(Path::new("one.wav"), 123).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .add_collection(Path::new("one.wav"), SampleCollection::new(3).unwrap())
+        .unwrap();
+    batch
+        .add_collection(Path::new("one.wav"), SampleCollection::new(1).unwrap())
+        .unwrap();
+    batch.commit().unwrap();
+    db.set_last_curated_at(Path::new("one.wav"), 456).unwrap();
+
+    let snapshot = db.browser_metadata_snapshot().unwrap();
+
+    assert_eq!(snapshot.files.len(), 1);
+    let file = &snapshot.files[0];
+    assert_eq!(file.relative_path, PathBuf::from("one.wav"));
+    assert_eq!(file.rating, Rating::new(2));
+    assert!(file.locked);
+    assert_eq!(file.last_played_at, Some(123));
+    assert_eq!(file.last_curated_at, Some(456));
+    assert_eq!(
+        file.collections,
+        vec![
+            SampleCollection::new(1).unwrap(),
+            SampleCollection::new(3).unwrap()
+        ]
+    );
+}
+
+#[test]
+fn browser_metadata_snapshot_has_constant_statement_count_for_large_sources() {
+    let dir = tempdir().unwrap();
+    let mut db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
+    let (_, empty_statement_count) =
+        super::metadata_queries::browser_metadata_snapshot_statement_count(&db).unwrap();
+    let transaction = db.connection.transaction().unwrap();
+    {
+        let mut insert = transaction
+            .prepare(
+                "INSERT INTO wav_files (path, file_size, modified_ns, extension)
+                 VALUES (?1, 10, 5, 'wav')",
+            )
+            .unwrap();
+        for index in 0..2_000 {
+            insert.execute([format!("sample-{index:04}.wav")]).unwrap();
+        }
+    }
+    transaction.commit().unwrap();
+
+    let started_at = std::time::Instant::now();
+    let (snapshot, statement_count) =
+        super::metadata_queries::browser_metadata_snapshot_statement_count(&db).unwrap();
+
+    assert_eq!(snapshot.files.len(), 2_000);
+    assert_eq!(statement_count, empty_statement_count);
+    assert!(
+        statement_count <= 6,
+        "browser metadata used {statement_count} statements"
+    );
+    assert!(
+        started_at.elapsed() < std::time::Duration::from_secs(5),
+        "large browser metadata snapshot exceeded its five-second test budget"
+    );
+}
+
+#[test]
+fn browser_metadata_snapshot_returns_typed_decode_failures() {
+    let dir = tempdir().unwrap();
+    let connection = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE wav_files (path TEXT PRIMARY KEY, tag TEXT);
+             INSERT INTO wav_files (path, tag) VALUES ('broken.wav', 'not-a-rating');",
+        )
+        .unwrap();
+    drop(connection);
+    let db = SourceDatabase::open_for_ui_read(dir.path()).unwrap();
+
+    let error = db.browser_metadata_snapshot().unwrap_err();
+
+    assert!(!error.to_string().is_empty());
+}
+
+#[test]
 fn list_files_page_orders_supported_audio_and_applies_offsets() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open_for_source_write(dir.path()).unwrap();
@@ -474,6 +564,15 @@ fn legacy_read_only_minimal_wav_files_schema_reads_with_defaults() {
     assert_eq!(row.user_tag, None);
     assert!(!row.tag_named);
     assert!(row.normal_tags.is_empty());
+    let browser_snapshot = db.browser_metadata_snapshot().unwrap();
+    assert_eq!(browser_snapshot.revision, 0);
+    assert_eq!(browser_snapshot.files.len(), 1);
+    assert_eq!(
+        browser_snapshot.files[0].relative_path,
+        PathBuf::from("nested/One.WAV")
+    );
+    assert_eq!(browser_snapshot.files[0].rating, Rating::NEUTRAL);
+    assert!(browser_snapshot.files[0].collections.is_empty());
     assert_eq!(db.count_files().unwrap(), 1);
     assert_eq!(db.count_present_files().unwrap(), 1);
     assert_eq!(db.list_files_page(10, 0).unwrap().len(), 1);

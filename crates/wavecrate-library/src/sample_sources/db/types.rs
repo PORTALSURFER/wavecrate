@@ -265,6 +265,32 @@ pub struct WavEntry {
     pub tag_named: bool,
 }
 
+/// Browser-facing metadata for one tracked audio file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserFileMetadata {
+    /// File path relative to the source root.
+    pub relative_path: PathBuf,
+    /// Current rating/tag for the file.
+    pub rating: Rating,
+    /// Whether the keep rating is locked.
+    pub locked: bool,
+    /// Fixed collection slots assigned to the file, in stable slot order.
+    pub collections: Vec<SampleCollection>,
+    /// Epoch seconds of the most recent playback, if any.
+    pub last_played_at: Option<i64>,
+    /// Epoch seconds of the most recent explicit curation decision, if any.
+    pub last_curated_at: Option<i64>,
+}
+
+/// Coherent browser metadata projection read from one committed SQLite snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserMetadataSnapshot {
+    /// Source metadata revision observed by the snapshot, or zero for legacy databases.
+    pub revision: u64,
+    /// Metadata rows in deterministic path order.
+    pub files: Vec<BrowserFileMetadata>,
+}
+
 /// Authoritative identity facts for one live source-manifest row.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceManifestEntry {

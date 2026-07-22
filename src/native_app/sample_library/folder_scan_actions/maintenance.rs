@@ -10,7 +10,7 @@ use wavecrate::sample_sources::{
 };
 
 use crate::native_app::sample_library::folder_browser::scan::{
-    FolderScanCacheUpdate, apply_folder_scan_cache_update,
+    FolderScanCacheUpdate, RatingDecayMaintenanceRequest, apply_folder_scan_cache_update,
 };
 
 #[derive(Clone)]
@@ -21,6 +21,7 @@ pub(super) struct FolderScanMaintenanceRequest {
     pub(super) audio_file_paths: Vec<PathBuf>,
     pub(super) scan_cache_update: FolderScanCacheUpdate,
     pub(super) scan_cache_revision: u64,
+    pub(super) rating_decay: Option<RatingDecayMaintenanceRequest>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -28,6 +29,9 @@ pub(in crate::native_app) struct FolderScanMaintenanceResult {
     pub(in crate::native_app) config_error: Option<String>,
     pub(in crate::native_app) scan_cache_error: Option<String>,
     pub(in crate::native_app) harvest_errors: Vec<String>,
+    pub(in crate::native_app) rating_decay_source_id: Option<String>,
+    pub(in crate::native_app) rating_decay_updated_count: usize,
+    pub(in crate::native_app) rating_decay_error: Option<String>,
 }
 
 impl FolderScanMaintenanceResult {
@@ -54,10 +58,23 @@ pub(super) fn persist_folder_scan_maintenance(
             .err();
     let config_error = persist_config_revision(&request.config, &request.config_revision);
     let harvest_errors = persist_harvest_discoveries(&request.sources, &request.audio_file_paths);
+    let (rating_decay_source_id, rating_decay_updated_count, rating_decay_error) = request
+        .rating_decay
+        .map(|request| {
+            let source_id = request.source_id.clone();
+            match super::rating_decay_worker::apply_rating_decay_maintenance(&request) {
+                Ok(updated_count) => (Some(source_id), updated_count, None),
+                Err(error) => (Some(source_id), 0, Some(error)),
+            }
+        })
+        .unwrap_or_default();
     FolderScanMaintenanceResult {
         config_error,
         scan_cache_error,
         harvest_errors,
+        rating_decay_source_id,
+        rating_decay_updated_count,
+        rating_decay_error,
     }
 }
 
@@ -163,6 +180,9 @@ mod tests {
             config_error: Some(String::from("config denied")),
             scan_cache_error: Some(String::from("cache full")),
             harvest_errors: Vec::new(),
+            rating_decay_source_id: None,
+            rating_decay_updated_count: 0,
+            rating_decay_error: None,
         };
 
         assert_eq!(

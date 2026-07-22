@@ -303,6 +303,8 @@ If the operating system, permissions, file locks, or external tools prevent Wave
 
 Source database schema changes must be migratable through the explicit source-write or maintenance open path. Additive tables and columns should be repaired even when a database already carries the current schema stamp, because development and prerelease builds may leave current-stamped files with incomplete structure. Every runtime caller must select a role-specific open for UI reads, background reads/jobs, source writes, user metadata writes, playback history, or maintenance; general `open` aliases are not part of the supported API. Read-only source database opens must not mutate the database and must tolerate older schema shapes through safe default projections or feature-specific query avoidance.
 
+Browser metadata hydration should read ratings, locks, collection memberships, and playback/curation timestamps from one coherent typed snapshot with a statement count that is independent of source size. Capability discovery happens once per snapshot so legacy read-only compatibility cannot regress into per-file schema inspection. A failed hydration preserves the last good browser metadata projection and reports the failure; opportunistic mutations such as rating decay run later through bounded background maintenance and explicitly refresh affected metadata.
+
 The source database should store information that belongs to that source and its files, such as:
 
 - stable Wavecrate Sample IDs for files in that source

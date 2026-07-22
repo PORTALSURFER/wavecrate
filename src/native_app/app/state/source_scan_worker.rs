@@ -42,6 +42,13 @@ fn run_folder_scan_worker_with_emit_and_cancel(
     emit: impl Fn(FolderScanWorkerEvent) -> bool + Clone,
     cancel: &AtomicBool,
 ) -> PreparedFolderScanResult {
+    let rating_decay_maintenance =
+        crate::native_app::sample_library::folder_browser::scan::RatingDecayMaintenanceRequest {
+            source_id: request.source_id.clone(),
+            root: request.root.clone(),
+            database_root: request.database_root.clone(),
+            rating_decay_weeks: request.rating_decay_weeks,
+        };
     let mut discovery_transport =
         FolderScanDiscoveryTransport::new(emit.clone(), request.task_id, request.source_id.clone());
     let scan = scan::scan_source_with_progress_cancellable(
@@ -64,6 +71,7 @@ fn run_folder_scan_worker_with_emit_and_cancel(
         audio_file_paths,
         scan_cache_update,
         lifecycle_generation: None,
+        rating_decay_maintenance: Some(rating_decay_maintenance),
     }
 }
 

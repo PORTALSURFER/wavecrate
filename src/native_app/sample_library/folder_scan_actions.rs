@@ -3,6 +3,7 @@ mod filesystem_refresh;
 mod filesystem_refresh_worker;
 mod maintenance;
 mod progress;
+mod rating_decay_worker;
 mod source_commands;
 mod task_ids;
 mod worker;

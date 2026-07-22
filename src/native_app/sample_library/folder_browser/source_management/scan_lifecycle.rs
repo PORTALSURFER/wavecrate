@@ -1,9 +1,12 @@
-use std::{collections::HashSet, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 #[cfg(test)]
 use super::super::scan_types::FolderScanDiscovery;
 use super::super::{
-    FolderBrowserState, FolderEntry, SourceEntry,
+    FileEntry, FolderBrowserState, FolderEntry, SourceEntry,
     path_helpers::{folder_label, path_id},
     scan_types::{
         FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult, FolderTreeRefreshResult,
@@ -279,7 +282,10 @@ impl FolderBrowserState {
         source.parked_tree_loaded && source.root_folder.is_some()
     }
 
-    pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
+    pub(in crate::native_app) fn apply_scan_finished(
+        &mut self,
+        mut result: FolderScanResult,
+    ) -> bool {
         let Some(source_index) = self
             .source
             .sources
@@ -294,6 +300,19 @@ impl FolderBrowserState {
         let source_id = self.source.sources[source_index].id.clone();
         let should_select = self.source.selected_source == source_id;
         let refreshing_selected_loaded_source = should_select && self.selected_source_loaded();
+        if result.metadata_hydration.error().is_some() {
+            let previous_folder = if should_select {
+                self.tree.folders.first()
+            } else {
+                self.source.sources[source_index].root_folder.as_ref()
+            };
+            if let Some(previous_folder) = previous_folder {
+                preserve_folder_metadata(&mut result.folder, previous_folder);
+            }
+            result.missing_collection_snapshot = self.source.sources[source_index]
+                .missing_collection_snapshot
+                .clone();
+        }
         self.source.sources[source_index].loading_task = None;
         if !result.source_root_available {
             self.source.sources[source_index].mark_missing();
@@ -433,6 +452,36 @@ impl FolderBrowserState {
             self.bump_file_content_revision();
         }
         changed
+    }
+}
+
+fn preserve_folder_metadata(folder: &mut FolderEntry, previous: &FolderEntry) {
+    let previous_files = previous
+        .all_files()
+        .into_iter()
+        .map(|file| (file.id.clone(), file.clone()))
+        .collect::<HashMap<_, _>>();
+    preserve_folder_metadata_from_map(folder, &previous_files);
+}
+
+fn preserve_folder_metadata_from_map(
+    folder: &mut FolderEntry,
+    previous_files: &HashMap<String, FileEntry>,
+) {
+    for file in &mut folder.files {
+        let Some(previous) = previous_files.get(&file.id) else {
+            continue;
+        };
+        file.rating = previous.rating;
+        file.rating_locked = previous.rating_locked;
+        file.last_curated_at = previous.last_curated_at;
+        file.collection = previous.collection;
+        file.collections = previous.collections.clone();
+        file.modified = previous.modified.clone();
+        file.modified_rank = previous.modified_rank;
+    }
+    for child in &mut folder.children {
+        preserve_folder_metadata_from_map(child, previous_files);
     }
 }
 

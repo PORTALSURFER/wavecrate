@@ -1,5 +1,7 @@
 use super::*;
-use crate::native_app::sample_library::folder_browser::scan_types::FolderScanItem;
+use crate::native_app::sample_library::folder_browser::scan_types::{
+    FolderScanItem, MetadataHydrationStatus,
+};
 
 #[test]
 fn switching_away_from_pending_source_does_not_cache_its_placeholder() {
@@ -89,7 +91,7 @@ fn source_scan_installs_finished_tree_after_placeholder_selection() {
 }
 
 #[test]
-fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
+fn source_scan_hydration_does_not_mutate_ratings() {
     let root = temp_source_root("wavecrate-gui-rating-decay");
     fs::write(root.join("unlocked.wav"), [0_u8; 8]).expect("write wav");
     fs::write(root.join("locked.wav"), [0_u8; 8]).expect("write wav");
@@ -140,7 +142,7 @@ fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
         .find(|file| file.name == "locked.wav")
         .expect("locked file");
 
-    assert_eq!(unlocked_file.rating, Rating::KEEP_1);
+    assert_eq!(unlocked_file.rating, Rating::KEEP_3);
     assert_eq!(locked_file.rating, Rating::KEEP_3);
     let rows = db.list_files().expect("decayed source db files");
     assert_eq!(
@@ -148,7 +150,7 @@ fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
             .find(|entry| entry.relative_path == unlocked_relative)
             .expect("unlocked row")
             .tag,
-        Rating::KEEP_1
+        Rating::KEEP_3
     );
     assert_eq!(
         rows.iter()
@@ -157,6 +159,41 @@ fn source_scan_applies_rating_decay_to_unlocked_keep_ratings() {
             .tag,
         Rating::KEEP_3
     );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn metadata_hydration_failure_preserves_last_good_browser_metadata() {
+    let root = temp_source_root("wavecrate-gui-metadata-hydration-failure");
+    fs::write(root.join("sample.wav"), [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::load_default();
+    let initial_request = browser
+        .begin_add_source_path(root.clone(), 42)
+        .expect("new source should request scan");
+    assert!(browser.apply_scan_finished(scan_source_with_progress(
+        initial_request,
+        |_| {},
+        |_| {}
+    )));
+    let db = SourceDatabase::open_for_test_fixture_source_write(&root).expect("source db");
+    db.set_tag(std::path::Path::new("sample.wav"), Rating::KEEP_3)
+        .expect("seed rating");
+    let refresh = browser
+        .begin_selected_source_scan(43)
+        .expect("metadata refresh");
+    assert!(browser.apply_scan_finished(scan_source_with_progress(refresh, |_| {}, |_| {})));
+
+    let failed_refresh = browser
+        .begin_selected_source_scan(44)
+        .expect("failed metadata refresh");
+    let mut failed = scan_source_with_progress(failed_refresh, |_| {}, |_| {});
+    failed.metadata_hydration = MetadataHydrationStatus::Failed {
+        error: String::from("database unavailable"),
+    };
+    failed.folder.files[0].rating = Rating::NEUTRAL;
+    assert!(browser.apply_scan_finished(failed));
+
+    assert_eq!(browser.selected_audio_files()[0].rating, Rating::KEEP_3);
     let _ = fs::remove_dir_all(root);
 }
 

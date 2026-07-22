@@ -45,8 +45,8 @@ pub use open_profiles::SourceDatabaseConnectionRole;
 pub use pending_renames::PendingRenameEntry;
 pub use rename_metadata::RenameMetadataSnapshot;
 pub use types::{
-    Rating, SampleCollection, SampleSoundType, SourceManifestEntry, SourceTag, SourceTagUsage,
-    WavEntry,
+    BrowserFileMetadata, BrowserMetadataSnapshot, Rating, SampleCollection, SampleSoundType,
+    SourceManifestEntry, SourceTag, SourceTagUsage, WavEntry,
 };
 pub use util::normalize_relative_path;
 pub use write::{

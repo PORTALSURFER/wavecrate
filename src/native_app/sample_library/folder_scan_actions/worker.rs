@@ -158,6 +158,7 @@ impl NativeAppState {
             }
         }
         let scan_cache_update = prepared.scan_cache_update;
+        let rating_decay_maintenance = prepared.rating_decay_maintenance;
         match self.library.finish_folder_scan(prepared.scan) {
             SourceScanFinish::Applied {
                 source_id,
@@ -165,6 +166,7 @@ impl NativeAppState {
                 file_count,
                 folder_count,
                 source_db_error,
+                metadata_hydration_error,
                 source_root_available,
             } => {
                 self.queue_folder_scan_maintenance(
@@ -172,6 +174,7 @@ impl NativeAppState {
                         .then_some(prepared.audio_file_paths)
                         .unwrap_or_default(),
                     scan_cache_update,
+                    rating_decay_maintenance.filter(|_| source_root_available),
                     context,
                 );
                 self.apply_finished_folder_scan(
@@ -181,6 +184,7 @@ impl NativeAppState {
                         file_count,
                         folder_count,
                         source_db_error,
+                        metadata_hydration_error,
                         source_root_available,
                     },
                     started_at,
@@ -218,6 +222,9 @@ impl NativeAppState {
         &self,
         audio_file_paths: Vec<std::path::PathBuf>,
         scan_cache_update: crate::native_app::sample_library::folder_browser::scan::FolderScanCacheUpdate,
+        rating_decay: Option<
+            crate::native_app::sample_library::folder_browser::scan::RatingDecayMaintenanceRequest,
+        >,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         let sources = self.library.folder_browser.configured_sample_sources();
@@ -231,6 +238,7 @@ impl NativeAppState {
             audio_file_paths,
             scan_cache_update,
             scan_cache_revision: reserve_source_scan_cache_revision(),
+            rating_decay,
         };
         #[cfg(test)]
         {
@@ -257,6 +265,7 @@ impl NativeAppState {
     pub(in crate::native_app) fn finish_folder_scan_maintenance(
         &mut self,
         result: FolderScanMaintenanceResult,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         if let Some(error) = result.persistence_error() {
             self.ui.status.sample = format!("Settings not saved: {error}");
@@ -277,6 +286,13 @@ impl NativeAppState {
         }
         for error in result.harvest_errors {
             tracing::warn!("{error}");
+        }
+        if let Some(error) = result.rating_decay_error {
+            tracing::warn!("rating decay maintenance failed: {error}");
+        } else if result.rating_decay_updated_count > 0
+            && let Some(source_id) = result.rating_decay_source_id
+        {
+            self.refresh_source(source_id, context);
         }
     }
 
@@ -320,6 +336,26 @@ impl NativeAppState {
                 started_at,
                 Some(&error),
             );
+        } else if let Some(error) = scan.metadata_hydration_error {
+            self.background
+                .source_processing
+                .wake_source(&scan.source_id, "folder_scan_metadata_hydration_failed");
+            self.ui.status.sample = format!(
+                "Loaded source {}: {} files in {} folders; metadata refresh failed and the previous metadata was preserved: {error}",
+                scan.label, scan.file_count, scan.folder_count
+            );
+            tracing::warn!(
+                source_id = scan.source_id,
+                "browser metadata hydration failed: {error}"
+            );
+            emit_gui_action(
+                "folder_browser.scan.metadata_hydration",
+                Some("folder_browser"),
+                Some(&scan.label),
+                "error",
+                started_at,
+                Some(&error),
+            );
         } else {
             self.ui.status.sample = format!(
                 "Loaded source {}: {} files in {} folders",
@@ -357,6 +393,7 @@ struct AppliedFolderScan {
     file_count: usize,
     folder_count: usize,
     source_db_error: Option<String>,
+    metadata_hydration_error: Option<String>,
     source_root_available: bool,
 }
 
