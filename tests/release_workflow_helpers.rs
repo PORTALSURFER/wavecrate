@@ -932,9 +932,9 @@ assert url == "https://portalsurfer.org/wavecrate/api/v1/releases/build/files/fi
 request = module.request_for_url(url, verification_token="verification-secret")
 assert request.get_header("X-wavecrate-release-verification") == module.hashlib.sha256(b"verification-secret").hexdigest()
 
-args = type("Args", (), {
+args = type("Args", (), {{
     "portal_catalog_url": "https://portalsurfer.org/wavecrate/api/v1/releases",
-})()
+}})()
 module.ensure_portalsurfer_origin(args, url)
 try:
     module.ensure_portalsurfer_origin(args, "https://example.com/file.zip")

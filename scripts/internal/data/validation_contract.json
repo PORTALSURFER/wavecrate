@@ -146,6 +146,26 @@
         "fragment": "--test controller_browser_integration --features legacy-controller"
       },
       {
+        "label": "PowerShell quick CI validates its package filter against discovered binaries",
+        "path": "scripts/internal/ci/ci_quick.ps1",
+        "fragment": "nextest list --package wavecrate --profile quick --lib --tests --list-type binaries-only"
+      },
+      {
+        "label": "Bash quick CI validates its package filter against discovered binaries",
+        "path": "scripts/internal/ci/ci_quick.sh",
+        "fragment": "nextest list -p wavecrate --profile quick --lib --tests --list-type binaries-only"
+      },
+      {
+        "label": "PowerShell workspace quick CI validates its filter against discovered binaries",
+        "path": "scripts/internal/ci/ci_quick.ps1",
+        "fragment": "nextest list --workspace --profile quick --all-targets --list-type binaries-only"
+      },
+      {
+        "label": "Bash workspace quick CI validates its filter against discovered binaries",
+        "path": "scripts/internal/ci/ci_quick.sh",
+        "fragment": "nextest list --workspace --profile quick --all-targets --list-type binaries-only"
+      },
+      {
         "label": "PowerShell perf guard uses shared report evaluator",
         "path": "scripts/internal/perf/run_perf_guard.ps1",
         "fragment": "scripts/internal/perf/evaluate_perf_guard_report.py"
