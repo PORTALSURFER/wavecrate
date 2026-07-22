@@ -102,14 +102,12 @@ mod widget;
 #[cfg(test)]
 pub(in crate::native_app::waveform) use widget::LiveSelectionPreview;
 #[cfg(test)]
-pub(super) use widget::WaveformWidgetProps;
-#[cfg(test)]
 pub(in crate::native_app::waveform) use widget::signal_edit_selection_for_state;
 #[cfg(test)]
 pub(in crate::native_app::waveform) use widget::signal_gain_preview_for_state;
 #[cfg(test)]
 pub(in crate::native_app::waveform) use widget::waveform_signal_surface_view;
-pub(super) use widget::{WaveformWidget, waveform_viewport_view_with_tooltip};
+pub(super) use widget::{WaveformWidget, WaveformWidgetProps, waveform_viewport_view_with_tooltip};
 
 mod widget_geometry;
 mod widget_input;

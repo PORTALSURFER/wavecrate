@@ -4,7 +4,9 @@ use super::super::{
 };
 use crate::native_app::{
     app::{NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState},
-    waveform::{WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID},
+    waveform::{
+        WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID, WaveformWidget, WaveformWidgetProps,
+    },
 };
 use radiant::{
     gui::types::{Point, Rect, Rgba8},
@@ -89,7 +91,18 @@ impl NativeAppState {
         else {
             return;
         };
-        let Some(cursor_x) = push_playback_cursor(primitives, bounds, visible_ratio) else {
+        let cursor_occlusion =
+            WaveformWidget::new(WaveformWidgetProps::from_state_with_playhead_occlusion(
+                &self.waveform.current,
+                self.ui.chrome.beat_guides_enabled,
+                self.ui.chrome.bpm_snap_enabled,
+                self.ui.chrome.beat_guide_count,
+                None,
+            ))
+            .playmark_control_cluster_rect(bounds);
+        let Some(cursor_x) =
+            push_playback_cursor(primitives, bounds, visible_ratio, cursor_occlusion)
+        else {
             return;
         };
         self.playhead_frame_diagnostics
@@ -205,6 +218,7 @@ fn push_playback_cursor(
     primitives: &mut Vec<PaintPrimitive>,
     bounds: Rect,
     ratio: f32,
+    occlusion: Option<Rect>,
 ) -> Option<f32> {
     let width = PLAYBACK_CURSOR_WIDTH
         .ceil()
@@ -216,14 +230,60 @@ fn push_playback_cursor(
     if right <= left {
         return None;
     }
-    WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID).push_visible_fill_rect(
-        Rect::from_min_max(
-            Point::new(left, bounds.min.y),
-            Point::new(right, bounds.max.y),
-        ),
-        PLAYBACK_CURSOR_COLOR,
+    let cursor = Rect::from_min_max(
+        Point::new(left, bounds.min.y),
+        Point::new(right, bounds.max.y),
     );
+    let mut paint = WidgetPaint::new(primitives, WAVEFORM_WIDGET_ID);
+    let Some(occlusion) = occlusion.filter(|rect| {
+        cursor.min.x < rect.max.x
+            && cursor.max.x > rect.min.x
+            && cursor.min.y < rect.max.y
+            && cursor.max.y > rect.min.y
+    }) else {
+        paint.push_visible_fill_rect(cursor, PLAYBACK_CURSOR_COLOR);
+        return Some(center_x);
+    };
+    let top_max_y = occlusion.min.y.clamp(cursor.min.y, cursor.max.y);
+    if top_max_y > cursor.min.y {
+        paint.push_visible_fill_rect(
+            Rect::from_min_max(cursor.min, Point::new(cursor.max.x, top_max_y)),
+            PLAYBACK_CURSOR_COLOR,
+        );
+    }
+    let bottom_min_y = occlusion.max.y.clamp(cursor.min.y, cursor.max.y);
+    if bottom_min_y < cursor.max.y {
+        paint.push_visible_fill_rect(
+            Rect::from_min_max(Point::new(cursor.min.x, bottom_min_y), cursor.max),
+            PLAYBACK_CURSOR_COLOR,
+        );
+    }
     Some(center_x)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn playback_cursor_paints_around_playmark_control_occlusion() {
+        let bounds = Rect::from_min_max(Point::new(0.0, 0.0), Point::new(400.0, 80.0));
+        let occlusion = Rect::from_min_max(Point::new(190.0, 60.0), Point::new(280.0, 78.0));
+        let mut primitives = Vec::new();
+
+        assert_eq!(
+            push_playback_cursor(&mut primitives, bounds, 0.5, Some(occlusion)),
+            Some(200.0)
+        );
+
+        let cursor_segments = primitives
+            .iter()
+            .filter_map(PaintPrimitive::fill_rect)
+            .collect::<Vec<_>>();
+        assert_eq!(cursor_segments.len(), 2);
+        assert_eq!(cursor_segments[0].rect.max.y, 60.0);
+        assert_eq!(cursor_segments[1].rect.min.y, 78.0);
+    }
 }
 
 fn sample_playback_session_pending_start(session: &SamplePlaybackSession) -> bool {

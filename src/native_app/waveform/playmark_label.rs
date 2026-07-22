@@ -11,7 +11,9 @@ use crate::ui_formatting::{format_selection_duration, format_waveform_bpm_input}
 use super::{WaveformActiveDragKind, WaveformSelectionKind, WaveformWidget};
 
 pub(super) const PLAYMARK_LABEL_HEIGHT: f32 = 18.0;
-const PLAYMARK_LABEL_BOTTOM_INSET: f32 = 2.0;
+// Keep the interactive control strip above the four-pixel played-range rail.
+// Transient playback overlays must not intersect retained text primitives.
+const PLAYMARK_LABEL_BOTTOM_INSET: f32 = 6.0;
 const PLAYMARK_LABEL_SELECTION_INSET: f32 = 4.0;
 const PLAYMARK_LABEL_OUTSIDE_GAP: f32 = 6.0;
 const PLAYMARK_LABEL_HORIZONTAL_PADDING: f32 = 10.0;
@@ -43,6 +45,31 @@ pub(super) struct PlaymarkLabelLayout {
 }
 
 impl WaveformWidget {
+    pub(in crate::native_app) fn playmark_control_cluster_rect(
+        &self,
+        bounds: Rect,
+    ) -> Option<Rect> {
+        let selection = self.play_selection?;
+        let geometry = self.selection_geometry(bounds, Some(selection))?;
+        let label = playmark_selection_label(
+            selection,
+            self.file.frames,
+            self.file.sample_rate,
+            self.beat_guides_enabled,
+            self.beat_guide_count,
+        )?;
+        let layout = playmark_label_layout(bounds, geometry.rect, label.len())?;
+        let controls_max_x = if self.beat_guides_enabled {
+            layout.beat_count_rect.max.x
+        } else {
+            layout.beat_toggle_rect.max.x
+        };
+        Some(Rect::from_min_max(
+            layout.rect.min,
+            Point::new(controls_max_x, layout.rect.max.y),
+        ))
+    }
+
     pub(super) fn append_playmark_label_paint(
         &self,
         paint: &mut WidgetPaint<'_>,

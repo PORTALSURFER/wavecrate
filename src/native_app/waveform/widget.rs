@@ -271,7 +271,7 @@ impl WaveformWidgetProps {
         )
     }
 
-    pub(super) fn from_state_with_playhead_occlusion(
+    pub(in crate::native_app) fn from_state_with_playhead_occlusion(
         state: &WaveformState,
         beat_guides_enabled: bool,
         bpm_snap_enabled: bool,
@@ -386,7 +386,7 @@ pub(in crate::native_app) struct WaveformWidget {
 }
 
 impl WaveformWidget {
-    pub(super) fn new(props: WaveformWidgetProps) -> Self {
+    pub(in crate::native_app) fn new(props: WaveformWidgetProps) -> Self {
         let WaveformWidgetProps {
             file,
             viewport,
