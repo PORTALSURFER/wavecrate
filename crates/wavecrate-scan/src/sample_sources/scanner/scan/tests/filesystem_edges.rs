@@ -120,6 +120,36 @@ fn full_scan_captures_browser_layout_in_the_authoritative_traversal() {
     assert_eq!(notes.file_size, 5);
 }
 
+#[test]
+fn browser_layout_keeps_hidden_non_audio_entries_but_excludes_hidden_audio() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir_all(&hidden).unwrap();
+    std::fs::write(hidden.join("kick.wav"), b"kick").unwrap();
+    std::fs::write(hidden.join("notes.txt"), b"notes").unwrap();
+
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let stats = scan_once(&db).unwrap();
+    let snapshot = stats.source_tree_snapshot.expect("source tree snapshot");
+
+    assert!(snapshot.directories.contains(&PathBuf::from(".hidden")));
+    assert!(snapshot.other_files.iter().any(|file| {
+        file.relative_path == Path::new(".hidden/notes.txt") && file.file_size == 5
+    }));
+    assert!(
+        snapshot
+            .other_files
+            .iter()
+            .all(|file| file.relative_path != Path::new(".hidden/kick.wav"))
+    );
+    assert!(
+        db.list_files()
+            .unwrap()
+            .iter()
+            .all(|file| file.relative_path != Path::new(".hidden/kick.wav"))
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn browser_layout_snapshot_does_not_include_symlink_entries() {

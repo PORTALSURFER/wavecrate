@@ -144,8 +144,10 @@ pub(super) fn visit_dir_with_cancel_check(
                 if wavecrate_library::sample_sources::is_apple_double_sidecar(&path) {
                     continue;
                 }
-                if scan_audio && is_supported_audio(&path) {
-                    visitor(&path)?;
+                if is_supported_audio(&path) {
+                    if scan_audio {
+                        visitor(&path)?;
+                    }
                 } else {
                     match entry.metadata() {
                         Ok(metadata) => snapshot.other_files.push(SourceTreeFile {
