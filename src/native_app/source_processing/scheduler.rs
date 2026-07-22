@@ -122,7 +122,7 @@ impl Default for ProcessingBudgets {
                 (ProcessingLane::Scan, 1),
                 (ProcessingLane::Hashing, 1),
                 (ProcessingLane::FeatureAnalysis, cpu.min(2)),
-                (ProcessingLane::Embedding, 1),
+                (ProcessingLane::Embedding, cpu.min(2)),
                 (ProcessingLane::Finalization, 1),
                 (ProcessingLane::Cleanup, 1),
             ]
@@ -583,6 +583,17 @@ mod tests {
         tracker.release(first);
         tracker.release(second);
         assert_eq!(tracker.current_global(), ResourceUse::default());
+    }
+
+    #[test]
+    fn default_compute_lanes_share_the_execution_pool_capacity() {
+        let limits = ProcessingBudgets::default();
+
+        assert_eq!(
+            limits.lane_limit(ProcessingLane::Embedding),
+            limits.lane_limit(ProcessingLane::FeatureAnalysis),
+            "embedding preparation should use the same bounded worker capacity as feature analysis"
+        );
     }
 
     #[test]

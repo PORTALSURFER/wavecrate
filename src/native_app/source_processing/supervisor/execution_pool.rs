@@ -201,7 +201,7 @@ mod tests {
     };
 
     #[test]
-    fn fixed_pool_overlaps_sources_and_bounds_in_flight_results() {
+    fn fixed_pool_overlaps_embedding_preparation_across_sources() {
         let first_dir = tempfile::tempdir().expect("first source directory");
         let second_dir = tempfile::tempdir().expect("second source directory");
         let first = SampleSource::new_with_id(
@@ -238,8 +238,8 @@ mod tests {
                 source.id.as_str(),
                 format!("{}-scope", source.id.as_str()),
                 "missing.wav",
-                ReadinessStage::AnalysisFeatures,
-                wavecrate_analysis::analysis_version(),
+                ReadinessStage::EmbeddingAspects,
+                "test-embedding-version",
                 1,
                 "content",
             );
@@ -250,7 +250,7 @@ mod tests {
             };
             let permit = shared
                 .budgets()
-                .try_acquire(source.id.as_str(), ProcessingLane::FeatureAnalysis)
+                .try_acquire(source.id.as_str(), ProcessingLane::Embedding)
                 .expect("independent execution permit");
             let cancel = shared
                 .control()
