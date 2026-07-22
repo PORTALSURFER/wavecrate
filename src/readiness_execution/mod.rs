@@ -443,7 +443,8 @@ pub fn publish_embedding_stage(
     let sample_id = db::build_sample_id(source_id, relative_path);
     let tx = db::telemetry::begin_immediate_transaction(conn, "readiness_embedding_publish")
         .map_err(|error| format!("Failed to start readiness embedding transaction: {error}"))?;
-    if db::sample_content_hash(&tx, &sample_id)?.as_deref() != Some(content_hash)
+    if !manifest_content_hash_is_current(&tx, relative_path, content_hash)?
+        || db::sample_content_hash(&tx, &sample_id)?.as_deref() != Some(content_hash)
         || db::cached_features_by_hash(
             &tx,
             content_hash,
@@ -641,6 +642,15 @@ mod tests {
         );
         let mut connection = SourceDatabase::open_connection_for_background_job(&source.root)
             .expect("open source db");
+        connection
+            .execute(
+                "INSERT INTO wav_files (
+                    path, file_size, modified_ns, content_hash, extension, missing, file_identity
+                 ) VALUES ('sample.wav', 4, 1, 'old-content', 'wav', 0,
+                           'embedding-publication-fence-identity')",
+                [],
+            )
+            .expect("seed authoritative source manifest");
         let sample_id = db::build_sample_id(source.id.as_str(), Path::new("sample.wav"));
         db::upsert_samples(
             &mut connection,
@@ -681,10 +691,10 @@ mod tests {
         let prepared = prepare_embedding_stage(input).expect("prepare embedding payload");
         connection
             .execute(
-                "UPDATE samples SET content_hash = 'new-content' WHERE sample_id = ?1",
-                [&sample_id],
+                "UPDATE wav_files SET content_hash = 'new-content' WHERE path = 'sample.wav'",
+                [],
             )
-            .expect("replace sample content generation");
+            .expect("replace authoritative content generation");
 
         assert!(
             !publish_embedding_stage(
