@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use super::{
     FixtureName, FixtureProfile, FixtureProvisionRequest,
     audio::{AudioSpec, write_deterministic_wav},
-    provision, validate,
+    provision,
+    provision::ensure_no_symlink_components,
+    validate,
 };
 
 /// Deterministic mutations supported by native source-system scenarios.
@@ -73,11 +75,12 @@ pub fn apply_mutation(
         .canonicalize()
         .map_err(|error| format!("resolve fixture config base: {error}"))?;
 
-    let source_beta = config_base
+    let fixture_root = config_base
         .join(crate::app_dirs::APP_DIR_NAME)
         .join("fixtures")
-        .join(fixture.as_str())
-        .join("source-beta");
+        .join(fixture.as_str());
+    ensure_no_symlink_components(&fixture_root, &config_base, "fixture")?;
+    let source_beta = fixture_root.join("source-beta");
     let offline = source_beta.with_file_name("source-beta.offline");
     if mutation == FixtureMutation::RootOnline {
         if source_beta.exists() {
@@ -86,6 +89,7 @@ pub fn apply_mutation(
                 source_beta.display()
             ));
         }
+        ensure_no_symlink_components(&offline, &fixture_root, "offline source")?;
         fs::rename(&offline, &source_beta).map_err(|error| {
             format!(
                 "restore fixture source {} to {}: {error}",
@@ -98,37 +102,52 @@ pub fn apply_mutation(
     }
 
     validate(&config_base, fixture, profile)?;
+    ensure_no_symlink_components(&source_beta, &fixture_root, "mutation source")?;
     match mutation {
-        FixtureMutation::Create => write_deterministic_wav(
-            &source_beta.join("mutable/created.wav"),
-            &AudioSpec {
-                channels: 1,
-                sample_rate: 44_100,
-                frames: 5_512,
-                seed: 31,
-            },
-        ),
-        FixtureMutation::SameSizeChange => write_deterministic_wav(
-            &source_beta.join("mutable/change-me.wav"),
-            &AudioSpec {
-                channels: 1,
-                sample_rate: 44_100,
-                frames: 5_512,
-                seed: 230,
-            },
-        ),
+        FixtureMutation::Create => {
+            let path = source_beta.join("mutable/created.wav");
+            ensure_no_symlink_components(&path, &source_beta, "create mutation")?;
+            write_deterministic_wav(
+                &path,
+                &AudioSpec {
+                    channels: 1,
+                    sample_rate: 44_100,
+                    frames: 5_512,
+                    seed: 31,
+                },
+            )
+        }
+        FixtureMutation::SameSizeChange => {
+            let path = source_beta.join("mutable/change-me.wav");
+            ensure_no_symlink_components(&path, &source_beta, "change mutation")?;
+            write_deterministic_wav(
+                &path,
+                &AudioSpec {
+                    channels: 1,
+                    sample_rate: 44_100,
+                    frames: 5_512,
+                    seed: 230,
+                },
+            )
+        }
         FixtureMutation::Move => {
+            let source = source_beta.join("mutable/move-me.wav");
             let destination = source_beta.join("moved/move-me.wav");
+            ensure_no_symlink_components(&source, &source_beta, "move mutation source")?;
+            ensure_no_symlink_components(&destination, &source_beta, "move mutation destination")?;
             let parent = destination
                 .parent()
                 .ok_or_else(|| String::from("fixture move destination has no parent"))?;
             fs::create_dir_all(parent)
                 .map_err(|error| format!("create fixture move destination: {error}"))?;
-            fs::rename(source_beta.join("mutable/move-me.wav"), &destination)
+            fs::rename(source, &destination)
                 .map_err(|error| format!("move fixture file to {}: {error}", destination.display()))
         }
-        FixtureMutation::Delete => fs::remove_file(source_beta.join("mutable/delete-me.wav"))
-            .map_err(|error| format!("delete fixture file: {error}")),
+        FixtureMutation::Delete => {
+            let path = source_beta.join("mutable/delete-me.wav");
+            ensure_no_symlink_components(&path, &source_beta, "delete mutation")?;
+            fs::remove_file(path).map_err(|error| format!("delete fixture file: {error}"))
+        }
         FixtureMutation::RootOffline => fs::rename(&source_beta, &offline).map_err(|error| {
             format!(
                 "move fixture source {} offline to {}: {error}",

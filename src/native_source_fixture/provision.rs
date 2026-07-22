@@ -14,8 +14,8 @@ use crate::{
 
 use super::{
     FixtureManifest, FixtureName, FixtureProfile, FixtureSourceManifest,
-    audio::{AudioSpec, write_deterministic_wav},
-    manifest_io::{file_manifest, sha256, write_json},
+    audio::{AudioSpec, deterministic_wav_bytes, write_deterministic_wav},
+    manifest_io::{sha256, sha256_bytes, write_json},
     specification::{FIXTURE_SEED, FIXTURE_VERSION},
     topology::definitions,
 };
@@ -58,8 +58,6 @@ pub fn provision(request: &FixtureProvisionRequest) -> Result<FixtureManifest, S
 
     let definitions = definitions(request.fixture);
     let mut sources = Vec::with_capacity(definitions.len());
-    let mut source_manifests = Vec::with_capacity(definitions.len());
-    let mut files = Vec::new();
     for definition in definitions {
         let source_root = fixture_root.join(definition.directory_name);
         fs::create_dir_all(&source_root)
@@ -83,13 +81,6 @@ pub fn provision(request: &FixtureProvisionRequest) -> Result<FixtureManifest, S
                     seed: generated.seed,
                 },
             )?;
-            files.push(file_manifest(
-                definition.id,
-                &generated.relative_path,
-                &path,
-                true,
-                Some(generated),
-            )?);
         }
         for (relative_path, contents) in &definition.unsupported {
             let path = source_root.join(relative_path);
@@ -103,38 +94,13 @@ pub fn provision(request: &FixtureProvisionRequest) -> Result<FixtureManifest, S
             }
             fs::write(&path, contents)
                 .map_err(|error| format!("write fixture file {}: {error}", path.display()))?;
-            files.push(file_manifest(
-                definition.id,
-                relative_path,
-                &path,
-                false,
-                None,
-            )?);
         }
-
-        let supported_file_count = definition.audio.len();
-        let unsupported_file_count = definition.unsupported.len();
-        let expected_readiness_target_count = supported_file_count
-            .saturating_mul(READINESS_TARGETS_PER_FILE)
-            .saturating_add(usize::from(supported_file_count > 0));
-        source_manifests.push(FixtureSourceManifest {
-            source_id: definition.id.to_owned(),
-            directory_name: definition.directory_name.to_owned(),
-            root: source_root.clone(),
-            directories: definition.directories,
-            supported_file_count,
-            unsupported_file_count,
-            expected_readiness_target_count,
-        });
         sources.push(SampleSource::new_with_id(
             SourceId::from_string(definition.id),
             source_root,
         ));
     }
 
-    files.sort_by(|left, right| {
-        (&left.source_id, &left.relative_path).cmp(&(&right.source_id, &right.relative_path))
-    });
     let _profile_guard = PersistenceProfileGuard::named(request.profile.as_str());
     let _root_guard = AppRootGuard::set(profile_path.clone())
         .map_err(|error| format!("select fixture profile {}: {error}", profile_path.display()))?;
@@ -160,28 +126,7 @@ pub fn provision(request: &FixtureProvisionRequest) -> Result<FixtureManifest, S
         })?;
     }
 
-    let manifest = FixtureManifest {
-        fixture_version: FIXTURE_VERSION,
-        fixture: request.fixture,
-        deterministic_seed: FIXTURE_SEED,
-        profile: request.profile,
-        profile_path,
-        fixture_root: fixture_root.clone(),
-        expected_supported_file_count: source_manifests
-            .iter()
-            .map(|source| source.supported_file_count)
-            .sum(),
-        expected_unsupported_file_count: source_manifests
-            .iter()
-            .map(|source| source.unsupported_file_count)
-            .sum(),
-        expected_readiness_target_count: source_manifests
-            .iter()
-            .map(|source| source.expected_readiness_target_count)
-            .sum(),
-        sources: source_manifests,
-        files,
-    };
+    let manifest = expected_manifest(&config_base, request.fixture, request.profile)?;
     write_json(&fixture_root.join(MANIFEST_FILE_NAME), &manifest)?;
     validate(&config_base, request.fixture, request.profile)
 }
@@ -194,6 +139,7 @@ pub fn validate(
 ) -> Result<FixtureManifest, String> {
     let config_base = prepare_config_base(config_base)?;
     let expected_fixture_root = fixture_root(&config_base, fixture);
+    ensure_no_symlink_components(&expected_fixture_root, &config_base, "fixture")?;
     let manifest_path = expected_fixture_root.join(MANIFEST_FILE_NAME);
     let bytes = fs::read(&manifest_path)
         .map_err(|error| format!("read fixture manifest {}: {error}", manifest_path.display()))?;
@@ -203,20 +149,16 @@ pub fn validate(
             manifest_path.display()
         )
     })?;
-    if manifest.fixture_version != FIXTURE_VERSION
-        || manifest.fixture != fixture
-        || manifest.profile != profile
-        || manifest.deterministic_seed != FIXTURE_SEED
-        || manifest.fixture_root != expected_fixture_root
-        || manifest.profile_path != profile_path(&config_base, profile)
-    {
+    let expected_manifest = expected_manifest(&config_base, fixture, profile)?;
+    if manifest != expected_manifest {
         return Err(format!(
-            "fixture manifest {} does not match the requested version, name, seed, profile, or roots",
+            "fixture manifest {} does not match the versioned deterministic fixture contract",
             manifest_path.display()
         ));
     }
     for source in &manifest.sources {
         ensure_confined(&source.root, &manifest.fixture_root, "source")?;
+        ensure_no_symlink_components(&source.root, &manifest.fixture_root, "source")?;
         if !source.root.join(".wavecrate.db").is_file() {
             return Err(format!(
                 "fixture source database is missing: {}",
@@ -342,6 +284,85 @@ fn fixture_root(config_base: &Path, fixture: FixtureName) -> PathBuf {
         .join(fixture.as_str())
 }
 
+fn expected_manifest(
+    config_base: &Path,
+    fixture: FixtureName,
+    profile: FixtureProfile,
+) -> Result<FixtureManifest, String> {
+    let fixture_root = fixture_root(config_base, fixture);
+    let mut sources = Vec::new();
+    let mut files = Vec::new();
+    for definition in definitions(fixture) {
+        let source_root = fixture_root.join(definition.directory_name);
+        let supported_file_count = definition.audio.len();
+        let unsupported_file_count = definition.unsupported.len();
+        sources.push(FixtureSourceManifest {
+            source_id: definition.id.to_owned(),
+            directory_name: definition.directory_name.to_owned(),
+            root: source_root,
+            directories: definition.directories,
+            supported_file_count,
+            unsupported_file_count,
+            expected_readiness_target_count: supported_file_count
+                .saturating_mul(READINESS_TARGETS_PER_FILE)
+                .saturating_add(usize::from(supported_file_count > 0)),
+        });
+        for generated in definition.audio {
+            let spec = AudioSpec {
+                channels: generated.channels,
+                sample_rate: generated.sample_rate,
+                frames: generated.frames,
+                seed: generated.seed,
+            };
+            files.push(crate::native_source_fixture::FixtureFileManifest {
+                source_id: definition.id.to_owned(),
+                relative_path: generated.relative_path.replace('\\', "/"),
+                sha256: sha256_bytes(&deterministic_wav_bytes(&spec)?),
+                supported_audio: true,
+                channels: Some(generated.channels),
+                sample_rate: Some(generated.sample_rate),
+                frames: Some(generated.frames),
+            });
+        }
+        for (relative_path, contents) in definition.unsupported {
+            files.push(crate::native_source_fixture::FixtureFileManifest {
+                source_id: definition.id.to_owned(),
+                relative_path: relative_path.replace('\\', "/"),
+                sha256: sha256_bytes(contents),
+                supported_audio: false,
+                channels: None,
+                sample_rate: None,
+                frames: None,
+            });
+        }
+    }
+    files.sort_by(|left, right| {
+        (&left.source_id, &left.relative_path).cmp(&(&right.source_id, &right.relative_path))
+    });
+    Ok(FixtureManifest {
+        fixture_version: FIXTURE_VERSION,
+        fixture,
+        deterministic_seed: FIXTURE_SEED,
+        profile,
+        profile_path: profile_path(config_base, profile),
+        fixture_root,
+        expected_supported_file_count: sources
+            .iter()
+            .map(|source| source.supported_file_count)
+            .sum(),
+        expected_unsupported_file_count: sources
+            .iter()
+            .map(|source| source.unsupported_file_count)
+            .sum(),
+        expected_readiness_target_count: sources
+            .iter()
+            .map(|source| source.expected_readiness_target_count)
+            .sum(),
+        sources,
+        files,
+    })
+}
+
 fn ensure_confined(path: &Path, parent: &Path, label: &str) -> Result<(), String> {
     if !path.starts_with(parent) || path == parent {
         return Err(format!(
@@ -353,13 +374,21 @@ fn ensure_confined(path: &Path, parent: &Path, label: &str) -> Result<(), String
 }
 
 fn ensure_reset_path_safe(path: &Path, config_base: &Path, label: &str) -> Result<(), String> {
-    let relative = path.strip_prefix(config_base).map_err(|error| {
+    ensure_no_symlink_components(path, config_base, label)
+}
+
+pub(super) fn ensure_no_symlink_components(
+    path: &Path,
+    parent: &Path,
+    label: &str,
+) -> Result<(), String> {
+    let relative = path.strip_prefix(parent).map_err(|error| {
         format!(
             "resolve {label} path {} below fixture config base: {error}",
             path.display()
         )
     })?;
-    let mut current = config_base.to_path_buf();
+    let mut current = parent.to_path_buf();
     for component in relative.components() {
         current.push(component);
         match fs::symlink_metadata(&current) {

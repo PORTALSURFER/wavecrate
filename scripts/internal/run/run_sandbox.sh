@@ -119,12 +119,13 @@ fi
 export WAVECRATE_CONFIG_HOME="$SANDBOX_BASE"
 export WAVECRATE_CONFIG_PROFILE="sandbox"
 if [[ -n "$FIXTURE" ]]; then
+  WRITE_DB=1
+  unset WAVECRATE_SOURCE_DB_READ_ONLY
   fixture_args=(provision --fixture "$FIXTURE" --config-base "$SANDBOX_BASE" --profile sandbox)
   if (( FIXTURE_RESET == 0 )); then
     fixture_args+=(--no-reset)
   fi
   cargo run --quiet --bin wavecrate-fixture -- "${fixture_args[@]}" >/dev/null
-  WRITE_DB=1
   echo "[run_sandbox] fixture=$FIXTURE"
   echo "[run_sandbox] fixture_manifest=$SANDBOX_BASE/.wavecrate/fixtures/$FIXTURE/fixture-manifest.json"
 fi

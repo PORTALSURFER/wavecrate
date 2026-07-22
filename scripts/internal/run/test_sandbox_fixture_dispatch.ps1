@@ -7,16 +7,19 @@ $fakeBin = Join-Path $testRoot "bin"
 $calls = Join-Path $testRoot "cargo-calls.txt"
 New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
 $oldPath = $env:PATH
+$oldReadOnly = $env:WAVECRATE_SOURCE_DB_READ_ONLY
 
 try {
   $fakeCargo = Join-Path $fakeBin "cargo.cmd"
   Set-Content -LiteralPath $fakeCargo -Value @(
     "@echo off",
+    'if not "%WAVECRATE_SOURCE_DB_READ_ONLY%"=="" exit /b 91',
     'echo %*>>"%WAVECRATE_FIXTURE_TEST_CALLS%"',
     "exit /b 0"
   )
   $env:PATH = $fakeBin + [System.IO.Path]::PathSeparator + $oldPath
   $env:WAVECRATE_FIXTURE_TEST_CALLS = $calls
+  $env:WAVECRATE_SOURCE_DB_READ_ONLY = "1"
 
   & (Join-Path $rootDir "scripts/run.ps1") sandbox `
     -Dir (Join-Path $testRoot "sandbox") `
@@ -39,6 +42,7 @@ try {
   }
 
   Clear-Content -LiteralPath $calls
+  $env:WAVECRATE_SOURCE_DB_READ_ONLY = "1"
   & (Join-Path $rootDir "scripts/run.ps1") sandbox `
     -Dir (Join-Path $testRoot "reset") `
     -Fixture empty | Out-Null
@@ -64,6 +68,11 @@ try {
   }
 } finally {
   $env:PATH = $oldPath
+  if ([string]::IsNullOrWhiteSpace($oldReadOnly)) {
+    Remove-Item Env:WAVECRATE_SOURCE_DB_READ_ONLY -ErrorAction SilentlyContinue
+  } else {
+    $env:WAVECRATE_SOURCE_DB_READ_ONLY = $oldReadOnly
+  }
   Remove-Item Env:WAVECRATE_FIXTURE_TEST_CALLS -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

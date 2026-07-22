@@ -60,12 +60,17 @@ if ($Temp -and -not [string]::IsNullOrWhiteSpace($Name)) {
 if (-not [string]::IsNullOrWhiteSpace($Dir) -and -not [string]::IsNullOrWhiteSpace($Name)) {
   throw "[run_sandbox][error] -Dir and -Name are mutually exclusive."
 }
+if ($FixturePreserve -and [string]::IsNullOrWhiteSpace($Fixture)) {
+  throw "[run_sandbox][error] -FixturePreserve requires -Fixture <name>."
+}
 
 $sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
 $env:WAVECRATE_CONFIG_HOME = $sandboxBase
 $env:WAVECRATE_CONFIG_PROFILE = "sandbox"
 
 if (-not [string]::IsNullOrWhiteSpace($Fixture)) {
+  $WriteDb = $true
+  Remove-Item Env:WAVECRATE_SOURCE_DB_READ_ONLY -ErrorAction SilentlyContinue
   $fixtureArgs = @(
     "run", "--quiet", "--bin", "wavecrate-fixture", "--",
     "provision", "--fixture", $Fixture, "--config-base", $sandboxBase,
@@ -87,7 +92,6 @@ if (-not [string]::IsNullOrWhiteSpace($Fixture)) {
     }
     throw "fixture provisioning failed with exit code $fixtureStatus"
   }
-  $WriteDb = $true
   Write-Host ("[run_sandbox] fixture={0}" -f $Fixture)
   Write-Host ("[run_sandbox] fixture_manifest={0}" -f (Join-Path $sandboxBase ".wavecrate/fixtures/$Fixture/fixture-manifest.json"))
 }

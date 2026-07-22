@@ -11,6 +11,10 @@ CALLS="$TEST_ROOT/cargo-calls.txt"
 mkdir -p "$FAKE_BIN"
 cat >"$FAKE_BIN/cargo" <<'SH'
 #!/usr/bin/env bash
+if [[ -n "${WAVECRATE_SOURCE_DB_READ_ONLY:-}" ]]; then
+  echo "fixture/app cargo inherited WAVECRATE_SOURCE_DB_READ_ONLY" >&2
+  exit 91
+fi
 printf '%s\n' "$*" >>"$WAVECRATE_FIXTURE_TEST_CALLS"
 exit 0
 SH
@@ -18,6 +22,7 @@ chmod +x "$FAKE_BIN/cargo"
 
 export PATH="$FAKE_BIN:$PATH"
 export WAVECRATE_FIXTURE_TEST_CALLS="$CALLS"
+export WAVECRATE_SOURCE_DB_READ_ONLY=1
 
 "$ROOT_DIR/scripts/internal/run/run_sandbox.sh" \
   --dir "$TEST_ROOT/sandbox" \
@@ -32,6 +37,7 @@ grep -Fq \
 grep -Fq "run --release -- --log" "$CALLS"
 
 : >"$CALLS"
+export WAVECRATE_SOURCE_DB_READ_ONLY=1
 "$ROOT_DIR/scripts/internal/run/run_sandbox.sh" \
   --dir "$TEST_ROOT/reset" \
   --fixture empty >/dev/null

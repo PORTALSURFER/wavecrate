@@ -9,6 +9,7 @@ use crate::{
 
 use super::{
     FixtureMutation, FixtureName, FixtureProfile, FixtureProvisionRequest, apply_mutation,
+    manifest_io::sha256,
     provision,
     provision::{manifest_path, validate},
 };
@@ -88,6 +89,26 @@ fn validation_rejects_tampered_fixture_input() {
         .find(|file| file.source_id == source.source_id)
         .expect("source file");
     fs::write(source.root.join(&file.relative_path), b"tampered").expect("tamper fixture");
+    let path = manifest_path(base.path(), FixtureName::SmallMultiSource);
+    let mut manifest_json: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).expect("manifest bytes")).expect("manifest JSON");
+    let manifest_file = manifest_json["files"]
+        .as_array_mut()
+        .expect("manifest files")
+        .iter_mut()
+        .find(|entry| {
+            entry["source_id"].as_str() == Some(file.source_id.as_str())
+                && entry["relative_path"].as_str() == Some(file.relative_path.as_str())
+        })
+        .expect("matching manifest file");
+    manifest_file["sha256"] = serde_json::Value::String(
+        sha256(&source.root.join(&file.relative_path)).expect("tampered hash"),
+    );
+    fs::write(
+        &path,
+        serde_json::to_vec_pretty(&manifest_json).expect("tampered manifest JSON"),
+    )
+    .expect("write matching tampered manifest");
 
     let error = validate(
         base.path(),
@@ -95,7 +116,37 @@ fn validation_rejects_tampered_fixture_input() {
         FixtureProfile::AutomatedTests,
     )
     .expect_err("tampered fixture must fail");
-    assert!(error.contains("hash mismatch"), "{error}");
+    assert!(
+        error.contains("versioned deterministic fixture contract"),
+        "{error}"
+    );
+}
+
+#[test]
+fn validation_rejects_self_consistent_manifest_metadata_tampering() {
+    let base = tempdir().expect("fixture base");
+    provision(&request(base.path(), FixtureName::SmallMultiSource)).expect("provision fixture");
+    let path = manifest_path(base.path(), FixtureName::SmallMultiSource);
+    let mut manifest_json: serde_json::Value =
+        serde_json::from_slice(&fs::read(&path).expect("manifest bytes")).expect("manifest JSON");
+    manifest_json["expected_supported_file_count"] = serde_json::Value::from(10);
+    manifest_json["sources"][0]["supported_file_count"] = serde_json::Value::from(5);
+    fs::write(
+        &path,
+        serde_json::to_vec_pretty(&manifest_json).expect("tampered manifest JSON"),
+    )
+    .expect("write self-consistent tampered manifest");
+
+    let error = validate(
+        base.path(),
+        FixtureName::SmallMultiSource,
+        FixtureProfile::AutomatedTests,
+    )
+    .expect_err("tampered manifest metadata must fail");
+    assert!(
+        error.contains("versioned deterministic fixture contract"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -259,4 +310,45 @@ fn reset_refuses_symlinked_fixture_ancestors() {
         fs::read(&sentinel).expect("outside sentinel remains"),
         b"must remain"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn mutations_refuse_a_source_root_swapped_for_an_external_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let base = tempdir().expect("fixture base");
+    let outside = tempdir().expect("outside root");
+    let manifest =
+        provision(&request(base.path(), FixtureName::SmallMultiSource)).expect("fixture");
+    let source_beta = manifest.sources[1].root.clone();
+    let external_source = outside.path().join("source-beta");
+    fs::rename(&source_beta, &external_source).expect("move source outside fixture");
+    symlink(&external_source, &source_beta).expect("swap source root for symlink");
+    let protected = external_source.join("mutable/change-me.wav");
+    let protected_before = fs::read(&protected).expect("external protected bytes");
+
+    for mutation in [
+        FixtureMutation::Create,
+        FixtureMutation::SameSizeChange,
+        FixtureMutation::Move,
+        FixtureMutation::Delete,
+        FixtureMutation::RootOffline,
+    ] {
+        let error = apply_mutation(
+            base.path().to_path_buf(),
+            FixtureName::SmallMultiSource,
+            FixtureProfile::AutomatedTests,
+            mutation,
+        )
+        .expect_err("symlinked source mutation must fail");
+        assert!(error.contains("symbolic link"), "{mutation:?}: {error}");
+    }
+    assert_eq!(
+        fs::read(&protected).expect("external protected bytes after mutations"),
+        protected_before
+    );
+    assert!(!external_source.join("mutable/created.wav").exists());
+    assert!(external_source.join("mutable/delete-me.wav").is_file());
+    assert!(external_source.join("mutable/move-me.wav").is_file());
 }
