@@ -231,6 +231,60 @@ fn background_scan_registration_waits_for_source_replacement_fence() {
 }
 
 #[test]
+fn source_replacement_cancels_before_waiting_and_advances_after_publication() {
+    let first_directory = tempfile::tempdir().expect("first source directory");
+    let replacement_directory = tempfile::tempdir().expect("replacement source directory");
+    let source = SampleSource::new_with_id(
+        SourceId::from_string("publication-fenced-replacement"),
+        first_directory.path().to_path_buf(),
+    );
+    let replacement = SampleSource::new_with_id(
+        source.id.clone(),
+        replacement_directory.path().to_path_buf(),
+    );
+    let shared = Arc::new(Shared::new(vec![source.clone()], None));
+    let old_cancel = shared.control().source_work_cancels[source.id.as_str()].clone();
+    let old_generation = shared.control().source_lifecycle_generations[source.id.as_str()];
+    let publication = shared.database_writer.lock(DatabasePhase::Publish);
+    let replacement_shared = Arc::clone(&shared);
+    let replacement_worker = std::thread::spawn(move || {
+        SourceProcessingSupervisor {
+            shared: replacement_shared,
+            coordinator: None,
+            retirement_worker: None,
+        }
+        .replace_sources(vec![replacement])
+        .expect("replace source after publication");
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(1);
+    while shared.database_writer.waiting_count() == 0 {
+        assert!(
+            Instant::now() < deadline,
+            "source replacement did not wait for publication"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(
+        shared.control().source_lifecycle_generations[source.id.as_str()],
+        old_generation,
+        "lifecycle generation must not advance during an active publication"
+    );
+    assert!(
+        old_cancel.load(Ordering::Acquire),
+        "replacement must release a foreground scan before waiting for its publication permit"
+    );
+
+    drop(publication);
+    replacement_worker.join().expect("replacement worker joins");
+    assert!(old_cancel.load(Ordering::Acquire));
+    assert_ne!(
+        shared.control().source_lifecycle_generations[source.id.as_str()],
+        old_generation
+    );
+}
+
+#[test]
 fn background_scan_registration_cannot_readd_source_removed_behind_fence() {
     let (_directory, source) = unhashed_source("scan-registration-removed");
     let mut supervisor = SourceProcessingSupervisor::dormant();

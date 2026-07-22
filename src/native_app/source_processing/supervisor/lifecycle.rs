@@ -1,6 +1,6 @@
 use super::{
-    Arc, AtomicBool, BTreeMap, BTreeSet, Ordering, PendingSourceRetirement, SampleSource,
-    SourceProcessingSupervisor, source_descriptors_match, source_maps_match,
+    Arc, AtomicBool, BTreeMap, BTreeSet, DatabasePhase, Ordering, PendingSourceRetirement,
+    SampleSource, SourceProcessingSupervisor, source_descriptors_match, source_maps_match,
     source_storage_identity_matches, sources_by_id,
 };
 
@@ -58,6 +58,18 @@ impl SourceProcessingSupervisor {
                 cancel.store(true, Ordering::Release);
             }
         }
+        // Signal foreground scans before waiting for their publication permit, then serialize
+        // the lifecycle generation transition itself. A publisher already holding the fence
+        // commits in the old lifecycle; every later publisher observes the cancelled old token.
+        drop(control);
+        self.shared.cancel_external_scans(|registration| {
+            changed_source_ids.contains(&registration.source_id)
+        });
+        let _publication_fence = self
+            .shared
+            .database_writer
+            .lock(DatabasePhase::SerialCompatibility);
+        let mut control = self.shared.control();
         for (source, lifecycle_generation) in retired_sources {
             let retirement_id = control.next_retirement_id;
             control.next_retirement_id = control.next_retirement_id.wrapping_add(1).max(1);
@@ -179,9 +191,6 @@ impl SourceProcessingSupervisor {
         }
         control.notify("configured_sources_changed");
         drop(control);
-        self.shared.cancel_external_scans(|registration| {
-            changed_source_ids.contains(&registration.source_id)
-        });
         self.shared.budget_wake.notify_all();
         self.shared.wake.notify_all();
         self.shared.retirement_wake.notify_all();
