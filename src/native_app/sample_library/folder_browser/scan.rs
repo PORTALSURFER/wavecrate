@@ -3,7 +3,7 @@ pub(in crate::native_app) use super::scan_types::FolderScanItem;
 pub(in crate::native_app) use super::scan_types::{
     FolderScanDiscovery, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanRequest,
     FolderScanResult, FolderTreeRefreshRequest, FolderTreeRefreshResult, FolderVerifyResult,
-    PreparedFolderScanResult,
+    PreparedFolderScanResult, RatingDecayMaintenanceRequest,
 };
 #[cfg(test)]
 pub(in crate::native_app) use super::scanning::INDEX_PROGRESS_REPORT_INTERVAL;

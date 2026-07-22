@@ -21,7 +21,12 @@ pub(in crate::native_app::sample_library::folder_browser) fn load_source_snapsho
     root: PathBuf,
     database_root: PathBuf,
 ) -> LoadedSourceSnapshot {
-    let ratings = source_rating_map(&root, &database_root);
+    let ratings = source_rating_map(&root, &database_root)
+        .map(|(ratings, _)| ratings)
+        .unwrap_or_else(|error| {
+            tracing::warn!(source = %root.display(), "{error}");
+            SourceMetadataMap::new()
+        });
     let folder = load_folder(&root, &root, &ratings).unwrap_or_else(|| placeholder_folder(&root));
     let missing_collection_snapshot =
         MissingCollectionSnapshot::from_source_metadata(&root, &folder, &ratings);
@@ -63,7 +68,12 @@ pub(in crate::native_app::sample_library::folder_browser) fn load_folder_at_path
     source_root: &Path,
     source_database_root: &Path,
 ) -> Option<FolderEntry> {
-    let ratings = source_rating_map(source_root, source_database_root);
+    let ratings = source_rating_map(source_root, source_database_root)
+        .map(|(ratings, _)| ratings)
+        .unwrap_or_else(|error| {
+            tracing::warn!(source = %source_root.display(), "{error}");
+            SourceMetadataMap::new()
+        });
     load_folder(path, source_root, &ratings)
 }
 

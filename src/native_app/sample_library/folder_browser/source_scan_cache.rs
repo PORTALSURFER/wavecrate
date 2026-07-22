@@ -144,12 +144,14 @@ pub(in crate::native_app) fn prepare_folder_scan_cache_update(
 ) -> FolderScanCacheUpdate {
     FolderScanCacheUpdate {
         source_id: result.source_id.clone(),
-        source: result.source_root_available.then(|| CachedSourceScan {
-            source_id: result.source_id.clone(),
-            root: PathBuf::from(&result.folder.id),
-            root_folder: result.folder.clone(),
-            missing_collection_snapshot: result.missing_collection_snapshot.clone(),
-        }),
+        source: (result.source_root_available && result.metadata_hydration.error().is_none()).then(
+            || CachedSourceScan {
+                source_id: result.source_id.clone(),
+                root: PathBuf::from(&result.folder.id),
+                root_folder: result.folder.clone(),
+                missing_collection_snapshot: result.missing_collection_snapshot.clone(),
+            },
+        ),
     }
 }
 

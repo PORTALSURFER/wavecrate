@@ -56,6 +56,7 @@ pub(in crate::native_app) enum SourceScanFinish {
         file_count: usize,
         folder_count: usize,
         source_db_error: Option<String>,
+        metadata_hydration_error: Option<String>,
         source_root_available: bool,
     },
     Stale {
@@ -348,6 +349,7 @@ impl SourceScanWorkflow {
         let file_count = result.file_count;
         let folder_count = result.folder_count;
         let source_db_error = result.source_db_error.clone();
+        let metadata_hydration_error = result.metadata_hydration.error().map(str::to_owned);
         let source_root_available = result.source_root_available;
         if result.cancelled {
             if browser.cancel_scan(&source_id, result.task_id) {
@@ -365,6 +367,7 @@ impl SourceScanWorkflow {
                 file_count,
                 folder_count,
                 source_db_error,
+                metadata_hydration_error,
                 source_root_available,
             }
         } else {

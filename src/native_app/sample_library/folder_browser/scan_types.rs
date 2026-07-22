@@ -64,8 +64,25 @@ pub(in crate::native_app) struct FolderScanResult {
     pub(in crate::native_app) file_count: usize,
     pub(in crate::native_app) folder_count: usize,
     pub(in crate::native_app) source_db_error: Option<String>,
+    pub(in crate::native_app) metadata_hydration: MetadataHydrationStatus,
     pub(in crate::native_app) source_root_available: bool,
     pub(in crate::native_app) cancelled: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) enum MetadataHydrationStatus {
+    Complete { revision: u64 },
+    Failed { error: String },
+    NotAttempted,
+}
+
+impl MetadataHydrationStatus {
+    pub(in crate::native_app) fn error(&self) -> Option<&str> {
+        match self {
+            Self::Failed { error } => Some(error),
+            Self::Complete { .. } | Self::NotAttempted => None,
+        }
+    }
 }
 
 impl FolderScanResult {
@@ -85,6 +102,7 @@ pub(in crate::native_app) struct PreparedFolderScanResult {
     pub(in crate::native_app) audio_file_paths: Vec<PathBuf>,
     pub(in crate::native_app) scan_cache_update: FolderScanCacheUpdate,
     pub(in crate::native_app) lifecycle_generation: Option<u64>,
+    pub(in crate::native_app) rating_decay_maintenance: Option<RatingDecayMaintenanceRequest>,
 }
 
 impl From<FolderScanResult> for PreparedFolderScanResult {
@@ -96,8 +114,17 @@ impl From<FolderScanResult> for PreparedFolderScanResult {
             audio_file_paths,
             scan_cache_update,
             lifecycle_generation: None,
+            rating_decay_maintenance: None,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct RatingDecayMaintenanceRequest {
+    pub(in crate::native_app) source_id: String,
+    pub(in crate::native_app) root: PathBuf,
+    pub(in crate::native_app) database_root: PathBuf,
+    pub(in crate::native_app) rating_decay_weeks: u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -935,6 +935,10 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "source database filesystem-sync worker",
         ),
         (
+            "src/native_app/sample_library/folder_scan_actions/rating_decay_worker.rs",
+            "rating-decay metadata maintenance worker",
+        ),
+        (
             "src/native_app/sample_library/folder_browser/file_move_execution.rs",
             "file operation worker",
         ),

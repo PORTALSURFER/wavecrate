@@ -10,11 +10,11 @@ use super::{
         path_helpers::{folder_label, path_id},
         scan_types::{
             FolderScanDiscovery, FolderScanItem, FolderScanProgress, FolderScanRequest,
-            FolderScanResult,
+            FolderScanResult, MetadataHydrationStatus,
         },
     },
     entry::{BrowserEntryKind, classify_path_without_following, read_sorted_entries},
-    metadata::{SourceMetadataMap, rated_file_entry, source_rating_map_with_rating_decay},
+    metadata::{SourceMetadataMap, rated_file_entry, source_rating_map},
     traversal::placeholder_folder,
 };
 use wavecrate::sample_sources::{SourceDatabase, scanner};
@@ -44,15 +44,24 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
     } else {
         None
     };
-    let ratings = if source_root_available && !cancel.load(Ordering::Acquire) {
-        source_rating_map_with_rating_decay(
-            &request.root,
-            &request.database_root,
-            request.rating_decay_weeks,
-        )
+    let (ratings, metadata_hydration) = if source_root_available && !cancel.load(Ordering::Acquire)
+    {
+        match source_rating_map(&request.root, &request.database_root) {
+            Ok((ratings, revision)) => (ratings, MetadataHydrationStatus::Complete { revision }),
+            Err(error) => (
+                SourceMetadataMap::new(),
+                MetadataHydrationStatus::Failed {
+                    error: error.to_string(),
+                },
+            ),
+        }
     } else {
-        SourceMetadataMap::new()
+        (
+            SourceMetadataMap::new(),
+            MetadataHydrationStatus::NotAttempted,
+        )
     };
+    let publish_discoveries = !matches!(metadata_hydration, MetadataHydrationStatus::Failed { .. });
     let mut scan = ScanProgressContext {
         request: &request,
         ratings,
@@ -64,6 +73,7 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
         progress: &mut progress,
         discovered: &mut discovered,
         cancel,
+        publish_discoveries,
     };
     scan.report_initial();
     let folder = load_folder_with_progress(&request.root, &mut scan)
@@ -82,6 +92,7 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
         file_count,
         folder_count,
         source_db_error,
+        metadata_hydration,
         source_root_available,
         cancelled: cancel.load(Ordering::Acquire),
     }
@@ -147,6 +158,7 @@ where
     progress: &'a mut P,
     discovered: &'a mut D,
     cancel: &'a AtomicBool,
+    publish_discoveries: bool,
 }
 
 impl<P, D> ScanProgressContext<'_, P, D>
@@ -170,33 +182,39 @@ where
         self.counter.completed += 1;
         self.counter.folders += 1;
         self.maybe_report_progress(path);
-        (self.discovered)(FolderScanDiscovery {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            parent_id: parent_id.to_string(),
-            item: FolderScanItem::Folder(placeholder_folder(path)),
-        });
+        if self.publish_discoveries {
+            (self.discovered)(FolderScanDiscovery {
+                task_id: self.request.task_id,
+                source_id: self.request.source_id.clone(),
+                parent_id: parent_id.to_string(),
+                item: FolderScanItem::Folder(placeholder_folder(path)),
+            });
+        }
     }
 
     fn record_folder_snapshot_start(&mut self, folder_id: &str) {
-        (self.discovered)(FolderScanDiscovery {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            parent_id: folder_id.to_string(),
-            item: FolderScanItem::ResetFolder,
-        });
+        if self.publish_discoveries {
+            (self.discovered)(FolderScanDiscovery {
+                task_id: self.request.task_id,
+                source_id: self.request.source_id.clone(),
+                parent_id: folder_id.to_string(),
+                item: FolderScanItem::ResetFolder,
+            });
+        }
     }
 
     fn record_file(&mut self, path: &Path, parent_id: &str, file: FileEntry) {
         self.counter.completed += 1;
         self.counter.files += 1;
         self.maybe_report_progress(path);
-        (self.discovered)(FolderScanDiscovery {
-            task_id: self.request.task_id,
-            source_id: self.request.source_id.clone(),
-            parent_id: parent_id.to_string(),
-            item: FolderScanItem::File(file),
-        });
+        if self.publish_discoveries {
+            (self.discovered)(FolderScanDiscovery {
+                task_id: self.request.task_id,
+                source_id: self.request.source_id.clone(),
+                parent_id: parent_id.to_string(),
+                item: FolderScanItem::File(file),
+            });
+        }
     }
 
     fn maybe_report_progress(&mut self, path: &Path) {
