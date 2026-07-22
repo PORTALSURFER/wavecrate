@@ -155,9 +155,15 @@ impl LibraryAppState {
     pub(in crate::native_app) fn finish_folder_scan(
         &mut self,
         result: FolderScanResult,
+        lifecycle_generation: Option<u64>,
+        lifecycle_is_current: bool,
     ) -> SourceScanFinish {
-        self.source_scan
-            .finish_scan(&mut self.folder_browser, result)
+        self.source_scan.finish_scan_with_lifecycle(
+            &mut self.folder_browser,
+            result,
+            lifecycle_generation,
+            lifecycle_is_current,
+        )
     }
 
     pub(in crate::native_app) fn queue_pending_audio_document_open(

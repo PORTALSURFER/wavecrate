@@ -241,6 +241,71 @@ fn cancelled_scan_releases_ownership_and_requeues_the_source() {
 }
 
 #[test]
+fn cancelled_scan_from_retired_generation_releases_ownership_without_requeueing() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 221)
+        .expect("scan request");
+    workflow.start_scan(&request);
+    let mut result = scan_source_with_progress(request, |_| {}, |_| {});
+    result.cancelled = true;
+    workflow.queue_required_refresh_with_context(
+        result.source_id.clone(),
+        SourceRefreshCause::ManifestAudit {
+            committed_revision: 12,
+        },
+        Some(8),
+    );
+
+    assert!(matches!(
+        workflow.finish_scan_with_lifecycle(&mut browser, result, Some(7), false),
+        SourceScanFinish::Stale { .. }
+    ));
+    assert!(!workflow.active());
+    let pending = workflow
+        .next_pending_refresh_context_if_idle()
+        .expect("replacement generation refresh remains queued");
+    assert_eq!(pending.lifecycle_generation, Some(8));
+    assert_eq!(
+        pending.cause,
+        SourceRefreshCause::ManifestAudit {
+            committed_revision: 12
+        }
+    );
+}
+
+#[test]
+fn refresh_coalescing_does_not_transfer_cause_across_lifecycle_generations() {
+    let mut workflow = SourceScanWorkflow::new();
+    let source_id = String::from("source");
+    workflow.queue_required_refresh_with_context(
+        source_id.clone(),
+        SourceRefreshCause::WatcherOverflow,
+        Some(1),
+    );
+    workflow.queue_required_refresh_with_context(
+        source_id,
+        SourceRefreshCause::ManifestAudit {
+            committed_revision: 9,
+        },
+        Some(2),
+    );
+
+    let pending = workflow
+        .next_pending_refresh_context_if_idle()
+        .expect("current-generation refresh");
+    assert_eq!(pending.lifecycle_generation, Some(2));
+    assert_eq!(
+        pending.cause,
+        SourceRefreshCause::ManifestAudit {
+            committed_revision: 9
+        }
+    );
+}
+
+#[test]
 fn removed_active_source_releases_global_scan_lane_and_purges_refreshes() {
     let root = temp_dir_with_wav();
     let mut browser = FolderBrowserState::load_default();

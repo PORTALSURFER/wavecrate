@@ -424,6 +424,7 @@ impl SourceScanWorkflow {
             .pending_refreshes
             .iter()
             .find(|pending| pending.source_id == source_id)
+            .filter(|pending| pending.lifecycle_generation == lifecycle_generation)
             .map(|pending| {
                 (
                     pending.selection_requested,
@@ -462,10 +463,21 @@ impl SourceScanWorkflow {
             .retain(|pending| pending.source_id != source_id);
     }
 
+    #[cfg(test)]
     pub(in crate::native_app) fn finish_scan(
         &mut self,
         browser: &mut FolderBrowserState,
         result: FolderScanResult,
+    ) -> SourceScanFinish {
+        self.finish_scan_with_lifecycle(browser, result, None, true)
+    }
+
+    pub(in crate::native_app) fn finish_scan_with_lifecycle(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        result: FolderScanResult,
+        lifecycle_generation: Option<u64>,
+        lifecycle_is_current: bool,
     ) -> SourceScanFinish {
         let source_id = result.source_id.clone();
         let label = result.label.clone();
@@ -477,10 +489,20 @@ impl SourceScanWorkflow {
         if result.cancelled {
             if browser.cancel_scan(&source_id, result.task_id) {
                 self.progress = None;
+                if !lifecycle_is_current {
+                    tracing::info!(
+                        target: "wavecrate::source_processing",
+                        source_id,
+                        lifecycle_generation = ?lifecycle_generation,
+                        outcome = "stale_lifecycle",
+                        "Discarding cancelled scan from a retired source generation"
+                    );
+                    return SourceScanFinish::Stale { label };
+                }
                 self.queue_required_refresh_with_context(
                     source_id.clone(),
                     SourceRefreshCause::ScanCancelled,
-                    None,
+                    lifecycle_generation,
                 );
                 return SourceScanFinish::Cancelled { source_id, label };
             }

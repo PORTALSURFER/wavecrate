@@ -154,7 +154,9 @@ impl NativeAppState {
     ) {
         let mut prepared = prepared.into();
         let started_at = Instant::now();
-        if let Some(generation) = prepared.lifecycle_generation {
+        let lifecycle_generation = prepared.lifecycle_generation;
+        let mut lifecycle_is_current = true;
+        if let Some(generation) = lifecycle_generation {
             let source_id = prepared.scan.source_id.clone();
             if self
                 .background
@@ -167,6 +169,7 @@ impl NativeAppState {
                     .source_lifecycle_generations
                     .insert(source_id, generation);
             } else {
+                lifecycle_is_current = false;
                 tracing::debug!(
                     source_id,
                     lifecycle_generation = generation,
@@ -177,7 +180,11 @@ impl NativeAppState {
         }
         let scan_cache_update = prepared.scan_cache_update;
         let rating_decay_maintenance = prepared.rating_decay_maintenance;
-        match self.library.finish_folder_scan(prepared.scan) {
+        match self.library.finish_folder_scan(
+            prepared.scan,
+            lifecycle_generation,
+            lifecycle_is_current,
+        ) {
             SourceScanFinish::Applied {
                 source_id,
                 label,
