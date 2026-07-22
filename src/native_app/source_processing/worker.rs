@@ -14,7 +14,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use super::supervisor::{DatabasePhase, DatabaseWriterGate};
+use super::supervisor::{DatabasePhase, DatabaseWriterGate, DatabaseWriterGuard};
 use serde::{Deserialize, Serialize};
 use wavecrate::readiness_execution::{
     EmbeddingStageInput, PreparedEmbeddingStage, PreparedFeatureStage,
@@ -247,7 +247,9 @@ pub(super) fn run_readiness_feature_stage(
     )
     .map_err(SourceProcessingFailure::from)?
     {
-        let _writer = database_writer.lock(DatabasePhase::Publish);
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
         return wavecrate::readiness_execution::publish_feature_stage(
             connection,
             &source.root,
@@ -271,7 +273,9 @@ pub(super) fn run_readiness_feature_stage(
         else {
             return Ok(false);
         };
-        let _writer = database_writer.lock(DatabasePhase::Publish);
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
         wavecrate::readiness_execution::publish_feature_stage(
             connection,
             &source.root,
@@ -299,7 +303,9 @@ pub(super) fn run_readiness_feature_stage(
         let Some(prepared) = result.prepared_feature else {
             return Ok(false);
         };
-        let _writer = database_writer.lock(DatabasePhase::Publish);
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
         wavecrate::readiness_execution::publish_feature_stage(
             connection,
             &source.root,
@@ -340,7 +346,9 @@ pub(super) fn run_readiness_embedding_stage(
     {
         let prepared = wavecrate::readiness_execution::prepare_embedding_stage(input)
             .map_err(SourceProcessingFailure::from)?;
-        let _writer = database_writer.lock(DatabasePhase::Publish);
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
         wavecrate::readiness_execution::publish_embedding_stage(
             connection,
             &source.root,
@@ -364,7 +372,9 @@ pub(super) fn run_readiness_embedding_stage(
         let Some(prepared) = result.prepared_embedding else {
             return Ok(false);
         };
-        let _writer = database_writer.lock(DatabasePhase::Publish);
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
         wavecrate::readiness_execution::publish_embedding_stage(
             connection,
             &source.root,
@@ -377,6 +387,23 @@ pub(super) fn run_readiness_embedding_stage(
         .map_err(SourceProcessingFailure::from)
     }
 }
+
+fn publication_writer(
+    database_writer: &DatabaseWriterGate,
+    cancel: &AtomicBool,
+) -> Option<DatabaseWriterGuard> {
+    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+        return None;
+    }
+    let writer = database_writer.lock(DatabasePhase::Publish);
+    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+        return None;
+    }
+    Some(writer)
+}
+
+#[cfg(test)]
+mod tests;
 
 pub(in crate::native_app) fn run_internal_source_analysis_from_args()
 -> Result<Option<String>, String> {

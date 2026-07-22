@@ -23,6 +23,8 @@ struct PhaseCounters {
 struct DatabaseWriterGateInner {
     locked: Mutex<bool>,
     wake: Condvar,
+    #[cfg(test)]
+    waiting: AtomicUsize,
     claim: PhaseCounters,
     lease: PhaseCounters,
     publish: PhaseCounters,
@@ -47,12 +49,22 @@ impl DatabaseWriterGate {
             .locked
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
+        #[cfg(test)]
+        let registered_waiter = *locked;
+        #[cfg(test)]
+        if registered_waiter {
+            self.inner.waiting.fetch_add(1, Ordering::AcqRel);
+        }
         while *locked {
             locked = self
                 .inner
                 .wake
                 .wait(locked)
                 .unwrap_or_else(|poison| poison.into_inner());
+        }
+        #[cfg(test)]
+        if registered_waiter {
+            self.inner.waiting.fetch_sub(1, Ordering::AcqRel);
         }
         *locked = true;
         drop(locked);
@@ -83,6 +95,11 @@ impl DatabaseWriterGate {
             active: self.inner.active.load(Ordering::Acquire),
             peak_active: self.inner.peak_active.load(Ordering::Acquire),
         }
+    }
+
+    #[cfg(test)]
+    pub(in crate::native_app::source_processing) fn waiting_count(&self) -> usize {
+        self.inner.waiting.load(Ordering::Acquire)
     }
 }
 
