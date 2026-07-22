@@ -173,8 +173,8 @@ fn playmark_label_formats_duration_and_paints_at_selection_bottom() {
     let subsecond_label = subsecond_plan
         .first_text_run("750 ms")
         .expect("subsecond playmark duration label");
-    assert!((subsecond_label.rect.center().x - 172.0).abs() < 0.01);
-    assert_eq!(subsecond_label.rect.max.y, 78.0);
+    assert!((subsecond_label.rect.center().x - 168.0).abs() < 0.01);
+    assert_eq!(subsecond_label.rect.max.y, 74.0);
 
     let mut seconds = waveform_state_with_duration_seconds(2);
     seconds.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 1.0));
@@ -330,6 +330,32 @@ fn playmark_label_has_one_owner_across_live_and_transition_states() {
     let released_plan = composed_widget_plan(&stale_preview_after_release, bounds);
     assert_single_playmark_label(&released_plan, "500 ms");
     assert!(!released_plan.contains_text("300 ms"));
+}
+
+#[test]
+fn playmark_control_occlusion_tracks_live_drag_selection() {
+    let bounds = Rect::from_size(400.0, 80.0);
+    let live_selection = wavecrate::selection::SelectionRange::new(0.6, 0.9);
+    let mut widget = waveform_widget_for_state(&WaveformState::synthetic_for_tests());
+    widget.active_drag_kind = Some(WaveformActiveDragKind::Selection(
+        WaveformSelectionKind::Play,
+    ));
+    widget.live_selection_preview = Some(LiveSelectionPreview {
+        kind: WaveformSelectionKind::Play,
+        selection: live_selection,
+    });
+
+    let occlusion = widget
+        .playmark_control_cluster_rect(bounds)
+        .expect("live playmark control occlusion");
+    let mut committed = WaveformState::synthetic_for_tests();
+    committed.play_selection = Some(live_selection);
+    let expected = waveform_widget_for_state(&committed)
+        .playmark_control_cluster_rect(bounds)
+        .expect("equivalent committed playmark control occlusion");
+
+    assert_eq!(occlusion, expected);
+    assert_eq!(occlusion.max.y, 74.0);
 }
 
 #[test]

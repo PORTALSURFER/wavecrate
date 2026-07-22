@@ -1,5 +1,5 @@
 use super::*;
-use radiant::runtime::RepaintScope;
+use radiant::runtime::{PaintPrimitive, RepaintScope};
 
 #[test]
 fn playback_frame_uses_paint_only_when_only_playhead_changes() {
@@ -1149,6 +1149,60 @@ fn played_range_rail_grows_on_paint_only_playback_frames() {
         later_right > first_right,
         "played rail should advance with the interpolated playhead without a retained surface rebuild"
     );
+}
+
+#[test]
+fn playback_cursor_uses_live_playmark_drag_state_for_control_occlusion() {
+    let mut state = state_with_runtime_playback(0.40, (0.0, 1.0), false);
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.20,
+        });
+    state
+        .waveform
+        .current
+        .apply_interaction(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.60,
+        });
+    assert_eq!(
+        state.waveform.current.play_selection(),
+        Some(wavecrate::selection::SelectionRange::new(0.20, 0.60))
+    );
+
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let label_rect = frame
+        .paint_plan
+        .text_runs()
+        .find(|text| text.text.as_str() == "400 ms")
+        .map(|text| text.rect)
+        .expect("live playmark label");
+    let mut primitives = Vec::new();
+    runtime.bridge_mut().state_mut().paint_playback_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+
+    let cursor_segments = primitives
+        .iter()
+        .filter_map(PaintPrimitive::fill_rect)
+        .filter(|fill| is_playback_cursor_fill(fill))
+        .collect::<Vec<_>>();
+    assert_eq!(cursor_segments.len(), 2);
+    assert!(cursor_segments.iter().all(|fill| {
+        fill.rect.max.x <= label_rect.min.x
+            || fill.rect.min.x >= label_rect.max.x
+            || fill.rect.max.y <= label_rect.min.y
+            || fill.rect.min.y >= label_rect.max.y
+    }));
 }
 
 #[test]

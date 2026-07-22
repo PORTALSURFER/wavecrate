@@ -30,6 +30,7 @@ impl NativeAppState {
                     self.ui.chrome.beat_guide_count,
                 ) {
                     context.focus(widget_ids::WAVEFORM_PLAYMARK_LABEL_ID);
+                    context.repaint(ui::RepaintScope::Surface);
                 }
             }
             PlaymarkLabelMessage::Changed(draft) => {
@@ -43,6 +44,7 @@ impl NativeAppState {
                 {
                     self.waveform.current.close_playmark_label_editor();
                     context.clear_focus();
+                    context.repaint(ui::RepaintScope::Surface);
                     return;
                 }
                 match self
@@ -60,6 +62,7 @@ impl NativeAppState {
                             context,
                         );
                         context.clear_focus();
+                        context.repaint(ui::RepaintScope::Surface);
                     }
                     Err(error) => {
                         self.ui.status.sample = error.clone();
@@ -71,6 +74,7 @@ impl NativeAppState {
             PlaymarkLabelMessage::Cancel => {
                 self.waveform.current.close_playmark_label_editor();
                 context.clear_focus();
+                context.repaint(ui::RepaintScope::Surface);
             }
         }
     }

@@ -11,14 +11,16 @@ use crate::ui_formatting::{format_selection_duration, format_waveform_bpm_input}
 use super::{WaveformActiveDragKind, WaveformSelectionKind, WaveformWidget};
 
 pub(super) const PLAYMARK_LABEL_HEIGHT: f32 = 18.0;
-const PLAYMARK_LABEL_BOTTOM_INSET: f32 = 2.0;
+// Keep the interactive control strip above the four-pixel played-range rail.
+// Transient playback overlays must not intersect retained text primitives.
+const PLAYMARK_LABEL_BOTTOM_INSET: f32 = 6.0;
 const PLAYMARK_LABEL_SELECTION_INSET: f32 = 4.0;
 const PLAYMARK_LABEL_OUTSIDE_GAP: f32 = 6.0;
 const PLAYMARK_LABEL_HORIZONTAL_PADDING: f32 = 10.0;
 const PLAYMARK_LABEL_GLYPH_WIDTH: f32 = 10.0;
 const PLAYMARK_LABEL_MIN_WIDTH: f32 = 80.0;
 const PLAYMARK_LABEL_MAX_WIDTH: f32 = 150.0;
-pub(super) const PLAYMARK_BEAT_TOGGLE_WIDTH: f32 = 20.0;
+pub(super) const PLAYMARK_BEAT_TOGGLE_WIDTH: f32 = 28.0;
 pub(super) const PLAYMARK_BEAT_COUNT_WIDTH: f32 = 30.0;
 pub(super) const PLAYMARK_BEAT_CONTROL_GAP: f32 = 2.0;
 const PLAYMARK_LABEL_CONTROL_GAP: f32 = 4.0;
@@ -43,6 +45,44 @@ pub(super) struct PlaymarkLabelLayout {
 }
 
 impl WaveformWidget {
+    fn effective_playmark_label_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
+        match self.active_drag_kind {
+            Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
+            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play))
+            | Some(WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)) => self
+                .live_selection_preview
+                .filter(|preview| preview.kind == WaveformSelectionKind::Play)
+                .map(|preview| preview.selection)
+                .or(self.play_selection),
+            _ => self.play_selection,
+        }
+    }
+
+    pub(in crate::native_app) fn playmark_control_cluster_rect(
+        &self,
+        bounds: Rect,
+    ) -> Option<Rect> {
+        let selection = self.effective_playmark_label_selection()?;
+        let geometry = self.selection_geometry(bounds, Some(selection))?;
+        let label = playmark_selection_label(
+            selection,
+            self.file.frames,
+            self.file.sample_rate,
+            self.beat_guides_enabled,
+            self.beat_guide_count,
+        )?;
+        let layout = playmark_label_layout(bounds, geometry.rect, label.len())?;
+        let controls_max_x = if self.beat_guides_enabled {
+            layout.beat_count_rect.max.x
+        } else {
+            layout.beat_toggle_rect.max.x
+        };
+        Some(Rect::from_min_max(
+            layout.rect.min,
+            Point::new(controls_max_x, layout.rect.max.y),
+        ))
+    }
+
     pub(super) fn append_playmark_label_paint(
         &self,
         paint: &mut WidgetPaint<'_>,
@@ -77,16 +117,7 @@ impl WaveformWidget {
         paint: &mut WidgetPaint<'_>,
         bounds: Rect,
     ) {
-        let selection = match self.active_drag_kind {
-            Some(WaveformActiveDragKind::Selection(WaveformSelectionKind::Play))
-            | Some(WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Play))
-            | Some(WaveformActiveDragKind::SelectionResize(WaveformSelectionKind::Play, _)) => self
-                .live_selection_preview
-                .filter(|preview| preview.kind == WaveformSelectionKind::Play)
-                .map(|preview| preview.selection)
-                .or(self.play_selection),
-            _ => self.play_selection,
-        };
+        let selection = self.effective_playmark_label_selection();
         let Some(selection) = selection else {
             return;
         };
@@ -222,10 +253,10 @@ mod tests {
             .expect("wide label layout");
 
         assert_eq!(layout.placement, PlaymarkLabelPlacement::Inside);
-        assert_eq!(layout.rect.min.x, 132.0);
-        assert_eq!(layout.rect.max.x, 212.0);
-        assert_eq!(layout.beat_count_rect.max.x, 268.0);
-        assert_eq!(layout.beat_toggle_rect.min.x, 216.0);
+        assert_eq!(layout.rect.min.x, 128.0);
+        assert_eq!(layout.rect.max.x, 208.0);
+        assert_eq!(layout.beat_count_rect.max.x, 272.0);
+        assert_eq!(layout.beat_toggle_rect.min.x, 212.0);
     }
 
     #[test]
@@ -238,7 +269,7 @@ mod tests {
         let right_edge = playmark_label_layout(rect(0.0, 400.0), rect(350.0, 360.0), 6)
             .expect("right-edge narrow layout");
         assert_eq!(right_edge.placement, PlaymarkLabelPlacement::OutsideLeft);
-        assert_eq!(right_edge.rect.min.x, 208.0);
+        assert_eq!(right_edge.rect.min.x, 200.0);
         assert_eq!(right_edge.beat_count_rect.max.x, 344.0);
     }
 
@@ -250,7 +281,7 @@ mod tests {
         assert_eq!(layout.placement, PlaymarkLabelPlacement::OutsideRight);
         assert_eq!(layout.rect.min.x, 26.0);
         assert_eq!(layout.rect.max.x, 106.0);
-        assert_eq!(layout.beat_count_rect.max.x, 162.0);
+        assert_eq!(layout.beat_count_rect.max.x, 170.0);
     }
 
     #[test]
@@ -270,14 +301,14 @@ mod tests {
             .expect("tied fallback layout");
         assert_eq!(tied.placement, PlaymarkLabelPlacement::FallbackRight);
         assert_eq!(tied.rect.min.x, 0.0);
-        assert_eq!(tied.rect.max.x, 44.0);
+        assert_eq!(tied.rect.max.x, 36.0);
         assert_eq!(tied.beat_count_rect.max.x, 100.0);
 
         let left_roomier = playmark_label_layout(rect(0.0, 100.0), rect(60.0, 80.0), 6)
             .expect("left-roomier fallback layout");
         assert_eq!(left_roomier.placement, PlaymarkLabelPlacement::FallbackLeft);
         assert_eq!(left_roomier.rect.min.x, 0.0);
-        assert_eq!(left_roomier.rect.max.x, 44.0);
+        assert_eq!(left_roomier.rect.max.x, 36.0);
         assert_eq!(left_roomier.beat_count_rect.max.x, 100.0);
     }
 

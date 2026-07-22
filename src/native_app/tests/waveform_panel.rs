@@ -12,6 +12,7 @@ use crate::native_app::{
 use radiant::{
     gui::automation::AutomationRole,
     prelude::{self as ui, IntoView},
+    runtime::PaintPrimitive,
 };
 
 fn loaded_sample_drag_handle_tooltip(
@@ -173,4 +174,58 @@ fn playmark_beat_controls_are_absent_without_a_playmark() {
             .find_widget(WAVEFORM_PLAYMARK_BEAT_COUNT_ID)
             .is_none()
     );
+}
+
+#[test]
+fn playmark_beat_count_is_absent_until_the_grid_is_enabled() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+
+    let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
+    assert!(
+        surface
+            .find_widget(WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID)
+            .is_some()
+    );
+    assert!(
+        surface
+            .find_widget(WAVEFORM_PLAYMARK_BEAT_COUNT_ID)
+            .is_none()
+    );
+}
+
+#[test]
+fn playmark_overlay_controls_paint_in_the_waveform_viewport() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+
+    let frame = waveform_panel(WaveformPanelViewModel::from_app_state(&state))
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(800.0, WAVEFORM_PANEL_HEIGHT));
+
+    assert!(frame.paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.widget_id == WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID && text.text.as_str() == "G")
+    ));
+}
+
+#[test]
+fn editing_playmark_label_paints_one_text_input() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+    assert!(state.waveform.current.begin_playmark_label_edit(false, 4));
+
+    let frame = waveform_panel(WaveformPanelViewModel::from_app_state(&state))
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(800.0, WAVEFORM_PANEL_HEIGHT));
+    let inputs = frame
+        .paint_plan
+        .text_inputs()
+        .filter(|input| input.widget_id == crate::native_app::ui::ids::WAVEFORM_PLAYMARK_LABEL_ID)
+        .count();
+
+    assert_eq!(inputs, 1);
 }

@@ -1,9 +1,10 @@
 use radiant::{
     gui::automation::AutomationRole,
     prelude as ui,
+    runtime::WidgetPaint,
     widgets::{
-        FocusBehavior, TextInputMessage, TextInputWidget, Widget, WidgetCommon, WidgetInput,
-        WidgetKey, WidgetOutput, WidgetSizing,
+        FocusBehavior, PointerButton, TextInputMessage, TextInputWidget, Widget, WidgetCommon,
+        WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
     },
 };
 use std::sync::{Arc, Mutex};
@@ -123,9 +124,7 @@ impl PlaymarkLabelWidget {
             })
             .unwrap_or((None, None));
         let mut geometry_source = geometry_source;
-        if input.is_none() {
-            geometry_source.common.focus = FocusBehavior::Keyboard;
-        }
+        geometry_source.common.focus = FocusBehavior::Keyboard;
         Some(Self {
             geometry_source,
             label,
@@ -151,17 +150,11 @@ impl PlaymarkLabelWidget {
 
 impl Widget for PlaymarkLabelWidget {
     fn common(&self) -> &WidgetCommon {
-        self.input
-            .as_ref()
-            .map(Widget::common)
-            .unwrap_or_else(|| self.geometry_source.common())
+        self.geometry_source.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        self.input
-            .as_mut()
-            .map(Widget::common_mut)
-            .unwrap_or_else(|| self.geometry_source.common_mut())
+        self.geometry_source.common_mut()
     }
 
     fn handle_input(&mut self, bounds: ui::Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -183,7 +176,7 @@ impl Widget for PlaymarkLabelWidget {
                 })
                 .map(WidgetOutput::typed);
         }
-        (matches!(input, WidgetInput::PointerDoubleClick { position, .. } if label_rect.contains(position))
+        (matches!(input, WidgetInput::PointerPress { position, button: PointerButton::Primary, .. } if label_rect.contains(position))
             || matches!(input, WidgetInput::KeyPress(WidgetKey::Enter | WidgetKey::Space)))
         .then(|| WidgetOutput::typed(PlaymarkLabelMessage::BeginEdit))
     }
@@ -195,6 +188,7 @@ impl Widget for PlaymarkLabelWidget {
         if let (Some(input), Some(previous_input)) = (&mut self.input, &previous.input) {
             input.synchronize_from_previous(previous_input);
         }
+        self.geometry_source.common.state = previous.geometry_source.common.state;
         self.painted_bounds = Arc::clone(&previous.painted_bounds);
     }
 
@@ -207,14 +201,23 @@ impl Widget for PlaymarkLabelWidget {
     }
 
     fn accepts_pointer_input(&self, input: &WidgetInput) -> bool {
-        input.pointer_position().is_none_or(|position| {
-            self.painted_bounds
-                .lock()
-                .ok()
-                .and_then(|bounds| *bounds)
-                .and_then(|bounds| self.label_rect(bounds))
-                .is_some_and(|rect| rect.contains(position))
-        })
+        let accepts_event = self.editing()
+            || matches!(
+                input,
+                WidgetInput::PointerPress {
+                    button: PointerButton::Primary,
+                    ..
+                }
+            );
+        accepts_event
+            && input.pointer_position().is_none_or(|position| {
+                self.painted_bounds
+                    .lock()
+                    .ok()
+                    .and_then(|bounds| *bounds)
+                    .and_then(|bounds| self.label_rect(bounds))
+                    .is_some_and(|rect| rect.contains(position))
+            })
     }
 
     fn automation_role(&self) -> AutomationRole {
@@ -231,7 +234,7 @@ impl Widget for PlaymarkLabelWidget {
 
     fn automation_description(&self) -> Option<String> {
         self.error.clone().or_else(|| {
-            (!self.editing()).then(|| String::from("Double-click to edit the playmark length"))
+            (!self.editing()).then(|| String::from("Click to edit the playmark length"))
         })
     }
 
@@ -260,10 +263,40 @@ impl Widget for PlaymarkLabelWidget {
         if let Ok(mut painted_bounds) = self.painted_bounds.lock() {
             *painted_bounds = Some(bounds);
         }
-        let (Some(input), Some(rect)) = (&self.input, self.label_rect(bounds)) else {
+        let Some(rect) = self.label_rect(bounds) else {
             return;
         };
-        input.append_paint(primitives, rect, layout, theme);
+        if let Some(input) = &self.input {
+            input.append_paint(primitives, rect, layout, theme);
+            return;
+        }
+        if matches!(
+            self.geometry_source.active_drag_kind,
+            Some(
+                super::WaveformActiveDragKind::Selection(super::WaveformSelectionKind::Play)
+                    | super::WaveformActiveDragKind::SelectionMove(
+                        super::WaveformSelectionKind::Play
+                    )
+                    | super::WaveformActiveDragKind::SelectionResize(
+                        super::WaveformSelectionKind::Play,
+                        _
+                    )
+            )
+        ) {
+            return;
+        }
+        let Some(selection) = self.geometry_source.play_selection else {
+            return;
+        };
+        let Some(geometry) = self
+            .geometry_source
+            .selection_geometry(bounds, Some(selection))
+        else {
+            return;
+        };
+        let mut paint = WidgetPaint::new(primitives, self.common().id);
+        self.geometry_source
+            .append_playmark_label_paint(&mut paint, bounds, geometry, selection);
     }
 }
 
@@ -369,8 +402,7 @@ fn non_negative_number(text: &str) -> Result<f64, String> {
 mod tests {
     use super::*;
     use crate::native_app::waveform::WaveformWidgetProps;
-    use radiant::widgets::{PointerButton, PointerModifiers};
-
+    use crate::native_app::waveform::{WaveformInteraction, WaveformSelectionKind};
     #[test]
     fn parses_supported_time_and_bpm_forms_case_insensitively() {
         assert_eq!(parse_length_seconds(" 1000 MS ", 4), Ok(1.0));
@@ -410,17 +442,41 @@ mod tests {
             ui::Rect::from_min_max(ui::Point::new(20.0, 40.0), ui::Point::new(1_220.0, 360.0));
         *widget.painted_bounds.lock().expect("painted bounds") = Some(bounds);
         let label_rect = widget.label_rect(bounds).expect("label rect");
-
-        let inside = WidgetInput::pointer_double_click(
-            ui::Point::new(label_rect.min.x + 1.0, label_rect.min.y + 1.0),
-            PointerButton::Primary,
-            PointerModifiers::default(),
+        assert_eq!(
+            widget.automation_description().as_deref(),
+            Some("Click to edit the playmark length")
         );
+
+        let inside = WidgetInput::primary_press(ui::Point::new(
+            label_rect.min.x + 1.0,
+            label_rect.min.y + 1.0,
+        ));
         let outside =
             WidgetInput::primary_press(ui::Point::new(bounds.min.x + 1.0, bounds.min.y + 1.0));
 
         assert!(widget.accepts_pointer_input(&inside));
         assert!(widget.handle_input(bounds, inside).is_some());
         assert!(!widget.accepts_pointer_input(&outside));
+    }
+
+    #[test]
+    fn new_play_selection_discards_stale_label_editor_draft() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.set_play_selection_range(0.25, 0.75);
+        assert!(state.begin_playmark_label_edit(false, 4));
+        state.update_playmark_label_draft(String::from("stale value"));
+
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.1,
+        });
+        assert!(!state.playmark_label_editor_active());
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.3 });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.3 });
+
+        assert!(state.begin_playmark_label_edit(false, 4));
+        let editor = state.playmark_label_editor.as_ref().expect("fresh editor");
+        assert_ne!(editor.draft, "stale value");
+        assert_eq!(editor.draft, editor.original_draft);
     }
 }

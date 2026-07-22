@@ -65,11 +65,14 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         beat_guide_count,
         playhead_occlusion_rect,
     );
-    let interaction = ui::custom_widget(WaveformWidget::new(props.clone()), |output| {
-        output
-            .typed_copied::<WaveformInteraction>()
-            .map(GuiMessage::Waveform)
-    })
+    let interaction = ui::custom_widget(
+        WaveformWidget::new(props.clone()).with_external_playmark_label_owner(),
+        |output| {
+            output
+                .typed_copied::<WaveformInteraction>()
+                .map(GuiMessage::Waveform)
+        },
+    )
     .id(WAVEFORM_WIDGET_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32);
     let interaction = if let Some(tooltip) = tooltip {
@@ -92,9 +95,8 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         })
         .id(widget_ids::WAVEFORM_PLAYMARK_LABEL_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
-    })
-    .unwrap_or_else(ui::empty);
-    let [beat_toggle, beat_count] = playmark_beat_control_views(
+    });
+    let beat_controls = playmark_beat_control_views(
         widget_ids::WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID,
         widget_ids::WAVEFORM_PLAYMARK_BEAT_COUNT_ID,
         WaveformWidget::new(props),
@@ -103,7 +105,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         beat_guide_count,
     );
 
-    ui::stack([
+    let layers = [
         waveform_signal_surface_view(
             state,
             signal_gain_preview_for_state(state, normalized_audition_enabled),
@@ -112,12 +114,14 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         .id(WAVEFORM_SIGNAL_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         interaction,
-        label,
-        beat_toggle,
-        beat_count,
-    ])
-    .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
-    .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
+    ]
+    .into_iter()
+    .chain(label)
+    .chain(beat_controls.into_iter().flatten());
+
+    ui::stack(layers)
+        .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
+        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
 }
 
 pub(super) fn signal_edit_selection_for_state(
@@ -267,7 +271,7 @@ impl WaveformWidgetProps {
         )
     }
 
-    pub(super) fn from_state_with_playhead_occlusion(
+    pub(in crate::native_app) fn from_state_with_playhead_occlusion(
         state: &WaveformState,
         beat_guides_enabled: bool,
         bpm_snap_enabled: bool,
@@ -372,6 +376,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) beat_guide_count: u8,
     pub(super) playhead_occlusion_rect: Option<Rect>,
     pub(super) playmark_label_editor_active: bool,
+    pub(super) external_playmark_label_owner: bool,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
     pub(super) live_selection_preview_anchor: Option<LiveSelectionPreviewAnchor>,
@@ -381,7 +386,7 @@ pub(in crate::native_app) struct WaveformWidget {
 }
 
 impl WaveformWidget {
-    pub(super) fn new(props: WaveformWidgetProps) -> Self {
+    pub(in crate::native_app) fn new(props: WaveformWidgetProps) -> Self {
         let WaveformWidgetProps {
             file,
             viewport,
@@ -447,6 +452,7 @@ impl WaveformWidget {
             beat_guide_count,
             playhead_occlusion_rect,
             playmark_label_editor_active,
+            external_playmark_label_owner: false,
             edit_preview: edit_preview_for_selection(edit_selection),
             last_live_selection_update_visible_ratio: None,
             live_selection_preview_anchor: None,
@@ -458,6 +464,11 @@ impl WaveformWidget {
 
     pub(super) fn has_loaded_sample(&self) -> bool {
         self.file.has_loaded_sample_metadata()
+    }
+
+    fn with_external_playmark_label_owner(mut self) -> Self {
+        self.external_playmark_label_owner = true;
+        self
     }
 }
 
