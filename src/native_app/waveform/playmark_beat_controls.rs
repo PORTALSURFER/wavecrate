@@ -265,7 +265,7 @@ pub(super) fn playmark_beat_control_views(
     state: &WaveformState,
     beat_guides_enabled: bool,
     beat_guide_count: u8,
-) -> [ui::View<GuiMessage>; 2] {
+) -> [Option<ui::View<GuiMessage>>; 2] {
     let toggle = PlaymarkBeatToggleWidget::new(
         toggle_id,
         geometry_source.clone(),
@@ -281,25 +281,27 @@ pub(super) fn playmark_beat_control_views(
         })
         .id(toggle_id)
         .size(super::WAVEFORM_WIDTH as f32, super::WAVEFORM_HEIGHT as f32)
-    })
-    .unwrap_or_else(ui::empty);
-    let count = PlaymarkBeatCountWidget::new(
-        count_id,
-        geometry_source,
-        state,
-        beat_guides_enabled,
-        beat_guide_count,
-    )
-    .map(|widget| {
-        ui::custom_widget(widget, |output| {
-            output
-                .typed_cloned::<BeatGuideCountInputMessage>()
-                .map(beat_guide_count_input_message)
+    });
+    let count = beat_guides_enabled
+        .then(|| {
+            PlaymarkBeatCountWidget::new(
+                count_id,
+                geometry_source,
+                state,
+                beat_guides_enabled,
+                beat_guide_count,
+            )
         })
-        .id(count_id)
-        .size(super::WAVEFORM_WIDTH as f32, super::WAVEFORM_HEIGHT as f32)
-    })
-    .unwrap_or_else(ui::empty);
+        .flatten()
+        .map(|widget| {
+            ui::custom_widget(widget, |output| {
+                output
+                    .typed_cloned::<BeatGuideCountInputMessage>()
+                    .map(beat_guide_count_input_message)
+            })
+            .id(count_id)
+            .size(super::WAVEFORM_WIDTH as f32, super::WAVEFORM_HEIGHT as f32)
+        });
     [toggle, count]
 }
 

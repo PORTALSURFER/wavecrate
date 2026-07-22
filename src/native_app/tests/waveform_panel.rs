@@ -174,3 +174,23 @@ fn playmark_beat_controls_are_absent_without_a_playmark() {
             .is_none()
     );
 }
+
+#[test]
+fn playmark_beat_count_is_absent_until_the_grid_is_enabled() {
+    let mut state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .build();
+    state.waveform.current.set_play_selection_range(0.25, 0.75);
+
+    let surface = waveform_panel(WaveformPanelViewModel::from_app_state(&state)).into_surface();
+    assert!(
+        surface
+            .find_widget(WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID)
+            .is_some()
+    );
+    assert!(
+        surface
+            .find_widget(WAVEFORM_PLAYMARK_BEAT_COUNT_ID)
+            .is_none()
+    );
+}

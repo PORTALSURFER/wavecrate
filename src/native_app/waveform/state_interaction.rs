@@ -56,6 +56,7 @@ impl WaveformState {
                 )));
                 match kind {
                     WaveformSelectionKind::Play => {
+                        self.close_playmark_label_editor();
                         self.play_mark_ratio = None;
                         self.play_selection = None;
                         self.play_selection_flash_frames = 0;

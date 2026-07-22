@@ -92,9 +92,8 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         })
         .id(widget_ids::WAVEFORM_PLAYMARK_LABEL_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
-    })
-    .unwrap_or_else(ui::empty);
-    let [beat_toggle, beat_count] = playmark_beat_control_views(
+    });
+    let beat_controls = playmark_beat_control_views(
         widget_ids::WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID,
         widget_ids::WAVEFORM_PLAYMARK_BEAT_COUNT_ID,
         WaveformWidget::new(props),
@@ -103,7 +102,7 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         beat_guide_count,
     );
 
-    ui::stack([
+    let layers = [
         waveform_signal_surface_view(
             state,
             signal_gain_preview_for_state(state, normalized_audition_enabled),
@@ -112,12 +111,14 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         .id(WAVEFORM_SIGNAL_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         interaction,
-        label,
-        beat_toggle,
-        beat_count,
-    ])
-    .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
-    .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
+    ]
+    .into_iter()
+    .chain(label)
+    .chain(beat_controls.into_iter().flatten());
+
+    ui::stack(layers)
+        .id(widget_ids::WAVEFORM_VIEWPORT_STACK_ID)
+        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
 }
 
 pub(super) fn signal_edit_selection_for_state(

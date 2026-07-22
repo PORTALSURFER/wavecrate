@@ -114,6 +114,7 @@ impl WaveformState {
         play_selection: Option<SelectionRange>,
         marked_play_ranges: Vec<SelectionRange>,
     ) {
+        self.close_playmark_label_editor();
         if self.play_selection != play_selection {
             self.clear_similar_sections();
         }
@@ -176,6 +177,7 @@ impl WaveformState {
     ) {
         match kind {
             WaveformSelectionKind::Play => {
+                self.close_playmark_label_editor();
                 if self.play_selection != Some(selection) && self.active_drag.is_none() {
                     self.clear_similar_sections();
                 }
