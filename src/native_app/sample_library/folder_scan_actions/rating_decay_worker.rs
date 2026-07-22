@@ -1,4 +1,7 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use wavecrate::sample_sources::{Rating, SourceDatabase, config::clamp_rating_decay_weeks};
 
@@ -24,6 +27,7 @@ fn apply_rating_decay_maintenance_at(
     let snapshot = db
         .browser_metadata_snapshot()
         .map_err(|error| format!("read rating-decay metadata snapshot: {error}"))?;
+    let snapshot_revision = snapshot.revision;
     let updates = snapshot
         .files
         .into_iter()
@@ -38,13 +42,27 @@ fn apply_rating_decay_maintenance_at(
             .map(|decayed| (file.relative_path, decayed))
         })
         .collect::<Vec<_>>();
+    apply_rating_decay_updates(&db, snapshot_revision, &updates)
+}
+
+fn apply_rating_decay_updates(
+    db: &SourceDatabase,
+    snapshot_revision: u64,
+    updates: &[(PathBuf, DecayedRating)],
+) -> Result<usize, String> {
     if updates.is_empty() {
         return Ok(0);
     }
     let mut batch = db
         .write_batch()
         .map_err(|error| format!("begin rating-decay metadata batch: {error}"))?;
-    for (path, decayed) in &updates {
+    if !batch
+        .matches_revision(snapshot_revision)
+        .map_err(|error| format!("fence rating-decay metadata snapshot: {error}"))?
+    {
+        return Ok(0);
+    }
+    for (path, decayed) in updates {
         batch
             .set_tag(path, decayed.rating)
             .map_err(|error| format!("stage rating decay for {}: {error}", path.display()))?;
@@ -156,5 +174,51 @@ mod tests {
         let file = db.browser_metadata_snapshot().unwrap().files.pop().unwrap();
         assert_eq!(file.rating, Rating::KEEP_1);
         assert_eq!(file.last_curated_at, Some(1_000 + 8 * SECONDS_PER_WEEK));
+    }
+
+    #[test]
+    fn rating_decay_maintenance_skips_snapshot_after_newer_user_curation() {
+        let root = tempfile::tempdir().unwrap();
+        let relative = Path::new("sample.wav");
+        let db = SourceDatabase::open_for_test_fixture_source_write(root.path()).unwrap();
+        db.upsert_file(relative, 10, 5).unwrap();
+        db.set_tag(relative, Rating::KEEP_3).unwrap();
+        db.set_last_curated_at(relative, 1_000).unwrap();
+        let concurrent_db =
+            SourceDatabase::open_for_test_fixture_source_write(root.path()).unwrap();
+        let request = RatingDecayMaintenanceRequest {
+            source_id: String::from("source"),
+            root: root.path().to_path_buf(),
+            database_root: root.path().to_path_buf(),
+            rating_decay_weeks: 4,
+        };
+
+        let snapshot = db.browser_metadata_snapshot().unwrap();
+        let snapshot_revision = snapshot.revision;
+        let candidate = snapshot.files.into_iter().next().unwrap();
+        let updates = vec![(
+            candidate.relative_path,
+            decayed_keep_rating(
+                candidate.rating,
+                candidate.locked,
+                candidate.last_curated_at,
+                request.rating_decay_weeks,
+                1_000 + 9 * SECONDS_PER_WEEK,
+            )
+            .unwrap(),
+        )];
+        let mut user_batch = concurrent_db.write_batch().unwrap();
+        user_batch.set_tag(relative, Rating::TRASH_1).unwrap();
+        user_batch.set_locked(relative, true).unwrap();
+        user_batch.set_last_curated_at(relative, 9_999).unwrap();
+        user_batch.commit().unwrap();
+
+        let updated = apply_rating_decay_updates(&db, snapshot_revision, &updates).unwrap();
+
+        assert_eq!(updated, 0);
+        let file = db.browser_metadata_snapshot().unwrap().files.pop().unwrap();
+        assert_eq!(file.rating, Rating::TRASH_1);
+        assert!(file.locked);
+        assert_eq!(file.last_curated_at, Some(9_999));
     }
 }

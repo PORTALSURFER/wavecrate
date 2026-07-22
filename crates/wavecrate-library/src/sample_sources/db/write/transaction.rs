@@ -6,6 +6,15 @@ use super::super::util::{map_sql_error, normalize_relative_path};
 use super::super::{SourceDatabase, SourceDbError, SourceManifestEntry, SourceWriteBatch};
 
 impl SourceWriteBatch<'_> {
+    /// Return whether this write transaction began at `expected_revision`.
+    ///
+    /// The batch owns SQLite's immediate writer reservation, so a successful match remains valid
+    /// until this batch commits or rolls back. Callers can use this to discard work derived from
+    /// an older read snapshot without overwriting newer metadata.
+    pub fn matches_revision(&self, expected_revision: u64) -> Result<bool, SourceDbError> {
+        Ok(manifest_revision(&self.tx)? == expected_revision)
+    }
+
     /// Commit all batched operations atomically.
     pub fn commit(self) -> Result<(), SourceDbError> {
         self.prepare_commit()?;
