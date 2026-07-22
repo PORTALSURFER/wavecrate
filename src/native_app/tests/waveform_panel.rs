@@ -207,7 +207,7 @@ fn playmark_overlay_controls_paint_in_the_waveform_viewport() {
         .view_frame_at_size_with_default_theme(ui::Vector2::new(800.0, WAVEFORM_PANEL_HEIGHT));
 
     assert!(frame.paint_plan.primitives.iter().any(
-        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.widget_id == WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID && text.text.as_str() == "Grid")
+        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.widget_id == WAVEFORM_PLAYMARK_BEAT_TOGGLE_ID && text.text.as_str() == "G")
     ));
 }
 

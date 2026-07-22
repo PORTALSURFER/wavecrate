@@ -173,7 +173,7 @@ fn playmark_label_formats_duration_and_paints_at_selection_bottom() {
     let subsecond_label = subsecond_plan
         .first_text_run("750 ms")
         .expect("subsecond playmark duration label");
-    assert!((subsecond_label.rect.center().x - 172.0).abs() < 0.01);
+    assert!((subsecond_label.rect.center().x - 168.0).abs() < 0.01);
     assert_eq!(subsecond_label.rect.max.y, 78.0);
 
     let mut seconds = waveform_state_with_duration_seconds(2);
@@ -1066,6 +1066,22 @@ fn played_ranges_paint_as_a_subtle_thick_bottom_rail() {
     assert!((rail.rect.max.x - 120.0).abs() < 0.001);
     assert!((rail.rect.min.y - 76.0).abs() < 0.001);
     assert!((rail.rect.max.y - 80.0).abs() < 0.001);
+}
+
+#[test]
+fn active_playback_leaves_the_played_range_rail_to_the_transient_overlay() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state
+        .played_ranges
+        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.start_playback(0.2);
+
+    let widget = waveform_widget_for_state(&state);
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+
+    assert!(fill_rects(&plan).iter().all(|fill| {
+        (fill.color.r, fill.color.g, fill.color.b, fill.color.a) != (98, 102, 106, 255)
+    }));
 }
 
 #[test]

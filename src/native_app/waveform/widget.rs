@@ -65,11 +65,14 @@ pub(in crate::native_app) fn waveform_viewport_view_with_tooltip(
         beat_guide_count,
         playhead_occlusion_rect,
     );
-    let interaction = ui::custom_widget(WaveformWidget::new(props.clone()), |output| {
-        output
-            .typed_copied::<WaveformInteraction>()
-            .map(GuiMessage::Waveform)
-    })
+    let interaction = ui::custom_widget(
+        WaveformWidget::new(props.clone()).with_external_playmark_label_owner(),
+        |output| {
+            output
+                .typed_copied::<WaveformInteraction>()
+                .map(GuiMessage::Waveform)
+        },
+    )
     .id(WAVEFORM_WIDGET_ID)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32);
     let interaction = if let Some(tooltip) = tooltip {
@@ -299,7 +302,15 @@ impl WaveformWidgetProps {
             } else {
                 Vec::new()
             },
-            played_ranges: state.played_ranges().to_vec(),
+            // Playback owns the live rail through the paint-only transient overlay.
+            // Keeping the same rail in the retained surface makes the two scenes
+            // overlap until playback stops and can leave neighboring primitives
+            // duplicated at the overlay damage boundary.
+            played_ranges: if state.is_playing() {
+                Vec::new()
+            } else {
+                state.played_ranges().to_vec()
+            },
             similar_section_ranges: if similar_section_overlays_visible(active_drag_kind) {
                 state.similar_section_ranges().to_vec()
             } else {
@@ -373,6 +384,7 @@ pub(in crate::native_app) struct WaveformWidget {
     pub(super) beat_guide_count: u8,
     pub(super) playhead_occlusion_rect: Option<Rect>,
     pub(super) playmark_label_editor_active: bool,
+    pub(super) external_playmark_label_owner: bool,
     pub(super) edit_preview: TimelineEditPreview,
     pub(super) last_live_selection_update_visible_ratio: Option<f32>,
     pub(super) live_selection_preview_anchor: Option<LiveSelectionPreviewAnchor>,
@@ -448,6 +460,7 @@ impl WaveformWidget {
             beat_guide_count,
             playhead_occlusion_rect,
             playmark_label_editor_active,
+            external_playmark_label_owner: false,
             edit_preview: edit_preview_for_selection(edit_selection),
             last_live_selection_update_visible_ratio: None,
             live_selection_preview_anchor: None,
@@ -459,6 +472,11 @@ impl WaveformWidget {
 
     pub(super) fn has_loaded_sample(&self) -> bool {
         self.file.has_loaded_sample_metadata()
+    }
+
+    fn with_external_playmark_label_owner(mut self) -> Self {
+        self.external_playmark_label_owner = true;
+        self
     }
 }
 

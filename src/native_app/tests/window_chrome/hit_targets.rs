@@ -103,12 +103,17 @@ fn playmark_time_label_claims_edit_click_but_leaves_hover_and_secondary_drag_to_
     state.waveform.current.set_play_selection_range(0.25, 0.75);
     let mut runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let theme = radiant::theme::ThemeTokens::default();
-    let label_point = runtime
-        .frame(&theme)
+    let initial_frame = runtime.frame(&theme);
+    let label = initial_frame
         .paint_plan
         .first_text_run("500 ms")
-        .map(|text| text.rect.center())
         .expect("playmark time label paint");
+    assert_eq!(
+        label.widget_id,
+        crate::native_app::ui::ids::WAVEFORM_PLAYMARK_LABEL_ID,
+        "the interactive label layer must own steady label paint"
+    );
+    let label_point = label.rect.center();
 
     assert_eq!(
         runtime.dispatch_event(Event::pointer_move(label_point)),
@@ -135,6 +140,27 @@ fn playmark_time_label_claims_edit_click_but_leaves_hover_and_secondary_drag_to_
     assert_eq!(
         runtime.bridge().state().waveform.current.play_selection(),
         Some(wavecrate::selection::SelectionRange::new(0.25, 0.75))
+    );
+    let editing_frame = runtime.frame(&theme);
+    assert_eq!(
+        editing_frame
+            .paint_plan
+            .text_runs()
+            .filter(|text| text.text.as_str() == "500 ms")
+            .count(),
+        0,
+        "the base playmark label must stop painting while its editor is active"
+    );
+    assert_eq!(
+        editing_frame
+            .paint_plan
+            .text_inputs()
+            .filter(|input| {
+                input.widget_id == crate::native_app::ui::ids::WAVEFORM_PLAYMARK_LABEL_ID
+            })
+            .count(),
+        1,
+        "edit mode must paint exactly one playmark text input"
     );
 
     let mut state = gui_state_for_span_tests();
@@ -183,7 +209,7 @@ fn playmark_local_beat_controls_consume_hits_and_update_shared_state() {
     let toggle_point = frame
         .paint_plan
         .text_runs()
-        .find(|text| text.widget_id == toggle_id && text.text.as_str() == "Grid")
+        .find(|text| text.widget_id == toggle_id && text.text.as_str() == "G")
         .map(|text| text.rect)
         .expect("local beat toggle paint")
         .center();

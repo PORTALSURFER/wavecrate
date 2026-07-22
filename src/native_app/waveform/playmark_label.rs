@@ -18,7 +18,7 @@ const PLAYMARK_LABEL_HORIZONTAL_PADDING: f32 = 10.0;
 const PLAYMARK_LABEL_GLYPH_WIDTH: f32 = 10.0;
 const PLAYMARK_LABEL_MIN_WIDTH: f32 = 80.0;
 const PLAYMARK_LABEL_MAX_WIDTH: f32 = 150.0;
-pub(super) const PLAYMARK_BEAT_TOGGLE_WIDTH: f32 = 52.0;
+pub(super) const PLAYMARK_BEAT_TOGGLE_WIDTH: f32 = 28.0;
 pub(super) const PLAYMARK_BEAT_COUNT_WIDTH: f32 = 30.0;
 pub(super) const PLAYMARK_BEAT_CONTROL_GAP: f32 = 2.0;
 const PLAYMARK_LABEL_CONTROL_GAP: f32 = 4.0;
@@ -222,10 +222,10 @@ mod tests {
             .expect("wide label layout");
 
         assert_eq!(layout.placement, PlaymarkLabelPlacement::Inside);
-        assert_eq!(layout.rect.min.x, 116.0);
-        assert_eq!(layout.rect.max.x, 196.0);
-        assert_eq!(layout.beat_count_rect.max.x, 284.0);
-        assert_eq!(layout.beat_toggle_rect.min.x, 200.0);
+        assert_eq!(layout.rect.min.x, 128.0);
+        assert_eq!(layout.rect.max.x, 208.0);
+        assert_eq!(layout.beat_count_rect.max.x, 272.0);
+        assert_eq!(layout.beat_toggle_rect.min.x, 212.0);
     }
 
     #[test]
@@ -238,7 +238,7 @@ mod tests {
         let right_edge = playmark_label_layout(rect(0.0, 400.0), rect(350.0, 360.0), 6)
             .expect("right-edge narrow layout");
         assert_eq!(right_edge.placement, PlaymarkLabelPlacement::OutsideLeft);
-        assert_eq!(right_edge.rect.min.x, 176.0);
+        assert_eq!(right_edge.rect.min.x, 200.0);
         assert_eq!(right_edge.beat_count_rect.max.x, 344.0);
     }
 
@@ -250,7 +250,7 @@ mod tests {
         assert_eq!(layout.placement, PlaymarkLabelPlacement::OutsideRight);
         assert_eq!(layout.rect.min.x, 26.0);
         assert_eq!(layout.rect.max.x, 106.0);
-        assert_eq!(layout.beat_count_rect.max.x, 194.0);
+        assert_eq!(layout.beat_count_rect.max.x, 170.0);
     }
 
     #[test]
@@ -270,14 +270,14 @@ mod tests {
             .expect("tied fallback layout");
         assert_eq!(tied.placement, PlaymarkLabelPlacement::FallbackRight);
         assert_eq!(tied.rect.min.x, 0.0);
-        assert_eq!(tied.rect.max.x, 12.0);
+        assert_eq!(tied.rect.max.x, 36.0);
         assert_eq!(tied.beat_count_rect.max.x, 100.0);
 
         let left_roomier = playmark_label_layout(rect(0.0, 100.0), rect(60.0, 80.0), 6)
             .expect("left-roomier fallback layout");
         assert_eq!(left_roomier.placement, PlaymarkLabelPlacement::FallbackLeft);
         assert_eq!(left_roomier.rect.min.x, 0.0);
-        assert_eq!(left_roomier.rect.max.x, 12.0);
+        assert_eq!(left_roomier.rect.max.x, 36.0);
         assert_eq!(left_roomier.beat_count_rect.max.x, 100.0);
     }
 

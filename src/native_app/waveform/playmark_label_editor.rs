@@ -1,6 +1,7 @@
 use radiant::{
     gui::automation::AutomationRole,
     prelude as ui,
+    runtime::WidgetPaint,
     widgets::{
         FocusBehavior, PointerButton, TextInputMessage, TextInputWidget, Widget, WidgetCommon,
         WidgetInput, WidgetKey, WidgetOutput, WidgetSizing,
@@ -262,10 +263,40 @@ impl Widget for PlaymarkLabelWidget {
         if let Ok(mut painted_bounds) = self.painted_bounds.lock() {
             *painted_bounds = Some(bounds);
         }
-        let (Some(input), Some(rect)) = (&self.input, self.label_rect(bounds)) else {
+        let Some(rect) = self.label_rect(bounds) else {
             return;
         };
-        input.append_paint(primitives, rect, layout, theme);
+        if let Some(input) = &self.input {
+            input.append_paint(primitives, rect, layout, theme);
+            return;
+        }
+        if matches!(
+            self.geometry_source.active_drag_kind,
+            Some(
+                super::WaveformActiveDragKind::Selection(super::WaveformSelectionKind::Play)
+                    | super::WaveformActiveDragKind::SelectionMove(
+                        super::WaveformSelectionKind::Play
+                    )
+                    | super::WaveformActiveDragKind::SelectionResize(
+                        super::WaveformSelectionKind::Play,
+                        _
+                    )
+            )
+        ) {
+            return;
+        }
+        let Some(selection) = self.geometry_source.play_selection else {
+            return;
+        };
+        let Some(geometry) = self
+            .geometry_source
+            .selection_geometry(bounds, Some(selection))
+        else {
+            return;
+        };
+        let mut paint = WidgetPaint::new(primitives, self.common().id);
+        self.geometry_source
+            .append_playmark_label_paint(&mut paint, bounds, geometry, selection);
     }
 }
 

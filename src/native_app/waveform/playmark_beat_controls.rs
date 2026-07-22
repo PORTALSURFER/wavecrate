@@ -48,7 +48,7 @@ impl PlaymarkBeatToggleWidget {
         )?;
         let mut button = ButtonWidget::new(
             id,
-            "Grid",
+            "G",
             WidgetSizing::fixed(ui::Vector2::new(
                 playmark_label::PLAYMARK_BEAT_TOGGLE_WIDTH,
                 playmark_label::PLAYMARK_LABEL_HEIGHT,
