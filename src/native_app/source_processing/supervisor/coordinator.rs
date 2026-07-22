@@ -1,6 +1,6 @@
 use super::{
-    Arc, BTreeMap, BTreeSet, CoordinatorExecutionState, ExecutionPool, FairScheduler, Instant,
-    RuntimeCandidate, RuntimeTask, SAFETY_SWEEP_INTERVAL, Shared, SourceDiscoveryStats,
+    Arc, BTreeMap, BTreeSet, CoordinatorExecutionState, Duration, ExecutionPool, FairScheduler,
+    Instant, RuntimeCandidate, RuntimeTask, SAFETY_SWEEP_INTERVAL, Shared, SourceDiscoveryStats,
     SourceProcessingLifecycle, aggregate_source_stats, coordinator_wait_duration,
     discover_candidates, earliest_deadline, execute_candidates, now_epoch_seconds,
     oldest_job_age_seconds, publish_similarity_readiness_refreshes,
@@ -55,18 +55,21 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
                     now_epoch_seconds(),
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
                 );
-                if progress_visible
-                    && !wait_duration.is_zero()
-                    && !scheduler.active_source().is_some_and(|source_id| {
-                        source_stats.get(source_id).is_some_and(|stats| {
-                            stats.prerequisites_blocked > 0 || stats.earliest_retry_at.is_some()
-                        })
+                let active_source_waiting = scheduler.active_source().is_some_and(|source_id| {
+                    source_stats.get(source_id).is_some_and(|stats| {
+                        stats.prerequisites_blocked > 0 || stats.earliest_retry_at.is_some()
                     })
-                {
+                });
+                if publish_finished_if_idle(
+                    &shared,
+                    progress_visible,
+                    wait_duration,
+                    active_source_waiting,
+                    execution_pool.in_flight_count() > 0,
+                ) {
                     // Keep feedback stable across immediate coordinator handoffs. Only clear it
                     // when the coordinator is genuinely about to sleep with no newly published
                     // work or prerequisite retry waiting to be handled.
-                    publish_source_processing_finished(&shared);
                     progress_visible = false;
                     active_progress_source = None;
                     last_progress_publish_at = None;
@@ -398,4 +401,19 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
             "A source execution worker panicked during shutdown"
         );
     }
+}
+
+pub(super) fn publish_finished_if_idle(
+    shared: &Shared,
+    progress_visible: bool,
+    wait_duration: Duration,
+    active_source_waiting: bool,
+    execution_in_flight: bool,
+) -> bool {
+    if !progress_visible || wait_duration.is_zero() || active_source_waiting || execution_in_flight
+    {
+        return false;
+    }
+    publish_source_processing_finished(shared);
+    true
 }

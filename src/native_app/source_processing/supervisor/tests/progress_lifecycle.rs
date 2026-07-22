@@ -55,6 +55,30 @@ fn late_progress_is_rejected_across_remove_and_readd() {
 }
 
 #[test]
+fn held_execution_worker_defers_finished_event_until_result_is_handled() {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let shared = Shared::new(vec![], Some(Arc::new(sender)));
+
+    assert!(!publish_finished_if_idle(
+        &shared,
+        true,
+        Duration::from_secs(1),
+        false,
+        true,
+    ));
+    assert!(receiver.try_recv().is_err());
+
+    assert!(publish_finished_if_idle(
+        &shared,
+        true,
+        Duration::from_secs(1),
+        false,
+        false,
+    ));
+    assert!(matches!(receiver.try_recv(), Ok(SourceProcessingEvent::Completed)));
+}
+
+#[test]
 fn lifecycle_fence_remains_held_until_event_delivery_finishes() {
     #[derive(Default)]
     struct BlockingSink {
