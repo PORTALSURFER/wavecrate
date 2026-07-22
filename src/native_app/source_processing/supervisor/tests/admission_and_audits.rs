@@ -343,7 +343,13 @@ fn scheduled_manifest_audit_does_not_recreate_source_removed_after_discovery() {
     std::fs::remove_dir_all(&root).expect("remove source after scheduling");
 
     assert_eq!(
-        execute_candidate(&candidate, 0, &AtomicBool::new(false), &mut |_| false,)
+        execute_candidate(
+            &candidate,
+            0,
+            &AtomicBool::new(false),
+            &DatabaseWriterGate::default(),
+            &mut |_| false,
+        )
             .expect("unavailable audit is parked"),
         ExecutionOutcome::Parked
     );

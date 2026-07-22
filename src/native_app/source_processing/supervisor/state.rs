@@ -1,9 +1,12 @@
+#[cfg(test)]
+use super::AtomicUsize;
 #[cfg(not(test))]
 use super::recovered_source_retirements;
 use super::{
-    Arc, AtomicBool, AtomicU64, BTreeMap, BTreeSet, BudgetTracker, Condvar, ControlState, Mutex,
-    MutexGuard, Ordering, PriorityContext, ProcessingBudgets, SampleSource, SourceProcessingEvent,
-    SourceProcessingEventSink, SupervisorTelemetry, sources_by_id,
+    Arc, AtomicBool, AtomicU64, BTreeMap, BTreeSet, BudgetTracker, Condvar, ControlState,
+    DatabaseWriterGate, Mutex, MutexGuard, Ordering, PriorityContext, ProcessingBudgets,
+    SampleSource, SourceProcessingEvent, SourceProcessingEventSink, SupervisorTelemetry,
+    sources_by_id,
 };
 
 #[derive(Clone)]
@@ -24,13 +27,13 @@ pub(super) struct ExternalScanState {
     pub(super) registrations: BTreeMap<u64, ExternalScanRegistration>,
 }
 
-pub(super) struct InFlightWorkGuard<'a> {
-    pub(super) shared: &'a Shared,
+pub(super) struct InFlightWorkGuard {
+    pub(super) shared: Arc<Shared>,
     pub(super) source_id: String,
     pub(super) lifecycle_generation: u64,
 }
 
-impl Drop for InFlightWorkGuard<'_> {
+impl Drop for InFlightWorkGuard {
     fn drop(&mut self) {
         let mut in_flight = self
             .shared
@@ -65,6 +68,7 @@ pub(super) struct Shared {
     pub(super) cancel: AtomicBool,
     pub(super) telemetry: Mutex<SupervisorTelemetry>,
     pub(super) budgets: Mutex<BudgetTracker>,
+    pub(super) database_writer: DatabaseWriterGate,
     pub(super) budget_wake: Condvar,
     pub(super) external_scans: Mutex<ExternalScanState>,
     pub(super) external_scan_wake: Condvar,
@@ -76,6 +80,10 @@ pub(super) struct Shared {
     pub(super) retirement_cleanup_blocked: AtomicBool,
     #[cfg(test)]
     pub(super) retirement_cleanup_started: AtomicBool,
+    #[cfg(test)]
+    pub(super) execution_workers_paused: AtomicBool,
+    #[cfg(test)]
+    pub(super) execution_workers_started: AtomicUsize,
 }
 
 impl Shared {
@@ -144,6 +152,7 @@ impl Shared {
             cancel: AtomicBool::new(false),
             telemetry: Mutex::new(SupervisorTelemetry::default()),
             budgets: Mutex::new(BudgetTracker::new(ProcessingBudgets::default())),
+            database_writer: DatabaseWriterGate::default(),
             budget_wake: Condvar::new(),
             external_scans: Mutex::new(ExternalScanState::default()),
             external_scan_wake: Condvar::new(),
@@ -155,6 +164,10 @@ impl Shared {
             retirement_cleanup_blocked: AtomicBool::new(false),
             #[cfg(test)]
             retirement_cleanup_started: AtomicBool::new(false),
+            #[cfg(test)]
+            execution_workers_paused: AtomicBool::new(false),
+            #[cfg(test)]
+            execution_workers_started: AtomicUsize::new(0),
         }
     }
 
@@ -266,11 +279,11 @@ impl Shared {
         }
     }
 
-    pub(super) fn begin_in_flight_work<'a>(
-        &'a self,
+    pub(super) fn begin_in_flight_work(
+        self: &Arc<Self>,
         source_id: &str,
         expected_cancel: &Arc<AtomicBool>,
-    ) -> Option<InFlightWorkGuard<'a>> {
+    ) -> Option<InFlightWorkGuard> {
         let control = self.control();
         let current_cancel = control.source_work_cancels.get(source_id)?;
         if control.shutdown
@@ -294,7 +307,7 @@ impl Shared {
         drop(in_flight);
         drop(control);
         Some(InFlightWorkGuard {
-            shared: self,
+            shared: Arc::clone(self),
             source_id: source_id.to_string(),
             lifecycle_generation,
         })

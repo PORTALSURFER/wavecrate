@@ -4,10 +4,10 @@ use super::{
     SourceDatabaseConnectionRole, cancel_claim,
 };
 use super::{
-    AtomicBool, Duration, ExecutionOutcome, Instant, MANIFEST_AUDIT_HASH_BATCH, Ordering,
-    RuntimeCandidate, RuntimeTask, ScanError, SourceDatabase, SourceProcessingActivity,
-    SourceProcessingEvent, SourceProcessingLifecycle, SourceProcessingProgressEvent,
-    audit_source_and_record_with_progress, execute_readiness_target,
+    AtomicBool, DatabasePhase, DatabaseWriterGate, Duration, ExecutionOutcome, Instant,
+    MANIFEST_AUDIT_HASH_BATCH, Ordering, RuntimeCandidate, RuntimeTask, ScanError, SourceDatabase,
+    SourceProcessingActivity, SourceProcessingEvent, SourceProcessingLifecycle,
+    SourceProcessingProgressEvent, audit_source_and_record_with_progress, execute_readiness_target,
     manifest_audit_source_row_active, now_epoch_seconds,
 };
 
@@ -15,10 +15,12 @@ pub(super) fn execute_candidate(
     candidate: &RuntimeCandidate,
     lifecycle_generation: u64,
     cancel: &AtomicBool,
+    database_writer: &DatabaseWriterGate,
     publish_event: &mut dyn FnMut(SourceProcessingEvent) -> bool,
 ) -> Result<ExecutionOutcome, String> {
     let result = match &candidate.task {
         RuntimeTask::ManifestAudit => {
+            let _writer = database_writer.lock(DatabasePhase::SerialCompatibility);
             let database_root = candidate
                 .source
                 .database_root()
@@ -135,7 +137,7 @@ pub(super) fn execute_candidate(
             ))
         }
         RuntimeTask::Readiness(target) => {
-            execute_readiness_target(&candidate.source, target, cancel)
+            execute_readiness_target(&candidate.source, target, cancel, database_writer)
         }
     };
     if matches!(

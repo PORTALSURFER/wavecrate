@@ -358,6 +358,23 @@ the facade or coordinator, reach through another service, or start a second coor
 or persistence queue. The existing joined retirement cleanup worker remains an
 implementation detail of the retirement service.
 
+The coordinator owns one joined, bounded execution pool for file-scoped feature and
+embedding work. Pool workers orchestrate explicit typed claim/read, pure preparation, and
+publication phases under the supervisor's lifecycle guard. Production preparation runs
+in killable child processes that receive bounded owned inputs, perform no SQLite access,
+and return bounded prepared payloads; the surrounding pool worker acquires the single
+writer gate only for readiness claims, lease renewal, and fenced publication. The same
+gate covers foreground scan admission and legacy stages whose filesystem work is still
+transaction-coupled. Publication revalidates exact manifest, content-generation,
+lifecycle, and cancellation fences after preparation. The initial rollout admits at most
+one execution job per source and two jobs globally, allowing a secondary source to use
+spare capacity without changing the visible active-source owner. Requests and results are
+bounded, pool workers and child processes are joined on shutdown, and telemetry reports
+queue depth, worker concurrency, and writer wait/hold timing by database phase.
+Manifest audits, indexed hashing, similarity finalization, and retirement keep their
+existing serial compatibility paths until each can preserve its current atomic contract
+across the same typed phase boundary.
+
 Source retirement keeps the audio folder, authoritative source database, source manifest, reusable analysis/similarity artifacts, and safe content-addressed analysis caches. It releases source-owned in-memory playback/preview/browser state and asynchronously removes readiness-managed jobs and unshared managed cache payloads. The source descriptor registry retains role, metadata-storage policy, and primary-import settings so protected/AppData sources rehydrate safely; corrupt present descriptor values fail closed. Cleanup is idempotent, retryable after unavailable/read-only storage, recovered from retained inactive descriptors at startup, and bounded so removal never waits for database maintenance or cache garbage collection.
 
 For every current eligible file, the readiness stages are:

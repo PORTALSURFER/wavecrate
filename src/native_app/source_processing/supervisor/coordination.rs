@@ -26,10 +26,10 @@ pub(super) fn select_source_for_discovery(
     active_source_id: Option<&str>,
     priority: &PriorityContext,
 ) -> Option<String> {
-    if let Some(active_source_id) = active_source_id {
-        return pending_source_ids
-            .contains(active_source_id)
-            .then(|| active_source_id.to_string());
+    if let Some(active_source_id) = active_source_id
+        && pending_source_ids.contains(active_source_id)
+    {
+        return Some(active_source_id.to_string());
     }
     let prioritized = priority
         .selected_source
@@ -68,6 +68,7 @@ pub(super) fn release_converged_source_owner(
     configured_source_ids: &BTreeSet<String>,
     source_stats: &BTreeMap<String, SourceDiscoveryStats>,
     candidates: &[RuntimeCandidate],
+    active_source_in_flight: bool,
 ) {
     let Some(active_source_id) = scheduler.active_source().map(str::to_string) else {
         return;
@@ -75,17 +76,18 @@ pub(super) fn release_converged_source_owner(
     let has_runnable_candidate = candidates
         .iter()
         .any(|candidate| candidate.source.id.as_str() == active_source_id);
+    let has_active_work = has_runnable_candidate || active_source_in_flight;
     let release_reason = if !configured_source_ids.contains(&active_source_id) {
         Some("source_removed")
     } else if let Some(stats) = source_stats.get(&active_source_id)
-        && !has_runnable_candidate
+        && !has_active_work
         && stats.earliest_retry_at.is_some()
     {
         Some("waiting_for_retry")
     } else if let Some(stats) = source_stats.get(&active_source_id)
         && stats.readiness_queue_depth == 0
         && stats.earliest_retry_at.is_none()
-        && !has_runnable_candidate
+        && !has_active_work
     {
         Some(if stats.prerequisites_blocked == 0 {
             "converged_or_terminal"

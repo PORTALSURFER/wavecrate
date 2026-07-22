@@ -19,7 +19,7 @@ pub(super) fn scheduler_candidate_indices(
 }
 
 pub(super) fn discover_candidates(
-    shared: &Shared,
+    shared: &Arc<Shared>,
     sources: &[SampleSource],
     force_manifest_audit_sources: &BTreeSet<String>,
     force_reanalysis_sources: &BTreeSet<String>,
@@ -72,16 +72,22 @@ pub(super) fn discover_candidates(
             last_log_publish_at: None,
             event_published: false,
         };
-        match discover_source_candidates_with_progress(
-            source,
-            now,
-            force_manifest_audit_sources.contains(source.id.as_str()),
-            force_reanalysis_sources.contains(source.id.as_str()),
-            pending_readiness_deltas.get(source.id.as_str()),
-            safety_probe_only,
-            source_cancel,
-            &mut |phase, work_units| progress.advance(phase, work_units),
-        ) {
+        let discovery_result = {
+            let _writer = shared
+                .database_writer
+                .lock(super::DatabasePhase::SerialCompatibility);
+            discover_source_candidates_with_progress(
+                source,
+                now,
+                force_manifest_audit_sources.contains(source.id.as_str()),
+                force_reanalysis_sources.contains(source.id.as_str()),
+                pending_readiness_deltas.get(source.id.as_str()),
+                safety_probe_only,
+                source_cancel,
+                &mut |phase, work_units| progress.advance(phase, work_units),
+            )
+        };
+        match discovery_result {
             Ok(Cancellable::Completed((mut source_candidates, stats))) => {
                 if stats.cheap_noop_sweep {
                     let mut telemetry = shared.telemetry();

@@ -1,7 +1,8 @@
 use super::{
-    AtomicBool, ClaimedReadinessWork, Ordering, ReadinessExecutionOutcome, ReadinessStage,
-    ReadinessStore, SampleSource, SimilarityPublicationFence, SourceDatabase,
-    SourceProcessingFailure, analysis_features_are_current, complete_pending_deep_hash_for_path,
+    AtomicBool, ClaimedReadinessWork, DatabasePhase, DatabaseWriterGate, Ordering,
+    ReadinessExecutionOutcome, ReadinessStage, ReadinessStore, SampleSource,
+    SimilarityPublicationFence, SourceDatabase, SourceProcessingFailure,
+    analysis_features_are_current, complete_pending_deep_hash_for_path,
     embedding_aspects_are_current, finalize_similarity_artifacts_if_ready,
     native_similarity_artifact_version, params, readiness_stage_is_unsupported,
     reconcile_stale_analysis_input, source_database_failure,
@@ -11,12 +12,14 @@ use rusqlite::OptionalExtension;
 pub(super) fn run_readiness_stage(
     source: &SampleSource,
     connection: &mut rusqlite::Connection,
+    database_writer: &DatabaseWriterGate,
     claim: &ClaimedReadinessWork,
     cancel: &AtomicBool,
 ) -> Result<ReadinessExecutionOutcome, SourceProcessingFailure> {
     let target = claim.target();
     match target.stage {
         ReadinessStage::IndexedIdentity => {
+            let _writer = database_writer.lock(DatabasePhase::SerialCompatibility);
             let Some(relative_path) = target.relative_path.as_deref() else {
                 return Ok(ReadinessExecutionOutcome::Permanent(
                     "indexed identity target has no relative path",
@@ -106,6 +109,7 @@ pub(super) fn run_readiness_stage(
             }
             let produced = super::super::worker::run_readiness_feature_stage(
                 connection,
+                database_writer,
                 source,
                 std::path::Path::new(relative_path),
                 target.content_generation.as_str(),
@@ -116,11 +120,14 @@ pub(super) fn run_readiness_stage(
                 return Ok(ReadinessExecutionOutcome::Complete(None));
             }
             if !produced {
-                reconcile_stale_analysis_input(
-                    source,
-                    std::path::Path::new(relative_path),
-                    cancel,
-                )?;
+                {
+                    let _writer = database_writer.lock(DatabasePhase::Publish);
+                    reconcile_stale_analysis_input(
+                        source,
+                        std::path::Path::new(relative_path),
+                        cancel,
+                    )?;
+                }
                 return Ok(ReadinessExecutionOutcome::Retry(
                     "analysis input changed; targeted source reconciliation committed",
                 ));
@@ -159,10 +166,13 @@ pub(super) fn run_readiness_stage(
             analysis_target.stage = ReadinessStage::AnalysisFeatures;
             analysis_target.required_version = wavecrate_analysis::analysis_version().to_string();
             if !analysis_features_are_current(connection, &analysis_target)? {
-                if ReadinessStore::new(connection)
-                    .invalidate_artifact(&analysis_target)
-                    .map_err(|error| error.to_string())?
-                {
+                let invalidated = {
+                    let _writer = database_writer.lock(DatabasePhase::Publish);
+                    ReadinessStore::new(connection)
+                        .invalidate_artifact(&analysis_target)
+                        .map_err(|error| error.to_string())?
+                };
+                if invalidated {
                     tracing::warn!(
                         target: "wavecrate::source_processing",
                         source_id = target.source_id,
@@ -179,6 +189,7 @@ pub(super) fn run_readiness_stage(
             } else {
                 let produced = super::super::worker::run_readiness_embedding_stage(
                     connection,
+                    database_writer,
                     source,
                     std::path::Path::new(relative_path),
                     target.content_generation.as_str(),
@@ -195,6 +206,7 @@ pub(super) fn run_readiness_stage(
             })
         }
         ReadinessStage::SimilarityLayout => {
+            let _writer = database_writer.lock(DatabasePhase::SerialCompatibility);
             if target.required_version != native_similarity_artifact_version() {
                 return Ok(ReadinessExecutionOutcome::Retry(
                     "similarity finalizer version does not match target",

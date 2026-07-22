@@ -39,7 +39,7 @@ impl ProcessingLane {
         match self {
             Self::Scan | Self::Cleanup => ResourceUse::new(0, 1, 1),
             Self::Hashing => ResourceUse::new(1, 1, 1),
-            Self::FeatureAnalysis | Self::Embedding => ResourceUse::new(1, 1, 1),
+            Self::FeatureAnalysis | Self::Embedding => ResourceUse::new(1, 1, 0),
             Self::Finalization => ResourceUse::new(1, 1, 1),
         }
     }
@@ -121,8 +121,8 @@ impl Default for ProcessingBudgets {
             lane_limits: [
                 (ProcessingLane::Scan, 1),
                 (ProcessingLane::Hashing, 1),
-                (ProcessingLane::FeatureAnalysis, cpu),
-                (ProcessingLane::Embedding, 1),
+                (ProcessingLane::FeatureAnalysis, cpu.min(2)),
+                (ProcessingLane::Embedding, cpu.min(2)),
                 (ProcessingLane::Finalization, 1),
                 (ProcessingLane::Cleanup, 1),
             ]
@@ -224,6 +224,12 @@ impl BudgetTracker {
     #[cfg(test)]
     pub(crate) fn current_global(&self) -> ResourceUse {
         self.global
+    }
+
+    pub(crate) fn execution_worker_limit(&self) -> usize {
+        self.limits
+            .lane_limit(ProcessingLane::FeatureAnalysis)
+            .max(1)
     }
 }
 
@@ -330,13 +336,6 @@ impl FairScheduler {
         {
             return Some(index);
         }
-        if self.active_source.is_some() {
-            // Source ownership is released explicitly by the coordinator only after a fresh
-            // reconciliation proves convergence or terminal/offline state. An empty runnable
-            // queue can instead mean a retry deadline, prerequisite wait, watcher refresh, or
-            // temporary resource conflict, none of which may transfer visible ownership.
-            return None;
-        }
         let selected = best_by_source
             .into_iter()
             .map(|(source_id, index)| {
@@ -351,7 +350,12 @@ impl FairScheduler {
                 (finish, std::cmp::Reverse(weight), source_id, index)
             })
             .min()?;
-        self.active_source = Some(selected.2.to_string());
+        // Visible source ownership remains stable while bounded work from another source uses
+        // otherwise-idle execution capacity. Ownership itself is released only after a fresh
+        // convergence/retry decision in the coordinator.
+        if self.active_source.is_none() {
+            self.active_source = Some(selected.2.to_string());
+        }
         self.virtual_finish
             .insert(selected.2.to_string(), selected.0);
         self.normalize_virtual_time();
@@ -575,14 +579,25 @@ mod tests {
         let second = tracker
             .try_acquire("two", ProcessingLane::FeatureAnalysis)
             .expect("independent lane");
-        assert_eq!(tracker.current_global(), ResourceUse::new(2, 2, 2));
+        assert_eq!(tracker.current_global(), ResourceUse::new(2, 2, 1));
         tracker.release(first);
         tracker.release(second);
         assert_eq!(tracker.current_global(), ResourceUse::default());
     }
 
     #[test]
-    fn blocked_active_source_does_not_switch_to_another_source() {
+    fn default_compute_lanes_share_the_execution_pool_capacity() {
+        let limits = ProcessingBudgets::default();
+
+        assert_eq!(
+            limits.lane_limit(ProcessingLane::Embedding),
+            limits.lane_limit(ProcessingLane::FeatureAnalysis),
+            "embedding preparation should use the same bounded worker capacity as feature analysis"
+        );
+    }
+
+    #[test]
+    fn blocked_active_source_admits_secondary_work_without_switching_visible_owner() {
         let mut scheduler = FairScheduler::default();
         let limits =
             ProcessingBudgets::for_tests(ResourceUse::new(2, 2, 2), ResourceUse::new(1, 1, 1), 2);
@@ -601,15 +616,15 @@ mod tests {
 
         assert_eq!(
             scheduler.choose(&candidates, &PriorityContext::default(), &budgets),
-            None,
-            "temporary active-source contention must not switch sources"
+            Some(1),
+            "idle global capacity should admit an independent source"
         );
         assert_eq!(scheduler.active_source(), Some("active"));
         budgets.release(permit);
     }
 
     #[test]
-    fn waiting_active_source_requires_explicit_release_before_handoff() {
+    fn secondary_admission_preserves_visible_owner_until_explicit_release() {
         let mut scheduler = FairScheduler::default();
         let budgets = BudgetTracker::new(ProcessingBudgets::for_tests(
             ResourceUse::new(2, 2, 2),
@@ -632,8 +647,8 @@ mod tests {
         )];
         assert_eq!(
             scheduler.choose(&backlog, &PriorityContext::default(), &budgets),
-            None,
-            "an empty active-source runnable queue may represent a retry wait"
+            Some(0),
+            "secondary work should use capacity without taking visible ownership"
         );
         assert_eq!(scheduler.active_source(), Some("active"));
         assert_eq!(scheduler.release_active_source().as_deref(), Some("active"));

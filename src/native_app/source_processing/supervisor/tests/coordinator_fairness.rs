@@ -65,9 +65,14 @@ fn readiness_lease_heartbeat_keeps_long_claim_current() {
         .expect("claim available");
     let cancel = AtomicBool::new(false);
 
-    let ((), stale) = run_with_readiness_lease_heartbeat(&source, &claim, &cancel, 2, |_| {
-        thread::sleep(Duration::from_millis(2_500))
-    })
+    let ((), stale) = run_with_readiness_lease_heartbeat(
+        &source,
+        &claim,
+        &cancel,
+        2,
+        &DatabaseWriterGate::default(),
+        |_| thread::sleep(Duration::from_millis(2_500)),
+    )
     .expect("run with heartbeat");
 
     assert!(!stale);
@@ -180,7 +185,7 @@ fn retry_only_source_releases_owner_before_another_source_runs() {
     )]
     .into_iter()
     .collect();
-    release_converged_source_owner(&mut scheduler, &configured, &stats, &[]);
+    release_converged_source_owner(&mut scheduler, &configured, &stats, &[], false);
     assert_eq!(scheduler.active_source(), None);
 
     let next = [WorkCandidate::source("next", ProcessingLane::Hashing, 0, 0)];
@@ -189,6 +194,33 @@ fn retry_only_source_releases_owner_before_another_source_runs() {
         Some(0)
     );
     assert_eq!(scheduler.active_source(), Some("next"));
+}
+
+#[test]
+fn in_flight_manifest_audit_keeps_active_source_owner_across_wake() {
+    let mut scheduler = FairScheduler::default();
+    let budgets = BudgetTracker::new(ProcessingBudgets::default());
+    let audit = [WorkCandidate::source(
+        "audited",
+        ProcessingLane::Hashing,
+        0,
+        0,
+    )];
+    assert_eq!(
+        scheduler.choose(&audit, &PriorityContext::default(), &budgets),
+        Some(0)
+    );
+    let configured = ["audited".to_string()].into_iter().collect();
+    let stats = [(
+        "audited".to_string(),
+        SourceDiscoveryStats::default(),
+    )]
+    .into_iter()
+    .collect();
+
+    release_converged_source_owner(&mut scheduler, &configured, &stats, &[], true);
+
+    assert_eq!(scheduler.active_source(), Some("audited"));
 }
 
 #[test]
@@ -222,7 +254,7 @@ fn discovery_selects_exactly_one_source_and_keeps_the_active_owner() {
     let pending = ["second".to_string()].into_iter().collect();
     assert_eq!(
         select_source_for_discovery(&sources, &pending, Some("first"), &priority),
-        None,
-        "another source cannot be discovered while the owner is active"
+        Some("second".to_string()),
+        "another source should be discovered for bounded secondary execution"
     );
 }

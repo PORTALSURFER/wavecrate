@@ -14,10 +14,12 @@ use std::{
     process::{Command, Stdio},
 };
 
+use super::supervisor::{DatabasePhase, DatabaseWriterGate, DatabaseWriterGuard};
 use serde::{Deserialize, Serialize};
-use wavecrate::sample_sources::{
-    SampleSource, SourceDatabase, SourceDatabaseConnectionRole, db::SourceDbError,
+use wavecrate::readiness_execution::{
+    EmbeddingStageInput, PreparedEmbeddingStage, PreparedFeatureStage,
 };
+use wavecrate::sample_sources::{SampleSource, db::SourceDbError};
 
 const INTERNAL_SOURCE_ANALYSIS_ARG: &str = "--wavecrate-internal-source-analysis-v1";
 
@@ -26,12 +28,9 @@ enum SourceAnalysisTask {
     ReadinessFeature {
         relative_path: String,
         content_hash: String,
-        analysis_version: String,
     },
     ReadinessEmbedding {
-        relative_path: String,
-        content_hash: String,
-        analysis_version: String,
+        input: EmbeddingStageInput,
     },
     RetireDerivedState,
 }
@@ -42,9 +41,11 @@ struct SourceAnalysisRequest {
     task: SourceAnalysisTask,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct SourceAnalysisResult {
     produced: bool,
+    prepared_feature: Option<PreparedFeatureStage>,
+    prepared_embedding: Option<PreparedEmbeddingStage>,
     processed: usize,
     failed: usize,
     retired_cache_refs: usize,
@@ -232,24 +233,59 @@ pub(super) fn run_source_retirement(
 
 pub(super) fn run_readiness_feature_stage(
     connection: &mut rusqlite::Connection,
+    database_writer: &DatabaseWriterGate,
     source: &SampleSource,
     relative_path: &Path,
     content_hash: &str,
     analysis_version: &str,
     cancel: &AtomicBool,
 ) -> Result<bool, SourceProcessingFailure> {
-    #[cfg(test)]
+    if let Some(prepared) = wavecrate::readiness_execution::cached_feature_stage(
+        connection,
+        content_hash,
+        analysis_version,
+    )
+    .map_err(SourceProcessingFailure::from)?
     {
-        wavecrate::readiness_execution::run_feature_stage(
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
+        return wavecrate::readiness_execution::publish_feature_stage(
             connection,
             &source.root,
             source.id.as_str(),
             relative_path,
             content_hash,
             analysis_version,
+            &prepared,
+        )
+        .map_err(SourceProcessingFailure::from);
+    }
+    #[cfg(test)]
+    {
+        let Some(prepared) = wavecrate::readiness_execution::prepare_feature_stage(
+            &source.root,
+            relative_path,
+            content_hash,
             cancel,
         )
-        .map_err(Into::into)
+        .map_err(SourceProcessingFailure::from)?
+        else {
+            return Ok(false);
+        };
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
+        wavecrate::readiness_execution::publish_feature_stage(
+            connection,
+            &source.root,
+            source.id.as_str(),
+            relative_path,
+            content_hash,
+            analysis_version,
+            &prepared,
+        )
+        .map_err(SourceProcessingFailure::from)
     }
     #[cfg(not(test))]
     {
@@ -259,50 +295,115 @@ pub(super) fn run_readiness_feature_stage(
             task: SourceAnalysisTask::ReadinessFeature {
                 relative_path: relative_path.to_string_lossy().replace('\\', "/"),
                 content_hash: content_hash.to_string(),
-                analysis_version: analysis_version.to_string(),
             },
         };
-        run_request_in_child(&request, cancel)
-            .map(|result| result.is_some_and(|result| result.produced))
-    }
-}
-
-pub(super) fn run_readiness_embedding_stage(
-    connection: &mut rusqlite::Connection,
-    source: &SampleSource,
-    relative_path: &Path,
-    content_hash: &str,
-    analysis_version: &str,
-    cancel: &AtomicBool,
-) -> Result<bool, SourceProcessingFailure> {
-    #[cfg(test)]
-    {
-        wavecrate::readiness_execution::run_embedding_stage(
+        let Some(result) = run_request_in_child(&request, cancel)? else {
+            return Ok(false);
+        };
+        let Some(prepared) = result.prepared_feature else {
+            return Ok(false);
+        };
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
+        wavecrate::readiness_execution::publish_feature_stage(
             connection,
             &source.root,
             source.id.as_str(),
             relative_path,
             content_hash,
             analysis_version,
-            cancel,
+            &prepared,
         )
-        .map_err(Into::into)
+        .map_err(SourceProcessingFailure::from)
+    }
+}
+
+pub(super) fn run_readiness_embedding_stage(
+    connection: &mut rusqlite::Connection,
+    database_writer: &DatabaseWriterGate,
+    source: &SampleSource,
+    relative_path: &Path,
+    content_hash: &str,
+    analysis_version: &str,
+    cancel: &AtomicBool,
+) -> Result<bool, SourceProcessingFailure> {
+    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+        return Ok(false);
+    }
+    let Some(input) = wavecrate::readiness_execution::embedding_stage_input(
+        connection,
+        source.id.as_str(),
+        relative_path,
+        content_hash,
+        analysis_version,
+    )
+    .map_err(SourceProcessingFailure::from)?
+    else {
+        return Ok(false);
+    };
+    #[cfg(test)]
+    {
+        let prepared = wavecrate::readiness_execution::prepare_embedding_stage(input)
+            .map_err(SourceProcessingFailure::from)?;
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
+        wavecrate::readiness_execution::publish_embedding_stage(
+            connection,
+            &source.root,
+            source.id.as_str(),
+            relative_path,
+            content_hash,
+            analysis_version,
+            &prepared,
+        )
+        .map_err(SourceProcessingFailure::from)
     }
     #[cfg(not(test))]
     {
-        let _ = connection;
         let request = SourceAnalysisRequest {
             source: source.clone(),
-            task: SourceAnalysisTask::ReadinessEmbedding {
-                relative_path: relative_path.to_string_lossy().replace('\\', "/"),
-                content_hash: content_hash.to_string(),
-                analysis_version: analysis_version.to_string(),
-            },
+            task: SourceAnalysisTask::ReadinessEmbedding { input },
         };
-        run_request_in_child(&request, cancel)
-            .map(|result| result.is_some_and(|result| result.produced))
+        let Some(result) = run_request_in_child(&request, cancel)? else {
+            return Ok(false);
+        };
+        let Some(prepared) = result.prepared_embedding else {
+            return Ok(false);
+        };
+        let Some(_writer) = publication_writer(database_writer, cancel) else {
+            return Ok(false);
+        };
+        wavecrate::readiness_execution::publish_embedding_stage(
+            connection,
+            &source.root,
+            source.id.as_str(),
+            relative_path,
+            content_hash,
+            analysis_version,
+            &prepared,
+        )
+        .map_err(SourceProcessingFailure::from)
     }
 }
+
+fn publication_writer(
+    database_writer: &DatabaseWriterGate,
+    cancel: &AtomicBool,
+) -> Option<DatabaseWriterGuard> {
+    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+        return None;
+    }
+    let writer = database_writer.lock(DatabasePhase::Publish);
+    if cancel.load(std::sync::atomic::Ordering::Acquire) {
+        return None;
+    }
+    Some(writer)
+}
+
+#[cfg(test)]
+mod tests;
 
 pub(in crate::native_app) fn run_internal_source_analysis_from_args()
 -> Result<Option<String>, String> {
@@ -336,46 +437,33 @@ fn execute_request(
         SourceAnalysisTask::ReadinessFeature {
             relative_path,
             content_hash,
-            analysis_version,
         } => {
-            let mut connection = open_source_connection(&request.source)?;
-            let produced = wavecrate::readiness_execution::run_feature_stage(
-                &mut connection,
+            let prepared_feature = wavecrate::readiness_execution::prepare_feature_stage(
                 &request.source.root,
-                request.source.id.as_str(),
                 Path::new(relative_path),
                 content_hash,
-                analysis_version,
                 &cancel,
             )
             .map_err(SourceProcessingFailure::from)?;
             Ok(SourceAnalysisResult {
-                produced,
-                processed: usize::from(produced),
+                produced: prepared_feature.is_some(),
+                processed: usize::from(prepared_feature.is_some()),
+                prepared_feature,
+                prepared_embedding: None,
                 failed: 0,
                 retired_cache_refs: 0,
                 terminal_offline: false,
             })
         }
-        SourceAnalysisTask::ReadinessEmbedding {
-            relative_path,
-            content_hash,
-            analysis_version,
-        } => {
-            let mut connection = open_source_connection(&request.source)?;
-            let produced = wavecrate::readiness_execution::run_embedding_stage(
-                &mut connection,
-                &request.source.root,
-                request.source.id.as_str(),
-                Path::new(relative_path),
-                content_hash,
-                analysis_version,
-                &cancel,
-            )
-            .map_err(SourceProcessingFailure::from)?;
+        SourceAnalysisTask::ReadinessEmbedding { input } => {
+            let prepared_embedding =
+                wavecrate::readiness_execution::prepare_embedding_stage(input.clone())
+                    .map_err(SourceProcessingFailure::from)?;
             Ok(SourceAnalysisResult {
-                produced,
-                processed: usize::from(produced),
+                produced: true,
+                prepared_feature: None,
+                prepared_embedding: Some(prepared_embedding),
+                processed: 1,
                 failed: 0,
                 retired_cache_refs: 0,
                 terminal_offline: false,
@@ -392,6 +480,8 @@ fn execute_request(
             };
             Ok(SourceAnalysisResult {
                 produced: false,
+                prepared_feature: None,
+                prepared_embedding: None,
                 processed: 0,
                 failed: 0,
                 retired_cache_refs,
@@ -399,24 +489,6 @@ fn execute_request(
             })
         }
     }
-}
-
-fn open_source_connection(
-    source: &SampleSource,
-) -> Result<rusqlite::Connection, SourceProcessingFailure> {
-    let database_root = source.database_root().map_err(|error| {
-        SourceProcessingFailure::permanent(
-            SourceProcessingFailureCode::ExecutionUnclassified,
-            "Resolve source database root failed",
-            Some(error.to_string()),
-        )
-    })?;
-    SourceDatabase::open_connection_with_role_and_database_root(
-        &source.root,
-        &database_root,
-        SourceDatabaseConnectionRole::JobWorker,
-    )
-    .map_err(source_database_failure)
 }
 
 pub(super) fn source_database_failure(error: SourceDbError) -> SourceProcessingFailure {

@@ -1,14 +1,16 @@
 use super::{
-    Arc, BTreeMap, BTreeSet, CoordinatorExecutionState, FairScheduler, Instant, RuntimeCandidate,
-    RuntimeTask, SAFETY_SWEEP_INTERVAL, Shared, SourceDiscoveryStats, SourceProcessingLifecycle,
-    aggregate_source_stats, coordinator_wait_duration, discover_candidates, earliest_deadline,
-    execute_candidates, now_epoch_seconds, oldest_job_age_seconds,
-    publish_similarity_readiness_refreshes, publish_source_processing_finished,
-    publish_source_processing_wait, queue_depths_by_source, release_converged_source_owner,
-    select_source_for_discovery,
+    Arc, BTreeMap, BTreeSet, CoordinatorExecutionState, Duration, ExecutionPool, FairScheduler,
+    Instant, RuntimeCandidate, RuntimeTask, SAFETY_SWEEP_INTERVAL, Shared, SourceDiscoveryStats,
+    SourceProcessingLifecycle, aggregate_source_stats, coordinator_wait_duration,
+    discover_candidates, earliest_deadline, execute_candidates, now_epoch_seconds,
+    oldest_job_age_seconds, publish_similarity_readiness_refreshes,
+    publish_source_processing_finished, publish_source_processing_wait, queue_depths_by_source,
+    release_converged_source_owner, select_source_for_discovery,
 };
 
 pub(super) fn run_coordinator(shared: Arc<Shared>) {
+    let worker_limit = shared.budgets().execution_worker_limit();
+    let mut execution_pool = ExecutionPool::new(&shared, worker_limit);
     let mut observed_generation = 0;
     let mut next_retry_at = None;
     let mut next_safety_sweep_at = Instant::now() + SAFETY_SWEEP_INTERVAL;
@@ -53,18 +55,21 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
                     now_epoch_seconds(),
                     next_safety_sweep_at.saturating_duration_since(Instant::now()),
                 );
-                if progress_visible
-                    && !wait_duration.is_zero()
-                    && !scheduler.active_source().is_some_and(|source_id| {
-                        source_stats.get(source_id).is_some_and(|stats| {
-                            stats.prerequisites_blocked > 0 || stats.earliest_retry_at.is_some()
-                        })
+                let active_source_waiting = scheduler.active_source().is_some_and(|source_id| {
+                    source_stats.get(source_id).is_some_and(|stats| {
+                        stats.prerequisites_blocked > 0 || stats.earliest_retry_at.is_some()
                     })
-                {
+                });
+                if publish_finished_if_idle(
+                    &shared,
+                    progress_visible,
+                    wait_duration,
+                    active_source_waiting,
+                    execution_pool.in_flight_count() > 0,
+                ) {
                     // Keep feedback stable across immediate coordinator handoffs. Only clear it
                     // when the coordinator is genuinely about to sleep with no newly published
                     // work or prerequisite retry waiting to be handled.
-                    publish_source_processing_finished(&shared);
                     progress_visible = false;
                     active_progress_source = None;
                     last_progress_publish_at = None;
@@ -294,14 +299,19 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
                 })
                 .collect();
         }
+        let active_source_in_flight = scheduler
+            .active_source()
+            .is_some_and(|source_id| execution_pool.source_is_in_flight(source_id));
         release_converged_source_owner(
             &mut scheduler,
             &configured_source_ids,
             &source_stats,
             &candidates,
+            active_source_in_flight,
         );
         let execution_state = execute_candidates(
             &shared,
+            &mut execution_pool,
             &mut candidates,
             &mut scheduler,
             &mut source_stats,
@@ -331,9 +341,10 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
             last_similarity_refresh_publish_at = Some(Instant::now());
         }
         let active_source_has_runnable_work = scheduler.active_source().is_some_and(|source_id| {
-            candidates
-                .iter()
-                .any(|candidate| candidate.source.id.as_str() == source_id)
+            execution_pool.source_is_in_flight(source_id)
+                || candidates
+                    .iter()
+                    .any(|candidate| candidate.source.id.as_str() == source_id)
         });
         if !active_source_has_runnable_work
             && publish_source_processing_wait(
@@ -384,4 +395,25 @@ pub(super) fn run_coordinator(shared: Arc<Shared>) {
             shared.wake.notify_one();
         }
     }
+    if !execution_pool.shutdown() {
+        tracing::error!(
+            target: "wavecrate::source_processing",
+            "A source execution worker panicked during shutdown"
+        );
+    }
+}
+
+pub(super) fn publish_finished_if_idle(
+    shared: &Shared,
+    progress_visible: bool,
+    wait_duration: Duration,
+    active_source_waiting: bool,
+    execution_in_flight: bool,
+) -> bool {
+    if !progress_visible || wait_duration.is_zero() || active_source_waiting || execution_in_flight
+    {
+        return false;
+    }
+    publish_source_processing_finished(shared);
+    true
 }
