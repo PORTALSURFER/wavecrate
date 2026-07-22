@@ -239,6 +239,7 @@ pub(in crate::native_app) struct PreparedFolderScanResult {
     pub(in crate::native_app) audio_file_paths: Vec<PathBuf>,
     pub(in crate::native_app) scan_cache_update: FolderScanCacheUpdate,
     pub(in crate::native_app) lifecycle_generation: Option<u64>,
+    pub(in crate::native_app) terminal_failure: Option<String>,
     pub(in crate::native_app) rating_decay_maintenance: Option<RatingDecayMaintenanceRequest>,
 }
 
@@ -251,6 +252,7 @@ impl From<FolderScanResult> for PreparedFolderScanResult {
             audio_file_paths,
             scan_cache_update,
             lifecycle_generation: None,
+            terminal_failure: None,
             rating_decay_maintenance: None,
         }
     }

@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{cell::Cell, time::Instant};
 
 use radiant::prelude as ui;
 
@@ -119,6 +119,7 @@ impl NativeAppState {
                 let progress_label = request.label.clone();
                 let recovery_request = request.clone();
                 let recovery_events = events.clone();
+                let recovery_generation = Cell::new(admission_generation);
                 let emit_lifecycle =
                     |events: &ui::BusinessEventSink<FolderScanWorkerEvent>,
                      lifecycle: FolderScanLifecycle,
@@ -176,6 +177,7 @@ impl NativeAppState {
                             return run_folder_scan_worker(request, events, cancel);
                         }
                     };
+                    recovery_generation.set(Some(generation));
                     let Some(permit) = budget.acquire_scan_for_generation_with_state(
                         &source_id,
                         generation,
@@ -244,10 +246,15 @@ impl NativeAppState {
                             &recovery_events,
                             FolderScanLifecycle::Failed,
                             "Source scan stopped unexpectedly",
-                            admission_generation,
+                            recovery_generation.get(),
                         );
                         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
-                        run_folder_scan_worker(recovery_request, recovery_events, cancel)
+                        let mut recovery =
+                            run_folder_scan_worker(recovery_request, recovery_events, cancel);
+                        recovery.lifecycle_generation = recovery_generation.get();
+                        recovery.terminal_failure =
+                            Some(String::from("Source scan worker stopped unexpectedly"));
+                        recovery
                     }
                 }
             },
@@ -264,6 +271,7 @@ impl NativeAppState {
         let mut prepared = prepared.into();
         let started_at = Instant::now();
         let lifecycle_generation = prepared.lifecycle_generation;
+        let terminal_failure = prepared.terminal_failure.take();
         let task_id = prepared.scan.task_id;
         let source_id = prepared.scan.source_id.clone();
         let mut lifecycle_is_current = true;
@@ -286,6 +294,34 @@ impl NativeAppState {
                     "Rejecting folder projection from an inactive source generation"
                 );
                 prepared.scan.cancelled = true;
+            }
+        }
+        if let Some(failure) = terminal_failure {
+            if lifecycle_is_current {
+                if let Some(progress) =
+                    self.library
+                        .fail_active_folder_scan(task_id, &source_id, lifecycle_generation)
+                {
+                    self.ui.chrome.job_details_open = false;
+                    self.background.progress_tick = 0.0;
+                    self.background
+                        .source_processing
+                        .finish_foreground_source_refresh(&source_id, "source_scan_worker_failed");
+                    self.ui.status.sample = failure.clone();
+                    tracing::error!(
+                        target: "wavecrate::source_processing",
+                        task_id,
+                        source_id,
+                        lifecycle_generation = ?lifecycle_generation,
+                        queue_age_ms = progress.queued_at.elapsed().as_millis(),
+                        last_progress_age_ms = progress.last_progress_at.elapsed().as_millis(),
+                        retry_count = progress.retry_count,
+                        terminal_outcome = "failed",
+                        error = failure,
+                        "Source scan worker reached a failed terminal outcome"
+                    );
+                }
+                return;
             }
         }
         if lifecycle_is_current {

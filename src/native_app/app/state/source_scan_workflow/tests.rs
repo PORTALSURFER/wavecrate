@@ -433,6 +433,34 @@ fn user_cancel_releases_visible_owner_once_and_drops_late_completion() {
 }
 
 #[test]
+fn worker_failure_retires_owner_without_scheduling_an_automatic_retry() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 72)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    assert!(workflow.transition_current_scan(
+        request.task_id,
+        &source_id,
+        Some(8),
+        FolderScanLifecycle::Scanning,
+        "Scanning"
+    ));
+
+    let failed = workflow
+        .fail_active_scan(&mut browser, request.task_id, &source_id, Some(8))
+        .expect("failed terminal progress");
+
+    assert_eq!(failed.lifecycle, FolderScanLifecycle::Failed);
+    assert!(!workflow.active());
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
+    assert!(!browser.scan_is_active(&source_id, request.task_id));
+}
+
+#[test]
 fn refresh_coalescing_does_not_transfer_cause_across_lifecycle_generations() {
     let mut workflow = SourceScanWorkflow::new();
     let source_id = String::from("source");

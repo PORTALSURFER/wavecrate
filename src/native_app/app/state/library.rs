@@ -184,6 +184,20 @@ impl LibraryAppState {
             .cancel_active_scan_by_user(&mut self.folder_browser)
     }
 
+    pub(in crate::native_app) fn fail_active_folder_scan(
+        &mut self,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+    ) -> Option<FolderScanProgress> {
+        self.source_scan.fail_active_scan(
+            &mut self.folder_browser,
+            task_id,
+            source_id,
+            lifecycle_generation,
+        )
+    }
+
     pub(in crate::native_app) fn begin_filesystem_refresh(
         &mut self,
         source_id: String,

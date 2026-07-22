@@ -71,6 +71,7 @@ fn run_folder_scan_worker_with_emit_and_cancel(
         audio_file_paths,
         scan_cache_update,
         lifecycle_generation: None,
+        terminal_failure: None,
         rating_decay_maintenance: Some(rating_decay_maintenance),
     }
 }

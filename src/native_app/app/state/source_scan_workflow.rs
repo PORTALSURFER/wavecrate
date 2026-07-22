@@ -414,6 +414,28 @@ impl SourceScanWorkflow {
         Some((progress.source_id, progress.label))
     }
 
+    pub(in crate::native_app) fn fail_active_scan(
+        &mut self,
+        browser: &mut FolderBrowserState,
+        task_id: u64,
+        source_id: &str,
+        lifecycle_generation: Option<u64>,
+    ) -> Option<FolderScanProgress> {
+        if !self.transition_current_scan(
+            task_id,
+            source_id,
+            lifecycle_generation,
+            FolderScanLifecycle::Failed,
+            "Source scan stopped unexpectedly",
+        ) || !browser.cancel_scan(source_id, task_id)
+        {
+            return None;
+        }
+        self.remove_pending_refresh(source_id);
+        self.retry_counts.remove(source_id);
+        self.progress.take()
+    }
+
     pub(in crate::native_app) fn begin_filesystem_refresh_with_context(
         &mut self,
         browser: &mut FolderBrowserState,
