@@ -367,31 +367,96 @@ fn native_app_blocking_helper_modules_stay_owned_by_business_workers() {
         "failure-atomic WAV replacement must remain private to the destructive-edit worker"
     );
 
-    let destructive_queue = read_source(&native_app_root.join("waveform_edits/queue.rs"));
-    for required in [
-        ".business()",
-        ".blocking_io(WAVEFORM_DESTRUCTIVE_EDIT_TASK_NAME)",
-        ".latest(&mut self.background.waveform_destructive_edit_task)",
-        "worker::execute_destructive_edit(worker_request)",
-    ] {
-        assert!(
-            destructive_queue.contains(required),
-            "destructive-edit worker handoff must retain `{required}`"
-        );
+    let compact = |source: &str| source.split_whitespace().collect::<String>();
+    let destructive_queue = compact(&read_source(
+        &native_app_root.join("waveform_edits/queue.rs"),
+    ));
+    assert!(
+        destructive_queue.contains(
+            ".business().blocking_io(WAVEFORM_DESTRUCTIVE_EDIT_TASK_NAME).latest(&mutself.background.waveform_destructive_edit_task).run(move|_|worker::execute_destructive_edit(worker_request),GuiMessage::WaveformDestructiveEditFinished,)"
+        ),
+        "destructive-edit execution must remain the closure passed to the blocking worker handoff"
+    );
+
+    let native_drop = compact(&read_source(
+        &native_app_root.join("sample_library/native_file_drop_actions.rs"),
+    ));
+    assert!(
+        native_drop.contains(
+            ".business().background(\"gui-external-waveform-drop\").run(move|_|execute_external_waveform_file_drop(&source,&target_folder),"
+        ),
+        "exclusive external-drop transfer must remain the closure passed to its background handoff"
+    );
+
+    let folder_moves = compact(&read_source(
+        &native_app_root.join("sample_library/drag_drop_actions/folder_moves.rs"),
+    ));
+    assert!(
+        folder_moves.contains(
+            ".business().background(\"gui-folder-browser-move\").stream_latest(move|_context,events|{execute_folder_move_request_with_progress(request,task_id,move|progress|{events.emit(progress)})},"
+        ),
+        "exclusive folder-browser transfers must remain inside the streamed background worker handoff"
+    );
+}
+
+#[test]
+fn native_app_blocking_worker_allowlist_uses_exact_file_and_tree_boundaries() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate_worker_allowlist_boundary_fixture_{}",
+        std::process::id()
+    ));
+    let native_app_root = root.join("src/native_app");
+    let fixtures = [
+        (
+            "sample_library/exclusive_file_transfer.rs",
+            "std::fs::read(\"allowed-root.wav\").ok();",
+        ),
+        (
+            "sample_library/exclusive_file_transfer/platform.rs",
+            "std::fs::read(\"allowed-child.wav\").ok();",
+        ),
+        (
+            "sample_library/exclusive_file_transfer_shadow.rs",
+            "std::fs::read(\"shadow-transfer.wav\").ok();",
+        ),
+        (
+            "waveform_edits/worker.rs",
+            "std::fs::read(\"allowed-worker.wav\").ok();",
+        ),
+        (
+            "waveform_edits/worker/atomic_write.rs",
+            "std::fs::read(\"allowed-worker-child.wav\").ok();",
+        ),
+        (
+            "waveform_edits/worker_shadow.rs",
+            "std::fs::read(\"shadow-worker.wav\").ok();",
+        ),
+    ];
+    for (relative, body) in fixtures {
+        let path = native_app_root.join(relative);
+        fs::create_dir_all(path.parent().expect("fixture path has parent"))
+            .expect("create worker allowlist fixture dir");
+        fs::write(path, format!("fn fixture() {{ {body} }}\n"))
+            .expect("write worker allowlist fixture");
     }
 
-    let native_drop =
-        read_source(&native_app_root.join("sample_library/native_file_drop_actions.rs"));
-    for required in [
-        ".business()",
-        ".background(\"gui-external-waveform-drop\")",
-        "execute_external_waveform_file_drop(&source, &target_folder)",
-    ] {
-        assert!(
-            native_drop.contains(required),
-            "exclusive external-drop transfer must retain `{required}`"
-        );
-    }
+    let report = wavecrate_non_blocking_guardrail()
+        .scan_roots([&native_app_root])
+        .expect_err("similarly prefixed worker siblings must remain guarded");
+    let violations = report
+        .violations
+        .iter()
+        .map(|violation| violation.source_line.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(violations.len(), 2, "unexpected violations: {report:?}");
+    assert!(
+        violations
+            .iter()
+            .any(|line| line.contains("shadow-transfer"))
+    );
+    assert!(violations.iter().any(|line| line.contains("shadow-worker")));
+
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
@@ -858,8 +923,12 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "waveform clipboard clip staging worker",
         ),
         (
-            "src/native_app/sample_library/exclusive_file_transfer",
-            "exclusive file-transfer implementation module tree",
+            "src/native_app/sample_library/exclusive_file_transfer.rs",
+            "exclusive file-transfer implementation module root",
+        ),
+        (
+            "src/native_app/sample_library/exclusive_file_transfer/",
+            "exclusive file-transfer implementation module children",
         ),
         (
             "src/native_app/sample_library/folder_scan_actions/filesystem_refresh_worker.rs",
@@ -986,8 +1055,12 @@ fn wavecrate_non_blocking_guardrail() -> WavecrateNonBlockingGuardrail {
             "waveform cache and decode workers",
         ),
         (
-            "src/native_app/waveform_edits/worker",
-            "waveform destructive edit implementation module tree",
+            "src/native_app/waveform_edits/worker.rs",
+            "waveform destructive edit implementation module root",
+        ),
+        (
+            "src/native_app/waveform_edits/worker/",
+            "waveform destructive edit implementation module children",
         ),
         (
             "src/native_app/waveform/similar_sections/source_loading.rs",
