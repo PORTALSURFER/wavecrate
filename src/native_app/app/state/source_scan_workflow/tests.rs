@@ -98,6 +98,128 @@ fn pending_refresh_waits_for_active_scan() {
 }
 
 #[test]
+fn accepted_scan_discards_manifest_refresh_at_covered_revision() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 211)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    let accepted_revision = result
+        .metadata_hydration
+        .revision()
+        .expect("authoritative scan revision");
+
+    workflow.queue_required_refresh_with_context(
+        source_id,
+        SourceRefreshCause::ManifestAudit {
+            committed_revision: accepted_revision,
+        },
+        Some(7),
+    );
+
+    assert!(matches!(
+        workflow.finish_scan(&mut browser, result),
+        SourceScanFinish::Applied { .. }
+    ));
+    assert_eq!(workflow.next_pending_refresh_if_idle(), None);
+}
+
+#[test]
+fn current_projection_suppresses_revisioned_refresh_before_queue() {
+    let root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+    let request = workflow
+        .begin_add_source_path(&mut browser, root.path().to_path_buf(), 214)
+        .expect("scan request");
+    let source_id = request.source_id.clone();
+    workflow.start_scan(&request);
+    let result = scan_source_with_progress(request, |_| {}, |_| {});
+    let accepted_revision = result
+        .metadata_hydration
+        .revision()
+        .expect("authoritative scan revision");
+    workflow.finish_scan(&mut browser, result);
+
+    assert!(matches!(
+        workflow.begin_filesystem_refresh_with_context(
+            &mut browser,
+            source_id,
+            215,
+            SourceRefreshCause::ManifestAudit {
+                committed_revision: accepted_revision,
+            },
+            Some(7),
+        ),
+        SourceRefreshRequest::Covered {
+            accepted_revision: revision,
+            ..
+        } if revision == accepted_revision
+    ));
+    assert!(!workflow.active());
+}
+
+#[test]
+fn two_source_revisioned_handoffs_converge_without_alternating_scans() {
+    let first_root = temp_dir_with_wav();
+    let second_root = temp_dir_with_wav();
+    let mut browser = FolderBrowserState::load_default();
+    let mut workflow = SourceScanWorkflow::new();
+
+    let first = workflow
+        .begin_add_source_path(&mut browser, first_root.path().to_path_buf(), 212)
+        .expect("first source scan");
+    let first_id = first.source_id.clone();
+    workflow.start_scan(&first);
+    let first_result = scan_source_with_progress(first, |_| {}, |_| {});
+    let first_revision = first_result
+        .metadata_hydration
+        .revision()
+        .expect("first revision");
+    workflow.queue_required_refresh_with_context(
+        first_id,
+        SourceRefreshCause::ManifestAudit {
+            committed_revision: first_revision,
+        },
+        Some(11),
+    );
+    workflow.finish_scan(&mut browser, first_result);
+
+    let second = workflow
+        .begin_add_source_path_preserving_selection(
+            &mut browser,
+            second_root.path().to_path_buf(),
+            213,
+        )
+        .expect("second source scan");
+    let second_id = second.source_id.clone();
+    workflow.start_scan(&second);
+    let second_result = scan_source_with_progress(second, |_| {}, |_| {});
+    let second_revision = second_result
+        .metadata_hydration
+        .revision()
+        .expect("second revision");
+    workflow.queue_required_refresh_with_context(
+        second_id,
+        SourceRefreshCause::ProjectionRevisionGap {
+            committed_revision: second_revision,
+        },
+        Some(12),
+    );
+    workflow.finish_scan(&mut browser, second_result);
+
+    assert_eq!(
+        workflow.next_pending_refresh_if_idle(),
+        None,
+        "covered startup audit and projection handoffs must reach terminal idle"
+    );
+}
+
+#[test]
 fn cancelled_scan_releases_ownership_and_requeues_the_source() {
     let root = temp_dir_with_wav();
     let mut browser = FolderBrowserState::load_default();

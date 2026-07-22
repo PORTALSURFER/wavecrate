@@ -45,12 +45,12 @@ pub(in crate::native_app) use state::{
     PlaybackSpanRetargetRejection, SampleBrowserDisplayMode, SamplePlaybackHistory,
     SamplePlaybackIntent, SamplePlaybackNormalization, SamplePlaybackRequest,
     SamplePlaybackSession, SamplePlaybackSessionState, SamplePlaybackSourceProbe,
-    SamplePlaybackVisibility, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshRequest,
-    SourceScanFinish, SourceSelectionRequest, StarmapAuditionDragState, StarmapViewport,
-    StarmapViewportChange, StartupState, StatusState, UiAppState, WaveformAppState,
-    WaveformDestructiveEditKind, WaveformDestructiveEditPrompt, WaveformDestructiveEditTarget,
-    WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot, WaveformPlaySelectionSnapshot,
-    WaveformVisualSnapshot, run_folder_scan_worker,
+    SamplePlaybackVisibility, SettingsAppState, SourceFilesystemChangePlan, SourceRefreshCause,
+    SourceRefreshRequest, SourceScanFinish, SourceSelectionRequest, StarmapAuditionDragState,
+    StarmapViewport, StarmapViewportChange, StartupState, StatusState, UiAppState,
+    WaveformAppState, WaveformDestructiveEditKind, WaveformDestructiveEditPrompt,
+    WaveformDestructiveEditTarget, WaveformDestructiveEditUiContext, WaveformEditSelectionSnapshot,
+    WaveformPlaySelectionSnapshot, WaveformVisualSnapshot, run_folder_scan_worker,
 };
 
 pub(super) use crate::native_app::app_chrome::scene::view;

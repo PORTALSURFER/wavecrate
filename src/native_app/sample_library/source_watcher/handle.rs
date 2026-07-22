@@ -282,10 +282,7 @@ impl GuiSourceWatcherHandle {
             });
     }
 
-    /// Request an authoritative reconciliation for every configured source.
-    ///
-    /// This only enqueues coordinator work; filesystem and database access remain on the
-    /// existing background refresh pipeline.
+    #[cfg(test)]
     pub(in crate::native_app) fn request_full_reconciliation(&self) {
         let _ = self
             .command_tx
@@ -347,6 +344,7 @@ impl Drop for GuiSourceWatcherHandle {
 #[derive(Debug)]
 enum GuiSourceWatchCommand {
     ReplaceSources(Vec<SampleSource>),
+    #[cfg(test)]
     ReconcileAllSources,
     AcknowledgeCommittedPaths {
         source_id: String,
@@ -415,6 +413,7 @@ fn run_source_watcher(
                     Instant::now(),
                 );
             }
+            #[cfg(test)]
             Ok(GuiSourceWatchCommand::ReconcileAllSources) => {
                 state.mark_all_overflowed(Instant::now());
             }

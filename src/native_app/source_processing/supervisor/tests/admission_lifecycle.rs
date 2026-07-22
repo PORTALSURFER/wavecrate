@@ -342,6 +342,33 @@ fn watcher_ready_rearms_authoritative_manifest_audits() {
 }
 
 #[test]
+fn focus_regain_rearms_revisioned_audits_instead_of_assuming_watcher_overflow() {
+    let (_directory, source) = unhashed_source("focus-regained-audit");
+    let mut supervisor = SourceProcessingSupervisor::dormant();
+    supervisor
+        .replace_sources(vec![source.clone()])
+        .expect("configure source");
+    {
+        let mut control = supervisor.shared.control();
+        control.force_manifest_audit_sources.clear();
+        control.dirty_sources.clear();
+    }
+
+    supervisor.request_manifest_audits("application_focus_regained");
+
+    let control = supervisor.shared.control();
+    assert!(
+        control
+            .force_manifest_audit_sources
+            .contains(source.id.as_str()),
+        "refocus must enter the revisioned manifest path"
+    );
+    assert!(control.dirty_sources.contains(source.id.as_str()));
+    drop(control);
+    assert_eq!(supervisor.shutdown()["joined"], true);
+}
+
+#[test]
 fn watcher_ready_request_survives_older_in_flight_audit_completion() {
     let (_directory, source) = unhashed_source("watcher-ready-in-flight-audit");
     let mut supervisor = SourceProcessingSupervisor::dormant();

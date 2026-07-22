@@ -7,8 +7,8 @@ use crate::native_app::sample_library::similarity_artifacts::SimilarityArtifactR
 use crate::native_app::sample_library::source_watcher::GuiSourceWatcherHandle;
 
 use super::{
-    SourceFilesystemChangePlan, SourceRefreshRequest, SourceScanFinish, SourceScanWorkflow,
-    SourceSelectionRequest,
+    PendingSourceRefresh, SourceFilesystemChangePlan, SourceRefreshCause, SourceRefreshRequest,
+    SourceScanFinish, SourceScanWorkflow, SourceSelectionRequest,
 };
 
 pub(in crate::native_app) struct LibraryAppState {
@@ -114,18 +114,22 @@ impl LibraryAppState {
         paths: &[std::path::PathBuf],
         overflowed: bool,
         source_root_available: bool,
+        lifecycle_generation: Option<u64>,
     ) -> SourceFilesystemChangePlan {
-        self.source_scan.plan_filesystem_change(
+        self.source_scan.plan_filesystem_change_for_generation(
             &mut self.folder_browser,
             source_id,
             paths,
             overflowed,
             source_root_available,
+            lifecycle_generation,
         )
     }
 
-    pub(in crate::native_app) fn next_pending_source_refresh_if_idle(&mut self) -> Option<String> {
-        self.source_scan.next_pending_refresh_if_idle()
+    pub(in crate::native_app) fn next_pending_source_refresh_if_idle(
+        &mut self,
+    ) -> Option<PendingSourceRefresh> {
+        self.source_scan.next_pending_refresh_context_if_idle()
     }
 
     pub(in crate::native_app) fn retire_source_workflow(&mut self, source_id: &str) -> bool {
@@ -136,9 +140,16 @@ impl LibraryAppState {
         &mut self,
         source_id: String,
         task_id: u64,
+        cause: SourceRefreshCause,
+        lifecycle_generation: Option<u64>,
     ) -> SourceRefreshRequest {
-        self.source_scan
-            .begin_filesystem_refresh(&mut self.folder_browser, source_id, task_id)
+        self.source_scan.begin_filesystem_refresh_with_context(
+            &mut self.folder_browser,
+            source_id,
+            task_id,
+            cause,
+            lifecycle_generation,
+        )
     }
 
     pub(in crate::native_app) fn finish_folder_scan(

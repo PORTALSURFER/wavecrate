@@ -33,9 +33,19 @@ pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_INTENTS: SourcePrepI
 pub(in crate::native_app) const SOURCE_SCAN_COMPLETION_PREP_REASON: &str = "source_scan_finished";
 
 impl NativeAppState {
+    #[cfg(test)]
     pub(in crate::native_app) fn launch_folder_scan(
         &mut self,
+        request: FolderScanRequest,
+        context: &mut ui::UiUpdateContext<GuiMessage>,
+    ) {
+        self.launch_folder_scan_with_cause(request, "test", context);
+    }
+
+    pub(in crate::native_app) fn launch_folder_scan_with_cause(
+        &mut self,
         mut request: FolderScanRequest,
+        enqueue_cause: &str,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
         request.rating_decay_weeks = self.ui.settings.persisted.controls.rating_decay_weeks;
@@ -84,6 +94,7 @@ impl NativeAppState {
             source = label,
             root = root,
             task_id = request.task_id,
+            enqueue_cause,
             "default gui: folder scan queued"
         );
         emit_gui_action(
