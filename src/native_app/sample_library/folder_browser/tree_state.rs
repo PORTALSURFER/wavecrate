@@ -87,7 +87,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn is_expanded(&self, id: &str) -> bool {
-        self.tree.expanded_folders.contains(id)
+        self.selected_folder_is_source_root_id(id) || self.tree.expanded_folders.contains(id)
     }
 
     #[cfg(test)]
@@ -101,6 +101,7 @@ impl FolderBrowserState {
         modifiers: PointerModifiers,
     ) {
         self.clear_source_keyboard_focus();
+        self.hide_keyboard_focus();
         if modifiers.shift || modifiers.command {
             let previous_folder_id = self.selection.selected_folder.clone();
             let visible_ids = self
@@ -117,7 +118,7 @@ impl FolderBrowserState {
             self.select_folder(id);
             return;
         }
-        if !self.folder_has_visible_children(&id) {
+        if self.selected_folder_is_source_root_id(&id) || !self.folder_has_visible_children(&id) {
             self.select_folder(id);
             return;
         }
@@ -296,6 +297,9 @@ impl FolderBrowserState {
             selected: self.selection.selected_collection.is_none()
                 && self.selection.selected_folder_ids_contains(&folder.id),
             focused: self.selection.selected_collection.is_none()
+                && !self.source_keyboard_focus_active()
+                && !self.selection.selected_file_active()
+                && self.keyboard_focus_visible()
                 && self.selection.selected_folder == folder.id,
             drag_active,
             drag_source,

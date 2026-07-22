@@ -18,6 +18,8 @@ pub(in crate::native_app) fn library_sidebar_region(
     state: &NativeAppState,
 ) -> ui::View<GuiMessage> {
     ui::resizable(library_sidebar_view(state))
+        .handle_width(1.0)
+        .handle_inset(0.0)
         .subtle_resize_handle("library-sidebar-resize-handle", GuiMessage::ResizeFolder)
 }
 

@@ -1,8 +1,10 @@
 use radiant::prelude as ui;
 
-const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
-const TOOLBAR_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
-const TOOLBAR_ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(145, 145, 145, 255);
+use crate::native_app::app_chrome::palette::{ACCENT, TEXT_MUTED, TEXT_PRIMARY};
+
+const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ACCENT;
+const TOOLBAR_ICON_ENABLED_COLOR: ui::Rgba8 = TEXT_PRIMARY;
+const TOOLBAR_ICON_DISABLED_COLOR: ui::Rgba8 = TEXT_MUTED;
 const TOOLBAR_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
     TOOLBAR_ICON_ENABLED_COLOR,
     TOOLBAR_ICON_ACTIVE_COLOR,

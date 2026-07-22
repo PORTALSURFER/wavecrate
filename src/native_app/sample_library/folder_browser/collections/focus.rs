@@ -8,6 +8,7 @@ impl FolderBrowserState {
         collection: SampleCollection,
     ) {
         self.clear_source_keyboard_focus();
+        self.hide_keyboard_focus();
         if self.selection.selected_collection != Some(collection) {
             self.collection_panel.rename_edit = None;
             self.selection.enter_collection(collection);
@@ -53,6 +54,7 @@ impl FolderBrowserState {
         }
         let target = self.collection_panel.collections[target_index].collection;
         self.activate_collection(target);
+        self.show_keyboard_focus();
         Some(target_index)
     }
 

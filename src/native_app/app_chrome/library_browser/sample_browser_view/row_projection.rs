@@ -14,7 +14,7 @@ use crate::native_app::sample_library::folder_browser::view_contract::collection
 
 pub(super) struct SampleRowDisplay<'a> {
     pub(super) file_id: &'a str,
-    pub(super) explicitly_selected: bool,
+    pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) copy_flash: bool,
     pub(super) protected_source_error_flash: bool,
@@ -75,7 +75,7 @@ pub(super) fn sample_row_display<'a>(
     let file = row.file;
     SampleRowDisplay {
         file_id: file.id.as_str(),
-        explicitly_selected: row.explicitly_selected,
+        selected: row.selected,
         focused: row.focused,
         copy_flash: row.copy_flash,
         protected_source_error_flash: row.protected_source_error_flash,

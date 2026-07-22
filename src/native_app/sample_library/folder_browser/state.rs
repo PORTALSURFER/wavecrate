@@ -24,6 +24,10 @@ pub(in crate::native_app) struct FolderBrowserState {
     pub(super) collection_panel: CollectionPanelState,
     pub(super) panel_layout: BrowserPanelLayoutState,
     pub(super) sample_list: SampleListState,
+    /// Whether the active browser navigation domain should paint keyboard
+    /// focus. Pointer activation preserves the domain but hides this chrome
+    /// until keyboard navigation resumes.
+    keyboard_focus_visible: bool,
 }
 
 impl FolderBrowserState {
@@ -84,6 +88,7 @@ impl FolderBrowserState {
             collection_panel: CollectionPanelState::new(),
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
+            keyboard_focus_visible: false,
         };
         state.refresh_missing_collection_state();
         state
@@ -109,7 +114,20 @@ impl FolderBrowserState {
             collection_panel: CollectionPanelState::new(),
             panel_layout: BrowserPanelLayoutState::new(),
             sample_list: SampleListState::new(),
+            keyboard_focus_visible: false,
         }
+    }
+
+    pub(in crate::native_app) fn keyboard_focus_visible(&self) -> bool {
+        self.keyboard_focus_visible
+    }
+
+    pub(in crate::native_app) fn show_keyboard_focus(&mut self) {
+        self.keyboard_focus_visible = true;
+    }
+
+    pub(in crate::native_app) fn hide_keyboard_focus(&mut self) {
+        self.keyboard_focus_visible = false;
     }
 
     #[cfg(test)]
@@ -147,6 +165,7 @@ impl FolderBrowserState {
     pub(in crate::native_app) fn toggle_focused_folder_selection(
         &mut self,
     ) -> Option<FolderSelectionToggleResult> {
+        self.show_keyboard_focus();
         if self.rename_active() || self.selection.selected_collection.is_some() {
             return None;
         }

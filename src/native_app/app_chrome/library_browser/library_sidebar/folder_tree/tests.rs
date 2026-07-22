@@ -1,11 +1,12 @@
+use super::folder_tree_guide_rows;
 use super::identity::retained_folder_row_input_id;
 use super::rows::{
-    FOLDER_TREE_EMPTY_LABEL, FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA,
-    FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH, folder_row, folder_tree_label_color,
-    folder_tree_palette_for_tests, folder_tree_selected_hover_marker,
+    FOLDER_LABEL_INSET_X, FOLDER_TREE_EMPTY_LABEL, folder_row, folder_tree_label_color,
+    folder_tree_palette_for_tests,
 };
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_full_palette;
+use crate::native_app::app_chrome::palette::{ACCENT, selected_row_marker};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::model::VisibleFolder;
 use crate::native_app::sample_library::folder_browser::view_contract::TREE_ROW_HEIGHT;
@@ -27,16 +28,71 @@ fn folder_tree_uses_shared_grey_sidebar_hover_fill() {
 }
 
 #[test]
-fn folder_tree_selected_hover_marker_uses_left_orange_rail() {
-    let marker = folder_tree_selected_hover_marker();
+fn folders_with_visible_children_paint_disclosure_arrow() {
+    let mut folder = visible_folder_for_tests(false);
+    folder.has_children = true;
 
-    assert_eq!(marker.parts.width, FOLDER_TREE_SELECTED_HOVER_MARKER_WIDTH);
+    let collapsed = folder_row(&folder)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
     assert_eq!(
-        marker.color,
-        ui::ThemeTokens::default()
-            .accent_mint
-            .with_alpha(FOLDER_TREE_SELECTED_HOVER_MARKER_ALPHA)
+        collapsed.paint_plan.svgs().count(),
+        1,
+        "collapsible folders should paint a closed disclosure arrow"
     );
+
+    folder.expanded = true;
+    let expanded = folder_row(&folder)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+    assert_eq!(
+        expanded.paint_plan.svgs().count(),
+        1,
+        "expanded folders should paint an open disclosure arrow"
+    );
+}
+
+#[test]
+fn leaf_folders_do_not_paint_disclosure_arrow() {
+    let folder = visible_folder_for_tests(false);
+    let frame = folder_row(&folder)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+
+    assert_eq!(
+        frame.paint_plan.svgs().count(),
+        0,
+        "leaf folders should keep the disclosure slot visually empty"
+    );
+}
+
+#[test]
+fn source_root_stays_expanded_without_painting_a_disclosure_arrow() {
+    let mut folder = visible_folder_for_tests(false);
+    folder.is_source_root = true;
+    folder.has_children = true;
+    folder.expanded = true;
+
+    let frame = folder_row(&folder)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+
+    assert_eq!(
+        frame.paint_plan.svgs().count(),
+        0,
+        "the permanent source root should not offer a collapse control"
+    );
+}
+
+#[test]
+fn source_root_does_not_start_a_tree_guide_through_its_disclosure_slot() {
+    let mut root = visible_folder_for_tests(false);
+    root.is_source_root = true;
+    root.has_children = true;
+    root.expanded = true;
+    let mut child = visible_folder_for_tests(false);
+    child.id = String::from("child");
+    child.depth = 1;
+
+    let rows = folder_tree_guide_rows(&[root, child]);
+
+    assert!(!rows[0].starts_descendant_group);
 }
 
 #[test]
@@ -57,49 +113,40 @@ fn non_empty_folder_rows_use_default_idle_label_color() {
 }
 
 #[test]
-fn selected_empty_folder_rows_keep_subdued_label_color() {
+fn selected_empty_folder_rows_use_global_accent_label_color() {
     let mut folder = visible_folder_for_tests(true);
     folder.selected = true;
 
     let frame = folder_row(&folder)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
 
-    assert_eq!(
-        frame.paint_plan.first_text_color("Folder"),
-        Some(FOLDER_TREE_EMPTY_LABEL)
-    );
+    assert_eq!(frame.paint_plan.first_text_color("Folder"), Some(ACCENT));
 }
 
 #[test]
-fn selected_non_empty_folder_rows_use_default_label_color() {
+fn selected_non_empty_folder_rows_use_global_accent_label_color() {
     let mut folder = visible_folder_for_tests(false);
     folder.selected = true;
 
     let frame = folder_row(&folder)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
 
-    assert_eq!(
-        frame.paint_plan.first_text_color("Folder"),
-        Some(ui::ThemeTokens::default().text_primary)
-    );
+    assert_eq!(frame.paint_plan.first_text_color("Folder"), Some(ACCENT));
 }
 
 #[test]
-fn focused_unselected_folder_rows_use_default_label_color() {
+fn focused_unselected_folder_rows_use_global_accent_label_color() {
     let mut folder = visible_folder_for_tests(false);
     folder.focused = true;
 
     let frame = folder_row(&folder)
         .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
 
-    assert_eq!(
-        frame.paint_plan.first_text_color("Folder"),
-        Some(ui::ThemeTokens::default().text_primary)
-    );
+    assert_eq!(frame.paint_plan.first_text_color("Folder"), Some(ACCENT));
 }
 
 #[test]
-fn focused_unselected_folder_rows_paint_selected_fill() {
+fn focused_unselected_folder_rows_paint_outline_without_selected_fill() {
     let mut folder = visible_folder_for_tests(false);
     folder.focused = true;
 
@@ -110,15 +157,22 @@ fn focused_unselected_folder_rows_paint_selected_fill() {
         .expect("folder tree selected fill");
 
     assert!(
-        frame.paint_plan.fill_rects().any(|fill| {
-            fill.color == selected_fill && (fill.rect.height() - TREE_ROW_HEIGHT).abs() < 0.5
-        }),
-        "focused folder rows should paint the same base fill as selected source rows"
+        !frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == selected_fill)
+    );
+    let outline = crate::native_app::app_chrome::palette::focused_row_outline();
+    assert!(
+        frame
+            .paint_plan
+            .stroke_rects()
+            .any(|stroke| stroke.color == outline.color && stroke.width == outline.width)
     );
 }
 
 #[test]
-fn focused_selected_folder_rows_paint_selected_fill_without_hover_marker() {
+fn selected_folder_rows_paint_global_fill_and_persistent_marker() {
     let mut folder = visible_folder_for_tests(false);
     folder.focused = true;
     folder.selected = true;
@@ -128,10 +182,7 @@ fn focused_selected_folder_rows_paint_selected_fill_without_hover_marker() {
     let selected_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
         .selected
         .expect("folder tree selected fill");
-    let selected_hover_fill = folder_tree_palette_for_tests(&ui::ThemeTokens::default())
-        .selected_hovered
-        .expect("folder tree selected-hover fill");
-    let marker = folder_tree_selected_hover_marker();
+    let marker = selected_row_marker();
 
     assert!(
         frame
@@ -141,19 +192,29 @@ fn focused_selected_folder_rows_paint_selected_fill_without_hover_marker() {
         "focused selected folder rows should paint the base selected fill"
     );
     assert!(
-        !frame
-            .paint_plan
-            .fill_rects()
-            .any(|fill| fill.color == selected_hover_fill),
-        "focused selected folder rows should reserve selected-hover fill for pointer hover"
-    );
-    assert!(
-        !frame
+        frame
             .paint_plan
             .fill_rects()
             .any(|fill| fill.color == marker.color && fill.rect.width() == marker.parts.width),
-        "focused selected folder rows should reserve the selected-hover marker for pointer hover"
+        "selected folder rows should paint the shared leading marker without requiring hover"
     );
+}
+
+#[test]
+fn folder_labels_keep_space_after_the_selection_rail_and_disclosure_slot() {
+    let mut folder = visible_folder_for_tests(false);
+    folder.selected = true;
+
+    let frame = folder_row(&folder)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(220.0, TREE_ROW_HEIGHT));
+    let label = frame
+        .paint_plan
+        .first_text_rect("Folder")
+        .expect("folder label should paint");
+
+    let marker = selected_row_marker();
+    assert_eq!(label.min.x, FOLDER_LABEL_INSET_X + 2.0);
+    assert!(label.min.x - marker.parts.width >= 6.0);
 }
 
 #[test]

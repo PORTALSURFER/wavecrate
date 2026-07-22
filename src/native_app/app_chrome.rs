@@ -6,6 +6,7 @@ pub(in crate::native_app) mod layout;
 pub(in crate::native_app) mod library_browser;
 pub(in crate::native_app) mod metadata_tag_library;
 pub(in crate::native_app) mod modals;
+pub(in crate::native_app) mod palette;
 pub(in crate::native_app) mod sample_workspace;
 pub(in crate::native_app) mod scene;
 pub(in crate::native_app) mod settings;

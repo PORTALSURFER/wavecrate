@@ -12,6 +12,7 @@ use self::projection::{
 use crate::native_app::app::FolderScanProgress;
 use crate::native_app::app::{GuiMessage, NativeAppState};
 use crate::native_app::app_chrome::modals;
+use crate::native_app::app_chrome::palette::{DANGER, WARNING};
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel;
 use crate::native_app::app_chrome::view_models::status_bar::{StatusBarViewModel, StatusSeverity};
@@ -26,6 +27,7 @@ use radiant::widgets::{TextWidget, WidgetSizing};
 const STATUS_BAR_HEIGHT: f32 = 30.0;
 const STATUS_BAR_SEGMENT_HEIGHT: f32 = 20.0;
 const STATUS_BAR_LEFT_WIDTH: f32 = 120.0;
+const STATUS_BAR_LISTING_WIDTH: f32 = 310.0;
 const STATUS_BAR_SPACING: f32 = 8.0;
 const STATUS_BAR_PADDING_X: f32 = 12.0;
 const STATUS_BAR_PADDING_Y: f32 = 4.0;
@@ -33,8 +35,8 @@ const JOB_DETAILS_WIDTH: f32 = 680.0;
 const JOB_DETAILS_HEIGHT: f32 = 212.0;
 const JOB_DETAILS_ROW_HEIGHT: f32 = 20.0;
 const JOB_DETAILS_TOOLTIP_THRESHOLD: usize = 72;
-const SOURCE_MISSING_STATUS_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
-const SOURCE_PROCESSING_ACTIVITY_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 198, 116, 220);
+const SOURCE_MISSING_STATUS_COLOR: ui::Rgba8 = DANGER.with_alpha(230);
+const SOURCE_PROCESSING_ACTIVITY_COLOR: ui::Rgba8 = WARNING.with_alpha(220);
 const SOURCE_PROCESSING_ACTIVITY_HEIGHT: f32 = 2.0;
 const SOURCE_PROCESSING_ACTIVITY_CYCLES_PER_SECOND: f32 = 2.1;
 const SOURCE_PROCESSING_ACTIVITY_SEGMENT_FRACTION: f32 = 0.24;
@@ -51,6 +53,7 @@ pub(in crate::native_app) fn bottom_status_bar(model: StatusBarViewModel) -> ui:
     let projection = bottom_status_bar_projection(model);
     ui::row([
         status_segment(projection.selected_sample_count_label).width(STATUS_BAR_LEFT_WIDTH),
+        status_segment(projection.listed_audio_count_label).width(STATUS_BAR_LISTING_WIDTH),
         status_text_segment(projection.status_text, projection.status_severity).fill_width(),
         progress_bar::worker_progress_bar_from_projection(projection.worker_progress),
     ])
@@ -137,7 +140,7 @@ impl NativeAppState {
             .sin();
         let alpha = (28.0 + 26.0 * ((wave + 1.0) * 0.5)).round() as u8;
         WidgetPaint::new(primitives, SOURCE_PROCESSING_SOURCE_PULSE_ID)
-            .push_visible_fill_rect(bounds, ui::Rgba8::new(255, 151, 72, alpha));
+            .push_visible_fill_rect(bounds, WARNING.with_alpha(alpha));
     }
 }
 
@@ -307,6 +310,8 @@ mod tests {
     fn bottom_status_bar_paints_missing_source_status_as_warning() {
         let frame = bottom_status_bar(StatusBarViewModel {
             selected_sample_count: 0,
+            listed_audio_count: 0,
+            listing_includes_subfolders: false,
             status_text: String::from("Source missing | Ready"),
             status_severity: StatusSeverity::Warning,
             worker_progress: None,

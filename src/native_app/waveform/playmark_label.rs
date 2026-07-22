@@ -6,6 +6,8 @@ use radiant::{
     runtime::{PaintTextAlign, WidgetPaint},
 };
 
+use crate::native_app::app_chrome::palette::TEXT_PRIMARY;
+
 use crate::ui_formatting::{format_selection_duration, format_waveform_bpm_input};
 
 use super::{WaveformActiveDragKind, WaveformSelectionKind, WaveformWidget};
@@ -24,8 +26,8 @@ pub(super) const PLAYMARK_BEAT_TOGGLE_WIDTH: f32 = 28.0;
 pub(super) const PLAYMARK_BEAT_COUNT_WIDTH: f32 = 30.0;
 pub(super) const PLAYMARK_BEAT_CONTROL_GAP: f32 = 2.0;
 const PLAYMARK_LABEL_CONTROL_GAP: f32 = 4.0;
-const PLAYMARK_LABEL_BACKGROUND: Rgba8 = Rgba8::new(25, 18, 16, 214);
-const PLAYMARK_LABEL_TEXT: Rgba8 = Rgba8::new(255, 226, 210, 255);
+const PLAYMARK_LABEL_BACKGROUND: Rgba8 = Rgba8::new(24, 27, 28, 230);
+const PLAYMARK_LABEL_TEXT: Rgba8 = TEXT_PRIMARY;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum PlaymarkLabelPlacement {

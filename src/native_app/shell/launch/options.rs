@@ -37,6 +37,8 @@ fn native_run_options_with_startup_hidden(
             },
             behavior: NativeWindowBehavior {
                 drag_and_drop: true,
+                integrated_titlebar: true,
+                integrated_titlebar_drag_region_height: Some(38.0),
                 maximized: true,
                 reveal_after_surface_setup: !startup_hidden,
                 ..NativeWindowBehavior::default()
@@ -75,6 +77,7 @@ mod tests {
 
         assert!(options.window.behavior.maximized);
         assert!(options.window.behavior.decorations);
+        assert!(options.window.behavior.integrated_titlebar);
         assert_eq!(options.window.title, default_window_title());
     }
 

@@ -12,6 +12,7 @@ pub(in crate::native_app) struct SampleCollectionView {
     pub(in crate::native_app) name: String,
     pub(in crate::native_app) color: Rgba8,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) drop_target: bool,
     pub(in crate::native_app) drag_active: bool,
     pub(in crate::native_app) assigned_count: usize,

@@ -1,4 +1,5 @@
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::palette::{ACCENT, ACCENT_SOFT};
 #[cfg(test)]
 use crate::native_app::app_chrome::view_models::status_bar::WorkerProgressViewModel;
 use crate::native_app::ui::ids::WORKER_PROGRESS_ROOT_ID;
@@ -83,10 +84,7 @@ fn overall_progress_bar(
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {
     ui::progress_bar_for_snapshot(progress, progress_tick)
-        .colors(
-            ui::Rgba8::new(48, 50, 51, 210),
-            ui::Rgba8::new(255, 112, 86, 210),
-        )
+        .colors(ui::Rgba8::new(48, 50, 51, 210), ACCENT.with_alpha(210))
         .max_track_height(OVERALL_TRACK_HEIGHT)
         .activatable()
         .message(GuiMessage::ToggleJobDetails)
@@ -94,10 +92,7 @@ fn overall_progress_bar(
 
 fn source_processing_activity_track() -> ui::View<GuiMessage> {
     ui::determinate_progress_bar(0.0)
-        .colors(
-            ui::Rgba8::new(48, 50, 51, 210),
-            ui::Rgba8::new(255, 112, 86, 210),
-        )
+        .colors(ui::Rgba8::new(48, 50, 51, 210), ACCENT.with_alpha(210))
         .max_track_height(OVERALL_TRACK_HEIGHT)
         .activatable()
         .message(GuiMessage::ToggleJobDetails)
@@ -108,10 +103,7 @@ fn active_worker_activity_bar(
     progress_tick: f32,
 ) -> ui::View<GuiMessage> {
     let activity = ui::indeterminate_progress_bar(progress_tick)
-        .colors(
-            ui::Rgba8::new(0, 0, 0, 0),
-            ui::Rgba8::new(255, 198, 116, 210),
-        )
+        .colors(ui::Rgba8::new(0, 0, 0, 0), ACCENT_SOFT.with_alpha(210))
         .max_track_height(ACTIVITY_HIGHLIGHT_HEIGHT)
         .activatable()
         .message(GuiMessage::ToggleJobDetails)
@@ -120,10 +112,7 @@ fn active_worker_activity_bar(
         .height(ACTIVE_PROGRESS_HEIGHT);
     let Some(current_fraction) = current_fraction else {
         return ui::indeterminate_progress_bar(progress_tick)
-            .colors(
-                ui::Rgba8::new(48, 50, 51, 190),
-                ui::Rgba8::new(255, 198, 116, 210),
-            )
+            .colors(ui::Rgba8::new(48, 50, 51, 190), ACCENT_SOFT.with_alpha(210))
             .max_track_height(ACTIVE_TRACK_HEIGHT)
             .activatable()
             .message(GuiMessage::ToggleJobDetails)
@@ -132,10 +121,7 @@ fn active_worker_activity_bar(
     };
     ui::stack([
         ui::determinate_progress_bar(current_fraction)
-            .colors(
-                ui::Rgba8::new(48, 50, 51, 190),
-                ui::Rgba8::new(255, 112, 86, 155),
-            )
+            .colors(ui::Rgba8::new(48, 50, 51, 190), ACCENT.with_alpha(155))
             .max_track_height(ACTIVE_TRACK_HEIGHT)
             .activatable()
             .message(GuiMessage::ToggleJobDetails)

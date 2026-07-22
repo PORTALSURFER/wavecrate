@@ -11,6 +11,10 @@ use super::{
 impl FolderBrowserState {
     pub(in crate::native_app) fn visible_collections(&self) -> Vec<SampleCollectionView> {
         let counts = self.collection_counts();
+        let focused_collection = (self.keyboard_focus_visible()
+            && self.collection_keyboard_focus_active())
+        .then_some(self.selection.selected_collection)
+        .flatten();
         self.collection_panel
             .collections
             .iter()
@@ -20,6 +24,7 @@ impl FolderBrowserState {
                 name: collection.name.clone(),
                 color: collection.color,
                 selected: self.selection.selected_collection == Some(collection.collection),
+                focused: focused_collection == Some(collection.collection),
                 drop_target: self
                     .drag_drop
                     .drop_target

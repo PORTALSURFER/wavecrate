@@ -13,7 +13,8 @@ pub(in crate::native_app) fn shell(state: &NativeAppState) -> ui::View<GuiMessag
         .leading_sidebar(library_sidebar_region(state).overlays(library_sidebar_overlays(state)))
         .status_bar(bottom_status_area(state))
         .overlays(sample_workspace_overlays(state))
-        .outer_spacing(0.0);
+        .outer_spacing(0.0)
+        .workspace_spacing(0.0);
 
     if metadata_tag_library_region_visible(state) {
         shell = shell.leading_sidebar(metadata_tag_library_region(state));

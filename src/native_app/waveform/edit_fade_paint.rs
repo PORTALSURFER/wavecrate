@@ -4,12 +4,14 @@ use radiant::{
     runtime::{PaintPrimitive, WidgetPaint},
 };
 
+use crate::native_app::app_chrome::palette::COOL_SELECTION;
+
 use super::{
     WaveformWidget,
     edit_fade_geometry::{EDIT_FADE_HANDLE_SIZE, waveform_edit_fade_handle},
 };
 
-const EDIT_FADE_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
+const EDIT_FADE_COLOR: Rgba8 = COOL_SELECTION;
 const EDIT_FADE_HANDLE_HOVER_ALPHA: u8 = 255;
 
 impl WaveformWidget {

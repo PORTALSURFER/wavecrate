@@ -12,6 +12,7 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
+        self.show_keyboard_focus();
         self.navigate_selected_collection(delta);
         if self.collection_keyboard_focus_active() {
             return None;
@@ -33,6 +34,7 @@ impl FolderBrowserState {
         if delta == 0 || self.rename_active() {
             return None;
         }
+        self.show_keyboard_focus();
         if self.collection_keyboard_focus_active() {
             self.navigate_selected_collection(delta);
             return None;
@@ -60,6 +62,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::native_app) fn collapse_selected_folder(&mut self) -> bool {
+        self.show_keyboard_focus();
         if self.rename_active() || self.selection.selected_collection.is_some() {
             return false;
         }
@@ -77,6 +80,7 @@ impl FolderBrowserState {
 
     #[cfg(test)]
     pub(in crate::native_app) fn expand_selected_folder(&mut self) -> bool {
+        self.show_keyboard_focus();
         if self.rename_active() || self.selection.selected_collection.is_some() {
             return false;
         }
@@ -118,6 +122,9 @@ impl FolderBrowserState {
         extend: bool,
         preserve_selection: bool,
     ) -> bool {
+        if delta != 0 {
+            self.show_keyboard_focus();
+        }
         let previous_folder_id = self.selection.selected_folder.clone();
         let folders = self.visible_folders();
         let folder_ids = folders
@@ -159,6 +166,9 @@ impl FolderBrowserState {
         extend: bool,
         file_ids: &[String],
     ) -> Option<String> {
+        if delta != 0 {
+            self.show_keyboard_focus();
+        }
         self.selection.navigate_file(delta, extend, file_ids)
     }
 

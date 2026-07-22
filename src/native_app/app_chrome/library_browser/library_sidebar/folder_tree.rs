@@ -57,7 +57,6 @@ fn folder_tree_window(
     .overscan_px(TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32)
     .on_window_changed(GuiMessage::FolderTreeWindowChanged)
     .view()
-    .style(ui::WidgetStyle::default())
     .fill_height()
 }
 

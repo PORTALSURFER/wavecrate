@@ -8,6 +8,10 @@ use radiant::{
     runtime::{PaintPrimitive, WidgetPaint},
 };
 
+use crate::native_app::app_chrome::palette::{
+    ACCENT, ACCENT_SOFT, COOL_SELECTION, DANGER, PALE_MARKER,
+};
+
 use super::{
     DENIED_SELECTION_FLASH_FRAMES, DENIED_SELECTION_FLASH_PULSE_FRAMES, WaveformActiveDragKind,
     WaveformSelectionKind, WaveformWidget,
@@ -37,14 +41,14 @@ const SIMILAR_SECTION_FILL: Rgba8 = Rgba8::new(114, 235, 184, 54);
 const SIMILAR_SECTION_RAIL: Rgba8 = Rgba8::new(155, 255, 218, 210);
 const SIMILAR_SECTION_HOVER_FILL: Rgba8 = Rgba8::new(156, 255, 218, 92);
 const SIMILAR_SECTION_HOVER_RAIL: Rgba8 = Rgba8::new(219, 255, 240, 255);
-const PLAY_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 142, 92, 255);
-const EDIT_SELECTION_COLOR: Rgba8 = Rgba8::new(82, 168, 255, 255);
-const DENIED_SELECTION_COLOR: Rgba8 = Rgba8::new(255, 72, 82, 255);
-const BEAT_GUIDE_COLOR: Rgba8 = Rgba8::new(255, 214, 188, 170);
-const PLAY_START_MARKER_COLOR: Rgba8 = Rgba8::new(204, 255, 255, 245);
-const PLAYHEAD_COLOR: Rgba8 = Rgba8::new(71, 220, 255, 245);
-const HOVER_CURSOR_COLOR: Rgba8 = Rgba8::new(255, 255, 255, 210);
-const PLAY_HANDLE_ACTION_HOVER_COLOR: Rgba8 = Rgba8::new(255, 202, 112, 255);
+const PLAY_SELECTION_COLOR: Rgba8 = ACCENT_SOFT;
+const EDIT_SELECTION_COLOR: Rgba8 = COOL_SELECTION;
+const DENIED_SELECTION_COLOR: Rgba8 = DANGER;
+const BEAT_GUIDE_COLOR: Rgba8 = PALE_MARKER.with_alpha(150);
+const PLAY_START_MARKER_COLOR: Rgba8 = ACCENT.with_alpha(245);
+const PLAYHEAD_COLOR: Rgba8 = PALE_MARKER.with_alpha(210);
+const HOVER_CURSOR_COLOR: Rgba8 = PALE_MARKER.with_alpha(190);
+const PLAY_HANDLE_ACTION_HOVER_COLOR: Rgba8 = ACCENT_SOFT;
 const PLAY_HANDLE_DRAG_GHOST_ALPHA: u8 = 178;
 const HANDLE_HOVER_ALPHA: u8 = 255;
 const EDIT_RESIZE_HANDLE_ALPHA: u8 = 190;

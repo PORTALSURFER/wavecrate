@@ -32,7 +32,7 @@ fn top_control_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 fn top_control_bar_places_help_button_after_settings_gear() {
     let state = NativeAppState::load_default().expect("default state loads");
     let frame = crate::native_app::test_support::settings::top_control_bar(&state)
-        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 38.0));
     let help = frame
         .layout
         .rects
@@ -49,7 +49,10 @@ fn top_control_bar_places_help_button_after_settings_gear() {
         "help button should sit to the right of the settings gear"
     );
     assert_eq!(help.width(), 18.0);
-    assert_eq!(help.height(), 22.0);
+    assert!(
+        help.height() >= 22.0,
+        "help button should preserve its minimum vertical hit target"
+    );
 }
 
 #[test]

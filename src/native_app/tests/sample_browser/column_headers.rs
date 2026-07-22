@@ -153,7 +153,7 @@ fn sample_browser_column_drag_paints_drop_marker() {
         .view_frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
 
     assert!(frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == Rgba8::new(255, 160, 82, 230)
+        fill.color == Rgba8::new(233, 88, 67, 230)
             && fill.rect.width() <= 2.5
             && fill.rect.height() >= 20.0
     }));

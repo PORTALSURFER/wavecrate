@@ -21,6 +21,7 @@ use std::{
 use crate::native_app::app::{
     GuiMessage, StarmapAuditionDragState, StarmapViewport, StarmapViewportChange,
 };
+use crate::native_app::app_chrome::palette::{ACCENT, TEXT_PRIMARY};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::sample_library::folder_browser::starmap::{
     StarmapItem, StarmapStatus, starmap_cluster_palette_color,
@@ -64,8 +65,8 @@ const MAP_DENSE_OVERVIEW_MAX_ZOOM: f32 = 1.35;
 const MAP_DENSE_OVERVIEW_GRID_SIZE: i32 = 72;
 const MAP_DENSE_OVERVIEW_NODE_SIZE: f32 = 3.6;
 const MAP_DENSE_OVERVIEW_NODE_SIZE_MAX: f32 = 6.8;
-const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(236, 239, 242, 255);
-const MAP_CONTROL_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
+const MAP_CONTROL_ICON_ENABLED_COLOR: ui::Rgba8 = TEXT_PRIMARY;
+const MAP_CONTROL_ICON_ACTIVE_COLOR: ui::Rgba8 = ACCENT;
 const MAP_CONTROL_ICON_TINTS: ui::SvgIconTintPalette = ui::SvgIconTintPalette::new(
     MAP_CONTROL_ICON_ENABLED_COLOR,
     MAP_CONTROL_ICON_ACTIVE_COLOR,
@@ -628,7 +629,7 @@ impl Widget for StarmapWidget {
             primitives,
             self.common.id,
             bounds,
-            ui::Rgba8::new(8, 9, 10, 255),
+            ui::Rgba8::new(21, 24, 25, 255),
         );
         append_cached_items_paint(
             primitives,

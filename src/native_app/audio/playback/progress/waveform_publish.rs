@@ -2,6 +2,7 @@ use super::super::{
     diagnostics::{PlayheadOverlayFrameDiagnostics, PlayheadProgressSource},
     loop_control::PlayheadProgressProjection,
 };
+use crate::native_app::app_chrome::palette::PALE_MARKER;
 use crate::native_app::{
     app::{NativeAppState, SamplePlaybackSession, SamplePlaybackSessionState},
     waveform::{
@@ -13,12 +14,7 @@ use radiant::{
     runtime::{PaintPrimitive, TransientOverlayContext, WidgetPaint},
 };
 
-const PLAYBACK_CURSOR_COLOR: Rgba8 = Rgba8 {
-    r: 71,
-    g: 220,
-    b: 255,
-    a: 245,
-};
+const PLAYBACK_CURSOR_COLOR: Rgba8 = PALE_MARKER.with_alpha(210);
 const PLAYBACK_CURSOR_WIDTH: f32 = 2.0;
 const LOADING_BACKGROUND_COLOR: Rgba8 = Rgba8 {
     r: 22,

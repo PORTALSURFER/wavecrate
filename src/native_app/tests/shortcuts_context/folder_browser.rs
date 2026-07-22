@@ -180,6 +180,7 @@ fn source_arrow_action_selects_the_adjacent_source_through_app_dispatch() {
         "source-b"
     );
     assert!(state.library.folder_browser.source_keyboard_focus_active());
+    assert!(state.library.folder_browser.source_keyboard_focus_visible());
 }
 
 fn state_with_deferred_sources() -> NativeAppState {

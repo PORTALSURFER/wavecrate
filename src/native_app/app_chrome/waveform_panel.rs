@@ -28,8 +28,7 @@ pub(in crate::native_app) fn waveform_panel(
         waveform_viewport_with_loading_state(&model),
         waveform_scrollbar(model.waveform),
     ])
-    .spacing(1.0)
-    .style(ui::WidgetStyle::default())
+    .spacing(0.0)
     .fill_width()
     .height(WAVEFORM_PANEL_HEIGHT)
 }

@@ -16,15 +16,15 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
     ] {
         assert_eq!(
             crate::native_app::test_support::toolbar::toolbar_icon_color(true, false),
-            radiant::prelude::Rgba8::new(238, 238, 238, 255)
+            radiant::prelude::Rgba8::new(216, 215, 211, 255)
         );
         assert_eq!(
             crate::native_app::test_support::toolbar::toolbar_icon_color(true, true),
-            radiant::prelude::Rgba8::new(255, 160, 82, 255)
+            radiant::prelude::Rgba8::new(233, 88, 67, 255)
         );
         assert_eq!(
             crate::native_app::test_support::toolbar::toolbar_icon_color(false, false),
-            radiant::prelude::Rgba8::new(145, 145, 145, 255)
+            radiant::prelude::Rgba8::new(153, 155, 154, 255)
         );
         let mut primitives = Vec::new();
         crate::native_app::test_support::toolbar::toolbar_icon_glyph(icon, true, false)
@@ -148,6 +148,30 @@ fn main_toolbar_does_not_paint_empty_spacer_border() {
             .contains_paint_rect_matching(|rect| rect.width() > 100.0 && rect.height() >= 20.0),
         "empty toolbar spacer should not paint or reserve a large visible rectangle"
     );
+}
+
+#[test]
+fn play_and_stop_form_a_tight_cluster_separated_from_utilities() {
+    let state = NativeAppState::load_default().expect("default state loads");
+    let frame = crate::native_app::test_support::toolbar::main_toolbar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(664.0, 34.0));
+    let random = frame
+        .paint_plan
+        .first_widget_rect(crate::native_app::test_support::toolbar::TOOLBAR_RANDOM_ID)
+        .expect("random utility button");
+    let play = frame
+        .paint_plan
+        .first_widget_rect(crate::native_app::ui::ids::TOOLBAR_PLAY_ID)
+        .expect("play button");
+    let stop = frame
+        .paint_plan
+        .first_widget_rect(crate::native_app::test_support::toolbar::TOOLBAR_STOP_ID)
+        .expect("stop button");
+
+    let playback_center_gap = stop.center().x - play.center().x;
+    let utility_center_gap = play.center().x - random.center().x;
+    assert_eq!(playback_center_gap, 30.0);
+    assert!(utility_center_gap > playback_center_gap);
 }
 
 #[test]

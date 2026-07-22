@@ -1,5 +1,5 @@
 use radiant::{
-    gui::types::{Rect, Rgba8},
+    gui::types::Rect,
     gui::visualization::TimelineEditPreview,
     layout::LayoutOutput,
     prelude as ui,
@@ -10,6 +10,8 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput},
 };
+
+use crate::native_app::app_chrome::palette::ACCENT_SOFT;
 use std::sync::Arc;
 
 use crate::native_app::app::GuiMessage;
@@ -616,7 +618,7 @@ impl WaveformWidget {
             primitives,
             self.common.id,
             strip,
-            Rgba8::new(255, 202, 112, 120),
+            ACCENT_SOFT.with_alpha(120),
         );
         let width = ((frame_offset.unsigned_abs() as f32 / self.viewport.visible_items() as f32)
             * bounds.width())
@@ -631,7 +633,7 @@ impl WaveformWidget {
             primitives,
             self.common.id,
             Rect::from_xy_size(x, strip.min.y, width, strip.height()),
-            Rgba8::new(255, 202, 112, 210),
+            ACCENT_SOFT.with_alpha(210),
         );
     }
 

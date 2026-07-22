@@ -27,6 +27,7 @@ fn collection_view(drag_active: bool, drop_target: bool) -> SampleCollectionView
             a: 240,
         },
         selected: false,
+        focused: false,
         drop_target,
         drag_active,
         assigned_count: 0,
@@ -98,6 +99,38 @@ fn collection_rows_use_shared_grey_sidebar_hover_fill() {
     assert_eq!(
         sidebar_row_palette_for_tests().hovered,
         Some(sidebar_row_hover_fill_for_tests())
+    );
+}
+
+#[test]
+fn focused_selected_collection_layers_global_selection_and_focus_chrome() {
+    let mut collection = collection_view(false, false);
+    collection.selected = true;
+    collection.focused = true;
+    let row = CollectionRowViewModel {
+        collection,
+        rename: None,
+    };
+    let frame = collection_row(&row)
+        .view_frame_at_size_with_default_theme(ui::Vector2::new(180.0, COLLECTION_ROW_HEIGHT));
+    let outline = crate::native_app::app_chrome::palette::focused_row_outline();
+    let marker = crate::native_app::app_chrome::palette::selected_row_trailing_marker();
+
+    assert_eq!(
+        frame.paint_plan.first_text_color("1  Collection 1"),
+        Some(crate::native_app::app_chrome::palette::ACCENT)
+    );
+    assert!(
+        frame
+            .paint_plan
+            .stroke_rects()
+            .any(|stroke| stroke.color == outline.color)
+    );
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| fill.color == marker.color && fill.rect.max.x == 180.0)
     );
 }
 

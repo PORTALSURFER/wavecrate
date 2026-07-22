@@ -41,6 +41,7 @@ pub(super) fn filter_section(model: &FilterSectionViewModel) -> ui::View<GuiMess
         .header_id(FILTER_RESIZE_HEADER_ID)
         .height(model.panel_height)
         .padding(FILTER_PANEL_PADDING)
+        .without_chrome()
         .spacing(FILTER_PANEL_HEADER_CONTENT_SPACING),
     )
     .fill_width();
@@ -62,7 +63,6 @@ fn filter_controls(model: &FilterSectionViewModel) -> ui::View<GuiMessage> {
             .height(FILTER_CONTROLS_CONTENT_HEIGHT)
             .spacing(FILTER_ROW_SPACING),
     )
-    .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
     .id(FILTER_SECTION_SCROLL_NODE_ID)
     .fill_width()
     .fill_height()

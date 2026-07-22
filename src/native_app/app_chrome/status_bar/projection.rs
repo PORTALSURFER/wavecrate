@@ -10,6 +10,7 @@ use radiant::prelude as ui;
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct BottomStatusBarProjection {
     pub(super) selected_sample_count_label: String,
+    pub(super) listed_audio_count_label: String,
     pub(super) status_text: String,
     pub(super) status_severity: StatusSeverity,
     pub(super) worker_progress: WorkerProgressBarProjection,
@@ -47,6 +48,10 @@ pub(super) struct JobDetailsPopoverProjection {
 pub(super) fn bottom_status_bar_projection(model: StatusBarViewModel) -> BottomStatusBarProjection {
     BottomStatusBarProjection {
         selected_sample_count_label: selected_sample_count_label(model.selected_sample_count),
+        listed_audio_count_label: listed_audio_count_label(
+            model.listed_audio_count,
+            model.listing_includes_subfolders,
+        ),
         status_text: model.status_text,
         status_severity: model.status_severity,
         worker_progress: WorkerProgressBarProjection::from_progress(
@@ -110,6 +115,18 @@ fn selected_sample_count_label(count: usize) -> String {
     format!("{count} sample{}", if count == 1 { "" } else { "s" })
 }
 
+fn listed_audio_count_label(count: usize, includes_subfolders: bool) -> String {
+    let scope = if includes_subfolders {
+        "selected folder + subfolders"
+    } else {
+        "selected folder"
+    };
+    format!(
+        "Listed {count} audio file{} in {scope}",
+        if count == 1 { "" } else { "s" }
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,6 +144,18 @@ mod tests {
         assert_eq!(
             projection_for_count(2).selected_sample_count_label,
             "2 samples"
+        );
+    }
+
+    #[test]
+    fn bottom_status_projection_formats_listing_summary_and_scope() {
+        assert_eq!(
+            listed_audio_count_label(1, false),
+            "Listed 1 audio file in selected folder"
+        );
+        assert_eq!(
+            listed_audio_count_label(2, true),
+            "Listed 2 audio files in selected folder + subfolders"
         );
     }
 
@@ -298,6 +327,8 @@ mod tests {
     fn projection_for_count(count: usize) -> BottomStatusBarProjection {
         bottom_status_bar_projection(StatusBarViewModel {
             selected_sample_count: count,
+            listed_audio_count: 0,
+            listing_includes_subfolders: false,
             status_text: "Ready".to_string(),
             status_severity: StatusSeverity::Normal,
             worker_progress: None,

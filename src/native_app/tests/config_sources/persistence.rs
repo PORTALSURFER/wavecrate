@@ -259,7 +259,7 @@ fn source_reorder_quick_drag_paints_feedback_commits_and_persists() {
         text.text == "Alpha" && text.rect.min.x >= destination.x && text.rect.min.y >= destination.y
     }));
     assert!(dragging_frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == radiant::prelude::Rgba8::new(255, 160, 82, 230)
+        fill.color == radiant::prelude::Rgba8::new(233, 88, 67, 230)
             && fill.rect.width() >= 150.0
             && fill.rect.height() <= 2.5
     }));
@@ -292,7 +292,7 @@ fn source_reorder_quick_drag_paints_feedback_commits_and_persists() {
         text.text == "Alpha" && text.rect.min.x >= destination.x && text.rect.min.y >= destination.y
     }));
     assert!(!dropped_frame.paint_plan.fill_rects().any(|fill| {
-        fill.color == radiant::prelude::Rgba8::new(255, 160, 82, 230)
+        fill.color == radiant::prelude::Rgba8::new(233, 88, 67, 230)
             && fill.rect.width() >= 150.0
             && fill.rect.height() <= 2.5
     }));

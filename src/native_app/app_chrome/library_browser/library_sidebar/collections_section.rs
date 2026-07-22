@@ -34,7 +34,6 @@ pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::Vi
                     .fill_width()
                     .height(model.list_height),
             )
-            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .id(COLLECTIONS_LIST_SCROLL_NODE_ID)
             .fill_width()
             .fill_height(),
@@ -45,6 +44,7 @@ pub(super) fn collections_section(model: &CollectionsSectionViewModel) -> ui::Vi
         .header_id(COLLECTIONS_RESIZE_HEADER_ID)
         .padding(COLLECTIONS_PANEL_PADDING)
         .spacing(COLLECTIONS_PANEL_HEADER_CONTENT_SPACING)
+        .without_chrome()
         .height(model.panel_height),
     )
     .id(COLLECTIONS_SECTION_NODE_ID)

@@ -35,6 +35,36 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
 }
 
 #[test]
+fn folder_tree_and_sample_list_share_one_pixel_boundary() {
+    let tempdir = tempfile::tempdir().expect("create temp root");
+    let root = tempdir.path().join("wavecrate-pane-boundary");
+    fs::create_dir_all(&root).expect("create source root");
+    fs::write(root.join("sample.wav"), []).expect("write sample");
+    let state = NativeAppStateFixture::default()
+        .with_synthetic_waveform()
+        .with_folder_browser(FolderBrowserState::from_root(root))
+        .build();
+    let runtime = native_runtime_for_tests(state, Vector2::new(900.0, 620.0));
+    let tree = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::ui::ids::FOLDER_TREE_LIST_ID)
+        .copied()
+        .expect("folder tree list should be laid out");
+    let samples = runtime
+        .layout()
+        .rects
+        .get(&crate::native_app::sample_library::sample_list::SAMPLE_BROWSER_LIST_ID)
+        .copied()
+        .expect("sample list should be laid out");
+
+    assert!(
+        (samples.min.x - tree.max.x - 1.0).abs() < 0.01,
+        "the resize divider should be the only column between panes: tree={tree:?}, samples={samples:?}"
+    );
+}
+
+#[test]
 fn keyboard_folder_navigation_keeps_selected_folder_in_tree_view() {
     let tempdir = tempfile::tempdir().expect("create temp root");
     let root = tempdir.path().join("wavecrate-folder-keyboard-follow");

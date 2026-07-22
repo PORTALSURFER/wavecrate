@@ -1,13 +1,14 @@
 use radiant::prelude as ui;
 
 use crate::native_app::app::GuiMessage;
+use crate::native_app::app_chrome::palette::{ACCENT, DANGER, TEXT_MUTED, TEXT_PRIMARY};
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
 use crate::native_app::ui::ids as widget_ids;
 
-const ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
-const ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(220, 225, 232, 255);
-const ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(104, 110, 118, 255);
-const SOURCE_MISSING_STATUS_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
+const ICON_ACTIVE_COLOR: ui::Rgba8 = ACCENT;
+const ICON_ENABLED_COLOR: ui::Rgba8 = TEXT_PRIMARY;
+const ICON_DISABLED_COLOR: ui::Rgba8 = TEXT_MUTED;
+const SOURCE_MISSING_STATUS_COLOR: ui::Rgba8 = DANGER.with_alpha(230);
 const STATUS_ICON_TINTS: ui::SvgIconTintPalette =
     ui::SvgIconTintPalette::new(ICON_ENABLED_COLOR, ICON_ACTIVE_COLOR, ICON_DISABLED_COLOR);
 

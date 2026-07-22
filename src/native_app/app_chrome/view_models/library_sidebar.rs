@@ -39,6 +39,7 @@ pub(in crate::native_app) struct SourceRowViewModel {
     pub(in crate::native_app) label: String,
     pub(in crate::native_app) role: SourceRole,
     pub(in crate::native_app) selected: bool,
+    pub(in crate::native_app) focused: bool,
     pub(in crate::native_app) reorder_enabled: bool,
     pub(in crate::native_app) reorder_drag_active: bool,
     pub(in crate::native_app) reorder_drag_source: bool,
@@ -274,6 +275,8 @@ impl SourceRowViewModel {
             label: source.label.clone(),
             role: source.role,
             selected: selected_source_id == source.id,
+            focused: selected_source_id == source.id
+                && folder_browser.source_keyboard_focus_visible(),
             reorder_enabled: folder_browser.source_reorder_enabled(&source.id),
             reorder_drag_active: folder_browser.source_reorder_drag_active(),
             reorder_drag_source,

@@ -3,7 +3,7 @@ use super::super::cells::{
     LOCKED_KEEP_RATING_MARKER_SIDE, RATING_MARKER_SIDE, SIMILARITY_ASPECT_DISABLED_TRACK,
     SIMILARITY_SCORE_FILL, muted_sample_file_cell, sample_collection_cell, sample_file_cell,
     sample_harvest_badge_cell, sample_playback_type_cell, sample_rating_cell,
-    sample_similarity_cell,
+    sample_similarity_cell, selected_sample_name_cell_for_tests,
 };
 use super::super::row_widgets::RatingIndicator;
 use super::super::similarity_aspect_color;
@@ -115,6 +115,20 @@ fn sample_text_uses_primary_theme_color() {
             .text_runs()
             .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
         "sample rows should not express loaded/cache state through text color"
+    );
+}
+
+#[test]
+fn selected_sample_name_uses_global_accent_color() {
+    let theme = ThemeTokens::default();
+    let frame = selected_sample_name_cell_for_tests(String::from("kick_deep"), 120.0)
+        .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
+
+    assert!(
+        frame.paint_plan.text_runs().any(|run| {
+            run.text == "kick_deep" && run.color == crate::native_app::app_chrome::palette::ACCENT
+        }),
+        "selected sample names should use the same coral accent as selected source and folder labels"
     );
 }
 

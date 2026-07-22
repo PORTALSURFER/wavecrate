@@ -5,6 +5,11 @@ use super::identity::{
 };
 use crate::native_app::app::GuiMessage;
 use crate::native_app::app_chrome::library_browser::library_sidebar::sidebar_row::sidebar_row_underlay;
+#[cfg(test)]
+use crate::native_app::app_chrome::palette::SELECTED_ROW_FILL;
+use crate::native_app::app_chrome::palette::{
+    ACCENT, DANGER, ListItemState, TEXT_PRIMARY, WARNING,
+};
 use crate::native_app::app_chrome::toolbar::toolbar_icon_color;
 use crate::native_app::app_chrome::view_models::library_sidebar::SourceRowViewModel;
 use crate::native_app::sample_library::folder_browser::commands::FolderBrowserMessage;
@@ -12,24 +17,22 @@ pub(super) use crate::native_app::sample_library::folder_browser::view_contract:
 use wavecrate::sample_sources::SourceRole;
 
 pub(super) const SOURCE_ROW_LABEL_PADDING_X: f32 = 12.0;
+pub(super) const SOURCE_ROW_INSET_X: f32 = 12.0;
 pub(super) const SOURCE_ADD_BUTTON_WIDTH: f32 = 28.0;
 pub(super) const SOURCE_ADD_BUTTON_HEIGHT: f32 = 24.0;
 const SOURCE_ROLE_ICON_WIDTH: f32 = 32.0;
 const SOURCE_MISSING_BADGE_WIDTH: f32 = 56.0;
-const SOURCE_MISSING_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 112, 86, 230);
-const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 255);
-const SOURCE_PROTECTED_ERROR_ICON_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 255);
-const SOURCE_PROTECTED_ERROR_FILL: ui::Rgba8 = ui::Rgba8::new(255, 69, 54, 145);
-const SOURCE_PROTECTED_ERROR_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(255, 82, 62, 175);
+const SOURCE_MISSING_COLOR: ui::Rgba8 = DANGER.with_alpha(230);
+const SOURCE_ROLE_ICON_COLOR: ui::Rgba8 = TEXT_PRIMARY;
+const SOURCE_PROTECTED_ERROR_ICON_COLOR: ui::Rgba8 = DANGER;
+const SOURCE_PROTECTED_ERROR_FILL: ui::Rgba8 = DANGER.with_alpha(145);
+const SOURCE_PROTECTED_ERROR_HOVER_FILL: ui::Rgba8 = DANGER.with_alpha(175);
 const SOURCE_ACCEPTANCE_FILL: ui::Rgba8 = ui::Rgba8::new(76, 217, 100, 92);
 const SOURCE_ACCEPTANCE_HOVER_FILL: ui::Rgba8 = ui::Rgba8::new(86, 227, 110, 122);
-const SOURCE_ROW_OUTLINE_INSET: f32 = 0.5;
-const SOURCE_ROW_OUTLINE_WIDTH: f32 = 1.0;
-const SOURCE_ROW_OUTLINE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 255, 255, 30);
-const SOURCE_PROCESSING_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 151, 72, 230);
+const SOURCE_PROCESSING_MARKER_COLOR: ui::Rgba8 = WARNING.with_alpha(230);
 const SOURCE_PROCESSING_FILL_ALPHA: u8 = 48;
 const SOURCE_PROCESSING_HOVER_ALPHA_BOOST: u8 = 24;
-const SOURCE_REORDER_MARKER_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 230);
+const SOURCE_REORDER_MARKER_COLOR: ui::Rgba8 = ACCENT.with_alpha(230);
 const SOURCE_REORDER_MARKER_WIDTH: f32 = 2.0;
 const SOURCE_ADD_BUTTON_TOOLTIP: &str = "Add source";
 
@@ -47,7 +50,7 @@ fn source_add_icon() -> ui::SvgIcon {
 
 pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let visual = source_row_content(source);
-    let row = sidebar_row_underlay(visual)
+    let row = sidebar_row_underlay(visual, ListItemState::new(source.selected, source.focused))
         .tracked_drop_candidate(
             source.drag_active,
             source.drop_target,
@@ -64,8 +67,7 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
                 || source.protected_source_error_flash
                 || source.primary_source_acceptance_flash,
         )
-        .leading_marker_if(source.processing, source_processing_marker())
-        .outline(source_row_outline());
+        .leading_marker_if(source.processing, source_processing_marker());
     let row = if source.reorder_enabled {
         row.tracked_drag_source_with_motion(
             source.drag_active || source.reorder_drag_active,
@@ -119,13 +121,22 @@ pub(super) fn source_row(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
         )
         .fill_width()
         .height(SOURCE_ROW_HEIGHT);
-    if source.reorder_drop_target {
+    let row = if source.reorder_drop_target {
         ui::stack([row, source_reorder_marker(source.reorder_drop_after)])
             .fill_width()
             .height(SOURCE_ROW_HEIGHT)
     } else {
         row
-    }
+    };
+    ui::row([
+        ui::spacer()
+            .width(SOURCE_ROW_INSET_X)
+            .height(SOURCE_ROW_HEIGHT),
+        row,
+    ])
+    .spacing(0.0)
+    .fill_width()
+    .height(SOURCE_ROW_HEIGHT)
 }
 
 fn source_reorder_marker(after: bool) -> ui::View<GuiMessage> {
@@ -170,6 +181,8 @@ fn source_label(source: &SourceRowViewModel) -> ui::View<GuiMessage> {
     let label = ui::text_line(source_row_label(source), SOURCE_ROW_HEIGHT).fill_width();
     if source.missing {
         label.text_color(ui::TextColorRole::Custom(SOURCE_MISSING_COLOR))
+    } else if source.selected || source.focused {
+        label.text_color(ui::TextColorRole::Custom(ACCENT))
     } else {
         label
     }
@@ -212,14 +225,6 @@ fn source_role_icon(
         .passive()
         .width(SOURCE_ROLE_ICON_WIDTH)
         .height(SOURCE_ROW_HEIGHT)
-}
-
-fn source_row_outline() -> ui::DenseRowOutlineStyle {
-    ui::DenseRowOutlineStyle::new(
-        SOURCE_ROW_OUTLINE_INSET,
-        SOURCE_ROW_OUTLINE_COLOR,
-        SOURCE_ROW_OUTLINE_WIDTH,
-    )
 }
 
 fn source_processing_marker() -> ui::DenseRowMarkerStyle {
@@ -284,8 +289,13 @@ pub(super) fn source_role_icon_color_for_source_for_tests(
 }
 
 #[cfg(test)]
-pub(super) fn source_row_outline_for_tests() -> ui::DenseRowOutlineStyle {
-    source_row_outline()
+pub(super) fn source_selected_fill_for_tests() -> ui::Rgba8 {
+    SELECTED_ROW_FILL
+}
+
+#[cfg(test)]
+pub(super) fn source_selected_marker_color_for_tests() -> ui::Rgba8 {
+    ACCENT
 }
 
 #[cfg(test)]

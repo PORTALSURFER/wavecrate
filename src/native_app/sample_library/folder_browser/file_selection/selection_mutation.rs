@@ -11,6 +11,7 @@ impl FolderBrowserState {
         if file_ids.contains(&id) {
             self.cancel_rename();
             self.clear_source_keyboard_focus();
+            self.hide_keyboard_focus();
             self.selection.select_single_file(id, &file_ids);
         }
     }
@@ -27,6 +28,7 @@ impl FolderBrowserState {
         }
         self.cancel_rename();
         self.clear_source_keyboard_focus();
+        self.hide_keyboard_focus();
         self.selection
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
@@ -43,6 +45,7 @@ impl FolderBrowserState {
         }
         self.cancel_rename();
         self.clear_source_keyboard_focus();
+        self.hide_keyboard_focus();
         self.selection
             .select_file_with_modifiers(id, &file_ids, modifiers);
     }
@@ -105,6 +108,7 @@ impl FolderBrowserState {
         &mut self,
         tags_by_file: &HashMap<String, Vec<String>>,
     ) -> Option<ToggleSelectedSampleResult> {
+        self.show_keyboard_focus();
         if self.rename_active() {
             return None;
         }

@@ -60,7 +60,6 @@ fn tag_entry_field(field: TagEditorFieldProjection) -> ui::View<GuiMessage> {
 
     if field.layout.requires_scroll {
         ui::scroll(content)
-            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .padding(3.0)
             .fill_width()
             .height(field.layout.field_height)
@@ -80,6 +79,7 @@ fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::Vie
         .header_id(identity::metadata_resize_header_id())
         .height(height)
         .padding(METADATA_PANEL_PADDING)
+        .without_chrome()
         .spacing(METADATA_PANEL_HEADER_CONTENT_SPACING),
     )
     .fill_width();
