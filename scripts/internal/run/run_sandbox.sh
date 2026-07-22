@@ -44,7 +44,7 @@ Options:
                 Provision empty, small-multi-source, or large-source before launch.
                 Fixture sources are disposable and automatically write-enabled.
   --fixture-preserve
-                Validate and reuse an existing fixture instead of resetting it.
+                Safely reuse an existing baseline or deliberate mutation instead of resetting it.
 EOF
 }
 

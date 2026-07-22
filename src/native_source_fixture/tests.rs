@@ -263,6 +263,45 @@ fn mutation_scenarios_restore_to_the_same_baseline() {
 }
 
 #[test]
+fn preserve_mode_accepts_each_supported_mutation_without_resetting_it() {
+    for mutation in [
+        FixtureMutation::Create,
+        FixtureMutation::SameSizeChange,
+        FixtureMutation::Move,
+        FixtureMutation::Delete,
+        FixtureMutation::RootOffline,
+    ] {
+        let base = tempdir().expect("fixture base");
+        provision(&request(base.path(), FixtureName::SmallMultiSource)).expect("fixture");
+        apply_mutation(
+            base.path().to_path_buf(),
+            FixtureName::SmallMultiSource,
+            FixtureProfile::AutomatedTests,
+            mutation,
+        )
+        .expect("mutation");
+
+        provision(&FixtureProvisionRequest {
+            config_base: base.path().to_path_buf(),
+            fixture: FixtureName::SmallMultiSource,
+            profile: FixtureProfile::AutomatedTests,
+            reset: false,
+        })
+        .unwrap_or_else(|error| panic!("preserve {mutation:?}: {error}"));
+
+        assert!(
+            validate(
+                base.path(),
+                FixtureName::SmallMultiSource,
+                FixtureProfile::AutomatedTests,
+            )
+            .is_err(),
+            "strict baseline validation must still reject {mutation:?}"
+        );
+    }
+}
+
+#[test]
 fn root_offline_and_online_scenario_restores_manifest_validity() {
     let base = tempdir().expect("fixture base");
     provision(&request(base.path(), FixtureName::SmallMultiSource)).expect("fixture");
@@ -344,6 +383,14 @@ fn mutations_refuse_a_source_root_swapped_for_an_external_symlink() {
         .expect_err("symlinked source mutation must fail");
         assert!(error.contains("symbolic link"), "{mutation:?}: {error}");
     }
+    let preserve_error = provision(&FixtureProvisionRequest {
+        config_base: base.path().to_path_buf(),
+        fixture: FixtureName::SmallMultiSource,
+        profile: FixtureProfile::AutomatedTests,
+        reset: false,
+    })
+    .expect_err("preserve must reject a symlinked source root");
+    assert!(preserve_error.contains("symbolic link"), "{preserve_error}");
     assert_eq!(
         fs::read(&protected).expect("external protected bytes after mutations"),
         protected_before

@@ -47,7 +47,7 @@ pub fn provision(request: &FixtureProvisionRequest) -> Result<FixtureManifest, S
     ensure_reset_path_safe(&fixture_root, &config_base, "fixture")?;
 
     if !request.reset && fixture_root.join(MANIFEST_FILE_NAME).is_file() {
-        return validate(&config_base, request.fixture, request.profile);
+        return validate_preserved(&config_base, request.fixture, request.profile);
     }
     if request.reset {
         remove_tree_if_present(&profile_path)?;
@@ -137,25 +137,7 @@ pub fn validate(
     fixture: FixtureName,
     profile: FixtureProfile,
 ) -> Result<FixtureManifest, String> {
-    let config_base = prepare_config_base(config_base)?;
-    let expected_fixture_root = fixture_root(&config_base, fixture);
-    ensure_no_symlink_components(&expected_fixture_root, &config_base, "fixture")?;
-    let manifest_path = expected_fixture_root.join(MANIFEST_FILE_NAME);
-    let bytes = fs::read(&manifest_path)
-        .map_err(|error| format!("read fixture manifest {}: {error}", manifest_path.display()))?;
-    let manifest: FixtureManifest = serde_json::from_slice(&bytes).map_err(|error| {
-        format!(
-            "parse fixture manifest {}: {error}",
-            manifest_path.display()
-        )
-    })?;
-    let expected_manifest = expected_manifest(&config_base, fixture, profile)?;
-    if manifest != expected_manifest {
-        return Err(format!(
-            "fixture manifest {} does not match the versioned deterministic fixture contract",
-            manifest_path.display()
-        ));
-    }
+    let (config_base, manifest) = load_manifest_contract(config_base, fixture, profile)?;
     for source in &manifest.sources {
         ensure_confined(&source.root, &manifest.fixture_root, "source")?;
         ensure_no_symlink_components(&source.root, &manifest.fixture_root, "source")?;
@@ -224,8 +206,87 @@ pub fn validate(
         ));
     }
 
+    validate_configured_sources(&config_base, profile, &manifest)?;
+    Ok(manifest)
+}
+
+fn validate_preserved(
+    config_base: &Path,
+    fixture: FixtureName,
+    profile: FixtureProfile,
+) -> Result<FixtureManifest, String> {
+    let (config_base, manifest) = load_manifest_contract(config_base, fixture, profile)?;
+    for source in &manifest.sources {
+        ensure_confined(&source.root, &manifest.fixture_root, "source")?;
+        let offline_root = manifest
+            .fixture_root
+            .join(format!("{}.offline", source.directory_name));
+        let online = source.root.is_dir();
+        let offline = offline_root.is_dir();
+        if online == offline {
+            return Err(format!(
+                "preserved fixture source must be present in exactly one online/offline location: {}",
+                source.root.display()
+            ));
+        }
+        let active_root = if online {
+            &source.root
+        } else {
+            if source.directory_name != "source-beta" {
+                return Err(format!(
+                    "only source-beta may be preserved offline: {}",
+                    source.root.display()
+                ));
+            }
+            &offline_root
+        };
+        ensure_no_symlink_components(active_root, &manifest.fixture_root, "preserved source")?;
+        if !active_root.join(".wavecrate.db").is_file() {
+            return Err(format!(
+                "preserved fixture source database is missing: {}",
+                active_root.join(".wavecrate.db").display()
+            ));
+        }
+        fixture_input_files(active_root)?;
+    }
+    validate_configured_sources(&config_base, profile, &manifest)?;
+    Ok(manifest)
+}
+
+fn load_manifest_contract(
+    config_base: &Path,
+    fixture: FixtureName,
+    profile: FixtureProfile,
+) -> Result<(PathBuf, FixtureManifest), String> {
+    let config_base = prepare_config_base(config_base)?;
+    let expected_fixture_root = fixture_root(&config_base, fixture);
+    ensure_no_symlink_components(&expected_fixture_root, &config_base, "fixture")?;
+    let manifest_path = expected_fixture_root.join(MANIFEST_FILE_NAME);
+    let bytes = fs::read(&manifest_path)
+        .map_err(|error| format!("read fixture manifest {}: {error}", manifest_path.display()))?;
+    let manifest: FixtureManifest = serde_json::from_slice(&bytes).map_err(|error| {
+        format!(
+            "parse fixture manifest {}: {error}",
+            manifest_path.display()
+        )
+    })?;
+    let expected_manifest = expected_manifest(&config_base, fixture, profile)?;
+    if manifest != expected_manifest {
+        return Err(format!(
+            "fixture manifest {} does not match the versioned deterministic fixture contract",
+            manifest_path.display()
+        ));
+    }
+    Ok((config_base, manifest))
+}
+
+fn validate_configured_sources(
+    config_base: &Path,
+    profile: FixtureProfile,
+    manifest: &FixtureManifest,
+) -> Result<(), String> {
     let _profile_guard = PersistenceProfileGuard::named(profile.as_str());
-    let expected_profile_path = profile_path(&config_base, profile);
+    let expected_profile_path = profile_path(config_base, profile);
     let _root_guard = AppRootGuard::set(expected_profile_path.clone()).map_err(|error| {
         format!(
             "select fixture profile {}: {error}",
@@ -249,7 +310,7 @@ pub fn validate(
             "configured fixture sources do not match the manifest source ids and roots",
         ));
     }
-    Ok(manifest)
+    Ok(())
 }
 
 #[cfg(test)]
