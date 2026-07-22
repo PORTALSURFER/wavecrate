@@ -1,5 +1,6 @@
 //! Runtime and CLI configuration for deterministic GUI test flows.
 
+use crate::native_source_fixture::FixtureName;
 use crate::{app_dirs, env_flags::env_var_truthy, native_runtime::NativeRunOptions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -15,6 +16,12 @@ const LEGACY_DEFAULT_GUI_TEST_FIXTURE_TAG: &str = "default";
 pub const GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG: &str = "isolated-startup";
 /// GUI fixture tag that deliberately opts into the real persisted startup profile.
 pub const GUI_TEST_LIVE_PROFILE_FIXTURE_TAG: &str = "live";
+/// Product-native empty-state fixture tag.
+pub const GUI_TEST_EMPTY_FIXTURE_TAG: &str = "empty";
+/// Product-native routine source-system fixture tag.
+pub const GUI_TEST_SMALL_MULTI_SOURCE_FIXTURE_TAG: &str = "small-multi-source";
+/// Product-native opt-in scalability fixture tag.
+pub const GUI_TEST_LARGE_SOURCE_FIXTURE_TAG: &str = "large-source";
 
 /// Deterministic runtime settings used by GUI contract tools and app test mode.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,6 +133,16 @@ pub fn gui_test_fixture_uses_isolated_startup(fixture_tag: &str) -> bool {
     canonical_gui_test_fixture_tag(fixture_tag) == GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG
 }
 
+/// Resolve a canonical product-native source fixture tag.
+pub fn gui_test_native_source_fixture(fixture_tag: &str) -> Option<FixtureName> {
+    match canonical_gui_test_fixture_tag(fixture_tag) {
+        GUI_TEST_EMPTY_FIXTURE_TAG => Some(FixtureName::Empty),
+        GUI_TEST_SMALL_MULTI_SOURCE_FIXTURE_TAG => Some(FixtureName::SmallMultiSource),
+        GUI_TEST_LARGE_SOURCE_FIXTURE_TAG => Some(FixtureName::LargeSource),
+        _ => None,
+    }
+}
+
 fn parse_viewport(value: &str) -> Option<[u32; 2]> {
     let mut parts = value.split('x');
     let width = parts.next()?.trim().parse::<u32>().ok()?;
@@ -167,5 +184,22 @@ mod tests {
         assert!(!gui_test_fixture_uses_isolated_startup(
             GUI_TEST_LIVE_PROFILE_FIXTURE_TAG
         ));
+    }
+
+    #[test]
+    fn native_source_fixture_tags_resolve_to_shared_definitions() {
+        assert_eq!(
+            gui_test_native_source_fixture(GUI_TEST_EMPTY_FIXTURE_TAG),
+            Some(FixtureName::Empty)
+        );
+        assert_eq!(
+            gui_test_native_source_fixture(GUI_TEST_SMALL_MULTI_SOURCE_FIXTURE_TAG),
+            Some(FixtureName::SmallMultiSource)
+        );
+        assert_eq!(
+            gui_test_native_source_fixture(GUI_TEST_LARGE_SOURCE_FIXTURE_TAG),
+            Some(FixtureName::LargeSource)
+        );
+        assert_eq!(gui_test_native_source_fixture("browser"), None);
     }
 }

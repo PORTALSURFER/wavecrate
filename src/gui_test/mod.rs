@@ -18,9 +18,11 @@ pub use self::automation::{
     GuiAutomationTarget, read_automation_snapshot_from_artifact, resolve_automation_target,
 };
 pub use self::config::{
-    GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG, GUI_TEST_LIVE_PROFILE_FIXTURE_TAG, GuiTestModeConfig,
-    canonical_gui_test_fixture_tag, gui_test_fixture_uses_isolated_startup,
-    gui_test_fixture_uses_live_profile,
+    GUI_TEST_EMPTY_FIXTURE_TAG, GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG,
+    GUI_TEST_LARGE_SOURCE_FIXTURE_TAG, GUI_TEST_LIVE_PROFILE_FIXTURE_TAG,
+    GUI_TEST_SMALL_MULTI_SOURCE_FIXTURE_TAG, GuiTestModeConfig, canonical_gui_test_fixture_tag,
+    gui_test_fixture_uses_isolated_startup, gui_test_fixture_uses_live_profile,
+    gui_test_native_source_fixture,
 };
 pub use self::fixtures::GuiFixtureBridge;
 pub use self::packs::{GuiScenarioPack, gui_scenario_pack};

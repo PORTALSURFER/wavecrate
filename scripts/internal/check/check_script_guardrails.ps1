@@ -760,6 +760,8 @@ try {
   Pop-Location
 }
 
+Invoke-ExpectExitCode -Label "sandbox fixture dispatcher" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "internal/run/test_sandbox_fixture_dispatch.ps1")
+
 if ($failures -gt 0) {
   Write-Host "[guardrails] FAILED: $failures checks failed."
   exit 1

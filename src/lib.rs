@@ -43,6 +43,8 @@ pub mod native_app;
 /// events; it does not define UI widgets, input handling policies, or layout
 /// logic.
 pub mod native_runtime;
+/// Deterministic production-native sample-source fixtures for runtime validation.
+pub mod native_source_fixture;
 /// Readiness-owned feature and embedding stage execution.
 pub mod readiness_execution;
 /// Build-time release metadata.

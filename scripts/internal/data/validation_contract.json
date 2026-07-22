@@ -5,6 +5,8 @@
       "scripts/ci.ps1",
       "scripts/check.ps1",
       "scripts/run.ps1",
+      "scripts/internal/run/run_sandbox.ps1",
+      "scripts/internal/run/test_sandbox_fixture_dispatch.ps1",
       "scripts/internal/run/latest_log.ps1",
       "scripts/internal/run/bug_bundle.ps1",
       "scripts/internal/agent/run_agent_request.ps1",
@@ -52,7 +54,9 @@
       "scripts/internal/perf/calibrate_startup_thresholds.sh",
       "scripts/internal/perf/run_perf_wheel_stability.sh",
       "scripts/release.sh",
-      "scripts/run.sh"
+      "scripts/run.sh",
+      "scripts/internal/run/run_sandbox.sh",
+      "scripts/internal/run/test_sandbox_fixture_dispatch.sh"
     ],
     "required_fragments": [
       {

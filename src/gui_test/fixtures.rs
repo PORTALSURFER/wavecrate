@@ -11,7 +11,7 @@ use crate::{
     },
     gui_test::{
         GuiTestModeConfig, canonical_gui_test_fixture_tag, gui_test_fixture_uses_isolated_startup,
-        gui_test_fixture_uses_live_profile,
+        gui_test_fixture_uses_live_profile, gui_test_native_source_fixture,
     },
     waveform::WaveformRenderer,
 };
@@ -39,6 +39,7 @@ impl GuiFixtureBridge {
     pub fn new_with_viewport(fixture_tag: &str, viewport: [u32; 2]) -> Result<Self, String> {
         if gui_test_fixture_uses_live_profile(fixture_tag)
             || gui_test_fixture_uses_isolated_startup(fixture_tag)
+            || gui_test_native_source_fixture(fixture_tag).is_some()
         {
             return Err(format!(
                 "fixture {fixture_tag} is owned by the product-native GUI harness"

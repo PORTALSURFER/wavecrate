@@ -409,6 +409,21 @@ Use for semantic GUI contracts and CLI scenarios.
   exercises the production `NativeAppState`/Radiant composition against a
   temporary config base using the dedicated `automated-tests` persistence
   profile.
+- Product-native source-system runs may select `empty`, `small-multi-source`,
+  or `large-source`. `small-multi-source` is the routine source scanning,
+  readiness, watcher, progress, source-switching, and visual-QA baseline;
+  `large-source` is opt-in for performance and high-cardinality coverage only.
+- Provision and launch the routine native fixture with
+  `bash scripts/run.sh sandbox --name source-qa --fixture small-multi-source`
+  or `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 sandbox -Name source-qa -Fixture small-multi-source`.
+  Provisioning resets by default; pass `--fixture-preserve` or
+  `-FixturePreserve` only when intentionally continuing the same mutation run.
+- The shared `wavecrate-fixture` tool emits
+  `.wavecrate/fixtures/<name>/fixture-manifest.json` with stable source ids,
+  relative paths, hashes, file counts, and expected readiness-target counts.
+  Its deterministic `create`, `same-size-change`, `move`, `delete`,
+  `root-offline`, `root-online`, and `reset` scenarios replace ambient-folder
+  mutations in source-system validation.
 - Use the `live` GUI fixture only for deliberate manual validation against the
   real persisted startup profile. It uses the same native composition as the
   product executable and is the only GUI fixture allowed to resolve live state.
