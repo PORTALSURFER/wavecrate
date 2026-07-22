@@ -407,6 +407,17 @@ pub(in crate::native_app) struct SourceFilesystemSyncSuccess {
     pub(in crate::native_app) incomplete_error: Option<String>,
     pub(in crate::native_app) committed_delta:
         wavecrate::sample_sources::scanner::CommittedSourceDelta,
+    pub(in crate::native_app) browser_projection_delta: Option<BrowserProjectionDelta>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::native_app) struct BrowserProjectionDelta {
+    pub(in crate::native_app) manifest_revision: u64,
+    pub(in crate::native_app) snapshot_revision: u64,
+    pub(in crate::native_app) folders: Vec<PathBuf>,
+    pub(in crate::native_app) removed_file_ids: Vec<String>,
+    pub(in crate::native_app) upserted_files:
+        Vec<crate::native_app::sample_library::folder_browser::model::FileEntry>,
 }
 
 #[derive(Clone, Debug)]

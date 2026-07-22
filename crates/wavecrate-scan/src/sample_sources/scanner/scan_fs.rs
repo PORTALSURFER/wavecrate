@@ -14,6 +14,9 @@ use wavecrate_library::filesystem_identity::{
 use crate::sample_sources::{SourceDatabase, is_supported_audio};
 
 use super::scan::ScanError;
+use super::scan::{SourceTreeFile, SourceTreeSnapshot};
+
+const MAX_LAYOUT_DIAGNOSTICS: usize = 16;
 
 #[derive(Clone, Debug)]
 pub(super) struct FileFacts {
@@ -54,9 +57,13 @@ pub(super) fn visit_dir_with_cancel_check(
     root: &Path,
     should_cancel: &mut impl FnMut() -> bool,
     visitor: &mut impl FnMut(&Path) -> Result<(), ScanError>,
-) -> Result<(), ScanError> {
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
+) -> Result<SourceTreeSnapshot, ScanError> {
+    let mut snapshot = SourceTreeSnapshot {
+        directories: vec![PathBuf::new()],
+        ..SourceTreeSnapshot::default()
+    };
+    let mut stack = vec![(root.to_path_buf(), true)];
+    while let Some((dir, scan_audio)) = stack.pop() {
         if should_cancel() {
             return Err(ScanError::Canceled);
         }
@@ -67,6 +74,10 @@ pub(super) fn visit_dir_with_cancel_check(
                     dir = %dir.display(),
                     error = %source,
                     "Failed to read directory during scan"
+                );
+                record_layout_diagnostic(
+                    &mut snapshot,
+                    format!("read directory {}: {source}", display_relative(root, &dir)),
                 );
                 continue;
             }
@@ -86,6 +97,13 @@ pub(super) fn visit_dir_with_cancel_check(
                         error = %err,
                         "Failed to read directory entry during scan"
                     );
+                    record_layout_diagnostic(
+                        &mut snapshot,
+                        format!(
+                            "read directory entry {}: {err}",
+                            display_relative(root, &dir)
+                        ),
+                    );
                     continue;
                 }
             };
@@ -99,6 +117,10 @@ pub(super) fn visit_dir_with_cancel_check(
                         error = %err,
                         "Failed to read file type during scan"
                     );
+                    record_layout_diagnostic(
+                        &mut snapshot,
+                        format!("read file type {}: {err}", display_relative(root, &path)),
+                    );
                     continue;
                 }
             };
@@ -106,20 +128,63 @@ pub(super) fn visit_dir_with_cancel_check(
                 continue;
             }
             if file_type.is_dir() {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str())
-                    && name.starts_with('.')
-                {
-                    continue;
-                }
-                stack.push(path);
+                let relative = path
+                    .strip_prefix(root)
+                    .map(Path::to_path_buf)
+                    .map_err(|_| ScanError::InvalidRoot(path.clone()))?;
+                snapshot.directories.push(relative);
+                let hidden = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with('.'));
+                stack.push((path, scan_audio && !hidden));
                 continue;
             }
-            if file_type.is_file() && is_supported_audio(&path) {
-                visitor(&path)?;
+            if file_type.is_file() {
+                if wavecrate_library::sample_sources::is_apple_double_sidecar(&path) {
+                    continue;
+                }
+                if scan_audio && is_supported_audio(&path) {
+                    visitor(&path)?;
+                } else {
+                    match entry.metadata() {
+                        Ok(metadata) => snapshot.other_files.push(SourceTreeFile {
+                            relative_path: path
+                                .strip_prefix(root)
+                                .map(Path::to_path_buf)
+                                .map_err(|_| ScanError::InvalidRoot(path.clone()))?,
+                            file_size: metadata.len(),
+                        }),
+                        Err(err) => record_layout_diagnostic(
+                            &mut snapshot,
+                            format!(
+                                "read file metadata {}: {err}",
+                                display_relative(root, &path)
+                            ),
+                        ),
+                    }
+                }
             }
         }
     }
-    Ok(())
+    snapshot.directories.sort();
+    snapshot
+        .other_files
+        .sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    Ok(snapshot)
+}
+
+fn record_layout_diagnostic(snapshot: &mut SourceTreeSnapshot, diagnostic: String) {
+    if snapshot.diagnostics.len() < MAX_LAYOUT_DIAGNOSTICS {
+        snapshot.diagnostics.push(diagnostic);
+    }
+}
+
+fn display_relative(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
 }
 
 pub(super) fn read_facts(root: &Path, path: &Path) -> Result<FileFacts, ScanError> {

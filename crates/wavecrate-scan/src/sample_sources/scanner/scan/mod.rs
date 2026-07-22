@@ -17,7 +17,7 @@ pub use runner::{
 };
 pub use stats::{
     ChangedSample, CommittedSourceDelta, ManifestIdentityDelta, MovedManifestIdentity,
-    RenamedSample, ScanStats, UpdatedSample,
+    RenamedSample, ScanStats, SourceTreeFile, SourceTreeSnapshot, UpdatedSample,
 };
 
 #[cfg(test)]

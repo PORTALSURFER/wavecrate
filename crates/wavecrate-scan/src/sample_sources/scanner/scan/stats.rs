@@ -2,6 +2,33 @@ use std::path::PathBuf;
 
 use wavecrate_library::sample_sources::SourceManifestEntry;
 
+/// One non-audio regular file observed during the authoritative source traversal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceTreeFile {
+    /// File path relative to the source root.
+    pub relative_path: PathBuf,
+    /// File size observed without following symbolic links.
+    pub file_size: u64,
+}
+
+/// Browser layout facts captured by the same traversal that reconciles the source manifest.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct SourceTreeSnapshot {
+    /// All visible directories, relative to the source root, including the empty root path.
+    pub directories: Vec<PathBuf>,
+    /// Visible regular files that are not authoritative supported-audio manifest rows.
+    pub other_files: Vec<SourceTreeFile>,
+    /// Bounded diagnostics for entries that could not be classified or enumerated.
+    pub diagnostics: Vec<String>,
+}
+
+impl SourceTreeSnapshot {
+    /// A projection is safe to publish only when every encountered entry was classified.
+    pub fn is_complete(&self) -> bool {
+        self.diagnostics.is_empty()
+    }
+}
+
 /// Summary of a scan run.
 #[derive(Debug, Default, Clone)]
 pub struct ScanStats {
@@ -36,6 +63,9 @@ pub struct ScanStats {
     pub manifest_before: Vec<SourceManifestEntry>,
     #[doc(hidden)]
     pub manifest_after: Vec<SourceManifestEntry>,
+    /// Filesystem layout captured by the authoritative full traversal.
+    #[doc(hidden)]
+    pub source_tree_snapshot: Option<SourceTreeSnapshot>,
 }
 
 impl ScanStats {
@@ -53,6 +83,9 @@ impl ScanStats {
                 &self.manifest_after,
                 deferred.committed_delta.revision,
             );
+        }
+        if deferred.source_tree_snapshot.is_some() {
+            self.source_tree_snapshot = deferred.source_tree_snapshot;
         }
     }
 

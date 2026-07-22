@@ -46,6 +46,7 @@ pub(in crate::native_app) struct SourceEntry {
     pub(super) parked_tree_loaded: bool,
     pub(super) missing_collection_snapshot: MissingCollectionSnapshot,
     pub(in crate::native_app) loading_task: Option<u64>,
+    pub(super) projection_revision: Option<u64>,
 }
 
 impl SourceEntry {
@@ -67,6 +68,7 @@ impl SourceEntry {
             parked_tree_loaded: false,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
+            projection_revision: None,
         }
     }
 
@@ -94,6 +96,7 @@ impl SourceEntry {
             parked_tree_loaded: false,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
+            projection_revision: None,
         }
     }
 

@@ -26,6 +26,26 @@ pub(in crate::native_app::sample_library::folder_browser) fn file_entry_with_met
 ) -> FileEntry {
     let metadata = fs::metadata(path).ok();
     let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
+    file_entry_with_snapshot_metadata(
+        path,
+        size_bytes,
+        rating,
+        rating_locked,
+        collections,
+        last_played_at,
+        last_curated_at,
+    )
+}
+
+pub(in crate::native_app) fn file_entry_with_snapshot_metadata(
+    path: &PathBuf,
+    size_bytes: u64,
+    rating: Rating,
+    rating_locked: bool,
+    collections: Vec<SampleCollection>,
+    last_played_at: Option<i64>,
+    last_curated_at: Option<i64>,
+) -> FileEntry {
     FileEntry {
         id: path_id(path),
         name: file_label(path),

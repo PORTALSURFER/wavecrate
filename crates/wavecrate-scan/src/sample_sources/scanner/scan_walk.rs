@@ -30,69 +30,75 @@ pub(super) fn walk_phase(
     // resumes from the durable partial index without presenting it as a complete generation.
     let committed = Cell::new(false);
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
-    visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
-        if cancel_requested(cancel) {
-            return Err(ScanError::Canceled);
-        }
-        let relative_path = path
-            .strip_prefix(root)
-            .map(Path::to_path_buf)
-            .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))?;
-        if context.skip_previously_audited_path(&relative_path) {
-            return Ok(());
-        }
-        let mut prepared = match prepare_diff(root, path, context) {
-            Ok(prepared) => prepared,
-            Err(error) if committed.get() => {
-                if let Ok(relative) = path.strip_prefix(root)
-                    && is_supported_scannable_audio_file(root, relative)
-                {
-                    context.existing.remove(relative);
+    let source_tree_snapshot =
+        visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
+            if cancel_requested(cancel) {
+                return Err(ScanError::Canceled);
+            }
+            let relative_path = path
+                .strip_prefix(root)
+                .map(Path::to_path_buf)
+                .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))?;
+            if context.skip_previously_audited_path(&relative_path) {
+                return Ok(());
+            }
+            let mut prepared = match prepare_diff(root, path, context) {
+                Ok(prepared) => prepared,
+                Err(error) if committed.get() => {
+                    if let Ok(relative) = path.strip_prefix(root)
+                        && is_supported_scannable_audio_file(root, relative)
+                    {
+                        context.existing.remove(relative);
+                    }
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %error,
+                        "Skipping file that changed after an earlier scan batch committed"
+                    );
+                    return Ok(());
                 }
-                tracing::warn!(
-                    path = %path.display(),
-                    error = %error,
-                    "Skipping file that changed after an earlier scan batch committed"
-                );
-                return Ok(());
-            }
-            Err(error) => return Err(error),
-        };
-        if !context.resumable_manifest_audit_active() {
-            context.stats.total_files += 1;
-            if let Some(on_progress) = on_progress.as_mut() {
-                on_progress(context.stats.total_files, path);
-            }
-        }
-        if !prepared.requires_apply {
-            let Some(refreshed) =
-                refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
-            else {
-                return Ok(());
+                Err(error) => return Err(error),
             };
-            prepared = refreshed;
-        }
-        if !prepared.requires_apply {
-            skip_noop(context, &prepared);
-            context.record_manifest_audit_paths(db, [relative_path])?;
-            publish_manifest_audit_progress(context, root, path, on_progress);
-            return Ok(());
-        }
-        pending.push(prepared);
-        if pending.len() == APPLY_BATCH_SIZE {
-            let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-            let outcome = apply_batch(db, root, cancel, context, files, committed.get())?;
-            if outcome.committed {
-                committed.set(true);
+            if !context.resumable_manifest_audit_active() {
+                context.stats.total_files += 1;
+                if let Some(on_progress) = on_progress.as_mut() {
+                    on_progress(context.stats.total_files, path);
+                }
             }
-            let last_path = outcome.audited_paths.last().cloned();
-            context.record_manifest_audit_paths(db, outcome.audited_paths)?;
-            if let Some(last_path) = last_path {
-                publish_manifest_audit_progress(context, root, &root.join(last_path), on_progress);
+            if !prepared.requires_apply {
+                let Some(refreshed) =
+                    refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
+                else {
+                    return Ok(());
+                };
+                prepared = refreshed;
             }
-        }
-        Ok(())
-    })?;
+            if !prepared.requires_apply {
+                skip_noop(context, &prepared);
+                context.record_manifest_audit_paths(db, [relative_path])?;
+                publish_manifest_audit_progress(context, root, path, on_progress);
+                return Ok(());
+            }
+            pending.push(prepared);
+            if pending.len() == APPLY_BATCH_SIZE {
+                let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
+                let outcome = apply_batch(db, root, cancel, context, files, committed.get())?;
+                if outcome.committed {
+                    committed.set(true);
+                }
+                let last_path = outcome.audited_paths.last().cloned();
+                context.record_manifest_audit_paths(db, outcome.audited_paths)?;
+                if let Some(last_path) = last_path {
+                    publish_manifest_audit_progress(
+                        context,
+                        root,
+                        &root.join(last_path),
+                        on_progress,
+                    );
+                }
+            }
+            Ok(())
+        })?;
     if !pending.is_empty() {
         let outcome = apply_batch(db, root, cancel, context, pending, committed.get())?;
         if outcome.committed {
@@ -105,6 +111,7 @@ pub(super) fn walk_phase(
         }
     }
     context.flush_manifest_audit_checkpoint(db)?;
+    context.stats.source_tree_snapshot = Some(source_tree_snapshot);
     Ok(())
 }
 
