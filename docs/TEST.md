@@ -238,6 +238,9 @@ Use for most app/domain behavior under `src/`.
   - `cargo test --doc`
 - quick app-development subset:
   - `cargo nextest run --profile quick --lib --tests`
+  - `scripts/ci.* quick` first lists the selected binaries with the same profile
+    and target set, so stale inventory-dependent filter predicates fail before
+    the test run starts
 - agent-safe library suite:
   - `cargo test -p wavecrate --lib`
   - `scripts/ci.* agent` runs the library suite with two known legacy

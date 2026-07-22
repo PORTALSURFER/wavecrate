@@ -55,11 +55,19 @@ try {
   }
 
   if ($Workspace) {
+    Write-Host "[ci_quick] validate quick profile against workspace binary inventory"
+    Invoke-NativeStep -Label "validate quick profile against workspace binary inventory" -Command {
+      Invoke-WavecrateCargo nextest list --workspace --profile quick --all-targets --list-type binaries-only | Out-Null
+    }
     Write-Host "[ci_quick] cargo nextest run --workspace --profile quick --all-targets"
     Invoke-NativeStep -Label "cargo nextest run --workspace --profile quick --all-targets" -Command {
       Invoke-WavecrateCargo nextest run --workspace --profile quick --all-targets
     }
   } else {
+    Write-Host "[ci_quick] validate quick profile against Wavecrate binary inventory"
+    Invoke-NativeStep -Label "validate quick profile against Wavecrate binary inventory" -Command {
+      Invoke-WavecrateCargo nextest list --package wavecrate --profile quick --lib --tests --list-type binaries-only | Out-Null
+    }
     Write-Host "[ci_quick] cargo nextest run --package wavecrate --profile quick --lib --tests"
     Invoke-NativeStep -Label "cargo nextest run --package wavecrate --profile quick --lib --tests" -Command {
       Invoke-WavecrateCargo nextest run --package wavecrate --profile quick --lib --tests

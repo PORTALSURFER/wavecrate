@@ -488,6 +488,38 @@ EOF
     HEAD
 }
 
+run_nextest_quick_profile_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d)"
+  trap 'rm -rf "$fixture_dir"' RETURN
+
+  local config_path="$fixture_dir/nextest.toml"
+  cat >"$config_path" <<'EOF'
+[profile.quick]
+default-filter = 'binary_id(=wavecrate::definitely-missing-binary)'
+EOF
+
+  run_expect_output \
+    "nextest quick-profile fixture rejects a stale binary ID" \
+    96 \
+    "$ROOT_DIR" \
+    "operator didn't match any binary IDs" \
+    -- \
+    cargo \
+    nextest \
+    list \
+    --config-file \
+    "$config_path" \
+    --package \
+    wavecrate \
+    --profile \
+    quick \
+    --lib \
+    --tests \
+    --list-type \
+    binaries-only
+}
+
 while IFS= read -r script_path; do
   run_expect_exit_code \
     "bash -n $script_path" \
@@ -556,6 +588,7 @@ run_file_size_budget_fixture
 run_cleanup_audit_fixture
 run_docs_index_fixture
 run_taste_invariants_fixture
+run_nextest_quick_profile_fixture
 
 run_expect_exit_code \
   "validation watchdog fixtures" \

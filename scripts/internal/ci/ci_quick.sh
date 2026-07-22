@@ -53,9 +53,13 @@ echo "[ci_quick] branch policy"
 ./scripts/internal/check/check_main_branch.sh
 
 if (( WORKSPACE == 1 )); then
+  echo "[ci_quick] validate quick profile against workspace binary inventory"
+  cargo nextest list --workspace --profile quick --all-targets --list-type binaries-only >/dev/null
   echo "[ci_quick] cargo nextest run --workspace --profile quick --all-targets"
   cargo nextest run --workspace --profile quick --all-targets
 else
+  echo "[ci_quick] validate quick profile against Wavecrate binary inventory"
+  cargo nextest list -p wavecrate --profile quick --lib --tests --list-type binaries-only >/dev/null
   echo "[ci_quick] cargo nextest run -p wavecrate --profile quick --lib --tests"
   cargo nextest run -p wavecrate --profile quick --lib --tests
 fi
