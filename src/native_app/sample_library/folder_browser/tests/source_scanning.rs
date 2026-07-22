@@ -1,4 +1,6 @@
 use super::*;
+use crate::native_app::app::BrowserProjectionDelta;
+use crate::native_app::sample_library::folder_browser::model::file_entry_with_snapshot_metadata;
 use crate::native_app::sample_library::folder_browser::scan_types::{
     FolderScanItem, MetadataHydrationStatus,
 };
@@ -190,10 +192,66 @@ fn metadata_hydration_failure_preserves_last_good_browser_metadata() {
     failed.metadata_hydration = MetadataHydrationStatus::Failed {
         error: String::from("database unavailable"),
     };
-    failed.folder.files[0].rating = Rating::NEUTRAL;
+    failed.folder.files.clear();
     assert!(browser.apply_scan_finished(failed));
 
+    assert_eq!(browser.selected_audio_files().len(), 1);
     assert_eq!(browser.selected_audio_files()[0].rating, Rating::KEEP_3);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn committed_projection_delta_applies_only_at_the_next_revision() {
+    let root = temp_source_root("wavecrate-gui-committed-projection-delta");
+    let old = root.join("old.wav");
+    let new = root.join("nested/new.wav");
+    fs::write(&old, [0_u8; 8]).expect("write original");
+    let mut browser = FolderBrowserState::load_default();
+    let request = browser
+        .begin_add_source_path(root.clone(), 51)
+        .expect("initial scan");
+    let source_id = request.source_id.clone();
+    assert!(browser.apply_scan_finished(scan_source_with_progress(request, |_| {}, |_| {})));
+    let revision = browser
+        .source
+        .sources
+        .iter()
+        .find(|source| source.id == source_id)
+        .and_then(|source| source.projection_revision)
+        .expect("projection revision");
+    let new_file =
+        file_entry_with_snapshot_metadata(&new, 12, Rating::KEEP_1, false, Vec::new(), None, None);
+
+    assert!(browser.apply_committed_projection_delta(
+        &source_id,
+        BrowserProjectionDelta {
+            manifest_revision: revision + 1,
+            snapshot_revision: revision + 1,
+            folders: vec![root.join("nested")],
+            removed_file_ids: vec![path_id(&old)],
+            upserted_files: vec![new_file],
+        },
+    ));
+    assert!(browser.tree.folders[0].find_file(&path_id(&old)).is_none());
+    assert_eq!(
+        browser.tree.folders[0]
+            .find_file(&path_id(&new))
+            .expect("incremental file")
+            .rating,
+        Rating::KEEP_1
+    );
+
+    assert!(!browser.apply_committed_projection_delta(
+        &source_id,
+        BrowserProjectionDelta {
+            manifest_revision: revision + 3,
+            snapshot_revision: revision + 3,
+            folders: Vec::new(),
+            removed_file_ids: vec![path_id(&new)],
+            upserted_files: Vec::new(),
+        },
+    ));
+    assert!(browser.tree.folders[0].find_file(&path_id(&new)).is_some());
     let _ = fs::remove_dir_all(root);
 }
 

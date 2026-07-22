@@ -5,9 +5,13 @@ use std::{
     time::Duration,
 };
 
-use wavecrate::sample_sources::{SourceDatabase, scanner};
+use wavecrate::sample_sources::{BrowserMetadataSnapshot, SourceDatabase, scanner};
+use wavecrate_library::sample_sources::is_supported_audio;
 
-use crate::native_app::app::{SourceFilesystemSyncResult, SourceFilesystemSyncSuccess};
+use crate::native_app::{
+    app::{BrowserProjectionDelta, SourceFilesystemSyncResult, SourceFilesystemSyncSuccess},
+    sample_library::folder_browser::model::file_entry_with_snapshot_metadata,
+};
 
 const MAX_SYNC_ATTEMPTS: usize = 3;
 const SYNC_RETRY_DELAYS: [Duration; MAX_SYNC_ATTEMPTS - 1] =
@@ -58,6 +62,7 @@ fn sync_source_database_paths_once(
     paths: &[PathBuf],
     cancel: &AtomicBool,
 ) -> Result<SourceFilesystemSyncSuccess, String> {
+    let browser_delta_eligible = paths.iter().all(|path| is_supported_audio(path));
     SourceDatabase::open_for_background_job_with_database_root(root, database_root)
         .map_err(|err| format!("open source index: {err}"))
         .and_then(|db| {
@@ -90,12 +95,107 @@ fn sync_source_database_paths_once(
                     }
                 }
             };
+            let browser_projection_delta = if browser_delta_eligible
+                && incomplete_error.is_none()
+                && completed.committed_delta.revision > 0
+            {
+                match build_browser_projection_delta(root, &db, &completed.committed_delta) {
+                    Ok(projection) => projection,
+                    Err(error) => {
+                        tracing::warn!(
+                            source_id,
+                            error,
+                            "Falling back to a full browser projection after delta hydration failed"
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            };
             Ok(SourceFilesystemSyncSuccess {
                 renames_reconciled: completed.renames_reconciled,
                 incomplete_error,
                 committed_delta: completed.committed_delta,
+                browser_projection_delta,
             })
         })
+}
+
+fn build_browser_projection_delta(
+    root: &std::path::Path,
+    db: &SourceDatabase,
+    delta: &scanner::CommittedSourceDelta,
+) -> Result<Option<BrowserProjectionDelta>, String> {
+    let BrowserMetadataSnapshot { revision, files } = db
+        .browser_metadata_snapshot()
+        .map_err(|error| format!("read committed browser projection delta: {error}"))?;
+    if revision != delta.revision {
+        tracing::info!(
+            committed_revision = delta.revision,
+            snapshot_revision = revision,
+            "Browser delta snapshot was not the exact committed revision"
+        );
+        return Ok(None);
+    }
+    let upsert_paths = delta
+        .created
+        .iter()
+        .map(|entry| entry.relative_path.as_path())
+        .chain(
+            delta
+                .changed
+                .iter()
+                .map(|entry| entry.relative_path.as_path()),
+        )
+        .chain(
+            delta
+                .moved
+                .iter()
+                .map(|entry| entry.new_relative_path.as_path()),
+        )
+        .collect::<std::collections::HashSet<_>>();
+    let mut folders = std::collections::BTreeSet::new();
+    let upserted_files = files
+        .into_iter()
+        .filter(|entry| !entry.missing && upsert_paths.contains(entry.relative_path.as_path()))
+        .map(|entry| {
+            let absolute = root.join(&entry.relative_path);
+            if let Some(parent) = absolute.parent() {
+                folders.insert(parent.to_path_buf());
+            }
+            file_entry_with_snapshot_metadata(
+                &absolute,
+                entry.file_size,
+                entry.rating,
+                entry.locked,
+                entry.collections,
+                entry.last_played_at,
+                entry.last_curated_at,
+            )
+        })
+        .collect();
+    let removed_file_ids = delta
+        .deleted
+        .iter()
+        .map(|entry| {
+            root.join(&entry.relative_path)
+                .to_string_lossy()
+                .to_string()
+        })
+        .chain(delta.moved.iter().map(|entry| {
+            root.join(&entry.old_relative_path)
+                .to_string_lossy()
+                .to_string()
+        }))
+        .collect();
+    Ok(Some(BrowserProjectionDelta {
+        manifest_revision: delta.revision,
+        snapshot_revision: revision,
+        folders: folders.into_iter().collect(),
+        removed_file_ids,
+        upserted_files,
+    }))
 }
 
 fn wait_for_retry(cancel: &AtomicBool, delay: Duration) -> bool {
@@ -145,6 +245,11 @@ mod tests {
         let success = result.result.expect("sync result");
         assert_eq!(success.renames_reconciled, 1);
         assert_eq!(success.committed_delta.moved.len(), 1);
+        let projection = success
+            .browser_projection_delta
+            .expect("exact browser projection delta");
+        assert_eq!(projection.removed_file_ids.len(), 1);
+        assert_eq!(projection.upserted_files.len(), 1);
         assert_eq!(
             db.entry_for_path(Path::new("new.wav"))
                 .unwrap()
@@ -172,6 +277,14 @@ mod tests {
         let success = result.result.expect("sync result");
         assert_eq!(success.renames_reconciled, 0);
         assert_eq!(success.committed_delta.created.len(), 1);
+        assert_eq!(
+            success
+                .browser_projection_delta
+                .expect("exact browser projection delta")
+                .upserted_files
+                .len(),
+            1
+        );
         let db =
             SourceDatabase::open_for_test_fixture_source_write(root.path()).expect("source db");
         assert!(

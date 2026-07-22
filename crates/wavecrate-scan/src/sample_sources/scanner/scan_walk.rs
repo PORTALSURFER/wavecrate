@@ -30,69 +30,76 @@ pub(super) fn walk_phase(
     // resumes from the durable partial index without presenting it as a complete generation.
     let committed = Cell::new(false);
     let mut pending = Vec::with_capacity(APPLY_BATCH_SIZE);
-    visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
-        if cancel_requested(cancel) {
-            return Err(ScanError::Canceled);
-        }
-        let relative_path = path
-            .strip_prefix(root)
-            .map(Path::to_path_buf)
-            .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))?;
-        if context.skip_previously_audited_path(&relative_path) {
-            return Ok(());
-        }
-        let mut prepared = match prepare_diff(root, path, context) {
-            Ok(prepared) => prepared,
-            Err(error) if committed.get() => {
-                if let Ok(relative) = path.strip_prefix(root)
-                    && is_supported_scannable_audio_file(root, relative)
-                {
-                    context.existing.remove(relative);
+    let source_tree_snapshot =
+        visit_dir_with_cancel_check(root, &mut || cancel_requested(cancel), &mut |path| {
+            if cancel_requested(cancel) {
+                return Err(ScanError::Canceled);
+            }
+            let relative_path = path
+                .strip_prefix(root)
+                .map(Path::to_path_buf)
+                .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))?;
+            if context.skip_previously_audited_path(&relative_path) {
+                return Ok(());
+            }
+            let mut prepared = match prepare_diff(root, path, context) {
+                Ok(prepared) => prepared,
+                Err(error) if committed.get() => {
+                    context.mark_source_tree_incomplete();
+                    if let Ok(relative) = path.strip_prefix(root)
+                        && is_supported_scannable_audio_file(root, relative)
+                    {
+                        context.existing.remove(relative);
+                    }
+                    tracing::warn!(
+                        path = %path.display(),
+                        error = %error,
+                        "Skipping file that changed after an earlier scan batch committed"
+                    );
+                    return Ok(());
                 }
-                tracing::warn!(
-                    path = %path.display(),
-                    error = %error,
-                    "Skipping file that changed after an earlier scan batch committed"
-                );
-                return Ok(());
-            }
-            Err(error) => return Err(error),
-        };
-        if !context.resumable_manifest_audit_active() {
-            context.stats.total_files += 1;
-            if let Some(on_progress) = on_progress.as_mut() {
-                on_progress(context.stats.total_files, path);
-            }
-        }
-        if !prepared.requires_apply {
-            let Some(refreshed) =
-                refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
-            else {
-                return Ok(());
+                Err(error) => return Err(error),
             };
-            prepared = refreshed;
-        }
-        if !prepared.requires_apply {
-            skip_noop(context, &prepared);
-            context.record_manifest_audit_paths(db, [relative_path])?;
-            publish_manifest_audit_progress(context, root, path, on_progress);
-            return Ok(());
-        }
-        pending.push(prepared);
-        if pending.len() == APPLY_BATCH_SIZE {
-            let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
-            let outcome = apply_batch(db, root, cancel, context, files, committed.get())?;
-            if outcome.committed {
-                committed.set(true);
+            if !context.resumable_manifest_audit_active() {
+                context.stats.total_files += 1;
+                if let Some(on_progress) = on_progress.as_mut() {
+                    on_progress(context.stats.total_files, path);
+                }
             }
-            let last_path = outcome.audited_paths.last().cloned();
-            context.record_manifest_audit_paths(db, outcome.audited_paths)?;
-            if let Some(last_path) = last_path {
-                publish_manifest_audit_progress(context, root, &root.join(last_path), on_progress);
+            if !prepared.requires_apply {
+                let Some(refreshed) =
+                    refresh_noop_preparation_or_skip(db, root, context, prepared, committed.get())?
+                else {
+                    return Ok(());
+                };
+                prepared = refreshed;
             }
-        }
-        Ok(())
-    })?;
+            if !prepared.requires_apply {
+                skip_noop(context, &prepared);
+                context.record_manifest_audit_paths(db, [relative_path])?;
+                publish_manifest_audit_progress(context, root, path, on_progress);
+                return Ok(());
+            }
+            pending.push(prepared);
+            if pending.len() == APPLY_BATCH_SIZE {
+                let files = std::mem::replace(&mut pending, Vec::with_capacity(APPLY_BATCH_SIZE));
+                let outcome = apply_batch(db, root, cancel, context, files, committed.get())?;
+                if outcome.committed {
+                    committed.set(true);
+                }
+                let last_path = outcome.audited_paths.last().cloned();
+                context.record_manifest_audit_paths(db, outcome.audited_paths)?;
+                if let Some(last_path) = last_path {
+                    publish_manifest_audit_progress(
+                        context,
+                        root,
+                        &root.join(last_path),
+                        on_progress,
+                    );
+                }
+            }
+            Ok(())
+        })?;
     if !pending.is_empty() {
         let outcome = apply_batch(db, root, cancel, context, pending, committed.get())?;
         if outcome.committed {
@@ -105,7 +112,21 @@ pub(super) fn walk_phase(
         }
     }
     context.flush_manifest_audit_checkpoint(db)?;
+    context.stats.source_tree_snapshot =
+        Some(finalize_source_tree_snapshot(context, source_tree_snapshot));
     Ok(())
+}
+
+fn finalize_source_tree_snapshot(
+    context: &ScanContext,
+    mut source_tree_snapshot: super::scan::SourceTreeSnapshot,
+) -> super::scan::SourceTreeSnapshot {
+    if context.source_tree_incomplete() {
+        source_tree_snapshot.diagnostics.push(String::from(
+            "supported audio changed or became unavailable after an earlier scan batch committed",
+        ));
+    }
+    source_tree_snapshot
 }
 
 fn publish_manifest_audit_progress(
@@ -164,6 +185,7 @@ fn refresh_noop_preparation_or_skip(
     match refresh_noop_preparation(db, root, context, prepared) {
         Ok(prepared) => Ok(Some(prepared)),
         Err(error) if tolerate_file_errors => {
+            context.mark_source_tree_incomplete();
             skip_changed_or_unavailable(context, root, &relative_path);
             tracing::warn!(
                 path = %root.join(&relative_path).display(),
@@ -235,6 +257,7 @@ fn apply_batch(
             Ok(outcome) => outcome,
             Err(ScanError::Canceled) => return Err(ScanError::Canceled),
             Err(error) if tolerate_file_errors => {
+                context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
                 tracing::warn!(
                     path = %root.join(&relative_path).display(),
@@ -247,8 +270,9 @@ fn apply_batch(
         };
         match outcome {
             PrepareForApply::Ready(file) => ready.push(file),
-            PrepareForApply::Gone => {}
+            PrepareForApply::Gone => context.mark_source_tree_incomplete(),
             PrepareForApply::Skip => {
+                context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
             }
         }
@@ -269,6 +293,7 @@ fn apply_batch(
         match read_facts(root, &absolute) {
             Ok(current) if prepared_still_current(&file, &current) => {}
             _ => {
+                context.mark_source_tree_incomplete();
                 skip_changed_or_unavailable(context, root, &relative_path);
                 continue;
             }
@@ -378,8 +403,8 @@ fn cancel_requested(cancel: Option<&AtomicBool>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        PrepareForApply, prepare_for_apply, prepare_for_apply_with_post_hash_hook,
-        refresh_noop_preparation_or_skip,
+        PrepareForApply, apply_batch, finalize_source_tree_snapshot, prepare_for_apply,
+        prepare_for_apply_with_post_hash_hook, refresh_noop_preparation_or_skip,
     };
     use crate::sample_sources::SourceDatabase;
     use crate::sample_sources::scanner::scan::{ScanContext, ScanMode, scan_once};
@@ -443,6 +468,34 @@ mod tests {
                 .unwrap();
 
         assert!(refreshed.is_none());
+        assert!(context.source_tree_incomplete());
+        let snapshot = finalize_source_tree_snapshot(&context, Default::default());
+        assert!(!snapshot.is_complete());
+    }
+
+    #[test]
+    fn committed_batch_marks_disappeared_file_projection_incomplete() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("one.wav");
+        std::fs::write(&file_path, b"one").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        let mut context = ScanContext::from_existing(
+            HashMap::new(),
+            ScanMode::Quick,
+            db.get_revision().unwrap(),
+            db.list_manifest_entries().unwrap(),
+        );
+        let prepared = prepare_diff(dir.path(), &file_path, &context).unwrap();
+        assert!(prepared.requires_apply);
+
+        std::fs::remove_file(&file_path).unwrap();
+        let outcome = apply_batch(&db, dir.path(), None, &mut context, vec![prepared], true)
+            .expect("tolerated committed batch");
+
+        assert!(!outcome.committed);
+        assert!(context.source_tree_incomplete());
+        let snapshot = finalize_source_tree_snapshot(&context, Default::default());
+        assert!(!snapshot.is_complete());
     }
 
     #[test]

@@ -119,6 +119,14 @@ impl NativeAppState {
                 let renames_reconciled = success.renames_reconciled;
                 let incomplete_error = success.incomplete_error;
                 let delta = success.committed_delta;
+                let browser_delta_applied = success
+                    .browser_projection_delta
+                    .map(|projection| {
+                        self.library
+                            .folder_browser
+                            .apply_committed_projection_delta(&source_id, projection)
+                    })
+                    .unwrap_or(false);
                 tracing::info!(
                     source_id = %source_id,
                     revision = delta.revision,
@@ -151,7 +159,9 @@ impl NativeAppState {
                             "filesystem_sync_incomplete_after_commit",
                         );
                 }
-                self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+                if !browser_delta_applied {
+                    self.queue_filesystem_source_refresh(source_id, Instant::now(), context);
+                }
             }
             Err(error) => {
                 tracing::warn!(

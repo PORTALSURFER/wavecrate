@@ -358,6 +358,7 @@ mod tests {
             parked_tree_loaded: false,
             missing_collection_snapshot: MissingCollectionSnapshot::default(),
             loading_task: None,
+            projection_revision: Some(1),
         };
         let path = temp.path().join(SOURCE_SCAN_CACHE_FILE_NAME);
 

@@ -19,9 +19,9 @@ pub(in crate::native_app) use loading::{
     SamplePlaybackReady, SampleSelectionLoadState,
 };
 pub(in crate::native_app) use message::{
-    GuiMessage, MetadataMessage, SettingsMessage, SimilaritySettingsPersistResult,
-    SourceFilesystemSyncResult, SourceFilesystemSyncSuccess, TrashMoveTarget,
-    VolumeSettingsPersistResult,
+    BrowserProjectionDelta, GuiMessage, MetadataMessage, SettingsMessage,
+    SimilaritySettingsPersistResult, SourceFilesystemSyncResult, SourceFilesystemSyncSuccess,
+    TrashMoveTarget, VolumeSettingsPersistResult,
 };
 pub(in crate::native_app) use progress::{
     FileMoveProgress, NormalizationFailure, NormalizationHarvestDerivation, NormalizationProgress,

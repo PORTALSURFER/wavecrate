@@ -83,6 +83,13 @@ impl MetadataHydrationStatus {
             Self::Complete { .. } | Self::NotAttempted => None,
         }
     }
+
+    pub(in crate::native_app) fn revision(&self) -> Option<u64> {
+        match self {
+            Self::Complete { revision } => Some(*revision),
+            Self::Failed { .. } | Self::NotAttempted => None,
+        }
+    }
 }
 
 impl FolderScanResult {

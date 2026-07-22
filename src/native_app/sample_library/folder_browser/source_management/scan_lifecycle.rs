@@ -1,20 +1,89 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-};
+use std::{collections::HashSet, path::PathBuf};
 
 #[cfg(test)]
 use super::super::scan_types::FolderScanDiscovery;
 use super::super::{
-    FileEntry, FolderBrowserState, FolderEntry, SourceEntry,
+    FolderBrowserState, FolderEntry, SourceEntry,
     path_helpers::{folder_label, path_id},
     scan_types::{
         FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult, FolderTreeRefreshResult,
     },
     scanning::{merge_scan_discovery, placeholder_folder},
 };
+use crate::native_app::app::BrowserProjectionDelta;
 
 impl FolderBrowserState {
+    pub(in crate::native_app) fn apply_committed_projection_delta(
+        &mut self,
+        source_id: &str,
+        delta: BrowserProjectionDelta,
+    ) -> bool {
+        let Some(source_index) = self
+            .source
+            .sources
+            .iter()
+            .position(|source| source.id == source_id)
+        else {
+            return false;
+        };
+        let Some(current_revision) = self.source.sources[source_index].projection_revision else {
+            return false;
+        };
+        if delta.manifest_revision <= current_revision {
+            return true;
+        }
+        if delta.manifest_revision != current_revision.saturating_add(1) {
+            tracing::info!(
+                source_id,
+                current_revision,
+                incoming_revision = delta.manifest_revision,
+                "Browser projection revision gap requires a full snapshot refresh"
+            );
+            return false;
+        }
+        let selected = self.source.selected_source == source_id && self.source.selected_tree_loaded;
+        let changed = {
+            let root = if selected {
+                self.tree.folders.first_mut()
+            } else {
+                self.source.sources[source_index].root_folder.as_mut()
+            };
+            let Some(root) = root else {
+                return false;
+            };
+            let removed = delta
+                .removed_file_ids
+                .iter()
+                .cloned()
+                .collect::<HashSet<_>>();
+            let mut changed = root.remove_files_by_ids(&removed);
+            for folder in &delta.folders {
+                if root.ensure_folder_path(folder).is_none() {
+                    return false;
+                }
+            }
+            for file in delta.upserted_files {
+                let Some(parent) = PathBuf::from(&file.id).parent().map(PathBuf::from) else {
+                    return false;
+                };
+                let Some(folder) = root.ensure_folder_path(&parent) else {
+                    return false;
+                };
+                changed |= folder.upsert_projected_file(file);
+            }
+            changed
+        };
+        self.source.sources[source_index].projection_revision = Some(delta.snapshot_revision);
+        if changed {
+            if selected {
+                self.retain_tree_state_after_selected_source_refresh();
+            }
+            self.bump_file_content_revision();
+            self.refresh_missing_collection_state();
+        }
+        true
+    }
+
     pub(in crate::native_app) fn defer_add_source_path(
         &mut self,
         root: PathBuf,
@@ -282,10 +351,7 @@ impl FolderBrowserState {
         source.parked_tree_loaded && source.root_folder.is_some()
     }
 
-    pub(in crate::native_app) fn apply_scan_finished(
-        &mut self,
-        mut result: FolderScanResult,
-    ) -> bool {
+    pub(in crate::native_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
         let Some(source_index) = self
             .source
             .sources
@@ -300,19 +366,6 @@ impl FolderBrowserState {
         let source_id = self.source.sources[source_index].id.clone();
         let should_select = self.source.selected_source == source_id;
         let refreshing_selected_loaded_source = should_select && self.selected_source_loaded();
-        if result.metadata_hydration.error().is_some() {
-            let previous_folder = if should_select {
-                self.tree.folders.first()
-            } else {
-                self.source.sources[source_index].root_folder.as_ref()
-            };
-            if let Some(previous_folder) = previous_folder {
-                preserve_folder_metadata(&mut result.folder, previous_folder);
-            }
-            result.missing_collection_snapshot = self.source.sources[source_index]
-                .missing_collection_snapshot
-                .clone();
-        }
         self.source.sources[source_index].loading_task = None;
         if !result.source_root_available {
             self.source.sources[source_index].mark_missing();
@@ -320,13 +373,22 @@ impl FolderBrowserState {
             return true;
         }
         self.source.sources[source_index].mark_available();
+        let Some(projection_revision) = result.metadata_hydration.revision() else {
+            tracing::warn!(
+                source_id = %source_id,
+                error = result.metadata_hydration.error().unwrap_or("projection unavailable"),
+                "Keeping the last good browser projection after snapshot hydration failed"
+            );
+            return true;
+        };
+        self.source.sources[source_index].projection_revision = Some(projection_revision);
         self.source.sources[source_index].missing_collection_snapshot =
             result.missing_collection_snapshot.clone();
         if should_select {
-            self.source.sources[source_index].root_folder = None;
             if refreshing_selected_loaded_source {
                 self.refresh_selected_source_tree(source_id, result.folder, true);
             } else {
+                self.source.sources[source_index].root_folder = None;
                 self.select_loaded_source(source_id, result.folder);
                 self.refresh_missing_collection_state();
             }
@@ -409,8 +471,8 @@ impl FolderBrowserState {
         &mut self,
         batch: FolderScanDiscoveryBatch,
     ) -> bool {
-        let preserve_selected_tree =
-            self.source.selected_source == batch.source_id && self.source.selected_tree_loaded;
+        let selected_source = self.source.selected_source == batch.source_id;
+        let preserve_selected_tree = selected_source && self.source.selected_tree_loaded;
         let Some(source) = self
             .source
             .sources
@@ -422,7 +484,7 @@ impl FolderBrowserState {
         if source.loading_task != Some(batch.task_id) {
             return false;
         }
-        if preserve_selected_tree {
+        if preserve_selected_tree || (!selected_source && source.root_folder.is_some()) {
             return false;
         }
 
@@ -452,36 +514,6 @@ impl FolderBrowserState {
             self.bump_file_content_revision();
         }
         changed
-    }
-}
-
-fn preserve_folder_metadata(folder: &mut FolderEntry, previous: &FolderEntry) {
-    let previous_files = previous
-        .all_files()
-        .into_iter()
-        .map(|file| (file.id.clone(), file.clone()))
-        .collect::<HashMap<_, _>>();
-    preserve_folder_metadata_from_map(folder, &previous_files);
-}
-
-fn preserve_folder_metadata_from_map(
-    folder: &mut FolderEntry,
-    previous_files: &HashMap<String, FileEntry>,
-) {
-    for file in &mut folder.files {
-        let Some(previous) = previous_files.get(&file.id) else {
-            continue;
-        };
-        file.rating = previous.rating;
-        file.rating_locked = previous.rating_locked;
-        file.last_curated_at = previous.last_curated_at;
-        file.collection = previous.collection;
-        file.collections = previous.collections.clone();
-        file.modified = previous.modified.clone();
-        file.modified_rank = previous.modified_rank;
-    }
-    for child in &mut folder.children {
-        preserve_folder_metadata_from_map(child, previous_files);
     }
 }
 

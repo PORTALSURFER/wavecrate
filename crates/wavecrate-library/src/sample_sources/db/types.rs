@@ -270,6 +270,12 @@ pub struct WavEntry {
 pub struct BrowserFileMetadata {
     /// File path relative to the source root.
     pub relative_path: PathBuf,
+    /// File size recorded by the authoritative source manifest.
+    pub file_size: u64,
+    /// Last modified timestamp recorded by the authoritative source manifest.
+    pub modified_ns: i64,
+    /// Whether the authoritative manifest currently considers the file absent.
+    pub missing: bool,
     /// Current rating/tag for the file.
     pub rating: Rating,
     /// Whether the keep rating is locked.

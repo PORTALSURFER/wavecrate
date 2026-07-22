@@ -80,7 +80,7 @@ fn browser_metadata_snapshot_with_observer(
         "NULL AS collection",
     );
     let sql = format!(
-        "SELECT path, {}, {}, {}, {}, {legacy_collection}
+        "SELECT path, {}, {}, {}, {}, {legacy_collection}, {}, {}, {}
          FROM wav_files
          WHERE {supported_filter}
          ORDER BY path ASC",
@@ -96,6 +96,9 @@ fn browser_metadata_snapshot_with_observer(
             "last_curated_at",
             "NULL AS last_curated_at"
         ),
+        optional_browser_column(&capabilities.wav_columns, "file_size", "0 AS file_size"),
+        optional_browser_column(&capabilities.wav_columns, "modified_ns", "0 AS modified_ns"),
+        optional_browser_column(&capabilities.wav_columns, "missing", "0 AS missing"),
     );
     statement_started();
     let mut files = {
@@ -119,6 +122,9 @@ fn browser_metadata_snapshot_with_observer(
                 };
                 Ok(Some(BrowserFileMetadata {
                     relative_path,
+                    file_size: u64::try_from(row.get::<_, i64>(6)?).unwrap_or_default(),
+                    modified_ns: row.get(7)?,
+                    missing: row.get::<_, i64>(8)? != 0,
                     rating: Rating::from_i64(row.get(1)?),
                     locked: row.get::<_, i64>(2)? != 0,
                     collections: legacy_collection,

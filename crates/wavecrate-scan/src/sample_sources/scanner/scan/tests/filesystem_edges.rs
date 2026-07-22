@@ -93,3 +93,100 @@ fn scan_skips_appledouble_sidecar_files() {
         vec![PathBuf::from("drums/snare.wav"), PathBuf::from("kick.wav")]
     );
 }
+
+#[test]
+fn full_scan_captures_browser_layout_in_the_authoritative_traversal() {
+    let dir = tempdir().unwrap();
+    let nested = dir.path().join("nested");
+    let empty = dir.path().join("empty");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::create_dir_all(&empty).unwrap();
+    std::fs::write(nested.join("kick.wav"), b"kick").unwrap();
+    std::fs::write(nested.join("notes.txt"), b"notes").unwrap();
+
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let stats = scan_once(&db).unwrap();
+    let snapshot = stats.source_tree_snapshot.expect("source tree snapshot");
+
+    assert!(snapshot.is_complete());
+    assert!(snapshot.directories.contains(&PathBuf::new()));
+    assert!(snapshot.directories.contains(&PathBuf::from("empty")));
+    assert!(snapshot.directories.contains(&PathBuf::from("nested")));
+    let notes = snapshot
+        .other_files
+        .iter()
+        .find(|file| file.relative_path == Path::new("nested/notes.txt"))
+        .expect("notes layout entry");
+    assert_eq!(notes.file_size, 5);
+}
+
+#[test]
+fn browser_layout_keeps_hidden_non_audio_entries_but_excludes_hidden_audio() {
+    let dir = tempdir().unwrap();
+    let hidden = dir.path().join(".hidden");
+    std::fs::create_dir_all(&hidden).unwrap();
+    std::fs::write(hidden.join("kick.wav"), b"kick").unwrap();
+    std::fs::write(hidden.join("notes.txt"), b"notes").unwrap();
+
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let stats = scan_once(&db).unwrap();
+    let snapshot = stats.source_tree_snapshot.expect("source tree snapshot");
+
+    assert!(snapshot.directories.contains(&PathBuf::from(".hidden")));
+    assert!(snapshot.other_files.iter().any(|file| {
+        file.relative_path == Path::new(".hidden/notes.txt") && file.file_size == 5
+    }));
+    assert!(
+        snapshot
+            .other_files
+            .iter()
+            .all(|file| file.relative_path != Path::new(".hidden/kick.wav"))
+    );
+    assert!(
+        db.list_files()
+            .unwrap()
+            .iter()
+            .all(|file| file.relative_path != Path::new(".hidden/kick.wav"))
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn browser_layout_snapshot_does_not_include_symlink_entries() {
+    use std::os::unix::fs as unix_fs;
+
+    let dir = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    std::fs::write(outside.path().join("outside.txt"), b"outside").unwrap();
+    unix_fs::symlink(outside.path(), dir.path().join("outside-link")).unwrap();
+    std::fs::write(dir.path().join("real.txt"), b"real").unwrap();
+    unix_fs::symlink(
+        dir.path().join("real.txt"),
+        dir.path().join("file-link.txt"),
+    )
+    .unwrap();
+
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    let snapshot = scan_once(&db)
+        .unwrap()
+        .source_tree_snapshot
+        .expect("source tree snapshot");
+
+    assert!(snapshot.directories.contains(&PathBuf::new()));
+    assert!(
+        snapshot
+            .directories
+            .iter()
+            .all(|path| path != Path::new("outside-link"))
+    );
+    assert!(
+        snapshot
+            .other_files
+            .iter()
+            .any(|file| file.relative_path == Path::new("real.txt"))
+    );
+    assert!(snapshot.other_files.iter().all(|file| {
+        file.relative_path != Path::new("file-link.txt")
+            && file.relative_path != Path::new("outside-link/outside.txt")
+    }));
+}

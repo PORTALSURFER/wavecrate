@@ -5,7 +5,10 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use super::{FileEntry, file_entry, folder_label, path_id, rewrite_path_id};
+use super::{
+    FileEntry, file_entry, folder_label, path_id, rewrite_path_id,
+    scanning::{upsert_file, upsert_folder},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(in crate::native_app) struct FolderEntry {
@@ -16,6 +19,35 @@ pub(in crate::native_app) struct FolderEntry {
 }
 
 impl FolderEntry {
+    pub(super) fn ensure_folder_path(&mut self, path: &Path) -> Option<&mut FolderEntry> {
+        let self_path = Path::new(&self.id);
+        if self_path == path {
+            return Some(self);
+        }
+        let relative = path.strip_prefix(self_path).ok()?;
+        let component = relative.components().next()?;
+        let child_path = self_path.join(component.as_os_str());
+        let child_id = path_id(&child_path);
+        if self.children.iter().all(|child| child.id != child_id) {
+            upsert_folder(
+                &mut self.children,
+                FolderEntry {
+                    id: child_id.clone(),
+                    name: folder_label(&child_path),
+                    children: Vec::new(),
+                    files: Vec::new(),
+                },
+            );
+        }
+        self.children
+            .iter_mut()
+            .find(|child| child.id == child_id)?
+            .ensure_folder_path(path)
+    }
+
+    pub(super) fn upsert_projected_file(&mut self, file: FileEntry) -> bool {
+        upsert_file(&mut self.files, file)
+    }
     pub(super) fn find(&self, id: &str) -> Option<&FolderEntry> {
         if self.id == id {
             return Some(self);

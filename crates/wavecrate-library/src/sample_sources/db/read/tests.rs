@@ -572,6 +572,9 @@ fn legacy_read_only_minimal_wav_files_schema_reads_with_defaults() {
         PathBuf::from("nested/One.WAV")
     );
     assert_eq!(browser_snapshot.files[0].rating, Rating::NEUTRAL);
+    assert_eq!(browser_snapshot.files[0].file_size, 2048);
+    assert_eq!(browser_snapshot.files[0].modified_ns, 99);
+    assert!(!browser_snapshot.files[0].missing);
     assert!(browser_snapshot.files[0].collections.is_empty());
     assert_eq!(db.count_files().unwrap(), 1);
     assert_eq!(db.count_present_files().unwrap(), 1);

@@ -3131,3 +3131,14 @@ Wavecrate is moving toward the target when:
 * Radiant code owns reusable GUI/runtime primitives
 * reusable audio-engine code is not unnecessarily coupled to Wavecrate product behavior
 * the current GUI preserves core workflows without depending on removed UI paths
+
+## Source Refresh Projection Contract
+
+Native source refreshes build the browser from the authoritative scanner traversal and one
+coherent committed database snapshot. A routine refresh must not recursively enumerate the same
+source a second time to construct browser rows. Full projections are prepared off the UI thread,
+published in bounded batches, and replace the visible tree only after the complete snapshot is
+ready. Failed or stale hydration retains the last good projection and never replaces the cache
+with an empty or partial tree. Exact watcher deltas may update the projection incrementally only
+at the next committed revision; stale deltas are ignored and revision gaps recover through a full
+authoritative snapshot. The source scan cache is startup assistance, never source authority.

@@ -16,6 +16,7 @@ pub(crate) struct ScanContext {
     committed_manifest_revision: u64,
     pub(crate) last_committed_revision: Option<u64>,
     manifest_audit: Option<ManifestAuditCheckpoint>,
+    source_tree_incomplete: bool,
 }
 
 struct ManifestAuditCheckpoint {
@@ -58,7 +59,16 @@ impl ScanContext {
             committed_manifest_revision: manifest_revision,
             last_committed_revision: None,
             manifest_audit: None,
+            source_tree_incomplete: false,
         }
+    }
+
+    pub(in crate::sample_sources::scanner) fn mark_source_tree_incomplete(&mut self) {
+        self.source_tree_incomplete = true;
+    }
+
+    pub(in crate::sample_sources::scanner) fn source_tree_incomplete(&self) -> bool {
+        self.source_tree_incomplete
     }
 
     pub(in crate::sample_sources::scanner) fn resume_manifest_audit(

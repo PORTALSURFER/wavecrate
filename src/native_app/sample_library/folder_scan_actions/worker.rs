@@ -141,7 +141,7 @@ impl NativeAppState {
         prepared: impl Into<PreparedFolderScanResult>,
         context: &mut ui::UiUpdateContext<GuiMessage>,
     ) {
-        let prepared = prepared.into();
+        let mut prepared = prepared.into();
         let started_at = Instant::now();
         if let Some(generation) = prepared.lifecycle_generation {
             let source_id = prepared.scan.source_id.clone();
@@ -155,6 +155,13 @@ impl NativeAppState {
                 self.background
                     .source_lifecycle_generations
                     .insert(source_id, generation);
+            } else {
+                tracing::debug!(
+                    source_id,
+                    lifecycle_generation = generation,
+                    "Rejecting folder projection from an inactive source generation"
+                );
+                prepared.scan.cancelled = true;
             }
         }
         let scan_cache_update = prepared.scan_cache_update;
