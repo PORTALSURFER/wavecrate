@@ -449,6 +449,7 @@ impl NativeAppState {
             let result = persist_folder_scan_maintenance_recovering(request.clone());
             self.finish_folder_scan_maintenance(result, context);
         }
+        #[cfg(not(test))]
         context
             .business()
             .background("gui-folder-scan-maintenance")
