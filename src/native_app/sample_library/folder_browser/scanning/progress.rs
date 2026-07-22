@@ -13,8 +13,9 @@ use super::{
             FolderScanResult,
         },
     },
+    entry::{BrowserEntryKind, classify_path_without_following, read_sorted_entries},
     metadata::{SourceMetadataMap, rated_file_entry, source_rating_map_with_rating_decay},
-    traversal::{placeholder_folder, read_sorted_entries},
+    traversal::placeholder_folder,
 };
 use wavecrate::sample_sources::{SourceDatabase, scanner};
 
@@ -36,7 +37,8 @@ pub(in crate::native_app) fn scan_source_with_progress_cancellable(
     mut discovered: impl FnMut(FolderScanDiscovery),
     cancel: &AtomicBool,
 ) -> FolderScanResult {
-    let source_root_available = request.root.is_dir();
+    let source_root_available =
+        classify_path_without_following(&request.root) == Some(BrowserEntryKind::Directory);
     let source_db_error = if source_root_available {
         sync_source_database(&request, &mut progress, cancel)
     } else {
@@ -228,24 +230,24 @@ where
     scan.record_folder_snapshot_start(&parent_id);
     let children = entries
         .iter()
-        .filter(|entry| entry.is_dir())
+        .filter(|entry| entry.kind == BrowserEntryKind::Directory)
         .filter_map(|entry| {
             if scan.cancel.load(Ordering::Acquire) {
                 return None;
             }
-            scan.record_folder(entry, &parent_id);
-            load_folder_with_progress(entry, scan)
+            scan.record_folder(&entry.path, &parent_id);
+            load_folder_with_progress(&entry.path, scan)
         })
         .collect::<Vec<_>>();
     let files = entries
         .iter()
-        .filter(|entry| entry.is_file())
+        .filter(|entry| entry.kind == BrowserEntryKind::File)
         .map(|entry| {
             if scan.cancel.load(Ordering::Acquire) {
                 return None;
             }
-            let file = rated_file_entry(entry, &scan.request.root, &scan.ratings);
-            scan.record_file(entry, &parent_id, file.clone());
+            let file = rated_file_entry(&entry.path, &scan.request.root, &scan.ratings);
+            scan.record_file(&entry.path, &parent_id, file.clone());
             Some(file)
         })
         .take_while(Option::is_some)

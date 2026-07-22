@@ -45,6 +45,8 @@ mod panel_layout;
 mod random_navigation;
 mod source_management;
 mod source_scanning;
+#[cfg(unix)]
+mod source_scanning_symlinks;
 
 fn temp_source_root(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!(

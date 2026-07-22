@@ -1,15 +1,13 @@
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use super::{
     super::{
         FolderEntry,
         collections::MissingCollectionSnapshot,
-        path_helpers::{file_label, folder_label, path_id},
+        path_helpers::{folder_label, path_id},
         scan_types::{FolderTreeRefreshRequest, FolderTreeRefreshResult},
     },
+    entry::{BrowserEntryKind, classify_path_without_following, read_sorted_entries},
     metadata::{SourceMetadataMap, rated_file_entry, source_rating_map},
 };
 
@@ -55,7 +53,8 @@ pub(in crate::native_app) fn refresh_folder_tree_only(
         label: request.label,
         folder,
         folder_count,
-        source_root_available: request.root.is_dir(),
+        source_root_available: classify_path_without_following(&request.root)
+            == Some(BrowserEntryKind::Directory),
     }
 }
 
@@ -76,13 +75,13 @@ pub(super) fn load_folder(
     let entries = read_sorted_entries(path)?;
     let children = entries
         .iter()
-        .filter(|entry| entry.is_dir())
-        .filter_map(|entry| load_folder(entry, source_root, ratings))
+        .filter(|entry| entry.kind == BrowserEntryKind::Directory)
+        .filter_map(|entry| load_folder(&entry.path, source_root, ratings))
         .collect::<Vec<_>>();
     let files = entries
         .iter()
-        .filter(|entry| entry.is_file())
-        .map(|entry| rated_file_entry(entry, source_root, ratings))
+        .filter(|entry| entry.kind == BrowserEntryKind::File)
+        .map(|entry| rated_file_entry(&entry.path, source_root, ratings))
         .collect::<Vec<_>>();
     Some(FolderEntry {
         id: path_id(path),
@@ -97,8 +96,8 @@ fn load_folder_tree_only(path: &Path, folder_count: &mut usize) -> Option<Folder
     *folder_count += 1;
     let children = entries
         .iter()
-        .filter(|entry| entry.is_dir())
-        .filter_map(|entry| load_folder_tree_only(entry, folder_count))
+        .filter(|entry| entry.kind == BrowserEntryKind::Directory)
+        .filter_map(|entry| load_folder_tree_only(&entry.path, folder_count))
         .collect::<Vec<_>>();
     Some(FolderEntry {
         id: path_id(path),
@@ -106,19 +105,4 @@ fn load_folder_tree_only(path: &Path, folder_count: &mut usize) -> Option<Folder
         children,
         files: Vec::new(),
     })
-}
-
-pub(super) fn read_sorted_entries(path: &Path) -> Option<Vec<PathBuf>> {
-    let read_dir = fs::read_dir(path).ok()?;
-    let mut entries = read_dir
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| !wavecrate_library::sample_sources::is_apple_double_sidecar(path))
-        .collect::<Vec<_>>();
-    entries.sort_by(|a, b| {
-        file_label(a)
-            .to_ascii_lowercase()
-            .cmp(&file_label(b).to_ascii_lowercase())
-    });
-    Some(entries)
 }
