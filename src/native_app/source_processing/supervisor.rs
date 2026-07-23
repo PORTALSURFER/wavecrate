@@ -87,6 +87,7 @@ mod telemetry;
 pub(in crate::native_app) use admission::SourceScanAdmissionState;
 use admission::{SourceProcessingBudgetHandle, install_worker_app_root};
 use cache_ownership::*;
+pub(in crate::native_app) use commands::SourceAuditLifecycleCause;
 use control::*;
 use coordination::*;
 use coordinator::*;

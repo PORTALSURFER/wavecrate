@@ -5,8 +5,8 @@ use super::recovered_source_retirements;
 use super::{
     Arc, AtomicBool, AtomicU64, BTreeMap, BTreeSet, BudgetTracker, Condvar, ControlState,
     DatabaseWriterGate, Mutex, MutexGuard, Ordering, PriorityContext, ProcessingBudgets,
-    SampleSource, SourceProcessingEvent, SourceProcessingEventSink, SourceProcessingHealthEvent,
-    SupervisorTelemetry, sources_by_id,
+    SampleSource, SourceAuditLifecycleCause, SourceProcessingEvent, SourceProcessingEventSink,
+    SourceProcessingHealthEvent, SupervisorTelemetry, sources_by_id,
 };
 
 #[derive(Clone)]
@@ -124,7 +124,11 @@ impl Shared {
         #[cfg(test)]
         let next_retirement_id = 1_u64;
         let dirty_sources = sources.keys().cloned().collect();
-        let force_manifest_audit_sources = sources.keys().cloned().collect();
+        let safety_probe_sources = sources.keys().cloned().collect();
+        #[cfg(not(test))]
+        let lifecycle_audits_deferred_until_watcher_ready = true;
+        #[cfg(test)]
+        let lifecycle_audits_deferred_until_watcher_ready = false;
         Self {
             source_replacement: Mutex::new(()),
             state: Mutex::new(ControlState {
@@ -133,16 +137,18 @@ impl Shared {
                 source_lifecycle_generations,
                 next_lifecycle_generation,
                 dirty_sources,
-                safety_probe_sources: BTreeSet::new(),
+                safety_probe_sources,
+                lifecycle_audits_deferred_until_watcher_ready,
+                deferred_lifecycle_audit_sources: BTreeSet::new(),
                 pending_readiness_deltas: BTreeMap::new(),
                 awaiting_foreground_refresh_sources: BTreeSet::new(),
-                force_manifest_audit_sources,
+                force_manifest_audit_sources: BTreeSet::new(),
                 force_reanalysis_sources: BTreeSet::new(),
                 quarantined_sources: BTreeSet::new(),
                 pending_retirements,
                 next_retirement_id,
                 wake_generation: 1,
-                wake_reason: "startup",
+                wake_reason: SourceAuditLifecycleCause::Startup.reason(),
                 playback_active: false,
                 foreground_active: false,
                 shutdown: false,

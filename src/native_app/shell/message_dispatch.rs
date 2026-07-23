@@ -91,9 +91,11 @@ impl NativeAppState {
             | GuiMessage::FolderTreeRefreshFinished(_)
             | GuiMessage::SelectedFolderVerifyFinished(_)
             | GuiMessage::SourceFilesystemChanged { .. }
-            | GuiMessage::SourceWatcherReady
+            | GuiMessage::SourceWatcherReady { .. }
+            | GuiMessage::SourceWatcherJournalGap { .. }
             | GuiMessage::SourceFilesystemSyncFinished(_)
             | GuiMessage::SourceManifestAuditCommitted { .. }
+            | GuiMessage::SourceManifestAuditFinished { .. }
             | GuiMessage::NormalizationProgress(_)
             | GuiMessage::NormalizationFinished(_)
             | GuiMessage::SelectSampleWithModifiers { .. }
@@ -364,9 +366,11 @@ fn gui_message_profile_label(message: &GuiMessage) -> &'static str {
         GuiMessage::FolderTreeRefreshFinished(_) => "FolderTreeRefreshFinished",
         GuiMessage::SelectedFolderVerifyFinished(_) => "SelectedFolderVerifyFinished",
         GuiMessage::SourceFilesystemChanged { .. } => "SourceFilesystemChanged",
-        GuiMessage::SourceWatcherReady => "SourceWatcherReady",
+        GuiMessage::SourceWatcherReady { .. } => "SourceWatcherReady",
+        GuiMessage::SourceWatcherJournalGap { .. } => "SourceWatcherJournalGap",
         GuiMessage::SourceFilesystemSyncFinished(_) => "SourceFilesystemSyncFinished",
         GuiMessage::SourceManifestAuditCommitted { .. } => "SourceManifestAuditCommitted",
+        GuiMessage::SourceManifestAuditFinished { .. } => "SourceManifestAuditFinished",
         GuiMessage::SourceProcessingProgress(_) => "SourceProcessingProgress",
         GuiMessage::NormalizationProgress(_) => "NormalizationProgress",
         GuiMessage::NormalizationFinished(_) => "NormalizationFinished",

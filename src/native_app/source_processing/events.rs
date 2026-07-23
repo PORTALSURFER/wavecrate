@@ -104,6 +104,10 @@ pub(in crate::native_app) enum SourceProcessingEvent {
         lifecycle: SourceProcessingLifecycle,
         committed_delta: CommittedSourceDelta,
     },
+    ManifestAuditFinished {
+        lifecycle: SourceProcessingLifecycle,
+        complete: bool,
+    },
     Completed,
 }
 
@@ -113,7 +117,8 @@ impl SourceProcessingEvent {
             Self::Progress(progress) => Some(&progress.lifecycle),
             Self::Health(health) => Some(&health.lifecycle),
             Self::SimilarityReadinessAdvanced { lifecycle }
-            | Self::ManifestAuditCommitted { lifecycle, .. } => Some(lifecycle),
+            | Self::ManifestAuditCommitted { lifecycle, .. }
+            | Self::ManifestAuditFinished { lifecycle, .. } => Some(lifecycle),
             Self::Completed => None,
         }
     }

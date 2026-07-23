@@ -10,16 +10,22 @@ use super::{
     source_processing_schema_available,
 };
 use rusqlite::OptionalExtension;
+#[cfg(target_os = "macos")]
+use wavecrate_library::{
+    filesystem_identity::stable_filesystem_identity,
+    sample_sources::db::META_SOURCE_WATCHER_CHECKPOINT,
+};
 
 pub(super) fn readiness_safety_probe_is_current(
     connection: &mut rusqlite::Connection,
-    source_id: &str,
+    source: &SampleSource,
     now: i64,
     force_manifest_audit: bool,
 ) -> Result<bool, String> {
     if force_manifest_audit || !source_processing_schema_available(connection)? {
         return Ok(false);
     }
+    let source_id = source.id.as_str();
     let last_manifest_audit_at = connection
         .query_row(
             "SELECT value FROM metadata WHERE key = ?1",
@@ -44,14 +50,64 @@ pub(super) fn readiness_safety_probe_is_current(
         )
         .map_err(|error| error.to_string())?;
     let contract_version = readiness_contract_version();
-    Ok(ReadinessStore::new(connection)
+    let readiness_is_current = ReadinessStore::new(connection)
         .source_state(source_id)
         .map_err(|error| error.to_string())?
         .is_some_and(|state| {
             state.source_generation == source_generation
                 && state.availability == SourceAvailability::Active
                 && state.contract_version == contract_version
-        }))
+        });
+    Ok(readiness_is_current && durable_watcher_coverage_is_current(connection, source)?)
+}
+
+/// On macOS a current readiness revision is only safe to skip when its root still matches the
+/// durable FSEvents replay cursor. The watcher advances work from that cursor after it is live;
+/// a missing or replaced cursor deliberately leaves admission eligible for the bounded audit.
+#[cfg(target_os = "macos")]
+fn durable_watcher_coverage_is_current(
+    connection: &rusqlite::Connection,
+    source: &SampleSource,
+) -> Result<bool, String> {
+    let Some(root_identity) = std::fs::metadata(&source.root)
+        .ok()
+        .and_then(|metadata| stable_filesystem_identity(&source.root, &metadata))
+    else {
+        return Ok(false);
+    };
+    let checkpoint = connection
+        .query_row(
+            "SELECT value FROM metadata WHERE key = ?1",
+            [META_SOURCE_WATCHER_CHECKPOINT],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some(checkpoint) = checkpoint else {
+        return Ok(false);
+    };
+    let value: serde_json::Value = match serde_json::from_str(&checkpoint) {
+        Ok(value) => value,
+        Err(_) => return Ok(false),
+    };
+    Ok(value
+        .get("root_identity")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|identity| identity == root_identity)
+        && value
+            .get("event_id")
+            .and_then(serde_json::Value::as_u64)
+            .is_some_and(|event_id| event_id > 0))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn durable_watcher_coverage_is_current(
+    _connection: &rusqlite::Connection,
+    _source: &SampleSource,
+) -> Result<bool, String> {
+    // Other platforms keep their established bounded audit behavior until a comparable durable
+    // journal is available. They must not treat a process-local notify stream as a durable cursor.
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -133,6 +189,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
             )),
         )));
     }
+    let durable_watcher_coverage_current = durable_watcher_coverage_is_current(connection, source)?;
     let last_manifest_audit_at = connection
         .query_row(
             "SELECT value FROM metadata WHERE key = ?1",
@@ -144,7 +201,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or_default();
     if safety_probe_only
-        && readiness_safety_probe_is_current(connection, source_id, now, force_manifest_audit)?
+        && readiness_safety_probe_is_current(connection, source, now, force_manifest_audit)?
     {
         stats.cheap_noop_sweep = true;
         tracing::debug!(
@@ -181,6 +238,7 @@ pub(super) fn discover_source_candidates_with_connection_and_progress(
         .map_err(|error| error.to_string())?;
     if force_manifest_audit
         || manifest_identity_repair_due
+        || (safety_probe_only && !durable_watcher_coverage_current)
         || now.saturating_sub(last_manifest_audit_at) >= MANIFEST_AUDIT_INTERVAL_SECONDS
     {
         candidates.push(RuntimeCandidate {

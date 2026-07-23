@@ -378,6 +378,7 @@ fn source_completions_from_previous_readded_epoch_are_ignored() {
             source_id: source_id.clone(),
             lifecycle_generation: old_generation,
             changed_count: 1,
+            journal_checkpoint_event_id: None,
             cancelled: true,
             result: Err(String::from("old epoch cancelled")),
         }),

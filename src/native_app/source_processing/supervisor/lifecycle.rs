@@ -141,6 +141,9 @@ impl SourceProcessingSupervisor {
         control.safety_probe_sources.retain(|source_id| {
             retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
         });
+        control
+            .deferred_lifecycle_audit_sources
+            .retain(|source_id| retained_source_ids.contains(source_id));
         control.pending_readiness_deltas.retain(|source_id, _| {
             retained_source_ids.contains(source_id) && !changed_source_ids.contains(source_id)
         });

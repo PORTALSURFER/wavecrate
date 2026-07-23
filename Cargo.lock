@@ -6135,6 +6135,7 @@ dependencies = [
  "ed25519-dalek",
  "embed-resource",
  "filetime",
+ "fsevent-sys",
  "fuzzy-matcher",
  "hound",
  "image",
