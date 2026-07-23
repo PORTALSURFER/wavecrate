@@ -610,6 +610,7 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
         return Ok(Vec::new());
     }
 
+    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let entries_by_path = db
         .list_files()?
         .into_iter()
@@ -621,8 +622,7 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
     if !db.has_pending_renames()? {
         return Ok(Vec::new());
     }
-    let candidate_identities = db
-        .list_manifest_entries()?
+    let candidate_identities = manifest_before
         .into_iter()
         .filter(|entry| rename_candidates.contains(&entry.relative_path))
         .filter_map(|entry| {
@@ -640,6 +640,12 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
+    if !batch.matches_revision(manifest_revision)? {
+        return Err(ScanError::StaleRevision {
+            expected: manifest_revision,
+            actual: db.get_revision()?,
+        });
+    }
     let (renamed_samples, retained_candidates) = reconcile_indexed_rename_candidates(
         &mut batch,
         &root,
@@ -957,6 +963,11 @@ mod tests {
 
     struct ObservedWriterGuard(Arc<AtomicBool>);
 
+    struct InterleavedManifestWriter {
+        root: PathBuf,
+        committed: AtomicBool,
+    }
+
     impl Drop for ObservedWriterGuard {
         fn drop(&mut self) {
             self.0.store(false, Ordering::Release);
@@ -970,6 +981,20 @@ mod tests {
             assert!(!self.active.swap(true, Ordering::AcqRel));
             self.locks.fetch_add(1, Ordering::AcqRel);
             ObservedWriterGuard(Arc::clone(&self.active))
+        }
+    }
+
+    impl ScanWriter for InterleavedManifestWriter {
+        type Guard = ();
+
+        fn lock(&self, _phase: ScanWritePhase) -> Self::Guard {
+            if !self.committed.swap(true, Ordering::AcqRel) {
+                let database = SourceDatabase::open_for_source_write(&self.root)
+                    .expect("open concurrent source writer");
+                database
+                    .upsert_file(Path::new("unrelated.wav"), 1, 1)
+                    .expect("commit unrelated manifest revision");
+            }
         }
     }
 
@@ -1592,6 +1617,75 @@ mod tests {
                 .content_hash
                 .is_none(),
             "an unstable read must remain pending for a later hash pass"
+        );
+    }
+
+    #[test]
+    fn hashed_rename_reconciliation_rejects_a_stale_manifest_revision() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let old_relative = Path::new("old.wav");
+        let new_relative = Path::new("new.wav");
+        let old_absolute = dir.path().join(old_relative);
+        let new_absolute = dir.path().join(new_relative);
+        std::fs::write(&old_absolute, [5_u8; 32]).expect("write original wav");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        let mut batch = db.write_batch().expect("seed source batch");
+        batch
+            .upsert_file_with_hash(old_relative, 32, 1, "shared-hash")
+            .expect("insert original row");
+        batch
+            .set_tag(
+                old_relative,
+                wavecrate_library::sample_sources::Rating::KEEP_1,
+            )
+            .expect("curate original row");
+        batch.commit().expect("commit original row");
+
+        let original = db
+            .entry_for_path(old_relative)
+            .expect("read original row")
+            .expect("original row");
+        let mut batch = db.write_batch().expect("stage rename batch");
+        batch
+            .stage_pending_rename(&original)
+            .expect("stage pending rename");
+        batch
+            .remove_file(old_relative)
+            .expect("remove original row");
+        batch.commit().expect("commit pending rename");
+        std::fs::rename(&old_absolute, &new_absolute).expect("rename wav");
+        let mut batch = db.write_batch().expect("seed destination batch");
+        batch
+            .upsert_file_with_hash(new_relative, 32, 1, "shared-hash")
+            .expect("insert destination row");
+        batch.commit().expect("commit destination row");
+
+        let writer = InterleavedManifestWriter {
+            root: dir.path().to_path_buf(),
+            committed: AtomicBool::new(false),
+        };
+        let result = reconcile_hashed_rename_candidates_with_writer(
+            &db,
+            &HashSet::from([new_relative.to_path_buf()]),
+            None,
+            &writer,
+        );
+
+        assert!(matches!(result, Err(ScanError::StaleRevision { .. })));
+        assert!(
+            db.list_pending_renames()
+                .expect("read pending renames")
+                .iter()
+                .any(|entry| entry.relative_path == old_relative),
+            "stale reconciliation must leave the pending rename available for retry"
+        );
+        assert_eq!(
+            db.entry_for_path(new_relative)
+                .expect("read destination row")
+                .expect("destination row")
+                .tag,
+            wavecrate_library::sample_sources::Rating::NEUTRAL,
+            "stale reconciliation must not transfer source metadata"
         );
     }
 
