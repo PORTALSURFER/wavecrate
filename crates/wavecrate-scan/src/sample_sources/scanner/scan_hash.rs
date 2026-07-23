@@ -664,7 +664,7 @@ fn deep_hash_scan_with_post_hash_hook(
     writer: &impl ScanWriter,
     mut post_hash: impl FnMut(&std::path::Path),
 ) -> Result<ScanStats, ScanError> {
-    let manifest_before = super::manifest::capture_manifest(db)?;
+    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
     let root = ensure_root_dir(db)?;
     let mut rename_candidates = rename_candidates.clone();
     rename_candidates.extend(db.list_pending_rename_destinations()?);
@@ -765,6 +765,12 @@ fn deep_hash_scan_with_post_hash_hook(
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
+    if !batch.matches_revision(manifest_revision)? {
+        return Err(ScanError::StaleRevision {
+            expected: manifest_revision,
+            actual: db.get_revision()?,
+        });
+    }
     for backfill in &hash_backfills {
         batch.upsert_file_with_hash(
             &backfill.relative_path,
@@ -1586,6 +1592,151 @@ mod tests {
                 .content_hash
                 .is_none(),
             "an unstable read must remain pending for a later hash pass"
+        );
+    }
+
+    #[test]
+    fn deep_hash_scan_does_not_recreate_a_row_deleted_after_hash_planning() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let relative = Path::new("deleted.wav");
+        std::fs::write(dir.path().join(relative), [1_u8; 32]).expect("write wav");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        db.upsert_file(relative, 32, 1).expect("insert pending row");
+
+        let result = deep_hash_scan_with_post_hash_hook(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(relative),
+            &UncoordinatedScanWriter,
+            |_| {
+                let mut batch = db.write_batch().expect("delete batch");
+                batch.remove_file(relative).expect("delete planned row");
+                batch.commit().expect("commit deletion");
+            },
+        );
+
+        assert!(matches!(result, Err(ScanError::StaleRevision { .. })));
+        assert!(
+            db.entry_for_path(relative)
+                .expect("read deleted row")
+                .is_none(),
+            "stale hash publication must not recreate a deleted manifest row"
+        );
+    }
+
+    #[test]
+    fn deep_hash_scan_does_not_overwrite_a_replacement_row() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let relative = Path::new("replaced.wav");
+        std::fs::write(dir.path().join(relative), [2_u8; 32]).expect("write wav");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        db.upsert_file(relative, 32, 1).expect("insert pending row");
+
+        let result = deep_hash_scan_with_post_hash_hook(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(relative),
+            &UncoordinatedScanWriter,
+            |_| {
+                let mut batch = db.write_batch().expect("replacement batch");
+                batch.remove_file(relative).expect("remove planned row");
+                batch
+                    .upsert_file_with_hash(relative, 64, 99, "replacement-hash")
+                    .expect("insert replacement row");
+                batch
+                    .set_file_identity(relative, Some("replacement-identity"))
+                    .expect("set replacement identity");
+                batch.commit().expect("commit replacement");
+            },
+        );
+
+        assert!(matches!(result, Err(ScanError::StaleRevision { .. })));
+        let replacement = db
+            .entry_for_path(relative)
+            .expect("read replacement row")
+            .expect("replacement row");
+        assert_eq!(replacement.file_size, 64);
+        assert_eq!(replacement.modified_ns, 99);
+        assert_eq!(
+            replacement.content_hash.as_deref(),
+            Some("replacement-hash")
+        );
+        let replacement_manifest = db
+            .list_manifest_entries()
+            .expect("read replacement manifest")
+            .into_iter()
+            .find(|entry| entry.relative_path == relative)
+            .expect("replacement manifest row");
+        assert_eq!(
+            replacement_manifest.file_identity.as_deref(),
+            Some("replacement-identity")
+        );
+    }
+
+    #[test]
+    fn deep_hash_scan_retries_after_an_unrelated_manifest_revision() {
+        let dir = tempfile::tempdir().expect("temp source");
+        let target = Path::new("target.wav");
+        let unrelated = Path::new("unrelated.wav");
+        std::fs::write(dir.path().join(target), [3_u8; 32]).expect("write target");
+        std::fs::write(dir.path().join(unrelated), [4_u8; 16]).expect("write unrelated");
+        let db = SourceDatabase::open_for_source_write(dir.path()).expect("source db");
+        db.upsert_file(target, 32, 1)
+            .expect("insert pending target");
+
+        let result = deep_hash_scan_with_post_hash_hook(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(target),
+            &UncoordinatedScanWriter,
+            |_| {
+                db.upsert_file(unrelated, 16, 2)
+                    .expect("commit unrelated manifest row");
+            },
+        );
+
+        assert!(matches!(result, Err(ScanError::StaleRevision { .. })));
+        assert!(
+            db.entry_for_path(target)
+                .expect("read target row")
+                .expect("target row")
+                .content_hash
+                .is_none(),
+            "a revision mismatch must leave the planned hash pending for retry"
+        );
+        assert!(
+            db.entry_for_path(unrelated)
+                .expect("read unrelated row")
+                .is_some(),
+            "the concurrent committed manifest change must remain authoritative"
+        );
+
+        let retried = deep_hash_scan(
+            &db,
+            None,
+            &HashSet::new(),
+            DeferredHashScope::AllUnhashed,
+            Some(1),
+            Some(target),
+        )
+        .expect("retry deferred hash from the current manifest revision");
+        assert_eq!(retried.hashes_computed, 1);
+        assert!(
+            db.entry_for_path(target)
+                .expect("read retried target row")
+                .expect("retried target row")
+                .content_hash
+                .is_some(),
+            "the typed stale outcome must remain safely retryable"
         );
     }
 }

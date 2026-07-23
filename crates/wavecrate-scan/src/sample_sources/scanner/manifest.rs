@@ -6,12 +6,6 @@ use super::scan::{
     CommittedSourceDelta, ManifestIdentityDelta, MovedManifestIdentity, ScanError, ScanStats,
 };
 
-pub(super) fn capture_manifest(
-    database: &SourceDatabase,
-) -> Result<Vec<SourceManifestEntry>, ScanError> {
-    database.list_manifest_entries().map_err(ScanError::from)
-}
-
 pub(super) fn capture_manifest_with_revision(
     database: &SourceDatabase,
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
