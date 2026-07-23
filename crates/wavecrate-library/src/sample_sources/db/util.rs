@@ -22,7 +22,10 @@ pub(super) fn map_sql_error(err: rusqlite::Error) -> SourceDbError {
 /// Rejects absolute paths, parent traversal, root prefixes, and empty paths.
 pub fn normalize_relative_path(path: &Path) -> Result<String, SourceDbError> {
     let cleaned = sanitize_relative_path(path)?;
-    Ok(cleaned.to_string_lossy().replace('\\', "/"))
+    let value = cleaned
+        .to_str()
+        .ok_or_else(|| SourceDbError::NonUnicodeRelativePath(cleaned.clone()))?;
+    Ok(value.replace('\\', "/"))
 }
 
 /// Parse and validate a stored relative path from the database.
@@ -61,7 +64,9 @@ fn sanitize_relative_path(path: &Path) -> Result<PathBuf, SourceDbError> {
 }
 
 fn has_windows_absolute_prefix(path: &Path) -> bool {
-    let value = path.to_string_lossy();
+    let Some(value) = path.to_str() else {
+        return false;
+    };
     let bytes = value.as_bytes();
     value.starts_with('\\')
         || (bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic())
@@ -124,5 +129,27 @@ mod tests {
     fn normalize_relative_path_skips_curdir_components() {
         let normalized = normalize_relative_path(Path::new("folder/./file.wav")).unwrap();
         assert_eq!(normalized, "folder/file.wav");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn normalize_relative_path_rejects_non_unicode_names_without_aliasing_them() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = PathBuf::from(std::ffi::OsString::from_vec(b"kick-\xFF.wav".to_vec()));
+        let err = normalize_relative_path(&path).unwrap_err();
+        assert!(matches!(err, SourceDbError::NonUnicodeRelativePath(_)));
+    }
+
+    #[test]
+    fn normalize_relative_path_preserves_case_and_normalization_distinctions() {
+        assert_ne!(
+            normalize_relative_path(Path::new("Kick.wav")).unwrap(),
+            normalize_relative_path(Path::new("kick.wav")).unwrap()
+        );
+        assert_ne!(
+            normalize_relative_path(Path::new("café.wav")).unwrap(),
+            normalize_relative_path(Path::new("café.wav")).unwrap()
+        );
     }
 }

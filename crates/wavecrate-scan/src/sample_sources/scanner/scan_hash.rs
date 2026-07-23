@@ -2,8 +2,9 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
-use crate::sample_sources::{SourceDatabase, is_supported_audio};
+use wavecrate_library::sample_sources::{SourceEntryFileType, classify_source_entry};
 
 use super::scan::{ChangedSample, RenamedSample, ScanError, ScanStats, UpdatedSample};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
@@ -129,8 +130,18 @@ pub(super) fn verify_content_batch(
 }
 
 fn is_supported_regular_audio_file(path: &std::path::Path) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
-        && is_supported_audio(path)
+    std::fs::symlink_metadata(path).is_ok_and(|metadata| {
+        let file_type = metadata.file_type();
+        classify_source_entry(
+            path,
+            SourceEntryFileType::from_no_followed_type(
+                file_type.is_dir(),
+                file_type.is_file(),
+                file_type.is_symlink(),
+            ),
+        )
+        .has_supported_audio()
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

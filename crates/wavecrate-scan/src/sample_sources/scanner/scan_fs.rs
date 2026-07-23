@@ -13,8 +13,11 @@ use tracing::warn;
 use wavecrate_library::filesystem_identity::{
     filesystem_change_marker, stable_filesystem_identity,
 };
+use wavecrate_library::sample_sources::{
+    SourceEntryClassification, SourceEntryFileType, classify_source_entry,
+};
 
-use crate::sample_sources::{SourceDatabase, is_supported_audio};
+use crate::sample_sources::SourceDatabase;
 
 use super::scan::ScanError;
 use super::scan::{SourceTreeFile, SourceTreeSnapshot};
@@ -174,8 +177,8 @@ pub(super) fn visit_dir_with_cancel_check(
         directories: vec![PathBuf::new()],
         ..SourceTreeSnapshot::default()
     };
-    let mut stack = vec![(root.to_path_buf(), true)];
-    while let Some((dir, scan_audio)) = stack.pop() {
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
         if should_cancel() {
             return Err(ScanError::Canceled);
         }
@@ -239,48 +242,35 @@ pub(super) fn visit_dir_with_cancel_check(
                     continue;
                 }
             };
-            if file_type.is_symlink() {
-                continue;
-            }
-            if file_type.is_dir() {
-                let relative = path
-                    .strip_prefix(root)
-                    .map(Path::to_path_buf)
-                    .map_err(|_| ScanError::InvalidRoot(path.clone()))?;
-                snapshot.directories.push(relative);
-                let hidden = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with('.'));
-                stack.push((path, scan_audio && !hidden));
-                continue;
-            }
-            if file_type.is_file() {
-                if wavecrate_library::sample_sources::is_apple_double_sidecar(&path) {
-                    continue;
+            let relative = path
+                .strip_prefix(root)
+                .map(Path::to_path_buf)
+                .map_err(|_| ScanError::InvalidRoot(path.clone()))?;
+            match classify_source_entry(&relative, source_entry_file_type(&file_type)) {
+                SourceEntryClassification::Directory { .. } => {
+                    snapshot.directories.push(relative);
+                    stack.push(path);
                 }
-                if is_supported_audio(&path) {
-                    if scan_audio {
+                classification @ SourceEntryClassification::File { .. } => {
+                    if classification.indexes_audio() {
                         visitor(&path)?;
-                    }
-                } else {
-                    match entry.metadata() {
-                        Ok(metadata) => snapshot.other_files.push(SourceTreeFile {
-                            relative_path: path
-                                .strip_prefix(root)
-                                .map(Path::to_path_buf)
-                                .map_err(|_| ScanError::InvalidRoot(path.clone()))?,
-                            file_size: metadata.len(),
-                        }),
-                        Err(err) => record_layout_diagnostic(
-                            &mut snapshot,
-                            format!(
-                                "read file metadata {}: {err}",
-                                display_relative(root, &path)
+                    } else if !classification.has_supported_audio() {
+                        match entry.metadata() {
+                            Ok(metadata) => snapshot.other_files.push(SourceTreeFile {
+                                relative_path: relative,
+                                file_size: metadata.len(),
+                            }),
+                            Err(err) => record_layout_diagnostic(
+                                &mut snapshot,
+                                format!(
+                                    "read file metadata {}: {err}",
+                                    display_relative(root, &path)
+                                ),
                             ),
-                        ),
+                        }
                     }
                 }
+                SourceEntryClassification::Rejected(_) => {}
             }
         }
     }
@@ -418,21 +408,20 @@ pub(super) fn read_facts_from_open_file(
     })
 }
 
-pub(super) fn is_supported_regular_audio_file(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
-        && is_supported_audio(path)
+pub(super) fn is_supported_scannable_audio_file(root: &Path, relative_path: &Path) -> bool {
+    let absolute_path = root.join(relative_path);
+    fs::symlink_metadata(&absolute_path).is_ok_and(|metadata| {
+        let file_type = metadata.file_type();
+        classify_source_entry(relative_path, source_entry_file_type(&file_type)).indexes_audio()
+    })
 }
 
-pub(super) fn is_supported_scannable_audio_file(root: &Path, relative_path: &Path) -> bool {
-    let hidden_ancestor = relative_path.parent().is_some_and(|parent| {
-        parent.components().any(|component| {
-            let std::path::Component::Normal(name) = component else {
-                return false;
-            };
-            name.to_str().is_some_and(|name| name.starts_with('.'))
-        })
-    });
-    !hidden_ancestor && is_supported_regular_audio_file(&root.join(relative_path))
+fn source_entry_file_type(file_type: &fs::FileType) -> SourceEntryFileType {
+    SourceEntryFileType::from_no_followed_type(
+        file_type.is_dir(),
+        file_type.is_file(),
+        file_type.is_symlink(),
+    )
 }
 
 /// Hash the entire file contents for change detection, honoring cancellation when requested.

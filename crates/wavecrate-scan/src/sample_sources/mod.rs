@@ -21,7 +21,6 @@ pub use scanner::{
     RenamedSample, ScanError, ScanMode, ScanStats, SourceTreeFile, SourceTreeSnapshot,
     UpdatedSample,
 };
-pub(crate) use wavecrate_library::sample_sources::is_supported_audio;
 pub use wavecrate_library::sample_sources::normalize_relative_path;
 pub use wavecrate_library::sample_sources::{
     DB_FILE_NAME, LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, Rating, SampleSource,
