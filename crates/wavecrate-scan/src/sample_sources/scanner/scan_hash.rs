@@ -258,6 +258,12 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
         return Err(ScanError::Canceled);
     }
     let mut batch = db.write_batch()?;
+    let retained_candidates = retain_matching_rename_candidates(
+        &mut batch,
+        &present_by_hash,
+        &pending_by_hash,
+        &rename_candidates,
+    )?;
     let mut renamed_samples = reconcile_same_file_renames(
         &mut batch,
         &entries_by_path,
@@ -274,7 +280,7 @@ pub(super) fn reconcile_hashed_rename_candidates_with_writer(
         &rename_candidates,
         &already_reconciled,
     )?);
-    if renamed_samples.is_empty() {
+    if renamed_samples.is_empty() && retained_candidates == 0 {
         return Ok(renamed_samples);
     }
     batch.commit()?;
@@ -443,6 +449,12 @@ fn deep_hash_scan_with_post_hash_hook(
         )?;
         batch.set_file_identity(&backfill.relative_path, backfill.file_identity.as_deref())?;
     }
+    retain_matching_rename_candidates(
+        &mut batch,
+        &present_by_hash,
+        &pending_by_hash,
+        &rename_candidates,
+    )?;
 
     let mut renamed_samples = reconcile_same_file_renames(
         &mut batch,
@@ -541,10 +553,11 @@ fn reconcile_missing_renames(
             .iter()
             .filter(|path| rename_candidates.contains(*path) && !already_reconciled.contains(*path))
             .collect::<Vec<_>>();
-        let [present_path] = present_paths.as_slice() else {
+        let [present_path] = candidates.as_slice() else {
             continue;
         };
-        if candidates.as_slice() != [present_path] || pending_entry.relative_path == *present_path {
+        let present_path = *present_path;
+        if pending_entry.relative_path == *present_path {
             continue;
         }
         let Some(present_entry) = entries_by_path.get(present_path) else {
@@ -560,6 +573,28 @@ fn reconcile_missing_renames(
         });
     }
     Ok(reconciled)
+}
+
+fn retain_matching_rename_candidates(
+    batch: &mut SourceWriteBatch<'_>,
+    present_by_hash: &HashMap<String, Vec<PathBuf>>,
+    pending_by_hash: &HashMap<String, Vec<PendingRenameEntry>>,
+    rename_candidates: &HashSet<PathBuf>,
+) -> Result<usize, ScanError> {
+    let mut retained = 0;
+    for hash in pending_by_hash.keys() {
+        let Some(present_paths) = present_by_hash.get(hash) else {
+            continue;
+        };
+        for path in present_paths
+            .iter()
+            .filter(|path| rename_candidates.contains(*path))
+        {
+            batch.retain_pending_rename_destination(path, hash)?;
+            retained += 1;
+        }
+    }
+    Ok(retained)
 }
 
 fn reconciled_paths(renamed_samples: &[RenamedSample]) -> HashSet<PathBuf> {

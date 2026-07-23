@@ -295,7 +295,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
     );
     CREATE TABLE IF NOT EXISTS pending_wav_rename_destinations (
         path TEXT PRIMARY KEY,
-        scan_generation INTEGER NOT NULL
+        scan_generation INTEGER NOT NULL,
+        retained_hash TEXT
     );";
 
 const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing

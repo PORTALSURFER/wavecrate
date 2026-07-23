@@ -174,6 +174,23 @@ fn pending_rename_migration_adds_extended_metadata_columns() {
 }
 
 #[test]
+fn pending_rename_destination_migration_adds_retained_hash() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE pending_wav_rename_destinations (
+            path TEXT PRIMARY KEY,
+            scan_generation INTEGER NOT NULL
+        );",
+    )
+    .unwrap();
+
+    ensure_pending_rename_destination_schema(&conn).unwrap();
+
+    let columns = table_columns(&conn, "pending_wav_rename_destinations").unwrap();
+    assert!(columns.contains("retained_hash"));
+}
+
+#[test]
 fn wav_file_migration_adds_stable_file_identity_column() {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(

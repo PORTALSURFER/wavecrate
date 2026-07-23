@@ -173,7 +173,10 @@ pub(super) fn mark_missing(
         let Some(leftover) = db.entry_for_path(&stale.relative_path)? else {
             continue;
         };
-        batch.stage_pending_rename(&leftover)?;
+        if !batch.clear_retained_pending_rename_destination(&leftover.relative_path)? {
+            batch.clear_pending_rename_destination(&leftover.relative_path)?;
+            batch.stage_pending_rename(&leftover)?;
+        }
         batch.remove_file(&leftover.relative_path)?;
         stats.missing += 1;
     }

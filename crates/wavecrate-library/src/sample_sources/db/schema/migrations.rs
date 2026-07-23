@@ -61,10 +61,21 @@ fn ensure_pending_rename_destination_schema(connection: &Connection) -> Result<(
         .execute_batch(
             "CREATE TABLE IF NOT EXISTS pending_wav_rename_destinations (
                 path TEXT PRIMARY KEY,
-                scan_generation INTEGER NOT NULL
+                scan_generation INTEGER NOT NULL,
+                retained_hash TEXT
             );",
         )
         .map_err(map_sql_error)?;
+    let columns = table_columns(connection, "pending_wav_rename_destinations")?;
+    if !columns.contains("retained_hash") {
+        connection
+            .execute(
+                "ALTER TABLE pending_wav_rename_destinations
+                 ADD COLUMN retained_hash TEXT",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
     Ok(())
 }
 

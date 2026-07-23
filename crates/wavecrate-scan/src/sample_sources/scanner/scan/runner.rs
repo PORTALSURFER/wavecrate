@@ -217,28 +217,44 @@ pub(crate) fn reconcile_scan_renames(
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
-    let candidates = context
-        .stats
-        .rename_candidate_paths
-        .iter()
-        .cloned()
-        .collect::<HashSet<_>>();
-    let renamed = super::super::scan_hash::reconcile_hashed_rename_candidates_with_writer(
-        db,
-        &candidates,
-        cancel,
-        writer,
-    )?;
-    if renamed.is_empty() && context.mode != ScanMode::Hard {
-        return Ok(committed_snapshot);
-    }
-
     let current_candidates = context
         .stats
         .rename_candidate_paths
         .iter()
         .cloned()
         .collect::<HashSet<_>>();
+    let persisted_candidates = db
+        .list_retained_rename_destinations()?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let mut candidates = current_candidates.clone();
+    candidates.extend(persisted_candidates.iter().cloned());
+    let carried_candidates_need_revalidation = persisted_candidates
+        .iter()
+        .any(|path| !current_candidates.contains(path));
+    let renamed = if carried_candidates_need_revalidation {
+        super::super::scan_hash::deep_hash_scan_with_writer(
+            db,
+            cancel,
+            &candidates,
+            super::super::scan_hash::DeferredHashScope::RenameCandidates,
+            None,
+            None,
+            writer,
+        )?
+        .renamed_samples
+    } else {
+        super::super::scan_hash::reconcile_hashed_rename_candidates_with_writer(
+            db,
+            &candidates,
+            cancel,
+            writer,
+        )?
+    };
+    if renamed.is_empty() && context.mode != ScanMode::Hard {
+        return Ok(committed_snapshot);
+    }
+
     let original_paths = manifest_before
         .iter()
         .map(|entry| entry.relative_path.clone())
@@ -287,7 +303,8 @@ pub(crate) fn reconcile_scan_renames(
         for path in pending_to_clear {
             batch.clear_pending_rename(&path)?;
         }
-        batch.clear_all_pending_rename_destinations()?;
+        batch.prune_invalid_retained_rename_destinations()?;
+        batch.clear_unretained_pending_rename_destinations()?;
         batch.commit()?;
     }
     Ok(db.manifest_snapshot_with_revision()?)

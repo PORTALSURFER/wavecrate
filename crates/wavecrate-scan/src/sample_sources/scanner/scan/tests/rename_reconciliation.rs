@@ -177,6 +177,27 @@ fn hard_rescan_retains_metadata_for_ambiguous_same_content_destinations() {
         sample_id_count(dir.path(), "features", "source::old.wav"),
         1
     );
+
+    std::fs::remove_file(&first).unwrap();
+    let resolved = hard_rescan(&db).unwrap();
+
+    assert_eq!(resolved.renames_reconciled, 1);
+    let survivor = db
+        .entry_for_path(Path::new("second-copy.wav"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(survivor.tag, Rating::KEEP_1);
+    assert_eq!(survivor.user_tag.as_deref(), Some("Ambiguous hard rename"));
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        0
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::second-copy.wav"),
+        1
+    );
 }
 
 #[test]
@@ -909,7 +930,7 @@ fn retained_destination_is_revalidated_before_identity_transfer() {
 }
 
 #[test]
-fn retained_destination_stays_ambiguous_when_duplicate_live_path_exists() {
+fn sole_eligible_destination_reconciles_when_unchanged_duplicate_exists() {
     let dir = tempdir().unwrap();
     let old = dir.path().join("old.wav");
     let duplicate = dir.path().join("duplicate.wav");
@@ -929,19 +950,21 @@ fn retained_destination_stays_ambiguous_when_duplicate_live_path_exists() {
     let added = sync_paths(&db, &[PathBuf::from("candidate.wav")]).unwrap();
     let completed = complete_deferred_hashes(&db, added).unwrap();
 
-    assert_eq!(completed.renames_reconciled, 0);
+    assert_eq!(completed.renames_reconciled, 1);
     assert_eq!(
         db.entry_for_path(Path::new("candidate.wav"))
             .unwrap()
             .unwrap()
             .tag,
-        Rating::NEUTRAL
+        Rating::KEEP_1
     );
-    assert!(
-        db.list_pending_renames()
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert_eq!(
+        db.entry_for_path(Path::new("duplicate.wav"))
             .unwrap()
-            .iter()
-            .any(|entry| entry.relative_path == Path::new("old.wav"))
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
     );
 }
 
