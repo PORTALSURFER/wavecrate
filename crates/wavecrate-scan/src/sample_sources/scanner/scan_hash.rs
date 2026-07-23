@@ -278,12 +278,7 @@ fn verify_content_batch_with_hooks(
             .max_entries
             .saturating_sub(usize::from(forward_is_due)),
     );
-    let retry = db.content_audit_retry_candidates(
-        checkpoint.rotation_id,
-        &checkpoint.retry_cursor,
-        now,
-        retry_limit,
-    )?;
+    let retry = db.content_audit_retry_candidates(&checkpoint.retry_cursor, now, retry_limit)?;
     let planned_forward = forward.len();
     let planned_retries = retry.len();
     let mut selected = Vec::with_capacity(retry.len() + forward.len());
