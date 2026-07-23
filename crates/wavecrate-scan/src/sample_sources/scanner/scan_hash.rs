@@ -260,66 +260,32 @@ fn verify_content_batch_with_hooks(
     post_hash: &mut impl FnMut(&std::path::Path),
     elapsed: &mut impl FnMut() -> Duration,
 ) -> Result<ScanStats, ScanError> {
-    let (manifest_revision, manifest_before) = super::manifest::capture_manifest_with_revision(db)?;
+    let planning_started = Instant::now();
+    let manifest_revision = db.get_revision()?;
     let root = ensure_root_dir(db)?;
-    let entries = manifest_before.clone();
     let checkpoint = {
         let _writer = writer.lock(ScanWritePhase::Manifest);
         db.begin_or_resume_content_audit(now, manifest_revision)?
     };
-    let states = db.content_audit_entry_states()?;
-    let forward_is_due = entries.iter().any(|entry| {
-        states.get(&entry.relative_path).is_none_or(|state| {
-            !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
-        })
-    });
+    let forward = db.content_audit_forward_candidates(
+        checkpoint.rotation_id,
+        &checkpoint.cursor,
+        budget.max_entries,
+    )?;
+    let forward_is_due = !forward.is_empty();
     let retry_limit = budget.retry_entries.min(
         budget
             .max_entries
             .saturating_sub(usize::from(forward_is_due)),
     );
-    let due_retries = entries
-        .iter()
-        .filter(|entry| {
-            states.get(&entry.relative_path).is_some_and(|state| {
-                !state.verifies(entry, checkpoint.rotation_id) && state.retry_is_due(now)
-            })
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    let retry_start = due_retries
-        .iter()
-        .position(|entry| {
-            entry.relative_path.to_string_lossy().as_ref() > checkpoint.retry_cursor.as_str()
-        })
-        .unwrap_or(0);
-    let retry = due_retries
-        .iter()
-        .cycle()
-        .skip(retry_start)
-        .take(due_retries.len())
-        .take(retry_limit)
-        .cloned()
-        .collect::<Vec<_>>();
-    let start = entries
-        .iter()
-        .position(|entry| {
-            entry.relative_path.to_string_lossy().as_ref() > checkpoint.cursor.as_str()
-        })
-        .unwrap_or(0);
-    let forward = entries
-        .iter()
-        .cycle()
-        .skip(start)
-        .take(entries.len())
-        .filter(|entry| {
-            states.get(&entry.relative_path).is_none_or(|state| {
-                !state.verifies(entry, checkpoint.rotation_id) && state.skip_reason.is_none()
-            })
-        })
-        .take(budget.max_entries.saturating_sub(retry.len()))
-        .cloned()
-        .collect::<Vec<_>>();
+    let retry = db.content_audit_retry_candidates(
+        checkpoint.rotation_id,
+        &checkpoint.retry_cursor,
+        now,
+        retry_limit,
+    )?;
+    let planned_forward = forward.len();
+    let planned_retries = retry.len();
     let mut selected = Vec::with_capacity(retry.len() + forward.len());
     let mut retry = VecDeque::from(retry);
     let mut forward = VecDeque::from(forward);
@@ -337,6 +303,16 @@ fn verify_content_batch_with_hooks(
             planned_retry_next = true;
         }
     }
+    tracing::debug!(
+        manifest_revision,
+        rotation_id = checkpoint.rotation_id,
+        admitted_entries = budget.max_entries,
+        planned_forward,
+        planned_retries,
+        selected_entries = selected.len(),
+        planning_elapsed_us = planning_started.elapsed().as_micros().min(u64::MAX as u128) as u64,
+        "Planned bounded source content-audit slice"
+    );
     let mut stats = ScanStats::default();
     let mut verified = Vec::new();
     let mut skipped = Vec::new();
@@ -417,7 +393,7 @@ fn verify_content_batch_with_hooks(
         stats.hashes_computed += 1;
     }
     let cancelled = cancel_requested(cancel);
-    let committed_snapshot = if !verified.is_empty() || !skipped.is_empty() {
+    if !verified.is_empty() || !skipped.is_empty() {
         let _writer = writer.lock(ScanWritePhase::DeferredHash);
         let mut batch = db.write_batch()?;
         if !batch.matches_revision(manifest_revision)? {
@@ -438,6 +414,7 @@ fn verify_content_batch_with_hooks(
                 }
             }
         }
+        let mut changed_before = Vec::new();
         for (previous, facts, content_hash) in &committed_verified {
             batch.record_content_audit_verified(
                 &previous.relative_path,
@@ -454,6 +431,7 @@ fn verify_content_batch_with_hooks(
             {
                 continue;
             }
+            changed_before.push(previous.clone());
             if previous.file_identity != facts.file_identity {
                 tracing::debug!(
                     path = %previous.relative_path.display(),
@@ -503,22 +481,35 @@ fn verify_content_batch_with_hooks(
             attempted_bytes,
             now,
         )?;
-        batch.commit_with_manifest_snapshot()?
+        let (revision, changes) = batch.commit_with_bounded_manifest_changes(manifest_revision)?;
+        let changed_after = changes
+            .into_iter()
+            .filter_map(|(_, entry)| entry)
+            .collect::<Vec<_>>();
+        stats.committed_delta =
+            super::manifest::build_committed_delta(&changed_before, &changed_after, revision);
+        stats.manifest_updates = changed_after;
     } else {
-        db.manifest_snapshot_with_revision()?
+        stats.committed_delta.revision = db.get_revision()?;
     };
-    super::manifest::publish_committed_delta(&mut stats, manifest_before, committed_snapshot);
     let report = {
         let _writer = writer.lock(ScanWritePhase::Manifest);
         db.content_audit_report(now)?
     };
     if report.remaining_entries == 0 && report.total_entries > 0 {
-        let manifest_before = stats.manifest_before.clone();
         let _writer = writer.lock(ScanWritePhase::Manifest);
         let mut batch = db.write_batch()?;
+        if !batch.matches_revision(stats.committed_delta.revision)? {
+            return Err(ScanError::StaleRevision {
+                expected: stats.committed_delta.revision,
+                actual: db.get_revision()?,
+            });
+        }
         batch.complete_content_audit_rotation(now, stats.committed_delta.revision)?;
-        let committed = batch.commit_with_manifest_snapshot()?;
-        super::manifest::publish_committed_delta(&mut stats, manifest_before, committed);
+        let (revision, changes) =
+            batch.commit_with_bounded_manifest_changes(stats.committed_delta.revision)?;
+        debug_assert!(changes.is_empty());
+        stats.committed_delta.revision = revision;
     }
     stats.content_audit = Some({
         let _writer = writer.lock(ScanWritePhase::Manifest);

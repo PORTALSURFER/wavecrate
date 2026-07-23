@@ -80,6 +80,9 @@ pub struct ScanStats {
     pub manifest_before: Vec<SourceManifestEntry>,
     #[doc(hidden)]
     pub manifest_after: Vec<SourceManifestEntry>,
+    /// Manifest rows updated by a bounded deferred operation.
+    #[doc(hidden)]
+    pub manifest_updates: Vec<SourceManifestEntry>,
     /// Filesystem layout captured by the authoritative full traversal.
     #[doc(hidden)]
     pub source_tree_snapshot: Option<SourceTreeSnapshot>,
@@ -100,13 +103,33 @@ impl ScanStats {
         self.updated_samples.append(&mut deferred.updated_samples);
         self.renamed_samples.append(&mut deferred.renamed_samples);
         self.changed_samples.append(&mut deferred.changed_samples);
-        if !deferred.manifest_after.is_empty() || deferred.committed_delta.revision > 0 {
+        if !deferred.manifest_after.is_empty() {
             self.manifest_after = deferred.manifest_after;
             self.committed_delta = super::super::manifest::build_committed_delta(
                 &self.manifest_before,
                 &self.manifest_after,
                 deferred.committed_delta.revision,
             );
+        } else if !deferred.manifest_updates.is_empty() && !self.manifest_after.is_empty() {
+            for update in deferred.manifest_updates {
+                if let Ok(index) = self
+                    .manifest_after
+                    .binary_search_by(|entry| entry.relative_path.cmp(&update.relative_path))
+                {
+                    self.manifest_after[index] = update;
+                }
+            }
+            self.committed_delta = super::super::manifest::build_committed_delta(
+                &self.manifest_before,
+                &self.manifest_after,
+                deferred.committed_delta.revision,
+            );
+        } else if deferred.committed_delta.revision > 0 {
+            if self.committed_delta.revision == 0 {
+                self.committed_delta = deferred.committed_delta;
+            } else {
+                self.committed_delta.revision = deferred.committed_delta.revision;
+            }
         }
         if deferred.source_tree_snapshot.is_some() {
             self.source_tree_snapshot = deferred.source_tree_snapshot;

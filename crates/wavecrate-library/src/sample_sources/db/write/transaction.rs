@@ -108,6 +108,38 @@ impl SourceWriteBatch<'_> {
         Ok((revision, changes, snapshot))
     }
 
+    /// Commit a revision-fenced batch and return only the manifest rows touched by that batch.
+    ///
+    /// Unlike [`Self::commit_with_manifest_changes`], this method never falls back to loading the
+    /// complete manifest. It is intended for bounded work whose caller has already selected a
+    /// small path set and requires an exact revision match before publishing that path delta.
+    pub fn commit_with_bounded_manifest_changes(
+        self,
+        expected_previous_revision: u64,
+    ) -> Result<(u64, Vec<(PathBuf, Option<SourceManifestEntry>)>), SourceDbError> {
+        if manifest_revision(&self.tx)? != expected_previous_revision {
+            return Err(SourceDbError::Unexpected);
+        }
+        self.prepare_commit()?;
+        let revision = manifest_revision(&self.tx)?;
+        let changes = self
+            .manifest_touched_paths
+            .iter()
+            .map(|path| {
+                let normalized = PathBuf::from(normalize_relative_path(path)?);
+                let entry = manifest_entry_for_path(&self.tx, &normalized)?;
+                Ok((normalized, entry))
+            })
+            .collect::<Result<Vec<_>, SourceDbError>>()?;
+        self.tx.commit().map_err(map_sql_error)?;
+        crate::sqlite_wal::maybe_checkpoint_database_file(
+            &self.db_path,
+            "source_db",
+            self.telemetry_label,
+        );
+        Ok((revision, changes))
+    }
+
     fn prepare_commit(&self) -> Result<(), SourceDbError> {
         SourceDatabase::bump_revision(&self.tx)?;
         if self.paths_revision_dirty {
