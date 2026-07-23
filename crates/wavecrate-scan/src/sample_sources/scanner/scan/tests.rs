@@ -9,6 +9,7 @@ mod basics;
 mod filesystem_edges;
 mod hard_rescan;
 mod rename_reconciliation;
+mod rename_retention;
 mod targeted_sync;
 
 #[cfg(unix)]

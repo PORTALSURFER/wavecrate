@@ -27,6 +27,24 @@ impl SourceWriteBatch<'_> {
         Ok(())
     }
 
+    /// Commit source-local coordination metadata without advancing the manifest revision.
+    ///
+    /// This is restricted to batches that did not touch `wav_files` or the ordered path set.
+    /// Callers use it for transactionally coherent auxiliary lifecycle state whose publication
+    /// must not impersonate a new source-manifest generation.
+    pub fn commit_auxiliary_state(self) -> Result<(), SourceDbError> {
+        if self.paths_revision_dirty || !self.manifest_touched_paths.is_empty() {
+            return Err(SourceDbError::Unexpected);
+        }
+        self.tx.commit().map_err(map_sql_error)?;
+        crate::sqlite_wal::maybe_checkpoint_database_file(
+            &self.db_path,
+            "source_db",
+            self.telemetry_label,
+        );
+        Ok(())
+    }
+
     /// Commit the batch and return the manifest snapshot owned by that exact revision.
     ///
     /// The snapshot is read from the active write transaction after its revision bump and before
@@ -209,6 +227,28 @@ mod tests {
     use std::path::Path;
 
     use super::*;
+
+    #[test]
+    fn auxiliary_commit_rejects_manifest_mutations() {
+        let directory = tempfile::tempdir().expect("source root");
+        let database =
+            SourceDatabase::open_for_source_write(directory.path()).expect("source database");
+        let mut batch = database.write_batch().expect("write batch");
+        batch
+            .upsert_file(Path::new("sample.wav"), 1, 1)
+            .expect("stage manifest mutation");
+
+        assert!(matches!(
+            batch.commit_auxiliary_state(),
+            Err(SourceDbError::Unexpected)
+        ));
+        assert!(
+            database
+                .entry_for_path(Path::new("sample.wav"))
+                .expect("read rolled-back manifest")
+                .is_none()
+        );
+    }
 
     #[test]
     fn commit_snapshot_stays_bound_to_its_own_revision() {

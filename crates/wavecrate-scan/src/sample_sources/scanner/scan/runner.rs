@@ -31,13 +31,13 @@ pub enum ScanMode {
 /// Recursively scan the source root, syncing supported audio files into the database.
 /// Returns counts of added/updated/removed rows.
 pub fn scan_once(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
-    scan(db, ScanMode::Quick, None, None, None)
+    scan(db, ScanMode::Quick, None, None, None, true)
 }
 
 /// Rescan the entire source, pruning rows for files that no longer exist and
 /// clearing pending rename rows that have no matching current destinations.
 pub fn hard_rescan(db: &SourceDatabase) -> Result<ScanStats, ScanError> {
-    scan(db, ScanMode::Hard, None, None, None)
+    scan(db, ScanMode::Hard, None, None, None, true)
 }
 
 /// Reconcile the full source manifest and verify a bounded rotating content batch.
@@ -46,8 +46,8 @@ pub fn audit_source(
     cancel: Option<&AtomicBool>,
     max_hashes: usize,
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, None, None)?;
-    merge_audit_verification(
+    let mut stats = scan(db, ScanMode::Quick, cancel, None, None, false)?;
+    let mut stats = merge_audit_verification(
         &mut stats,
         super::super::scan_hash::verify_content_batch(
             db,
@@ -55,7 +55,9 @@ pub fn audit_source(
             ContentAuditBudget::entry_limited(max_hashes),
             now_epoch_seconds(),
         ),
-    )
+    )?;
+    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, &UncoordinatedScanWriter)?;
+    Ok(stats)
 }
 
 /// Reconcile a source and verify content under explicit time, byte, and entry ceilings.
@@ -64,11 +66,13 @@ pub fn audit_source_with_budget(
     cancel: Option<&AtomicBool>,
     budget: ContentAuditBudget,
 ) -> Result<ScanStats, ScanError> {
-    let mut stats = scan(db, ScanMode::Quick, cancel, None, None)?;
-    merge_audit_verification(
+    let mut stats = scan(db, ScanMode::Quick, cancel, None, None, false)?;
+    let mut stats = merge_audit_verification(
         &mut stats,
         super::super::scan_hash::verify_content_batch(db, cancel, budget, now_epoch_seconds()),
-    )
+    )?;
+    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, &UncoordinatedScanWriter)?;
+    Ok(stats)
 }
 
 /// Reconcile a source audit and durably record manifest completion before content verification.
@@ -153,11 +157,12 @@ fn audit_source_and_record_after_scan(
         cancel,
         on_progress,
         Some(completed_at),
+        false,
         writer,
     )?;
     record_manifest_audit_completion(db, &mut stats, completed_at, writer)?;
     after_scan();
-    merge_audit_verification(
+    let mut stats = merge_audit_verification(
         &mut stats,
         super::super::scan_hash::verify_content_batch_with_writer(
             db,
@@ -166,7 +171,9 @@ fn audit_source_and_record_after_scan(
             completed_at,
             writer,
         ),
-    )
+    )?;
+    finalize_pending_rename_completion(db, &mut stats, ScanMode::Quick, writer)?;
+    Ok(stats)
 }
 
 fn record_manifest_audit_completion(
@@ -264,7 +271,7 @@ pub fn scan_with_progress(
     cancel: Option<&AtomicBool>,
     on_progress: &mut impl FnMut(usize, &Path),
 ) -> Result<ScanStats, ScanError> {
-    scan(db, mode, cancel, Some(on_progress), None)
+    scan(db, mode, cancel, Some(on_progress), None, true)
 }
 
 /// Scan with progress while acquiring an owning runtime's writer guard only for bounded database
@@ -276,7 +283,7 @@ pub fn scan_with_progress_and_writer(
     on_progress: &mut impl FnMut(usize, &Path),
     writer: &impl ScanWriter,
 ) -> Result<ScanStats, ScanError> {
-    scan_with_writer(db, mode, cancel, Some(on_progress), None, writer)
+    scan_with_writer(db, mode, cancel, Some(on_progress), None, true, writer)
 }
 
 fn scan(
@@ -285,6 +292,7 @@ fn scan(
     cancel: Option<&AtomicBool>,
     on_progress: Option<&mut dyn FnMut(usize, &Path)>,
     manifest_audit_started_at: Option<i64>,
+    finalize_pending_renames: bool,
 ) -> Result<ScanStats, ScanError> {
     scan_with_writer(
         db,
@@ -292,6 +300,7 @@ fn scan(
         cancel,
         on_progress,
         manifest_audit_started_at,
+        finalize_pending_renames,
         &UncoordinatedScanWriter,
     )
 }
@@ -302,6 +311,7 @@ fn scan_with_writer(
     cancel: Option<&AtomicBool>,
     mut on_progress: Option<&mut dyn FnMut(usize, &Path)>,
     manifest_audit_started_at: Option<i64>,
+    finalize_pending_renames: bool,
     writer: &impl ScanWriter,
 ) -> Result<ScanStats, ScanError> {
     debug_assert_ne!(mode, ScanMode::Targeted);
@@ -329,6 +339,12 @@ fn scan_with_writer(
                 cancel,
                 writer,
             )
+        })
+        .and_then(|committed_snapshot| {
+            if finalize_pending_renames && !context.has_uncertain_prefixes() {
+                finalize_pending_rename_completion(db, &mut context.stats, mode, writer)?;
+            }
+            Ok(committed_snapshot)
         });
     finish_scan_result(manifest_before, context, result)
 }
@@ -363,6 +379,10 @@ pub(crate) fn reconcile_scan_renames(
     let carried_candidates_need_revalidation = persisted_candidates
         .iter()
         .any(|path| !current_candidates.contains(path));
+    context.stats.pending_renames_considered = context
+        .stats
+        .pending_renames_considered
+        .saturating_add(candidates.len());
     let renamed = if carried_candidates_need_revalidation {
         super::super::scan_hash::deep_hash_scan_with_writer(
             db,
@@ -411,34 +431,41 @@ pub(crate) fn reconcile_scan_renames(
     context.stats.updated += renamed.len();
     context.stats.renames_reconciled += renamed.len();
     context.stats.renamed_samples.extend(renamed);
-    if context.mode == ScanMode::Hard {
-        let candidate_hashes = db
-            .list_manifest_entries()?
-            .into_iter()
-            .filter(|entry| candidates.contains(&entry.relative_path))
-            .filter_map(|entry| entry.content_hash)
-            .collect::<HashSet<_>>();
-        let pending_to_clear = db
-            .list_pending_renames()?
-            .into_iter()
-            .filter(|entry| {
-                entry
-                    .content_hash
-                    .as_ref()
-                    .is_none_or(|hash| !candidate_hashes.contains(hash))
-            })
-            .map(|entry| entry.relative_path)
-            .collect::<Vec<_>>();
-        let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
-        let mut batch = db.write_batch()?;
-        for path in pending_to_clear {
-            batch.clear_pending_rename(&path)?;
-        }
-        batch.prune_invalid_retained_rename_destinations()?;
-        batch.clear_unretained_pending_rename_destinations()?;
-        batch.commit()?;
-    }
     Ok(db.manifest_snapshot_with_revision()?)
+}
+
+fn finalize_pending_rename_completion(
+    db: &SourceDatabase,
+    stats: &mut ScanStats,
+    mode: ScanMode,
+    writer: &impl ScanWriter,
+) -> Result<(), ScanError> {
+    debug_assert_ne!(mode, ScanMode::Targeted);
+    let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
+    let mut batch = db.write_batch()?;
+    if mode == ScanMode::Hard {
+        batch.prune_invalid_retained_rename_destinations()?;
+    }
+    let report = batch.complete_pending_rename_authoritative_scan(mode == ScanMode::Hard)?;
+    if mode == ScanMode::Hard {
+        batch.clear_unretained_pending_rename_destinations()?;
+    }
+    batch.commit_auxiliary_state()?;
+    stats.pending_renames_pruned = stats
+        .pending_renames_pruned
+        .saturating_add(report.candidates_pruned);
+    stats.pending_rename_diagnostics = Some(report.diagnostics.clone());
+    tracing::debug!(
+        authoritative_generation = report.diagnostics.authoritative_generation,
+        candidates = report.diagnostics.candidate_count,
+        oldest_generation = report.diagnostics.oldest_staged_generation,
+        oldest_staged_at = report.diagnostics.oldest_staged_at,
+        oldest_age_seconds = report.diagnostics.oldest_candidate_age_seconds,
+        considered = stats.pending_renames_considered,
+        pruned = report.candidates_pruned,
+        "Completed bounded pending-rename retention"
+    );
+    Ok(())
 }
 
 pub(crate) fn finish_scan_result(
@@ -542,7 +569,7 @@ pub fn complete_deferred_rename_candidates_with_cancel_and_writer(
     cancel: Option<&AtomicBool>,
     writer: &impl ScanWriter,
 ) -> Result<ScanStats, ScanError> {
-    if db.list_pending_renames()?.is_empty() {
+    if !db.has_pending_renames()? {
         return Ok(stats);
     }
     let persisted_candidates = db.list_pending_rename_destinations()?;

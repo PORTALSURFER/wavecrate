@@ -46,7 +46,7 @@ pub(crate) use open::open_source_database;
 pub use open::{test_reset_source_db_open_total_count, test_source_db_open_total_count};
 pub use open_profiles::SourceDatabaseConnectionRole;
 /// Metadata retained for a pruned row so later scans can recover rename state.
-pub use pending_renames::PendingRenameEntry;
+pub use pending_renames::{PendingRenameDiagnostics, PendingRenameEntry, PendingRenamePruneReport};
 pub use rename_metadata::RenameMetadataSnapshot;
 pub use types::{
     BrowserFileMetadata, BrowserMetadataSnapshot, Rating, SampleCollection, SampleSoundType,
