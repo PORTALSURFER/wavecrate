@@ -52,6 +52,14 @@ fn map_event(event: SourceProcessingEvent) -> GuiMessage {
             lifecycle_generation: lifecycle.generation,
             committed_delta,
         },
+        SourceProcessingEvent::ManifestAuditFinished {
+            lifecycle,
+            complete,
+        } => GuiMessage::SourceManifestAuditFinished {
+            source_id: lifecycle.source_id,
+            lifecycle_generation: lifecycle.generation,
+            complete,
+        },
         SourceProcessingEvent::Completed => {
             GuiMessage::SourceProcessingProgress(SourceProcessingProgress {
                 source_id: String::new(),

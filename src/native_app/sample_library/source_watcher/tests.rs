@@ -591,7 +591,7 @@ fn foreground_reconciliation_request_refreshes_every_configured_source() {
         receiver
             .recv_timeout(super::WATCHER_START_TIMEOUT)
             .expect("watcher-ready message"),
-        GuiMessage::SourceWatcherReady
+        GuiMessage::SourceWatcherReady { .. }
     ) {}
 
     watcher.request_full_reconciliation();
@@ -609,6 +609,7 @@ fn foreground_reconciliation_request_refreshes_every_configured_source() {
             paths,
             overflowed,
             source_root_available,
+            ..
         } = message
         {
             assert!(paths.is_empty());
@@ -654,7 +655,7 @@ fn idempotent_startup_source_sync_does_not_refresh_every_source() {
     assert_eq!(
         messages
             .iter()
-            .filter(|message| matches!(message, GuiMessage::SourceWatcherReady))
+            .filter(|message| matches!(message, GuiMessage::SourceWatcherReady { .. }))
             .count(),
         1,
         "the startup audit boundary must be published exactly once"
@@ -667,6 +668,7 @@ fn idempotent_startup_source_sync_does_not_refresh_every_source() {
                 paths,
                 overflowed,
                 source_root_available,
+                ..
             } = message
             else {
                 return None;
@@ -696,7 +698,7 @@ fn filesystem_event_after_initial_watcher_ready_is_not_suppressed() {
         receiver
             .recv_timeout(super::WATCHER_START_TIMEOUT)
             .expect("watcher-ready message"),
-        GuiMessage::SourceWatcherReady
+        GuiMessage::SourceWatcherReady { .. }
     ) {}
 
     let created = root.path().join("recording.wav");
@@ -716,6 +718,7 @@ fn filesystem_event_after_initial_watcher_ready_is_not_suppressed() {
             paths,
             overflowed,
             source_root_available,
+            ..
         } = message
         {
             break (source_id, paths, overflowed, source_root_available);
@@ -746,7 +749,7 @@ fn watcher_restarts_and_overflows_when_a_live_root_is_replaced_at_the_same_path(
         receiver
             .recv_timeout(super::WATCHER_START_TIMEOUT)
             .expect("watcher-ready message"),
-        GuiMessage::SourceWatcherReady
+        GuiMessage::SourceWatcherReady { .. }
     ) {}
 
     fs::rename(&root, &retired).expect("retire watched source root");
@@ -764,6 +767,7 @@ fn watcher_restarts_and_overflows_when_a_live_root_is_replaced_at_the_same_path(
             paths,
             overflowed,
             source_root_available,
+            ..
         } = message
             && source_id == expected_source_id
             && overflowed

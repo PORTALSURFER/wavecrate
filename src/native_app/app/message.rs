@@ -80,11 +80,23 @@ pub(in crate::native_app) enum GuiMessage {
         paths: Vec<PathBuf>,
         overflowed: bool,
         source_root_available: bool,
+        /// A durable FSEvents cursor that may advance only after this targeted sync commits.
+        journal_checkpoint_event_id: Option<u64>,
     },
-    /// The initial watcher stream is live. Re-arming startup manifest audits at
-    /// this boundary covers filesystem changes made while native roots were
-    /// being registered.
-    SourceWatcherReady,
+    /// The initial watcher stream is live and journal recovery has completed. This boundary
+    /// admits the durable lifecycle gate without assuming that every source needs a traversal.
+    SourceWatcherReady {
+        /// Sources whose earlier unavailable-watcher fallback is still completing. Their
+        /// lifecycle probes remain held until the watcher captures a fresh audit barrier.
+        deferred_audit_sources: Vec<String>,
+    },
+    /// Durable closed-application watcher coverage was unavailable for one source. The
+    /// supervisor owns the bounded manifest-audit fallback so browser projection remains last-good
+    /// until the committed reconciliation delta is ready.
+    SourceWatcherJournalGap {
+        source_id: String,
+        reason: &'static str,
+    },
     SourceFilesystemSyncFinished(SourceFilesystemSyncResult),
     CommittedFileMutationRequested(FileMutationWork),
     CommittedFileMutationFinished(FileMutationOutcome),
@@ -92,6 +104,11 @@ pub(in crate::native_app) enum GuiMessage {
         source_id: String,
         lifecycle_generation: u64,
         committed_delta: wavecrate::sample_sources::scanner::CommittedSourceDelta,
+    },
+    SourceManifestAuditFinished {
+        source_id: String,
+        lifecycle_generation: u64,
+        complete: bool,
     },
     NormalizationProgress(NormalizationProgress),
     NormalizationFinished(NormalizationResult),
@@ -401,6 +418,7 @@ pub(in crate::native_app) struct SourceFilesystemSyncResult {
     pub(in crate::native_app) source_id: String,
     pub(in crate::native_app) lifecycle_generation: u64,
     pub(in crate::native_app) changed_count: usize,
+    pub(in crate::native_app) journal_checkpoint_event_id: Option<u64>,
     pub(in crate::native_app) cancelled: bool,
     pub(in crate::native_app) result: Result<SourceFilesystemSyncSuccess, String>,
 }

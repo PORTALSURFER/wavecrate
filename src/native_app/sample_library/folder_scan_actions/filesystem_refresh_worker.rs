@@ -35,6 +35,7 @@ pub(in crate::native_app) fn recover_source_filesystem_sync(
             source_id,
             lifecycle_generation,
             changed_count,
+            journal_checkpoint_event_id: None,
             cancelled: false,
             result: Err(String::from(
                 "Source filesystem sync worker stopped unexpectedly",
@@ -103,6 +104,7 @@ pub(in crate::native_app) fn sync_source_database_paths_with_writer(
         source_id,
         lifecycle_generation: 0,
         changed_count,
+        journal_checkpoint_event_id: None,
         cancelled: cancel.load(Ordering::Acquire),
         result,
     }

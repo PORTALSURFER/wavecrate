@@ -83,7 +83,16 @@ pub(super) fn execute_candidate(
             ) {
                 Ok(outcome) => (outcome, None),
                 Err(ScanError::Incomplete { committed, error }) => (*committed, Some(error)),
-                Err(error) => return Err(error.to_string()),
+                Err(error) => {
+                    publish_event(SourceProcessingEvent::ManifestAuditFinished {
+                        lifecycle: SourceProcessingLifecycle::new(
+                            candidate.source.id.as_str(),
+                            lifecycle_generation,
+                        ),
+                        complete: false,
+                    });
+                    return Err(error.to_string());
+                }
             };
             tracing::debug!(
                 target: "wavecrate::source_processing",
@@ -111,7 +120,7 @@ pub(super) fn execute_candidate(
                 && crate::native_app::source_processing::manifest_delta_requires_browser_refresh(
                     &outcome.committed_delta,
                 );
-            let audit_published = !outcome.committed_delta.is_empty()
+            let audit_published = !incomplete_error.is_some()
                 && publish_event(SourceProcessingEvent::ManifestAuditCommitted {
                     lifecycle: SourceProcessingLifecycle::new(
                         candidate.source.id.as_str(),
@@ -122,6 +131,13 @@ pub(super) fn execute_candidate(
             let foreground_refresh_owns_reconciliation =
                 browser_refresh_required && audit_published;
             let incomplete = incomplete_error.is_some();
+            publish_event(SourceProcessingEvent::ManifestAuditFinished {
+                lifecycle: SourceProcessingLifecycle::new(
+                    candidate.source.id.as_str(),
+                    lifecycle_generation,
+                ),
+                complete: !incomplete,
+            });
             if let Some(error) = incomplete_error {
                 tracing::warn!(
                     target: "wavecrate::source_processing",

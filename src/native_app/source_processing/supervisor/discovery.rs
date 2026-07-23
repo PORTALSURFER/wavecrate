@@ -243,7 +243,7 @@ pub(super) fn discover_source_candidates_with_progress(
             Ok(mut probe_connection) => {
                 if readiness_safety_probe_is_current(
                     &mut probe_connection,
-                    source.id.as_str(),
+                    source,
                     now,
                     force_manifest_audit,
                 )? {
@@ -286,7 +286,7 @@ pub(super) fn discover_source_candidates_with_progress(
         force_manifest_audit,
         force_reanalysis,
         pending_readiness_delta,
-        false,
+        safety_probe_only,
         cancel,
         progress,
     )

@@ -120,6 +120,21 @@ fn discovery_progress_converged_safety_probe_is_a_silent_noop() {
     .expect("open source database");
     publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
         .expect("publish initial readiness");
+    let metadata = std::fs::metadata(&source.root).expect("source root metadata");
+    let root_identity = wavecrate_library::filesystem_identity::stable_filesystem_identity(
+        &source.root,
+        &metadata,
+    )
+    .expect("stable source root identity");
+    connection
+        .execute(
+            "INSERT INTO metadata (key, value) VALUES (?1, ?2)",
+            rusqlite::params![
+                wavecrate_library::sample_sources::db::META_SOURCE_WATCHER_CHECKPOINT,
+                serde_json::json!({ "root_identity": root_identity, "event_id": 1_u64 }).to_string(),
+            ],
+        )
+        .expect("persist durable watcher coverage");
     let durable_before = discovery_durable_counts(&connection);
     let source_before = ReadinessStore::new(&mut connection)
         .source_state(source.id.as_str())
@@ -161,6 +176,51 @@ fn discovery_progress_converged_safety_probe_is_a_silent_noop() {
             .expect("source state exists"),
         source_before
     );
+}
+
+#[test]
+fn macos_safety_probe_requires_durable_watcher_coverage() {
+    let (_directory, source) = unhashed_source(&format!(
+        "missing-watcher-coverage-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let database_root = source.database_root().expect("database root");
+    let mut connection = SourceDatabase::open_connection_with_role_and_database_root(
+        &source.root,
+        &database_root,
+        SourceDatabaseConnectionRole::JobWorker,
+    )
+    .expect("open source database");
+    publish_current_readiness_targets(&mut connection, source.id.as_str(), 100)
+        .expect("publish initial readiness");
+    drop(connection);
+
+    let Cancellable::Completed((candidates, stats, _health)) =
+        discover_source_candidates_with_progress(
+            &source,
+            101,
+            false,
+            false,
+            None,
+            true,
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .expect("run safety probe")
+    else {
+        panic!("safety probe unexpectedly cancelled");
+    };
+
+    #[cfg(target_os = "macos")]
+    assert!(
+        candidates
+            .iter()
+            .any(|candidate| matches!(candidate.task, RuntimeTask::ManifestAudit)),
+        "a macOS source without a durable watcher checkpoint must remain audit-eligible"
+    );
+    #[cfg(not(target_os = "macos"))]
+    assert!(candidates.is_empty());
+    assert!(!stats.cheap_noop_sweep);
 }
 
 #[test]
