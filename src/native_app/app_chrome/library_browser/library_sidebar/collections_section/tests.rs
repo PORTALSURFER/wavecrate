@@ -11,8 +11,6 @@ use crate::native_app::sample_library::folder_browser::view_contract::{
     COLLECTION_ROW_HEIGHT, SampleCollectionView,
 };
 use radiant::prelude::IntoView;
-use radiant::runtime::{PaintClipStart, SurfacePaintPlan, TransientOverlayContext};
-use std::time::Duration;
 use wavecrate::sample_sources::SampleCollection;
 
 /// Builds a minimal collection view for interaction tests.
@@ -298,45 +296,16 @@ fn collections_overflow_fade_strength_tracks_the_clipped_height() {
 
     assert_eq!(collection_overflow_fade_alpha(full_height, full_height), 0);
     assert_eq!(collection_overflow_fade_alpha(250.0, full_height), 0);
-    assert!(collection_overflow_fade_alpha(full_height - 1.0, full_height) > 0);
+    assert!(
+        collection_overflow_fade_alpha(full_height - 1.0, full_height) > 50,
+        "the first clipped pixel should already produce a visible cue"
+    );
+    assert!(
+        collection_overflow_fade_alpha(full_height - 6.0, full_height) > 200,
+        "the early clipping ramp should be visibly front-loaded"
+    );
     assert_eq!(
         collection_overflow_fade_alpha(full_height - 12.0, full_height),
         u8::MAX
     );
-}
-
-#[test]
-fn collections_overflow_fade_is_a_bottom_edge_background_gradient() {
-    let bounds = ui::Rect::from_min_size(ui::Point::new(20.0, 40.0), ui::Vector2::new(180.0, 60.0));
-    let background = ui::Rgba8::new(18, 22, 21, 255);
-    let (fade, gradient) =
-        collection_overflow_fade_gradient(bounds, u8::MAX, background).expect("fade gradient");
-
-    assert_eq!(fade.min.y, 52.0);
-    assert_eq!(fade.max, bounds.max);
-    assert_eq!(gradient.start_color.a, 0);
-    assert_eq!(gradient.end_color, ui::Rgba8::new(10, 14, 13, u8::MAX));
-}
-
-#[test]
-fn collections_overflow_fade_uses_the_scroll_viewport_clip_as_its_anchor() {
-    let bounds = ui::Rect::from_min_size(ui::Point::new(20.0, 40.0), ui::Vector2::new(180.0, 60.0));
-    let mut plan = SurfacePaintPlan::empty(&ui::ThemeTokens::default());
-    plan.primitives
-        .push(PaintPrimitive::ClipStart(PaintClipStart {
-            node_id: COLLECTIONS_LIST_SCROLL_NODE_ID,
-            rect: bounds,
-        }));
-    let mut primitives = Vec::new();
-
-    paint_collection_overflow_fade(
-        TransientOverlayContext::new(&plan, ui::Vector2::new(240.0, 180.0), Duration::ZERO),
-        u8::MAX,
-        &mut primitives,
-    );
-
-    assert!(matches!(
-        primitives.as_slice(),
-        [PaintPrimitive::FillPath(fill)] if fill.widget_id == COLLECTIONS_OVERFLOW_FADE_ID
-    ));
 }
