@@ -2,6 +2,7 @@
 
 use std::{
     cell::Cell,
+    io::{Seek, SeekFrom},
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
 };
@@ -12,8 +13,8 @@ use super::scan::{ScanContext, ScanError};
 use super::scan_diff::{PreparedFile, apply_diff};
 use super::scan_diff_phase::prepare_diff;
 use super::scan_fs::{
-    compute_content_hash, is_supported_scannable_audio_file, read_facts,
-    visit_dir_with_cancel_check,
+    compute_content_hash, compute_content_hash_with_reader, is_supported_scannable_audio_file,
+    read_facts, read_facts_from_open_file, visit_dir_with_cancel_check,
 };
 use super::scan_writer::{ScanWritePhase, ScanWriter};
 
@@ -305,13 +306,15 @@ fn apply_batch(
     let mut audited_paths = Vec::with_capacity(ready.len());
     for file in ready {
         let relative_path = file.facts.relative.clone();
-        let absolute = root.join(&relative_path);
-        match read_facts(root, &absolute) {
-            Ok(current) if prepared_still_current(&file, &current) => {}
-            _ => {
-                context.mark_source_tree_incomplete();
-                skip_changed_or_unavailable(context, root, &relative_path);
-                continue;
+        if !file.targeted_handle_verified {
+            let absolute = root.join(&relative_path);
+            match read_facts(root, &absolute) {
+                Ok(current) if prepared_still_current(&file, &current) => {}
+                _ => {
+                    context.mark_source_tree_incomplete();
+                    skip_changed_or_unavailable(context, root, &relative_path);
+                    continue;
+                }
             }
         }
         apply_diff(db, &mut batch, file, context)?;
@@ -361,6 +364,9 @@ fn prepare_for_apply_with_post_hash_hook(
     mut prepared: PreparedFile,
     mut post_hash: impl FnMut(&Path),
 ) -> Result<PrepareForApply, ScanError> {
+    if prepared.targeted_handle_verified {
+        return prepare_targeted_for_apply(db, root, cancel, prepared, &mut post_hash);
+    }
     let absolute = root.join(&prepared.facts.relative);
     if !is_supported_scannable_audio_file(root, &prepared.facts.relative) {
         return Ok(PrepareForApply::Gone);
@@ -399,6 +405,49 @@ fn prepare_for_apply_with_post_hash_hook(
         if !prepared.facts.same_content_snapshot(&after_hash) {
             return Ok(PrepareForApply::Skip);
         }
+    }
+    Ok(PrepareForApply::Ready(prepared))
+}
+
+fn prepare_targeted_for_apply(
+    db: &SourceDatabase,
+    root: &Path,
+    cancel: Option<&AtomicBool>,
+    mut prepared: PreparedFile,
+    post_hash: &mut impl FnMut(&Path),
+) -> Result<PrepareForApply, ScanError> {
+    let absolute = root.join(&prepared.facts.relative);
+    let mut file = prepared
+        .targeted_file
+        .take()
+        .expect("verified targeted files retain their open descriptor until preparation");
+    let before_hash = read_facts_from_open_file(root, &absolute, &file)?;
+    if !facts_match(&prepared, &before_hash) {
+        return Ok(PrepareForApply::Skip);
+    }
+    let current_needs_hash = db
+        .entry_for_path(&prepared.facts.relative)?
+        .is_none_or(|entry| {
+            entry.file_size != prepared.facts.size
+                || entry.modified_ns != prepared.facts.modified_ns
+                || entry.content_hash.is_none()
+        });
+    if prepared.hash_required && (prepared.needs_hash || current_needs_hash) {
+        prepared.facts = before_hash;
+        file.seek(SeekFrom::Start(0))
+            .map_err(|source| ScanError::Io {
+                path: absolute.clone(),
+                source,
+            })?;
+        prepared.content_hash = Some(compute_content_hash_with_reader(
+            &absolute, &mut file, cancel,
+        )?);
+        post_hash(&absolute);
+        let after_hash = read_facts_from_open_file(root, &absolute, &file)?;
+        if !prepared.facts.same_content_snapshot(&after_hash) {
+            return Ok(PrepareForApply::Skip);
+        }
+        prepared.facts = after_hash;
     }
     Ok(PrepareForApply::Ready(prepared))
 }
@@ -449,6 +498,8 @@ mod tests {
             requires_apply: true,
             identity_replaced: false,
             content_hash: None,
+            targeted_file: None,
+            targeted_handle_verified: false,
         };
 
         assert!(prepared.requires_apply);
@@ -539,6 +590,8 @@ mod tests {
             requires_apply: true,
             identity_replaced: false,
             content_hash: None,
+            targeted_file: None,
+            targeted_handle_verified: false,
         };
 
         let outcome =

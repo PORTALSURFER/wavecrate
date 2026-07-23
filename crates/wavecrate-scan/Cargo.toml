@@ -9,6 +9,8 @@ missing_docs = "deny"
 
 [dependencies]
 blake3 = "1.6.1"
+cap-fs-ext = "4.0.2"
+cap-std = "4.0.2"
 wavecrate-library = { path = "../wavecrate-library" }
 thiserror = "2.0.17"
 tracing = "0.1.41"

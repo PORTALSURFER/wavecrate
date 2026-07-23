@@ -1,16 +1,19 @@
 use std::{
-    collections::{BTreeSet, HashMap},
-    fs,
+    collections::{BTreeMap, BTreeSet, HashMap},
+    io,
     path::{Component, Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
+
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt, ambient_authority};
+use cap_std::fs::{Dir, OpenOptions};
 
 use crate::sample_sources::{SourceDatabase, WavEntry, is_supported_audio};
 
 use super::{
     scan::{ScanContext, ScanError, ScanMode, ScanStats},
     scan_db_sync::db_sync_phase,
-    scan_diff_phase::prepare_diff,
+    scan_diff_phase::prepare_diff_from_facts,
     scan_fs::ensure_root_dir,
     scan_walk::apply_prepared_chunk,
     scan_writer::{ScanWriter, UncoordinatedScanWriter},
@@ -57,28 +60,16 @@ pub fn sync_paths_with_progress_and_writer(
     let mut prepared = Vec::with_capacity(TARGET_PREPARE_BATCH_SIZE);
     let mut committed = false;
     let result = (|| {
-        for relative_path in targets.current_files {
+        for targeted_file in targets.current_files {
             if let Some(cancel) = cancel
                 && cancel.load(Ordering::Relaxed)
             {
                 return Err(ScanError::Canceled);
             }
-            let absolute = root.join(&relative_path);
-            let prepared_file = match prepare_diff(&root, &absolute, &context) {
-                Ok(prepared) => prepared,
-                Err(error) if committed => {
-                    if absolute.exists() {
-                        context.existing.remove(&relative_path);
-                    }
-                    tracing::warn!(
-                        path = %absolute.display(),
-                        error = %error,
-                        "Skipping targeted file after an earlier chunk committed"
-                    );
-                    continue;
-                }
-                Err(error) => return Err(error),
-            };
+            let absolute = root.join(&targeted_file.relative);
+            let mut prepared_file = prepare_diff_from_facts(targeted_file.facts, &context);
+            prepared_file.targeted_file = Some(targeted_file.file);
+            prepared_file.targeted_handle_verified = true;
             prepared.push(prepared_file);
             context.stats.total_files += 1;
             on_progress(context.stats.total_files, &absolute);
@@ -114,8 +105,14 @@ pub fn sync_paths_with_progress_and_writer(
 }
 
 struct TargetedScanTargets {
-    current_files: BTreeSet<PathBuf>,
+    current_files: Vec<TargetedFile>,
     existing: HashMap<PathBuf, WavEntry>,
+}
+
+struct TargetedFile {
+    relative: PathBuf,
+    facts: super::scan_fs::FileFacts,
+    file: std::fs::File,
 }
 
 fn collect_targets(
@@ -124,7 +121,12 @@ fn collect_targets(
     paths: &[PathBuf],
     cancel: Option<&AtomicBool>,
 ) -> Result<TargetedScanTargets, ScanError> {
-    let mut current_files = BTreeSet::new();
+    let source_root =
+        Dir::open_ambient_dir(root, ambient_authority()).map_err(|source| ScanError::Io {
+            path: root.to_path_buf(),
+            source,
+        })?;
+    let mut current_files = BTreeMap::new();
     let mut existing = HashMap::new();
     for relative_path in normalized_targets(paths) {
         if let Some(cancel) = cancel
@@ -132,12 +134,17 @@ fn collect_targets(
         {
             return Err(ScanError::Canceled);
         }
-        let absolute = root.join(&relative_path);
         collect_existing_rows(db, &relative_path, &mut existing)?;
-        collect_current_files(&absolute, root, cancel, &mut current_files)?;
+        collect_current_files(
+            &source_root,
+            root,
+            &relative_path,
+            cancel,
+            &mut current_files,
+        )?;
     }
     Ok(TargetedScanTargets {
-        current_files,
+        current_files: current_files.into_values().collect(),
         existing,
     })
 }
@@ -168,20 +175,23 @@ fn collect_existing_rows(
 }
 
 fn collect_current_files(
-    absolute_path: &Path,
+    source_root: &Dir,
     root: &Path,
+    relative_path: &Path,
     cancel: Option<&AtomicBool>,
-    current_files: &mut BTreeSet<PathBuf>,
+    current_files: &mut BTreeMap<PathBuf, TargetedFile>,
 ) -> Result<(), ScanError> {
-    if has_symlinked_target_ancestor(root, absolute_path)? {
+    let Some((parent, name)) = open_target_parent(source_root, root, relative_path)? else {
         return Ok(());
-    }
-    let metadata = match fs::symlink_metadata(absolute_path) {
+    };
+    let absolute_path = root.join(relative_path);
+    let name_path = Path::new(&name);
+    let metadata = match parent.symlink_metadata(name_path) {
         Ok(metadata) => metadata,
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(source) => {
             return Err(ScanError::Io {
-                path: absolute_path.to_path_buf(),
+                path: absolute_path,
                 source,
             });
         }
@@ -191,63 +201,98 @@ fn collect_current_files(
         return Ok(());
     }
     if file_type.is_dir() {
-        collect_current_files_in_dir(absolute_path, root, cancel, current_files)?;
-    } else if file_type.is_file() && is_supported_audio(absolute_path) {
-        current_files.insert(strip_relative(root, absolute_path)?);
+        let dir = match parent.open_dir_nofollow(name_path) {
+            Ok(dir) => dir,
+            Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(source) => {
+                return Err(ScanError::Io {
+                    path: root.join(relative_path),
+                    source,
+                });
+            }
+        };
+        collect_current_files_in_dir(dir, root, relative_path, cancel, current_files)?;
+    } else if file_type.is_file() {
+        collect_current_file(
+            &parent,
+            Path::new(&name),
+            root,
+            relative_path,
+            current_files,
+        )?;
     }
     Ok(())
 }
 
-fn has_symlinked_target_ancestor(root: &Path, absolute_path: &Path) -> Result<bool, ScanError> {
-    let relative_path = absolute_path
-        .strip_prefix(root)
-        .map_err(|_| ScanError::InvalidRoot(absolute_path.to_path_buf()))?;
-    let mut candidate = root.to_path_buf();
-    for component in relative_path.components() {
+fn open_target_parent(
+    source_root: &Dir,
+    root: &Path,
+    relative_path: &Path,
+) -> Result<Option<(Dir, std::ffi::OsString)>, ScanError> {
+    let Some(name) = relative_path.file_name() else {
+        return Ok(None);
+    };
+    let mut dir = source_root.try_clone().map_err(|source| ScanError::Io {
+        path: root.to_path_buf(),
+        source,
+    })?;
+    let mut traversed = PathBuf::new();
+    for component in relative_path
+        .parent()
+        .into_iter()
+        .flat_map(Path::components)
+    {
         let Component::Normal(part) = component else {
             continue;
         };
-        candidate.push(part);
-        match fs::symlink_metadata(&candidate) {
-            Ok(metadata) if metadata.file_type().is_symlink() => return Ok(true),
-            Ok(_) => {}
-            Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        traversed.push(part);
+        dir = match dir.open_dir_nofollow(part) {
+            Ok(dir) => dir,
+            Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(source) => {
-                return Err(ScanError::Io {
-                    path: candidate,
-                    source,
-                });
+                let path = root.join(&traversed);
+                if dir
+                    .symlink_metadata(part)
+                    .is_ok_and(|metadata| metadata.is_symlink())
+                {
+                    return Ok(None);
+                }
+                return Err(ScanError::Io { path, source });
             }
-        }
+        };
     }
-    Ok(false)
+    Ok(Some((dir, name.to_os_string())))
 }
 
 fn collect_current_files_in_dir(
-    start_dir: &Path,
+    start_dir: Dir,
     root: &Path,
+    start_relative: &Path,
     cancel: Option<&AtomicBool>,
-    current_files: &mut BTreeSet<PathBuf>,
+    current_files: &mut BTreeMap<PathBuf, TargetedFile>,
 ) -> Result<(), ScanError> {
-    let mut stack = vec![start_dir.to_path_buf()];
-    while let Some(dir) = stack.pop() {
+    let mut stack = vec![(start_dir, start_relative.to_path_buf())];
+    while let Some((dir, relative_dir)) = stack.pop() {
         if let Some(cancel) = cancel
             && cancel.load(Ordering::Relaxed)
         {
             return Err(ScanError::Canceled);
         }
-        let entries = match fs::read_dir(&dir) {
+        let entries = match dir.entries() {
             Ok(entries) => entries,
-            Err(source) if dir != start_dir => {
+            Err(source) if relative_dir != start_relative => {
                 tracing::warn!(
-                    dir = %dir.display(),
+                    dir = %root.join(&relative_dir).display(),
                     error = %source,
                     "Failed to read targeted sync directory"
                 );
                 continue;
             }
             Err(source) => {
-                return Err(ScanError::Io { path: dir, source });
+                return Err(ScanError::Io {
+                    path: root.join(&relative_dir),
+                    source,
+                });
             }
         };
         for entry in entries {
@@ -255,14 +300,16 @@ fn collect_current_files_in_dir(
                 Ok(entry) => entry,
                 Err(err) => {
                     tracing::warn!(
-                        dir = %dir.display(),
+                        dir = %root.join(&relative_dir).display(),
                         error = %err,
                         "Failed to read targeted sync directory entry"
                     );
                     continue;
                 }
             };
-            let path = entry.path();
+            let name = entry.file_name();
+            let name_path = Path::new(&name);
+            let path = root.join(&relative_dir).join(name_path);
             let file_type = match entry.file_type() {
                 Ok(file_type) => file_type,
                 Err(err) => {
@@ -278,17 +325,73 @@ fn collect_current_files_in_dir(
                 continue;
             }
             if file_type.is_dir() {
-                stack.push(path);
-            } else if file_type.is_file() && is_supported_audio(&path) {
-                current_files.insert(strip_relative(root, &path)?);
+                let child_dir = match dir.open_dir_nofollow(name_path) {
+                    Ok(child_dir) => child_dir,
+                    Err(source) if source.kind() == io::ErrorKind::NotFound => continue,
+                    Err(source) => {
+                        tracing::warn!(
+                            path = %path.display(),
+                            error = %source,
+                            "Failed to open targeted sync directory without following links"
+                        );
+                        continue;
+                    }
+                };
+                stack.push((child_dir, relative_dir.join(name_path)));
+            } else if file_type.is_file() {
+                let relative_path = relative_dir.join(name_path);
+                collect_current_file(&dir, name_path, root, &relative_path, current_files)?;
             }
         }
     }
     Ok(())
 }
 
-fn strip_relative(root: &Path, path: &Path) -> Result<PathBuf, ScanError> {
-    path.strip_prefix(root)
-        .map(PathBuf::from)
-        .map_err(|_| ScanError::InvalidRoot(path.to_path_buf()))
+fn collect_current_file(
+    parent: &Dir,
+    name: &Path,
+    root: &Path,
+    relative_path: &Path,
+    current_files: &mut BTreeMap<PathBuf, TargetedFile>,
+) -> Result<(), ScanError> {
+    let absolute_path = root.join(relative_path);
+    if !is_supported_audio(&absolute_path) || has_hidden_ancestor(relative_path) {
+        return Ok(());
+    }
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = match parent.open_with(name, &options) {
+        Ok(file) => file.into_std(),
+        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => {
+            // The no-follow open is the source-boundary decision. A file that
+            // became a link after directory enumeration is rejected here.
+            tracing::warn!(
+                path = %absolute_path.display(),
+                error = %source,
+                "Skipping targeted sync file that could not be opened without following links"
+            );
+            return Ok(());
+        }
+    };
+    let facts = super::scan_fs::read_facts_from_open_file(root, &absolute_path, &file)?;
+    current_files
+        .entry(relative_path.to_path_buf())
+        .or_insert(TargetedFile {
+            relative: relative_path.to_path_buf(),
+            facts,
+            file,
+        });
+    Ok(())
+}
+
+fn has_hidden_ancestor(relative_path: &Path) -> bool {
+    relative_path.parent().is_some_and(|parent| {
+        parent.components().any(|component| {
+            let Component::Normal(name) = component else {
+                return false;
+            };
+            name.to_str().is_some_and(|name| name.starts_with('.'))
+        })
+    })
 }

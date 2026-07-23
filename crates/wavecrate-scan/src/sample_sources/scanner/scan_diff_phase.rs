@@ -1,6 +1,6 @@
 use super::scan::{ScanContext, ScanError, ScanMode};
 use super::scan_diff::{PreparedFile, should_compute_full_hash};
-use super::scan_fs::read_facts;
+use super::scan_fs::{FileFacts, read_facts};
 use std::path::Path;
 
 pub(super) fn prepare_diff(
@@ -9,6 +9,10 @@ pub(super) fn prepare_diff(
     context: &ScanContext,
 ) -> Result<PreparedFile, ScanError> {
     let facts = read_facts(root, path)?;
+    Ok(prepare_diff_from_facts(facts, context))
+}
+
+pub(super) fn prepare_diff_from_facts(facts: FileFacts, context: &ScanContext) -> PreparedFile {
     let existing = context.existing.get(&facts.relative);
     let persisted_identity = context
         .committed_file_identity(&facts.relative)
@@ -43,12 +47,14 @@ pub(super) fn prepare_diff(
             || (entry.content_hash.is_none() && needs_hash)
             || identity_requires_update
     });
-    Ok(PreparedFile {
+    PreparedFile {
         facts,
         hash_required,
         needs_hash,
         requires_apply,
         identity_replaced,
         content_hash: None,
-    })
+        targeted_file: None,
+        targeted_handle_verified: false,
+    }
 }
