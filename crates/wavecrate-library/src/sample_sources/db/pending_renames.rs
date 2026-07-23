@@ -433,19 +433,6 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.find_unique_pending_rename(TAKE_PENDING_RENAME_BY_HASH_SQL, params![hash])
     }
 
-    /// Return whether at least one retained source candidate has this content hash.
-    pub fn has_pending_rename_with_hash(&self, hash: &str) -> Result<bool, SourceDbError> {
-        self.tx
-            .query_row(
-                "SELECT EXISTS(
-                    SELECT 1 FROM pending_wav_renames WHERE content_hash = ?1 LIMIT 1
-                 )",
-                params![hash],
-                |row| row.get::<_, bool>(0),
-            )
-            .map_err(map_sql_error)
-    }
-
     /// Claim one unique retained rename candidate by stable filesystem identity.
     pub fn take_pending_rename_by_file_identity(
         &mut self,

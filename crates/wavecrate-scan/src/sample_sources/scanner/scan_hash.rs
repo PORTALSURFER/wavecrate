@@ -864,9 +864,9 @@ fn reconcile_indexed_rename_candidates(
 
     let mut retained = 0;
     for (hash, present_paths) in &candidates_by_hash {
-        if !batch.has_pending_rename_with_hash(hash)? {
+        let Some(pending_entry) = batch.unique_pending_rename_by_hash(hash)? else {
             continue;
-        }
+        };
         for present_path in present_paths {
             if reconciled_paths.contains(present_path) {
                 continue;
@@ -883,9 +883,6 @@ fn reconcile_indexed_rename_candidates(
         };
         let present_path = *present_path;
         let Some(present_entry) = entries_by_path.get(present_path) else {
-            continue;
-        };
-        let Some(pending_entry) = batch.unique_pending_rename_by_hash(hash)? else {
             continue;
         };
         if pending_entry.relative_path == *present_path

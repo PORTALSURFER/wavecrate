@@ -447,7 +447,6 @@ fn finalize_pending_rename_completion(
     let _writer = writer.lock(super::super::scan_writer::ScanWritePhase::Manifest);
     let mut batch = db.write_batch()?;
     if mode == ScanMode::Hard {
-        batch.resolve_hashed_pending_rename_destinations()?;
         batch.prune_invalid_retained_rename_destinations()?;
     }
     let report = batch.complete_pending_rename_authoritative_scan(mode == ScanMode::Hard)?;

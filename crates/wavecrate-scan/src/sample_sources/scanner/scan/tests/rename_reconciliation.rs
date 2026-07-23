@@ -254,6 +254,76 @@ fn hard_rescan_retains_destinations_when_pending_source_is_only_prior_state() {
 }
 
 #[test]
+fn hard_rescan_converges_two_pending_sources_with_one_matching_destination() {
+    let dir = tempdir().unwrap();
+    let first_old = dir.path().join("first-old.wav");
+    let second_old = dir.path().join("second-old.wav");
+    let destination = dir.path().join("destination.wav");
+    let payload = b"ambiguous source identity";
+    std::fs::write(&first_old, payload).unwrap();
+    std::fs::write(&second_old, payload).unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("first-old.wav"), Rating::KEEP_1)
+        .unwrap();
+    db.set_tag(Path::new("second-old.wav"), Rating::KEEP_3)
+        .unwrap();
+
+    std::fs::remove_file(&first_old).unwrap();
+    std::fs::remove_file(&second_old).unwrap();
+    sync_paths(
+        &db,
+        &[
+            PathBuf::from("first-old.wav"),
+            PathBuf::from("second-old.wav"),
+        ],
+    )
+    .unwrap();
+    std::fs::write(&destination, payload).unwrap();
+    let added = sync_paths(&db, &[PathBuf::from("destination.wav")]).unwrap();
+    let unresolved = complete_deferred_hashes(&db, added).unwrap();
+    assert_eq!(unresolved.renames_reconciled, 0);
+    assert_eq!(db.list_pending_renames().unwrap().len(), 2);
+
+    let converged = hard_rescan(&db).unwrap();
+
+    assert_eq!(converged.pending_renames_pruned, 2);
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+    assert_eq!(
+        db.entry_for_path(Path::new("destination.wav"))
+            .unwrap()
+            .unwrap()
+            .tag,
+        Rating::NEUTRAL
+    );
+}
+
+#[test]
+fn hard_rescan_ignores_stale_unresolved_destination_when_pruning() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    std::fs::write(&old, b"deleted sample").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    hard_rescan(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+
+    std::fs::remove_file(&old).unwrap();
+    sync_paths(&db, &[PathBuf::from("old.wav")]).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .stage_pending_rename_destination(Path::new("stale.wav"), u64::MAX / 2)
+        .unwrap();
+    batch.commit().unwrap();
+
+    let converged = hard_rescan(&db).unwrap();
+
+    assert_eq!(converged.pending_renames_pruned, 1);
+    assert!(db.list_pending_renames().unwrap().is_empty());
+    assert!(db.list_pending_rename_destinations().unwrap().is_empty());
+}
+
+#[test]
 fn rename_apply_refreshes_metadata_changed_during_discovery() {
     let dir = tempdir().unwrap();
     let first_path = dir.path().join("one.wav");
