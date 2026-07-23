@@ -179,6 +179,108 @@ pub(super) fn deep_hash_scan_with_writer(
     )
 }
 
+pub(super) fn reconcile_hashed_rename_candidates_with_writer(
+    db: &SourceDatabase,
+    rename_candidates: &HashSet<PathBuf>,
+    cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
+) -> Result<Vec<RenamedSample>, ScanError> {
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
+    let root = ensure_root_dir(db)?;
+    let rename_candidates = rename_candidates.clone();
+    if rename_candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let entries_by_path = db
+        .list_files()?
+        .into_iter()
+        .filter(|entry| {
+            !entry.missing && is_supported_regular_audio_file(&root.join(&entry.relative_path))
+        })
+        .map(|entry| (entry.relative_path.clone(), entry))
+        .collect::<HashMap<_, _>>();
+    let manifest_entries = db.list_manifest_entries()?;
+    let pending_entries = db
+        .list_pending_renames()?
+        .into_iter()
+        .filter(|entry| !root.join(&entry.relative_path).exists())
+        .collect::<Vec<_>>();
+    if pending_entries.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut present_by_hash = HashMap::new();
+    let mut pending_by_hash = HashMap::new();
+    let mut present_by_file_identity = HashMap::new();
+    let mut pending_by_file_identity = HashMap::new();
+    for entry in manifest_entries {
+        if !entries_by_path.contains_key(&entry.relative_path) {
+            continue;
+        }
+        if let Some(hash) = entry.content_hash.as_deref() {
+            present_by_hash
+                .entry(hash.to_string())
+                .or_insert_with(Vec::new)
+                .push(entry.relative_path.clone());
+        }
+        if rename_candidates.contains(&entry.relative_path)
+            && let Some(file_identity) = entry.file_identity.as_deref()
+        {
+            present_by_file_identity
+                .entry(file_identity.to_string())
+                .or_insert_with(Vec::new)
+                .push(entry.relative_path.clone());
+        }
+    }
+    for entry in pending_entries {
+        if let Some(hash) = entry.content_hash.as_deref() {
+            pending_by_hash
+                .entry(hash.to_string())
+                .or_insert_with(Vec::new)
+                .push(entry.clone());
+        }
+        if let Some(file_identity) = entry.file_identity.as_deref() {
+            pending_by_file_identity
+                .entry(file_identity.to_string())
+                .or_insert_with(Vec::new)
+                .push(entry);
+        }
+    }
+
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
+    let _writer = writer.lock(ScanWritePhase::DeferredHash);
+    if cancel_requested(cancel) {
+        return Err(ScanError::Canceled);
+    }
+    let mut batch = db.write_batch()?;
+    let mut renamed_samples = reconcile_same_file_renames(
+        &mut batch,
+        &entries_by_path,
+        &present_by_file_identity,
+        &pending_by_file_identity,
+        &HashSet::new(),
+    )?;
+    let already_reconciled = reconciled_paths(&renamed_samples);
+    renamed_samples.extend(reconcile_missing_renames(
+        &mut batch,
+        &entries_by_path,
+        &present_by_hash,
+        &pending_by_hash,
+        &rename_candidates,
+        &already_reconciled,
+    )?);
+    if renamed_samples.is_empty() {
+        return Ok(renamed_samples);
+    }
+    batch.commit()?;
+    Ok(renamed_samples)
+}
+
 fn deep_hash_scan_with_post_hash_hook(
     db: &SourceDatabase,
     cancel: Option<&AtomicBool>,
@@ -342,27 +444,20 @@ fn deep_hash_scan_with_post_hash_hook(
         batch.set_file_identity(&backfill.relative_path, backfill.file_identity.as_deref())?;
     }
 
-    let mut renamed_samples = reconcile_missing_renames(
+    let mut renamed_samples = reconcile_same_file_renames(
+        &mut batch,
+        &entries_by_path,
+        &present_by_file_identity,
+        &pending_by_file_identity,
+        &HashSet::new(),
+    )?;
+    let already_reconciled = reconciled_paths(&renamed_samples);
+    renamed_samples.extend(reconcile_missing_renames(
         &mut batch,
         &entries_by_path,
         &present_by_hash,
         &pending_by_hash,
         &rename_candidates,
-    )?;
-    let already_reconciled = renamed_samples
-        .iter()
-        .flat_map(|renamed| {
-            [
-                renamed.old_relative_path.clone(),
-                renamed.new_relative_path.clone(),
-            ]
-        })
-        .collect::<HashSet<_>>();
-    renamed_samples.extend(reconcile_same_file_renames(
-        &mut batch,
-        &entries_by_path,
-        &present_by_file_identity,
-        &pending_by_file_identity,
         &already_reconciled,
     )?);
     stats.renames_reconciled = renamed_samples.len();
@@ -429,10 +524,14 @@ fn reconcile_missing_renames(
     present_by_hash: &HashMap<String, Vec<PathBuf>>,
     pending_by_hash: &HashMap<String, Vec<PendingRenameEntry>>,
     rename_candidates: &HashSet<PathBuf>,
+    already_reconciled: &HashSet<PathBuf>,
 ) -> Result<Vec<RenamedSample>, ScanError> {
     let mut reconciled = Vec::new();
     for (hash, pending_entries) in pending_by_hash {
-        if pending_entries.len() != 1 {
+        let [pending_entry] = pending_entries.as_slice() else {
+            continue;
+        };
+        if already_reconciled.contains(&pending_entry.relative_path) {
             continue;
         }
         let Some(present_paths) = present_by_hash.get(hash) else {
@@ -440,32 +539,14 @@ fn reconcile_missing_renames(
         };
         let candidates = present_paths
             .iter()
-            .filter(|path| rename_candidates.contains(*path))
+            .filter(|path| rename_candidates.contains(*path) && !already_reconciled.contains(*path))
             .collect::<Vec<_>>();
-        let present_path = if present_paths.len() == 1 && candidates.len() == 1 {
-            candidates[0]
-        } else {
-            let matching_facts = present_paths
-                .iter()
-                .filter(|path| {
-                    entries_by_path.get(*path).is_some_and(|entry| {
-                        entry.file_size == pending_entries[0].file_size
-                            && entry.modified_ns == pending_entries[0].modified_ns
-                    })
-                })
-                .collect::<Vec<_>>();
-            let [present_path] = matching_facts.as_slice() else {
-                continue;
-            };
-            if !rename_candidates.contains(*present_path) {
-                continue;
-            }
-            *present_path
+        let [present_path] = present_paths.as_slice() else {
+            continue;
         };
-        if pending_entries[0].relative_path == *present_path {
+        if candidates.as_slice() != [present_path] || pending_entry.relative_path == *present_path {
             continue;
         }
-        let pending_entry = &pending_entries[0];
         let Some(present_entry) = entries_by_path.get(present_path) else {
             continue;
         };
@@ -479,6 +560,18 @@ fn reconcile_missing_renames(
         });
     }
     Ok(reconciled)
+}
+
+fn reconciled_paths(renamed_samples: &[RenamedSample]) -> HashSet<PathBuf> {
+    renamed_samples
+        .iter()
+        .flat_map(|renamed| {
+            [
+                renamed.old_relative_path.clone(),
+                renamed.new_relative_path.clone(),
+            ]
+        })
+        .collect()
 }
 
 fn apply_deep_rename(

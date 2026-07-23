@@ -100,7 +100,15 @@ pub fn sync_paths_with_progress_and_writer(
             let _ =
                 apply_prepared_chunk(db, &root, cancel, &mut context, prepared, committed, writer)?;
         }
-        db_sync_phase(db, &mut context, cancel, writer)
+        let committed_snapshot = db_sync_phase(db, &mut context, cancel, writer)?;
+        super::scan::reconcile_scan_renames(
+            db,
+            &mut context,
+            &manifest_before,
+            committed_snapshot,
+            cancel,
+            writer,
+        )
     })();
     super::scan::finish_scan_result(manifest_before, context, result)
 }

@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicBool;
 use std::thread;
 
 use crate::sample_sources::SourceDatabase;
+use crate::sample_sources::db::SourceManifestEntry;
 
 use super::super::scan_db_sync::db_sync_phase;
 use super::super::scan_fs::ensure_root_dir;
@@ -194,8 +195,79 @@ fn scan_with_writer(
         }
     }
     let result = walk_phase(db, &root, cancel, &mut on_progress, &mut context, writer)
-        .and_then(|()| db_sync_phase(db, &mut context, cancel, writer));
+        .and_then(|()| db_sync_phase(db, &mut context, cancel, writer))
+        .and_then(|committed_snapshot| {
+            reconcile_scan_renames(
+                db,
+                &mut context,
+                &manifest_before,
+                committed_snapshot,
+                cancel,
+                writer,
+            )
+        });
     finish_scan_result(manifest_before, context, result)
+}
+
+pub(crate) fn reconcile_scan_renames(
+    db: &SourceDatabase,
+    context: &mut ScanContext,
+    manifest_before: &[SourceManifestEntry],
+    committed_snapshot: (u64, Vec<SourceManifestEntry>),
+    cancel: Option<&AtomicBool>,
+    writer: &impl ScanWriter,
+) -> Result<(u64, Vec<SourceManifestEntry>), ScanError> {
+    if context.mode == ScanMode::Hard {
+        return Ok(committed_snapshot);
+    }
+    let candidates = context
+        .stats
+        .rename_candidate_paths
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let renamed = super::super::scan_hash::reconcile_hashed_rename_candidates_with_writer(
+        db,
+        &candidates,
+        cancel,
+        writer,
+    )?;
+    if renamed.is_empty() {
+        return Ok(committed_snapshot);
+    }
+
+    let current_candidates = context
+        .stats
+        .rename_candidate_paths
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>();
+    let original_paths = manifest_before
+        .iter()
+        .map(|entry| entry.relative_path.clone())
+        .collect::<HashSet<_>>();
+    for rename in &renamed {
+        if current_candidates.contains(&rename.new_relative_path) {
+            context.stats.added = context.stats.added.saturating_sub(1);
+            context.stats.content_changed = context.stats.content_changed.saturating_sub(1);
+            context
+                .stats
+                .changed_samples
+                .retain(|sample| sample.relative_path != rename.new_relative_path);
+        }
+        if original_paths.contains(&rename.old_relative_path) {
+            context.stats.missing = context.stats.missing.saturating_sub(1);
+        }
+    }
+    context.stats.rename_candidate_paths.retain(|candidate| {
+        !renamed
+            .iter()
+            .any(|rename| rename.new_relative_path == *candidate)
+    });
+    context.stats.updated += renamed.len();
+    context.stats.renames_reconciled += renamed.len();
+    context.stats.renamed_samples.extend(renamed);
+    Ok(db.manifest_snapshot_with_revision()?)
 }
 
 pub(crate) fn finish_scan_result(

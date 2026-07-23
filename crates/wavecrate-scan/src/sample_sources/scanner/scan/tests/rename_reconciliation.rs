@@ -1037,6 +1037,112 @@ fn quick_scan_avoids_ambiguous_large_rename() {
     }));
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn same_content_destinations_choose_unique_file_identity_across_batch_order() {
+    for (moved_name, copy_name) in [("a-moved.wav", "z-copy.wav"), ("z-moved.wav", "a-copy.wav")] {
+        let dir = tempdir().unwrap();
+        let old = dir.path().join("old.wav");
+        let moved = dir.path().join(moved_name);
+        let copy = dir.path().join(copy_name);
+        std::fs::write(&old, b"same-content").unwrap();
+        let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+        scan_once(&db).unwrap();
+        db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+        db.set_user_tag(Path::new("old.wav"), Some("Original metadata"))
+            .unwrap();
+        insert_analysis_artifacts(dir.path(), "source::old.wav", "old.wav");
+
+        std::fs::copy(&old, &copy).unwrap();
+        std::fs::rename(&old, &moved).unwrap();
+        let mut targets = vec![
+            PathBuf::from("old.wav"),
+            PathBuf::from(moved_name),
+            PathBuf::from(copy_name),
+        ];
+        for index in 0..63 {
+            let name = format!("m-filler-{index:02}.wav");
+            std::fs::write(dir.path().join(&name), format!("filler-{index}")).unwrap();
+            targets.push(PathBuf::from(name));
+        }
+
+        let stats = sync_paths(&db, &targets).unwrap();
+
+        assert_eq!(stats.renames_reconciled, 1);
+        let moved_entry = db.entry_for_path(Path::new(moved_name)).unwrap().unwrap();
+        assert_eq!(moved_entry.tag, Rating::KEEP_1);
+        assert_eq!(moved_entry.user_tag.as_deref(), Some("Original metadata"));
+        let copy_entry = db.entry_for_path(Path::new(copy_name)).unwrap().unwrap();
+        assert_eq!(copy_entry.tag, Rating::NEUTRAL);
+        assert_eq!(copy_entry.user_tag, None);
+        assert_eq!(
+            sample_id_count(dir.path(), "features", "source::old.wav"),
+            0
+        );
+        assert_eq!(
+            sample_id_count(dir.path(), "features", &format!("source::{moved_name}")),
+            1
+        );
+        assert_eq!(
+            sample_id_count(dir.path(), "features", &format!("source::{copy_name}")),
+            0
+        );
+    }
+}
+
+#[test]
+fn ambiguous_same_content_destinations_remain_neutral_across_batches() {
+    let dir = tempdir().unwrap();
+    let old = dir.path().join("old.wav");
+    let first = dir.path().join("a-copy.wav");
+    let second = dir.path().join("z-copy.wav");
+    std::fs::write(&old, b"same-content").unwrap();
+    let db = SourceDatabase::open_for_scan(dir.path()).unwrap();
+    scan_once(&db).unwrap();
+    db.set_tag(Path::new("old.wav"), Rating::KEEP_1).unwrap();
+    db.set_user_tag(Path::new("old.wav"), Some("Must remain pending"))
+        .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::old.wav", "old.wav");
+
+    std::fs::copy(&old, &first).unwrap();
+    std::fs::copy(&old, &second).unwrap();
+    std::fs::remove_file(&old).unwrap();
+    let mut targets = vec![
+        PathBuf::from("old.wav"),
+        PathBuf::from("a-copy.wav"),
+        PathBuf::from("z-copy.wav"),
+    ];
+    for index in 0..63 {
+        let name = format!("m-filler-{index:02}.wav");
+        std::fs::write(dir.path().join(&name), format!("filler-{index}")).unwrap();
+        targets.push(PathBuf::from(name));
+    }
+
+    let quick = sync_paths(&db, &targets).unwrap();
+    assert_eq!(quick.renames_reconciled, 0);
+    let completed = complete_deferred_rename_candidates(&db, quick).unwrap();
+
+    assert_eq!(completed.renames_reconciled, 0);
+    for path in ["a-copy.wav", "z-copy.wav"] {
+        let entry = db.entry_for_path(Path::new(path)).unwrap().unwrap();
+        assert_eq!(entry.tag, Rating::NEUTRAL);
+        assert_eq!(entry.user_tag, None);
+        assert_eq!(
+            sample_id_count(dir.path(), "features", &format!("source::{path}")),
+            0
+        );
+    }
+    assert!(db.list_pending_renames().unwrap().iter().any(|entry| {
+        entry.relative_path == Path::new("old.wav")
+            && entry.metadata.tag == Rating::KEEP_1
+            && entry.metadata.user_tag.as_deref() == Some("Must remain pending")
+    }));
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::old.wav"),
+        1
+    );
+}
+
 fn insert_analysis_artifacts(root: &Path, sample_id: &str, relative_path: &str) {
     let conn = SourceDatabase::open_connection_for_background_job(root).unwrap();
     conn.execute(

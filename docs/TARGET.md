@@ -1331,6 +1331,8 @@ When reconciliation determines that a file was renamed outside Wavecrate, Wavecr
 
 Scan-based rename reconciliation should preserve the complete user-metadata snapshot atomically, including every collection membership and the exact prior curation timestamp. Reconciliation is not a new curation event: an unset curation timestamp should remain unset, and metadata staged for deferred rename recovery should remain durable across restart and schema migration.
 
+Rename ownership must be decided against the complete relevant destination set, not directory visitation or scan-batch order. A unique stable filesystem identity takes precedence over content equality. Content-hash recovery may transfer identity only when exactly one retained source and one eligible live destination remain; multiple same-content destinations stay independent and neutral while the original metadata remains pending.
+
 External filesystem changes detected by file watching or rescan should be reconciled as external state changes, not added to the Wavecrate undo stack. This includes external renames, moves, deletes, additions, and overwrites. Undo should only cover actions initiated inside Wavecrate.
 
 When a file is changed outside Wavecrate, Wavecrate should invalidate stale waveform, audio-analysis, BPM, transient, silence, similarity, embedded-ID, and display-name-derived state as needed. It should not silently reuse stale analysis for changed audio.
